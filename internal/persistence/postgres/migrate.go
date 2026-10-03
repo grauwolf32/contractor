@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,7 @@ import (
 )
 
 const migrationLockKey int64 = 0x436f6e7472616374
+const migrationLockPoll = 250 * time.Millisecond
 
 var (
 	// ErrMigrationDrift means an already-recorded version no longer matches the
@@ -56,8 +58,8 @@ func ApplyMigrationsWithBudgets(ctx context.Context, pool *pgxpool.Pool, budgets
 	}
 	var result MigrationResult
 	err = InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationLockKey); err != nil {
-			return fmt.Errorf("lock PostgreSQL migrations: %w", err)
+		if err := waitForMigrationLock(ctx, tx); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `
 CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
@@ -108,6 +110,29 @@ CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
 		return MigrationResult{}, err
 	}
 	return result, nil
+}
+
+// A blocking advisory-lock call would inherit the much shorter DDL
+// lock_timeout and statement_timeout. Polling keeps those transaction-local
+// settings in force for migrations while the outer migrator context bounds
+// the leader wait. Each poll also keeps the transaction from going idle.
+func waitForMigrationLock(ctx context.Context, tx pgx.Tx) error {
+	ticker := time.NewTicker(migrationLockPoll)
+	defer ticker.Stop()
+	for {
+		var acquired bool
+		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, migrationLockKey).Scan(&acquired); err != nil {
+			return fmt.Errorf("lock PostgreSQL migrations: %w", err)
+		}
+		if acquired {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for PostgreSQL migration leader: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 type appliedMigration struct {

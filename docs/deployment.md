@@ -172,10 +172,13 @@ contractor server run --config .local/server.yaml
 ```
 
 The DSN above assumes a local database; configure PostgreSQL TLS for a remote
-database. Migrations are forward-only and run in one transaction. Each
-statement is limited to 120 seconds and each lock wait to 10 seconds by
-default; for a large upgrade raise them with `--statement-timeout` and
-`--lock-timeout` (or `CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and
+database. Migrations are forward-only and run in one transaction. A concurrent
+migrator polls for the migration leader's advisory lock until it is released,
+the caller cancels, or the whole migrator deadline expires. Once it holds the
+lock, each statement is limited to 120 seconds and each DDL relation-lock wait
+to 10 seconds by default; for a large upgrade raise them with
+`--statement-timeout` and `--lock-timeout` (or
+`CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and
 `CONTRACTOR_MIGRATE_LOCK_TIMEOUT`, which the flags override). The lock timeout
 must be shorter than the statement timeout, and the whole run is allowed at
 least 15 minutes or the statement timeout plus about 5 minutes. These settings
