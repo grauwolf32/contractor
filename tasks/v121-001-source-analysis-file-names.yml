@@ -3,8 +3,8 @@ id: V121-001
 title: Preserve source files named like ignored directories
 milestone: source-analysis-file-names-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 559d17af2572181aa08e69c564d09753c1097cbc
 depends_on: []
 languages: [python]
 goal: Keep regular source files whose own names match ignored directory names.
