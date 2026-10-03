@@ -499,7 +499,10 @@ def test_other_modes_keep_managed_view_semantics(tmp_path: Path, storage: str, m
             timeout_seconds=5,
         )
         try:
-            session.storage.filesystem.pipe(f"{session.storage.root}/run_workdir/file", b"external")
+            physical_root = f"{session.storage.root}/run_workdir"
+            assert not session.storage.filesystem.exists(physical_root)
+            session.storage.filesystem.makedirs(physical_root, exist_ok=False)
+            session.storage.filesystem.pipe(f"{physical_root}/file", b"external")
             assert await session.read_text("file") == "source"
             await session.write_text("file", "managed")
             assert await session.read_text("file") == "managed"

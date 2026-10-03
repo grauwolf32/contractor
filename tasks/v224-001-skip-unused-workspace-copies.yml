@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V224-001
+title: Skip unused physical workspace copies
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: 512143dcf0498dd60ea8fbf5731cca0ff154107f
+depends_on: []
+languages: [python]
+goal: Materialize workspace members only for authoritative local direct storage.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/164
+  finding: Memory and overlay sessions keep a managed tree but hydration also writes an unused filesystem copy.
+scope:
+  in:
+    - Skip physical extraction and imported-state writes for memory and overlay sessions.
+    - Remove memory-direct edit mirroring and keep all logical tree validation.
+    - Update parity tests and filesystem documentation.
+  out:
+    - Changing local-direct disk behavior or private wire contracts.
+acceptance_criteria:
+  - {id: A1, text: Memory and overlay sessions hydrate no run_workdir members.}
+  - {id: A2, text: Memory-direct edits do not call fsspec and preserve snapshots and digests.}
+  - {id: A3, text: Local-direct disk behavior and all four storage/mode edit results remain unchanged.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_projectfs_zip.py tests/test_projectfs_overlay.py tests/test_projectfs_edit_parity.py tests/test_workspace_state.py, covers: [A1, A2, A3]}
+  - {command: make test-runtime, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
