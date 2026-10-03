@@ -3,7 +3,8 @@ id: V180-001
 title: Exclude deprecated weaknesses from the bundled CWE catalog
 milestone: cwe-catalog-deprecation-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 332d5d44258f1921f0385a4e0d616c2c305c91be
 depends_on: []
 languages: [python, go]
 goal: Reject retired CWE classifications before a finding proposal is stored.
