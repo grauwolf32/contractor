@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V136-001, file: v136-001-audit-api-route-table.yml}
   - {id: V135-001, file: v135-001-configuration-body-contract.yml}
   - {id: V134-001, file: v134-001-run-input-validation-test.yml}
   - {id: V133-001, file: v133-001-audit-management-interface.yml}
