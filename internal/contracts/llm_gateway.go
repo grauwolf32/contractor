@@ -128,8 +128,10 @@ func (s GatewayFailureSignature) validate() error {
 	}
 	text := s.MessageEquals + s.LiteLLMWrapped
 	if len(text) > MaximumGatewayFailureSignatureText || strings.TrimSpace(text) != text ||
-		!utf8.ValidString(text) || strings.ContainsFunc(text, unicode.IsControl) {
-		return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable text must be trimmed UTF-8 of at most %d bytes without control characters", MaximumGatewayFailureSignatureText)
+		!utf8.ValidString(text) || strings.ContainsFunc(text, func(char rune) bool {
+		return unicode.In(char, unicode.Cc, unicode.Cf, unicode.Co, unicode.Cs)
+	}) {
+		return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable text must be trimmed UTF-8 of at most %d bytes without control, format, private-use, or surrogate characters", MaximumGatewayFailureSignatureText)
 	}
 	return nil
 }

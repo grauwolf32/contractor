@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V186-001
+title: Align Gateway failure-signature Unicode validation
+milestone: gateway-signature-parity-2026-10
+priority: P1
+status: completed
+implementation_commit: 0f35bb3a6493bb1f1a086e287847d82b6bde72b1
+depends_on: []
+languages: [go, python]
+goal: Reject Gateway signatures at publish time whenever Runtime would reject them.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/196
+  specification: docs/spec/01-agent-template.md
+  finding: Go rejects Cc only while Runtime rejects every Unicode C category.
+scope:
+  in:
+    - Reject Cc, Cf, Co and Cs in both validators, while allowing Cn to avoid Unicode-version drift.
+    - Add shared invalid fixtures and direct edge-case tests.
+    - State the exact excluded categories in the specification.
+  out:
+    - Changing signature matching or status-code policy.
+acceptance_criteria:
+  - {id: A1, text: Go and Runtime reject format and private-use code points including U+200B, U+FEFF, U+00AD and U+E000.}
+  - {id: A2, text: A known unassigned code point is accepted by both validators.}
+  - {id: A3, text: Shared invalid Gateway fixtures fail both contract suites and the spec names the categories.}
+tests:
+  - {command: go test ./internal/contracts, covers: [A1, A2, A3]}
+  - {command: cd runtime && uv run pytest tests/test_contracts.py, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A3]}

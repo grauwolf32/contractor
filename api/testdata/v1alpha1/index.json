@@ -55,6 +55,8 @@
     "heartbeat-response-unknown-action.json": {"type": "HeartbeatResponse", "schema": "agent-heartbeat.schema.json", "strict": true},
     "llm-gateway-config-permanent-code-newline.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
     "llm-gateway-config-secret-field.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
+    "llm-gateway-config-signature-format-char.json": {"type": "ResolvedLLMGatewayConfig", "reason": "invariant", "strict": true},
+    "llm-gateway-config-signature-private-use.json": {"type": "ResolvedLLMGatewayConfig", "reason": "invariant", "strict": true},
     "llm-gateway-config-signature-retryable-status.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
     "llm-gateway-config-signature-two-matchers.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
     "registration-bad-api-version.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "reason": "version"},
