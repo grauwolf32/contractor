@@ -3,7 +3,8 @@ id: V206-001
 title: Preserve owner Queue control revision during Stage admission
 milestone: queue-control-consistency-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 10ff0699fc9a44b5d75c72674aa906087748ac62
 depends_on: []
 languages: [go, sql]
 goal: Keep scheduler Stage admission from changing the owner's public Queue pause control.
