@@ -10,9 +10,9 @@ import {
   type AgentTemplateBody,
 } from "../../api/operations";
 import { CursorControls } from "../../app/cursor-controls";
-import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
+import { QueryView } from "../../app/query-view";
 
 export function AgentListRoute() {
   const api = usePublicAPI();
@@ -71,93 +71,99 @@ export function AgentListRoute() {
         )}
       </div>
 
-      {query.isPending ? (
-        <p role="status">Searching published Agents…</p>
-      ) : query.error ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="panel compact-empty">
-          <strong>
-            {state.committedSearch === ""
-              ? "No Agents published."
-              : "No Agents match this search."}
-          </strong>
-          {state.committedSearch === "" ? null : (
-            <p>Try a different literal name, version or description.</p>
-          )}
-        </div>
-      ) : (
-        <div className="catalog-agent-grid">
-          {[...families].map(([name, versions]) => {
-            versions.sort((a, b) =>
-              compareWorkflowVersions(b.ref.version, a.ref.version),
-            );
-            const item =
-              versions.find(
-                (version) => version.ref.version === choices[name],
-              ) ?? versions[0]!;
-            const body = item.body as AgentTemplateBody;
-            return (
-              <article className="panel catalog-agent-family" key={name}>
-                <label className="catalog-agent-version">
-                  Version
-                  <select
-                    aria-label={`Version of ${name}`}
-                    value={item.ref.version}
-                    onChange={(event) =>
-                      setChoices((previous) => ({
-                        ...previous,
-                        [name]: event.target.value,
-                      }))
-                    }
+      <QueryView
+        query={query}
+        loading={<p role="status">Searching published Agents…</p>}
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="panel compact-empty">
+            <strong>
+              {state.committedSearch === ""
+                ? "No Agents published."
+                : "No Agents match this search."}
+            </strong>
+            {state.committedSearch === "" ? null : (
+              <p>Try a different literal name, version or description.</p>
+            )}
+          </div>
+        }
+      >
+        {() => (
+          <div className="catalog-agent-grid">
+            {[...families].map(([name, versions]) => {
+              versions.sort((a, b) =>
+                compareWorkflowVersions(b.ref.version, a.ref.version),
+              );
+              const item =
+                versions.find(
+                  (version) => version.ref.version === choices[name],
+                ) ?? versions[0]!;
+              const body = item.body as AgentTemplateBody;
+              return (
+                <article className="panel catalog-agent-family" key={name}>
+                  <label className="catalog-agent-version">
+                    Version
+                    <select
+                      aria-label={`Version of ${name}`}
+                      value={item.ref.version}
+                      onChange={(event) =>
+                        setChoices((previous) => ({
+                          ...previous,
+                          [name]: event.target.value,
+                        }))
+                      }
+                    >
+                      {versions.map((version) => (
+                        <option
+                          key={version.ref.version}
+                          value={version.ref.version}
+                        >
+                          {version.ref.version}
+                        </option>
+                      ))}
+                    </select>
+                    <small>
+                      {versions.length} matching{" "}
+                      {versions.length === 1 ? "version" : "versions"} on this
+                      page
+                    </small>
+                  </label>
+                  <Link
+                    className="catalog-agent-card"
+                    to={agentPath(item.ref.name, item.ref.version)}
+                    state={{
+                      returnTo,
+                      returnLabel: "Agent search",
+                      returnState: location.state,
+                    }}
                   >
-                    {versions.map((version) => (
-                      <option
-                        key={version.ref.version}
-                        value={version.ref.version}
-                      >
-                        {version.ref.version}
-                      </option>
-                    ))}
-                  </select>
-                  <small>
-                    {versions.length} matching{" "}
-                    {versions.length === 1 ? "version" : "versions"} on this
-                    page
-                  </small>
-                </label>
-                <Link
-                  className="catalog-agent-card"
-                  to={agentPath(item.ref.name, item.ref.version)}
-                  state={{
-                    returnTo,
-                    returnLabel: "Agent search",
-                    returnState: location.state,
-                  }}
-                >
-                  <div className="catalog-agent-identity">
-                    <strong>{item.ref.name}</strong>
-                    <span className="state-badge">{item.ref.version}</span>
-                  </div>
-                  <p>{body.description || "No authored description."}</p>
-                  <span className="muted-copy">
-                    {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
-                    {body.toolsets?.reduce(
-                      (total, toolset) => total + toolset.tools.length,
-                      0,
-                    ) ?? 0}{" "}
-                    tools
-                  </span>
-                  <code className="catalog-exact-selector">
-                    {item.ref.name}@{item.ref.version}
-                  </code>
-                  <span className="catalog-agent-open">Inspect version →</span>
-                </Link>
-              </article>
-            );
-          })}
-        </div>
-      )}
+                    <div className="catalog-agent-identity">
+                      <strong>{item.ref.name}</strong>
+                      <span className="state-badge">{item.ref.version}</span>
+                    </div>
+                    <p>{body.description || "No authored description."}</p>
+                    <span className="muted-copy">
+                      {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
+                      {body.toolsets?.reduce(
+                        (total, toolset) => total + toolset.tools.length,
+                        0,
+                      ) ?? 0}{" "}
+                      tools
+                    </span>
+                    <code className="catalog-exact-selector">
+                      {item.ref.name}@{item.ref.version}
+                    </code>
+                    <span className="catalog-agent-open">
+                      Inspect version →
+                    </span>
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </QueryView>
 
       {query.data === undefined ? null : (
         <CursorControls

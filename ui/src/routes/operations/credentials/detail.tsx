@@ -13,6 +13,7 @@ import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 import { CredentialPolicyView } from "./policy";
 import { InUseErrorDetails } from "../in-use-details";
+import { QueryView } from "../../../app/query-view";
 
 function CredentialDeletion({ credentialId }: { credentialId: string }) {
   const api = usePublicAPI();
@@ -95,81 +96,87 @@ export function CredentialDetailRoute() {
       <h3>{credentialId}</h3>
       {!valid ? (
         <ErrorNotice error={new Error("Credential route is invalid")} />
-      ) : query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading credential metadata…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
       ) : (
-        <>
-          <dl className="metadata-grid panel">
-            <div>
-              <dt>Status</dt>
-              <dd>
-                <span className="state-badge state-succeeded">active</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Safe label</dt>
-              <dd>{query.data.label ?? "None"}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{formatTimestamp(query.data.createdAt)}</dd>
-            </div>
-            <div>
-              <dt>Gateway</dt>
-              <dd>
-                <ConfigurationRefLink
-                  value={exactConfigurationRef(query.data.llmGateway)}
-                />
-              </dd>
-            </div>
-          </dl>
-          <div className="panel credential-policy-panel">
-            <p className="eyebrow">Policy</p>
-            <h3>LiteLLM-enforced limits</h3>
-            <CredentialPolicyView policy={query.data.effectivePolicy} />
-          </div>
-          <div className="panel credential-consumption-panel">
-            <p className="eyebrow">Gateway observation</p>
-            <h3>Consumption</h3>
-            {query.data.consumption === undefined ? (
-              <p className="compact-empty">
-                No live consumption aggregate is available.
-              </p>
-            ) : (
-              <dl className="metrics-grid">
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading credential metadata…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+        >
+          {(data) => (
+            <>
+              <dl className="metadata-grid panel">
                 <div>
-                  <dt>Spend</dt>
-                  <dd>{query.data.consumption.spend ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Requests</dt>
-                  <dd>{query.data.consumption.requests ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Input tokens</dt>
-                  <dd>{query.data.consumption.inputTokens ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Output tokens</dt>
-                  <dd>{query.data.consumption.outputTokens ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Observed</dt>
+                  <dt>Status</dt>
                   <dd>
-                    {query.data.consumption.observedAt === undefined
-                      ? "—"
-                      : formatTimestamp(query.data.consumption.observedAt)}
+                    <span className="state-badge state-succeeded">active</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Safe label</dt>
+                  <dd>{data.label ?? "None"}</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>{formatTimestamp(data.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt>Gateway</dt>
+                  <dd>
+                    <ConfigurationRefLink
+                      value={exactConfigurationRef(data.llmGateway)}
+                    />
                   </dd>
                 </div>
               </dl>
-            )}
-          </div>
-          <CredentialDeletion credentialId={credentialId} />
-        </>
+              <div className="panel credential-policy-panel">
+                <p className="eyebrow">Policy</p>
+                <h3>LiteLLM-enforced limits</h3>
+                <CredentialPolicyView policy={data.effectivePolicy} />
+              </div>
+              <div className="panel credential-consumption-panel">
+                <p className="eyebrow">Gateway observation</p>
+                <h3>Consumption</h3>
+                {data.consumption === undefined ? (
+                  <p className="compact-empty">
+                    No live consumption aggregate is available.
+                  </p>
+                ) : (
+                  <dl className="metrics-grid">
+                    <div>
+                      <dt>Spend</dt>
+                      <dd>{data.consumption.spend ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Requests</dt>
+                      <dd>{data.consumption.requests ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Input tokens</dt>
+                      <dd>{data.consumption.inputTokens ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Output tokens</dt>
+                      <dd>{data.consumption.outputTokens ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Observed</dt>
+                      <dd>
+                        {data.consumption.observedAt === undefined
+                          ? "—"
+                          : formatTimestamp(data.consumption.observedAt)}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
+              </div>
+              <CredentialDeletion credentialId={credentialId} />
+            </>
+          )}
+        </QueryView>
       )}
     </div>
   );

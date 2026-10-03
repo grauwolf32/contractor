@@ -22,6 +22,7 @@ import { ErrorNotice } from "../app/error-notice";
 import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
+import { QueryView } from "../app/query-view";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 // Live subscriptions left waiting by a failed resync, or by a live session
@@ -298,75 +299,84 @@ export function QueuePanel() {
         </p>
       ) : null}
 
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Queue…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No active Runs match this view.</strong>
-          <p>Terminal Runs remain available in execution history.</p>
-        </div>
-      ) : (
-        <div className="table-scroll">
-          <table className="responsive-table run-list-table queue-table">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Workflow</th>
-                <th>State</th>
-                <th>Context</th>
-                <th>Run metadata labels</th>
-                <th>Created</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((item) => (
-                <tr key={item.runId}>
-                  <td className="run-list-id-cell" data-label="Run">
-                    <ContextLink
-                      returnLabel="Active queue"
-                      className="run-list-id-link"
-                      to={`/runs/${encodeURIComponent(item.runId)}`}
-                      aria-label={item.runId}
-                      title={item.runId}
-                    >
-                      {compactRunId(item.runId)}
-                    </ContextLink>
-                  </td>
-                  <td className="run-list-workflow-cell" data-label="Workflow">
-                    <span className="run-list-mobile-label">Workflow</span>
-                    <code>{item.workflow}</code>
-                  </td>
-                  <td className="run-list-state-cell" data-label="State">
-                    <StateBadge state={item.state} />
-                  </td>
-                  <td className="queue-context-cell" data-label="Context">
-                    <QueueContext item={item} />
-                  </td>
-                  <td
-                    className={`run-list-labels-cell ${Object.keys(item.labels).length === 0 ? "run-list-labels-empty" : ""}`}
-                    data-label="Run metadata labels"
-                  >
-                    <span className="run-list-mobile-label">Labels</span>
-                    <RunMetadataLabelChips labels={item.labels} />
-                  </td>
-                  <td className="run-list-created-cell" data-label="Created">
-                    <RecordedTime value={item.createdAt} />
-                  </td>
-                  <td className="run-list-updated-cell" data-label="Updated">
-                    <span className="run-list-mobile-label">Updated</span>
-                    <RecordedTime value={item.updatedAt} />
-                  </td>
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Queue…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+        isEmpty={(queryData) => queryData.items.length === 0}
+        empty={
+          <div className="compact-empty">
+            <strong>No active Runs match this view.</strong>
+            <p>Terminal Runs remain available in execution history.</p>
+          </div>
+        }
+      >
+        {(queryData) => (
+          <div className="table-scroll">
+            <table className="responsive-table run-list-table queue-table">
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Workflow</th>
+                  <th>State</th>
+                  <th>Context</th>
+                  <th>Run metadata labels</th>
+                  <th>Created</th>
+                  <th>Updated</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {queryData.items.map((item) => (
+                  <tr key={item.runId}>
+                    <td className="run-list-id-cell" data-label="Run">
+                      <ContextLink
+                        returnLabel="Active queue"
+                        className="run-list-id-link"
+                        to={`/runs/${encodeURIComponent(item.runId)}`}
+                        aria-label={item.runId}
+                        title={item.runId}
+                      >
+                        {compactRunId(item.runId)}
+                      </ContextLink>
+                    </td>
+                    <td
+                      className="run-list-workflow-cell"
+                      data-label="Workflow"
+                    >
+                      <span className="run-list-mobile-label">Workflow</span>
+                      <code>{item.workflow}</code>
+                    </td>
+                    <td className="run-list-state-cell" data-label="State">
+                      <StateBadge state={item.state} />
+                    </td>
+                    <td className="queue-context-cell" data-label="Context">
+                      <QueueContext item={item} />
+                    </td>
+                    <td
+                      className={`run-list-labels-cell ${Object.keys(item.labels).length === 0 ? "run-list-labels-empty" : ""}`}
+                      data-label="Run metadata labels"
+                    >
+                      <span className="run-list-mobile-label">Labels</span>
+                      <RunMetadataLabelChips labels={item.labels} />
+                    </td>
+                    <td className="run-list-created-cell" data-label="Created">
+                      <RecordedTime value={item.createdAt} />
+                    </td>
+                    <td className="run-list-updated-cell" data-label="Updated">
+                      <span className="run-list-mobile-label">Updated</span>
+                      <RecordedTime value={item.updatedAt} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </QueryView>
 
       <CursorControls
         label="Queue pages"

@@ -1,11 +1,11 @@
 import { useLocation } from "react-router";
-import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "../catalog/navigation";
 import { useCatalogQueryState } from "../catalog/query-state";
 import { WorkflowCard } from "./card";
 import { useWorkflowFamilies } from "./families";
 import { useWorkflowInventory } from "./inventory";
 import { RefreshButton } from "../../app/refresh-button";
+import { QueryView } from "../../app/query-view";
 
 export function WorkflowListRoute() {
   const location = useLocation();
@@ -53,48 +53,54 @@ export function WorkflowListRoute() {
           />
         </div>
       </div>
-      {query.error ? (
-        <ErrorNotice error={query.error} />
-      ) : query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading the complete Workflow inventory…
-        </p>
-      ) : filtered.length === 0 ? (
-        <div className="panel compact-empty">
-          <strong>
-            {term
-              ? "No Workflows match this search."
-              : "No published Workflows found."}
-          </strong>
-          <p>
-            {term
-              ? "Try a different name, version or description."
-              : "Publish a Workflow to make it available here."}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading the complete Workflow inventory…
           </p>
-          {term ? (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => state.changeDraftSearch("")}
-            >
-              Clear search
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <div className="workflow-family-grid">
-          {filtered.map(({ name, versions, workflow }) => (
-            <WorkflowCard
-              key={name}
-              workflow={workflow}
-              versions={versions}
-              onVersion={(version) => selectVersion(name, version)}
-              returnTo={locationDestination(location)}
-              returnState={location.state}
-            />
-          ))}
-        </div>
-      )}
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {() =>
+          filtered.length === 0 ? (
+            <div className="panel compact-empty">
+              <strong>
+                {term
+                  ? "No Workflows match this search."
+                  : "No published Workflows found."}
+              </strong>
+              <p>
+                {term
+                  ? "Try a different name, version or description."
+                  : "Publish a Workflow to make it available here."}
+              </p>
+              {term ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => state.changeDraftSearch("")}
+                >
+                  Clear search
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="workflow-family-grid">
+              {filtered.map(({ name, versions, workflow }) => (
+                <WorkflowCard
+                  key={name}
+                  workflow={workflow}
+                  versions={versions}
+                  onVersion={(version) => selectVersion(name, version)}
+                  returnTo={locationDestination(location)}
+                  returnState={location.state}
+                />
+              ))}
+            </div>
+          )
+        }
+      </QueryView>
     </section>
   );
 }

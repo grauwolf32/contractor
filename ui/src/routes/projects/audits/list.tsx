@@ -37,6 +37,7 @@ import { StateBadge } from "../../runs/components";
 import "./styles.css";
 import { RefreshButton } from "../../../app/refresh-button";
 import { ProjectSectionActions } from "../navigation";
+import { QueryView } from "../../../app/query-view";
 
 const INITIAL_CURSOR = null;
 // The Project Artifact API filters by exact namespace only, not by media
@@ -296,41 +297,45 @@ function AuditCreateForm({
         </button>
       </div>
       <form className="audit-create-form" onSubmit={submit}>
-        {profiles.isPending ? (
-          <p className="loading-copy">Loading Audit profiles…</p>
-        ) : profiles.error !== null ? (
-          <ErrorNotice error={profiles.error} />
-        ) : profileItems.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Audit profiles are published.</strong>
-          </div>
-        ) : (
-          <label>
-            Audit profile
-            <select
-              value={effectiveProfileSelection}
-              onChange={(event) => selectProfile(event.currentTarget.value)}
-            >
-              {profileItems.map((candidate) => (
-                <option
-                  key={profileOption(candidate)}
-                  value={profileOption(candidate)}
+        <QueryView
+          query={profiles}
+          loading={<p className="loading-copy">Loading Audit profiles…</p>}
+          onRetry={() => void profiles.refetch()}
+        >
+          {() =>
+            profileItems.length === 0 ? (
+              <div className="compact-empty">
+                <strong>No Audit profiles are published.</strong>
+              </div>
+            ) : (
+              <label>
+                Audit profile
+                <select
+                  value={effectiveProfileSelection}
+                  onChange={(event) => selectProfile(event.currentTarget.value)}
                 >
-                  {candidate.ref.name}@{candidate.ref.version}
-                  {candidate.serverCompatible
-                    ? profileItems.find(
-                        (p) =>
-                          p.ref.name === candidate.ref.name &&
-                          p.serverCompatible,
-                      ) === candidate
-                      ? " · latest loaded version"
-                      : ""
-                    : " — unsupported"}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+                  {profileItems.map((candidate) => (
+                    <option
+                      key={profileOption(candidate)}
+                      value={profileOption(candidate)}
+                    >
+                      {candidate.ref.name}@{candidate.ref.version}
+                      {candidate.serverCompatible
+                        ? profileItems.find(
+                            (p) =>
+                              p.ref.name === candidate.ref.name &&
+                              p.serverCompatible,
+                          ) === candidate
+                          ? " · latest loaded version"
+                          : ""
+                        : " — unsupported"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          }
+        </QueryView>
         {profiles.hasNextPage ? (
           <button
             className="secondary-button"
@@ -609,136 +614,145 @@ export function ProjectAuditWorkspace({
           onClose={() => setShowCreate(false)}
         />
       ) : null}
-      {audits.isPending ? (
-        <p className="loading-copy">Loading Audits…</p>
-      ) : audits.error !== null ? (
-        <ErrorNotice error={audits.error} />
-      ) : audits.data.items.length === 0 ? (
-        <div className="empty-state panel">
-          <h3>No Audits yet</h3>
-          <p>
-            Create an audit to run a set of checks against your project sources.
-          </p>
-        </div>
-      ) : (
-        <div className="audit-card-grid">
-          {audits.data.items.map((audit) => {
-            const root = `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
-            const stop = describeStopReason(audit);
-            const inputNames = [
-              ...new Set(
-                Object.values(audit.inputs).map((input) => input.ref.name),
-              ),
-            ];
-            return (
-              <article
-                className="panel audit-card"
-                key={audit.auditId}
-                aria-label={`${auditProfileLabel(audit)} ${audit.auditId}`}
-              >
-                <div className="section-heading">
-                  <div>
-                    <p className="eyebrow">
-                      {formatTimestamp(audit.createdAt)}
+      <QueryView
+        query={audits}
+        loading={<p className="loading-copy">Loading Audits…</p>}
+        onRetry={() => void audits.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="empty-state panel">
+            <h3>No Audits yet</h3>
+            <p>
+              Create an audit to run a set of checks against your project
+              sources.
+            </p>
+          </div>
+        }
+      >
+        {(data) => (
+          <div className="audit-card-grid">
+            {data.items.map((audit) => {
+              const root = `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
+              const stop = describeStopReason(audit);
+              const inputNames = [
+                ...new Set(
+                  Object.values(audit.inputs).map((input) => input.ref.name),
+                ),
+              ];
+              return (
+                <article
+                  className="panel audit-card"
+                  key={audit.auditId}
+                  aria-label={`${auditProfileLabel(audit)} ${audit.auditId}`}
+                >
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">
+                        {formatTimestamp(audit.createdAt)}
+                      </p>
+                      <h3>
+                        <ContextLink
+                          returnLabel="Project Audits"
+                          to={
+                            audit.state === "draft" ? root : `${root}/coverage`
+                          }
+                        >
+                          {auditProfileLabel(audit)}
+                        </ContextLink>
+                      </h3>
+                      <p className="audit-card-inputs">
+                        {inputNames.length === 0 ? (
+                          <span>No inputs selected</span>
+                        ) : (
+                          inputNames.map((name) => (
+                            <code key={name}>{name}</code>
+                          ))
+                        )}
+                        <span
+                          className="audit-card-short-id"
+                          title={audit.auditId}
+                        >
+                          #{audit.auditId.slice(-8)}
+                        </span>
+                      </p>
+                    </div>
+                    <StateBadge state={audit.state} />
+                  </div>
+                  {audit.scope.objective ? (
+                    <p className="audit-card-objective">
+                      {audit.scope.objective}
                     </p>
-                    <h3>
+                  ) : null}
+                  <dl className="metadata-grid audit-card-stats">
+                    <div>
+                      <dt>Runs submitted</dt>
+                      <dd>{audit.submittedRunCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Runs in progress</dt>
+                      <dd>{audit.outstandingRunCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Updated</dt>
+                      <dd>{formatTimestamp(audit.updatedAt)}</dd>
+                    </div>
+                  </dl>
+                  {stop === null ? null : (
+                    <p
+                      className={
+                        stop.tone === "error" && !stop.deadline
+                          ? "form-error"
+                          : "muted-copy audit-card-stop"
+                      }
+                    >
+                      {stop.deadline
+                        ? audit.state === "paused"
+                          ? "Time limit reached. Continue with a longer limit or no time limit."
+                          : "Time limit reached; no further Runs were submitted."
+                        : stop.label === undefined
+                          ? stop.message
+                          : `${stop.label}. ${stop.message}`}
+                    </p>
+                  )}
+                  <div className="audit-card-footer">
+                    <div className="button-row">
                       <ContextLink
                         returnLabel="Project Audits"
+                        className="audit-open-link"
                         to={audit.state === "draft" ? root : `${root}/coverage`}
                       >
-                        {auditProfileLabel(audit)}
+                        {audit.state === "draft"
+                          ? "Open draft →"
+                          : "View checks & results →"}
                       </ContextLink>
-                    </h3>
-                    <p className="audit-card-inputs">
-                      {inputNames.length === 0 ? (
-                        <span>No inputs selected</span>
-                      ) : (
-                        inputNames.map((name) => <code key={name}>{name}</code>)
-                      )}
-                      <span
-                        className="audit-card-short-id"
-                        title={audit.auditId}
-                      >
-                        #{audit.auditId.slice(-8)}
-                      </span>
+                      {audit.state === "waiting_review" ? (
+                        <ContextLink
+                          returnLabel="Project Audits"
+                          to={`${root}/reviews`}
+                        >
+                          Review decisions
+                        </ContextLink>
+                      ) : null}
+                    </div>
+                    <AuditControls
+                      audit={audit}
+                      projectName={projectName}
+                      compact
+                    />
+                  </div>
+                  <details className="audit-record-details">
+                    <summary>Audit identity</summary>
+                    <p>
+                      <code>{audit.auditId}</code> · {audit.profile.name}@
+                      {audit.profile.version}
                     </p>
-                  </div>
-                  <StateBadge state={audit.state} />
-                </div>
-                {audit.scope.objective ? (
-                  <p className="audit-card-objective">
-                    {audit.scope.objective}
-                  </p>
-                ) : null}
-                <dl className="metadata-grid audit-card-stats">
-                  <div>
-                    <dt>Runs submitted</dt>
-                    <dd>{audit.submittedRunCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Runs in progress</dt>
-                    <dd>{audit.outstandingRunCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Updated</dt>
-                    <dd>{formatTimestamp(audit.updatedAt)}</dd>
-                  </div>
-                </dl>
-                {stop === null ? null : (
-                  <p
-                    className={
-                      stop.tone === "error" && !stop.deadline
-                        ? "form-error"
-                        : "muted-copy audit-card-stop"
-                    }
-                  >
-                    {stop.deadline
-                      ? audit.state === "paused"
-                        ? "Time limit reached. Continue with a longer limit or no time limit."
-                        : "Time limit reached; no further Runs were submitted."
-                      : stop.label === undefined
-                        ? stop.message
-                        : `${stop.label}. ${stop.message}`}
-                  </p>
-                )}
-                <div className="audit-card-footer">
-                  <div className="button-row">
-                    <ContextLink
-                      returnLabel="Project Audits"
-                      className="audit-open-link"
-                      to={audit.state === "draft" ? root : `${root}/coverage`}
-                    >
-                      {audit.state === "draft"
-                        ? "Open draft →"
-                        : "View checks & results →"}
-                    </ContextLink>
-                    {audit.state === "waiting_review" ? (
-                      <ContextLink
-                        returnLabel="Project Audits"
-                        to={`${root}/reviews`}
-                      >
-                        Review decisions
-                      </ContextLink>
-                    ) : null}
-                  </div>
-                  <AuditControls
-                    audit={audit}
-                    projectName={projectName}
-                    compact
-                  />
-                </div>
-                <details className="audit-record-details">
-                  <summary>Audit identity</summary>
-                  <p>
-                    <code>{audit.auditId}</code> · {audit.profile.name}@
-                    {audit.profile.version}
-                  </p>
-                </details>
-              </article>
-            );
-          })}
-        </div>
-      )}
+                  </details>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </QueryView>
       <CursorControls
         label="Project Audit pages"
         {...pages.controls(audits.data?.page)}

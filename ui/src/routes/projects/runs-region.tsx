@@ -8,11 +8,11 @@ import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
-import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
+import { QueryView } from "../../app/query-view";
 
 function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
   return (
@@ -126,20 +126,24 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
         Succeeded describes execution only; open the recorded outputs to assess
         the result.
       </p>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Eval Runs…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No Workflow Runs belong to this Eval.</strong>
-          <p>Runs labelled with this workspace appear here once launched.</p>
-        </div>
-      ) : (
-        <EvaluationRuns runs={query.data.items} />
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Eval Runs…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="compact-empty">
+            <strong>No Workflow Runs belong to this Eval.</strong>
+            <p>Runs labelled with this workspace appear here once launched.</p>
+          </div>
+        }
+      >
+        {(data) => <EvaluationRuns runs={data.items} />}
+      </QueryView>
       <CursorControls
         label="Project Run pages"
         {...pages.controls(query.data?.page)}

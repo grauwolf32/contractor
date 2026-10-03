@@ -25,6 +25,7 @@ import { AuditAnchor } from "./shared";
 import "./styles.css";
 import { RefreshButton } from "../../../app/refresh-button";
 import { ProjectSectionActions } from "../navigation";
+import { QueryView } from "../../../app/query-view";
 
 export function ProjectFindingsRoute() {
   const api = usePublicAPI();
@@ -170,215 +171,233 @@ export function ProjectFindingsRoute() {
   return (
     <section className="route-page audit-page project-findings-page">
       <ProjectSectionActions>{refreshControl}</ProjectSectionActions>
-      {project.error !== null ? (
-        <ErrorNotice error={project.error} />
-      ) : project.isPending ? (
-        <p className="loading-copy">Loading Project…</p>
-      ) : project.data.kind !== "project" ? (
-        <ErrorNotice
-          error={new Error("Findings are available for Projects.")}
-        />
-      ) : audits.error !== null ? (
-        <ErrorNotice error={audits.error} />
-      ) : audits.isPending ? (
-        <p className="loading-copy">Loading Audits…</p>
-      ) : (
-        <>
-          <section
-            className="panel audit-findings-toolbar"
-            aria-label="Finding filters"
-          >
-            <label>
-              Search findings
-              <input
-                type="search"
-                value={filters.get("q") ?? ""}
-                onChange={(event) => setFilter("q", event.target.value)}
-                placeholder="Title, description or affected component"
-              />
-            </label>
-            <label>
-              Audit
-              <select
-                value={selectedAudit}
-                onChange={(event) => setFilter("audit", event.target.value)}
+      <QueryView
+        query={project}
+        loading={<p className="loading-copy">Loading Project…</p>}
+        onRetry={() => void project.refetch()}
+      >
+        {(data) =>
+          data.kind !== "project" ? (
+            <ErrorNotice
+              error={new Error("Findings are available for Projects.")}
+            />
+          ) : audits.error !== null ? (
+            <ErrorNotice error={audits.error} />
+          ) : audits.isPending ? (
+            <p className="loading-copy">Loading Audits…</p>
+          ) : (
+            <>
+              <section
+                className="panel audit-findings-toolbar"
+                aria-label="Finding filters"
               >
-                <option value="">All audits ({sources.length})</option>
-                {sources.map((audit) => (
-                  <option key={audit.auditId} value={audit.auditId}>
-                    {auditProfileLabel(audit)} · {audit.auditId.slice(-8)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Severity
-              <select
-                value={severity}
-                onChange={(event) => setFilter("severity", event.target.value)}
-              >
-                <option value="">All severities</option>
-                {["critical", "high", "medium", "low", "informational"].map(
-                  (value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-            <label>
-              Analyst verdict
-              <select
-                value={verdict}
-                onChange={(event) => setFilter("verdict", event.target.value)}
-              >
-                <option value="">All verdicts · unreviewed first</option>
-                <option value="unreviewed">Unreviewed</option>
-                <option value="true_positive">True positive</option>
-                <option value="false_positive">False positive</option>
-              </select>
-            </label>
-          </section>
-          <div className="section-heading audit-findings-count" role="status">
-            <span>
-              {visible.length} of {rows.length} findings
-              {loading || failed.length > 0 ? " loaded" : ""} · {sources.length}{" "}
-              audits
-            </span>
-            {selectedAudit || severity || query || verdict ? (
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() =>
-                  setFilters({}, { replace: true, state: location.state })
-                }
-              >
-                Clear filters
-              </button>
-            ) : null}
-          </div>
-          {loading ? (
-            <p className="loading-copy">Loading findings from all audits…</p>
-          ) : null}
-          {failed.map((audit) => {
-            const index = sources.indexOf(audit);
-            return (
+                <label>
+                  Search findings
+                  <input
+                    type="search"
+                    value={filters.get("q") ?? ""}
+                    onChange={(event) => setFilter("q", event.target.value)}
+                    placeholder="Title, description or affected component"
+                  />
+                </label>
+                <label>
+                  Audit
+                  <select
+                    value={selectedAudit}
+                    onChange={(event) => setFilter("audit", event.target.value)}
+                  >
+                    <option value="">All audits ({sources.length})</option>
+                    {sources.map((audit) => (
+                      <option key={audit.auditId} value={audit.auditId}>
+                        {auditProfileLabel(audit)} · {audit.auditId.slice(-8)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Severity
+                  <select
+                    value={severity}
+                    onChange={(event) =>
+                      setFilter("severity", event.target.value)
+                    }
+                  >
+                    <option value="">All severities</option>
+                    {["critical", "high", "medium", "low", "informational"].map(
+                      (value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <label>
+                  Analyst verdict
+                  <select
+                    value={verdict}
+                    onChange={(event) =>
+                      setFilter("verdict", event.target.value)
+                    }
+                  >
+                    <option value="">All verdicts · unreviewed first</option>
+                    <option value="unreviewed">Unreviewed</option>
+                    <option value="true_positive">True positive</option>
+                    <option value="false_positive">False positive</option>
+                  </select>
+                </label>
+              </section>
               <div
-                className="notice notice-error"
-                role="alert"
-                key={audit.auditId}
+                className="section-heading audit-findings-count"
+                role="status"
               >
-                <strong>
-                  Findings unavailable: {auditProfileLabel(audit)} ·{" "}
-                  {audit.auditId.slice(-8)}
-                </strong>
-                <p>
-                  {findings.results[index]?.isSuccess
-                    ? "Showing the last loaded findings for this audit. Refresh failed."
-                    : "This audit is missing from the results shown below."}
-                </p>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => void findings.results[index]?.refetch()}
-                >
-                  Retry findings
-                </button>
+                <span>
+                  {visible.length} of {rows.length} findings
+                  {loading || failed.length > 0 ? " loaded" : ""} ·{" "}
+                  {sources.length} audits
+                </span>
+                {selectedAudit || severity || query || verdict ? (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() =>
+                      setFilters({}, { replace: true, state: location.state })
+                    }
+                  >
+                    Clear filters
+                  </button>
+                ) : null}
               </div>
-            );
-          })}
-          {visible.length === 0 && !loading && failed.length === 0 ? (
-            <div className="empty-state panel">
-              <h3>
-                {rows.length === 0 ? "No findings yet" : "No matching findings"}
-              </h3>
-              <p>
-                {rows.length === 0
-                  ? "Findings will appear here as audit checks publish them."
-                  : "Try another search or clear the filters."}
-              </p>
-            </div>
-          ) : null}
-          <div className="audit-finding-list">
-            <AuditAnchor ready={!loading} />
-            {visible.map(({ audit, finding, index }) => {
-              const reviewQuery = reviews.results[index]!;
-              const pendingReview = reviewQuery.items.find(
-                (review) =>
-                  review.state === "pending" &&
-                  review.findingId === finding.findingId &&
-                  review.subjectRevision === finding.revision,
-              );
-              const unresolved =
-                pendingReview === undefined && reviewQuery.truncated;
-              return (
-                <AuditFindingCard
-                  key={`${audit.auditId}:${finding.findingId}`}
-                  audit={audit}
-                  finding={finding}
-                  findings={findings.results[index]!.items}
-                  showAudit
-                  {...(pendingReview === undefined ? {} : { pendingReview })}
-                  reviewLoading={
-                    reviewQuery.isPending ||
-                    (pendingReview === undefined && reviewQuery.isLoadingMore)
-                  }
-                  reviewError={
-                    reviewQuery.error ??
-                    reviewQuery.moreError ??
-                    (unresolved
-                      ? new Error(
-                          "More pending reviews may include this finding. Load them before opening a new review.",
-                        )
-                      : null)
-                  }
-                  reviewActionLabel={
-                    unresolved
-                      ? "Load more pending reviews"
-                      : "Retry review status"
-                  }
-                  onRetryReview={() => {
-                    if (reviewQuery.moreError !== null || unresolved)
-                      reviewQuery.loadMore();
-                    else void reviewQuery.refetch();
-                  }}
-                />
-              );
-            })}
-          </div>
-          <LoadMoreControl
-            shown={rows.length}
-            noun="findings"
-            truncated={findings.truncated}
-            loading={findings.isLoadingMore}
-            error={moreFindings?.moreError ?? null}
-            onLoadMore={findings.loadMore}
-            label="Some audits have more findings — load more"
-          />
-          <LoadMoreControl
-            shown={reviews.results.reduce(
-              (total, result) => total + result.items.length,
-              0,
-            )}
-            noun="pending reviews"
-            truncated={reviews.truncated}
-            loading={reviews.isLoadingMore}
-            error={moreReviews?.moreError ?? null}
-            onLoadMore={reviews.loadMore}
-            label="Load more pending reviews"
-          />
-          <LoadMoreControl
-            shown={sources.length}
-            noun="audits"
-            truncated={audits.truncated}
-            loading={audits.isLoadingMore}
-            error={audits.moreError}
-            onLoadMore={audits.loadMore}
-            label="Load more audits"
-          />
-        </>
-      )}
+              {loading ? (
+                <p className="loading-copy">
+                  Loading findings from all audits…
+                </p>
+              ) : null}
+              {failed.map((audit) => {
+                const index = sources.indexOf(audit);
+                return (
+                  <div
+                    className="notice notice-error"
+                    role="alert"
+                    key={audit.auditId}
+                  >
+                    <strong>
+                      Findings unavailable: {auditProfileLabel(audit)} ·{" "}
+                      {audit.auditId.slice(-8)}
+                    </strong>
+                    <p>
+                      {findings.results[index]?.isSuccess
+                        ? "Showing the last loaded findings for this audit. Refresh failed."
+                        : "This audit is missing from the results shown below."}
+                    </p>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => void findings.results[index]?.refetch()}
+                    >
+                      Retry findings
+                    </button>
+                  </div>
+                );
+              })}
+              {visible.length === 0 && !loading && failed.length === 0 ? (
+                <div className="empty-state panel">
+                  <h3>
+                    {rows.length === 0
+                      ? "No findings yet"
+                      : "No matching findings"}
+                  </h3>
+                  <p>
+                    {rows.length === 0
+                      ? "Findings will appear here as audit checks publish them."
+                      : "Try another search or clear the filters."}
+                  </p>
+                </div>
+              ) : null}
+              <div className="audit-finding-list">
+                <AuditAnchor ready={!loading} />
+                {visible.map(({ audit, finding, index }) => {
+                  const reviewQuery = reviews.results[index]!;
+                  const pendingReview = reviewQuery.items.find(
+                    (review) =>
+                      review.state === "pending" &&
+                      review.findingId === finding.findingId &&
+                      review.subjectRevision === finding.revision,
+                  );
+                  const unresolved =
+                    pendingReview === undefined && reviewQuery.truncated;
+                  return (
+                    <AuditFindingCard
+                      key={`${audit.auditId}:${finding.findingId}`}
+                      audit={audit}
+                      finding={finding}
+                      findings={findings.results[index]!.items}
+                      showAudit
+                      {...(pendingReview === undefined
+                        ? {}
+                        : { pendingReview })}
+                      reviewLoading={
+                        reviewQuery.isPending ||
+                        (pendingReview === undefined &&
+                          reviewQuery.isLoadingMore)
+                      }
+                      reviewError={
+                        reviewQuery.error ??
+                        reviewQuery.moreError ??
+                        (unresolved
+                          ? new Error(
+                              "More pending reviews may include this finding. Load them before opening a new review.",
+                            )
+                          : null)
+                      }
+                      reviewActionLabel={
+                        unresolved
+                          ? "Load more pending reviews"
+                          : "Retry review status"
+                      }
+                      onRetryReview={() => {
+                        if (reviewQuery.moreError !== null || unresolved)
+                          reviewQuery.loadMore();
+                        else void reviewQuery.refetch();
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <LoadMoreControl
+                shown={rows.length}
+                noun="findings"
+                truncated={findings.truncated}
+                loading={findings.isLoadingMore}
+                error={moreFindings?.moreError ?? null}
+                onLoadMore={findings.loadMore}
+                label="Some audits have more findings — load more"
+              />
+              <LoadMoreControl
+                shown={reviews.results.reduce(
+                  (total, result) => total + result.items.length,
+                  0,
+                )}
+                noun="pending reviews"
+                truncated={reviews.truncated}
+                loading={reviews.isLoadingMore}
+                error={moreReviews?.moreError ?? null}
+                onLoadMore={reviews.loadMore}
+                label="Load more pending reviews"
+              />
+              <LoadMoreControl
+                shown={sources.length}
+                noun="audits"
+                truncated={audits.truncated}
+                loading={audits.isLoadingMore}
+                error={audits.moreError}
+                onLoadMore={audits.loadMore}
+                label="Load more audits"
+              />
+            </>
+          )
+        }
+      </QueryView>
     </section>
   );
 }

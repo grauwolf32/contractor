@@ -22,6 +22,7 @@ import {
   type WorkflowCompatibility,
 } from "./recommendations";
 import { ProjectSectionActions } from "./navigation";
+import { QueryView } from "../../app/query-view";
 
 function selector(item: WorkflowCompatibility): string {
   return workflowSelector(item.workflow);
@@ -63,22 +64,28 @@ function ProjectWorkflowLauncher({
     );
   }, [selection]);
   function renderForm(onSubmittingChange?: (pending: boolean) => void) {
-    return workflow.isPending ? (
-      <p className="loading-copy" role="status">
-        Loading Workflow contract…
-      </p>
-    ) : workflow.error !== null ? (
-      <ErrorNotice error={workflow.error} />
-    ) : (
-      <WorkflowRunForm
-        key={`${projectId}:${selector(selection)}`}
-        workflow={workflow.data}
-        projectId={projectId}
-        initialArtifactSelections={selection.preselected}
-        initialArtifacts={initialArtifacts}
-        presentation="drawer"
-        {...(onSubmittingChange ? { onSubmittingChange } : {})}
-      />
+    return (
+      <QueryView
+        query={workflow}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Workflow contract…
+          </p>
+        }
+        onRetry={() => void workflow.refetch()}
+      >
+        {(data) => (
+          <WorkflowRunForm
+            key={`${projectId}:${selector(selection)}`}
+            workflow={data}
+            projectId={projectId}
+            initialArtifactSelections={selection.preselected}
+            initialArtifacts={initialArtifacts}
+            presentation="drawer"
+            {...(onSubmittingChange ? { onSubmittingChange } : {})}
+          />
+        )}
+      </QueryView>
     );
   }
   return (

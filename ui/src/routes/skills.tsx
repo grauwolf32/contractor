@@ -7,7 +7,6 @@ import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { CursorControls } from "../app/cursor-controls";
 import { useCursorStack } from "../app/pagination";
-import { ErrorNotice } from "../app/error-notice";
 import { formatBytes } from "../app/format";
 import { SkillUploadDialog } from "./skill-upload-dialog";
 import { SkillDescription } from "./skill-description";
@@ -15,6 +14,7 @@ import { SkillDescription } from "./skill-description";
 import "./skills.css";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
+import { QueryView } from "../app/query-view";
 
 const SKILL_NAMESPACE = "skills";
 
@@ -85,67 +85,69 @@ export function SkillsRoute() {
           </div>
           <span className="skill-scope-badge">Global</span>
         </div>
-        {query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
-            Loading Skills…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice
-            error={query.error}
-            context="Could not load Skills"
-            onRetry={() => void query.refetch()}
-            retryPending={query.isFetching}
-          />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No global Skill packages found.</strong>
-            <p>
-              Bundled initialization or an ordinary User Artifact upload can
-              create the first package.
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" aria-live="polite">
+              Loading Skills…
             </p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table skill-table">
-              <thead>
-                <tr>
-                  <th>Skill</th>
-                  <th>Purpose</th>
-                  <th>Version</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={item.artifact.name}>
-                    <td data-label="Skill">
-                      <ContextLink
-                        returnLabel="Skills"
-                        to={`/artifacts/skills/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.name}
-                      </ContextLink>
-                      <small className="skill-package-size">
-                        {formatBytes(item.size)} · Skill package
-                      </small>
-                    </td>
-                    <td data-label="Purpose">
-                      <SkillDescription metadata={item} />
-                    </td>
-                    <td data-label="Version">
-                      <details>
-                        <summary>Current revision</summary>
-                        <code>{item.artifact.revision}</code>
-                        <small>
-                          <RecordedTime value={item.createdAt} />
-                        </small>
-                      </details>
-                    </td>
+          }
+          errorContext="Could not load Skills"
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No global Skill packages found.</strong>
+              <p>
+                Bundled initialization or an ordinary User Artifact upload can
+                create the first package.
+              </p>
+            </div>
+          }
+        >
+          {(queryData) => (
+            <div className="table-scroll">
+              <table className="responsive-table skill-table">
+                <thead>
+                  <tr>
+                    <th>Skill</th>
+                    <th>Purpose</th>
+                    <th>Version</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {queryData.items.map((item) => (
+                    <tr key={item.artifact.name}>
+                      <td data-label="Skill">
+                        <ContextLink
+                          returnLabel="Skills"
+                          to={`/artifacts/skills/${encodeURIComponent(item.artifact.name)}`}
+                        >
+                          {item.artifact.name}
+                        </ContextLink>
+                        <small className="skill-package-size">
+                          {formatBytes(item.size)} · Skill package
+                        </small>
+                      </td>
+                      <td data-label="Purpose">
+                        <SkillDescription metadata={item} />
+                      </td>
+                      <td data-label="Version">
+                        <details>
+                          <summary>Current revision</summary>
+                          <code>{item.artifact.revision}</code>
+                          <small>
+                            <RecordedTime value={item.createdAt} />
+                          </small>
+                        </details>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
         <CursorControls
           label="Skill package pages"
           {...pages.controls(query.data?.page)}

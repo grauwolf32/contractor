@@ -17,7 +17,6 @@ import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
-import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes, formatTimestamp } from "../../app/format";
 import {
   ProjectArtifactDialog,
@@ -26,6 +25,7 @@ import {
 } from "./common";
 import type { ShortcutDefinition } from "./shortcuts";
 import { RefreshButton } from "../../app/refresh-button";
+import { QueryView } from "../../app/query-view";
 
 export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
@@ -190,54 +190,64 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             {filterError}
           </p>
         )}
-        {query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading Project Artifacts…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Artifact bindings in this view.</strong>
-            <p>Add an artifact to prepare the inputs for your next analysis.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td data-label="Binding">
-                      <ContextLink
-                        returnLabel="Project Artifacts"
-                        to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
-                    </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
-                    </td>
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Project Artifacts…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No Artifact bindings in this view.</strong>
+              <p>
+                Add an artifact to prepare the inputs for your next analysis.
+              </p>
+            </div>
+          }
+        >
+          {(queryData) => (
+            <div className="table-scroll">
+              <table className="responsive-table">
+                <thead>
+                  <tr>
+                    <th>Binding</th>
+                    <th>Current revision</th>
+                    <th>Media type</th>
+                    <th>Size</th>
+                    <th>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {queryData.items.map((item) => (
+                    <tr
+                      key={`${item.artifact.namespace}/${item.artifact.name}`}
+                    >
+                      <td data-label="Binding">
+                        <ContextLink
+                          returnLabel="Project Artifacts"
+                          to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
+                        >
+                          {item.artifact.namespace}/{item.artifact.name}
+                        </ContextLink>
+                      </td>
+                      <td data-label="Current revision">
+                        <code>{item.artifact.revision}</code>
+                      </td>
+                      <td data-label="Media type">{item.mediaType}</td>
+                      <td data-label="Size">{formatBytes(item.size)}</td>
+                      <td data-label="Created">
+                        {formatTimestamp(item.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
         <CursorControls
           label="Project Artifact pages"
           {...pages.controls(query.data?.page)}

@@ -7,10 +7,10 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUN_ID_PATTERN } from "../../../api/runs";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
-import { ErrorNotice } from "../../../app/error-notice";
 import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
 import { RefreshButton } from "../../../app/refresh-button";
+import { QueryView } from "../../../app/query-view";
 
 export function CompletedAllocationListRoute() {
   const api = usePublicAPI();
@@ -99,23 +99,27 @@ export function CompletedAllocationListRoute() {
             {validationError}
           </p>
         )}
-        {query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading completed allocations…
-          </p>
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No matching terminal allocation exists.</strong>
-            <p>
-              Missing reports are included, so an empty result means no owned
-              terminal allocation matches this page and filter.
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading completed allocations…
             </p>
-          </div>
-        ) : (
-          <AllocationResourceList items={query.data.items} compact />
-        )}
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No matching terminal allocation exists.</strong>
+              <p>
+                Missing reports are included, so an empty result means no owned
+                terminal allocation matches this page and filter.
+              </p>
+            </div>
+          }
+        >
+          {(data) => <AllocationResourceList items={data.items} compact />}
+        </QueryView>
         {query.data === undefined ? null : (
           <CursorControls
             label="Completed allocation pages"

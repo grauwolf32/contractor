@@ -13,11 +13,11 @@ import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
-import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";
+import { QueryView } from "../../app/query-view";
 
 export function ProjectRunIdentity({
   run,
@@ -157,77 +157,83 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
           onRefresh={() => void runs.refetch()}
         />
       </div>
-      {runs.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Project Runs…
-        </p>
-      ) : runs.error ? (
-        <ErrorNotice error={runs.error} />
-      ) : runs.data.items.length === 0 ? (
-        <div className="panel compact-empty">
-          <h3>No Runs in this view</h3>
-          <p>
-            {view === "all" && !state
-              ? "Choose a Workflow to start a Project Run."
-              : "Choose another state or view to inspect the rest of the history."}
+      <QueryView
+        query={runs}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Project Runs…
           </p>
-        </div>
-      ) : (
-        <div className="table-scroll project-run-history-table">
-          <table className="responsive-table">
-            <thead>
-              <tr>
-                <th>Workflow / Run</th>
-                <th>State</th>
-                <th>Origin</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.data.items.map((run) => {
-                const auditId = run.labels["audit.id"];
-                return (
-                  <tr key={run.runId}>
-                    <td data-label="Workflow / Run">
-                      <ProjectRunIdentity run={run} />
-                      <details className="project-run-labels">
-                        <summary>
-                          Identity & labels
-                          {Object.keys(run.labels).length
-                            ? ` (${Object.keys(run.labels).length})`
-                            : ""}
-                        </summary>
-                        <code>{run.runId}</code>
-                        <RunMetadataLabelChips labels={run.labels} />
-                      </details>
-                    </td>
-                    <td data-label="State">
-                      <StateBadge state={run.state} />
-                    </td>
-                    <td data-label="Origin">
-                      {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
-                        <ContextLink
-                          returnLabel="Project Runs"
-                          to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`}
-                        >
-                          Audit · {auditId.slice(-8)} ↗
-                        </ContextLink>
-                      ) : (
-                        "Workflow Run"
-                      )}
-                    </td>
-                    <td data-label="Updated">
-                      <time dateTime={run.updatedAt}>
-                        {formatTimestamp(run.updatedAt)}
-                      </time>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+        }
+        onRetry={() => void runs.refetch()}
+        isEmpty={(runsData) => runsData.items.length === 0}
+        empty={
+          <div className="panel compact-empty">
+            <h3>No Runs in this view</h3>
+            <p>
+              {view === "all" && !state
+                ? "Choose a Workflow to start a Project Run."
+                : "Choose another state or view to inspect the rest of the history."}
+            </p>
+          </div>
+        }
+      >
+        {(runsData) => (
+          <div className="table-scroll project-run-history-table">
+            <table className="responsive-table">
+              <thead>
+                <tr>
+                  <th>Workflow / Run</th>
+                  <th>State</th>
+                  <th>Origin</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runsData.items.map((run) => {
+                  const auditId = run.labels["audit.id"];
+                  return (
+                    <tr key={run.runId}>
+                      <td data-label="Workflow / Run">
+                        <ProjectRunIdentity run={run} />
+                        <details className="project-run-labels">
+                          <summary>
+                            Identity & labels
+                            {Object.keys(run.labels).length
+                              ? ` (${Object.keys(run.labels).length})`
+                              : ""}
+                          </summary>
+                          <code>{run.runId}</code>
+                          <RunMetadataLabelChips labels={run.labels} />
+                        </details>
+                      </td>
+                      <td data-label="State">
+                        <StateBadge state={run.state} />
+                      </td>
+                      <td data-label="Origin">
+                        {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
+                          <ContextLink
+                            returnLabel="Project Runs"
+                            to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`}
+                          >
+                            Audit · {auditId.slice(-8)} ↗
+                          </ContextLink>
+                        ) : (
+                          "Workflow Run"
+                        )}
+                      </td>
+                      <td data-label="Updated">
+                        <time dateTime={run.updatedAt}>
+                          {formatTimestamp(run.updatedAt)}
+                        </time>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </QueryView>
       <CursorControls
         label="Project Run pages"
         {...pages.controls(runs.data?.page)}

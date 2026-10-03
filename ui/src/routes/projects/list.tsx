@@ -27,6 +27,7 @@ import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { DeleteProjectDialog } from "./deletion";
 import { RefreshButton } from "../../app/refresh-button";
+import { QueryView } from "../../app/query-view";
 
 interface ProjectCollectionPresentation {
   kind: ProjectKind;
@@ -228,108 +229,110 @@ function ProjectCollectionRoute({
         />
       </div>
 
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading {presentation.heading}…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice
-          error={query.error}
-          context={`Could not load ${presentation.kind === "evaluation" ? "Eval workspaces" : "Projects"}`}
-          onRetry={() => void query.refetch()}
-          retryPending={query.isFetching}
-        />
-      ) : query.data.items.length === 0 ? (
-        <div className="empty-state panel">
-          <p className="eyebrow">Nothing here yet</p>
-          <h3>{presentation.emptyHeading}</h3>
-          <p>{presentation.emptyCopy}</p>
-          <button type="button" onClick={() => setCreateOpen(true)}>
-            {presentation.createLabel}
-          </button>
-        </div>
-      ) : (
-        <div className="project-card-grid">
-          {query.data.items.map((project) => (
-            <article
-              className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
-              key={project.projectId}
-            >
-              <div>
-                <p className="eyebrow project-card-eyebrow">
-                  {project.lifecycle === "deleting" ? (
-                    <span>Deletion in progress</span>
-                  ) : null}
-                </p>
-                <h3>
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading {presentation.heading}…
+          </p>
+        }
+        errorContext={`Could not load ${presentation.kind === "evaluation" ? "Eval workspaces" : "Projects"}`}
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="empty-state panel">
+            <p className="eyebrow">Nothing here yet</p>
+            <h3>{presentation.emptyHeading}</h3>
+            <p>{presentation.emptyCopy}</p>
+            <button type="button" onClick={() => setCreateOpen(true)}>
+              {presentation.createLabel}
+            </button>
+          </div>
+        }
+      >
+        {(data) => (
+          <div className="project-card-grid">
+            {data.items.map((project) => (
+              <article
+                className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
+                key={project.projectId}
+              >
+                <div>
+                  <p className="eyebrow project-card-eyebrow">
+                    {project.lifecycle === "deleting" ? (
+                      <span>Deletion in progress</span>
+                    ) : null}
+                  </p>
+                  <h3>
+                    <Link
+                      to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
+                    >
+                      {project.name}
+                    </Link>
+                  </h3>
+                  <p className="project-card-description">
+                    {project.description === ""
+                      ? "No description provided."
+                      : project.description}
+                  </p>
+                </div>
+                {presentation.kind === "evaluation" ? (
+                  <EvaluationActivity projectId={project.projectId} />
+                ) : null}
+                <dl className="project-card-meta">
+                  <div>
+                    <dt>Updated</dt>
+                    <dd>
+                      <RecordedTime value={project.updatedAt} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>ID</dt>
+                    <dd>
+                      <code title={project.projectId}>
+                        {project.projectId.length > 24
+                          ? `${project.projectId.slice(0, 12)}…${project.projectId.slice(-8)}`
+                          : project.projectId}
+                      </code>
+                    </dd>
+                  </div>
+                </dl>
+                <div className="project-card-actions">
                   <Link
+                    className="project-card-open"
                     to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
                   >
-                    {project.name}
+                    {project.lifecycle === "deleting"
+                      ? "View deletion status →"
+                      : `Open ${presentation.cardEyebrow} →`}
                   </Link>
-                </h3>
-                <p className="project-card-description">
-                  {project.description === ""
-                    ? "No description provided."
-                    : project.description}
-                </p>
-              </div>
-              {presentation.kind === "evaluation" ? (
-                <EvaluationActivity projectId={project.projectId} />
-              ) : null}
-              <dl className="project-card-meta">
-                <div>
-                  <dt>Updated</dt>
-                  <dd>
-                    <RecordedTime value={project.updatedAt} />
-                  </dd>
+                  {presentation.kind === "project" ? (
+                    <button
+                      className="danger-button delete-icon-button"
+                      type="button"
+                      aria-label={`Delete Project ${project.name}`}
+                      title={
+                        project.lifecycle === "deleting"
+                          ? "Project deletion in progress"
+                          : "Delete Project"
+                      }
+                      disabled={
+                        project.lifecycle === "deleting" || deletion.isPending
+                      }
+                      onClick={() => {
+                        deletion.reset();
+                        setDeleteTarget(project);
+                      }}
+                    >
+                      <DeleteIcon />
+                    </button>
+                  ) : null}
                 </div>
-                <div>
-                  <dt>ID</dt>
-                  <dd>
-                    <code title={project.projectId}>
-                      {project.projectId.length > 24
-                        ? `${project.projectId.slice(0, 12)}…${project.projectId.slice(-8)}`
-                        : project.projectId}
-                    </code>
-                  </dd>
-                </div>
-              </dl>
-              <div className="project-card-actions">
-                <Link
-                  className="project-card-open"
-                  to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
-                >
-                  {project.lifecycle === "deleting"
-                    ? "View deletion status →"
-                    : `Open ${presentation.cardEyebrow} →`}
-                </Link>
-                {presentation.kind === "project" ? (
-                  <button
-                    className="danger-button delete-icon-button"
-                    type="button"
-                    aria-label={`Delete Project ${project.name}`}
-                    title={
-                      project.lifecycle === "deleting"
-                        ? "Project deletion in progress"
-                        : "Delete Project"
-                    }
-                    disabled={
-                      project.lifecycle === "deleting" || deletion.isPending
-                    }
-                    onClick={() => {
-                      deletion.reset();
-                      setDeleteTarget(project);
-                    }}
-                  >
-                    <DeleteIcon />
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+              </article>
+            ))}
+          </div>
+        )}
+      </QueryView>
 
       <CursorControls
         label={`${presentation.heading} pages`}

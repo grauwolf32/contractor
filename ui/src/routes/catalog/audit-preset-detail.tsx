@@ -17,6 +17,7 @@ import {
   useAuditPresets,
 } from "./audit-preset-data";
 import { useCatalogQueryState } from "./query-state";
+import { QueryView } from "../../app/query-view";
 
 function PresetVersionPicker({ profile }: { profile: AuditProfile }) {
   const query = useAuditPresets();
@@ -192,12 +193,16 @@ export function AuditPresetDetailRoute() {
       </header>
       {!valid ? (
         <ErrorNotice error={new Error("Audit preset version is invalid")} />
-      ) : query.isPending ? (
-        <p role="status">Loading audit preset…</p>
-      ) : query.error ? (
-        <ErrorNotice error={query.error} />
       ) : (
-        <PresetContents key={`${name}@${version}`} profile={query.data} />
+        <QueryView
+          query={query}
+          loading={<p role="status">Loading audit preset…</p>}
+          onRetry={() => void query.refetch()}
+        >
+          {(data) => (
+            <PresetContents key={`${name}@${version}`} profile={data} />
+          )}
+        </QueryView>
       )}
     </section>
   );

@@ -26,6 +26,7 @@ import { ErrorNotice } from "../app/error-notice";
 import { StateBadge } from "./runs/components";
 import { formatRunDuration } from "./runs/triage";
 import { RefreshButton } from "../app/refresh-button";
+import { QueryView } from "../app/query-view";
 
 type ActiveRunState = Extract<
   WorkflowRunState,
@@ -121,19 +122,23 @@ function AttentionPanel({
         Failed executions among the newest 50 owned Runs. Dates indicate their
         age; these are historical outcomes.
       </p>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading recent activity…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : (
-        <RunRows
-          runs={failed}
-          emptyTitle="No recent failures"
-          emptyCopy="The latest execution window has nothing requiring triage."
-        />
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading recent activity…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {() => (
+          <RunRows
+            runs={failed}
+            emptyTitle="No recent failures"
+            emptyCopy="The latest execution window has nothing requiring triage."
+          />
+        )}
+      </QueryView>
     </section>
   );
 }
@@ -202,19 +207,23 @@ function RecentSuccessPanel({
         <Link to="/runs?view=completed&state=succeeded">View successes →</Link>
       </div>
       <p className="action-panel-copy">Open a Run to preview its results.</p>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading recent activity…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : (
-        <RunRows
-          runs={succeeded}
-          emptyTitle="No recent successes"
-          emptyCopy="Completed output-producing Runs will appear here."
-        />
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading recent activity…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {() => (
+          <RunRows
+            runs={succeeded}
+            emptyTitle="No recent successes"
+            emptyCopy="Completed output-producing Runs will appear here."
+          />
+        )}
+      </QueryView>
     </section>
   );
 }
@@ -357,34 +366,40 @@ function QuickStartPanel({
         Start with a Project to keep inputs and results together.{" "}
         <Link to="/projects">Open Projects →</Link>
       </p>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Workflow catalog…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : workflows.length === 0 ? (
-        <div className="action-empty">
-          <strong>No published Workflows</strong>
-          <span>Publish a Workflow version before starting work.</span>
-        </div>
-      ) : (
-        <div className="quick-workflow-grid">
-          {workflows.map((workflow) => (
-            <Link
-              key={`${workflow.ref.name}@${workflow.ref.version}`}
-              to={`/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`}
-            >
-              <span>
-                <strong>{workflowDisplayName(workflow)}</strong>
-                <code>@{workflow.ref.version}</code>
-              </span>
-              <small>{workflowContractSummary(workflow)}</small>
-              <em>Inspect workflow →</em>
-            </Link>
-          ))}
-        </div>
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Workflow catalog…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {() =>
+          workflows.length === 0 ? (
+            <div className="action-empty">
+              <strong>No published Workflows</strong>
+              <span>Publish a Workflow version before starting work.</span>
+            </div>
+          ) : (
+            <div className="quick-workflow-grid">
+              {workflows.map((workflow) => (
+                <Link
+                  key={`${workflow.ref.name}@${workflow.ref.version}`}
+                  to={`/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`}
+                >
+                  <span>
+                    <strong>{workflowDisplayName(workflow)}</strong>
+                    <code>@{workflow.ref.version}</code>
+                  </span>
+                  <small>{workflowContractSummary(workflow)}</small>
+                  <em>Inspect workflow →</em>
+                </Link>
+              ))}
+            </div>
+          )
+        }
+      </QueryView>
     </section>
   );
 }

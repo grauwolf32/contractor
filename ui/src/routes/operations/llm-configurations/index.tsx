@@ -12,7 +12,7 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
-import { ErrorNotice } from "../../../app/error-notice";
+import { QueryView } from "../../../app/query-view";
 
 const kindLabels: Record<ConfigurationKind, string> = {
   "agent-templates": "AgentTemplates (read-only)",
@@ -67,61 +67,67 @@ export function ConfigurationListRoute() {
           </Link>
         </p>
       ) : null}
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading configurations…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          No published {kindLabels[kind]} versions.
-        </div>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Version</th>
-                <th>Source</th>
-                <th>Digest</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((resource) => (
-                <tr
-                  key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
-                >
-                  <td>
-                    <strong>
-                      {resource.ref.name}@{resource.ref.version}
-                    </strong>
-                  </td>
-                  <td>
-                    <span className="state-badge">{resource.source}</span>
-                  </td>
-                  <td>
-                    <code title={resource.ref.digest}>
-                      {resource.ref.digest.slice(0, 22)}…
-                    </code>
-                  </td>
-                  <td>
-                    <Link
-                      to={`/operations/configurations/${resource.ref.kind}/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
-                    >
-                      {resource.ref.kind === "model-policies" ||
-                      resource.ref.kind === "llm-gateways"
-                        ? "Inspect / clone"
-                        : "Inspect"}
-                    </Link>
-                  </td>
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading configurations…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="compact-empty">
+            No published {kindLabels[kind]} versions.
+          </div>
+        }
+      >
+        {(data) => (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>Source</th>
+                  <th>Digest</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {data.items.map((resource) => (
+                  <tr
+                    key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
+                  >
+                    <td>
+                      <strong>
+                        {resource.ref.name}@{resource.ref.version}
+                      </strong>
+                    </td>
+                    <td>
+                      <span className="state-badge">{resource.source}</span>
+                    </td>
+                    <td>
+                      <code title={resource.ref.digest}>
+                        {resource.ref.digest.slice(0, 22)}…
+                      </code>
+                    </td>
+                    <td>
+                      <Link
+                        to={`/operations/configurations/${resource.ref.kind}/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
+                      >
+                        {resource.ref.kind === "model-policies" ||
+                        resource.ref.kind === "llm-gateways"
+                          ? "Inspect / clone"
+                          : "Inspect"}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </QueryView>
       <CursorControls
         label="Configuration pages"
         {...pages.controls(query.data?.page)}

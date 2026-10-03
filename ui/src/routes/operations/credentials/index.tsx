@@ -8,9 +8,9 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
-import { ErrorNotice } from "../../../app/error-notice";
 import { CredentialCreateForm } from "./form";
 import { RecordedTime } from "../../../app/recorded-time";
+import { QueryView } from "../../../app/query-view";
 
 export function CredentialListRoute() {
   const api = usePublicAPI();
@@ -43,63 +43,69 @@ export function CredentialListRoute() {
             </p>
           </div>
         </div>
-        {query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading credentials…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No managed LLM credentials</strong>
-            <p>
-              Use Create LLM credential below to manage gateway access and
-              budgets here.
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading credentials…
             </p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Credential</th>
-                  <th>Gateway</th>
-                  <th>Policy set</th>
-                  <th>Spend</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((credential) => (
-                  <tr key={credential.credentialId}>
-                    <td>
-                      <Link
-                        to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
-                      >
-                        {credential.credentialId}
-                      </Link>
-                      <small className="reconciled">active</small>
-                      {credential.label === undefined ? null : (
-                        <span>{credential.label}</span>
-                      )}
-                    </td>
-                    <td>
-                      <code>
-                        {credential.llmGateway.gatewayId}@
-                        {credential.llmGateway.version}
-                      </code>
-                    </td>
-                    <td>{credential.effectivePolicy.modelPolicies.length}</td>
-                    <td>{credential.consumption?.spend ?? "not observed"}</td>
-                    <td>
-                      <RecordedTime value={credential.createdAt} />
-                    </td>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No managed LLM credentials</strong>
+              <p>
+                Use Create LLM credential below to manage gateway access and
+                budgets here.
+              </p>
+            </div>
+          }
+        >
+          {(data) => (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Credential</th>
+                    <th>Gateway</th>
+                    <th>Policy set</th>
+                    <th>Spend</th>
+                    <th>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {data.items.map((credential) => (
+                    <tr key={credential.credentialId}>
+                      <td>
+                        <Link
+                          to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
+                        >
+                          {credential.credentialId}
+                        </Link>
+                        <small className="reconciled">active</small>
+                        {credential.label === undefined ? null : (
+                          <span>{credential.label}</span>
+                        )}
+                      </td>
+                      <td>
+                        <code>
+                          {credential.llmGateway.gatewayId}@
+                          {credential.llmGateway.version}
+                        </code>
+                      </td>
+                      <td>{credential.effectivePolicy.modelPolicies.length}</td>
+                      <td>{credential.consumption?.spend ?? "not observed"}</td>
+                      <td>
+                        <RecordedTime value={credential.createdAt} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
         <CursorControls
           label="Credential pages"
           {...pages.controls(query.data?.page)}

@@ -22,6 +22,7 @@ import { auditProfileLabel } from "./audits/labels";
 import { ProjectRunIdentity } from "./run-history";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";
+import { QueryView } from "../../app/query-view";
 
 function RecentRunResults({
   summary,
@@ -245,57 +246,63 @@ export function ProjectOverview({ project }: { project: Project }) {
                 ? "Needs your attention"
                 : "Next steps"}
             </p>
-            {decisions.isPending ? (
-              <p className="loading-copy" role="status">
-                Checking Audit decisions…
-              </p>
-            ) : decisions.error ? (
-              <ErrorNotice error={decisions.error} />
-            ) : decisions.data.items.length ? (
-              <>
-                <h3>Audits waiting for review</h3>
-                {decisions.data.items.map((audit) => (
-                  <div className="project-overview-row" key={audit.auditId}>
-                    <strong>{auditProfileLabel(audit)}</strong>
-                    <ContextLink
-                      returnLabel="Project Overview"
+            <QueryView
+              query={decisions}
+              loading={
+                <p className="loading-copy" role="status">
+                  Checking Audit decisions…
+                </p>
+              }
+              onRetry={() => void decisions.refetch()}
+            >
+              {(data) =>
+                data.items.length ? (
+                  <>
+                    <h3>Audits waiting for review</h3>
+                    {data.items.map((audit) => (
+                      <div className="project-overview-row" key={audit.auditId}>
+                        <strong>{auditProfileLabel(audit)}</strong>
+                        <ContextLink
+                          returnLabel="Project Overview"
+                          className="audit-open-link"
+                          to={`${root}/audits/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
+                        >
+                          Review decisions →
+                        </ContextLink>
+                      </div>
+                    ))}
+                    {data.page.hasMore ? (
+                      <Link to={`${root}/audits`}>All audits →</Link>
+                    ) : null}
+                  </>
+                ) : empty ? (
+                  <>
+                    <h3>Prepare your first analysis</h3>
+                    <p>
+                      Add source material, choose a Workflow and review its
+                      inputs before starting.
+                    </p>
+                    <Link
                       className="audit-open-link"
-                      to={`${root}/audits/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
+                      to={`${root}/artifacts?add=artifact`}
                     >
-                      Review decisions →
-                    </ContextLink>
-                  </div>
-                ))}
-                {decisions.data.page.hasMore ? (
-                  <Link to={`${root}/audits`}>All audits →</Link>
-                ) : null}
-              </>
-            ) : empty ? (
-              <>
-                <h3>Prepare your first analysis</h3>
-                <p>
-                  Add source material, choose a Workflow and review its inputs
-                  before starting.
-                </p>
-                <Link
-                  className="audit-open-link"
-                  to={`${root}/artifacts?add=artifact`}
-                >
-                  Add sources →
-                </Link>
-              </>
-            ) : (
-              <>
-                <h3>No Audits are waiting for review</h3>
-                <p>
-                  Choose a Workflow to continue analysis, or inspect your Audit
-                  progress.
-                </p>
-                <Link className="audit-open-link" to={`${root}/workflows`}>
-                  Choose workflow →
-                </Link>
-              </>
-            )}
+                      Add sources →
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <h3>No Audits are waiting for review</h3>
+                    <p>
+                      Choose a Workflow to continue analysis, or inspect your
+                      Audit progress.
+                    </p>
+                    <Link className="audit-open-link" to={`${root}/workflows`}>
+                      Choose workflow →
+                    </Link>
+                  </>
+                )
+              }
+            </QueryView>
             <ProjectFindingSummary
               projectId={projectId}
               audits={audits.data?.items ?? []}
@@ -311,55 +318,67 @@ export function ProjectOverview({ project }: { project: Project }) {
             <p className="project-summary-caption">
               Outputs from the three most recent successful Runs.
             </p>
-            {successful.isPending ? (
-              <p className="loading-copy" role="status">
-                Loading successful Runs…
-              </p>
-            ) : successful.error ? (
-              <ErrorNotice error={successful.error} />
-            ) : successful.data.items.length === 0 ? (
-              <p className="compact-empty">
-                No successful Runs yet. Published results will appear here.
-              </p>
-            ) : (
-              successful.data.items.map((run) => (
-                <RecentRunResults
-                  key={run.runId}
-                  summary={run}
-                  projectId={projectId}
-                />
-              ))
-            )}
+            <QueryView
+              query={successful}
+              loading={
+                <p className="loading-copy" role="status">
+                  Loading successful Runs…
+                </p>
+              }
+              onRetry={() => void successful.refetch()}
+              isEmpty={(data) => data.items.length === 0}
+              empty={
+                <p className="compact-empty">
+                  No successful Runs yet. Published results will appear here.
+                </p>
+              }
+            >
+              {(data) =>
+                data.items.map((run) => (
+                  <RecentRunResults
+                    key={run.runId}
+                    summary={run}
+                    projectId={projectId}
+                  />
+                ))
+              }
+            </QueryView>
           </section>
           <section className="panel">
             <div className="project-overview-heading">
               <h3>Recent Runs</h3>
               <Link to={`${root}/runs`}>All Runs →</Link>
             </div>
-            {recent.isPending ? (
-              <p className="loading-copy" role="status">
-                Loading recent Runs…
-              </p>
-            ) : recent.error ? (
-              <ErrorNotice error={recent.error} />
-            ) : recent.data.items.length === 0 ? (
-              <p className="compact-empty">
-                No Runs yet. Choose a Workflow when your inputs are ready.
-              </p>
-            ) : (
-              recent.data.items.map((run) => (
-                <div className="project-overview-row" key={run.runId}>
-                  <div>
-                    <ProjectRunIdentity
-                      run={run}
-                      returnLabel="Project Overview"
-                    />
-                    <small>{formatTimestamp(run.updatedAt)}</small>
+            <QueryView
+              query={recent}
+              loading={
+                <p className="loading-copy" role="status">
+                  Loading recent Runs…
+                </p>
+              }
+              onRetry={() => void recent.refetch()}
+              isEmpty={(data) => data.items.length === 0}
+              empty={
+                <p className="compact-empty">
+                  No Runs yet. Choose a Workflow when your inputs are ready.
+                </p>
+              }
+            >
+              {(data) =>
+                data.items.map((run) => (
+                  <div className="project-overview-row" key={run.runId}>
+                    <div>
+                      <ProjectRunIdentity
+                        run={run}
+                        returnLabel="Project Overview"
+                      />
+                      <small>{formatTimestamp(run.updatedAt)}</small>
+                    </div>
+                    <StateBadge state={run.state} />
                   </div>
-                  <StateBadge state={run.state} />
-                </div>
-              ))
-            )}
+                ))
+              }
+            </QueryView>
           </section>
         </div>
         <div className="project-overview-stack">
@@ -375,50 +394,62 @@ export function ProjectOverview({ project }: { project: Project }) {
                 materials.
               </p>
             ) : null}
-            {materials.isPending ? (
-              <p className="loading-copy" role="status">
-                Loading materials…
-              </p>
-            ) : materials.error ? (
-              <ErrorNotice error={materials.error} />
-            ) : empty ? (
-              <p className="compact-empty">No materials added yet.</p>
-            ) : (
-              <>
-                {groupedMaterials
-                  .filter((group) => group.items.length > 0)
-                  .map((group) => (
-                    <div className="project-material-group" key={group.label}>
-                      <h4>
-                        {group.label}{" "}
-                        <small>({group.items.length} shown)</small>
-                      </h4>
-                      {group.items.slice(0, 3).map((item) => (
+            <QueryView
+              query={materials}
+              loading={
+                <p className="loading-copy" role="status">
+                  Loading materials…
+                </p>
+              }
+              onRetry={() => void materials.refetch()}
+            >
+              {() =>
+                empty ? (
+                  <p className="compact-empty">No materials added yet.</p>
+                ) : (
+                  <>
+                    {groupedMaterials
+                      .filter((group) => group.items.length > 0)
+                      .map((group) => (
                         <div
-                          className="project-overview-file"
-                          key={`${item.artifact.namespace}/${item.artifact.name}`}
+                          className="project-material-group"
+                          key={group.label}
                         >
-                          <ContextLink
-                            returnLabel="Project Overview"
-                            to={`${root}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}?revision=${encodeURIComponent(item.artifact.revision)}`}
-                          >
-                            <strong>
-                              {item.artifact.namespace}/{item.artifact.name}
-                            </strong>
-                            <small>
-                              {workflowFormats[item.mediaType] ??
-                                item.mediaType}
-                            </small>
-                          </ContextLink>
+                          <h4>
+                            {group.label}{" "}
+                            <small>({group.items.length} shown)</small>
+                          </h4>
+                          {group.items.slice(0, 3).map((item) => (
+                            <div
+                              className="project-overview-file"
+                              key={`${item.artifact.namespace}/${item.artifact.name}`}
+                            >
+                              <ContextLink
+                                returnLabel="Project Overview"
+                                to={`${root}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}?revision=${encodeURIComponent(item.artifact.revision)}`}
+                              >
+                                <strong>
+                                  {item.artifact.namespace}/{item.artifact.name}
+                                </strong>
+                                <small>
+                                  {workflowFormats[item.mediaType] ??
+                                    item.mediaType}
+                                </small>
+                              </ContextLink>
+                            </div>
+                          ))}
                         </div>
                       ))}
-                    </div>
-                  ))}
-                <Link className="project-summary-link" to={`${root}/artifacts`}>
-                  All artifacts →
-                </Link>
-              </>
-            )}
+                    <Link
+                      className="project-summary-link"
+                      to={`${root}/artifacts`}
+                    >
+                      All artifacts →
+                    </Link>
+                  </>
+                )
+              }
+            </QueryView>
             <dl className="project-overview-target">
               <dt>Application target</dt>
               <dd>{project.httpTarget?.url ?? "Not configured"}</dd>
@@ -433,36 +464,40 @@ export function ProjectOverview({ project }: { project: Project }) {
               <h3>Recent audits</h3>
               <Link to={`${root}/audits`}>All audits →</Link>
             </div>
-            {audits.isPending ? (
-              <p className="loading-copy" role="status">
-                Loading Audits…
-              </p>
-            ) : audits.error ? (
-              <ErrorNotice error={audits.error} />
-            ) : audits.data.items.length === 0 ? (
-              <p className="compact-empty">No Audits yet.</p>
-            ) : (
-              audits.data.items.map((audit) => (
-                <div className="project-overview-row" key={audit.auditId}>
-                  <div>
-                    <ContextLink
-                      returnLabel="Project Overview"
-                      to={`${root}/audits/${encodeURIComponent(audit.auditId)}`}
-                    >
-                      {auditProfileLabel(audit)}
-                    </ContextLink>
-                    {audit.stopReason ? (
-                      <small>
-                        {audit.stopReason.code === "deadline_exhausted"
-                          ? "Time limit reached"
-                          : audit.stopReason.message}
-                      </small>
-                    ) : null}
+            <QueryView
+              query={audits}
+              loading={
+                <p className="loading-copy" role="status">
+                  Loading Audits…
+                </p>
+              }
+              onRetry={() => void audits.refetch()}
+              isEmpty={(data) => data.items.length === 0}
+              empty={<p className="compact-empty">No Audits yet.</p>}
+            >
+              {(data) =>
+                data.items.map((audit) => (
+                  <div className="project-overview-row" key={audit.auditId}>
+                    <div>
+                      <ContextLink
+                        returnLabel="Project Overview"
+                        to={`${root}/audits/${encodeURIComponent(audit.auditId)}`}
+                      >
+                        {auditProfileLabel(audit)}
+                      </ContextLink>
+                      {audit.stopReason ? (
+                        <small>
+                          {audit.stopReason.code === "deadline_exhausted"
+                            ? "Time limit reached"
+                            : audit.stopReason.message}
+                        </small>
+                      ) : null}
+                    </div>
+                    <StateBadge state={audit.state} />
                   </div>
-                  <StateBadge state={audit.state} />
-                </div>
-              ))
-            )}
+                ))
+              }
+            </QueryView>
           </section>
         </div>
       </div>

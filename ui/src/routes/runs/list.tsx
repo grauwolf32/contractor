@@ -26,6 +26,7 @@ import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
+import { QueryView } from "../../app/query-view";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
@@ -560,46 +561,54 @@ export function CompletedRunsPanel() {
         <div className="compact-empty">
           Clear the malformed metadata filters to load Runs.
         </div>
-      ) : query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
-          Loading completed Runs…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No completed Runs match this view.</strong>
-          <p>Terminal Runs appear here after execution finishes.</p>
-        </div>
       ) : (
-        <div className="table-scroll">
-          <table className="responsive-table run-list-table compact-run-history">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Workflow</th>
-                <th>State</th>
-                <th>Context & details</th>
-                <th>Finished</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((run) => (
-                <CompletedRunRow
-                  key={run.runId}
-                  run={run}
-                  onDelete={() => {
-                    deletion.reset();
-                    setDeleteTarget(run.runId);
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" aria-live="polite">
+              Loading completed Runs…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No completed Runs match this view.</strong>
+              <p>Terminal Runs appear here after execution finishes.</p>
+            </div>
+          }
+        >
+          {(data) => (
+            <div className="table-scroll">
+              <table className="responsive-table run-list-table compact-run-history">
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Workflow</th>
+                    <th>State</th>
+                    <th>Context & details</th>
+                    <th>Finished</th>
+                    <th>
+                      <span className="visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((run) => (
+                    <CompletedRunRow
+                      key={run.runId}
+                      run={run}
+                      onDelete={() => {
+                        deletion.reset();
+                        setDeleteTarget(run.runId);
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
       )}
       <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
