@@ -677,6 +677,89 @@ def test_encoded_result_limit_reduces_page_without_silent_truncation(
     asyncio.run(scenario())
 
 
+def test_large_search_page_fits_once_per_row_without_stalling_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = "\n".join("    value = '" + ("x" * 350) + "'" for _ in range(12))
+    source = "\n".join(f"def target():\n{body}" for _ in range(200)) + "\n"
+
+    async def scenario() -> None:
+        tools, _ = await _tools(MutableReader({"many.py": source}), tmp_path)
+        original = jcs.canonicalize
+        calls = 0
+
+        def count_canonicalizations(value: Any) -> bytes:
+            nonlocal calls
+            calls += 1
+            return original(value)
+
+        loop = asyncio.get_running_loop()
+        gaps: list[float] = []
+        running = True
+
+        async def ticker() -> None:
+            previous = loop.time()
+            while running:
+                await asyncio.sleep(0.005)
+                current = loop.time()
+                gaps.append(current - previous)
+                previous = current
+
+        tick_task = asyncio.create_task(ticker())
+        await asyncio.sleep(0.01)
+        try:
+            with monkeypatch.context() as patch:
+                patch.setattr(jcs, "canonicalize", count_canonicalizations)
+                result = await tools["search_def"]("target", limit=200)
+        finally:
+            running = False
+            await tick_task
+            await tools["search_def"].close()
+        assert result["observedTotal"] == 200
+        assert 0 < len(result["items"]) < 200
+        assert result["truncated"] and result["nextCursor"]
+        assert len(original(result)) <= MAX_RESULT_BYTES
+        assert calls <= 230
+        assert gaps and max(gaps) < 0.05
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("shape", ["shallow", "graph", "path"])
+def test_result_page_fitting_matches_drop_one_row_reference(
+    monkeypatch: pytest.MonkeyPatch, shape: str
+) -> None:
+    rows = [{"preview": "x" * 300, "number": number} for number in range(20)]
+
+    def build(count: int, items: list[Any]) -> dict[str, Any]:
+        if shape == "path":
+            return {"items": items, "coverage": {"analyzedFiles": 1}, "truncated": count < 20}
+        return {
+            "items": items,
+            "nextCursor": f"cursor-{count}" if count < 20 else None,
+            "truncated": count < 20,
+            "observedTotal": 20,
+            "coverage": {"analyzedFiles": 1} if shape == "graph" else {"reasons": []},
+        }
+
+    with monkeypatch.context() as patch:
+        patch.setattr(code_analysis, "MAX_RESULT_BYTES", 1400)
+        expected_count = len(rows)
+        while len(jcs.canonicalize(build(expected_count, rows[:expected_count]))) > 1400:
+            expected_count -= 1
+        expected = build(expected_count, rows[:expected_count])
+        assert code_analysis._fit_result_page(rows, build) == expected
+        assert len(jcs.canonicalize(expected)) <= 1400
+
+
+def test_result_page_fitting_rejects_oversized_empty_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(code_analysis, "MAX_RESULT_BYTES", 2)
+    with pytest.raises(CodeAnalysisError, match="code_analysis_capacity_exceeded"):
+        code_analysis._fit_result_page([], lambda _count, items: {"items": items})
+
+
 def test_slow_parser_runs_off_loop_and_deadline_is_visible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
