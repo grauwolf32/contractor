@@ -54,7 +54,7 @@ func (l *loader) resolveWorkflowExecutionConfig(
 				continue
 			}
 			resolved.Agents[logicalName] = ResolvedConsumerExecutionConfig{
-				ModelPolicy: cloneModelPolicy(binding.Template.ModelPolicy),
+				ModelPolicy: binding.Template.ModelPolicy.Clone(),
 				Origins:     ExecutionConfigOrigins{ModelPolicy: originAgentTemplate},
 			}
 		}
@@ -231,7 +231,7 @@ func applyResolvedExecutionSelectionOverride(
 		if err := override.ModelPolicy.Validate(); err != nil {
 			return fmt.Errorf("modelPolicy is invalid: %w", err)
 		}
-		selection.ModelPolicy = cloneModelPolicy(*override.ModelPolicy)
+		selection.ModelPolicy = override.ModelPolicy.Clone()
 		selection.Origins.ModelPolicy = origin
 	}
 	if override.LLMGateway != nil {
@@ -373,7 +373,7 @@ func (l *loader) applySelection(
 		if !ok {
 			return fmt.Errorf("modelPolicy selects unknown ModelPolicy %q", selector)
 		}
-		selection.ModelPolicy = cloneModelPolicy(policy)
+		selection.ModelPolicy = policy.Clone()
 		selection.Origins.ModelPolicy = origin
 	}
 	if patch.llmGateway.present {

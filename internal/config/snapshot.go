@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -48,10 +47,10 @@ func newSnapshot(
 		result.workflows[key] = cloneWorkflow(workflow)
 	}
 	for key, template := range templates {
-		result.templates[key] = cloneAgentTemplate(template)
+		result.templates[key] = template.Clone()
 	}
 	for key, policy := range policies {
-		result.policies[key] = cloneModelPolicy(policy)
+		result.policies[key] = policy.Clone()
 	}
 	for key, gateway := range gateways {
 		result.gateways[key] = cloneLLMGatewayConfig(gateway)
@@ -201,7 +200,7 @@ func (s *Snapshot) AgentTemplate(raw string) (contracts.ResolvedAgentTemplate, e
 	if !ok {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("unknown AgentTemplate %q", selector)
 	}
-	return cloneAgentTemplate(template), nil
+	return template.Clone(), nil
 }
 
 // ModelPolicy resolves one exact id@version and returns a caller-owned copy.
@@ -214,7 +213,7 @@ func (s *Snapshot) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error
 	if !ok {
 		return contracts.ResolvedModelPolicy{}, fmt.Errorf("unknown ModelPolicy %q", selector)
 	}
-	return cloneModelPolicy(policy), nil
+	return policy.Clone(), nil
 }
 
 // Instructions returns the exact text dependency pinned by a normalized ref.
@@ -230,12 +229,6 @@ func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, err
 	return instructions, nil
 }
 
-func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
-	result := source
-	result.Temperature = clone.Pointer(source.Temperature)
-	return result
-}
-
 func cloneLLMGatewayConfig(
 	source contracts.ResolvedLLMGatewayConfig,
 ) contracts.ResolvedLLMGatewayConfig {
@@ -243,35 +236,6 @@ func cloneLLMGatewayConfig(
 	if source.CredentialManager != nil {
 		manager := *source.CredentialManager
 		result.CredentialManager = &manager
-	}
-	return result
-}
-
-func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
-	result := source
-	result.Execution = source.Execution.Clone()
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
-	if source.Summarizer != nil {
-		summarizer := *source.Summarizer
-		if source.Summarizer.Instructions != nil {
-			instructions := *source.Summarizer.Instructions
-			summarizer.Instructions = &instructions
-		}
-		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.CumulativeBudget = clone.Pointer(source.Summarizer.CumulativeBudget)
-		result.Summarizer = &summarizer
-	}
-	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
-	for index, toolset := range source.Toolsets {
-		result.Toolsets[index] = toolset
-		result.Toolsets[index].Tools = append([]string(nil), toolset.Tools...)
-	}
-	result.Skills = append([]contracts.ArtifactRef(nil), source.Skills...)
-	for index, skill := range result.Skills {
-		if skill.Revision != nil {
-			revision := *skill.Revision
-			result.Skills[index].Revision = &revision
-		}
 	}
 	return result
 }
@@ -287,8 +251,8 @@ func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	for name, slot := range source.Parameters {
 		result.Parameters[name] = slot
 	}
-	result.Inputs = cloneArtifactSlots(source.Inputs)
-	result.Outputs = cloneArtifactSlots(source.Outputs)
+	result.Inputs = CloneArtifactSlots(source.Inputs)
+	result.Outputs = CloneArtifactSlots(source.Outputs)
 	result.Stages = make(map[string]ResolvedStage, len(source.Stages))
 	for name, stage := range source.Stages {
 		result.Stages[name] = cloneStage(stage)
@@ -296,7 +260,9 @@ func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	return result
 }
 
-func cloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot {
+// CloneArtifactSlots returns a never-nil copy whose slots share no media types
+// or source references with source.
+func CloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot {
 	result := make(map[string]ArtifactSlot, len(source))
 	for name, slot := range source {
 		slot.MediaTypes = append([]string(nil), slot.MediaTypes...)
@@ -315,7 +281,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 	result.AuditScan = cloneAuditScan(source.AuditScan)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
 	for name, binding := range source.Agents {
-		binding.Template = cloneAgentTemplate(binding.Template)
+		binding.Template = binding.Template.Clone()
 		result.Agents[name] = binding
 	}
 	result.ExecutionConfig = cloneStageExecutionConfig(source.ExecutionConfig)
@@ -336,7 +302,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 		}
 		result.Context.Workspace = &workspace
 	}
-	result.Result.Artifacts = cloneArtifactSlots(source.Result.Artifacts)
+	result.Result.Artifacts = CloneArtifactSlots(source.Result.Artifacts)
 	result.WorkflowOutputs = make(map[string]string, len(source.WorkflowOutputs))
 	for output, artifact := range source.WorkflowOutputs {
 		result.WorkflowOutputs[output] = artifact
@@ -365,7 +331,7 @@ func cloneStageExecutionConfig(source ResolvedStageExecutionConfig) ResolvedStag
 
 func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) ResolvedConsumerExecutionConfig {
 	result := source
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	result.ModelPolicy = source.ModelPolicy.Clone()
 	if source.LLMGateway != nil {
 		gateway := cloneLLMGatewayConfig(*source.LLMGateway)
 		result.LLMGateway = &gateway
@@ -405,7 +371,7 @@ func cloneExecutionSelectionOverride(
 ) ResolvedExecutionSelectionOverride {
 	result := source
 	if source.ModelPolicy != nil {
-		policy := cloneModelPolicy(*source.ModelPolicy)
+		policy := source.ModelPolicy.Clone()
 		result.ModelPolicy = &policy
 	}
 	if source.LLMGateway != nil {

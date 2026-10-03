@@ -201,7 +201,7 @@ func (p *streamlinePlanner) Run(
 			if err := p.recordCompletion(ctx, identity, completion); err != nil {
 				return contracts.StageContentResult{}, sessionFailure("record completion", err)
 			}
-			return planner.CloneStageResult(*result), nil
+			return result.Clone(), nil
 		} else if failure != nil {
 			return contracts.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
@@ -497,7 +497,7 @@ func (p *streamlinePlanner) recoverCompletion(
 	if completion.Failure != nil {
 		return contracts.StageContentResult{}, planner.NewErrorFromFailure(*completion.Failure, nil)
 	}
-	result := planner.CloneStageResult(*completion.Result)
+	result := completion.Result.Clone()
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
 	); err != nil {

@@ -88,6 +88,16 @@ func (r ArtifactRef) Equal(other ArtifactRef) bool {
 	return r.Revision == nil || *r.Revision == *other.Revision
 }
 
+// CloneArtifactRefs returns a never-nil copy of refs whose values share no
+// revision pointers with the source.
+func CloneArtifactRefs(refs map[string]ArtifactRef) map[string]ArtifactRef {
+	result := make(map[string]ArtifactRef, len(refs))
+	for name, ref := range refs {
+		result[name] = ref.Clone()
+	}
+	return result
+}
+
 // Key returns a map key unique per namespace, name and revision. An absent
 // revision keys like an empty one.
 func (r ArtifactRef) Key() string {

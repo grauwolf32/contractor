@@ -24,3 +24,17 @@ func TestArtifactRefValueMethods(t *testing.T) {
 		t.Fatal("Key must separate revisions and key an absent revision as empty")
 	}
 }
+
+func TestResolvedAgentTemplateCloneCopiesSkillRevisions(t *testing.T) {
+	revision := "rev-1"
+	source := ResolvedAgentTemplate{
+		Toolsets: []ToolsetSelection{{Tools: []string{"read"}}},
+		Skills:   []ArtifactRef{{Namespace: "skills", Name: "alpha", Revision: &revision}},
+	}
+	clone := source.Clone()
+	*clone.Skills[0].Revision = "corrupted"
+	clone.Toolsets[0].Tools[0] = "corrupted"
+	if revision != "rev-1" || source.Toolsets[0].Tools[0] != "read" {
+		t.Fatalf("cloned AgentTemplate aliases its source: %+v", source)
+	}
+}

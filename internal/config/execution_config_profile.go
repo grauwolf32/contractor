@@ -192,7 +192,7 @@ func (l *loader) resolveExecutionSelectionOverride(
 				"modelPolicy selects unknown ModelPolicy %q", selector,
 			)
 		}
-		resolved := cloneModelPolicy(policy)
+		resolved := policy.Clone()
 		result.ModelPolicy = &resolved
 	}
 	if patch.llmGateway.present {

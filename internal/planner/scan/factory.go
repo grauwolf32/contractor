@@ -101,7 +101,7 @@ func (p *execution) recoverCompletion(ctx context.Context, completion planner.Co
 	if completion.Result == nil || completion.Failure != nil {
 		return contracts.StageContentResult{}, scanError("scan_session_invalid", nil)
 	}
-	result := planner.CloneStageResult(*completion.Result)
+	result := completion.Result.Clone()
 	if err := planner.ValidateCandidate(ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); err != nil {
 		return contracts.StageContentResult{}, err
 	}

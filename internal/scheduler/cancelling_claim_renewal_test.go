@@ -28,7 +28,7 @@ func TestClaimedCancellingCleanupSurvivesRenewal(t *testing.T) {
 			h.requestCancellation("already cancelling when claimed")
 			execution := h.persistedExecution(t, test.state)
 			if test.state == runstore.StageFinalizing {
-				candidate := cloneStageResult(h.planners.result)
+				candidate := h.planners.result.Clone()
 				finalizationID := "finalization-before-claim"
 				deadline := now.Add(3 * time.Second)
 				execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)

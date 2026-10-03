@@ -55,7 +55,7 @@ func cloneReservation(source Reservation) Reservation {
 		value.CompletionContracts = append([]string{}, value.CompletionContracts...)
 		result.CompletionCapabilities = &value
 	}
-	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
+	result.AgentTemplate = source.AgentTemplate.Clone()
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	result.Workspace = contracts.CloneAllocationWorkspaceSpec(source.Workspace)
@@ -78,7 +78,7 @@ func cloneRuntimeSelection(
 		return nil
 	}
 	result := *source
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	result.ModelPolicy = source.ModelPolicy.Clone()
 	if source.LLMGateway != nil {
 		gateway := *source.LLMGateway
 		if source.LLMGateway.CredentialManager != nil {
@@ -99,52 +99,5 @@ func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnaps
 		return nil
 	}
 	result := source.Clone()
-	return &result
-}
-
-func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
-	result := source
-	result.Execution = source.Execution.Clone()
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
-	if source.Summarizer != nil {
-		summarizer := *source.Summarizer
-		if source.Summarizer.Instructions != nil {
-			instructions := *source.Summarizer.Instructions
-			summarizer.Instructions = &instructions
-		}
-		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.CumulativeBudget = clone.Pointer(source.Summarizer.CumulativeBudget)
-		result.Summarizer = &summarizer
-	}
-	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
-	for index, selection := range source.Toolsets {
-		result.Toolsets[index] = selection
-		result.Toolsets[index].Tools = append([]string(nil), selection.Tools...)
-	}
-	result.Skills = make([]contracts.ArtifactRef, len(source.Skills))
-	for index, skill := range source.Skills {
-		result.Skills[index] = skill
-		if skill.Revision != nil {
-			revision := *skill.Revision
-			result.Skills[index].Revision = &revision
-		}
-	}
-	return result
-}
-
-func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
-	result := source
-	if source.Temperature != nil {
-		temperature := *source.Temperature
-		result.Temperature = &temperature
-	}
-	return result
-}
-
-func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
 	return &result
 }

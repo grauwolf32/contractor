@@ -57,7 +57,7 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 	}
 	execution.State = runstore.StageFinalizing
 	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
-	clonedCandidate := cloneStageResult(candidate)
+	clonedCandidate := candidate.Clone()
 	execution.CandidateResult = &clonedCandidate
 	execution.FinalizationID = &finalizationID
 	execution.FinalizationDeadline = &deadline
@@ -205,9 +205,9 @@ func (s *Scheduler) resumeFinalizing(
 	if err == nil {
 		err = s.persistence.CommitResultProgression(commitContext, ResultProgression{
 			RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-			Result:          cloneStageResult(*execution.CandidateResult),
+			Result:          execution.CandidateResult.Clone(),
 			WorkflowOutputs: clone.Map(workflow.stage.WorkflowOutputs),
-			OutputContracts: cloneArtifactSlots(workflow.workflow.Outputs),
+			OutputContracts: workflowconfig.CloneArtifactSlots(workflow.workflow.Outputs),
 			Progression:     progression,
 		})
 	}
@@ -423,7 +423,7 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 		commitContext,
 		run.RunID,
 		execution.StageExecutionID,
-		cloneStageResult(*execution.CandidateResult),
+		execution.CandidateResult.Clone(),
 	)
 	cancelCommit()
 	if err != nil {

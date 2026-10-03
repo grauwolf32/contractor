@@ -442,10 +442,7 @@ func cloneScanState(state planner.ScanState) planner.ScanState {
 
 func cloneScanJob(job planner.ScanJobRecord) planner.ScanJobRecord {
 	result := job
-	result.InputArtifacts = make(map[string]contracts.ArtifactRef, len(job.InputArtifacts))
-	for name, ref := range job.InputArtifacts {
-		result.InputArtifacts[name] = ref.Clone()
-	}
+	result.InputArtifacts = contracts.CloneArtifactRefs(job.InputArtifacts)
 	if job.Report != nil {
 		ref := job.Report.Clone()
 		result.Report = &ref

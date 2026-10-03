@@ -75,7 +75,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					WorkflowSnapshot:      workflowSnapshot,
 					Parameters:            clone.Map(normalized.Parameters), MetadataLabels: labels,
 					RuntimeConfig:     normalized.RuntimeConfig,
-					ProjectHTTPTarget: cloneHTTPOriginTarget(normalized.ProjectHTTPTarget),
+					ProjectHTTPTarget: normalized.ProjectHTTPTarget.Clone(),
 				},
 				AuditExecutionID:   intent.Execution.ExecutionID,
 				AuditSubmissionKey: intent.Execution.SubmissionKey,
@@ -206,7 +206,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		return AuditCreateParams{}, nil, err
 	}
 	params.ExecutionManifest = cloneExactArtifact(params.ExecutionManifest)
-	params.ProjectHTTPTarget = cloneHTTPOriginTarget(params.ProjectHTTPTarget)
+	params.ProjectHTTPTarget = params.ProjectHTTPTarget.Clone()
 	params.Skills = cloneSkills(params.Skills)
 	workflowSkillRefs, err := config.WorkflowSkillRefs(params.Workflow)
 	if err != nil || !matchingPinnedSkills(workflowSkillRefs, params.Skills) {

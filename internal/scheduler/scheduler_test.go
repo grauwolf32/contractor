@@ -1233,7 +1233,7 @@ func TestSchedulerCancelAcceptsAlreadyFinalizingResultForAuditOnly(t *testing.T)
 	harness := newSchedulerHarness(t)
 	harness.requestCancellation("result already won Stage race")
 	execution := harness.persistedExecution(t, runstore.StageFinalizing)
-	result := cloneStageResult(harness.planners.result)
+	result := harness.planners.result.Clone()
 	finalizationID := "finalization-before-cancel"
 	deadline := harness.clock.now.Add(time.Minute)
 	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
@@ -2308,7 +2308,7 @@ func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == params.StageExecutionID &&
 			p.store.stages[index].State == runstore.StageRunning {
-			candidate := cloneStageResult(params.Candidate)
+			candidate := params.Candidate.Clone()
 			p.store.stages[index].State = runstore.StageFinalizing
 			p.store.stages[index].CandidateResult = &candidate
 			p.store.stages[index].CandidateResultSchemaVersion = stringPointer(params.ResultSchemaVersion)
@@ -2355,7 +2355,7 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 			p.store.stages[index].State != runstore.StageFinalizing {
 			continue
 		}
-		result := cloneStageResult(value.Result)
+		result := value.Result.Clone()
 		p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
 		p.store.stages[index].AcceptedResult = &result
 		p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
@@ -2448,7 +2448,7 @@ func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == stageExecutionID &&
 			p.store.stages[index].State == runstore.StageFinalizing {
-			accepted := cloneStageResult(result)
+			accepted := result.Clone()
 			p.store.stages[index].State = runstore.StageExecutionState(result.Outcome)
 			p.store.stages[index].AcceptedResult = &accepted
 			p.store.stages[index].AcceptedResultSchemaVersion = stringPointer(contracts.APIVersion)
@@ -2516,7 +2516,7 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 		case runstore.StageAborting:
 			stage.State = runstore.StageExecutionState(stage.Termination.Outcome)
 		case runstore.StageFinalizing:
-			accepted := cloneStageResult(*stage.CandidateResult)
+			accepted := stage.CandidateResult.Clone()
 			stage.AcceptedResult = &accepted
 			stage.State = runstore.StageExecutionState(accepted.Outcome)
 		}
@@ -2895,9 +2895,9 @@ func (r *memoryPlannerRegistry) Create(
 			return contracts.StageContentResult{}, r.runErrors[callIndex]
 		}
 		if callIndex < len(r.results) {
-			return cloneStageResult(r.results[callIndex]), nil
+			return r.results[callIndex].Clone(), nil
 		}
-		return cloneStageResult(r.result), nil
+		return r.result.Clone(), nil
 	}), nil
 }
 

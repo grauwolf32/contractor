@@ -424,7 +424,7 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	gateways := s.gateways
 	if candidate.policy != nil {
 		policies = cloneMap(s.policies)
-		policies[candidate.selector.String()] = cloneModelPolicy(*candidate.policy)
+		policies[candidate.selector.String()] = candidate.policy.Clone()
 	}
 	if candidate.gateway != nil {
 		gateways = cloneMap(s.gateways)

@@ -483,7 +483,7 @@ func (r *InMemoryRegistry) reserveAll(
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			CompletionCapabilities: contracts.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
-			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
+			AgentTemplate:             binding.AgentTemplate.Clone(),
 			WorkerSessionMode:         binding.WorkerSessionMode,
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
@@ -558,7 +558,7 @@ func (r *InMemoryRegistry) CommitCandidateReservations(
 		stored.reservation.ExecutionConfig = AllocationExecutionConfig{
 			ModelPolicy: resolved.ModelPolicy.Ref,
 			LLMGateway:  resolved.LLMGateway.Ref,
-			Credential:  cloneCredentialRef(resolved.LLMCredential),
+			Credential:  clone.Pointer(resolved.LLMCredential),
 		}
 		stored.reservation.ResolvedRuntimeConfig = &resolved
 		stored.reservation.PerformanceCollectionPolicy = configurations[allocationID].PerformanceCollectionPolicy
@@ -1181,7 +1181,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			CompletionContract: contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			LogicalAgentName:   binding.LogicalAgentName, Namespace: binding.Namespace,
 			WorkerSessionMode: binding.WorkerSessionMode,
-			AgentTemplate:     cloneAgentTemplate(binding.AgentTemplate),
+			AgentTemplate:     binding.AgentTemplate.Clone(),
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeSelection:  cloneRuntimeSelection(binding.RuntimeSelection),

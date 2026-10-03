@@ -361,7 +361,7 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 			return nil, fmt.Errorf("agents.%s.namespace %q is reserved", logicalName, namespace)
 		}
 		result[logicalName] = ResolvedAgentBinding{
-			Template:  cloneAgentTemplate(template),
+			Template:  template.Clone(),
 			Namespace: namespace,
 		}
 	}

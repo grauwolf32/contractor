@@ -45,7 +45,7 @@ func (l *loader) resolveAgentTemplate(
 		if !ok {
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy selects unknown ModelPolicy %q", policySelector)
 		}
-		policy = cloneModelPolicy(resolvedPolicy)
+		policy = resolvedPolicy.Clone()
 		summarizer, err = l.resolveWorkerSummarizer(spec.Summarizer, policy)
 		if err != nil {
 			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.summarizer: %w", err)
@@ -133,7 +133,7 @@ func (l *loader) resolveWorkerSummarizer(
 		return nil, fmt.Errorf("modelPolicy selects unknown ModelPolicy %q", selector)
 	}
 	result := &contracts.WorkerSummarizerConfig{
-		ModelPolicy:        cloneModelPolicy(policy),
+		ModelPolicy:        policy.Clone(),
 		ContextWindowRatio: contracts.DefaultWorkerSummarizerContextWindowRatio,
 		CumulativeBudget:   clone.Pointer(source.CumulativeBudget),
 	}

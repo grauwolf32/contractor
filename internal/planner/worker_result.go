@@ -55,7 +55,7 @@ func StageCandidateFromWorkerCompletion(
 		APIVersion: contracts.APIVersion,
 		Outcome:    contracts.StageSucceeded,
 		Summary:    result.Result,
-		Artifacts:  cloneArtifactMap(result.Artifacts),
+		Artifacts:  contracts.CloneArtifactRefs(result.Artifacts),
 	}, nil
 }
 
@@ -64,7 +64,7 @@ func CloneWorkerCompletion(input contracts.WorkerCompletion) contracts.WorkerCom
 	result := input
 	if input.Result != nil {
 		workerResult := *input.Result
-		workerResult.Artifacts = cloneArtifactMap(input.Result.Artifacts)
+		workerResult.Artifacts = contracts.CloneArtifactRefs(input.Result.Artifacts)
 		workerResult.Observations = cloneWorkerObservations(input.Result.Observations)
 		result.Result = &workerResult
 	}
@@ -79,7 +79,7 @@ func CloneWorkerCompletion(input contracts.WorkerCompletion) contracts.WorkerCom
 // model-facing Worker result projection.
 func CloneWorkerResult(input contracts.WorkerResult) contracts.WorkerResult {
 	result := input
-	result.Artifacts = cloneArtifactMap(input.Artifacts)
+	result.Artifacts = contracts.CloneArtifactRefs(input.Artifacts)
 	result.Observations = cloneWorkerObservations(input.Observations)
 	return result
 }
@@ -98,14 +98,6 @@ func cloneWorkerObservations(input contracts.WorkerObservations) contracts.Worke
 			workspace.UnreadFiles = &unread
 		}
 		result.Workspace = &workspace
-	}
-	return result
-}
-
-func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
-	result := make(map[string]contracts.ArtifactRef, len(input))
-	for name, ref := range input {
-		result[name] = ref.Clone()
 	}
 	return result
 }

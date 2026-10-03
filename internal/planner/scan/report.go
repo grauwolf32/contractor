@@ -242,7 +242,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if err := p.factory.sessions.CompleteScan(writeCtx, identity, planner.Completion{Result: &result}); err != nil {
 		return empty, scanError("scan_completion_write_failed", err)
 	}
-	return planner.CloneStageResult(result), nil
+	return result.Clone(), nil
 }
 
 func strictWorkerReport(data []byte, out *workerReport) bool {

@@ -32,15 +32,3 @@ func cloneRefs(source map[string]contracts.ArtifactRef) map[string]contracts.Art
 	}
 	return result
 }
-
-func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
-	}
-	return &result
-}

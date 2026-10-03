@@ -167,7 +167,7 @@ func (h *handler) updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, description := current.Name, current.Description
-	httpTarget := cloneHTTPOriginTarget(current.HTTPTarget)
+	httpTarget := current.HTTPTarget.Clone()
 	if request.Name != nil {
 		name = *request.Name
 	}
@@ -267,25 +267,13 @@ func projectReadModel(project projectstore.Project) projectResponse {
 		ProjectID: project.ProjectID, Kind: project.Kind, Name: project.Name,
 		Description: project.Description, Lifecycle: project.Lifecycle,
 		Revision:   strconv.FormatUint(project.Revision, 10),
-		HTTPTarget: cloneHTTPOriginTarget(project.HTTPTarget),
+		HTTPTarget: project.HTTPTarget.Clone(),
 		CreatedAt:  project.CreatedAt, UpdatedAt: project.UpdatedAt,
 	}
 	if project.Deletion != nil {
 		result.Deletion = &projectDeletionResponse{
 			Phase: project.Deletion.Phase, RequestedAt: project.Deletion.RequestedAt,
 		}
-	}
-	return result
-}
-
-func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
-	if source == nil {
-		return nil
-	}
-	result := &contracts.HTTPOriginTargetRef{URL: source.URL}
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
 	}
 	return result
 }

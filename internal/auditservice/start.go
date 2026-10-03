@@ -133,7 +133,7 @@ func (s *Service) startInTransaction(
 	if err := checkExpectedDigest(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
-	projectTarget := cloneProjectTarget(project.HTTPTarget)
+	projectTarget := project.HTTPTarget.Clone()
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
 		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredentialUse(
@@ -674,18 +674,6 @@ func (s *Service) startedProjectionWithStore(
 		return StartedAudit{}, err
 	}
 	return StartedAudit{Audit: audit, Round: round, Items: items, Replayed: replayed}, nil
-}
-
-func cloneProjectTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
-	}
-	return &result
 }
 
 func exactRefPointer(source contracts.ArtifactRef) *contracts.ArtifactRef {

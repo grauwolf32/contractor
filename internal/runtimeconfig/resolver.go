@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -303,7 +304,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		AgentLabels:           bindingProvenanceList(agentPins),
 		RuntimeAdapters:       append([]contracts.RuntimeAdapterRef{}, adapters...),
 		LLMGatewayConfig:      cloneGatewayRef(gatewayRef),
-		LLMCredential:         cloneCredentialRef(effective.credential),
+		LLMCredential:         clone.Pointer(effective.credential),
 		RuntimeCredentialRefs: workerCredentials,
 	}
 	if err := provenance.Validate(); err != nil {
@@ -313,7 +314,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		ModelFree:                input.ModelFree,
 		ModelPolicy:              cloneResolvedModelPolicy(input.ModelPolicy),
 		LLMGateway:               cloneResolvedGateway(gateway),
-		LLMCredential:            cloneCredentialRef(effective.credential),
+		LLMCredential:            clone.Pointer(effective.credential),
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
 		Caido:                    cloneCaido(effective.caido),
@@ -787,14 +788,6 @@ func cloneGatewayRef(value *contracts.LLMGatewayConfigRef) *contracts.LLMGateway
 	return &result
 }
 
-func cloneCredentialRef(value *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
 func sameCredentialRef(left, right *contracts.LLMCredentialRef) bool {
 	return left == nil && right == nil ||
 		left != nil && right != nil && *left == *right
@@ -872,7 +865,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result := r
 	result.ModelPolicy = cloneResolvedModelPolicy(r.ModelPolicy)
 	result.LLMGateway = cloneResolvedGateway(r.LLMGateway)
-	result.LLMCredential = cloneCredentialRef(r.LLMCredential)
+	result.LLMCredential = clone.Pointer(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
 	result.Caido = cloneCaido(r.Caido)
@@ -893,7 +886,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 		[]contracts.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
 	)
 	result.Provenance.LLMGatewayConfig = cloneGatewayRef(r.Provenance.LLMGatewayConfig)
-	result.Provenance.LLMCredential = cloneCredentialRef(r.Provenance.LLMCredential)
+	result.Provenance.LLMCredential = clone.Pointer(r.Provenance.LLMCredential)
 	result.Provenance.RuntimeCredentialRefs = append(
 		[]contracts.RuntimeCredentialRef{}, r.Provenance.RuntimeCredentialRefs...,
 	)

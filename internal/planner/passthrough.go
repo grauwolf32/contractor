@@ -187,11 +187,11 @@ func (p *passthroughPlanner) Run(
 	} else {
 		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	}
-	completion := Completion{Result: pointerToResult(cloneStageResult(result))}
+	completion := Completion{Result: pointerToResult(result.Clone())}
 	if err := p.recordCompletion(ctx, started.Identity, completion); err != nil {
 		return contracts.StageContentResult{}, sessionError("record completion", err)
 	}
-	return cloneStageResult(result), nil
+	return result.Clone(), nil
 }
 
 func (p *passthroughPlanner) ExecutionReport() (contracts.ExecutionReport, bool) {
@@ -274,7 +274,7 @@ func (p *passthroughPlanner) recoverCompletion(
 	if completion.Failure != nil {
 		return contracts.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
 	}
-	result := cloneStageResult(*completion.Result)
+	result := completion.Result.Clone()
 	if err := validateCandidate(
 		ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
@@ -340,10 +340,7 @@ func RequestFactsFor(bindings []string, request contracts.StageContentRequest) R
 		parameterNames = append(parameterNames, name)
 	}
 	sort.Strings(parameterNames)
-	artifacts := make(map[string]contracts.ArtifactRef, len(request.Artifacts))
-	for name, ref := range request.Artifacts {
-		artifacts[name] = ref.Clone()
-	}
+	artifacts := contracts.CloneArtifactRefs(request.Artifacts)
 	return RequestFacts{
 		Bindings:           append([]string(nil), bindings...),
 		ObjectiveDigest:    textDigest(request.Objective),
@@ -456,38 +453,14 @@ func cloneStageRequest(request contracts.StageContentRequest) contracts.StageCon
 	for name, value := range request.Parameters {
 		result.Parameters[name] = value
 	}
-	result.Artifacts = make(map[string]contracts.ArtifactRef, len(request.Artifacts))
-	for name, ref := range request.Artifacts {
-		result.Artifacts[name] = ref.Clone()
-	}
-	result.ResultArtifacts = make(map[string]contracts.ArtifactRef, len(request.ResultArtifacts))
-	for name, ref := range request.ResultArtifacts {
-		result.ResultArtifacts[name] = ref.Clone()
-	}
+	result.Artifacts = contracts.CloneArtifactRefs(request.Artifacts)
+	result.ResultArtifacts = contracts.CloneArtifactRefs(request.ResultArtifacts)
 	return result
 }
 
 // CloneStageRequest detaches all mutable request maps.
 func CloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	return cloneStageRequest(request)
-}
-
-func cloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
-	cloned := result
-	cloned.Artifacts = make(map[string]contracts.ArtifactRef, len(result.Artifacts))
-	for name, ref := range result.Artifacts {
-		cloned.Artifacts[name] = ref.Clone()
-	}
-	if result.Error != nil {
-		errorCopy := *result.Error
-		cloned.Error = &errorCopy
-	}
-	return cloned
-}
-
-// CloneStageResult detaches all mutable result values.
-func CloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
-	return cloneStageResult(result)
 }
 
 func pointerToResult(result contracts.StageContentResult) *contracts.StageContentResult {

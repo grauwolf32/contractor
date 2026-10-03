@@ -60,7 +60,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 			runtimeSettings.HTTPOriginTarget = target
 		}
 		result[logicalName] = contracts.WorkerExecutionSettings{
-			ModelPolicy: cloneModelPolicy(resolved.ModelPolicy), RuntimeSettings: runtimeSettings,
+			ModelPolicy: resolved.ModelPolicy.Clone(), RuntimeSettings: runtimeSettings,
 			ResolvedRuntimeConfigProvenance: resolved.Provenance,
 		}
 	}
@@ -341,7 +341,7 @@ func (s *Scheduler) plannerModelAccess(
 		return nil, err
 	}
 	result := &planner.ModelAccess{
-		ModelPolicy: cloneModelPolicy(selection.ModelPolicy),
+		ModelPolicy: selection.ModelPolicy.Clone(),
 		LLMGateway:  *selection.LLMGateway,
 		Token:       token,
 	}

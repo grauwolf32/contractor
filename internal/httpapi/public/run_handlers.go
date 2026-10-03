@@ -250,7 +250,7 @@ func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
 	}
 }
 
@@ -512,7 +512,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: stageTransitionsReadModel(decisions), Outputs: outputs,
 		OutputPublications: outputPublicationsReadModel(publicationRecords),

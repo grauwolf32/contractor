@@ -465,7 +465,7 @@ func (p *streamlinePlanner) finish(
 	}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: args.Outcome,
-		Summary: args.Summary, Artifacts: cloneArtifactMap(args.Artifacts), Error: cloneTerminationError(args.Error),
+		Summary: args.Summary, Artifacts: contracts.CloneArtifactRefs(args.Artifacts), Error: cloneTerminationError(args.Error),
 	}
 	if err := planner.ValidateCandidate(
 		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
@@ -642,12 +642,4 @@ func safeSubtaskID(value string) string {
 		}
 	}
 	return value
-}
-
-func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
-	result := make(map[string]contracts.ArtifactRef, len(input))
-	for name, ref := range input {
-		result[name] = ref.Clone()
-	}
-	return result
 }

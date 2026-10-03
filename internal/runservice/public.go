@@ -79,7 +79,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if project.Lifecycle == projectstore.LifecycleDeleting {
 					return projectstore.ErrDeleting
 				}
-				projectTarget = cloneHTTPOriginTarget(project.HTTPTarget)
+				projectTarget = project.HTTPTarget.Clone()
 				if projectTarget != nil && projectTarget.Credential != nil {
 					// The target was authorized when it was attached; pinning it
 					// re-checks that the requesting owner may still use it.
