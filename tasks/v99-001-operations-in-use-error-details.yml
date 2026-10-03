@@ -3,8 +3,8 @@ id: V99-001
 title: Show structured deletion blockers in Operations
 milestone: operations-in-use-error-details-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 25ae067dc9628bb5b4f4dc6a77a9064bb159d0eb
 depends_on: []
 languages: [typescript]
 goal: Show every safe resource reference supplied by in-use deletion errors.
