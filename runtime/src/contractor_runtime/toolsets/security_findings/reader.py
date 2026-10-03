@@ -47,41 +47,71 @@ async def prepare_reader(
     documents = {}
     for document in collection.metadata["documents"]:
         target = ArtifactRef(namespace=collection.namespace, name=document["id"])
-        try:
+        data = collection.contents[document["id"]]
+        for attempt in range(2):
             try:
-                written = await client.write_artifact(
-                    target,
-                    data=collection.contents[document["id"]],
-                    media_type=document["media_type"],
-                    expected_revision=None,
-                )
-                exact = written.artifact.require_exact()
+                ambiguous_write = False
+                try:
+                    written = await client.write_artifact(
+                        target,
+                        data=data,
+                        media_type=document["media_type"],
+                        expected_revision=None,
+                    )
+                except ArtifactResponseLimitError:
+                    raise
+                except ArtifactAPIError as error:
+                    if error.status_code not in {409, 412}:
+                        raise
+                except ArtifactTransportError:
+                    # A write may have committed before its response was lost.
+                    ambiguous_write = True
+                else:
+                    ref = written.artifact.require_exact()
+                    require(
+                        (ref.namespace, ref.name) == (target.namespace, target.name),
+                        "findings_document_conflict",
+                    )
+                    break
+
+                try:
+                    retained = await client.read_artifact(target, max_bytes=MAX_ARCHIVE_BYTES)
+                except ArtifactAPIError as error:
+                    if (
+                        ambiguous_write
+                        and attempt == 0
+                        and error.status_code == 404
+                        and error.code == "artifact_not_found"
+                    ):
+                        # The first write did not commit; one create retry is safe.
+                        continue
+                    raise
+                ref = retained.artifact.require_exact()
                 require(
-                    (exact.namespace, exact.name) == (target.namespace, target.name),
+                    (ref.namespace, ref.name) == (target.namespace, target.name)
+                    and retained.media_type == document["media_type"]
+                    and len(retained.data) == document["size_bytes"]
+                    and sha256_digest(retained.data) == document["digest"]
+                    and retained.data == data,
                     "findings_document_conflict",
                 )
-            except ArtifactAPIError as error:
-                if error.status_code not in {409, 412}:
-                    raise
-                exact = target
-            except ArtifactTransportError:
-                # A write may have committed before its response was lost. Read
-                # and verify the deterministic binding; never overwrite it.
-                exact = target
-            retained = await client.read_artifact(exact, max_bytes=MAX_ARCHIVE_BYTES)
-        except ArtifactResponseLimitError as error:
-            raise FindingsError("findings_limit_exceeded") from error
-        except (ArtifactAPIError, ArtifactTransportError) as error:
-            raise FindingsError("findings_document_unavailable") from error
-        ref = retained.artifact.require_exact()
-        require(
-            (ref.namespace, ref.name) == (target.namespace, target.name)
-            and (exact.revision is None or ref.revision == exact.revision)
-            and retained.media_type == document["media_type"]
-            and len(retained.data) == document["size_bytes"]
-            and sha256_digest(retained.data) == document["digest"],
-            "findings_document_conflict",
-        )
+                # Confirm the discovered revision before publishing its exact ref.
+                confirmed = await client.read_artifact(ref, max_bytes=MAX_ARCHIVE_BYTES)
+                require(
+                    confirmed.artifact == ref
+                    and confirmed.media_type == document["media_type"]
+                    and len(confirmed.data) == document["size_bytes"]
+                    and sha256_digest(confirmed.data) == document["digest"]
+                    and confirmed.data == data,
+                    "findings_document_conflict",
+                )
+                break
+            except ArtifactResponseLimitError as error:
+                raise FindingsError("findings_limit_exceeded") from error
+            except (ArtifactAPIError, ArtifactTransportError) as error:
+                raise FindingsError("findings_document_unavailable") from error
+        else:
+            raise FindingsError("findings_document_unavailable")
         documents[document["id"]] = {
             "ref": ref.model_dump(exclude_none=True),
             "digest": document["digest"],
