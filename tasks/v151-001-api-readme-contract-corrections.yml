@@ -3,7 +3,8 @@ id: V151-001
 title: Align API READMEs with Eval routes and empty Gateway-token behavior
 milestone: api-readme-contract-corrections-2026-10
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: dd5e5c4b901608e5fe1b507fa42d6e15bf86d0e0
 depends_on: []
 languages: [markdown]
 goal: Describe the implemented Eval routes and tolerated empty private Gateway token accurately.
