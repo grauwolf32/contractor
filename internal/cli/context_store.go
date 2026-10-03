@@ -51,8 +51,6 @@ func DefaultContextPath(getenv func(string) string) (string, error) {
 	return filepath.Join(directory, "contractor", "config.json"), nil
 }
 
-func (s *ContextStore) Path() string { return s.path }
-
 func (s *ContextStore) Load() (ContextConfig, error) {
 	info, err := os.Lstat(s.path)
 	if errors.Is(err, os.ErrNotExist) {

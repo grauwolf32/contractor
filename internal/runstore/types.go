@@ -600,18 +600,6 @@ type RecordStageExecutionReportParams struct {
 	Secrets                     []string
 }
 
-type PlannerExecutionReport struct {
-	StageExecutionID    string
-	SessionID           string
-	InvocationID        string
-	StartedAt           time.Time
-	FinishedAt          time.Time
-	ReportSchemaVersion string
-	Report              contracts.ExecutionReport
-	ReceivedAt          time.Time
-	ExpiresAt           time.Time
-}
-
 type RecordPlannerExecutionReportParams struct {
 	StageExecutionID    string
 	SessionID           string

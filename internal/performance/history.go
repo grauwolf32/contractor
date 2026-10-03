@@ -94,14 +94,14 @@ ON CONFLICT (server_generation,minute_start) DO NOTHING`, generations, starts, c
 				return err
 			}
 		}
-		_, err := tx.Exec(ctx, cleanupPerformanceSQL, now)
+		_, err := tx.Exec(ctx, cleanupPerformanceSQL, now, MaxCleanupRows)
 		return err
 	})
 }
 
 const cleanupPerformanceSQL = `WITH expired AS (
  SELECT server_generation,minute_start FROM performance_minutes WHERE expires_at <= $1
- ORDER BY expires_at,server_generation,minute_start LIMIT 1000 FOR UPDATE SKIP LOCKED
+ ORDER BY expires_at,server_generation,minute_start LIMIT $2 FOR UPDATE SKIP LOCKED
 ) DELETE FROM performance_minutes p USING expired e
 WHERE p.server_generation=e.server_generation AND p.minute_start=e.minute_start`
 

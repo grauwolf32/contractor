@@ -2,7 +2,6 @@ package evaldomain
 
 import (
 	"math"
-	"reflect"
 	"time"
 )
 
@@ -331,18 +330,6 @@ func checkMemberView(v MemberView) error {
 	}
 	if v.Usage != nil {
 		return validateUsage(*v.Usage, v.Member.ID)
-	}
-	return nil
-}
-
-// CheckResultContext is shared by collection and ingestion. Reported execution
-// facts may not overwrite the authoritative execution observed by the service.
-func CheckResultContext(memberID string, authoritative map[string]any, result map[string]any) error {
-	if result["memberId"] != memberID {
-		return Failure("eval_member_conflict")
-	}
-	if !reflect.DeepEqual(authoritative, result["execution"]) {
-		return Failure("eval_member_conflict")
 	}
 	return nil
 }

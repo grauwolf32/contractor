@@ -24,8 +24,4 @@ const (
 
 	NativeCollectorActor  = "system:eval-collector"
 	NativeCollectorSource = "native-collector"
-
-	FreshnessPending = "pending"
-	FreshnessCurrent = "current"
-	FreshnessStale   = "stale"
 )

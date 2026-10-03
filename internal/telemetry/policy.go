@@ -16,8 +16,6 @@ const (
 	MaxArgumentBytes      = 4096
 	MaxErrorMessageBytes  = 4096
 	MaxReportJSONBytes    = 1024 * 1024
-	DefaultRetentionDays  = 30
-	DefaultCleanupBatch   = 500
 	redactedValue         = "[REDACTED]"
 	redactedURL           = "[REDACTED_URL]"
 	truncatedValue        = "[TRUNCATED]"
