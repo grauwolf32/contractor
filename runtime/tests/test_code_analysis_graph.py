@@ -150,9 +150,7 @@ def test_call_relationships_deduplicate_sites_before_pagination(tmp_path: Path) 
         assert callers["truncated"] is False
 
         paths = await tools["paths_between"](symbols["main"], symbols["helper"])
-        assert [[node["name"] for node in path] for path in paths["items"]] == [
-            ["main", "helper"]
-        ]
+        assert [[node["name"] for node in path] for path in paths["items"]] == [["main", "helper"]]
         await _close(tools)
 
     asyncio.run(scenario())
