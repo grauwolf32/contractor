@@ -679,9 +679,13 @@ UPDATE eval_experiments SET state=$2, revision=revision+1,
  WHERE experiment_id=$1`, "exp", terminal); err != nil {
 				t.Fatal(err)
 			}
+			before, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+			if err != nil {
+				t.Fatal(err)
+			}
 			beginProjectDeletion(t, pool, scope)
 			current, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
-			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil {
+			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil || current.Revision != before.Revision+1 {
 				t.Fatalf("own Project did not fence %s Eval: %+v (%v)", terminal, current, err)
 			}
 			mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })

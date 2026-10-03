@@ -113,7 +113,7 @@ func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Cl
 			return err
 		}
 	}
-	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state=$2,observed_tokens=$3,diagnostic=$4,`+advance+` WHERE experiment_id=$1`, id, to, observedTokens, diagnostic)
+	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state=$2,observed_tokens=$3,diagnostic=$4,`+observe+` WHERE experiment_id=$1`, id, to, observedTokens, diagnostic)
 	return err
 }
 

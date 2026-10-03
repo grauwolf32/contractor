@@ -48,7 +48,7 @@ func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := h.get(t, e.ID).Revision
+	before := h.get(t, e.ID)
 	for _, observed := range []int64{10, 20} {
 		if err = h.service.tx(t.Context(), func(s *evalstore.Store) error {
 			return s.ObserveTokens(t.Context(), h.scope, e.ID, member, claim, observed)
@@ -56,8 +56,9 @@ func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if h.get(t, e.ID).Revision == before {
-		t.Fatal("fixture did not advance the experiment")
+	after := h.get(t, e.ID)
+	if after.Revision != before.Revision || after.ObservedTokens != 20 || !after.UpdatedAt.After(before.UpdatedAt) {
+		t.Fatalf("usage tick changed authority CAS or lost progress: before=%+v after=%+v", before, after)
 	}
 	if _, err = store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1, Revision: &page.Revision}); err != nil {
 		t.Fatal("usage tick invalidated list cursor", err)

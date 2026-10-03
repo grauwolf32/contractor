@@ -213,7 +213,8 @@ func checkMutable(e Experiment, id evaldomain.MutationIdentity) error {
 	return err
 }
 
-const advance = `revision=revision+1,updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond')`
+const observe = `updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond')`
+const advance = `revision=revision+1,` + observe
 
 func bytesOf(value any) []byte {
 	b, err := json.Marshal(value)

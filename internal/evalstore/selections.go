@@ -53,7 +53,7 @@ func (s *Store) SelectRecords(ctx context.Context, scope Scope, id, actor string
 			return nil, err
 		}
 		for _, entry := range input.Selections {
-			if err = s.selectRecord(ctx, e, actor, entry); err != nil {
+			if err = s.selectRecord(ctx, e, actor, e.Revision+1, entry); err != nil {
 				return nil, err
 			}
 		}
@@ -69,7 +69,7 @@ SET view_generation = view_generation + 1,
 		return json.Marshal(map[string]any{"revision": e.Revision + 1, "viewSnapshot": nil})
 	})
 }
-func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, entry evaldomain.SelectionEntry) error {
+func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, experimentRevision int64, entry evaldomain.SelectionEntry) error {
 	if actor == "" {
 		return evaldomain.Failure("eval_invalid")
 	}
@@ -109,12 +109,12 @@ INSERT INTO eval_selection_history(
     result_sha256, assessment_sha256, actor_id
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-`, e.ID, entry.MemberID, e.Revision+1, revision, entry.ResultSHA256, entry.AssessmentSHA256, actor)
+`, e.ID, entry.MemberID, experimentRevision, revision, entry.ResultSHA256, entry.AssessmentSHA256, actor)
 	return err
 }
 
-// SelectFirstNative is an explicit audited system CAS. The experiment lock and
-// missing-selection predicate make first collection safe under concurrent review.
+// SelectFirstNative records a system selection without consuming user CAS. The
+// experiment lock and missing-selection predicate make first collection safe.
 func (s *Store) SelectFirstNative(ctx context.Context, scope Scope, id, member string, claim Claim, result, assessment evaldomain.Frozen) error {
 	if _, err := s.project(ctx, scope, true); err != nil {
 		return err
@@ -148,12 +148,12 @@ func (s *Store) SelectFirstNative(ctx context.Context, scope Scope, id, member s
 		}
 		entry.AssessmentSHA256 = &a.SHA256
 	}
-	if err = s.selectRecord(ctx, e, evaldomain.NativeCollectorActor, entry); err != nil {
+	if err = s.selectRecord(ctx, e, evaldomain.NativeCollectorActor, e.Revision, entry); err != nil {
 		return err
 	}
 	_, err = s.db.Exec(ctx, `
 UPDATE eval_experiments
 SET view_generation = view_generation + 1,
-`+advance+` WHERE experiment_id=$1`, id)
+`+observe+` WHERE experiment_id=$1`, id)
 	return err
 }

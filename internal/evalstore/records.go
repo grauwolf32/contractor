@@ -75,7 +75,7 @@ func (s *Store) recordProducerActivity(ctx context.Context, e Experiment, docume
 	}
 	_, err := s.db.Exec(ctx, `
 UPDATE eval_experiments
-SET last_producer_activity_at = clock_timestamp(), `+advance+`
+SET last_producer_activity_at = clock_timestamp(), `+observe+`
 WHERE experiment_id = $1`, e.ID)
 	return err
 }

@@ -260,7 +260,13 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		}
 		ordinals[id] = i
 	}
-	_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+advance+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
+	change := observe
+	if e.ControlMode == evaldomain.ControlExternal {
+		// External registration authors the plan within Create, and its accepted
+		// revision has always named the second authority write.
+		change = advance
+	}
+	_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+change+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
 	if err != nil {
 		return err
 	}
