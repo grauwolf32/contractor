@@ -3,8 +3,8 @@ id: V131-001
 title: Preserve retryability for transient HTTP body artifact reads
 milestone: http-body-read-retry-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8d6753c64791e6ab6620368e63dd500b14445565
 depends_on: []
 languages: [python]
 goal: Let callers retry a stored HTTP body read after a transient Artifact API failure.
