@@ -19,10 +19,14 @@ The aggregate targets and their exact dependencies are defined in the
 [`make/`](../../make). Targets needing a test database declare
 `require-database`, and those reaching Python declare `runtime-venv`; both are
 prerequisites, so make prepares each at most once per invocation.
-The release gate also runs one deduplicated Go race pass and one process e2e
-pass across the family targets. Running a family target directly still runs its
-focused Go suite. `make lint` checks the release graph against the original
-package and process-test inventory.
+The release gate also runs one deduplicated Go race pass, one process e2e pass,
+and a complete PostgreSQL-only integration-tagged race pass. Existing family
+integration commands continue to run their focused untagged race checks.
+Running a family target directly still runs its focused Go suite. `make lint`
+checks the release graph against the original package and process-test inventory
+and discovers every integration-tagged test. New names enter the release pass
+automatically; tool-dependent exceptions must name an opt-in gate and reason in
+[`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).
 [CI](../../.github/workflows/ci.yml) runs
 `make release-verify` with PostgreSQL 17. Gate definitions describe what a
 command checks; completed results are recorded in the corresponding task files.
@@ -63,8 +67,9 @@ make release-verify
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | PostgreSQL/filesystem artifact payloads | [Blob backend verification](../operations/artifact-blob-storage.md#release-verification) |
 | Git import | [Git artifacts](../guides/git-artifacts.md) |
+| Backup/restore with exact artifact bytes and CAS | `make test-backup-restore` | PostgreSQL role with CREATE/DROP DATABASE, `pg_dump`, `pg_restore` |
 
-Podman, Git and blob-backend checks have their own host/image requirements;
+Podman, Git, backup/restore and blob-backend checks have their own host/image requirements;
 consult their guides before running those targets.
 
 ## Live-model and research evaluations

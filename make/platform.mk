@@ -102,7 +102,7 @@ test-performance-go: test-performance-matrix
 
 test-performance-runtime: runtime-venv
 	cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py tests/test_allocation.py -k 'resource or performance'
-	go test -tags=integration -count=1 ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycle$$'
+	$(call run-family-test,go test -tags=integration -count=1 ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycle$$')
 
 test-performance-postgres: require-database
 	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/performance ./internal/telemetry ./internal/controlplane -run '^(TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges|TestPostgresDiagnosticBudgetsAndRecovery|TestPostgresDisabledStatisticsAndIndependentSizeFailure|TestPostgresHistoryIdempotencyTTLBoundsAndPlans|TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy|TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates)$$')

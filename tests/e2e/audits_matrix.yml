@@ -28,163 +28,163 @@ cases:
     acceptance: [A1, A4]
     faults: [F01]
     expected: Exact profile compatibility and input validation run inside the start transaction; unsupported profiles roll back and identical start requests replay one materialization.
-    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditDraftStartReplayAndAtomicUnsupportedRollback}
+    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditDraftStartReplayAndAtomicUnsupportedRollback, gate: hardening}
   - id: canonical_inventory_separates_source_provenance
     category: inventory
     acceptance: [A2]
     faults: [F02, F03]
     expected: Checklist and OpenAPI fixtures produce stable canonical inventories while preserving the digest and exact origin of differently encoded sources.
-    test: {source: tests/e2e/audit_programs_test.go, kind: go_test, name: TestAuditProgramsFixturesBuildStableChecklistAndOpenAPIInventories}
+    test: {source: tests/e2e/audit_programs_test.go, kind: go_test, name: TestAuditProgramsFixturesBuildStableChecklistAndOpenAPIInventories, gate: hardening}
   - id: selected_remote_refs_fail_closed
     category: input_security
     acceptance: [A2, A3]
     faults: [F04]
     expected: A selected OpenAPI remote reference rejects inventory without a network read, while unsupported callbacks and webhooks remain explicit non-certifying gaps.
-    test: {source: internal/auditdomain/openapi_test.go, kind: go_test, name: TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap}
+    test: {source: internal/auditdomain/openapi_test.go, kind: go_test, name: TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap, gate: hardening}
   - id: package_closure_is_strict
     category: package
     acceptance: [A1, A3]
     faults: [F05]
     expected: Unsafe paths, undeclared members, digest drift and malformed archives fail before partial Audit package state is accepted.
-    test: {source: internal/auditdomain/package_test.go, kind: go_test, name: TestAuditPackageRejectsUnsafeOrInconsistentArchives}
+    test: {source: internal/auditdomain/package_test.go, kind: go_test, name: TestAuditPackageRejectsUnsafeOrInconsistentArchives, gate: hardening}
   - id: durable_attempt_receipts_and_claim_epochs
     category: settlement
     acceptance: [A1, A3]
     faults: [F06, F07, F08, F09]
     expected: Concurrent start and claims, terminal replay, retry collection, exhausted settlement, stale epochs and deletion fences converge to one receipt and one logical outcome per attempt.
-    test: {source: internal/auditstore/postgres_integration_test.go, kind: go_test, name: TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence}
+    test: {source: internal/auditstore/postgres_integration_test.go, kind: go_test, name: TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence, gate: hardening}
   - id: two_controllers_do_not_duplicate_attempts
     category: concurrency
     acceptance: [A1]
     faults: [F10, F11]
     expected: Two independent Controllers race over one real PostgreSQL Audit and submit each ready item exactly once; a replacement Controller reconstructs the full dispatch window without wakeup history.
-    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts}
+    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts, gate: hardening}
   - id: scheduler_limit_orders_with_audit_reservation
     category: scheduler
     acceptance: [A1, A4]
     faults: [F12]
     expected: A concurrent Scheduler-limit decrease and Audit reservation have one serialized outcome and no Audit-specific path exceeds the resulting global window.
-    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresDispatchReservationOrdersWithSettingsDecrease}
+    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresDispatchReservationOrdersWithSettingsDecrease, gate: hardening}
   - id: terminal_observation_precedes_collection
     category: recovery
     acceptance: [A1]
     faults: [F13]
     expected: Controller replay after a terminal child Run records collecting first and never treats Run success as item settlement before a durable collection receipt.
-    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestControllerCollectsClosesBarrierAndFinalizesReport}
+    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestControllerCollectsClosesBarrierAndFinalizesReport, gate: hardening}
   - id: submission_response_loss_replays_intent
     category: recovery
     acceptance: [A1]
     faults: [F14]
     expected: A crash or response loss between intent and child Run association resumes the same deterministic intent instead of creating another execution attempt.
-    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestControllerReplaysIntentAfterSubmissionFailure}
+    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestControllerReplaysIntentAfterSubmissionFailure, gate: hardening}
   - id: retryability_and_attempt_budget_are_explicit
     category: retry
     acceptance: [A1, A2]
     faults: [F15]
     expected: Missing output and bounded technical failure retry only through the declared policy; permanent contract and evidence-budget failures settle without an unbounded retry loop.
-    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestRoleDispositionRetryabilityIsExplicit}
+    test: {source: internal/auditcontroller/controller_test.go, kind: go_test, name: TestRoleDispositionRetryabilityIsExplicit, gate: hardening}
   - id: exact_report_survives_child_run_deletion
     category: retention
     acceptance: [A2, A3]
     faults: [F16, F17]
     expected: Collection freezes exact result/report bytes and provenance, permits released child Run deletion, preserves its tombstone, and removes Audit-owned content only during Audit purge.
-    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllerCollectsAndPublishesExactAuditReport}
+    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllerCollectsAndPublishesExactAuditReport, gate: hardening}
   - id: report_review_is_exact_and_expiring
     category: review
     acceptance: [A1, A2]
     faults: [F18, F19]
     expected: Human report approval or rejection applies only to the frozen candidate revision and digest immediately before settlement; expiry fails closed and replay is idempotent.
-    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditReportAcceptanceUsesFrozenCandidate}
+    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditReportAcceptanceUsesFrozenCandidate, gate: hardening}
   - id: finding_ratings_history_and_backtrace_survive
     category: findings
     acceptance: [A2, A5]
     faults: [F20]
     expected: TP/FP, severity corrections, reopen, duplicate-cycle rejection, pagination revision checks and exact source/verifier history remain readable after source Run deletion.
-    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditFindingReviewHistoryAndDeletedRunProvenance}
+    test: {source: internal/auditservice/service_postgres_test.go, kind: go_test, name: TestAuditFindingReviewHistoryAndDeletedRunProvenance, gate: hardening}
   - id: revision_bound_backtrace_restarts_atomically
     category: recovery
     acceptance: [A1, A5]
     faults: [F21]
     expected: A conflict on any provenance page discards buffered output and restarts from current Audit and finding revisions; a bounded mutation storm fails without emitting a mixed history.
-    test: {source: tests/e2e/audit_backtrace_script_test.go, kind: go_test, name: TestAuditFindingBacktraceScriptRestartsRevisionBoundTraversal}
+    test: {source: tests/e2e/audit_backtrace_script_test.go, kind: go_test, name: TestAuditFindingBacktraceScriptRestartsRevisionBoundTraversal, gate: hardening}
   - id: ordinary_run_proposal_retention_is_bounded
     category: isolation
     acceptance: [A3, A5]
     faults: [F22]
     expected: An ordinary-Run proposal is owner-scoped and replay-safe; import transfers exact evidence ownership, while deletion discards unimported pins without leaking content.
-    test: {source: internal/findingintake/service_postgres_test.go, kind: go_test, name: TestPostgresFindingReceiptReplayRetentionAndRunDeletion}
+    test: {source: internal/findingintake/service_postgres_test.go, kind: go_test, name: TestPostgresFindingReceiptReplayRetentionAndRunDeletion, gate: hardening}
   - id: invalid_or_missing_output_is_truthful
     category: reporting
     acceptance: [A1, A2]
     faults: [F23]
     expected: Successful child execution with missing or invalid output receives its real technical disposition and blocked or inconclusive coverage instead of invented accepted evidence.
-    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestImporterRecordsInvalidAndMissingSucceededOutputs}
+    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestImporterRecordsInvalidAndMissingSucceededOutputs, gate: hardening}
   - id: same_workflow_discovery_and_verification_is_explicit
     category: findings
     acceptance: [A2, A5]
     faults: []
     expected: A check result may select a proposal emitted by the same invocation without a prior hypothesis; trusted import binds only that exact local receipt to the existing execution item and never invents an extra item from Run success.
-    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestImporterAssociatesOnlyExactInvocationLocalFindingProposal}
+    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestImporterAssociatesOnlyExactInvocationLocalFindingProposal, gate: hardening}
   - id: direct_workflow_verification_requires_exact_opt_in
     category: findings
     acceptance: [A3, A5]
     faults: []
     expected: A successful Run creates direct verification only from one frozen required primary output with the pinned direct-verification media type, exact invocation-local proposal identity and retained result/contract revisions; a proposal absent from that result remains unassessed and replay does not duplicate retained bytes.
-    test: {source: internal/findingintake/service_postgres_test.go, kind: go_test, name: TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion}
+    test: {source: internal/findingintake/service_postgres_test.go, kind: go_test, name: TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion, gate: hardening}
   - id: gaps_do_not_become_conclusive_coverage
     category: reporting
     acceptance: [A2]
     faults: []
     expected: Partial evidence and unresolved gaps remain inconclusive and cannot be promoted to a satisfied or violated checklist claim by report aggregation.
-    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestChecklistCoverageDoesNotClaimConclusiveViolationAcrossGaps}
+    test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestChecklistCoverageDoesNotClaimConclusiveViolationAcrossGaps, gate: hardening}
   - id: paused_queue_does_not_block_audit_delete
     category: cancellation
     acceptance: [A3]
     faults: [F24]
     expected: Audit deletion closes dispatch, cancels and collects its child Run, releases holds and purges the Audit even while ordinary owner admission is paused.
-    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused}
+    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused, gate: hardening}
   - id: runnable_programs_cross_production_processes
     category: process
     acceptance: [A1, A2, A3]
     faults: [F25]
     expected: Real PostgreSQL, public API, mTLS Server/Runtime, Scheduler, ADK tools and demo fixtures run checklist and OpenAPI Audits, retain truthful gaps and allow collected child Run deletion without leaking configured secrets.
-    test: {source: tests/e2e/audit_programs_process_test.go, kind: go_test, name: TestAuditProgramsAcrossProductionProcesses}
+    test: {source: tests/e2e/audit_programs_process_test.go, kind: go_test, name: TestAuditProgramsAcrossProductionProcesses, gate: process}
   - id: heterogeneous_runtime_capabilities_fail_closed
     category: capability
     acceptance: [A3, A4]
     faults: [F26]
     expected: Runtime capability discovery excludes incompatible agents and places work only on a process that advertises the exact required Toolset without exposing probe paths or output.
-    test: {source: tests/e2e/capability_placement_test.go, kind: go_test, name: TestHeterogeneousRuntimeCapabilityPlacement}
+    test: {source: tests/e2e/capability_placement_test.go, kind: go_test, name: TestHeterogeneousRuntimeCapabilityPlacement, gate: process}
   - id: audit_children_obey_global_scheduler_limit
     category: scheduler
     acceptance: [A3, A4]
     faults: []
     expected: The production Scheduler has one durable global concurrency setting, treats Runtime capacity as waiting rather than failure, and releases every slot across restart.
-    test: {source: tests/e2e/scheduler_concurrency_test.go, kind: go_test, name: TestSchedulerConcurrencyAcrossProductionProcesses}
+    test: {source: tests/e2e/scheduler_concurrency_test.go, kind: go_test, name: TestSchedulerConcurrencyAcrossProductionProcesses, gate: process}
   - id: browser_exact_input_and_coverage
     category: browser
     acceptance: [A2]
     faults: [F27]
     expected: The independently served UI creates and starts an Audit from an exact Project artifact and renders authoritative mixed coverage without putting packages or secrets in browser storage.
-    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: Project Audit pins exact input and exposes authoritative coverage}
+    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: Project Audit pins exact input and exposes authoritative coverage, gate: browser}
   - id: browser_review_report_cancel_delete
     category: browser
     acceptance: [A2, A3, A5]
     faults: []
     expected: The independently served UI displays exact finding provenance and review history, decides a human request, reads the proposed report, and performs CAS-bound cancellation and deletion from authoritative state.
-    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: 'Audit UI reviews exact evidence and completes destructive lifecycle controls at ${viewport.width}px'}
+    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: 'Audit UI reviews exact evidence and completes destructive lifecycle controls at ${viewport.width}px', gate: browser}
   - id: ordinary_workflow_regression
     category: regression
     acceptance: [A4]
     faults: []
     expected: Standalone Workflow execution remains independent of Audit coordination and continues through the ordinary Go-to-Python artifact path.
-    test: {source: tests/e2e/e2e_test.go, kind: go_test, name: TestLocalGoToPythonArtifactCopy}
+    test: {source: tests/e2e/e2e_test.go, kind: go_test, name: TestLocalGoToPythonArtifactCopy, gate: process}
   - id: matrix_self_validation
     category: matrix
     acceptance: [A1, A2, A3, A4, A5]
     faults: [F28]
     expected: Strict decoding rejects missing policy, acceptance, categories, unique faults, named test owners and release commands.
-    test: {source: tests/e2e/audits_matrix_test.go, kind: go_test, name: TestAuditsHardeningMatrixIsComplete}
+    test: {source: tests/e2e/audits_matrix_test.go, kind: go_test, name: TestAuditsHardeningMatrixIsComplete, gate: matrix}
 
 gates:
   - {id: matrix, command: make test-audits-matrix}

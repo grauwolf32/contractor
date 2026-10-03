@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V249-001
+title: Include integration regressions in the release gate
+milestone: release-gate-integration-coverage-2026-10
+priority: P2
+status: completed
+implementation_commit: b3bc2f4afafcae5b94283de7f523f4e2a80c49c9
+depends_on: []
+languages: [make, go, python]
+goal: Ensure every integration-tagged regression has a reachable release-gate owner or an explicit tool-dependent exception.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/158
+  finding: Hand-written release regexes omit concurrency and retention tests that protect multi-replica behavior.
+scope:
+  in:
+    - Add PostgreSQL-only integration tests to release-verify while preserving family race coverage.
+    - Keep restore and tool-dependent tests on explicit gates.
+    - Check that matrix owner tests and integration test names match reachable gates.
+  out:
+    - Change production concurrency or artifact behavior.
+acceptance_criteria:
+  - {id: A1, text: The release gate selects each named PostgreSQL-only integration regression.}
+  - {id: A2, text: New or renamed integration tests enter the release selection automatically; exceptions require a named gate and reason.}
+  - {id: A3, text: Audit matrix owner tests must match their declared gate.}
+  - {id: A4, text: Focused integration tests and release graph checks pass.}
+tests:
+  - {command: python3 scripts/check_release_verify_graph.py, covers: [A1, A2]}
+  - {command: "go test -count=1 ./tests/e2e -run '^TestAuditsHardeningMatrixIsComplete$'", covers: [A3]}
+  - {command: "make test-release-integration", covers: [A1, A4]}

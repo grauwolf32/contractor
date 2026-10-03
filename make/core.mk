@@ -5,7 +5,7 @@
 	test-contracts verify-wire-contracts test-wire-cross-language \
 	test-config test-postgres test-runtime-config-postgres \
 	test-runtime-credentials test-litellm-contract test-mtls \
-	test-control-integration test-artifact-integration \
+	test-control-integration test-artifact-integration test-backup-restore \
 	test-lease-integration test-streamline test-faults test-e2e \
 	test-capability-e2e
 
@@ -58,6 +58,10 @@ test-control-integration:
 
 test-artifact-integration:
 	go test -tags=integration -count=1 ./internal/httpapi/privateartifacts -run TestCrossLanguagePrivateArtifactLifecycle
+
+test-backup-restore: require-database
+	@command -v pg_dump >/dev/null && command -v pg_restore >/dev/null || (echo "pg_dump and pg_restore are required" >&2; exit 1)
+	go test -tags=integration -count=1 -timeout=10m ./tests/integration/restore -run '^TestBackupRestorePreservesExactArtifactsAndCAS$$'
 
 test-lease-integration:
 	go test -race -count=1 ./tests/integration/lease

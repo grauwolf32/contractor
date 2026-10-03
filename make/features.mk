@@ -12,11 +12,11 @@
 test-audits-matrix: test-hardening-matrices
 
 test-audits-hardening: test-audits-matrix require-database
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/auditstore ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/findingintake ./internal/scheduler ./internal/httpapi/public -run '^(Test.*Audit.*|TestPostgresController.*|TestPostgresControllers.*|TestOpenAPI.*|TestChecklist.*|TestImporter.*|TestRoleDispositionRetryabilityIsExplicit|TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage)$$'
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/auditstore ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/findingintake ./internal/scheduler ./internal/httpapi/public -run '^(Test.*Audit.*|TestController.*|TestPostgresController.*|TestPostgresControllers.*|TestPostgresDispatch.*|TestPostgresFindingReceipt.*|TestOpenAPI.*|TestChecklist.*|TestImporter.*|TestRoleDispositionRetryabilityIsExplicit|TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage)$$'
 	cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts src/routes/projects/audits/audits.test.tsx
 
 test-audits-process: require-database runtime-venv
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestAuditProgramsAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestSchedulerConcurrencyAcrossProductionProcesses)$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestAuditProgramsAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestSchedulerConcurrencyAcrossProductionProcesses|TestLocalGoToPythonArtifactCopy)$$')
 
 test-top10-audit-e2e: require-database runtime-venv
 	go test -count=1 ./tests/eval/audit_programs -run '^TestTop10'

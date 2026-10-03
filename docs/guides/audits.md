@@ -258,7 +258,9 @@ The general strict conformance and fault map is
 [`tests/e2e/audits_matrix.yml`](../../tests/e2e/audits_matrix.yml). The curated
 program release contract is separately declared in
 [`tests/e2e/audit_program_library_matrix.yml`](../../tests/e2e/audit_program_library_matrix.yml).
-Every case names its executable owner and the durable boundary it proves. Run
+Every case names its executable owner, the gate that selects it, and the durable
+boundary it proves. The matrix test checks the expanded Make command, including
+package, build tag and `-run` selection. Run
 the complete curated-program gate against a disposable PostgreSQL database:
 
 ```sh
