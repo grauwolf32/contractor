@@ -3,7 +3,8 @@ id: V210-001
 title: Align config validate with Server startup checks
 milestone: configuration-reliability-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: acf86a2da695ad0a9f072689a3d12c406c65789e
 depends_on: []
 languages: [go]
 goal: Make config validate reject configuration trees that the Server cannot start from.
