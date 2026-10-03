@@ -47,6 +47,14 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 	if response.Code != http.StatusUnprocessableEntity || body.Message != "Git snapshot contains unsupported or invalid content" {
 		t.Fatalf("generic content error = %d %+v", response.Code, body)
 	}
+	response = httptest.NewRecorder()
+	(&handler{}).gitImportError(response, gitimport.ErrBudget)
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusRequestEntityTooLarge || body.Code != "git_import_limit" {
+		t.Fatalf("oversized Git import = %d %+v", response.Code, body)
+	}
 }
 
 func TestGitImportPublicationAndAdmission(t *testing.T) {
