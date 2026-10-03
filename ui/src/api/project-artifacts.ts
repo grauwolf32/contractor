@@ -4,6 +4,8 @@ import {
   ARTIFACT_REVISION_PATTERN,
   downloadExactArtifact,
   previewExactArtifact,
+  requireArtifactPage,
+  requireRequestedMetadata,
   writeScopedArtifact,
   type ArtifactDetailRequest,
   type ArtifactLineagePage,
@@ -15,7 +17,7 @@ import {
   type DownloadedArtifact,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
-import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
+import { requireData } from "./error";
 import { requireProjectID } from "./projects";
 
 export interface ProjectArtifactPageRequest extends ArtifactPageRequest {
@@ -29,13 +31,6 @@ export interface ProjectArtifactDetailRequest extends ArtifactDetailRequest {
 
 export interface ProjectArtifactWriteRequest extends ArtifactWriteRequest {
   projectId: string;
-}
-
-function invalidProjectArtifactResponse(status: number): PublicAPIError {
-  return invalidAPIResponse(
-    status,
-    "Server returned an invalid Project Artifact response",
-  );
 }
 
 function requireArtifactIdentity(namespace: string, name: string): void {
@@ -66,13 +61,6 @@ function projectArtifactPath(
 function exactRevisionQuery(revision: string): string {
   requireRevision(revision);
   return `?revision=${encodeURIComponent(revision)}`;
-}
-
-function safeArtifactPage(page: ArtifactPage, status: number): ArtifactPage {
-  if (!Array.isArray(page.items) || page.page === undefined) {
-    throw invalidProjectArtifactResponse(status);
-  }
-  return { items: [...page.items], page: { ...page.page } };
 }
 
 export async function listProjectArtifacts(
@@ -107,7 +95,7 @@ export async function listProjectArtifacts(
       },
     }),
   );
-  return safeArtifactPage(requireData(result), result.response.status);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getProjectArtifactMetadata(
@@ -137,16 +125,11 @@ export async function getProjectArtifactMetadata(
       },
     ),
   );
-  const metadata = requireData(result);
-  if (
-    metadata.artifact.namespace !== request.namespace ||
-    metadata.artifact.name !== request.name ||
-    (request.revision !== undefined &&
-      metadata.artifact.revision !== request.revision)
-  ) {
-    throw invalidProjectArtifactResponse(result.response.status);
-  }
-  return metadata;
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
 }
 
 export async function listProjectArtifactVersions(
@@ -173,7 +156,7 @@ export async function listProjectArtifactVersions(
       },
     ),
   );
-  return safeArtifactPage(requireData(result), result.response.status);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getProjectArtifactLineage(
@@ -206,11 +189,7 @@ export async function getProjectArtifactLineage(
       },
     ),
   );
-  const page = requireData(result);
-  if (!Array.isArray(page.items) || page.page === undefined) {
-    throw invalidProjectArtifactResponse(result.response.status);
-  }
-  return { items: [...page.items], page: { ...page.page } };
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export function writeProjectArtifact(

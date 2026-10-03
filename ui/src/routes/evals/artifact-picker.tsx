@@ -11,7 +11,7 @@ import type { EvalArtifact } from "../../api/evals";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
 import { useSession } from "../../auth/session";
-import { ProjectArtifactWriteForm } from "../projects/common";
+import { ArtifactWriteForm } from "../artifacts/common";
 import { EvalError, EvalField } from "./common";
 import { queryKeys } from "../../api/query-keys";
 import { sha256Hex } from "../../app/digest";
@@ -114,8 +114,8 @@ export function EvalArtifactPicker({
             Upload an input
           </button>
           {upload ? (
-            <ProjectArtifactWriteForm
-              projectId={projectId}
+            <ArtifactWriteForm
+              scope={{ kind: "project", id: projectId }}
               onWritten={() => {
                 setUpload(false);
                 void inventory.refetch();

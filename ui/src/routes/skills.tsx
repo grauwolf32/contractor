@@ -15,6 +15,8 @@ import "./skills.css";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
+import { ArtifactStoredNotice } from "./artifacts/bindings";
+import { artifactDetailPath } from "./artifacts/paths";
 
 const SKILL_NAMESPACE = "skills";
 
@@ -66,15 +68,12 @@ export function SkillsRoute() {
       ) : null}
 
       {written === null ? null : (
-        <div className="notice notice-success" role="status">
-          <strong>Global Skill revision stored.</strong>
-          <ContextLink
-            returnLabel="Skills"
-            to={`/artifacts/skills/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
-          >
-            Open skills/{written.artifact.name}@{written.artifact.revision}
-          </ContextLink>
-        </div>
+        <ArtifactStoredNotice
+          title="Global Skill revision stored."
+          artifact={written.artifact}
+          returnLabel="Skills"
+          to={artifactDetailPath({ kind: "user" }, written.artifact)}
+        />
       )}
 
       <div className="panel skill-library">

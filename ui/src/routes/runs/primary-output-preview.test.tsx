@@ -332,7 +332,7 @@ describe("Run primary output preview", () => {
     );
 
     expect(
-      await screen.findByText(/did not match the selected Run output/),
+      await screen.findByText(/did not match the requested Artifact revision/),
     ).toBeInTheDocument();
     expect(requests).toHaveLength(2);
     expect(screen.queryByText("stale-r0")).toBeNull();

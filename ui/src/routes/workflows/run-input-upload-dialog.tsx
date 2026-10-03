@@ -3,7 +3,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ArtifactWriteResponse } from "../../api/artifacts";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ArtifactWriteForm } from "../artifacts/common";
-import { ProjectArtifactWriteForm } from "../projects/common";
 
 function fixedMediaType(mediaTypes: readonly string[]): string | undefined {
   return mediaTypes.length === 1 && mediaTypes[0] !== "*/*"
@@ -62,8 +61,8 @@ export function RunInputUploadDialog({
         onWritten={uploaded}
       />
     ) : (
-      <ProjectArtifactWriteForm
-        projectId={projectId}
+      <ArtifactWriteForm
+        scope={{ kind: "project", id: projectId }}
         fixedNamespace="artifacts"
         {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
         acceptedMediaTypes={mediaTypes}

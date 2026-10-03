@@ -1,38 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useQuery } from "@tanstack/react-query";
+import { type ReactNode, useId, useRef } from "react";
 
-import {
-  ARTIFACT_NAME_PATTERN,
-  MAXIMUM_ARTIFACT_BYTES,
-  MEDIA_TYPE_PATTERN,
-  type ArtifactWriteResponse,
-} from "../../api/artifacts";
+import { type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import {
-  listProjectArtifacts,
-  writeProjectArtifact,
-  type ProjectArtifactWriteRequest,
-} from "../../api/project-artifacts";
+import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { ContextLink } from "../../app/context-navigation";
 import { Dialog } from "../../app/dialog";
-import {
-  artifactFileStem,
-  inferredArtifactMediaType,
-} from "../artifacts/artifact-file";
-import { ArtifactMediaTypeField } from "../artifacts/media-type-field";
-import { ArtifactFileDrop } from "../artifacts/common";
+import { ArtifactWriteForm } from "../artifacts/common";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
-import { ErrorNotice } from "../../app/error-notice";
-import { formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import {
   PROJECT_ARTIFACT_SHORTCUTS,
@@ -41,6 +17,8 @@ import {
 } from "./shortcuts";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
+import { ArtifactBindingsTable } from "../artifacts/bindings";
+import { artifactDetailPath } from "../artifacts/paths";
 
 function ArtifactShortcutIcon({
   shortcut,
@@ -143,250 +121,6 @@ export function ProjectArtifactShortcutGrid({
   );
 }
 
-export function ProjectArtifactWriteForm({
-  projectId,
-  suggested,
-  fixedIdentity,
-  fixedNamespace,
-  fixedMediaType,
-  initialMediaType,
-  acceptedMediaTypes,
-  expectedRevision,
-  submitLabel,
-  startOperation,
-  headingId,
-  onPendingChange,
-  onCancel,
-  onWritten,
-}: {
-  projectId: string;
-  suggested?: ShortcutDefinition;
-  fixedIdentity?: { namespace: string; name: string };
-  fixedNamespace?: string;
-  fixedMediaType?: string;
-  initialMediaType?: string;
-  acceptedMediaTypes?: readonly string[];
-  expectedRevision?: string;
-  submitLabel?: string;
-  /** Starts an upload and returns the signal that aborts it. */
-  startOperation?: () => AbortSignal;
-  /** Labels the form by an outer (dialog) heading instead of its own. */
-  headingId?: string;
-  onPendingChange?: (pending: boolean) => void;
-  /** Renders a Cancel button next to the submit button. */
-  onCancel?: () => void;
-  onWritten: (result: ArtifactWriteResponse) => void;
-}) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const ownHeading = useId();
-  const formHeading = headingId ?? ownHeading;
-  const [namespace, setNamespace] = useState(
-    fixedIdentity?.namespace ??
-      fixedNamespace ??
-      suggested?.namespace ??
-      "artifacts",
-  );
-  const [name, setName] = useState(fixedIdentity?.name ?? "");
-  const [mediaType, setMediaType] = useState(
-    fixedMediaType ??
-      initialMediaType ??
-      suggested?.mediaType ??
-      "application/octet-stream",
-  );
-  const preserveMediaType = useRef(
-    initialMediaType !== undefined || suggested?.mediaType !== undefined,
-  );
-  const [file, setFile] = useState<File | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: (request: ProjectArtifactWriteRequest) =>
-      writeProjectArtifact(api, request),
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.artifacts.all(projectId),
-      });
-      onWritten(result);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.artifacts.all(projectId),
-      });
-    },
-  });
-  useEffect(() => {
-    onPendingChange?.(mutation.isPending);
-  }, [mutation.isPending, onPendingChange]);
-
-  function selectFile(selected: File | undefined): void {
-    const next = selected ?? null;
-    setFile(next);
-    mutation.reset();
-    setValidationError(null);
-    if (next === null) {
-      return;
-    }
-    if (fixedIdentity === undefined && name === "") {
-      setName(artifactFileStem(next.name));
-    }
-    if (fixedMediaType === undefined) {
-      setMediaType(
-        inferredArtifactMediaType(next, mediaType, preserveMediaType.current),
-      );
-    }
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    setValidationError(null);
-    mutation.reset();
-    const effectiveNamespace =
-      fixedIdentity?.namespace ?? fixedNamespace ?? namespace.trim();
-    const effectiveName = fixedIdentity?.name ?? name.trim();
-    const effectiveMediaType = fixedMediaType ?? mediaType;
-    if (
-      !ARTIFACT_NAME_PATTERN.test(effectiveNamespace) ||
-      !ARTIFACT_NAME_PATTERN.test(effectiveName)
-    ) {
-      setValidationError(
-        "Namespace and name must use 1–128 letters, digits, dot, dash, or underscore.",
-      );
-      return;
-    }
-    if (!MEDIA_TYPE_PATTERN.test(effectiveMediaType)) {
-      setValidationError(
-        "Media type must be a lowercase type/subtype without parameters.",
-      );
-      return;
-    }
-    if (
-      acceptedMediaTypes !== undefined &&
-      !acceptedMediaTypes.includes("*/*") &&
-      !acceptedMediaTypes.includes(effectiveMediaType)
-    ) {
-      setValidationError(
-        `Media type must be one accepted by this input: ${acceptedMediaTypes.join(", ")}.`,
-      );
-      return;
-    }
-    if (file === null) {
-      setValidationError("Choose or drop one local file.");
-      return;
-    }
-    if (file.size > MAXIMUM_ARTIFACT_BYTES) {
-      setValidationError("Artifact exceeds the 64 MiB upload limit.");
-      return;
-    }
-    mutation.mutate({
-      projectId,
-      namespace: effectiveNamespace,
-      name: effectiveName,
-      mediaType: effectiveMediaType,
-      payload: file,
-      ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      ...(startOperation === undefined ? {} : { signal: startOperation() }),
-    });
-  }
-
-  const update = expectedRevision !== undefined;
-  return (
-    <form
-      className="project-artifact-form"
-      onSubmit={submit}
-      aria-labelledby={formHeading}
-    >
-      {headingId === undefined ? (
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">
-              {update ? "New version" : "Project artifact"}
-            </p>
-            <h3 id={formHeading}>
-              {update
-                ? "Upload a new version"
-                : `Add ${suggested?.label ?? "Artifact"}`}
-            </h3>
-          </div>
-          {update ? (
-            <code>If-Match: &quot;{expectedRevision}&quot;</code>
-          ) : null}
-        </div>
-      ) : null}
-
-      <ArtifactFileDrop file={file} onSelect={selectFile} />
-
-      {acceptedMediaTypes === undefined ? null : (
-        <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
-      )}
-
-      <div className="form-grid project-artifact-fields">
-        <label>
-          Namespace
-          <input
-            name="namespace"
-            required
-            maxLength={128}
-            disabled={
-              fixedIdentity !== undefined || fixedNamespace !== undefined
-            }
-            value={fixedIdentity?.namespace ?? fixedNamespace ?? namespace}
-            onChange={(event) => setNamespace(event.target.value)}
-          />
-        </label>
-        <label>
-          Name
-          <input
-            name="name"
-            required
-            maxLength={128}
-            disabled={fixedIdentity !== undefined}
-            value={fixedIdentity?.name ?? name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <ArtifactMediaTypeField
-          disabled={fixedMediaType !== undefined}
-          value={fixedMediaType ?? mediaType}
-          onChange={(value) => {
-            preserveMediaType.current = true;
-            setMediaType(value);
-          }}
-        />
-      </div>
-      {validationError === null ? null : (
-        <p className="form-error" role="alert">
-          {validationError}
-        </p>
-      )}
-      {mutation.error === null ? null : (
-        <ErrorNotice error={mutation.error} reconcileWrite />
-      )}
-      <div
-        className={
-          onCancel === undefined ? undefined : "project-dialog-actions"
-        }
-      >
-        {onCancel === undefined ? null : (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={mutation.isPending}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-        )}
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending
-            ? "Uploading…"
-            : (submitLabel ??
-              (update ? "Upload new version" : "Create binding"))}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 export function ProjectArtifactDialog({
   projectId,
   shortcut,
@@ -426,8 +160,8 @@ export function ProjectArtifactDialog({
       <p className="muted-copy">
         The category only suggests editable Artifact metadata.
       </p>
-      <ProjectArtifactWriteForm
-        projectId={projectId}
+      <ArtifactWriteForm
+        scope={{ kind: "project", id: projectId }}
         suggested={shortcut}
         headingId={heading}
         onCancel={onClose}
@@ -517,42 +251,21 @@ export function ProjectArtifactBindings({
         }
       >
         {(queryData) => (
-          <div className="table-scroll">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queryData.items.map((item) => (
-                  <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td data-label="Binding">
-                      <ContextLink
-                        returnLabel="Project Artifacts"
-                        returnHash="#project-artifacts"
-                        to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
-                    </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ArtifactBindingsTable
+            items={queryData.items}
+            returnLabel="Project Artifacts"
+            returnHash="#project-artifacts"
+            detailPath={(item) =>
+              artifactDetailPath(
+                { kind: "project", id: projectId },
+                {
+                  namespace: item.artifact.namespace,
+                  name: item.artifact.name,
+                },
+                detailRoot,
+              )
+            }
+          />
         )}
       </QueryView>
       <CursorControls
