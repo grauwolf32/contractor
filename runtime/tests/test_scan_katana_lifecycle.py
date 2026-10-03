@@ -121,3 +121,31 @@ def test_second_call_waits_for_artifact_publication_before_collision_check(tmp_p
             await tool.close()
 
     asyncio.run(scenario())
+
+
+def test_lock_wait_does_not_consume_katana_crawl_and_publication_deadline(tmp_path, monkeypatch):
+    calls = controlled_scanner(tmp_path, monkeypatch)
+
+    async def scenario():
+        artifacts = Artifacts()
+        tool, _state = await make_tool(tmp_path, artifacts)
+        invocation = None
+        try:
+            async with tool._session._lock:
+                invocation = asyncio.create_task(tool(SEED, timeout_seconds=1))
+                await asyncio.sleep(0)
+                await asyncio.sleep(1.1)
+                assert not invocation.done()
+                assert not calls and not artifacts.writes
+            result = await asyncio.wait_for(invocation, 1)
+            assert result["status"] == "completed", result
+            assert result["errorCode"] is None
+            assert result["targetsArtifact"]["revision"] == "r1"
+            assert len(calls) == 1 and len(artifacts.writes) == 1
+        finally:
+            if invocation is not None:
+                invocation.cancel()
+                await asyncio.gather(invocation, return_exceptions=True)
+            await tool.close()
+
+    asyncio.run(scenario())

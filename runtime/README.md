@@ -400,6 +400,8 @@ disables redirects, uses the ordinary non-headless crawler, and passes the
 native page limit. Headers/cookies, arbitrary flags, local files, external
 scope overrides and browser execution are not invocation inputs. The usual
 `scan_proxy_unsupported` rule and shared deadline/process-group cleanup apply.
+The deadline begins after the allocation's scan lock is acquired and covers
+destination checks, Artifact access, crawling and target publication.
 
 The adapter exports only supported same-origin URLs as a sorted, deduplicated
 UTF-8 `text/vnd.contractor.target-list` Artifact named `targets` in the Worker's
