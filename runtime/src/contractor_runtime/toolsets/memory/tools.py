@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,7 +22,8 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_EXACT_ORDINAL,
@@ -105,12 +105,8 @@ class MemoryToolsetFactory:
         del run_id, workspace, adapter_handles
         if namespace in PURPOSE_RESERVED_NAMESPACES:
             raise ValueError("MemoryTools requires a non-purpose Agent Namespace")
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("memory-tools@1 requires State.metrics")
+        require_selected_tools(selected, self.exported_tools)
+        metrics = require_metrics(state, "memory-tools@1")
         session = _MemorySession(self._client_factory(allocation_id, runtime_settings), namespace)
         builders: dict[str, Callable[[], Any]] = {
             "list_memories": lambda: ListMemoriesTool(session, metrics),
@@ -331,29 +327,12 @@ class _BaseMemoryTool:
         if _valid_raw_arguments(self.name, args):
             return None
         error = MemoryToolError("memory_invalid")
-        self._failure(_raw_argument_metric(self.name, args), error, time.perf_counter_ns())
+        self._recorded(_raw_argument_metric(self.name, args)).fail(error)
         return error
 
-    def _success(
-        self, arguments: Mapping[str, Any], result: Mapping[str, Any], started_ns: int
-    ) -> None:
-        diagnostics = dict(arguments)
-        for name in ("count", "content_bytes", "description_bytes", "tag_count"):
-            if name in result:
-                diagnostics[f"result_{name}"] = result[name]
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=diagnostics,
-            result=result,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-    def _failure(self, arguments: Mapping[str, Any], error: Exception, started_ns: int) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            error=error,
-            duration_ms=_elapsed_ms(started_ns),
+    def _recorded(self, arguments: Mapping[str, Any]) -> RecordedToolCall:
+        return RecordedToolCall(
+            self._metrics, self.name, arguments, bound_error=_normalize_tool_error
         )
 
 
@@ -368,15 +347,10 @@ class ListMemoriesTool(_BaseMemoryTool):
     """
 
     async def __call__(self) -> list[dict[str, Any]]:
-        started = time.perf_counter_ns()
-        try:
+        with self._recorded({}) as call:
             result = await self._session.list_memories()
-            self._success({}, {"count": len(result)}, started)
+            _succeed(call, {}, {"count": len(result)})
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure({}, bounded, started)
-            raise bounded from None
 
 
 class ReadMemoryTool(_BaseMemoryTool):
@@ -395,16 +369,11 @@ class ReadMemoryTool(_BaseMemoryTool):
     """
 
     async def __call__(self, name: str) -> dict[str, Any]:
-        started = time.perf_counter_ns()
         arguments = {"name": _safe_metric_name(name)}
-        try:
+        with self._recorded(arguments) as call:
             result = await self._session.read_memory(name)
-            self._success(arguments, _note_metric(result), started)
+            _succeed(call, arguments, _note_metric(result))
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure(arguments, bounded, started)
-            raise bounded from None
 
 
 class WriteMemoryTool(_BaseMemoryTool):
@@ -433,16 +402,11 @@ class WriteMemoryTool(_BaseMemoryTool):
         description: str = "",
         tags: list[str] = [],  # noqa: B006 - schema requires an optional array default
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
         arguments = _mutation_metric(name, content, description, tags)
-        try:
+        with self._recorded(arguments) as call:
             result = await self._session.write_memory(name, content, description, tags)
-            self._success(arguments, _note_metric(result), started)
+            _succeed(call, arguments, _note_metric(result))
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure(arguments, bounded, started)
-            raise bounded from None
 
 
 class AppendMemoryTool(_BaseMemoryTool):
@@ -460,19 +424,14 @@ class AppendMemoryTool(_BaseMemoryTool):
     """
 
     async def __call__(self, name: str, content: str) -> dict[str, Any]:
-        started = time.perf_counter_ns()
         arguments = {
             "name": _safe_metric_name(name),
             "content_bytes": _utf8_size(content),
         }
-        try:
+        with self._recorded(arguments) as call:
             result = await self._session.append_memory(name, content)
-            self._success(arguments, _note_metric(result), started)
+            _succeed(call, arguments, _note_metric(result))
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure(arguments, bounded, started)
-            raise bounded from None
 
 
 class SearchMemoryTool(_BaseMemoryTool):
@@ -489,16 +448,11 @@ class SearchMemoryTool(_BaseMemoryTool):
     """
 
     async def __call__(self, tags: list[str]) -> list[dict[str, Any]]:
-        started = time.perf_counter_ns()
         arguments = {"tag_count": len(tags) if isinstance(tags, list) else 0}
-        try:
+        with self._recorded(arguments) as call:
             result = await self._session.search_memory(tags)
-            self._success(arguments, {"count": len(result)}, started)
+            _succeed(call, arguments, {"count": len(result)})
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure(arguments, bounded, started)
-            raise bounded from None
 
 
 class ListMemoryTagsTool(_BaseMemoryTool):
@@ -510,15 +464,10 @@ class ListMemoryTagsTool(_BaseMemoryTool):
     """
 
     async def __call__(self) -> list[str]:
-        started = time.perf_counter_ns()
-        try:
+        with self._recorded({}) as call:
             result = await self._session.list_memory_tags()
-            self._success({}, {"count": len(result)}, started)
+            _succeed(call, {}, {"count": len(result)})
             return result
-        except Exception as error:
-            bounded = _normalize_tool_error(error)
-            self._failure({}, bounded, started)
-            raise bounded from None
 
 
 def _decode_value(namespace: str, binding_name: str, value: ArtifactValue) -> _LoadedNote:
@@ -796,5 +745,11 @@ def _normalize_tool_error(error: Exception) -> MemoryToolError:
     return MemoryToolError("memory_unavailable")
 
 
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
+def _succeed(
+    call: RecordedToolCall, arguments: Mapping[str, Any], result: Mapping[str, Any]
+) -> None:
+    diagnostics = dict(arguments)
+    for name in ("count", "content_bytes", "description_bytes", "tag_count"):
+        if name in result:
+            diagnostics[f"result_{name}"] = result[name]
+    call.succeed(result, arguments=diagnostics)

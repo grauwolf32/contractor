@@ -3,7 +3,8 @@ id: V179-006
 title: Consolidate duplicated Runtime digest, JSON, worker and document helpers
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 17279feecd96e165e8afc2d539f12b05a769d454
 depends_on: [V179-005]
 languages: [python]
 goal: Replace copied Runtime helpers with public shared implementations.
@@ -18,17 +19,21 @@ context:
 scope:
   in:
     - Make sha256 and JCS digest helpers public in digests.py and migrate callers.
-    - Add one strict JSON loader with caller-selected error type and canonical check and migrate copies.
-    - Extract one-shot auxiliary-agent scaffolding into worker/one_shot.py.
-    - Reuse projectfs storage helpers in the overlay and remove redundant overrides.
-    - Share the single-document session and validator CLI runner between likec4 and openapi.
+    - Add a leaf strict_json module (duplicate-key and NaN/Infinity rejection with distinct error types) and migrate the copies; callers keep their own error mapping and canonical checks.
+    - Extract candidate text, generation config, the one-shot model and the isolated session into worker/one_shot.py.
+    - Remove the overlay make_directory and delete_path overrides that duplicate DirectWorkspaceSession.
+    - Share the single-document session (load, CAS write, validation-task tracking, close) and validator launcher dispatch between likec4 and openapi.
   out:
     - Changing digests, document bytes or tool results.
+    - The sandboxed trailmark child, which must not import Runtime modules.
+    - Memory codec number hooks and findings-collection constant handling, which keep their existing strictness and only share the duplicate-key hook.
+    - Overlay tree helpers whose root, state-error and limit semantics differ from storage helpers.
+    - Validator and probe child environments, which intentionally set different variables.
 acceptance_criteria:
   - {id: A1, text: Runtime code builds sha256 and JCS digests only through digests.py.}
-  - {id: A2, text: Strict JSON loading has one implementation outside the sandboxed trailmark child.}
+  - {id: A2, text: Duplicate-key and non-standard-constant JSON rejection has one implementation outside the sandboxed trailmark child.}
   - {id: A3, text: _candidate_text and one-shot runner setup are defined once.}
-  - {id: A4, text: The overlay session no longer duplicates storage tree helpers.}
+  - {id: A4, text: The overlay session no longer duplicates storage directory and delete operations.}
   - {id: A5, text: likec4 and openapi share document session and validator runner code.}
   - {id: A6, text: Runtime tests and lint pass with unchanged pinned digests.}
 tests:

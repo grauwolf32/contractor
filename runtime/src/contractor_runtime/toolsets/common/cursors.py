@@ -9,13 +9,14 @@ their own public error code.
 from __future__ import annotations
 
 import base64
-import hashlib
 import hmac
 import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
 import jcs
+
+from contractor_runtime.digests import jcs_digest
 
 MAX_CURSOR_BYTES = 2048
 
@@ -42,7 +43,7 @@ def b64url_decode(value: str) -> bytes:
 def query_digest(document: Mapping[str, Any]) -> str:
     """Return the digest that binds a cursor to one normalized query."""
 
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(dict(document))).hexdigest()
+    return jcs_digest(dict(document))
 
 
 def encode_cursor(key: bytes | bytearray, document: Mapping[str, str | int]) -> str:

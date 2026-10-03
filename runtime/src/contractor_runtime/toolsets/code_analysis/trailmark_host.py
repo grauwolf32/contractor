@@ -20,6 +20,7 @@ from typing import Any
 import contractor_runtime.toolsets.code_analysis.languages as language_support
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.code_analysis.ids import (
     decode_symbol_id,
     encode_symbol_key,
@@ -1032,26 +1033,9 @@ async def _read_response(stream: asyncio.StreamReader) -> object:
         raise TrailmarkHostError("code_analysis_capacity_exceeded")
     payload = await stream.readexactly(length)
     try:
-        return json.loads(
-            payload,
-            parse_constant=_reject_json_constant,
-            object_pairs_hook=_unique_json_object,
-        )
+        return strict_json_loads(payload)
     except (UnicodeDecodeError, ValueError):
         raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
-
-
-def _reject_json_constant(_value: str) -> None:
-    raise ValueError("non-finite JSON number")
-
-
-def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate JSON object key")
-        result[key] = value
-    return result
 
 
 def _validate_response(value: object, request_id: str) -> dict[str, Any] | None:

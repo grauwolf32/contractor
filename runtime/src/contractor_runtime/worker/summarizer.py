@@ -7,21 +7,16 @@ import contextlib
 import json
 import math
 import re
-import uuid
 from collections import Counter, deque
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from google.adk.agents import LlmAgent
-from google.adk.apps import App
 from google.adk.events import Event
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
 from pydantic import PrivateAttr
 
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
@@ -32,8 +27,8 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
 )
-from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
 _MAX_PROJECTED_TEXT_BYTES = 64 * 1024
@@ -69,21 +64,10 @@ class SummarizerFailure(RuntimeError):
         super().__init__(f"Worker terminal summarizer failed ({code})")
 
 
-class _OneShotModel(BaseLlm):
+class _OneShotModel(OneShotModel):
     """Delegate exactly one model operation while retaining only numeric usage."""
 
-    _delegate: BaseLlm = PrivateAttr()
-    _calls: int = PrivateAttr(default=0)
     _usage: SummarizerUsage = PrivateAttr(default_factory=SummarizerUsage)
-    _output_limited: bool = PrivateAttr(default=False)
-
-    def __init__(self, delegate: BaseLlm) -> None:
-        super().__init__(model=delegate.model)
-        self._delegate = delegate
-
-    @property
-    def capabilities(self) -> Any:
-        return self._delegate.capabilities
 
     @property
     def usage(self) -> SummarizerUsage:
@@ -91,26 +75,17 @@ class _OneShotModel(BaseLlm):
             return SummarizerUsage(model_calls=1, token_usage_unavailable=1)
         return self._usage
 
-    @property
-    def output_limited(self) -> bool:
-        return self._output_limited
+    def _call_limit_error(self) -> Exception:
+        return SummarizerFailure("call_limit_exceeded")
+
+    def _record_usage(self, usage_metadata: Any | None) -> None:
+        self._usage = _usage_projection(usage_metadata)
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
-        if self._calls != 0:
-            raise SummarizerFailure("call_limit_exceeded")
-        self._calls = 1
-        completed_usage: Any | None = None
         try:
-            async for response in self._delegate.generate_content_async(llm_request, stream=stream):
-                if not bool(getattr(response, "partial", False)):
-                    completed_usage = getattr(response, "usage_metadata", None)
-                    self._usage = _usage_projection(completed_usage)
-                if output_limit_reached(response):
-                    self._output_limited = True
-                    # ADK must never parse or repair truncated structured text.
-                    return
+            async for response in super().generate_content_async(llm_request, stream=stream):
                 yield response
         except Exception as error:
             # A received response rejected by the Gateway adapter spent tokens.
@@ -243,9 +218,6 @@ class TerminalSummarizer:
         def after_model(callback_context: Any, llm_response: LlmResponse) -> None:
             capture_span_content(span, output=lambda: llm_response.content)
 
-        generation = types.GenerateContentConfig(max_output_tokens=self._policy.max_output_tokens)
-        if self._policy.temperature is not None:
-            generation.temperature = self._policy.temperature
         agent = LlmAgent(
             name="contractor_terminal_summarizer",
             description="Produce one terminal result from bounded Worker history.",
@@ -255,71 +227,48 @@ class TerminalSummarizer:
             instruction=lambda _: self._instructions,
             tools=[],
             output_schema=WorkerModelResult,
-            generate_content_config=generation,
+            generate_content_config=generation_config(self._policy),
             before_model_callback=before_model,
             after_model_callback=after_model,
         )
-        app_name = "contractor_runtime_summarizer"
-        user_id = "contractor_runtime"
-        session_id = f"summary-{uuid.uuid4().hex}"
-        service = InMemorySessionService()
-        runner = Runner(
-            app=App(name=app_name, root_agent=agent),
-            session_service=service,
-        )
-        await service.create_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-        )
-        candidate: str | None = None
-        outcome = "failed"
-        try:
+        # The caller owns the isolated summary model and closes it, which
+        # erases its Gateway credential; the session only owns ADK state.
+        async with one_shot_session(
+            agent, app_name="contractor_runtime_summarizer", session_prefix="summary"
+        ) as session:
+            outcome = "failed"
             try:
-                async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    invocation_id=f"{invocation_id}-summary",
-                    new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+                try:
+                    candidate = await session.run(
+                        prompt=prompt, invocation_id=f"{invocation_id}-summary"
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except SummarizerFailure:
+                    raise
+                except Exception as error:
+                    code = (
+                        "gateway_unavailable"
+                        if isinstance(getattr(error, "provider_error_type", None), str)
+                        else "execution_failed"
+                    )
+                    raise SummarizerFailure(
+                        code, retryable=getattr(error, "retryable", True)
+                    ) from None
+                if self._model.output_limited:
+                    raise SummarizerFailure("output_limit_exceeded")
+                usage = self.usage
+                if (
+                    self._policy.max_total_tokens is not None
+                    and usage.total_tokens > self._policy.max_total_tokens
                 ):
-                    text = _candidate_text(event)
-                    if text is not None:
-                        candidate = text
-            except asyncio.CancelledError:
-                raise
-            except SummarizerFailure:
-                raise
-            except Exception as error:
-                code = (
-                    "gateway_unavailable"
-                    if isinstance(getattr(error, "provider_error_type", None), str)
-                    else "execution_failed"
-                )
-                raise SummarizerFailure(code, retryable=getattr(error, "retryable", True)) from None
-            if self._model.output_limited:
-                raise SummarizerFailure("output_limit_exceeded")
-            usage = self.usage
-            if (
-                self._policy.max_total_tokens is not None
-                and usage.total_tokens > self._policy.max_total_tokens
-            ):
-                raise SummarizerFailure("budget_exhausted")
-            outcome = "succeeded"
-            return candidate
-        finally:
-            with contextlib.suppress(Exception):
-                if span is not None:
-                    span.end(outcome=outcome)
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await runner.close()
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await service.delete_session(
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-            # The caller owns the isolated summary model and closes it, which
-            # erases its Gateway credential; nothing model-specific happens here.
+                    raise SummarizerFailure("budget_exhausted")
+                outcome = "succeeded"
+                return candidate
+            finally:
+                with contextlib.suppress(Exception):
+                    if span is not None:
+                        span.end(outcome=outcome)
 
 
 def build_summarizer_prompt(
@@ -536,20 +485,6 @@ def _usage_projection(usage: Any | None) -> SummarizerUsage:
         total_tokens=projected.total_tokens or 0,
         token_usage_unavailable=int(projected.total_unavailable),
     )
-
-
-def _candidate_text(event: Event) -> str | None:
-    content = event.content
-    if content is None or content.role != "model" or event.partial:
-        return None
-    text: list[str] = []
-    for part in content.parts or []:
-        if bool(getattr(part, "thought", False)):
-            continue
-        if part.text is None:
-            return None
-        text.append(part.text)
-    return "".join(text) if text else None
 
 
 def _document_size(payload: Mapping[str, Any]) -> int:

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any, Literal
+from typing import Literal
 
 import jcs
 from pydantic import (
@@ -12,6 +11,7 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import API_VERSION, VersionedWireModel, WireModel
 from contractor_runtime.contracts.reports import AllocationFinalResponse
+from contractor_runtime.strict_json import DuplicateJSONKey, strict_json_loads
 
 
 class PrivateProtocolDecodeError(ValueError):
@@ -22,28 +22,11 @@ class PrivateProtocolDecodeError(ValueError):
         super().__init__(f"private protocol {reason} error")
 
 
-class _DuplicateJSONKey(ValueError):
-    pass
-
-
-def _invalid_json_constant(_value: str) -> Any:
-    raise ValueError("non-standard JSON constant")
-
-
 def encode_private(value: WireModel) -> bytes:
     """Return RFC 8785 canonical private JSON; callers must not log it."""
 
     dumped = value.model_dump(mode="json", by_alias=True, exclude_none=True)
     return jcs.canonicalize(dumped)
-
-
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise _DuplicateJSONKey
-        result[key] = value
-    return result
 
 
 def decode_private[PrivateModelT: WireModel](
@@ -57,10 +40,8 @@ def decode_private[PrivateModelT: WireModel](
     ):
         raise PrivateProtocolDecodeError("schema")
     try:
-        value = json.loads(
-            raw, object_pairs_hook=_unique_object, parse_constant=_invalid_json_constant
-        )
-    except _DuplicateJSONKey:
+        value = strict_json_loads(raw)
+    except DuplicateJSONKey:
         raise PrivateProtocolDecodeError("duplicate_key") from None
     except (ValueError, UnicodeDecodeError, TypeError):
         raise PrivateProtocolDecodeError("schema") from None

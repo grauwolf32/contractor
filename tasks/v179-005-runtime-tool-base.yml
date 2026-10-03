@@ -3,7 +3,8 @@ id: V179-005
 title: Share Runtime toolset call instrumentation and factory helpers
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 153ee7ff25e7df15b0fb958771baad22f19e5f42
 depends_on: []
 languages: [python]
 goal: Give built-in toolsets one tool-call metrics wrapper, artifact-observation mixin, factory checks and runtime secret source.
@@ -17,19 +18,24 @@ context:
     different subsets of the runtime settings.
 scope:
   in:
-    - Add elapsed_ms and an instrumented call helper to toolsets/common/metrics.py with explicit cancellation recording; migrate every toolset.
+    - Add elapsed_ms, RecordedToolCall and instrumented_call to toolsets/common/metrics.py with explicit cancellation recording; migrate every toolset that wrapped record_tool_call around a raising tool body.
+    - Add ArtifactTool and SessionArtifactTool bases in toolsets/common/tool_base.py for the artifact-backed tools.
     - Add an artifact-observing tool mixin to toolsets/common/artifact_visibility.py and migrate the tool bases.
-    - Add shared factory checks for selected tools, metrics and workspace and migrate the factories.
+    - Add shared factory checks for selected tools and State.metrics and migrate the factories.
     - Collect runtime redaction secrets from one public function used by toolsets and allocation redaction.
   out:
     - Changing tool names, arguments, results or error codes seen by agents.
+    - A shared workspace-required check; each factory raises its own domain error, so a helper would only wrap one if statement.
+    - scan, code_execution, audit-results@2 and Agent Skill recording, which derive the recorded error from a result envelope or the sandbox result rather than from a raised exception; they use elapsed_ms where they time with perf_counter.
+    - Passing redaction secrets to toolsets that record no free-form model arguments (filesystem, edit-files, workspace-changes, taint, code-analysis, memory).
 acceptance_criteria:
-  - {id: A1, text: No toolset defines its own _elapsed_ms or timed record_tool_call wrapper.}
-  - {id: A2, text: Cancelled tool calls are recorded the same way by every toolset.}
+  - {id: A1, text: No toolset defines its own _elapsed_ms or timed record_tool_call success/failure wrapper.}
+  - {id: A2, text: Every toolset records a cancelled call as a retryable cancellation error, using its domain error where it has one and ToolCallCancelled otherwise.}
   - {id: A3, text: Artifact-observation members are defined once.}
-  - {id: A4, text: Toolset factories use the shared selection, metrics and workspace checks.}
-  - {id: A5, text: Every toolset redacts the same runtime secret set in metrics.}
+  - {id: A4, text: Toolset factories use the shared selection and metrics checks.}
+  - {id: A5, text: Every toolset that redacts metrics uses the same runtime secret set as allocation redaction.}
   - {id: A6, text: Runtime tests and lint pass.}
 tests:
+  - {command: cd runtime && uv run pytest tests/test_tool_call_metrics.py, covers: [A1, A2]}
   - {command: cd runtime && uv run pytest, covers: [A1, A2, A3, A4, A5, A6]}
   - {command: cd runtime && uv run ruff check . && uv run ruff format --check ., covers: [A6]}

@@ -10,6 +10,8 @@ from typing import Final
 
 import jcs
 
+from contractor_runtime.strict_json import DuplicateJSONKey, unique_json_object
+
 SCHEMA_VERSION: Final = "contractor.memory-note/v1"
 MEDIA_TYPE: Final = "application/vnd.contractor.memory-note+json"
 ARTIFACT_NAME_PREFIX: Final = "memory."
@@ -170,11 +172,11 @@ def decode_note(artifact_binding_name: str, payload: bytes) -> StoredMemoryNote:
         text = payload.decode("utf-8")
         raw = json.loads(
             text,
-            object_pairs_hook=_unique_object,
+            object_pairs_hook=unique_json_object,
             parse_int=_JSONInteger,
             parse_float=_JSONFloat,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, _DuplicateKey):
+    except (UnicodeDecodeError, json.JSONDecodeError, DuplicateJSONKey):
         raise MemoryCodecError(REASON_MALFORMED) from None
     if not isinstance(raw, dict):
         raise MemoryCodecError(REASON_MALFORMED)
@@ -300,22 +302,9 @@ def _stored_mapping(note: StoredMemoryNote) -> dict[str, object]:
     }
 
 
-class _DuplicateKey(Exception):
-    pass
-
-
 class _JSONInteger(str):
     pass
 
 
 class _JSONFloat(str):
     pass
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise _DuplicateKey
-        result[key] = value
-    return result

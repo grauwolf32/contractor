@@ -30,7 +30,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import ToolMetrics, elapsed_ms
 
 
 def _text(value, field, key):
@@ -145,7 +145,7 @@ class ReadAuditTaskTool:
             result={"status": result.get("status", "read"), "batchSize": result.get("batchSize")},
             secrets=(),
             error=failure,
-            duration_ms=(time.perf_counter_ns() - started) // 1_000_000,
+            duration_ms=elapsed_ms(started),
         )
         return result
 
@@ -301,7 +301,7 @@ class SubmitCheckResultTool:
             result=result,
             secrets=(),
             error=failure,
-            duration_ms=(time.perf_counter_ns() - started) // 1_000_000,
+            duration_ms=elapsed_ms(started),
         )
         return result
 

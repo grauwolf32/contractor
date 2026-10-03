@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import difflib
-import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -12,6 +11,7 @@ from typing import Any, Literal
 
 import jcs
 
+from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import normalize_project_path, parent_paths
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.projectfs.storage import (
@@ -26,6 +26,7 @@ from contractor_runtime.projectfs.storage import (
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.lines import split_patch_lines
 
@@ -130,47 +131,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             total = sum(len(_validate_text(text, None)) for text in self._tree.text_files.values())
             self._text_bytes = (self._tree, total)
         return self._text_bytes[1]
-
-    async def make_directory(self, path: str, *, parents: bool = False) -> None:
-        normalized = normalize_project_path(path, allow_root=False)
-        async with self._lock:
-            self._require_open()
-            candidate = self._tree.clone()
-            existing = candidate.kind(normalized)
-            if existing == "directory":
-                return
-            if existing is not None:
-                raise WorkspaceStorageError("workspace_type_conflict")
-            missing = [
-                parent for parent in parent_paths(normalized) if candidate.kind(parent) is None
-            ]
-            if missing and not parents:
-                raise WorkspaceStorageError("workspace_not_found")
-            for parent in parent_paths(normalized):
-                kind = candidate.kind(parent)
-                if kind not in {None, "directory"}:
-                    raise WorkspaceStorageError("workspace_type_conflict")
-                candidate.directories.add(parent)
-            candidate.directories.add(normalized)
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
-
-    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
-        normalized = normalize_project_path(path, allow_root=False)
-        async with self._lock:
-            self._require_open()
-            if self._tree.kind(normalized) is None:
-                raise WorkspaceStorageError("workspace_not_found")
-            descendants = _descendants(self._tree, normalized)
-            selected = descendants | {normalized}
-            if any(candidate in self._tree.binary_paths for candidate in selected):
-                raise WorkspaceStorageError("binary_file_unsupported")
-            if descendants and not recursive:
-                raise WorkspaceStorageError("workspace_type_conflict")
-            candidate = self._tree.clone()
-            _remove_subtree(candidate, normalized)
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
 
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
         _validate_tree(candidate, self._limits)
@@ -425,23 +385,8 @@ def canonical_overlay_operations(
 
 
 def _strict_json_document(payload: bytes) -> dict[str, Any]:
-    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in items:
-            if key in result:
-                raise WorkspaceStateError("workspace_state_invalid")
-            result[key] = value
-        return result
-
-    def reject_constant(_: str) -> None:
-        raise WorkspaceStateError("workspace_state_invalid")
-
     try:
-        document = json.loads(
-            payload.decode("utf-8"),
-            object_pairs_hook=pairs,
-            parse_constant=reject_constant,
-        )
+        document = strict_json_loads(payload.decode("utf-8"))
         if not isinstance(document, dict) or jcs.canonicalize(document) != payload:
             raise WorkspaceStateError("workspace_state_invalid")
         return document
@@ -568,11 +513,6 @@ def _copy_subtree(
     )
 
 
-def _descendants(tree: ManagedWorkspaceTree, path: str) -> set[str]:
-    prefix = f"{path}/"
-    return {candidate for candidate in tree.paths() if candidate.startswith(prefix)}
-
-
 def _within(path: str, root: str) -> bool:
     return root == "" or path == root or path.startswith(f"{root}/")
 
@@ -599,7 +539,7 @@ def _change_token(before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, pat
         "before": _path_value(before, path),
         "after": _path_value(after, path),
     }
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+    return jcs_digest(document)
 
 
 def _tree_projection(tree: ManagedWorkspaceTree) -> tuple[set[str], dict[str, str], set[str]]:

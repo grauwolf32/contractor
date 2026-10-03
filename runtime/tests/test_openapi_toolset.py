@@ -849,7 +849,9 @@ def test_vacuum_adapter_bounds_and_orders_serious_issues(
         return subprocess.CompletedProcess(command, 1, json.dumps(issues).encode(), b"")
 
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/opt/bin/vacuum")
-    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=run))
+    monkeypatch.setattr(
+        "contractor_runtime.toolsets.common.process.run_command", AsyncMock(side_effect=run)
+    )
     result = asyncio.run(_run_vacuum("alpha\nbeta\n"))
     assert result["executionError"] is None
     assert [item["severity"] for item in result["issues"]] == [0, 1]
@@ -879,7 +881,9 @@ def test_vacuum_adapter_builds_snippets_only_for_returned_issues(
         return original(issue, lines)
 
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/opt/bin/vacuum")
-    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=run))
+    monkeypatch.setattr(
+        "contractor_runtime.toolsets.common.process.run_command", AsyncMock(side_effect=run)
+    )
     monkeypatch.setattr(openapi_module, "_issue_with_snippet", counting)
     result = asyncio.run(_run_vacuum("alpha\n"))
     assert result["truncated"]
@@ -898,12 +902,13 @@ def test_vacuum_adapter_reports_unavailable_timeout_and_bad_output(
     def timeout(*_args: Any, **_kwargs: Any) -> Any:
         raise subprocess.TimeoutExpired("vacuum", 30)
 
-    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=timeout))
+    monkeypatch.setattr(
+        "contractor_runtime.toolsets.common.process.run_command", AsyncMock(side_effect=timeout)
+    )
     assert "timed out" in asyncio.run(_run_vacuum("openapi: 3.0.3"))["executionError"]
 
     monkeypatch.setattr(
-        openapi_module,
-        "run_command",
+        "contractor_runtime.toolsets.common.process.run_command",
         AsyncMock(
             side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
                 [], 0, b"not-json", b""
