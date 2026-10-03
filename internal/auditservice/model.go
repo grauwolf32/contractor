@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -16,7 +17,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -68,7 +68,8 @@ func validateDraftSelection(value DraftSelection) error {
 func ValidateBaseline(value BaselineSnapshot) error {
 	if value.Schema != BaselineSchema || len(value.Inputs) == 0 ||
 		value.RuntimeLabels == nil || value.Skills == nil || value.LLMCredentialIDs == nil ||
-		value.RuntimeCredentialIDs == nil || value.Inventory.ExecutionManifest.Items == nil {
+		value.RuntimeCredentialIDs == nil || value.Standards == nil ||
+		value.Inventory.ExecutionManifest.Items == nil {
 		return fmt.Errorf("%w: Audit baseline shape is invalid", ErrInvalid)
 	}
 	for name, input := range value.Inputs {
@@ -241,9 +242,9 @@ func cloneExactInputs(source map[string]auditstore.ExactArtifact) map[string]aud
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
 	result.Inputs = cloneExactInputs(source.Inputs)
-	result.RuntimeLabels = append([]string(nil), source.RuntimeLabels...)
+	result.RuntimeLabels = slices.Clone(source.RuntimeLabels)
 	result.RuntimeConfig = source.RuntimeConfig.Clone()
-	result.Skills = append([]contracts.RunSkillSnapshot(nil), source.Skills...)
+	result.Skills = slices.Clone(source.Skills)
 	for index := range result.Skills {
 		if result.Skills[index].Source != nil {
 			ref := *result.Skills[index].Source
@@ -254,9 +255,9 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 			result.Skills[index].Source = &ref
 		}
 	}
-	result.LLMCredentialIDs = append([]string(nil), source.LLMCredentialIDs...)
-	result.RuntimeCredentialIDs = append([]string(nil), source.RuntimeCredentialIDs...)
-	result.Standards = append([]auditstandards.PinnedPackage(nil), source.Standards...)
+	result.LLMCredentialIDs = slices.Clone(source.LLMCredentialIDs)
+	result.RuntimeCredentialIDs = slices.Clone(source.RuntimeCredentialIDs)
+	result.Standards = slices.Clone(source.Standards)
 	for index := range result.Standards {
 		cloneExactPackageRef(&result.Standards[index].Catalog)
 		cloneExactPackageRef(&result.Standards[index].Retained)
@@ -269,11 +270,9 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		}
 		result.ProjectHTTPTarget = &target
 	}
-	result.Inventory.Gaps = append([]string(nil), source.Inventory.Gaps...)
+	result.Inventory.Gaps = slices.Clone(source.Inventory.Gaps)
 	result.Inventory.StandardSelection = cloneAuditStandardSelection(source.Inventory.StandardSelection)
-	result.Inventory.ExecutionManifest.Items = append(
-		[]auditdomain.ExecutionItem(nil), source.Inventory.ExecutionManifest.Items...,
-	)
+	result.Inventory.ExecutionManifest.Items = slices.Clone(source.Inventory.ExecutionManifest.Items)
 	for index := range result.Inventory.ExecutionManifest.Items {
 		item := &result.Inventory.ExecutionManifest.Items[index]
 		if item.TaskRef != nil {

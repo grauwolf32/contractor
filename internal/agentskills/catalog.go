@@ -55,13 +55,6 @@ func (p *SeedPlan) Packages() []SeedMetadata {
 	return result
 }
 
-func (p *SeedPlan) TotalBytes() int64 {
-	if p == nil {
-		return 0
-	}
-	return p.totalBytes
-}
-
 type SeedOutcome struct {
 	Name          string     `json:"name"`
 	Status        SeedStatus `json:"status"`

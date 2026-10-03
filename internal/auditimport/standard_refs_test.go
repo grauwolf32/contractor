@@ -18,6 +18,32 @@ import (
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
+func TestPinnedStandardsRequiresArrayInBaseline(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+		valid   bool
+	}{
+		{name: "missing", payload: `{"schema":"contractor.audit.baseline.v1"}`},
+		{name: "null", payload: `{"schema":"contractor.audit.baseline.v1","standards":null}`},
+		{name: "empty", payload: `{"schema":"contractor.audit.baseline.v1","standards":[]}`, valid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot := auditstore.ReconcileSnapshot{Audit: auditstore.Audit{
+				BaselineSnapshot: json.RawMessage(test.payload),
+			}}
+			standards, err := (&Importer{}).loadPinnedStandards(context.Background(), snapshot)
+			if test.valid {
+				if err != nil || standards == nil || len(standards) != 0 {
+					t.Fatalf("valid empty standards = (%v, %v)", standards, err)
+				}
+			} else if !errors.Is(err, ErrPermanent) {
+				t.Fatalf("invalid standards = %v, want ErrPermanent", err)
+			}
+		})
+	}
+}
+
 func TestStandardProposalReferencesRequirePinnedExistingEntries(t *testing.T) {
 	pkg := top10ImportPackage(t)
 	revision := "standard-r1"

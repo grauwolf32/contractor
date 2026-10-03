@@ -202,11 +202,9 @@ func validateDocument(document Document) error {
 			return validationError(CodeManifestInvalid, ManifestPath)
 		}
 		mappings[mapping.Key] = struct{}{}
-		contract, exists := contracts[contractKey(mapping.EvidenceContract)]
-		if !exists {
+		if _, exists := contracts[contractKey(mapping.EvidenceContract)]; !exists {
 			return validationError(CodeDanglingMapping, ManifestPath)
 		}
-		_ = contract
 		seenEntries := make(map[string]struct{}, len(mapping.EntryIDs))
 		for _, entryID := range mapping.EntryIDs {
 			entry, exists := entries[entryID]

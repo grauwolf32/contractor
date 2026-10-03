@@ -102,6 +102,34 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		baseline.Inventory.Worklist.Ref.Revision == nil || len(baseline.Skills) != 0 {
 		t.Fatalf("baseline = (%+v, %v)", baseline, err)
 	}
+	if baseline.Standards == nil || ValidateBaseline(baseline) != nil {
+		t.Fatalf("decoded baseline lost its required empty-array shape: %+v", baseline)
+	}
+	var baselineFields map[string]json.RawMessage
+	if err := json.Unmarshal(started.Audit.BaselineSnapshot, &baselineFields); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name  string
+		value json.RawMessage
+	}{
+		{name: "missing"},
+		{name: "null", value: json.RawMessage(`null`)},
+	} {
+		t.Run("baseline standards "+test.name, func(t *testing.T) {
+			baselineFields["standards"] = test.value
+			if test.value == nil {
+				delete(baselineFields, "standards")
+			}
+			payload, err := json.Marshal(baselineFields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := DecodeBaseline(payload); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("DecodeBaseline missing/null standards = %v, want ErrInvalid", err)
+			}
+		})
+	}
 	holds, err := auditstore.NewPostgresStore(pool).ListHeldAuditIDsByLLMCredential(ctx, "development-worker", 10)
 	if err != nil || len(holds) != 1 || holds[0] != draft.AuditID {
 		t.Fatalf("credential holds = (%v, %v)", holds, err)
