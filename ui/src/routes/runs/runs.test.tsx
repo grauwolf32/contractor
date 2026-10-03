@@ -1149,13 +1149,8 @@ describe("Run routes", () => {
             finishedAt: "2026-08-31T12:05:00Z",
           });
           return apiResponse(
-            {
-              code: "conflict",
-              message: "Run completed concurrently",
-              retryable: false,
-              requestId: "request-cancel-race",
-            },
-            { status: 409 },
+            { runId: "run-router", state: "succeeded" },
+            { status: 200 },
           );
         }
         throw new Error(`unexpected ${request.method} ${url}`);
@@ -1190,6 +1185,69 @@ describe("Run routes", () => {
     expect(cancellationBody).toEqual({
       reason: "Stop after the current review",
     });
+  });
+
+  it("keeps cancellation retryable after a failed request while the Run is active", async () => {
+    let currentRun = runFixture({ eventCursor: undefined });
+    let cancellationCalls = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) return shared;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/runs/run-router" && request.method === "GET") {
+          return apiResponse(currentRun);
+        }
+        if (
+          path === "/v1/runs/run-router/cancel" &&
+          request.method === "POST"
+        ) {
+          cancellationCalls += 1;
+          if (cancellationCalls === 1) {
+            return apiResponse(
+              {
+                code: "unavailable",
+                message: "Cancellation service unavailable",
+                retryable: true,
+              },
+              { status: 500 },
+            );
+          }
+          currentRun = runFixture({
+            state: "cancelling",
+            eventCursor: undefined,
+          });
+          return apiResponse(
+            { runId: "run-router", state: "cancelling" },
+            { status: 202 },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    const button = await screen.findByRole("button", {
+      name: "Request cancellation",
+    });
+    await user.type(screen.getByLabelText("Explicit reason"), "Stop this Run");
+    await user.click(button);
+    expect(
+      await screen.findByText("Cancellation service unavailable"),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Explicit reason")).toHaveValue(
+      "Stop this Run",
+    );
+    expect(button).toBeEnabled();
+    expect(screen.queryByText(/had already reached a final state/)).toBeNull();
+    expect(cancellationCalls).toBe(1);
+    await user.click(button);
+    expect(
+      await screen.findByRole("heading", { name: "Cleanup in progress" }),
+    ).toBeVisible();
+    expect(cancellationCalls).toBe(2);
   });
 
   it("surfaces the primary terminal cause and focuses its failed attempt", async () => {
