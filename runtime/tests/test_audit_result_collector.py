@@ -24,6 +24,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditInvocationOwner,
     AuditSnapshot,
     AuditTrustedInputs,
+    NormalizedAuditItem,
     RecordedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.encoding import (
@@ -278,6 +279,33 @@ def test_shared_task_local_acceptance(case):
             if field := case.get("error_field"):
                 assert result["error"]["field"] == field
             assert len(json.dumps(result)) < 2048
+
+    asyncio.run(scenario())
+
+
+def test_nul_summaries_rejected_by_trusted_contracts():
+    with pytest.raises(ValueError):
+        AuditEvidence("source-trace", "Guard\x00at app.py:12.")
+    with pytest.raises(ValueError):
+        NormalizedAuditItem("check-authz", "satisfied", "Verified\x00control.")
+
+
+@pytest.mark.parametrize("field", ["summary", "evidence.summary"])
+def test_nul_summary_rejects_whole_batch_with_item_key(field):
+    async def scenario():
+        expected, inputs = assigned(batch=True)
+        collector, tool, _ = tool_for(inputs)
+        first, second = [entry.value for entry in expected.items]
+        invalid = arguments(second)
+        if field == "summary":
+            invalid["summary"] = "Verified\x00control."
+        else:
+            invalid["evidence"][0]["summary"] = "Guard\x00at app.py:12."
+        reply = await tool(CONTEXT, results=[arguments(first), invalid])
+        assert reply["status"] == "error"
+        assert reply["error"]["field"] == field
+        assert reply["error"]["itemKey"] == second.item_key
+        assert (await collector.snapshot()).items == ()
 
     asyncio.run(scenario())
 

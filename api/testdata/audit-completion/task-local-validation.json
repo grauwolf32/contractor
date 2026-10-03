@@ -206,6 +206,48 @@
       }
     },
     {
+      "name": "result-summary-nul",
+      "task": "checklist",
+      "mode": "custom-checklist",
+      "valid": false,
+      "error_field": "summary",
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified\u0000control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "evidence-summary-nul",
+      "task": "checklist",
+      "mode": "custom-checklist",
+      "valid": false,
+      "error_field": "evidence.summary",
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard\u0000at app.py:12."
+          }
+        ]
+      }
+    },
+    {
       "name": "completed-is-not-evidence",
       "task": "checklist",
       "mode": "custom-checklist",
