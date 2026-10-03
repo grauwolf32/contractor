@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V189-001
+title: Remove unused pre-claim CurrentSubtask method
+milestone: planner-dispatch-cleanup-2026-10
+priority: P2
+status: completed
+implementation_commit: 0ba3fb2f275080e8395873d8e4aa81ba41274217
+depends_on: []
+languages: [go]
+goal: Keep the Planner controller API aligned with the claim-first dispatch contract.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/199
+  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  finding: CurrentSubtask has no callers and its comment describes an unused pre-claim flow.
+scope:
+  in:
+    - Remove the unused method and its misleading comment.
+    - Clarify ClaimCurrentSubtask's claim-first role.
+  out:
+    - Changing dispatch order or error handling.
+acceptance_criteria:
+  - {id: A1, text: No CurrentSubtask method remains and dispatch still claims before inspecting the request.}
+  - {id: A2, text: Go build, vet and Planner tests pass.}
+tests:
+  - {command: go build ./..., covers: [A1, A2]}
+  - {command: go vet ./internal/planner/..., covers: [A1, A2]}
+  - {command: go test ./internal/planner/ ./internal/planner/streamline/... ./internal/planner/router/..., covers: [A1, A2]}

@@ -140,33 +140,9 @@ func (c *PlannerPlanController) AddSubtask(
 	return clonePlannerPlan(c.plan), nil
 }
 
-// CurrentSubtask validates the exact model-supplied ID without reserving a
-// dispatch. It lets adapters validate the remaining request before the atomic
-// claim, while ClaimCurrentSubtask still fences a concurrent winner.
-func (c *PlannerPlanController) CurrentSubtask(subtaskID string) (PlannerSubtask, *PlanError) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.plan.ActiveDispatch != nil {
-		return PlannerSubtask{}, planError(
-			"planner_dispatch_active", "Another Worker dispatch is already active",
-		)
-	}
-	if c.plan.CurrentSubtaskID == "" || subtaskID != c.plan.CurrentSubtaskID {
-		return PlannerSubtask{}, planError(
-			"planner_subtask_stale", "subtask_id does not identify the current pending subtask",
-		)
-	}
-	index := c.subtaskIndexLocked(subtaskID)
-	if index < 0 || c.plan.Subtasks[index].Status != PlannerSubtaskPending {
-		return PlannerSubtask{}, planError(
-			"planner_subtask_stale", "subtask_id does not identify the current pending subtask",
-		)
-	}
-	return c.plan.Subtasks[index], nil
-}
-
 // ClaimCurrentSubtask atomically validates and marks the exact current pending
-// subtask. The generated call ID fences late results from an older dispatch.
+// subtask before inspecting the Worker request. The generated call ID fences
+// late results from an older dispatch.
 func (c *PlannerPlanController) ClaimCurrentSubtask(
 	subtaskID string, workerName string,
 ) (PlannerDispatchClaim, *PlanError) {
