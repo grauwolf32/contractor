@@ -35,9 +35,12 @@ The current user-facing Workflow set is:
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
 - `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
-  in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection;
+  in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection
+  and `source-findings-review@1` for exact source-backed proposal review;
+- `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
+  `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
 - `audit-top10-source-risk@1` and `audit-asvs-source-verification@1` for the
-  standard-specific AuditProfiles;
+  standard-specific AuditProfiles, including `owasp-top10-2025-source-risk@1`;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 
@@ -53,18 +56,27 @@ the original exact Workflow is absent. Removing a bundled resource does not
 remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
-The checklist and OpenAPI profiles are bounded, one-round and non-certifying.
-They require an exact source ZIP plus a custom checklist or OpenAPI document.
-All bundled Audit workers use `audit-results@2`: `read_audit_task` reads the
-pinned task set, and `submit_check_result` records validated items incrementally.
-Every profile pins `workerCompletion: audit-check-results@1` to its sole Worker.
+The source-checklist and model-backed OpenAPI review profiles are bounded,
+one-round and non-certifying. Source-backed profiles require an exact source
+ZIP alongside their checklist or OpenAPI input. Their model-backed Audit
+workers use `audit-results@2`: `read_audit_task` reads the pinned task set, and
+`submit_check_result` records validated items incrementally. Those profiles
+pin `workerCompletion: audit-check-results@1` to their Worker.
 Runtime publishes the complete canonical ZIP after normal completion; tool
 receipts report collection progress, not published artifacts. Missing results
 or publication failures fail the child Run. The checklist batches up to two
 compatible items; OpenAPI retains `batchSize: 1`.
 
-These Workflows require the trusted completion contract supplied by an Audit.
-They cannot be launched as ordinary Runs with user-supplied task artifacts.
+The `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` profiles instead select
+`audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1`. They take exact
+`openapi` and `settings` inputs and bind the `audit-nuclei-scan@1` or
+`audit-sqlmap-scan@1` template. These are model-free `tool@1` Workers using
+`scan@1`; they do not select `audit-results@2` or `workerCompletion`. See the
+[Audit guide](../docs/guides/audits.md) for the scan path.
+
+The model-backed Audit Workflows require the trusted completion contract
+supplied by an Audit. They cannot be launched as ordinary Runs with
+user-supplied task artifacts.
 All bundled Audit Workflow, AgentTemplate and AuditProfile identities start at
 `@1`; distinct scenarios have distinct names. Toolset and wire format versions
 keep their actual protocol versions, including `audit-results@2`.
@@ -158,15 +170,20 @@ Choose these when each semantic Stage benefits from explicit
 ordered subtask decomposition; the passthrough variant remains the simpler
 default when one Worker invocation can own the complete Stage objective.
 
-The three shared policies declare a context window of 118,000 tokens. The 15 ordinary
-Worker templates enable a one-shot, tool-free terminal summarizer at
-`contextWindowRatio: 0.8` (94,400 provider-reported prompt tokens). It uses the
-existing `worker-model` alias with up to 8,192 output tokens. No cumulative
-summary threshold is configured. The summarizer completes the invocation; it
-does not compact history and resume the tool loop. Required output artifacts
-must already exist, and an invalid or incomplete summary still fails the task.
-The 6 Audit Worker templates (including the completion variant) retain mandatory `audit-results` submission and
-omit terminal summarization; `audit-check-results@1` completion prohibits it.
+The three shared policies declare a context window of 118,000 tokens. The
+ordinary model-backed Worker templates enable a one-shot, tool-free terminal
+summarizer at `contextWindowRatio: 0.8` (94,400 provider-reported prompt
+tokens). It uses the existing `worker-model` alias with up to 8,192 output
+tokens. No cumulative summary threshold is configured. The summarizer completes
+the invocation; it does not compact history and resume the tool loop. Required
+output artifacts must already exist, and an invalid or incomplete summary still
+fails the task.
+
+The model-backed Audit Worker templates, including the
+`audit_source_checker@1` completion variant, retain mandatory
+`audit-results@2` submission and omit terminal summarization;
+`audit-check-results@1` completion prohibits it. The two tool-runtime scan
+templates use `scan@1` instead.
 Planner context metadata does not enable a Planner summarizer.
 
 Terminal summarizer instructions live in `instructions/terminal-summarizer.md`.
@@ -253,7 +270,9 @@ digests, origins, and credential IDs are pinned in the Run snapshot, while
 token bytes are resolved only when constructing a Planner client or Worker
 allocation.
 
-`execution-configs/` contains immutable Stage-local escalation patches. A
+`execution-configs/` is the catalog location for immutable Stage-local
+escalation patches; the default catalog currently ships none. A runnable
+example is under [`e2e/execution-configs/`](e2e/execution-configs/). A
 Workflow `failed` or `interrupted` action may select one exact profile ref, or
 declare the same `planner`/`agents` patch inline. The loader resolves and
 validates every possible variant, and Run creation reapplies it over that
