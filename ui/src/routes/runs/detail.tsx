@@ -896,6 +896,17 @@ function LoadedRunDetail({
   );
 }
 
+function recoveryRefreshDelay(recovery: RunStatus["recovery"]): number | false {
+  if (recovery === undefined || recovery.requiresRetry) return false;
+  const next = Math.min(
+    Date.parse(recovery.nextRetryAt ?? recovery.automaticUntil),
+    Date.parse(recovery.automaticUntil),
+  );
+  // The deadline can pass with no Run event or changed snapshot. Keep a
+  // bounded interval until the Server reports that recovery has ended.
+  return Number.isFinite(next) ? Math.max(2000, next - Date.now()) : 2000;
+}
+
 export function RunDetailRoute() {
   const api = usePublicAPI();
   const { runId = "" } = useParams();
@@ -906,6 +917,8 @@ export function RunDetailRoute() {
     queryKey: queryKeys.runs.detail(runId),
     queryFn: () => getRun(api, runId),
     enabled: valid,
+    refetchInterval: (current) =>
+      recoveryRefreshDelay(current.state.data?.recovery),
   });
   useDocumentTitle(
     query.data === undefined ? "Run" : `${query.data.workflow} · Run`,
