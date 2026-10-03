@@ -3,8 +3,8 @@ id: V138-001
 title: Correct Qwen eval and default policy budget guidance
 milestone: eval-policy-budget-docs-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8124bf37819efa0cae648dfd48af19116d804760
 depends_on: []
 languages: [markdown, yaml]
 goal: Describe current Planner, Worker and historical Qwen eval policy limits accurately.
