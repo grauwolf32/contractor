@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V184-001
+title: Clarify find_symbol name-query guidance
+milestone: code-analysis-tool-guidance-2026-10
+priority: P2
+status: completed
+implementation_commit: 438ea1167071bdc3fd733dfb9f9786159652145f
+depends_on: []
+languages: [python]
+goal: Tell Workers that find_symbol resolves names rather than opaque symbol IDs.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/200
+  specification: docs/spec/12-code-analysis-tools.md
+  finding: The tool description promises an unsupported ID lookup.
+scope:
+  in:
+    - Clarify model-visible query guidance for names and qualified names.
+    - Verify the selected tool exposes the guidance.
+  out:
+    - Implementing opaque ID lookup or changing graph indexing.
+acceptance_criteria:
+  - {id: A1, text: The find_symbol description no longer promises ID lookup and directs opaque IDs to relationship tools.}
+  - {id: A2, text: The spec continues to define name and qualified-name lookup only.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_code_analysis_graph.py, covers: [A1, A2]}
+  - {command: make lint, covers: [A1, A2]}

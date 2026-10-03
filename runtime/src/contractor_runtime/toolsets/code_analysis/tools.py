@@ -1209,12 +1209,13 @@ class GraphSummaryTool(_BaseCodeAnalysisTool):
 
 class FindSymbolTool(_BaseCodeAnalysisTool):
     name = "find_symbol"
-    description = """Resolve a symbol query to matching exact graph symbol IDs.
+    description = """Find symbols by name or qualified name and return exact graph symbol IDs.
 
     Use the returned IDs in caller, callee and path queries.
 
     Args:
-        query: Symbol name or exact graph symbol ID to look up.
+        query: Symbol name or qualified name, such as Class.method or module.function.
+            Do not pass an opaque symbolId; use it in relationship and path tools.
         cursor: Opaque nextCursor from the same query; empty starts a new search.
             Restart after workspace changes invalidate the cursor.
         limit: Maximum symbols per page, from 1 to 200; defaults to 50.
