@@ -36,6 +36,12 @@ func (c *Controller) reconcileReviewAndDeadline(ctx context.Context, claim audit
 			return reconciliationDone(err == nil, err)
 		}
 	}
+	if (audit.State == auditstore.AuditActive || audit.State == auditstore.AuditWaitingReview) &&
+		audit.Dispatch == auditstore.DispatchOpen {
+		if changed, renewErr := c.store.RenewExpiredItemReview(ctx, claim, audit.Revision); changed || renewErr != nil {
+			return reconciliationDone(changed, renewErr)
+		}
+	}
 
 	return nil
 }

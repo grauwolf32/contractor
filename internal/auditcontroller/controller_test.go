@@ -737,6 +737,12 @@ func (s *fakeControllerStore) ExpireReportReview(
 	return true, nil
 }
 
+func (s *fakeControllerStore) RenewExpiredItemReview(
+	_ context.Context, _ auditstore.ControllerClaim, _ uint64,
+) (bool, error) {
+	return false, nil
+}
+
 func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

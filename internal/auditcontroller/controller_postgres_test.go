@@ -309,6 +309,264 @@ SELECT count(*) FROM audit_events
 	}
 }
 
+func TestPostgresControllerRenewsPendingItemReviewExpiredAfterResume(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 1, 0)
+	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
+	controller := harness.controller(t)
+	for step := 0; step < 4; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("reach waiting review step %d: %v", step, err)
+		}
+	}
+	audit, err := harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("initial waiting review = (%+v, %v)", audit, err)
+	}
+	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 1 {
+		t.Fatalf("initial reviews = (%+v, %v)", reviews, err)
+	}
+	oldRequestID := reviews[0].RequestID
+	if _, err := harness.pool.Exec(ctx, `UPDATE audit_review_requests
+SET expires_at=clock_timestamp()+interval '1 hour' WHERE request_id=$1`, oldRequestID); err != nil {
+		t.Fatal(err)
+	}
+	var originalExpiry time.Time
+	if err := harness.pool.QueryRow(ctx, `SELECT expires_at FROM audit_review_requests
+WHERE request_id=$1`, oldRequestID).Scan(&originalExpiry); err != nil {
+		t.Fatal(err)
+	}
+	paused, err := harness.service.Pause(ctx, auditservice.MutationParams{
+		OwnerID: ownerID, AuditID: auditID, ExpectedRevision: audit.Revision,
+		IdempotencyKey: "pause-review-expiry", RequestDigest: postgresDigest("pause-review-expiry"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlimited := 0
+	if _, err := harness.service.Resume(ctx, auditservice.MutationParams{
+		OwnerID: ownerID, AuditID: auditID, ExpectedRevision: paused.Audit.Revision,
+		IdempotencyKey: "resume-review-expiry", RequestDigest: postgresDigest("resume-review-expiry"),
+		DeadlineSeconds: &unlimited,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var resumedExpiry time.Time
+	if err := harness.pool.QueryRow(ctx, `SELECT expires_at FROM audit_review_requests
+WHERE request_id=$1`, oldRequestID).Scan(&resumedExpiry); err != nil || !resumedExpiry.Equal(originalExpiry) {
+		t.Fatalf("Resume changed live review expiry from %s to %s: %v", originalExpiry, resumedExpiry, err)
+	}
+	for step := 0; step < 3; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("return to waiting review step %d: %v", step, err)
+		}
+	}
+	audit, err = harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("resumed waiting review = (%+v, %v)", audit, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("live review reclaimed waiting Audit = (%t, %v)", worked, err)
+	}
+	if _, err := harness.pool.Exec(ctx, `UPDATE audit_review_requests
+SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, oldRequestID); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("renew expired waiting-review item = (%t, %v)", worked, err)
+	}
+	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 2 {
+		t.Fatalf("renewed reviews = (%+v, %v)", reviews, err)
+	}
+	var renewed auditservice.ReviewRequest
+	for _, review := range reviews {
+		if review.RequestID == oldRequestID {
+			if review.State != auditservice.ReviewExpired {
+				t.Fatalf("old review state = %q", review.State)
+			}
+		} else {
+			renewed = review
+		}
+	}
+	if renewed.State != auditservice.ReviewPending || renewed.ExpiresAt != nil ||
+		renewed.SubjectID != reviews[0].SubjectID {
+		t.Fatalf("fresh exact-subject review = %+v", renewed)
+	}
+	var eventCount, lastSequence, nextSequence, expiredEvents, requestedEvents int
+	if err := harness.pool.QueryRow(ctx, `
+SELECT count(*), max(sequence_number),
+       count(*) FILTER (WHERE kind='review.expired' AND entity_id=$2),
+       count(*) FILTER (WHERE kind='review.requested' AND entity_id=$3)
+  FROM audit_events WHERE audit_id=$1`, auditID, oldRequestID, renewed.RequestID).
+		Scan(&eventCount, &lastSequence, &expiredEvents, &requestedEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.pool.QueryRow(ctx, `SELECT next_event_sequence FROM audits WHERE audit_id=$1`,
+		auditID).Scan(&nextSequence); err != nil {
+		t.Fatal(err)
+	}
+	if eventCount != lastSequence || nextSequence != lastSequence+1 ||
+		expiredEvents != 1 || requestedEvents != 1 {
+		t.Fatalf("review event ledger count=%d last=%d next=%d expired=%d requested=%d",
+			eventCount, lastSequence, nextSequence, expiredEvents, requestedEvents)
+	}
+	items, err := harness.audits.ListItems(ctx, auditID)
+	if err != nil || len(items) != 1 || items[0].State != auditstore.ItemAwaitingReview {
+		t.Fatalf("renewed item = (%+v, %v)", items, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("historical expired review reclaimed waiting Audit = (%t, %v)", worked, err)
+	}
+	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: renewed.RequestID,
+		ExpectedRequestRevision: renewed.Revision, DecisionID: "renewed-decision",
+		Action: auditservice.ReviewApprove, Rationale: "Approve the fresh exact task.",
+		IdempotencyKey: "renewed-decision", RequestDigest: postgresDigest("renewed-decision"),
+	}); err != nil {
+		t.Fatalf("decide renewed request: %v", err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch after renewed approval = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, auditID)
+	if err != nil || len(executions) != 1 {
+		t.Fatalf("approved renewed item executions = (%+v, %v)", executions, err)
+	}
+}
+
+func TestPostgresControllerRenewsApprovedItemAndDispatchesLaterReadyItem(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 1, 1)
+	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
+	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 1 {
+		t.Fatalf("initial action review = (%+v, %v)", reviews, err)
+	}
+	approved := reviews[0]
+	if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: approved.RequestID,
+		ExpectedRequestRevision: approved.Revision, DecisionID: "first-decision",
+		Action: auditservice.ReviewApprove, Rationale: "Approve the original exact task.",
+		IdempotencyKey: "first-decision", RequestDigest: postgresDigest("first-decision"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	audit, err := harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paused, err := harness.service.Pause(ctx, auditservice.MutationParams{
+		OwnerID: ownerID, AuditID: auditID, ExpectedRevision: audit.Revision,
+		IdempotencyKey: "pause-approved", RequestDigest: postgresDigest("pause-approved"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlimited := 0
+	if _, err := harness.service.Resume(ctx, auditservice.MutationParams{
+		OwnerID: ownerID, AuditID: auditID, ExpectedRevision: paused.Audit.Revision,
+		IdempotencyKey: "resume-approved", RequestDigest: postgresDigest("resume-approved"),
+		DeadlineSeconds: &unlimited,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.pool.Exec(ctx, `UPDATE audit_review_requests
+SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, approved.RequestID); err != nil {
+		t.Fatal(err)
+	}
+	controller := harness.controller(t)
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("renew expired approved item = (%t, %v)", worked, err)
+	}
+	items, err := harness.audits.ListItems(ctx, auditID)
+	if err != nil || len(items) != 2 || items[0].State != auditstore.ItemAwaitingReview ||
+		items[1].State != auditstore.ItemReady {
+		t.Fatalf("renewed first item and later ready item = (%+v, %v)", items, err)
+	}
+	reviews, err = harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 2 {
+		t.Fatalf("renewed approval requests = (%+v, %v)", reviews, err)
+	}
+	var executions []auditstore.Execution
+	for step := 0; step < 4; step++ {
+		if worked, runErr := controller.RunOnce(ctx); runErr != nil || !worked {
+			t.Fatalf("dispatch later ready item step %d = (%t, %v)", step, worked, runErr)
+		}
+		executions, err = harness.audits.ListExecutions(ctx, auditID)
+		if err != nil || len(executions) != 0 {
+			break
+		}
+	}
+	if err != nil || len(executions) != 1 {
+		t.Fatalf("later ready item executions = (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 1 || members[0].ItemID != items[1].ItemID {
+		t.Fatalf("later ready item members = (%+v, %v)", members, err)
+	}
+}
+
+func TestPostgresControllerRenewsAlreadyExpiredItemReview(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 1, 0)
+	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
+	controller := harness.controller(t)
+	for step := 0; step < 4; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 1 {
+		t.Fatalf("initial reviews = (%+v, %v)", reviews, err)
+	}
+	old := reviews[0]
+	if _, err := harness.pool.Exec(ctx, `UPDATE audit_review_requests
+SET expires_at=clock_timestamp()-interval '1 second' WHERE request_id=$1`, old.RequestID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: old.RequestID,
+		ExpectedRequestRevision: old.Revision, DecisionID: "late-decision",
+		Action: auditservice.ReviewApprove, Rationale: "This decision arrived too late.",
+		IdempotencyKey: "late-decision", RequestDigest: postgresDigest("late-decision"),
+	})
+	if !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("late decision = %v, want precondition", err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("renew already-expired review = (%t, %v)", worked, err)
+	}
+	var pending, expiredEvents int
+	if err := harness.pool.QueryRow(ctx, `SELECT count(*) FROM audit_review_requests
+WHERE audit_id=$1 AND state='pending'`, auditID).Scan(&pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events
+WHERE audit_id=$1 AND kind='review.expired' AND entity_id=$2`, auditID, old.RequestID).
+		Scan(&expiredEvents); err != nil {
+		t.Fatal(err)
+	}
+	if pending != 1 || expiredEvents != 1 {
+		t.Fatalf("already-expired renewal pending=%d expiration events=%d", pending, expiredEvents)
+	}
+}
+
 func TestPostgresControllerFullWindowSkipsPreparationUntilSettingsIncrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

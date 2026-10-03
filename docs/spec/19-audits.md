@@ -1292,8 +1292,12 @@ New item requests use the current Audit deadline as their expiry when one is
 set; with no Audit deadline, their expiry may be absent. Pausing, extending or
 disabling the Audit clock does not extend an existing review's authority.
 Resume replaces expired requests with fresh exact-subject requests for eligible
-unfinished work, requiring a new decision. Before creating an authorized
-execution intent, PostgreSQL rechecks that the item is still ready,
+unfinished work, requiring a new decision. The Controller also renews item
+requests that expire after Resume, including while the Audit waits for review.
+It returns a formerly ready item to awaiting review. Historical expired
+requests do not keep the Audit claimable after a live replacement exists.
+Before creating an authorized execution intent, PostgreSQL rechecks that the
+item is still ready,
 the exact request was accepted, its digest still matches, and its expiry is
 absent or in the future. Every review expiry, whether the Controller, an owner
 decision, finding-review creation or Resume judges it, compares against the
