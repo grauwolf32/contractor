@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 const APIVersion = "contractor/v1alpha1"
@@ -22,7 +24,6 @@ var (
 	ErrValidation  = errors.New("contract validation failed")
 	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 // Validatable is implemented by every top-level wire DTO.
@@ -84,7 +85,7 @@ func validateSelector(field, value string) error {
 }
 
 func validateDigest(field, value string) error {
-	if !digestPattern.MatchString(value) {
+	if !contentdigest.Valid(value) {
 		return invalidf("%s must be sha256 followed by 64 lowercase hex characters", field)
 	}
 	return nil

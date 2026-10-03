@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
@@ -530,7 +531,7 @@ func (m *Manager) recordAudit(
 	if m.audit == nil {
 		return
 	}
-	keyDigest := digestBytes([]byte(request.IdempotencyKey))
+	keyDigest := contentdigest.Bytes([]byte(request.IdempotencyKey))
 	err := m.audit.RecordConfigurationPublication(ctx, PublicationAudit{
 		Kind: request.Kind, Name: candidate.selector.ID, Version: candidate.selector.Version,
 		Digest: candidate.resource.Ref.Digest, RequestDigest: candidate.requestDigest,

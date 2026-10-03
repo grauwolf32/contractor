@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
@@ -289,7 +290,7 @@ func (l *loader) loadInstructionResources() error {
 			}
 			seen[relative] = root.source
 			l.instructions[relative] = contracts.ResolvedInstructions{
-				Ref: relative, Digest: digestBytes(data), Text: string(data),
+				Ref: relative, Digest: contentdigest.Bytes(data), Text: string(data),
 			}
 			return nil
 		})

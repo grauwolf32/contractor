@@ -3,8 +3,6 @@ package runtimeconfig
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/cabundle"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/ucarion/jcs"
 )
@@ -28,7 +27,6 @@ const (
 var (
 	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 type optional[T any] struct {
@@ -190,7 +188,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 	}
 	return PreparedPublication{
 		name: source.Metadata.Name, version: source.Metadata.Version, source: source,
-		authorCanonical: canonical, requestDigest: digest(canonical), gatewaySelectors: selectors,
+		authorCanonical: canonical, requestDigest: contentdigest.Bytes(canonical), gatewaySelectors: selectors,
 	}, nil
 }
 
@@ -231,7 +229,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 	if err != nil || len(canonical) > maxDocumentBytes {
 		return Version{}, invalid("normalized immutable document is invalid")
 	}
-	return Version{Ref: Ref{Name: p.name, Version: p.version, Digest: digest(canonical)}, Spec: spec, CanonicalDocument: canonical}, nil
+	return Version{Ref: Ref{Name: p.name, Version: p.version, Digest: contentdigest.Bytes(canonical)}, Spec: spec, CanonicalDocument: canonical}, nil
 }
 
 func DecodeStoredDocument(data []byte) (Version, error) {
@@ -272,7 +270,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	if err != nil || !bytes.Equal(canonical, data) {
 		return Version{}, invalid("stored document is not exact normalized JCS")
 	}
-	return Version{Ref: Ref{Name: source.Metadata.Name, Version: source.Metadata.Version, Digest: digest(canonical)}, Spec: spec, CanonicalDocument: canonical, BuiltIn: operations == 0}, nil
+	return Version{Ref: Ref{Name: source.Metadata.Name, Version: source.Metadata.Version, Digest: contentdigest.Bytes(canonical)}, Spec: spec, CanonicalDocument: canonical, BuiltIn: operations == 0}, nil
 }
 
 func validateSource(source specSource, author bool) (map[string]string, map[string]any, int, error) {
@@ -648,7 +646,7 @@ func validateID(field, value string, maximum int) error {
 }
 
 func validateRef(ref Ref) error {
-	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !versionPattern.MatchString(ref.Version) || len(ref.Version) > 128 || !digestPattern.MatchString(ref.Digest) {
+	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !versionPattern.MatchString(ref.Version) || len(ref.Version) > 128 || !contentdigest.Valid(ref.Digest) {
 		return invalid("RuntimeConfig ref is invalid")
 	}
 	return nil
@@ -830,16 +828,11 @@ func canonicalize(value any) ([]byte, error) {
 	return []byte(formatted), nil
 }
 
-func digest(value []byte) string {
-	sum := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
 func DigestIdempotencyKey(value string) (string, error) {
 	if value == "" || len(value) > 128 || value != strings.TrimSpace(value) {
 		return "", invalid("idempotency key is invalid")
 	}
-	return digest([]byte(value)), nil
+	return contentdigest.Bytes([]byte(value)), nil
 }
 
 func invalid(format string, args ...any) error {

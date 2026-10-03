@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -53,7 +54,7 @@ func TestTelemetryRetryDoesNotRewriteStoredExportBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Ref.Digest != digest(source) || stored.Spec.Worker.Telemetry.Value.Export.Retry != nil {
+	if stored.Ref.Digest != contentdigest.Bytes(source) || stored.Spec.Worker.Telemetry.Value.Export.Retry != nil {
 		t.Fatal("legacy stored export was rewritten")
 	}
 }

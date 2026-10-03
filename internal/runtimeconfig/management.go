@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -311,7 +312,7 @@ func prepareBindingMutation(
 	if err != nil {
 		return "", "", invalid("Runtime label mutation cannot be normalized")
 	}
-	return digest(request), keyDigest, nil
+	return contentdigest.Bytes(request), keyDigest, nil
 }
 
 func lookupManagementReplay(

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -1202,8 +1203,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), bindings, nil
+	return contentdigest.Bytes(encoded), bindings, nil
 }
 
 func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {

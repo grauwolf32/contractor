@@ -4,17 +4,15 @@ import (
 	"context"
 	"crypto/hmac"
 	"errors"
-	"regexp"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const maximumRuntimeCredentialPageSize = 200
-
-var runtimeCredentialDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type RuntimeCredentialRepository struct{ db persistencepostgres.DBTX }
 
@@ -54,7 +52,7 @@ func (r *RuntimeCredentialRepository) CountStored(ctx context.Context) (int64, e
 }
 
 func (r *RuntimeCredentialRepository) VerifyActiveKey(ctx context.Context, keyID string) error {
-	if !runtimeCredentialDigestPattern.MatchString(keyID) {
+	if !contentdigest.Valid(keyID) {
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
@@ -76,7 +74,7 @@ SELECT EXISTS (
 }
 
 func (r *RuntimeCredentialRepository) VerifyStoredKey(ctx context.Context, keyID string) error {
-	if !runtimeCredentialDigestPattern.MatchString(keyID) {
+	if !contentdigest.Valid(keyID) {
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
@@ -197,7 +195,7 @@ ON CONFLICT DO NOTHING`,
 }
 
 func (r *RuntimeCredentialRepository) GetCreation(ctx context.Context, keyDigest string) (RuntimeCredentialCreation, error) {
-	if !runtimeCredentialDigestPattern.MatchString(keyDigest) {
+	if !contentdigest.Valid(keyDigest) {
 		return RuntimeCredentialCreation{}, runtimeInvalid("Runtime credential idempotency digest is invalid")
 	}
 	var result RuntimeCredentialCreation
@@ -450,7 +448,7 @@ func validateRuntimeCredentialRecord(record RuntimeCredentialRecord) error {
 	if validateRuntimeCredentialID(record.Metadata.CredentialID) != nil || !validRuntimeCredentialKind(record.Metadata.Kind) ||
 		!validActorID(record.Metadata.CreatedBy) || record.Metadata.CreatedAt.IsZero() ||
 		record.Envelope.SchemaVersion != RuntimeCredentialSchemaVersion ||
-		!runtimeCredentialDigestPattern.MatchString(record.Envelope.KeyID) || len(record.Envelope.Nonce) != 12 ||
+		!contentdigest.Valid(record.Envelope.KeyID) || len(record.Envelope.Nonce) != 12 ||
 		len(record.Envelope.Ciphertext) < 17 || len(record.Envelope.Ciphertext) > MaximumRuntimePlaintextBytes+16 {
 		return runtimeInvalid("Runtime credential record is invalid")
 	}
@@ -458,7 +456,7 @@ func validateRuntimeCredentialRecord(record RuntimeCredentialRecord) error {
 }
 
 func validateRuntimeCredentialCreation(value RuntimeCredentialCreation) error {
-	if !runtimeCredentialDigestPattern.MatchString(value.IdempotencyKeyDigest) || len(value.RequestMAC) != 32 ||
+	if !contentdigest.Valid(value.IdempotencyKeyDigest) || len(value.RequestMAC) != 32 ||
 		validateRuntimeCredentialID(value.CredentialID) != nil || !validRuntimeCredentialKind(value.Kind) ||
 		!validActorID(value.ActorID) || value.CreatedAt.IsZero() {
 		return runtimeInvalid("Runtime credential creation replay is invalid")

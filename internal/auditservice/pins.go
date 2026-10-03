@@ -1,10 +1,9 @@
 package auditservice
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 // ErrPinnedSelectionChanged is a safe, stable precondition failure for trusted
@@ -16,12 +15,11 @@ func checkExpectedDigest(expected string, value any) error {
 	if expected == "" {
 		return nil
 	}
-	raw, err := json.Marshal(value)
+	digest, err := contentdigest.JSON(value)
 	if err != nil {
 		return err
 	}
-	sum := sha256.Sum256(raw)
-	if expected != "sha256:"+hex.EncodeToString(sum[:]) {
+	if expected != digest {
 		return ErrPinnedSelectionChanged
 	}
 	return nil

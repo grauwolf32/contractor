@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -124,7 +125,7 @@ LIMIT $3`, afterName, afterVersion, limit)
 }
 
 func (r *Repository) GetPublication(ctx context.Context, idempotencyKeyDigest string) (Publication, error) {
-	if !digestPattern.MatchString(idempotencyKeyDigest) {
+	if !contentdigest.Valid(idempotencyKeyDigest) {
 		return Publication{}, invalid("publication idempotency digest is invalid")
 	}
 	var publication Publication
@@ -147,7 +148,7 @@ WHERE idempotency_key_digest = $1`, idempotencyKeyDigest).Scan(
 }
 
 func (r *Repository) InsertPublication(ctx context.Context, publication Publication) (bool, error) {
-	if !digestPattern.MatchString(publication.IdempotencyKeyDigest) || !digestPattern.MatchString(publication.RequestDigest) ||
+	if !contentdigest.Valid(publication.IdempotencyKeyDigest) || !contentdigest.Valid(publication.RequestDigest) ||
 		validateRef(publication.Ref) != nil || !validActor(publication.ActorID) || publication.PublishedAt.IsZero() {
 		return false, invalid("RuntimeConfig publication audit is invalid")
 	}

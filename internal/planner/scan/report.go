@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -45,8 +45,6 @@ type workerReport struct {
 	InputArtifacts map[string]contracts.ArtifactRef `json:"inputArtifacts"`
 	Observation    map[string]json.RawMessage       `json:"observation"`
 }
-
-var workerDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request contracts.StageContentRequest, record planner.ScanJobRecord, completion contracts.WorkerCompletion) planner.ScanJobRecord {
 	if planner.ValidateWorkerCompletion(completion, job.ID) != nil {
@@ -97,7 +95,7 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		return record
 	}
 	var report workerReport
-	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !workerDigest.MatchString(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
+	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !contentdigest.Valid(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
 		record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_invalid"
 		return record
 	}

@@ -2,7 +2,6 @@ package contracts
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 const (
@@ -96,8 +97,7 @@ func RequestContentDigest(request PreparedHTTPRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return contentdigest.Bytes(data), nil
 }
 
 func (r PreparedHTTPRequest) Validate() error {

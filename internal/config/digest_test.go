@@ -3,6 +3,8 @@ package config
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
@@ -95,7 +97,7 @@ func TestInstructionDigestUsesExactBytes(t *testing.T) {
 
 	first := []byte("same text\n")
 	second := []byte("same text\r\n")
-	if digestBytes(first) == digestBytes(second) {
+	if contentdigest.Bytes(first) == contentdigest.Bytes(second) {
 		t.Fatal("line-ending normalization affected exact-byte digest")
 	}
 }

@@ -1,11 +1,10 @@
 package config
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/ucarion/jcs"
 )
@@ -185,11 +184,5 @@ func digestJCS(manifest any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("canonicalize digest manifest: %w", err)
 	}
-	sum := sha256.Sum256([]byte(canonical))
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
-}
-
-func digestBytes(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return contentdigest.Bytes([]byte(canonical)), nil
 }

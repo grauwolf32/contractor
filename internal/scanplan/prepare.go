@@ -1,12 +1,11 @@
 package scanplan
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -67,7 +66,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	}
 	set := contracts.HTTPRequestSet{
 		SchemaVersion: 1,
-		Source:        contracts.RequestSetSource{Artifact: source, ContentDigest: digest(data)},
+		Source:        contracts.RequestSetSource{Artifact: source, ContentDigest: contentdigest.Bytes(data)},
 		Requests:      []contracts.RequestSetEntry{},
 	}
 	basis, err := contracts.MarshalPrivateCanonical(struct {
@@ -79,7 +78,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	if err != nil {
 		return empty, failure("invalid_options")
 	}
-	set.PreparationDigest = digest(basis)
+	set.PreparationDigest = contentdigest.Bytes(basis)
 	if selection != nil {
 		// Keep policy-2 bytes unchanged for existing whole-document callers.
 		// A selected request and a URL target have different preparation identity.
@@ -92,7 +91,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		if err != nil {
 			return empty, failure("invalid_operation_selection")
 		}
-		set.PreparationDigest = digest(basis)
+		set.PreparationDigest = contentdigest.Bytes(basis)
 	}
 	seenBindings := map[string]bool{}
 	byDigest := map[string]int{}
@@ -312,10 +311,6 @@ func (p *preparer) gap(pointer, code string) {
 	}
 	p.gapKeys[gap] = true
 	p.gaps = append(p.gaps, gap)
-}
-func digest(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
 }
 func keys[V any](value map[string]V) []string {
 	result := make([]string, 0, len(value))

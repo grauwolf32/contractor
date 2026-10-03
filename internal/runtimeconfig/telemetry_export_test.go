@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -47,7 +48,7 @@ func TestTelemetryExportPreservesLegacyStoredConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Spec.Worker.Telemetry.Value.Export != nil || stored.Spec.Worker.Telemetry.Value.FlushTimeoutSeconds != 3 || stored.Ref.Digest != digest(document) {
+	if stored.Spec.Worker.Telemetry.Value.Export != nil || stored.Spec.Worker.Telemetry.Value.FlushTimeoutSeconds != 3 || stored.Ref.Digest != contentdigest.Bytes(document) {
 		t.Fatal("legacy telemetry configuration was rewritten")
 	}
 }

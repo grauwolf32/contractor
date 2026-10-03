@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -26,9 +27,8 @@ const (
 )
 
 var (
-	credentialDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	operationIDPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
-	idempotencyKeyPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+	operationIDPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
+	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
 // Repository exposes transaction-neutral primitives. A pgx.Tx may be passed
@@ -58,7 +58,7 @@ func (r *Repository) VerifyActiveKey(ctx context.Context, keyID string) error {
 	if r == nil || r.db == nil {
 		return errors.New("credential repository is not configured")
 	}
-	if !credentialDigestPattern.MatchString(keyID) {
+	if !contentdigest.Valid(keyID) {
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
@@ -474,7 +474,7 @@ func validateRecord(record Record) error {
 		return err
 	}
 	if record.Envelope.SchemaVersion != CredentialSchemaVersion ||
-		!credentialDigestPattern.MatchString(record.Envelope.KeyID) ||
+		!contentdigest.Valid(record.Envelope.KeyID) ||
 		len(record.Envelope.Nonce) != 12 || len(record.Envelope.Ciphertext) < 17 ||
 		len(record.Envelope.Ciphertext) > MaximumTokenBytes+16 || record.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: encrypted credential envelope is invalid", ErrInvalid)
@@ -496,7 +496,7 @@ func validateCredentialID(value string) error {
 func validateOperation(operation Operation) error {
 	if !operationIDPattern.MatchString(operation.OperationID) ||
 		!idempotencyKeyPattern.MatchString(operation.IdempotencyKey) ||
-		!credentialDigestPattern.MatchString(operation.RequestHash) ||
+		!contentdigest.Valid(operation.RequestHash) ||
 		validateCredentialID(operation.CredentialID) != nil || !validOperationKind(operation.Kind) ||
 		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted &&
 			operation.Phase != OperationAbandoned) ||

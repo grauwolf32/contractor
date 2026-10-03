@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -665,7 +666,7 @@ func preparePrincipalMutation(
 	if err != nil {
 		return "", "", invalid("Runtime Agent principal mutation cannot be normalized")
 	}
-	return digest(request), keyDigest, nil
+	return contentdigest.Bytes(request), keyDigest, nil
 }
 
 func lookupPrincipalManagementReplay(

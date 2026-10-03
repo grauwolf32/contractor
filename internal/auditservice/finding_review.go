@@ -2,8 +2,6 @@ package auditservice
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -801,8 +799,7 @@ func findingSubjectDigest(row findingRow) string {
 		CurrentDecisionID: row.currentDecisionID, DuplicateTargetID: row.duplicateTargetID,
 	}
 	encoded, _ := json.Marshal(value)
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 func decisionProjection(

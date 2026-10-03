@@ -2,8 +2,6 @@ package planner
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -355,8 +354,7 @@ func RequestFactsFor(bindings []string, request contracts.StageContentRequest) R
 }
 
 func textDigest(value string) string {
-	digest := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes([]byte(value))
 }
 
 func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -54,7 +55,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 	}
 	revision := *input.Artifact.Revision
 	input.Artifact.Revision = &revision
-	plan := ScanPlan{SchemaVersion: 1, Source: PlanSource{Artifact: input.Artifact, MediaType: input.MediaType, ContentDigest: digest(input.Data)}, Policy: policy, PreparationGaps: []contracts.PreparationGap{}, Candidates: []ScanCandidate{}, Jobs: []ScanJob{}}
+	plan := ScanPlan{SchemaVersion: 1, Source: PlanSource{Artifact: input.Artifact, MediaType: input.MediaType, ContentDigest: contentdigest.Bytes(input.Data)}, Policy: policy, PreparationGaps: []contracts.PreparationGap{}, Candidates: []ScanCandidate{}, Jobs: []ScanJob{}}
 	sources, err := parsePlanSources(input, &plan)
 	if err != nil {
 		return empty, err
@@ -286,7 +287,7 @@ func semanticID(prefix string, value any) string {
 	if err != nil {
 		return ""
 	}
-	return prefix + "-" + strings.TrimPrefix(digest(raw), "sha256:")
+	return prefix + "-" + strings.TrimPrefix(contentdigest.Bytes(raw), "sha256:")
 }
 func planIdentity(plan ScanPlan) string {
 	plan.ID = ""

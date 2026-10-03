@@ -3,8 +3,6 @@ package auditstandards
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
@@ -104,9 +103,8 @@ func Validate(payload []byte, expected Reference) (*Package, error) {
 	if err != nil || !bytes.Equal(canonicalPayload, payload) {
 		return nil, validationError(CodeArchiveInvalid, "")
 	}
-	digest := sha256.Sum256(payload)
 	return &Package{
-		Document: document, Digest: "sha256:" + hex.EncodeToString(digest[:]),
+		Document: document, Digest: contentdigest.Bytes(payload),
 		StoredBytes: int64(len(payload)), ExpandedBytes: int64(len(manifest)),
 		payload: append([]byte(nil), payload...),
 	}, nil
@@ -116,7 +114,7 @@ func Validate(payload []byte, expected Reference) (*Package, error) {
 // immutable package identity copied into an Audit baseline.
 func ValidateRetainedPayload(payload []byte, pinned PinnedPackage) (*Package, error) {
 	if ValidatePinnedPackage(pinned) != nil || int64(len(payload)) != pinned.Retained.SizeBytes ||
-		digest(payload) != pinned.Retained.Digest {
+		contentdigest.Bytes(payload) != pinned.Retained.Digest {
 		return nil, fmt.Errorf("%w: retained Audit standard identity", ErrDrift)
 	}
 	pkg, err := Validate(payload, pinned.Reference)

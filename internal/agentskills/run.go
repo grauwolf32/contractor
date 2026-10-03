@@ -2,12 +2,11 @@ package agentskills
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -181,8 +180,7 @@ func (c *Catalog) InitializeRun(
 		if read.Payload.MediaType != MediaType {
 			return nil, runSkillError(CodeMediaTypeInvalid, skill.Name, false)
 		}
-		digest := sha256.Sum256(read.Payload.Data)
-		actualDigest := "sha256:" + hex.EncodeToString(digest[:])
+		actualDigest := contentdigest.Bytes(read.Payload.Data)
 		if actualDigest != skill.SourceDigest || read.Ref.Revision == nil ||
 			*read.Ref.Revision != *skill.Source.Revision {
 			return nil, runSkillError(CodeArchiveInvalid, skill.Name, false)

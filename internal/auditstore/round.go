@@ -2,13 +2,12 @@ package auditstore
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -240,8 +239,7 @@ func roundAcceptanceDigest(params AcceptRoundParams) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode Audit Round acceptance identity: %w", err)
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
+	return contentdigest.Bytes(encoded), nil
 }
 
 func sameRoundArtifactRef(left, right contracts.ArtifactRef) bool {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -67,7 +68,7 @@ func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 	if template.Summarizer == nil {
 		t.Fatal("golden allocation omitted summarizer")
 	}
-	if got := digestBytes([]byte(template.Instructions.Text)); got != template.Instructions.Digest {
+	if got := contentdigest.Bytes([]byte(template.Instructions.Text)); got != template.Instructions.Digest {
 		t.Fatalf("instruction digest = %s, want %s", got, template.Instructions.Digest)
 	}
 	for _, policy := range []contracts.ResolvedModelPolicy{

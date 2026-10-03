@@ -125,7 +125,7 @@ func (s *Service) InitializeScan(ctx context.Context, identity planner.ScanSessi
 		if err != nil {
 			return err
 		}
-		next.RequestRecorded, next.RequestDigest = true, jsonDigest(payload)
+		next.RequestRecorded, next.RequestDigest = true, contentdigest.Bytes(payload)
 		if err := s.appendScan(ctx, identity, session, state.NextSequence, next, event); err != nil {
 			if errors.Is(err, runstore.ErrConflict) {
 				continue
@@ -240,7 +240,7 @@ func (s *Service) CompleteScan(ctx context.Context, identity planner.ScanSession
 		if !next.RequestRecorded {
 			// Input preparation can fail before a plan exists. Such a session
 			// can complete without creating any dispatchable jobs.
-			next.RequestRecorded, next.RequestDigest = true, jsonDigest([]byte(`{"kind":"scan_input_unavailable"}`))
+			next.RequestRecorded, next.RequestDigest = true, contentdigest.Bytes([]byte(`{"kind":"scan_input_unavailable"}`))
 		}
 		payload, err := encodeCompletionEvent(cloned)
 		if err != nil {

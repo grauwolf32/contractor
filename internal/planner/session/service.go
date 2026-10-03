@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	cryptorand "crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -131,7 +130,7 @@ func (s *Service) RecordRequest(
 	if err != nil {
 		return err
 	}
-	digest := jsonDigest(payload)
+	digest := contentdigest.Bytes(payload)
 	if state.RequestRecorded {
 		if state.RequestDigest == digest {
 			return nil
@@ -240,7 +239,7 @@ func (s *Service) RecordPlan(
 		if err != nil {
 			return err
 		}
-		transitionDigest := jsonDigest(payload)
+		transitionDigest := contentdigest.Bytes(payload)
 		if state.Plan != nil && state.Plan.Revision == transition.Plan.Revision {
 			if reflect.DeepEqual(*state.Plan, transition.Plan) &&
 				state.LastPlanTransitionDigest == transitionDigest {
@@ -284,7 +283,7 @@ func (s *Service) RecordPlan(
 		payload, encodeErr := encodeBounded(planProjectionEvent{
 			Kind: string(transition.Kind), ExpectedRevision: transition.ExpectedRevision, Plan: projection,
 		})
-		if encodeErr == nil && recovered.LastPlanTransitionDigest == jsonDigest(payload) {
+		if encodeErr == nil && recovered.LastPlanTransitionDigest == contentdigest.Bytes(payload) {
 			return nil
 		}
 	}
@@ -307,7 +306,7 @@ func (s *Service) RecordFact(
 	if err != nil {
 		return err
 	}
-	digest := jsonDigest(payload)
+	digest := contentdigest.Bytes(payload)
 	for attempt := 0; attempt < maxADKAppendAttempts; attempt++ {
 		session, state, loadErr := s.load(ctx, identity)
 		if loadErr != nil {
@@ -736,11 +735,6 @@ func encodeBounded(value any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Planner JSON exceeds its bounded contract")
 	}
 	return encoded, nil
-}
-
-func jsonDigest(value []byte) string {
-	digest := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 func validatePlannerFact(fact planner.PlannerFact) error {

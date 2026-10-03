@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -129,13 +130,12 @@ func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, erro
 
 // mutate serializes a key within its owner/resource scope. Replay precedes both
 // revision and deletion rejection, but ownership is always verified first.
-var sha256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation string, id evaldomain.MutationIdentity, fn func() (json.RawMessage, error)) (Receipt, error) {
 	if err := s.requireTx(); err != nil {
 		return Receipt{}, err
 	}
-	if resource == "" || operation == "" || id.Key == "" || len(id.Key) > 128 || !sha256Pattern.MatchString(id.RequestSHA256) {
+	if resource == "" || operation == "" || id.Key == "" || len(id.Key) > 128 || !contentdigest.Valid(id.RequestSHA256) {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	active, err := s.project(ctx, scope, true)
