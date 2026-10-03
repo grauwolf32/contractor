@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V148-001
+title: Accept digit-leading portable Agent Skill path components
+milestone: digit-leading-skill-paths-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: Match the documented portable path contract in both Server and Runtime validators.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/178
+  finding: Go operator precedence rejects valid digit-leading components.
+scope:
+  in:
+    - Correct the Go leading-character check.
+    - Cover valid and invalid paths in matching Go and Python tests.
+    - Verify packaged ZIP and source directory acceptance with unchanged resource path.
+  out:
+    - Broaden allowed roots or change the portable path syntax.
+acceptance_criteria:
+  - {id: A1, text: Go and Python accept digit-leading resource components.}
+  - {id: A2, text: Invalid prefixes and oversized components remain rejected.}
+  - {id: A3, text: Source directory and ZIP validation preserve the resource path.}
+tests:
+  - {command: go test ./internal/agentskills ./cmd/contractor-skill -count=1, covers: [A1, A2, A3]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_agent_skill_package.py, covers: [A1, A2]}
