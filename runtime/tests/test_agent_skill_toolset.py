@@ -9,12 +9,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from google.adk.tools.base_tool import BaseTool
 
 from contractor_runtime.agent_skills import MEDIA_TYPE
 from contractor_runtime.agent_skills.runtime import (
+    BINARY_ASSET_STATUS,
+    DISCLOSURE_ENVELOPE_BYTES,
     EXACT_SKILL_TOOL_NAMES,
     MAXIMUM_DISCLOSURE_BYTES,
     AgentSkillPreparationError,
@@ -40,6 +43,8 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import AllocationWorkspace
@@ -124,6 +129,89 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
         assert not extraction_root.exists()
         assert runtime._agent_skills is None
         assert runtime._context is None
+
+    asyncio.run(scenario())
+
+
+def test_worker_loads_binary_skill_asset_through_text_gateway(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        selected, value = resolved_value(skill_package())
+        requests: list[dict[str, Any]] = []
+        replies = [
+            {
+                "tool_calls": [
+                    {
+                        "id": "load",
+                        "type": "function",
+                        "function": {
+                            "name": "load_skill",
+                            "arguments": '{"skill_name":"demo"}',
+                        },
+                    }
+                ]
+            },
+            {
+                "tool_calls": [
+                    {
+                        "id": "resource",
+                        "type": "function",
+                        "function": {
+                            "name": "load_skill_resource",
+                            "arguments": '{"skill_name":"demo","file_path":"assets/pixel.bin"}',
+                        },
+                    }
+                ]
+            },
+            {"content": "Used the selected skill"},
+            {"content": '{"subtaskId":"0","result":"Used the selected skill"}'},
+        ]
+
+        async def gateway(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/v1/chat/completions"
+            requests.append(json.loads(request.content))
+            index = len(requests) - 1
+            assert index < len(replies)
+            return httpx.Response(
+                200,
+                json={
+                    "model": "worker-model",
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls" if index < 2 else "stop",
+                            "message": replies[index],
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(gateway), trust_env=False
+        ) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="worker-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key="test-token",
+                    timeout_seconds=1,
+                    http_client=http,
+                ),
+            )
+            state = WorkerState()
+            runtime = await AdkWorkerRuntimeFactory(
+                lambda _: model,
+                lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+            ).create(build_context(tmp_path, state, selected))
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            assert completion.result is not None
+            assert completion.result.result == "Used the selected skill"
+            assert len(requests) == 4
+            resource_reply = json.dumps(requests[2], sort_keys=True)
+            assert BINARY_ASSET_STATUS in resource_reply
+            assert "/wD+" not in json.dumps(requests)
+            assert state.metrics.counters["tool_calls"] == 2
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
 
@@ -344,7 +432,7 @@ def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path, 
     asyncio.run(scenario())
 
 
-def test_binary_resource_authorization_is_single_use_and_invocation_local(
+def test_binary_resource_returns_bounded_text_and_charges_only_text(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -361,24 +449,26 @@ def test_binary_resource_authorization_is_single_use_and_invocation_local(
         state = WorkerState()
         adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
-        context = FakeToolContext("invocation-binary")
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": "assets/pixel.bin"},
-            tool_context=context,
+            tool_context=FakeToolContext("invocation-binary"),
         )
-        assert isinstance(result, dict) and isinstance(result.get("status"), str)
-        assert prepared.consume_binary("invocation-foreign", "demo", "assets/pixel.bin") is None
-        assert (
-            prepared.consume_binary("invocation-binary", "demo", "assets/pixel.bin")
-            == b"\xff\x00\xfe"
-        )
-        assert prepared.consume_binary("invocation-binary", "demo", "assets/pixel.bin") is None
+        assert result == {
+            "skill_name": "demo",
+            "file_path": "assets/pixel.bin",
+            "status": BINARY_ASSET_STATUS,
+        }
+        visible_size = len(json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode())
+        charge = prepared.charge_for("load_skill_resource", "demo", "assets/pixel.bin")
+        assert charge == DISCLOSURE_ENVELOPE_BYTES + visible_size
+        assert prepared.disclosure.used == charge
+        assert state.metrics.tool_calls[0].result_size_bytes == visible_size
         await prepared.close()
 
     asyncio.run(scenario())
 
 
-def test_oversized_native_result_is_suppressed_without_binary_authorization(
+def test_oversized_native_binary_result_is_suppressed(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -403,7 +493,6 @@ def test_oversized_native_result_is_suppressed_without_binary_authorization(
             tool_context=context,
         )
         assert result["error_code"] == "SKILL_DISCLOSURE_ESTIMATE_INVALID"
-        assert prepared.consume_binary("invocation-oversized", "demo", "assets/pixel.bin") is None
         retained = json.dumps(state.metrics.snapshot(), sort_keys=True)
         assert "oversized-native-result-canary" not in retained
         await prepared.close()

@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import contextlib
 import json
-import mimetypes
 import os
 import re
 import shutil
@@ -55,6 +53,7 @@ MAXIMUM_EXPANDED_BYTES = 128 << 20
 MAXIMUM_DISCLOSURE_BYTES = 16 << 20
 DISCLOSURE_ENVELOPE_BYTES = 64 << 10
 EXTRACTION_DIRECTORY = ".agent-skills"
+BINARY_ASSET_STATUS = "Binary asset content is unavailable to this text-only model."
 
 SKILL_SYSTEM_INSTRUCTION = (
     "Specialized Agent Skills are available through three progressive-disclosure "
@@ -124,12 +123,9 @@ class PreparedAgentSkills:
     skills: list[Skill]
     native_tools: dict[str, BaseTool]
     charges: dict[tuple[str, str, str], int]
-    binary_resources: dict[tuple[str, str], bytes]
+    binary_resources: set[tuple[str, str]]
     disclosure: DisclosureBudget = field(default_factory=DisclosureBudget)
     _adapter: ContractorSkillToolset | None = field(default=None, init=False, repr=False)
-    _binary_authorizations: dict[tuple[str, str, str], int] = field(
-        default_factory=dict, init=False, repr=False
-    )
     _closed: bool = field(default=False, init=False, repr=False)
     _remove_tree: Callable[[Path], None] = field(default=shutil.rmtree, repr=False)
 
@@ -161,21 +157,6 @@ class PreparedAgentSkills:
         # argument itself is already bounded by the portable-path validator.
         return DISCLOSURE_ENVELOPE_BYTES + len(skill_name.encode()) + len(file_path.encode())
 
-    def authorize_binary(self, invocation_id: str, skill_name: str, file_path: str) -> None:
-        key = (invocation_id, skill_name, file_path)
-        self._binary_authorizations[key] = self._binary_authorizations.get(key, 0) + 1
-
-    def consume_binary(self, invocation_id: str, skill_name: str, file_path: str) -> bytes | None:
-        key = (invocation_id, skill_name, file_path)
-        count = self._binary_authorizations.get(key, 0)
-        if count <= 0:
-            return None
-        if count == 1:
-            del self._binary_authorizations[key]
-        else:
-            self._binary_authorizations[key] = count - 1
-        return self.binary_resources.get((skill_name, file_path))
-
     async def close(self) -> None:
         if self._closed:
             return
@@ -191,7 +172,6 @@ class PreparedAgentSkills:
             self._adapter.detach()
             self._adapter = None
         self.native_tools.clear()
-        self._binary_authorizations.clear()
         self.binary_resources.clear()
         self.charges.clear()
         for skill in self.skills:
@@ -296,7 +276,7 @@ class ContractorSkillTool(BaseTool):
                 "    skill_name: Exact skill name returned by list_skills.\n"
                 "    file_path: Exact skill-relative references/... or assets/... path.\n\n"
                 "Returns:\n"
-                "    Resource text, or a status indicating that binary content was attached."
+                "    Resource text, or a status that binary content is unavailable to this model."
             ),
         }
         super().__init__(name=name, description=descriptions[name])
@@ -368,18 +348,11 @@ class ContractorSkillTool(BaseTool):
                     native_code = _native_error_code(result)
                     if native_code is not None:
                         error = SkillToolError(native_code)
-                    binary = (
-                        owner.binary_resources.get((skill_name, file_path))
-                        if error is None
-                        and self.name == "load_skill_resource"
-                        and isinstance(result, Mapping)
-                        and isinstance(result.get("status"), str)
-                        else None
+                    binary_asset = (
+                        self.name == "load_skill_resource"
+                        and (skill_name, file_path) in owner.binary_resources
                     )
-                    visible_bytes = _model_visible_size(
-                        result,
-                        binary,
-                    )
+                    visible_bytes = _json_bytes(result)
                     if visible_bytes > charge:
                         error = SkillToolError("SKILL_DISCLOSURE_ESTIMATE_INVALID")
                         result = _tool_error(
@@ -387,16 +360,20 @@ class ContractorSkillTool(BaseTool):
                             "Agent Skill result was suppressed by Runtime policy.",
                         )
                         visible_bytes = _json_bytes(result)
-                    elif binary is not None:
-                        # Authorization is created only after the complete
-                        # model-visible result passed the conservative size
-                        # check. A suppressed or failed native response must
-                        # not leave a consumable binary capability behind.
-                        owner.authorize_binary(
-                            tool_context.invocation_id,
-                            skill_name,
-                            file_path,
-                        )
+                    elif (
+                        binary_asset
+                        and error is None
+                        and isinstance(result, Mapping)
+                        and isinstance(result.get("status"), str)
+                    ):
+                        # The OpenAI-compatible Gateway accepts text only. Do
+                        # not promise an attachment that it cannot transport.
+                        result = _binary_resource_status(skill_name, file_path)
+                        visible_bytes = _json_bytes(result)
+                    elif binary_asset and error is None:
+                        error = SkillToolError("SKILL_TOOL_ERROR")
+                        result = _tool_error("SKILL_TOOL_ERROR", "Agent Skill function failed.")
+                        visible_bytes = _json_bytes(result)
 
         if visible_bytes == 0:
             visible_bytes = _json_bytes(result)
@@ -408,46 +385,6 @@ class ContractorSkillTool(BaseTool):
             result_size_bytes=visible_bytes,
         )
         return result
-
-    async def process_llm_request(
-        self, *, tool_context: ToolContext, llm_request: LlmRequest
-    ) -> None:
-        await super().process_llm_request(tool_context=tool_context, llm_request=llm_request)
-        if self.name != "load_skill_resource" or not llm_request.contents:
-            return
-        owner = self._owner
-        if owner is None:
-            return
-        last = llm_request.contents[-1]
-        for part in last.parts or []:
-            response = getattr(part, "function_response", None)
-            if response is None or response.name != self.name:
-                continue
-            value = response.response or {}
-            if not isinstance(value, Mapping) or not isinstance(value.get("status"), str):
-                continue
-            skill_name = value.get("skill_name")
-            file_path = value.get("file_path")
-            if not isinstance(skill_name, str) or not isinstance(file_path, str):
-                continue
-            content = owner.consume_binary(tool_context.invocation_id, skill_name, file_path)
-            if content is None:
-                continue
-            media_type, _ = mimetypes.guess_type(file_path)
-            llm_request.contents.append(
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_text(text="The selected Agent Skill binary resource is:"),
-                        types.Part(
-                            inline_data=types.Blob(
-                                data=content,
-                                mime_type=media_type or "application/octet-stream",
-                            )
-                        ),
-                    ],
-                )
-            )
 
     def detach(self) -> None:
         self._native = None
@@ -540,7 +477,7 @@ async def prepare_agent_skills(
             packages.append((selected, package))
 
         charges: dict[tuple[str, str, str], int] = {}
-        binary_resources: dict[tuple[str, str], bytes] = {}
+        binary_resources: set[tuple[str, str]] = set()
         for selected, package in packages:
             skill_directory = await to_thread_until_done(
                 _extract_package, root, selected.name, package, name="agent-skill-preparation"
@@ -649,7 +586,7 @@ async def probe_native_agent_skills() -> bool:
 def _build_disclosure_plan(
     skills: Sequence[Skill],
     charges: dict[tuple[str, str, str], int],
-    binary_resources: dict[tuple[str, str], bytes],
+    binary_resources: set[tuple[str, str]],
 ) -> None:
     listed = prompt.format_skills_as_xml(list(skills))
     charges[("list_skills", "", "")] = _charge(listed)
@@ -667,14 +604,9 @@ def _build_disclosure_plan(
             for relative_path, content in resources.items():
                 file_path = f"{prefix}/{relative_path}"
                 if isinstance(content, bytes):
-                    binary_resources[(skill.name, file_path)] = content
-                    result: Any = {
-                        "skill_name": skill.name,
-                        "file_path": file_path,
-                        "status": "Binary file detected. Content will be attached to the request.",
-                    }
+                    binary_resources.add((skill.name, file_path))
                     charges[("load_skill_resource", skill.name, file_path)] = _charge(
-                        result, binary=content
+                        _binary_resource_status(skill.name, file_path)
                     )
                 else:
                     result = {
@@ -685,18 +617,12 @@ def _build_disclosure_plan(
                     charges[("load_skill_resource", skill.name, file_path)] = _charge(result)
 
 
-def _charge(value: Any, *, binary: bytes | None = None) -> int:
-    result = DISCLOSURE_ENVELOPE_BYTES + _json_bytes(value)
-    if binary is not None:
-        result += len(base64.b64encode(binary)) + DISCLOSURE_ENVELOPE_BYTES
-    return result
+def _binary_resource_status(skill_name: str, file_path: str) -> dict[str, str]:
+    return {"skill_name": skill_name, "file_path": file_path, "status": BINARY_ASSET_STATUS}
 
 
-def _model_visible_size(value: Any, binary: bytes | None) -> int:
-    result = _json_bytes(value)
-    if binary is not None:
-        result += len(base64.b64encode(binary)) + DISCLOSURE_ENVELOPE_BYTES
-    return result
+def _charge(value: Any) -> int:
+    return DISCLOSURE_ENVELOPE_BYTES + _json_bytes(value)
 
 
 def _json_bytes(value: Any) -> int:

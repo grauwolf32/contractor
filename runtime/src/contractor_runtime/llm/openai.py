@@ -28,6 +28,17 @@ _FINISH_REASON = {
     "length": types.FinishReason.MAX_TOKENS,
     "content_filter": types.FinishReason.SAFETY,
 }
+_NON_RETRYABLE_ADAPTER_FAILURES = frozenset(
+    {
+        "StreamingUnsupported",
+        "UnsupportedContentPart",
+        "UnsupportedSystemInstruction",
+        "InvalidFunctionCall",
+        "InvalidFunctionPayload",
+        "InvalidFunctionDeclaration",
+        "UnsupportedResponseSchema",
+    }
+)
 
 
 class GatewayModelError(RuntimeError):
@@ -47,12 +58,14 @@ class GatewayModelError(RuntimeError):
         failure: GatewayFailure | None = None,
         response_received: bool = False,
         usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
+        request_invalid: bool = False,
     ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
         self.failure = failure
         self.response_received = response_received
         self.usage_metadata = usage_metadata if response_received else None
+        self.request_invalid = request_invalid
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
@@ -94,6 +107,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         completion: Any = None
         received = False
         usage: types.GenerateContentResponseUsageMetadata | None = None
+        request_invalid = False
         try:
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
@@ -115,6 +129,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         except Exception as error:
             provider_error_type = _safe_error_type(error)
             retryable = _retryable_gateway_error(error)
+            request_invalid = isinstance(error, _AdapterFailure) and not received
             failure = error.failure if isinstance(error, GatewayRequestError) else None
             if received:
                 usage = _rejected_response_usage(completion)
@@ -128,6 +143,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 failure=failure,
                 response_received=received,
                 usage_metadata=usage,
+                request_invalid=request_invalid,
             ) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
@@ -581,5 +597,5 @@ def _retryable_gateway_error(error: Exception) -> bool:
     if isinstance(error, TimeoutError):
         return True
     if isinstance(error, _AdapterFailure):
-        return error.code not in {"StreamingUnsupported"}
+        return error.code not in _NON_RETRYABLE_ADAPTER_FAILURES
     return False

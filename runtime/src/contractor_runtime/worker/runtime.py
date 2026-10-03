@@ -512,11 +512,7 @@ class AdkWorkerRuntime:
                 self._accepting = False
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
             elif gateway_error is not None:
-                outcome = _failure(
-                    "worker_gateway_unavailable",
-                    "Worker LLM Gateway request failed",
-                    gateway_error.retryable,
-                )
+                outcome = _gateway_worker_failure(gateway_error)
             else:
                 outcome = _failure("worker_execution_failed", "Worker execution failed", True)
             self._metrics.record_outcome("failed")
@@ -778,11 +774,7 @@ class AdkWorkerRuntime:
                 )
             gateway_error = _gateway_model_error(error)
             if gateway_error is not None:
-                return _failure(
-                    "worker_gateway_unavailable",
-                    "Worker LLM Gateway request failed",
-                    gateway_error.retryable,
-                ), False
+                return _gateway_worker_failure(gateway_error), False
             finalizer_error = _result_finalizer_error(error)
             if finalizer_error is not None:
                 if finalizer_error.code == "output_limit_exceeded":
@@ -1485,6 +1477,20 @@ def _gateway_model_error(error: BaseException) -> GatewayModelError | None:
             return current
         current = current.__cause__ or current.__context__
     return None
+
+
+def _gateway_worker_failure(error: GatewayModelError) -> WorkerFailure:
+    if error.request_invalid:
+        return _failure(
+            "worker_gateway_invalid_request",
+            "Worker LLM Gateway request is invalid",
+            False,
+        )
+    return _failure(
+        "worker_gateway_unavailable",
+        "Worker LLM Gateway request failed",
+        error.retryable,
+    )
 
 
 def _empty_invocation_metrics() -> dict[str, Any]:

@@ -377,6 +377,8 @@ def test_unsupported_inline_content_and_part_metadata_fail_closed() -> None:
                 "UnsupportedContentPart",
                 "UnsupportedSystemInstruction",
             }
+            assert captured.value.retryable is False
+            assert captured.value.request_invalid is True
         await model.close()
         await http_client.aclose()
 

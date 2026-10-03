@@ -872,12 +872,19 @@ def test_adk_worker_accounts_usage_of_a_rejected_gateway_response(
 
 
 @pytest.mark.parametrize(
-    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+    "error_type,retryable,request_invalid,expected_code",
+    [
+        ("TimeoutError", True, False, "worker_gateway_unavailable"),
+        ("BadRequestError", False, False, "worker_gateway_unavailable"),
+        ("UnsupportedContentPart", False, True, "worker_gateway_invalid_request"),
+    ],
 )
 def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
     tmp_path: Path,
     error_type: str,
     retryable: bool,
+    request_invalid: bool,
+    expected_code: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     model = scripted_model([])
@@ -886,7 +893,7 @@ def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
         del stream
         if False:
             yield None
-        raise GatewayModelError(error_type, retryable=retryable)
+        raise GatewayModelError(error_type, retryable=retryable, request_invalid=request_invalid)
 
     monkeypatch.setattr(type(model), "generate_content_async", gateway_failure)
 
@@ -898,7 +905,7 @@ def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
 
         assert completion.result is None
         assert completion.failure is not None
-        assert completion.failure.code == "worker_gateway_unavailable"
+        assert completion.failure.code == expected_code
         assert completion.failure.retryable is retryable
         assert "TimeoutError" not in completion.failure.message
         snapshot = await state.snapshot()

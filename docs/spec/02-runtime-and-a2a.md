@@ -576,6 +576,10 @@ attempt. Cancellation propagates through the existing lifecycle. Workflow policy
 decides whether a retryable failure creates a fresh StageExecution; this flag is
 separate from the client's bounded transport retries.
 
+An adapter failure while constructing a request from ADK content is a local,
+deterministic `worker_gateway_invalid_request` failure with `retryable: false`.
+It is distinct from a Gateway transport or HTTP response failure.
+
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state. They are erased during
