@@ -501,7 +501,7 @@ func TestPostgresQueuePauseAllowsTerminalResultCommit(t *testing.T) {
 	pool := isolatedSchedulerPool(t, ctx)
 	fixture := createFinalizingFixture(t, ctx, pool)
 	control, err := fixture.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
-		OwnerID: "user-1", ExpectedRevision: 1, Paused: true,
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
 	})
 	if err != nil || !control.Paused {
 		t.Fatalf("pause owner Queue = (%+v, %v)", control, err)

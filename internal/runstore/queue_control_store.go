@@ -41,29 +41,35 @@ func (s *PostgresStore) UpdateOwnerQueueControl(
 		return OwnerQueueControl{}, invalidf("owner Queue control revision is invalid")
 	}
 	control, err := scanOwnerQueueControl(s.db.QueryRow(ctx, `
-WITH inserted AS (
+WITH queue_lock AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock(
+        hashtextextended('owner-queue-control:' || $1::text, 0)
+    )
+), inserted AS (
     INSERT INTO owner_queue_controls (owner_id, paused, revision)
     SELECT $1, $2, 1
-    WHERE $3::bigint = 0
+    FROM queue_lock WHERE $3::bigint = 0
     ON CONFLICT DO NOTHING
     RETURNING owner_id, paused, revision, updated_at
 ), updated AS (
-    UPDATE owner_queue_controls
+    UPDATE owner_queue_controls AS control
     SET paused = $2,
-        revision = revision + 1,
-        updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-    WHERE owner_id = $1
-      AND revision = $3
+        revision = control.revision + 1,
+        updated_at = GREATEST(clock_timestamp(), control.updated_at + interval '1 microsecond')
+    FROM queue_lock
+    WHERE control.owner_id = $1
+      AND control.revision = $3
       AND $3::bigint > 0
-      AND paused IS DISTINCT FROM $2
-    RETURNING owner_id, paused, revision, updated_at
+      AND control.paused IS DISTINCT FROM $2
+    RETURNING control.owner_id, control.paused, control.revision, control.updated_at
 ), unchanged AS (
-    SELECT owner_id, paused, revision, updated_at
-    FROM owner_queue_controls
-    WHERE owner_id = $1
-      AND revision = $3
+    SELECT control.owner_id, control.paused, control.revision, control.updated_at
+    FROM owner_queue_controls AS control CROSS JOIN queue_lock
+    WHERE control.owner_id = $1
+      AND control.revision = $3
       AND $3::bigint > 0
-      AND paused IS NOT DISTINCT FROM $2
+      AND control.paused IS NOT DISTINCT FROM $2
+    FOR UPDATE OF control
 )
 SELECT owner_id, paused, revision, updated_at FROM inserted
 UNION ALL
@@ -81,31 +87,34 @@ LIMIT 1`, params.OwnerID, params.Paused, int64(params.ExpectedRevision)))
 }
 
 // LockRunQueueAdmission must be called on a transaction-bound PostgresStore.
-// Materializing and locking the owner's control row establishes the ordering
-// shared with pause/resume updates. The caller must keep the transaction open
-// until the new StageExecution is durably committed.
+// A shared owner lock orders admission with pause/resume without creating a
+// public Queue control revision. The caller keeps the transaction open until
+// the new StageExecution is durably committed.
 func (s *PostgresStore) LockRunQueueAdmission(ctx context.Context, runID string) error {
 	if err := validateOpaque("runID", runID); err != nil {
 		return err
 	}
-	if _, err := s.db.Exec(ctx, `
-INSERT INTO owner_queue_controls (owner_id, paused)
-SELECT owner_id, false
-FROM workflow_runs
-WHERE run_id = $1
-ON CONFLICT DO NOTHING`, runID); err != nil {
-		return fmt.Errorf("materialize owner Queue control: %w", err)
-	}
-	var paused bool
+	var ownerID string
 	err := s.db.QueryRow(ctx, `
-SELECT control.paused
-FROM workflow_runs AS run
-JOIN owner_queue_controls AS control ON control.owner_id = run.owner_id
-WHERE run.run_id = $1
-FOR UPDATE OF control`, runID).Scan(&paused)
+WITH run_owner AS MATERIALIZED (
+    SELECT owner_id FROM workflow_runs WHERE run_id = $1
+), owner_lock AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock_shared(
+        hashtextextended('owner-queue-control:' || owner_id, 0)
+    ) FROM run_owner
+)
+SELECT run_owner.owner_id FROM run_owner CROSS JOIN owner_lock`, runID).Scan(&ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
+	if err != nil {
+		return fmt.Errorf("lock owner Queue admission: %w", err)
+	}
+	var paused bool
+	err = s.db.QueryRow(ctx, `
+SELECT COALESCE(
+    (SELECT paused FROM owner_queue_controls WHERE owner_id = $1), false
+)`, ownerID).Scan(&paused)
 	if err != nil {
 		return fmt.Errorf("lock owner Queue admission: %w", err)
 	}
