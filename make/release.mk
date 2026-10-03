@@ -2,10 +2,15 @@
 # process suites once across their union. Target-specific variables propagate
 # to prerequisites; direct family invocations keep their original recipes.
 
-.PHONY: test-release-go-race test-release-process-e2e test-release-integration
+.PHONY: test-release-go-race test-release-process-e2e test-release-integration test-runtime-dependencies-audit
 
 release-verify: RELEASE_CONSOLIDATED := 1
-release-verify: test-release-go-race test-release-process-e2e test-release-integration
+release-verify: test-release-go-race test-release-process-e2e test-release-integration test-runtime-dependencies-audit
+
+# Audit exactly the frozen production Runtime graph. The scanner runs outside
+# the shipped Runtime environment and is pinned for repeatable CI behavior.
+test-runtime-dependencies-audit:
+	python3 scripts/audit_runtime_dependencies.py
 
 RELEASE_RACE_PATTERNS := \
 	./cmd/contractor-skill/... \

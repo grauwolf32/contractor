@@ -9,6 +9,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | --- | --- | --- |
 | Formatting, language tests, builds and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
+| Runtime production dependency advisories | `make test-runtime-dependencies-audit` | uv and access to the PyPI advisory service |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
@@ -27,6 +28,9 @@ checks the release graph against the original package and process-test inventory
 and discovers every integration-tagged test. New names enter the release pass
 automatically; tool-dependent exceptions must name an opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).
+The release gate also audits the frozen production Runtime lock with a pinned
+`pip-audit` scanner; it fails when the advisory service reports a vulnerable
+dependency. Development-only packages are excluded from this shipped graph.
 [CI](../../.github/workflows/ci.yml) runs
 `make release-verify` with PostgreSQL 17. Gate definitions describe what a
 command checks; completed results are recorded in the corresponding task files.
