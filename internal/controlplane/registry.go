@@ -260,7 +260,6 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		}
 		existing.superseded = true
 		existing.reconciliationRequired = true
-		r.markAllocationLost(existing, LossRuntimeRestarted)
 		if existing.authoritativeAllocationID != nil {
 			entry.blockedByInstanceID = clone.Pointer(&instanceID)
 			r.recordOperationsChangeLocked(OperationsRuntimeAgent, instanceID)

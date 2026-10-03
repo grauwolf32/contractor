@@ -85,7 +85,6 @@ type AllocationLossReason string
 const (
 	LossControlLeaseExpired AllocationLossReason = "control_lease_expired"
 	LossRuntimeMismatch     AllocationLossReason = "runtime_state_mismatch"
-	LossRuntimeRestarted    AllocationLossReason = "runtime_restarted"
 )
 
 // AllocationLoss is an irreversible edge emitted once for the durable
