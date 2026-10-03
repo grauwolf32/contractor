@@ -3,8 +3,8 @@ id: V113-001
 title: Record enforced single-active Server topology in the specifications
 milestone: single-active-topology-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ec79b0a11e0591599dbcc913d40c856c72bb3109
 depends_on: [V107-001]
 languages: [markdown, yaml]
 goal: Make the chosen active-passive topology explicit in the scheduler and Runtime specifications and example manifest.
