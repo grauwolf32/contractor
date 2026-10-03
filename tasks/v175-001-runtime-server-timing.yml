@@ -3,7 +3,8 @@ id: V175-001
 title: Remove Runtime-owned heartbeat and lease timing flags
 milestone: runtime-server-timing-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 516e3436a8e2ac9e29ec421a3835ab60b5ac283e
 depends_on: []
 languages: [python, go]
 goal: Make registration response the Runtime Agent authority for heartbeat and confirmed-lease timing.
