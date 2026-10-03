@@ -3,7 +3,8 @@ id: V216-001
 title: Remove test-only mTLS, credential and peer-policy exports
 milestone: security-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 37cb1a3ef261cd30bec8f8bb65b808e3f09a543e
 depends_on: []
 languages: [go, python]
 goal: Keep security-sensitive exported APIs limited to production behavior while preserving role-check tests.
