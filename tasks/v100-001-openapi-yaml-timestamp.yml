@@ -3,7 +3,8 @@ id: V100-001
 title: Accept date-style OpenAPI YAML scalars across parsers
 milestone: openapi-yaml-and-finding-input-repair-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: cb9aaa7edb609968faf3dc9999833777b6340005
 depends_on: []
 languages: [go]
 goal: Preserve unquoted YAML dates as strings so OpenAPI inventories and scan preparation accept them.

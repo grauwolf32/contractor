@@ -3,7 +3,8 @@ id: V100-002
 title: Return repairable errors for invalid finding references
 milestone: openapi-yaml-and-finding-input-repair-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 9f0d0abe429eb408db70f47eba8b519cd5d160d6
 depends_on: []
 languages: [python]
 goal: Ensure malformed evidence and standard reference lists never crash the finding tool.
