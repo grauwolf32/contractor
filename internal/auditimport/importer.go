@@ -281,6 +281,7 @@ func (i *Importer) retainFindingProposals(
 	if i.findings == nil || execution.RunID == nil {
 		return nil
 	}
+	ctx = findingintake.WithCollectionDirectVerificationCache(ctx)
 	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil {
 		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
@@ -288,8 +289,8 @@ func (i *Importer) retainFindingProposals(
 	query := findingintake.ListQuery{Limit: 200}
 	var standards retainedStandardIndex
 	for {
-		receipts, err := i.findings.ListRun(
-			ctx, snapshot.Audit.OwnerID, *execution.RunID, query,
+		receipts, err := i.findings.ListAuditCollection(
+			ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID, *execution.RunID, query,
 		)
 		if err != nil {
 			return fmt.Errorf("list Audit child finding proposals: %w", err)
@@ -297,17 +298,24 @@ func (i *Importer) retainFindingProposals(
 		if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && len(receipts) != 0 {
 			return fmt.Errorf("%w: findings-disabled Audit child produced a proposal", ErrPermanent)
 		}
-		for _, receipt := range receipts {
+		pending := make([]findingintake.ImportRequest, 0, len(receipts))
+		for _, candidate := range receipts {
+			receipt := candidate.Receipt
 			if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != snapshot.Audit.AuditID ||
 				receipt.Origin.Audit.ExecutionID != execution.ExecutionID ||
 				receipt.Origin.RunID != *execution.RunID {
 				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
 			}
+			if candidate.Rejected || (candidate.Retained &&
+				(candidate.PostTerminalRetained || candidate.DirectAssessed ||
+					*execution.TerminalOutcome != auditstore.TerminalSucceeded)) {
+				continue
+			}
 			request := findingintake.ImportRequest{
 				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
 				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
 			}
-			if len(receipt.Document.StandardRefs) != 0 {
+			if !candidate.Retained && len(receipt.Document.StandardRefs) != 0 {
 				if standards == nil {
 					standards, err = loadStandards()
 					if err != nil {
@@ -327,7 +335,10 @@ func (i *Importer) retainFindingProposals(
 					continue
 				}
 			}
-			_, _, err := i.findings.RetainAuditCollection(ctx, request)
+			pending = append(pending, request)
+		}
+		if len(pending) != 0 {
+			err = i.findings.RetainAuditCollectionBatch(ctx, pending)
 			if errors.Is(err, findingintake.ErrAuditClosed) {
 				// A terminal Audit has sealed its report, and a deleting one
 				// purges its holds anyway. The proposal stays held by its
@@ -335,13 +346,13 @@ func (i *Importer) retainFindingProposals(
 				return nil
 			}
 			if err != nil {
-				return fmt.Errorf("retain Audit child finding proposal: %w", err)
+				return fmt.Errorf("retain Audit child finding proposal page: %w", err)
 			}
 		}
 		if len(receipts) < query.Limit {
 			return nil
 		}
-		last := receipts[len(receipts)-1]
+		last := receipts[len(receipts)-1].Receipt
 		query.AfterCreatedAt = &last.CreatedAt
 		query.AfterReceiptID = last.ReceiptID
 	}

@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V240-001
+title: Batch Audit finding collection and skip retained proposals on replay
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: f42f4e4d871000ae634fde871496a701c9d5c346
+depends_on: []
+languages: [go, sql]
+goal: Make Audit child proposal collection progress within the Controller timeout even when a Run emits thousands of proposals.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/294
+  finding: Collection re-reads every receipt and direct-verification document on each retry and commits each proposal under a separate Audit row lock.
+scope:
+  in:
+    - Batch receipt, hold, and proposal-document reads for each Run page.
+    - Skip already retained proposals on replay while preserving origin and standard validation.
+    - Decode a direct-verification output once per collection and index its entries.
+    - Verify large collections and retry progress with PostgreSQL tests.
+  out:
+    - Changing finding proposal or Audit hold storage contracts.
+acceptance_criteria:
+  - {id: A1, text: Re-collecting retained proposals uses queries proportional to pages and performs no direct-verification output read or decode.}
+  - {id: A2, text: One collection reads and decodes each direct-verification output at most once.}
+  - {id: A3, text: Run receipt listing batches holds and documents with a bounded number of queries per page.}
+  - {id: A4, text: A large PostgreSQL collection finishes within the default timeout and a timed-out retry advances.}
+tests:
+  - {command: go test -tags=integration ./internal/findingintake ./internal/auditimport -count=1, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

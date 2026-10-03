@@ -407,6 +407,31 @@ func newFindingImportHarness(t *testing.T) (importHarness, *fakeFindingRetention
 	return harness, findings
 }
 
+func TestImporterSkipsCompletedFindingRetentionButRechecksPreterminalHold(t *testing.T) {
+	for _, testcase := range []struct {
+		name             string
+		postTerminalHold bool
+		wantImports      int
+	}{
+		{name: "post-terminal hold", postTerminalHold: true},
+		{name: "pre-terminal hold", wantImports: 1},
+	} {
+		t.Run(testcase.name, func(t *testing.T) {
+			harness, findings := newFindingImportHarness(t)
+			findings.collection = []findingintake.CollectionReceipt{{
+				Receipt: findings.receipts[0], Retained: true,
+				PostTerminalRetained: testcase.postTerminalHold,
+			}}
+			worked, err := harness.importer.Collect(
+				context.Background(), harness.claim, harness.snapshot, harness.execution,
+			)
+			if err != nil || !worked || len(findings.imports) != testcase.wantImports {
+				t.Fatalf("collection = (%t, %v, imports=%d)", worked, err, len(findings.imports))
+			}
+		})
+	}
+}
+
 func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) {
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
@@ -1490,6 +1515,7 @@ func (f *fakeImportRuns) GetRun(context.Context, string) (runstore.WorkflowRun, 
 
 type fakeFindingRetention struct {
 	receipts    []findingintake.Receipt
+	collection  []findingintake.CollectionReceipt
 	getReceipts []findingintake.Receipt
 	imports     []findingintake.ImportRequest
 	resolved    []findingintake.ResolvedProposal
@@ -1521,10 +1547,17 @@ func (f *fakeFindingRetention) ResolveAuditProposals(
 	return append([]findingintake.ResolvedProposal(nil), f.resolved...), nil
 }
 
-func (f *fakeFindingRetention) ListRun(
-	context.Context, string, string, findingintake.ListQuery,
-) ([]findingintake.Receipt, error) {
-	return append([]findingintake.Receipt(nil), f.receipts...), nil
+func (f *fakeFindingRetention) ListAuditCollection(
+	_ context.Context, _, _, _ string, _ findingintake.ListQuery,
+) ([]findingintake.CollectionReceipt, error) {
+	if f.collection != nil {
+		return append([]findingintake.CollectionReceipt(nil), f.collection...), nil
+	}
+	result := make([]findingintake.CollectionReceipt, len(f.receipts))
+	for i := range f.receipts {
+		result[i] = findingintake.CollectionReceipt{Receipt: f.receipts[i]}
+	}
+	return result, nil
 }
 
 func (f *fakeFindingRetention) RetainAuditCollection(
@@ -1535,6 +1568,17 @@ func (f *fakeFindingRetention) RetainAuditCollection(
 		return findingintake.AuditHold{}, false, f.retainErr
 	}
 	return findingintake.AuditHold{AuditID: request.AuditID}, false, nil
+}
+
+func (f *fakeFindingRetention) RetainAuditCollectionBatch(
+	ctx context.Context, requests []findingintake.ImportRequest,
+) error {
+	for _, request := range requests {
+		if _, _, err := f.RetainAuditCollection(ctx, request); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type fakeImportArtifacts struct {

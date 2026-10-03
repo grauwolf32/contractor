@@ -46,6 +46,50 @@ type directVerificationContractBinding struct {
 	EvidenceRule    string `json:"evidenceRule"`
 }
 
+type directVerificationCacheKey struct{}
+
+type directVerificationCache struct {
+	ready     bool
+	runID     string
+	projectID string
+	closure   string
+	prepared  *preparedDirectVerification
+	err       error
+}
+
+type preparedDirectVerification struct {
+	descriptor      artifacts.Metadata
+	contractBytes   []byte
+	results         map[string]auditdomain.DirectVerificationResult
+	budgetExhausted bool
+}
+
+// WithCollectionDirectVerificationCache shares one immutable terminal Run
+// output across the receipts of a single Audit collection attempt. Ordinary
+// owner imports still resolve each transaction independently.
+func WithCollectionDirectVerificationCache(ctx context.Context) context.Context {
+	return context.WithValue(ctx, directVerificationCacheKey{}, &directVerificationCache{})
+}
+
+func resolveDirectVerification(
+	ctx context.Context, tx pgx.Tx, service *artifacts.Service, input directVerificationInput,
+) (*preparedDirectVerification, error) {
+	cache, _ := ctx.Value(directVerificationCacheKey{}).(*directVerificationCache)
+	if cache == nil {
+		return prepareDirectVerification(ctx, tx, service, input)
+	}
+	if cache.ready {
+		if cache.runID != input.RunID || cache.projectID != input.ProjectID || cache.closure != input.WorkflowClosureDigest {
+			return nil, artifacts.ErrArtifactIntegrity
+		}
+		return cache.prepared, cache.err
+	}
+	cache.runID, cache.projectID, cache.closure = input.RunID, input.ProjectID, input.WorkflowClosureDigest
+	cache.prepared, cache.err = prepareDirectVerification(ctx, tx, service, input)
+	cache.ready = true
+	return cache.prepared, cache.err
+}
+
 // tryAcceptDirectVerification is intentionally best-effort only for absent or
 // invalid opt-in output. Proposal intake remains valid and leaves a candidate
 // unassessed in those cases. Durable or integrity failures still abort the
@@ -56,60 +100,20 @@ func tryAcceptDirectVerification(
 	artifactService *artifacts.Service,
 	input directVerificationInput,
 ) error {
-	run, err := runstore.NewPostgresStore(tx).GetRun(ctx, input.RunID)
-	if err != nil {
+	prepared, err := resolveDirectVerification(ctx, tx, artifactService, input)
+	if err != nil || prepared == nil {
 		return err
 	}
-	if run.State != runstore.RunSucceeded {
-		return nil
-	}
-	if run.OwnerID == "" || run.ProjectID == nil || *run.ProjectID != input.ProjectID ||
-		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
-		return artifacts.ErrArtifactIntegrity
-	}
-	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
-	if err != nil || workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion {
-		return artifacts.ErrArtifactIntegrity
-	}
-	outputName, outputContract, selected := selectDirectVerificationOutput(workflow)
-	if !selected {
-		return nil
-	}
-	runArtifacts, err := artifactService.Run(run.RunID)
-	if err != nil {
-		return err
-	}
-	descriptor, err := runArtifacts.Metadata(ctx, contracts.ArtifactRef{
-		Namespace: "outputs", Name: outputName,
-	})
-	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !descriptor.Frozen || descriptor.MediaType != auditdomain.DirectVerificationsMediaType ||
-		descriptor.Ref.Revision == nil {
-		return nil
-	}
-	read, err := runArtifacts.Read(ctx, descriptor.Ref)
-	if err != nil {
-		return err
-	}
-	if read.Payload.MediaType != descriptor.MediaType ||
-		int64(len(read.Payload.Data)) != descriptor.Size ||
-		auditdomain.DigestBytes(read.Payload.Data) != descriptor.Digest {
-		return artifacts.ErrArtifactIntegrity
-	}
-	document, err := auditdomain.DecodeDirectVerificationSet(read.Payload.Data)
-	if err != nil {
-		return nil
-	}
-	verification, exists := findDirectVerification(
-		document, input.InvocationID, input.ClientKey,
-	)
+	verification, exists := prepared.results[input.InvocationID+"\x00"+input.ClientKey]
 	if !exists {
 		return nil
+	}
+	if prepared.budgetExhausted {
+		return nil
+	}
+	runArtifacts, err := artifactService.Run(input.RunID)
+	if err != nil {
+		return err
 	}
 	proposal, err := readExactFindingProposal(ctx, runArtifacts, input.Proposal)
 	if err != nil {
@@ -119,24 +123,7 @@ func tryAcceptDirectVerification(
 		!isEvidenceSubset(verification.EvidenceIDs, proposal.EvidenceIDs) {
 		return nil
 	}
-
-	contractBytes, err := json.Marshal(directVerificationContract{
-		Schema:          directVerificationContractSchema,
-		ResultSchema:    auditdomain.DirectVerificationsSchema,
-		ResultMediaType: auditdomain.DirectVerificationsMediaType,
-		Workflow:        append(json.RawMessage(nil), run.WorkflowSnapshot...),
-		ClosureDigest:   input.WorkflowClosureDigest,
-		OutputName:      outputName,
-		Output:          outputContract,
-		Binding: directVerificationContractBinding{
-			InvocationField: "invocation_id",
-			ClientKeyField:  "client_key",
-			EvidenceRule:    "selected IDs must belong to the exact proposal receipt",
-		},
-	})
-	if err != nil {
-		return err
-	}
+	contractBytes, descriptor := prepared.contractBytes, prepared.descriptor
 	assessmentID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
 	if replayed, err := directAssessmentReplay(
 		ctx, tx, assessmentID, input, verification.Assessment,
@@ -153,6 +140,7 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 		return err
 	}
 	if !withinBudget {
+		prepared.budgetExhausted = true
 		return nil
 	}
 
@@ -192,6 +180,84 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 	)
 }
 
+func prepareDirectVerification(
+	ctx context.Context, tx pgx.Tx, artifactService *artifacts.Service, input directVerificationInput,
+) (*preparedDirectVerification, error) {
+	run, err := runstore.NewPostgresStore(tx).GetRun(ctx, input.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if run.State != runstore.RunSucceeded {
+		return nil, nil
+	}
+	if run.OwnerID == "" || run.ProjectID == nil || *run.ProjectID != input.ProjectID ||
+		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
+		return nil, artifacts.ErrArtifactIntegrity
+	}
+	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	if err != nil || workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion {
+		return nil, artifacts.ErrArtifactIntegrity
+	}
+	outputName, outputContract, selected := selectDirectVerificationOutput(workflow)
+	if !selected {
+		return nil, nil
+	}
+	runArtifacts, err := artifactService.Run(run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	descriptor, err := runArtifacts.Metadata(ctx, contracts.ArtifactRef{
+		Namespace: "outputs", Name: outputName,
+	})
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !descriptor.Frozen || descriptor.MediaType != auditdomain.DirectVerificationsMediaType ||
+		descriptor.Ref.Revision == nil {
+		return nil, nil
+	}
+	read, err := runArtifacts.Read(ctx, descriptor.Ref)
+	if err != nil {
+		return nil, err
+	}
+	if read.Payload.MediaType != descriptor.MediaType ||
+		int64(len(read.Payload.Data)) != descriptor.Size ||
+		auditdomain.DigestBytes(read.Payload.Data) != descriptor.Digest {
+		return nil, artifacts.ErrArtifactIntegrity
+	}
+	document, err := auditdomain.DecodeDirectVerificationSet(read.Payload.Data)
+	if err != nil {
+		return nil, nil
+	}
+	contractBytes, err := json.Marshal(directVerificationContract{
+		Schema:          directVerificationContractSchema,
+		ResultSchema:    auditdomain.DirectVerificationsSchema,
+		ResultMediaType: auditdomain.DirectVerificationsMediaType,
+		Workflow:        append(json.RawMessage(nil), run.WorkflowSnapshot...),
+		ClosureDigest:   input.WorkflowClosureDigest,
+		OutputName:      outputName,
+		Output:          outputContract,
+		Binding: directVerificationContractBinding{
+			InvocationField: "invocation_id",
+			ClientKeyField:  "client_key",
+			EvidenceRule:    "selected IDs must belong to the exact proposal receipt",
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	results := make(map[string]auditdomain.DirectVerificationResult, len(document.Verifications))
+	for _, verification := range document.Verifications {
+		results[verification.InvocationID+"\x00"+verification.ClientKey] = verification
+	}
+	return &preparedDirectVerification{
+		descriptor: descriptor, contractBytes: contractBytes, results: results,
+	}, nil
+}
+
 func selectDirectVerificationOutput(
 	workflow workflowconfig.ResolvedWorkflow,
 ) (string, workflowconfig.ArtifactSlot, bool) {
@@ -214,18 +280,6 @@ func selectDirectVerificationOutput(
 		selectedName, selected = name, slot
 	}
 	return selectedName, selected, selectedName != ""
-}
-
-func findDirectVerification(
-	document auditdomain.DirectVerificationSet,
-	invocationID, clientKey string,
-) (auditdomain.DirectVerificationResult, bool) {
-	for _, result := range document.Verifications {
-		if result.InvocationID == invocationID && result.ClientKey == clientKey {
-			return result, true
-		}
-	}
-	return auditdomain.DirectVerificationResult{}, false
 }
 
 func readExactFindingProposal(

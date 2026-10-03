@@ -211,6 +211,14 @@ type deletionImportFixture struct {
 }
 
 func newDeletionImportFixture(t *testing.T) deletionImportFixture {
+	return newFindingImportFixture(t, false)
+}
+
+func newDirectCollectionFixture(t *testing.T) deletionImportFixture {
+	return newFindingImportFixture(t, true)
+}
+
+func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(cancel)
@@ -240,6 +248,12 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if direct {
+		workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
+			Required: true, Primary: true,
+			MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
+		}
+	}
 	encoded, err := json.Marshal(workflow)
 	if err != nil {
 		t.Fatal(err)
@@ -250,6 +264,10 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 		RunID: runID, OwnerID: owner, ProjectID: &project, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 	}); err != nil {
+		t.Fatal(err)
+	}
+	storedRun, err := runs.GetRun(ctx, runID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	canonical, err := canonicalize(testSubmission("invocation", "candidate", []contracts.ArtifactRef{}))
@@ -263,7 +281,7 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	}
 	proposal := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes), MediaType: written.MediaType, SizeBytes: written.Size}
 	origin := Origin{RunID: runID, Workflow: WorkflowOrigin{Name: workflow.Ref.Name, Version: workflow.Ref.Version,
-		SchemaVersion: contracts.APIVersion, ClosureDigest: auditdomain.DigestBytes(encoded)}}
+		SchemaVersion: contracts.APIVersion, ClosureDigest: auditdomain.DigestBytes(storedRun.WorkflowSnapshot)}}
 	origin.Workflow.ConfigurationRef.Name, origin.Workflow.ConfigurationRef.Version = workflow.Ref.Name, workflow.Ref.Version
 	grant := controlplane.AllocationGrant{RunID: runID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
@@ -272,7 +290,11 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture_done"}); err != nil {
+	terminal := runstore.RunFailed
+	if direct {
+		terminal = runstore.RunRunning
+	}
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, terminal, runstore.Reason{Code: "fixture_done"}); err != nil {
 		t.Fatal(err)
 	}
 	intake, err := New(pool)

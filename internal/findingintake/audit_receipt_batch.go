@@ -131,8 +131,24 @@ SELECT hold.receipt_id, hold.audit_id, hold.project_id, hold.proposal_ref,
 	if err != nil {
 		return nil, fmt.Errorf("list finding proposal Audit holds: %w", err)
 	}
+	return scanAuditHoldsBatch(rows, len(ids))
+}
+
+func readRunAuditHoldsBatch(ctx context.Context, db querier, ids []string) (map[string][]AuditHold, error) {
+	rows, err := db.Query(ctx, `
+SELECT receipt_id, audit_id, project_id, proposal_ref, evidence, created_at
+  FROM finding_proposal_audit_holds
+ WHERE receipt_id = ANY($1::text[])
+ ORDER BY receipt_id, created_at, audit_id`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list Run finding proposal Audit holds: %w", err)
+	}
+	return scanAuditHoldsBatch(rows, len(ids))
+}
+
+func scanAuditHoldsBatch(rows pgx.Rows, size int) (map[string][]AuditHold, error) {
 	defer rows.Close()
-	result := make(map[string][]AuditHold, len(ids))
+	result := make(map[string][]AuditHold, size)
 	for rows.Next() {
 		var id string
 		var hold AuditHold
