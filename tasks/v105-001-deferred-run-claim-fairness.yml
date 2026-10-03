@@ -3,8 +3,8 @@ id: V105-001
 title: Let pending Runs pass deferred running Runs
 milestone: scheduler-deferred-claim-fairness-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 25f469e1c4149e557acbb41ccd053e72d666d379
 depends_on: []
 languages: [go, sql]
 goal: Prevent a repeatedly deferred running Run from monopolizing Scheduler claims ahead of other owners' pending Runs.
