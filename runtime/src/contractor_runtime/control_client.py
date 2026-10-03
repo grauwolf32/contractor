@@ -43,7 +43,9 @@ class ControlTransport(Protocol):
 class ReconciliationHandler(Protocol):
     async def reconcile_drain(self, allocation_id: str, shutdown_grace_seconds: float) -> None: ...
 
-    async def confirm_release(self, allocation_id: str | None) -> None: ...
+    async def confirm_release(
+        self, allocation_id: str | None, *, keep_fenced: bool = False
+    ) -> None: ...
 
 
 class ControlClientError(Exception):
@@ -185,6 +187,11 @@ class ControlClient:
             heartbeat_interval_seconds=float(response.heartbeat_interval_seconds),
             confirmed_lease_seconds=float(response.confirmed_lease_seconds),
         )
+        # Never expose IDLE before a previously expired watchdog is re-armed.
+        if self._watchdog is not None:
+            await self._watchdog.arm(self._timing.confirmed_lease_seconds, sent_at)
+            if self._watchdog.confirmed_deadline is None:
+                raise ControlClientError("registration response arrived after its lease expired")
         snapshot = await self._state.snapshot()
         if snapshot.process_state is ProcessState.STARTING:
             await self._state.mark_registered()
@@ -192,8 +199,6 @@ class ControlClient:
             # Registration has established that the Control Plane owns no
             # allocation for this identity, so an idle lease loss may clear.
             await self._state.confirm_release(None)
-        if self._watchdog is not None:
-            await self._watchdog.arm(self._timing.confirmed_lease_seconds, sent_at)
         return response
 
     async def register_until_stopped(self, stop: asyncio.Event) -> bool:
@@ -275,7 +280,17 @@ class ControlClient:
                         allocation_id, self._settings.shutdown_grace_seconds
                     )
                 else:
-                    await self._reconciliation.confirm_release(allocation_id)
+                    expired = self._watchdog is not None and self._watchdog.expired
+                    await self._reconciliation.confirm_release(allocation_id, keep_fenced=expired)
+                    if not expired and self._watchdog is not None and self._watchdog.expired:
+                        # Local expiry may arrive while release cleanup runs.
+                        await self._state.fence_control_lease()
+                        expired = True
+                    if expired:
+                        # A release is not a new lease generation. Keep the
+                        # slot fenced while the Server establishes one.
+                        async with self._heartbeat_lock:
+                            await self.register()
             except asyncio.CancelledError:
                 raise
             except Exception as error:

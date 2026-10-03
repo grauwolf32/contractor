@@ -482,7 +482,9 @@ class AllocationService:
             await self._prepare_release_cleanup(context)
             await self._state.fence_allocation(context.allocation_id)
 
-    async def confirm_release(self, allocation_id: str | None) -> None:
+    async def confirm_release(
+        self, allocation_id: str | None, *, keep_fenced: bool = False
+    ) -> None:
         """Apply a heartbeat-confirmed authoritative release.
 
         The private release endpoint only prepares local cleanup. Keeping this
@@ -494,8 +496,10 @@ class AllocationService:
             context = self._context
             if context is None:
                 if allocation_id is not None and self._released_allocation_id == allocation_id:
+                    if keep_fenced:
+                        await self._state.fence_control_lease()
                     return
-                await self._state.confirm_release(allocation_id)
+                await self._state.confirm_release(allocation_id, keep_fenced=keep_fenced)
                 return
             if allocation_id != context.allocation_id:
                 raise _conflict("release action identifies another allocation")
@@ -503,7 +507,7 @@ class AllocationService:
                 raise _conflict("active Worker must be drained before release")
             if not context.release_prepared:
                 await self._prepare_release_cleanup(context)
-            await self._state.confirm_release(context.allocation_id)
+            await self._state.confirm_release(context.allocation_id, keep_fenced=keep_fenced)
             self._released_allocation_id = context.allocation_id
             context.terminal_response = None
             self._context = None

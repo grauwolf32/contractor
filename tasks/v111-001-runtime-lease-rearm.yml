@@ -25,5 +25,6 @@ acceptance_criteria:
   - {id: A3, text: A re-registration cannot extend the Runtime deadline beyond the Server's new claim deadline.}
 tests:
   - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_control_client.py runtime/tests/test_lease_watchdog.py, covers: [A1, A2]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_podman_allocation.py, covers: [A1, A2]}
   - {command: go test ./internal/controlplane -count=1, covers: [A3]}
   - {command: go test ./..., covers: [A3]}
