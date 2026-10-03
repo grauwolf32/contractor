@@ -1,5 +1,7 @@
 # Example only: supply your image/bootstrap configs, database and owner-only
-# authentication/PKI secrets before applying. See docs/operations/artifact-blob-storage.md.
+# authentication/PKI secrets before applying. One active Server per database;
+# this one-replica Recreate rollout is not an active-active deployment.
+# See docs/operations/artifact-blob-storage.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

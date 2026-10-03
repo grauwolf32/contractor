@@ -406,12 +406,16 @@ a matching `aborting` execution reissues its recorded abort; a terminal or
 unknown allocation is drained and released. Reconnection never adopts a Worker
 for continued Planner execution.
 
-This design permits one active Control Plane instance in the first slice.
-Shared fleet coordination, durable liveness state and multiple active Control
-Plane replicas are deferred together; they must not be approximated by sharing
-an unfenced `runtime_agents` table. Durable certificate principals and their
-label assignments under [07](07-runtime-labels-and-infrastructure-config.md) are configuration records only; they never imply
-that a process is live, leased or eligible.
+This design enforces one active Control Plane instance per PostgreSQL database.
+The Server acquires a session-level advisory lease before starting credential
+recovery, the Scheduler and private API. A standby has only public health and
+503 readiness until it wins that lease; loss of the active lease session stops
+its listeners and Scheduler. Multiple active Control Plane replicas, shared
+fleet coordination and durable liveness state are deferred together; they must
+not be approximated by sharing an unfenced `runtime_agents` table. Durable
+certificate principals and their label assignments under
+[07](07-runtime-labels-and-infrastructure-config.md) are configuration records
+only; they never imply that a process is live, leased or eligible.
 
 The in-memory Registry is a current live/reconciliation index, not process
 history. A superseded or control-lease-expired process entry is retired from
