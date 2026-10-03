@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V217-001
+title: Cache decoded HTTP body artifacts for paged reads
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Avoid downloading and decoding the same exact HTTP body artifact for every paged read.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/175
+  finding: http_read_body currently downloads and decodes the complete artifact for each 8 KiB slice.
+scope:
+  in:
+    - Cache a validated decoded body in its allocation-scoped HTTP session under a fixed memory bound.
+    - Evict the prior body when a different exact artifact is read and clear the cache on close.
+    - Preserve text character and binary byte paging and existing error mapping.
+  out:
+    - Changing HTTP response capture, artifact format or tool result shape.
+acceptance_criteria:
+  - {id: A1, text: Consecutive reads of one valid exact body make at most one artifact read.}
+  - {id: A2, text: Text and binary offsets, totals, EOF and payloads remain unchanged.}
+  - {id: A3, text: Reading a different body evicts the prior cache entry and retained content stays within the configured byte bound.}
+  - {id: A4, text: Close clears cached content and preserves the closed-session error.}
+  - {id: A5, text: Invalid media type or body kind still yields http_body_not_found and is never cached.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_http_toolset.py, covers: [A1, A2, A3, A4, A5]}
+  - {command: make test-runtime, covers: [A1, A2, A3, A4, A5]}
+  - {command: make lint, covers: [A1, A2, A3, A4, A5]}
