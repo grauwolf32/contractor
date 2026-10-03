@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import workerErrorCodes from "../../../../api/scan/v1/testdata/worker-error-codes.json";
 import { LoadedArtifactPreview } from "./loaded-preview";
+
+const OUTCOME_LABELS: Record<string, string> = {
+  unavailable: "Unavailable",
+  incomplete: "Incomplete",
+  failed: "Failed",
+};
 
 const observation = {
   status: "completed",
@@ -96,7 +103,12 @@ describe("Scan report preview", () => {
         scanComplete: false,
       },
     ],
-    ["Unavailable", { status: "failed", errorCode: "scan_proxy_unsupported" }],
+    ["Incomplete", { status: "failed", errorCode: "scan_proxy_unsupported" }],
+    [
+      "Failed",
+      { status: "failed", errorCode: "scanner_failed", stdoutTruncated: true },
+    ],
+    ["Unknown", { status: "failed", errorCode: "scanner_exploded" }],
     ["Failed", { status: "failed", errorCode: "scanner_failed" }],
     ["Failed", { exitCode: 2 }],
     ["Unknown", { exitCode: null }],
@@ -123,6 +135,24 @@ describe("Scan report preview", () => {
         ),
       ).toBeVisible();
       expect(container.querySelector("pre")?.textContent).toBe(source);
+    },
+  );
+
+  it.each(workerErrorCodes.codes)(
+    "shows the shared Planner outcome for $errorCode",
+    async ({ errorCode, exitCode, outcome }) => {
+      render(
+        <LoadedArtifactPreview
+          mediaType="application/json"
+          source={report({ status: "failed", errorCode, exitCode })}
+        />,
+      );
+      const summary = await screen.findByRole("region", {
+        name: "Scanner execution",
+      });
+      expect(summary).toHaveTextContent(
+        `Technical outcome${OUTCOME_LABELS[outcome]}`,
+      );
     },
   );
 

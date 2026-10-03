@@ -6,12 +6,29 @@ const SCAN_TOOLS = new Set([
   "scan_katana",
 ]);
 
-const INCOMPLETE_CODES = new Set([
-  "scan_incomplete",
-  "scan_timeout",
-  "scan_request_failed",
-  "invalid_scanner_output",
-  "output_limit_exceeded",
+type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
+
+// The job outcome the Planner records for each Worker errorCode. Tests pin it
+// to api/scan/v1/testdata/worker-error-codes.json.
+const WORKER_ERROR_OUTCOMES: ReadonlyMap<string, WorkerErrorOutcome> = new Map([
+  ["scanner_unavailable", "unavailable"],
+  ["nuclei_templates_unavailable", "unavailable"],
+  ["scan_closed", "incomplete"],
+  ["scan_proxy_unsupported", "incomplete"],
+  ["scan_target_denied", "incomplete"],
+  ["scan_target_unresolved", "incomplete"],
+  ["scan_request_file_unavailable", "incomplete"],
+  ["scan_wordlist_file_unavailable", "incomplete"],
+  ["scan_artifact_unavailable", "incomplete"],
+  ["scan_output_exists", "incomplete"],
+  ["scan_timeout", "incomplete"],
+  ["output_limit_exceeded", "incomplete"],
+  ["scan_incomplete", "incomplete"],
+  ["scan_request_failed", "incomplete"],
+  ["invalid_scanner_output", "incomplete"],
+  ["scanner_failed", "failed"],
+  ["scan_artifact_failed", "failed"],
+  ["no_discovered_targets", "failed"],
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -50,18 +67,22 @@ function executionStatus(
   ) {
     return "Unknown";
   }
-  if (
-    errorCode === "scanner_unavailable" ||
-    errorCode === "nuclei_templates_unavailable" ||
-    errorCode === "scan_proxy_unsupported"
-  ) {
-    return "Unavailable";
+  if (typeof errorCode === "string") {
+    // Like the Planner, trust only a known code and let it decide the outcome.
+    switch (WORKER_ERROR_OUTCOMES.get(errorCode)) {
+      case "unavailable":
+        return "Unavailable";
+      case "incomplete":
+        return "Incomplete";
+      case "failed":
+        return tool === "scan_katana" && errorCode === "no_discovered_targets"
+          ? "No targets discovered"
+          : "Failed";
+      default:
+        return "Unknown";
+    }
   }
-  if (tool === "scan_katana" && errorCode === "no_discovered_targets") {
-    return "No targets discovered";
-  }
   if (
-    (typeof errorCode === "string" && INCOMPLETE_CODES.has(errorCode)) ||
     observation.scanComplete === false ||
     observation.outputLimitExceeded === true ||
     Object.entries(observation).some(
@@ -76,7 +97,6 @@ function executionStatus(
   }
   if (
     observation.status === "failed" ||
-    (typeof errorCode === "string" && errorCode !== "") ||
     (typeof observation.exitCode === "number" && observation.exitCode !== 0)
   ) {
     return "Failed";

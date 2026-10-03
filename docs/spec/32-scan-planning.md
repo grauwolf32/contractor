@@ -167,7 +167,10 @@ Otherwise it fails with `scan_incomplete` while retaining the aggregate report.
 Job outcomes distinguish `completed`, `failed`, `unavailable`, `incomplete` and
 `unknown`. Scanner absence is `unavailable`; timeouts, truncation, incomplete ffuf
 scans and malformed outputs are `incomplete`, while an ordinary nonzero scanner
-exit remains `failed`. When `tool_execution_failed` omits the report reference,
+exit remains `failed`. The shared
+[Worker error code table](../../api/scan/v1/testdata/worker-error-codes.json)
+fixes the outcome of every reported `errorCode`; an unlisted code is an invalid
+report. When `tool_execution_failed` omits the report reference,
 the Planner resolves only that job's own deterministic report binding for
 classification; a failure whose report binding cannot be resolved remains failed.
 A completed invocation is not a claim that a target is secure. Scanner
