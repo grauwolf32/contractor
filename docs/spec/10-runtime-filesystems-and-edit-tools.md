@@ -545,7 +545,7 @@ allocation child used for Trailmark graph analysis are specified in
 |---|---|
 | `ls(path="", cursor="", limit=100)` | Sorted immediate entries with type and text size; bounded cursor pagination. |
 | `glob(pattern, cursor="", limit=100)` | Sorted relative path matches; bounded scan and pagination. |
-| `read_file(path, start_line=1, max_lines=200, with_line_numbers=False)` | Bounded text lines with total/next metadata and preserved newline information. Optional true prefixes each text with its absolute `N \| ` line number; prefix UTF-8 bytes count toward the existing output limit. |
+| `read_file(path, start_line=1, max_lines=200, with_line_numbers=False)` | Bounded text lines with total/next metadata and preserved newline information. `start_line == totalLines + 1` returns an empty page; larger values return `workspace_line_invalid`. Optional true prefixes each text with its absolute `N \| ` line number; prefix UTF-8 bytes count toward the existing output limit. |
 | `grep(pattern, path="", glob="**/*", cursor="", limit=100)` | Bounded literal/regex text matches with line and truncated excerpt. |
 
 ### `edit-files@1`
@@ -674,6 +674,7 @@ Initial stable errors include:
 - `workspace_state_invalid` (non-retryable);
 - `workspace_path_invalid`;
 - `workspace_not_found`;
+- `workspace_line_invalid` (read or edit line outside an existing file's valid range);
 - `workspace_type_conflict`;
 - `binary_file_unsupported`;
 - `workspace_limit_exceeded`;

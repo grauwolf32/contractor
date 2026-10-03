@@ -131,6 +131,38 @@ def test_read_tools_are_sorted_paginated_and_preserve_newlines(tmp_path: Path, m
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("mode", ["direct", "overlay"])
+def test_read_file_distinguishes_past_eof_from_missing_file(tmp_path: Path, mode: str) -> None:
+    async def scenario() -> None:
+        session = await workspace(mode, f"read-past-eof-{mode}")
+        await session.write_text("empty.txt", "")
+        tools = await create_tools(
+            FilesystemToolsetFactory(),
+            session.reader_view(),
+            WorkerState(),
+            tmp_path,
+            ["read_file"],
+        )
+        try:
+            for path, total_lines in (("src/a.py", 2), ("empty.txt", 0)):
+                at_eof = await tools["read_file"](path, total_lines + 1, 10)
+                assert at_eof["lines"] == []
+                assert at_eof["totalLines"] == total_lines
+                assert at_eof["nextLine"] is None
+                with pytest.raises(FilesystemToolError) as failure:
+                    await tools["read_file"](path, total_lines + 2, 10)
+                assert failure.value.code == "workspace_line_invalid"
+
+            with pytest.raises(FilesystemToolError) as failure:
+                await tools["read_file"]("missing.txt", 10, 10)
+            assert failure.value.code == "workspace_not_found"
+        finally:
+            await tools["read_file"].close()
+            await session.close()
+
+    asyncio.run(scenario())
+
+
 def test_cursor_is_query_and_snapshot_bound_and_scan_truncation_is_explicit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

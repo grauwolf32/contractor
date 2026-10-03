@@ -200,7 +200,7 @@ class _FilesystemSession:
             text, start_line, max_lines, with_line_numbers=with_line_numbers
         )
         if start_line > total_lines + 1:
-            raise FilesystemToolError("workspace_not_found")
+            raise FilesystemToolError("workspace_line_invalid")
         next_line = start_line + len(selected)
         truncated = next_line <= total_lines or line_truncated
         return {
@@ -493,6 +493,7 @@ class ReadWorkspaceFileTool(_BaseFilesystemTool):
     Args:
         path: Project-relative file path.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
+            A value above totalLines + 1 fails with workspace_line_invalid.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
         with_line_numbers: Prefix each text value with its absolute "N | " line
             number; defaults to false. Prefixes count toward the byte limit.
