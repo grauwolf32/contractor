@@ -672,6 +672,7 @@ WITH candidate AS (
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
     ORDER BY CASE
                  WHEN state = 'cancelling' THEN 0
+                 WHEN scheduler_deferred THEN 3
                  WHEN state IN ('running', 'waiting') THEN 1
                  ELSE 2
              END,
@@ -702,6 +703,16 @@ RETURNING `+prefixedWorkflowRunColumns("run"), claimID, microseconds,
 }
 
 func (s *PostgresStore) ReleaseRunClaim(ctx context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(ctx, runID, claimID, false)
+}
+
+// DeferRunClaim releases the lease while moving this Run behind pending work.
+// A later successful attempt clears the marker through ReleaseRunClaim.
+func (s *PostgresStore) DeferRunClaim(ctx context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(ctx, runID, claimID, true)
+}
+
+func (s *PostgresStore) releaseRunClaim(ctx context.Context, runID, claimID string, deferred bool) error {
 	if err := validateOpaque("runID", runID); err != nil {
 		return err
 	}
@@ -713,8 +724,9 @@ UPDATE workflow_runs
 SET scheduler_claim_id = NULL,
     scheduler_claimed_at = NULL,
     scheduler_claim_expires_at = NULL,
+    scheduler_deferred = $3,
     updated_at = clock_timestamp()
-WHERE run_id = $1 AND scheduler_claim_id = $2`, runID, claimID)
+WHERE run_id = $1 AND scheduler_claim_id = $2`, runID, claimID, deferred)
 	if err != nil {
 		return fmt.Errorf("release WorkflowRun %q claim: %w", runID, err)
 	}

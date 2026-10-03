@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -18,9 +19,68 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPostgresDeferredRunningRunYieldsToPendingOtherOwner(t *testing.T) {
+	for _, scenario := range []string{"queue-paused", "capacity"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			h := newDeferredPlacementHarness(t, ctx, nil)
+			settings, err := settingsstore.NewPostgresStore(h.pool).GetSchedulerSettings(ctx)
+			if err != nil || settings.MaxConcurrentRuns != 1 {
+				t.Fatalf("fixture lane limit = (%+v, %v), want 1", settings, err)
+			}
+			if scenario == "queue-paused" {
+				if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+					OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				h.workers.allocator.reserveError = controlplane.ErrInsufficientCapacity
+			}
+			if worked, err := h.scheduler.RunOnce(ctx); !worked || !errors.Is(err, ErrDeferred) {
+				t.Fatalf("first Run did not defer: worked=%v err=%v", worked, err)
+			}
+			var deferred bool
+			if err := h.pool.QueryRow(ctx, `SELECT scheduler_deferred FROM workflow_runs WHERE run_id='run-1'`).Scan(&deferred); err != nil || !deferred {
+				t.Fatalf("deferred claim marker = (%v, %v)", deferred, err)
+			}
+			if scenario == "capacity" {
+				// The next owner's Run is placeable once capacity is available.
+				h.workers.allocator.reserveError = nil
+			}
+			workflowJSON, err := json.Marshal(h.workflow)
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := h.store.CreateRun(ctx, runstore.CreateRunParams{
+				RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+				WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+				WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
+				RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunInitializing, runstore.RunPending,
+				runstore.Reason{Code: "awaiting_admission"}); err != nil {
+				t.Fatal(err)
+			}
+			claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute)
+			if err != nil || claimed.RunID != other.RunID {
+				t.Fatalf("next lane claim = (%+v, %v), want other owner's pending Run", claimed, err)
+			}
+			if err := h.store.ReleaseRunClaim(ctx, other.RunID, "next-poll"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 
 type deferredPlacementHarness struct {
 	pool      *pgxpool.Pool
@@ -33,10 +93,13 @@ type deferredPlacementHarness struct {
 
 // newDeferredPlacementHarness pins allocation rows during placement, as
 // production placement does, so a deferral cannot hide lost durable state.
-func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence) deferredPlacementHarness {
+func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence, configure ...func(*workflowconfig.ResolvedWorkflow)) deferredPlacementHarness {
 	t.Helper()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
+	for _, configureWorkflow := range configure {
+		configureWorkflow(&workflow)
+	}
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	runStore := createSchedulerRun(t, ctx, store, artifactService, workflow)
@@ -106,6 +169,100 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	}
 	allocator.record = scheduler.recordReservations
 	return deferredPlacementHarness{pool, store, scheduler, workflow, invoker, workers}
+}
+
+type pauseBeforeResultProgression struct {
+	AtomicPersistence
+	store  *runstore.PostgresStore
+	paused bool
+}
+
+func (p *pauseBeforeResultProgression) CommitResultProgression(ctx context.Context, progression ResultProgression) error {
+	if !p.paused {
+		control, err := p.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			return err
+		}
+		if _, err := p.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: true,
+		}); err != nil {
+			return err
+		}
+		p.paused = true
+	}
+	return p.AtomicPersistence.CommitResultProgression(ctx, progression)
+}
+
+func TestPostgresPausedFinalizingRunYieldsToPendingOtherOwner(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil, func(workflow *workflowconfig.ResolvedWorkflow) {
+		stage := workflow.Stages[workflow.EntryStage]
+		build, review := stage, stage
+		build.WorkflowOutputs = map[string]string{}
+		build.On.Succeeded = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionNext, NextStage: "review"}
+		review.Context.Artifacts = map[string]workflowconfig.ContextArtifact{
+			"draft": {Namespace: "builder", Name: "copied", Required: true},
+		}
+		workflow.EntryStage = "build"
+		workflow.Stages = map[string]workflowconfig.ResolvedStage{"build": build, "review": review}
+	})
+	if err := workflowconfig.ValidateWorkflowGraph(h.workflow); err != nil {
+		t.Fatal(err)
+	}
+	pausing := &pauseBeforeResultProgression{AtomicPersistence: h.scheduler.persistence, store: h.store}
+	h.scheduler.persistence = pausing
+	if worked, err := h.scheduler.RunOnce(ctx); !worked || !errors.Is(err, ErrDeferred) || !pausing.paused {
+		t.Fatalf("finalizing Run did not defer on Queue Pause: worked=%v paused=%v err=%v", worked, pausing.paused, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StageFinalizing {
+		t.Fatalf("paused Run did not retain finalizing Stage: %+v, %v", executions, err)
+	}
+	workflowJSON, err := json.Marshal(h.workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := h.store.CreateRun(ctx, runstore.CreateRunParams{
+		RunID: "run-other-owner", OwnerID: "user-2", WorkflowName: h.workflow.Ref.Name,
+		WorkflowVersion: h.workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "other owner's work"},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunInitializing, runstore.RunPending,
+		runstore.Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := h.store.ClaimRunnableRun(ctx, "next-poll", time.Minute)
+	if err != nil || claimed.RunID != other.RunID {
+		t.Fatalf("next claim = (%+v, %v), want other owner's pending Run", claimed, err)
+	}
+	if err := h.store.ReleaseRunClaim(ctx, other.RunID, "next-poll"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.TransitionRun(ctx, other.RunID, runstore.RunPending, runstore.RunFailed,
+		runstore.Reason{Code: "fixture_finished"}); err != nil {
+		t.Fatal(err)
+	}
+	control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed finalizing Run = (%v, %v)", worked, err)
+	}
+	var deferred bool
+	if err := h.pool.QueryRow(ctx, `SELECT scheduler_deferred FROM workflow_runs WHERE run_id='run-1'`).Scan(&deferred); err != nil || deferred {
+		t.Fatalf("resumed Run kept deferred claim marker = (%v, %v)", deferred, err)
+	}
 }
 
 func (h deferredPlacementHarness) requireSingleSucceededStage(t *testing.T, ctx context.Context) {

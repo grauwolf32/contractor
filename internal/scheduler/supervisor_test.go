@@ -172,6 +172,7 @@ func TestSchedulerSupervisorRotatesDeferredOwnerWithoutHotLoop(t *testing.T) {
 	poll := 250 * time.Millisecond
 	store := newLaneTestStore("paused-run-1", "paused-run-2", "runnable-run")
 	store.deferRuns("paused-run-1", "paused-run-2")
+	store.pendingRuns("runnable-run")
 	scheduler := newLaneTestScheduler(t, store, newMutableSchedulerSettings(2, poll), poll)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -336,6 +337,8 @@ type laneTestStore struct {
 	gates         map[string]chan struct{}
 	unblocked     map[string]bool
 	deferred      map[string]bool
+	wasDeferred   map[string]bool
+	states        map[string]runstore.WorkflowRunState
 	active        int
 	maximum       int
 	claimCount    int
@@ -349,6 +352,7 @@ func newLaneTestStore(runIDs ...string) *laneTestStore {
 		runs: append([]string(nil), runIDs...), started: make(map[string]bool),
 		claims: make(map[string]string), gates: make(map[string]chan struct{}),
 		unblocked: make(map[string]bool), deferred: make(map[string]bool),
+		wasDeferred: make(map[string]bool), states: make(map[string]runstore.WorkflowRunState),
 		claimed:       make(chan string, len(runIDs)+8),
 		releasedCount: make(chan int, len(runIDs)+8),
 	}
@@ -367,10 +371,26 @@ func (s *laneTestStore) ClaimRunnableRun(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.claimCount++
-	for _, runID := range s.runs {
-		if s.started[runID] {
-			continue
+	priority := func(runID string) int {
+		if s.states[runID] == runstore.RunCancelling {
+			return 0
 		}
+		if s.wasDeferred[runID] {
+			return 3
+		}
+		if s.states[runID] == runstore.RunPending {
+			return 2
+		}
+		return 1
+	}
+	chosen, rank := "", 4
+	for _, runID := range s.runs {
+		if !s.started[runID] && priority(runID) < rank {
+			chosen, rank = runID, priority(runID)
+		}
+	}
+	if chosen != "" {
+		runID := chosen
 		s.started[runID] = true
 		s.claims[runID] = claimID
 		s.active++
@@ -382,7 +402,11 @@ func (s *laneTestStore) ClaimRunnableRun(
 		if s.deferred[runID] {
 			ownerID = "paused-owner"
 		}
-		return runstore.WorkflowRun{RunID: runID, OwnerID: ownerID, State: runstore.RunRunning}, nil
+		state := s.states[runID]
+		if state == "" {
+			state = runstore.RunRunning
+		}
+		return runstore.WorkflowRun{RunID: runID, OwnerID: ownerID, State: state}, nil
 	}
 	return runstore.WorkflowRun{}, runstore.ErrNoWork
 }
@@ -392,6 +416,14 @@ func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Dura
 }
 
 func (s *laneTestStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(runID, claimID, false)
+}
+
+func (s *laneTestStore) DeferRunClaim(_ context.Context, runID, claimID string) error {
+	return s.releaseRunClaim(runID, claimID, true)
+}
+
+func (s *laneTestStore) releaseRunClaim(runID, claimID string, deferred bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.claims[runID] != claimID {
@@ -399,6 +431,7 @@ func (s *laneTestStore) ReleaseRunClaim(_ context.Context, runID, claimID string
 	}
 	delete(s.claims, runID)
 	s.active--
+	s.wasDeferred[runID] = deferred
 	if s.deferred[runID] {
 		s.started[runID] = false
 		for index, candidate := range s.runs {
@@ -441,6 +474,14 @@ func (s *laneTestStore) deferRuns(runIDs ...string) {
 	defer s.mu.Unlock()
 	for _, runID := range runIDs {
 		s.deferred[runID] = true
+	}
+}
+
+func (s *laneTestStore) pendingRuns(runIDs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, runID := range runIDs {
+		s.states[runID] = runstore.RunPending
 	}
 }
 

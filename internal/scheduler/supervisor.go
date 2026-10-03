@@ -198,10 +198,15 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	// register its own cancellation; this lane must not shadow or remove it.
 	s.unregisterActiveRun(run.RunID, claimID)
 	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-	releaseErr := s.store.ReleaseRunClaim(releaseContext, run.RunID, claimID)
+	var releaseErr error
+	if errors.Is(err, ErrDeferred) {
+		releaseErr = s.store.DeferRunClaim(releaseContext, run.RunID, claimID)
+	} else {
+		releaseErr = s.store.ReleaseRunClaim(releaseContext, run.RunID, claimID)
+	}
 	cancelRelease()
-	if releaseErr != nil && !errors.Is(releaseErr, runstore.ErrConflict) && err == nil {
-		err = releaseErr
+	if releaseErr != nil && !errors.Is(releaseErr, runstore.ErrConflict) {
+		err = errors.Join(err, releaseErr)
 	}
 	if cause := context.Cause(executionContext); cause != nil &&
 		!errors.Is(cause, context.Canceled) && !errors.Is(cause, ErrRunCancellationRequested) &&
