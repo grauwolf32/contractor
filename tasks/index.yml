@@ -125,8 +125,8 @@ fixed_decisions:
   worker_sessions:
     authoring: >-
       Each Stage selects isolated or shared; new authoring omission resolves to
-      isolated before Run snapshotting, and old snapshots without the field
-      retain their pre-feature shared behavior only at the legacy decode boundary.
+      isolated before Run snapshotting. Persisted Workflow and Stage snapshots
+      require an explicit valid mode; snapshots missing the field are unsupported.
     transport: >-
       Scheduler and Control Plane pin one explicit mode into every AllocationSpec.
       Planner and StageContentRequest carry neither the mode nor a session ID.
