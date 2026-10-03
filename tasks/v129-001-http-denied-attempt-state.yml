@@ -3,8 +3,8 @@ id: V129-001
 title: Keep denied HTTP attempts inside the evidence error contract
 milestone: http-denied-attempt-state-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 56c5aad162ae4a531407d8a904587dbc50815d7f
 depends_on: []
 languages: [python]
 goal: Avoid writing an unsupported error value to a captured HTTP attempt on target denial.
