@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V244-001
+title: Remove unused Eval Store and domain helper APIs
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Keep Eval tests on the SQL paging and lifecycle paths used by the public API.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/226
+  finding: Nine exported Eval helper methods have no production caller, while tests still exercise obsolete listing and view readers.
+scope:
+  in:
+    - Remove unused Eval Store and domain helpers and the obsolete ExperimentPage type.
+    - Move list cursor, usage revision, dataset, and selected member assertions onto production page methods.
+    - Preserve ListParams inside SummaryPageParams.
+  out:
+    - Changing Eval paging contracts or database schema.
+acceptance_criteria:
+  - {id: A1, text: The listed dead helper APIs and ExperimentPage are absent.}
+  - {id: A2, text: Paging tests use SummaryPage, DatasetPage, and selected member views.}
+  - {id: A3, text: Go build, vet, and PostgreSQL Eval tests pass.}
+tests:
+  - {command: go test ./internal/evaldomain/... ./internal/evalstore/... ./internal/evalservice/..., covers: [A1, A2]}
+  - {command: go build ./..., covers: [A3]}
+  - {command: go vet ./internal/evalstore/... ./internal/evaldomain/... ./internal/evalservice/..., covers: [A3]}
