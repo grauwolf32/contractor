@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V108-001
+title: Preserve blocked gateway routes when a Runtime probe is abandoned
+milestone: gateway-probe-release-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, python]
+goal: Release abandoned recovery probes without treating unobserved model calls as successful.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/295
+  finding: Runtime reports finished on cancellation before a model response, reopening a blocked route and resetting its retry window.
+scope:
+  in:
+    - Add a released terminal action that clears only the current probe lease and wait.
+    - Report released from Runtime when a granted call has no observed outcome.
+    - Preserve finished for observed non-retryable responses and update the lifecycle specification.
+  out:
+    - Change the recovery policy or provider failure classification.
+acceptance_criteria:
+  - {id: A1, text: Cancellation, an outer deadline, and unexpected errors before a gateway answer report released.}
+  - {id: A2, text: Releasing the current probe preserves blocked route state and clears its lease.}
+  - {id: A3, text: Stale releases do not change route state; observed successful or permanent outcomes still reopen the route.}
+tests:
+  - {command: runtime/.venv/bin/python -m pytest runtime/tests/test_gateway_recovery.py, covers: [A1, A3]}
+  - {command: go test ./internal/scheduler -run TestGatewayRecovery -count=1, covers: [A2, A3]}
+  - {command: go test ./..., covers: [A2, A3]}
