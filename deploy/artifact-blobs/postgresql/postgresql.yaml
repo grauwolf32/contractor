@@ -126,6 +126,9 @@ spec:
             medium: Memory
             sizeLimit: 1Mi
         - name: managed-config
+          # Disposable example only: API-published configurations in /managed
+          # disappear on pod replacement. Use a durable volume for publication;
+          # never bind credentials or RuntimeConfigs to versions stored here.
           emptyDir:
             medium: Memory
             sizeLimit: 64Mi

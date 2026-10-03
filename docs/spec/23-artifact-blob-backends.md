@@ -110,7 +110,11 @@ Kubernetes examples require no PVC. Read-only root filesystem with PostgreSQL
 blob storage must work without a blob/tmp volume. Existing mutable managed
 configuration is a separate concern: an example may mount a memory-backed
 `emptyDir` at its configured managed root, explicitly documenting that such
-configuration is also ephemeral. This is not an Artifact storage requirement.
+configuration is also ephemeral. The no-PVC example loses every API-published
+managed version on pod replacement, so it must use baked-in operator versions
+and must not bind credentials, admin keys or RuntimeConfigs to Gateways
+published in that root. Durable managed publication requires a persistent root
+that supports hard links. This is not an Artifact storage requirement.
 Memory-backed volumes count towards container memory and are not durable; see
 the [Kubernetes volume contract](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir).
 
