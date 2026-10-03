@@ -149,8 +149,35 @@ def test_cancelled_probe_releases_its_grant_before_propagating():
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await asyncio.wait_for(task, 1)
-        assert [event[2] for event in authority.events] == ["acquire", "finished"]
+        assert [event[2] for event in authority.events] == ["acquire", "released"]
         assert authority.events[0][1] == authority.events[1][1]
+
+    asyncio.run(scenario())
+
+
+def test_outer_invocation_deadline_releases_probe_without_a_model_response():
+    async def scenario():
+        authority = Authority()
+        sent = asyncio.Event()
+
+        async def gateway(_request):
+            sent.set()
+            await asyncio.Event().wait()
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            task = asyncio.create_task(handle.complete({"model": "worker"}))
+            await asyncio.wait_for(sent.wait(), 1)
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.01):
+                    await task
+        assert [event[2] for event in authority.events] == ["acquire", "released"]
 
     asyncio.run(scenario())
 
@@ -245,14 +272,14 @@ def test_unexpected_probe_failure_releases_grant_and_tolerates_lost_authority(mo
     class UnreachableOnRelease(Authority):
         async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
             decision = await super().update(model, request_id, action, code, retry_after_seconds)
-            if action == "finished":
+            if action == "released":
                 raise ArtifactTransportError("connection refused")
             return decision
 
     class HangingOnRelease(Authority):
         async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
             decision = await super().update(model, request_id, action, code, retry_after_seconds)
-            if action == "finished":
+            if action == "released":
                 await asyncio.Event().wait()
             return decision
 
@@ -272,7 +299,7 @@ def test_unexpected_probe_failure_releases_grant_and_tolerates_lost_authority(mo
             with pytest.raises(Defect):
                 await asyncio.wait_for(handle.complete({"model": "worker"}), 1)
             await handle.close()
-            assert [event[2] for event in authority.events] == ["acquire", "finished"]
+            assert [event[2] for event in authority.events] == ["acquire", "released"]
 
     asyncio.run(scenario())
 

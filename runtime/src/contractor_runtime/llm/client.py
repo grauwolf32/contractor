@@ -187,8 +187,9 @@ class GatewayClientHandle:
                 # delivered. Cancellation or an unexpected failure anywhere in
                 # between, including while reporting the outcome, re-delivers
                 # that update so the Server does not hold the probe until it
-                # times out. An abandoned model call reports "finished".
-                terminal: tuple[str, str | None, float] = ("finished", None, 0)
+                # times out. An abandoned model call reports "released" so it
+                # cannot reopen a blocked route without a model response.
+                terminal: tuple[str, str | None, float] = ("released", None, 0)
                 error = None
                 try:
                     try:
@@ -209,6 +210,8 @@ class GatewayClientHandle:
                     elif error.retryable and error.transport_retry_allowed:
                         failure = error.failure or GatewayFailure("gateway_unavailable", True)
                         terminal = ("failed", failure.code, error.retry_after_seconds)
+                    else:
+                        terminal = ("finished", None, 0)
                     await recovery.update(model, request_id, *terminal)
                 except RecoveryStoppedError:
                     raise
@@ -248,7 +251,7 @@ async def _release_probe(
     recovery: GatewayRecoveryClient,
     model: str,
     request_id: str,
-    action: str = "finished",
+    action: str = "released",
     code: str | None = None,
     retry_after_seconds: float = 0,
 ) -> None:

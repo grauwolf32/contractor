@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -121,6 +122,81 @@ func TestGatewayRecoveryAcrossLanesPreservesQueueAndIndependentRoutes(t *testing
 	recoveryUpdate(t, participants[winner], fmt.Sprint("probe-", winner), "succeeded")
 	if allowed, err := f.service.Admit(t.Context(), "queued", []gatewayrecovery.Route{f.route}); err != nil || !allowed {
 		t.Fatalf("recovered queue blocked: %v %v", allowed, err)
+	}
+}
+
+func TestGatewayRecoveryAbandonedProbePreservesBlockedRoute(t *testing.T) {
+	f := newRecoveryFixture(t)
+	first := f.run(t, "active-one", f.route)
+	second := f.run(t, "active-two", f.route)
+	recoveryUpdate(t, first, "outage", "failed")
+	f.due(t)
+	if !recoveryUpdate(t, first, "abandoned-probe", "acquire").Allowed {
+		t.Fatal("first participant did not acquire the due probe")
+	}
+	if recoveryUpdate(t, second, "waiting-request", "acquire").Allowed {
+		t.Fatal("second participant acquired the same probe")
+	}
+	type routeSnapshot struct {
+		blocked                             bool
+		failures                            int64
+		blockedAt, next, automatic, probeAt time.Time
+		probeID, probeRunID                 *string
+	}
+	read := func() routeSnapshot {
+		t.Helper()
+		var state routeSnapshot
+		err := f.pool.QueryRow(t.Context(), `
+SELECT blocked,failure_count,blocked_at,next_probe_at,automatic_until,
+       probe_until,probe_id,probe_run_id FROM gateway_recovery_routes`).Scan(
+			&state.blocked, &state.failures, &state.blockedAt, &state.next,
+			&state.automatic, &state.probeAt, &state.probeID, &state.probeRunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return state
+	}
+	before := read()
+	recoveryUpdate(t, second, "stale-request", "released")
+	if got := read(); !reflect.DeepEqual(got, before) {
+		t.Fatalf("foreign release changed route: before=%+v after=%+v", before, got)
+	}
+	recoveryUpdate(t, first, "abandoned-probe", "released")
+	var blocked bool
+	var failures int64
+	var blockedAt, next, automatic time.Time
+	var probeID, probeRunID *string
+	var probeUntil *time.Time
+	if err := f.pool.QueryRow(t.Context(), `
+SELECT blocked,failure_count,blocked_at,next_probe_at,automatic_until,
+       probe_until,probe_id,probe_run_id FROM gateway_recovery_routes`).Scan(
+		&blocked, &failures, &blockedAt, &next, &automatic,
+		&probeUntil, &probeID, &probeRunID); err != nil {
+		t.Fatal(err)
+	}
+	if !blocked || failures != before.failures || !blockedAt.Equal(before.blockedAt) ||
+		!next.Equal(before.next) || !automatic.Equal(before.automatic) ||
+		probeID != nil || probeRunID != nil || probeUntil != nil {
+		t.Fatalf("abandoned probe reopened or reset route: blocked=%v failures=%d probe=%v", blocked, failures, probeID)
+	}
+	var waits int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM gateway_recovery_waits`).Scan(&waits); err != nil || waits != 1 {
+		t.Fatalf("release removed another participant's wait: count=%d err=%v", waits, err)
+	}
+	if !recoveryUpdate(t, second, "replacement-probe", "acquire").Allowed {
+		t.Fatal("waiting participant could not acquire released probe")
+	}
+	recoveryUpdate(t, first, "abandoned-probe", "released")
+	if got := read(); got.probeID == nil || *got.probeID != "replacement-probe" {
+		t.Fatalf("stale release cleared replacement probe: %+v", got)
+	}
+	recoveryUpdate(t, second, "replacement-probe", "finished")
+	if err := f.pool.QueryRow(t.Context(), `SELECT blocked,failure_count,probe_id FROM gateway_recovery_routes`).Scan(
+		&blocked, &failures, &probeID); err != nil {
+		t.Fatal(err)
+	}
+	if blocked || failures != 0 || probeID != nil {
+		t.Fatalf("observed permanent response did not reopen route: blocked=%v failures=%d probe=%v", blocked, failures, probeID)
 	}
 }
 
