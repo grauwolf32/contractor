@@ -80,21 +80,8 @@ func TestAgentSkillsHardeningMatrixIsComplete(t *testing.T) {
 
 func TestAgentSkillsUseOnlyArtifactPlaneInventories(t *testing.T) {
 	repositoryRoot := filepath.Join("..", "..")
-	for _, relative := range []string{
-		"api/openapi/contractor-public-v1.yaml",
-		"internal/httpapi/public/router.go",
-		"internal/httpapi/privateartifacts/handler.go",
-	} {
-		data, err := os.ReadFile(filepath.Join(repositoryRoot, relative))
-		if err != nil {
-			t.Fatal(err)
-		}
-		lower := bytes.ToLower(data)
-		for _, route := range [][]byte{[]byte("/v1/skills"), []byte("/private/v1/skills")} {
-			if bytes.Contains(lower, route) {
-				t.Fatalf("Skill-specific HTTP route %q appears in %s", route, relative)
-			}
-		}
+	if err := checkArtifactPlaneRouteInventory(repositoryRoot, "/skills"); err != nil {
+		t.Fatal(err)
 	}
 
 	createTable := regexp.MustCompile(`(?i)create\s+table(?:\s+if\s+not\s+exists)?\s+([a-z_][a-z0-9_]*)`)
