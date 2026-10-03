@@ -9,37 +9,6 @@ import { Link } from "react-router";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 
-type ReferenceSummary = { description?: string; refs?: string[] };
-
-function ReferenceSummaryView({ body }: { body: ReferenceSummary }) {
-  return (
-    <dl className="key-value-list configuration-body">
-      <div>
-        <dt>Description</dt>
-        <dd>
-          {body.description ?? <span className="muted-copy">Not supplied</span>}
-        </dd>
-      </div>
-      <div>
-        <dt>Resolved references</dt>
-        <dd>
-          {body.refs === undefined || body.refs.length === 0 ? (
-            <span className="muted-copy">No reference summary</span>
-          ) : (
-            <ul className="compact-value-list">
-              {body.refs.map((ref) => (
-                <li key={ref}>
-                  <code>{ref}</code>
-                </li>
-              ))}
-            </ul>
-          )}
-        </dd>
-      </div>
-    </dl>
-  );
-}
-
 function present(value: number | undefined): string {
   return value === undefined ? "omitted" : value.toLocaleString();
 }
@@ -289,15 +258,9 @@ export function ConfigurationBodyView({
     case "llm-gateways":
       return <GatewayView body={resource.body as LLMGatewayBody} />;
     case "agent-templates":
-      return "runtime" in resource.body ? (
-        <AgentTemplateView body={resource.body as AgentTemplateBody} />
-      ) : (
-        <ReferenceSummaryView body={resource.body as ReferenceSummary} />
-      );
+      return <AgentTemplateView body={resource.body as AgentTemplateBody} />;
     case "execution-configs":
-      return "description" in resource.body || "refs" in resource.body ? (
-        <ReferenceSummaryView body={resource.body as ReferenceSummary} />
-      ) : (
+      return (
         <ExecutionConfigView body={resource.body as ExecutionConfigBody} />
       );
   }

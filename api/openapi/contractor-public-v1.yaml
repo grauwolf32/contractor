@@ -13816,12 +13816,6 @@ components:
             - {$ref: '#/components/schemas/LLMGatewayBody'}
             - {$ref: '#/components/schemas/AgentTemplateBody'}
             - {$ref: '#/components/schemas/ExecutionConfigBody'}
-            - type: object
-              additionalProperties: false
-              description: Safe reference-only summary for read-only kinds.
-              properties:
-                description: {type: string, maxLength: 4096}
-                refs: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/Selector'}}
         source: {enum: [operator, managed]}
     ConfigurationPage:
       type: object

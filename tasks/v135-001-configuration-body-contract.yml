@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V135-001
+title: Remove unused configuration reference-summary body
+milestone: configuration-body-contract-2026-10
+priority: P3
+status: completed
+implementation_commit: 1544736ca11789734537fa42d8c261ebf7097e61
+depends_on: []
+languages: [go, typescript]
+goal: Align the public configuration body union and UI with the four shapes the Server emits.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/253
+  finding: OpenAPI and UI support a reference-summary alternative no Server path produces.
+scope:
+  in:
+    - Remove the fifth OpenAPI body alternative and regenerate Go/TypeScript clients.
+    - Remove unreachable UI projection and rendering branches.
+    - Verify API projection contracts, UI tests and catalog rendering.
+  out:
+    - Change Server configuration resource payloads.
+acceptance_criteria:
+  - {id: A1, text: ConfigurationResource.body permits only the four produced body schemas.}
+  - {id: A2, text: No reference-summary UI path or generated ConfigurationResourceBody4 remains.}
+  - {id: A3, text: Generation checks, API contracts, UI unit tests, type-check and catalog e2e pass.}
+tests:
+  - {command: make ui-generate-check ui-typecheck, covers: [A1, A2, A3]}
+  - {command: go generate ./internal/publicclient/generated && go test ./internal/httpapi/public -run TestPublicConfigurationProjectionContracts, covers: [A1, A3]}
+  - {command: cd ui && corepack pnpm test --run src/api/safe-resources.test.ts src/api/configuration-contracts.test.ts, covers: [A2, A3]}
+  - {command: cd ui && corepack pnpm exec playwright test e2e/catalog.spec.ts, covers: [A3]}

@@ -3692,12 +3692,6 @@ type ConfigurationResource struct {
 	Source interface{}                `json:"source"`
 }
 
-// ConfigurationResourceBody4 Safe reference-only summary for read-only kinds.
-type ConfigurationResourceBody4 struct {
-	Description *string     `json:"description,omitempty"`
-	Refs        *[]Selector `json:"refs,omitempty"`
-}
-
 // ConfigurationResource_Body defines model for ConfigurationResource.Body.
 type ConfigurationResource_Body struct {
 	union json.RawMessage
@@ -3840,9 +3834,10 @@ type CredentialConsumption struct {
 
 // CredentialInUseDetails defines model for CredentialInUseDetails.
 type CredentialInUseDetails struct {
-	AuditIds *[]ResourceId              `json:"auditIds,omitempty"`
-	Kind     CredentialInUseDetailsKind `json:"kind"`
-	RunIds   []ResourceId               `json:"runIds"`
+	AuditIds      *[]ResourceId              `json:"auditIds,omitempty"`
+	BindingLabels *[]RuntimeInfrastructureId `json:"bindingLabels,omitempty"`
+	Kind          CredentialInUseDetailsKind `json:"kind"`
+	RunIds        []ResourceId               `json:"runIds"`
 }
 
 // CredentialInUseDetailsKind defines model for CredentialInUseDetails.Kind.
@@ -9601,32 +9596,6 @@ func (t *ConfigurationResource_Body) FromExecutionConfigBody(v ExecutionConfigBo
 
 // MergeExecutionConfigBody performs a merge with any union data inside the ConfigurationResource_Body, using the provided ExecutionConfigBody
 func (t *ConfigurationResource_Body) MergeExecutionConfigBody(v ExecutionConfigBody) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsConfigurationResourceBody4 returns the union data inside the ConfigurationResource_Body as a ConfigurationResourceBody4
-func (t ConfigurationResource_Body) AsConfigurationResourceBody4() (ConfigurationResourceBody4, error) {
-	var body ConfigurationResourceBody4
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromConfigurationResourceBody4 overwrites any union data inside the ConfigurationResource_Body as the provided ConfigurationResourceBody4
-func (t *ConfigurationResource_Body) FromConfigurationResourceBody4(v ConfigurationResourceBody4) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeConfigurationResourceBody4 performs a merge with any union data inside the ConfigurationResource_Body, using the provided ConfigurationResourceBody4
-func (t *ConfigurationResource_Body) MergeConfigurationResourceBody4(v ConfigurationResourceBody4) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
