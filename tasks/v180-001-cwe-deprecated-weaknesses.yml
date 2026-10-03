@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V180-001
+title: Exclude deprecated weaknesses from the bundled CWE catalog
+milestone: cwe-catalog-deprecation-2026-10
+priority: P2
+status: completed
+implementation_commit: 332d5d44258f1921f0385a4e0d616c2c305c91be
+depends_on: []
+languages: [python, go]
+goal: Reject retired CWE classifications before a finding proposal is stored.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/236
+  specification: docs/spec/27-findings-tools-and-collections.md
+  finding: The CWE 4.20 catalog includes Weakness entries with Status=Deprecated.
+scope:
+  in:
+    - Filter deprecated Weakness entries from both byte-identical CWE 4.20 catalogs.
+    - Record the exclusion rule in catalog metadata and spec 27.
+    - Cover valid and deprecated IDs in Runtime, finding facade and Go import tests.
+  out:
+    - Changing the pinned CWE archive, version or source hashes.
+    - Filtering nondeprecated entries based only on mapping guidance.
+acceptance_criteria:
+  - {id: A1, text: Deprecated CWE-596, CWE-534 and CWE-1324 are rejected while CWE-639 and CWE-532 remain valid.}
+  - {id: A2, text: No Deprecated Weakness in pinned CWE 4.20 appears in the catalog and both copies remain byte-identical.}
+  - {id: A3, text: A finding facade rejects a deprecated ID before proposal submission.}
+  - {id: A4, text: Spec 27 records the deprecated-weakness exclusion rule.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_finding_facades.py, covers: [A1, A3]}
+  - {command: go test ./internal/auditimport, covers: [A1, A2]}
+  - {command: make lint, covers: [A4]}

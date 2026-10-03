@@ -141,6 +141,27 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
     asyncio.run(scenario())
 
 
+def test_code_finding_rejects_deprecated_cwe_before_submission():
+    async def scenario():
+        client = FakeFindingClient()
+        state = WorkerState()
+        tool = await finding_tool(CodeFindingsToolsetFactory, client, state)
+        with pytest.raises(ToolInputError, match="pinned CWE catalog"):
+            await FunctionTool(tool).run_async(
+                args={
+                    "title": "Debug log files exposed",
+                    "description": "Source observation",
+                    "file": "src/log.py",
+                    "cwe": "CWE-534",
+                },
+                tool_context=context(),
+            )
+        assert client.requests == []
+        assert state.metrics.counters["tool_errors"] == 1
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "factory_type,location_args",
     [
