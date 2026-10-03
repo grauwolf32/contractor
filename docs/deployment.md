@@ -177,6 +177,12 @@ contractor server migrate
 contractor server run --config .local/server.yaml
 ```
 
+`config validate` checks the operator root and its sibling `managed-configs/`
+without creating directories. If Server uses a different managed root, pass
+the same path with `--managed-root`. Offline validation requires every
+AuditProfile standard to be bundled under the operator root; it reports an
+error for a database-only standard that it cannot verify.
+
 The DSN above assumes a local database; configure PostgreSQL TLS for a remote
 database. Migrations are forward-only and run in one transaction. A concurrent
 migrator polls for the migration leader's advisory lock until it is released,

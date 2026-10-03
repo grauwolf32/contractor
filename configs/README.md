@@ -241,6 +241,12 @@ complete set from the repository root with:
 contractor server config validate --root ./configs
 ```
 
+The command also checks the sibling `managed-configs/` root without creating
+it. Use `--managed-root` when Server has a different managed root. Offline
+validation checks AuditProfile standard selections against bundled standards;
+it rejects references that exist only in the database because it cannot
+verify them before startup.
+
 Manifest identity comes from `kind`, `metadata.name`, and `metadata.version`;
 file names and nesting are only organizational. Instruction references are
 paths relative to this directory.

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -18,17 +19,17 @@ import (
 )
 
 type loader struct {
-	roots            []configurationRoot
-	strictSymlinks   bool
-	descriptors      Descriptors
-	instructions     map[string]contracts.ResolvedInstructions
-	policies         map[string]contracts.ResolvedModelPolicy
-	gateways         map[string]contracts.ResolvedLLMGatewayConfig
-	executionConfigs map[string]ResolvedExecutionConfigProfile
-	templates        map[string]contracts.ResolvedAgentTemplate
-	workflows        map[string]ResolvedWorkflow
-	auditProfiles    map[string]ResolvedAuditProfile
-	sources          map[string]ConfigurationSource
+	roots                       []configurationRoot
+	allowMissingManagedSubtrees bool
+	descriptors                 Descriptors
+	instructions                map[string]contracts.ResolvedInstructions
+	policies                    map[string]contracts.ResolvedModelPolicy
+	gateways                    map[string]contracts.ResolvedLLMGatewayConfig
+	executionConfigs            map[string]ResolvedExecutionConfigProfile
+	templates                   map[string]contracts.ResolvedAgentTemplate
+	workflows                   map[string]ResolvedWorkflow
+	auditProfiles               map[string]ResolvedAuditProfile
+	sources                     map[string]ConfigurationSource
 }
 
 type configurationRoot struct {
@@ -59,7 +60,7 @@ func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors) (*Snap
 }
 
 func loadConfigurationRoots(
-	roots []configurationRoot, descriptors Descriptors, strictSymlinks bool,
+	roots []configurationRoot, descriptors Descriptors, allowMissingManagedSubtrees bool,
 ) (*Snapshot, error) {
 	normalizedDescriptors, err := normalizeDescriptors(descriptors)
 	if err != nil {
@@ -67,18 +68,16 @@ func loadConfigurationRoots(
 	}
 	resolvedRoots := make([]configurationRoot, 0, len(roots))
 	for _, root := range roots {
-		if strictSymlinks {
-			absolute, absoluteErr := filepath.Abs(root.path)
-			if absoluteErr != nil {
-				return nil, fmt.Errorf("%s root: %w", root.source, absoluteErr)
-			}
-			info, statErr := os.Lstat(absolute)
-			if statErr != nil {
-				return nil, fmt.Errorf("%s root: %w", root.source, statErr)
-			}
-			if info.Mode()&os.ModeSymlink != 0 {
-				return nil, fmt.Errorf("%s root is a symlink", root.source)
-			}
+		absolute, absoluteErr := filepath.Abs(root.path)
+		if absoluteErr != nil {
+			return nil, fmt.Errorf("%s root: %w", root.source, absoluteErr)
+		}
+		info, statErr := os.Lstat(absolute)
+		if statErr != nil {
+			return nil, fmt.Errorf("%s root: %w", root.source, statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%s root is a symlink", root.source)
 		}
 		resolved, resolveErr := resolveRoot(root.path)
 		if resolveErr != nil {
@@ -99,17 +98,17 @@ func loadConfigurationRoots(
 	}
 
 	current := &loader{
-		roots:            resolvedRoots,
-		strictSymlinks:   strictSymlinks,
-		descriptors:      normalizedDescriptors,
-		instructions:     make(map[string]contracts.ResolvedInstructions),
-		policies:         make(map[string]contracts.ResolvedModelPolicy),
-		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig),
-		executionConfigs: make(map[string]ResolvedExecutionConfigProfile),
-		templates:        make(map[string]contracts.ResolvedAgentTemplate),
-		workflows:        make(map[string]ResolvedWorkflow),
-		auditProfiles:    make(map[string]ResolvedAuditProfile),
-		sources:          make(map[string]ConfigurationSource),
+		roots:                       resolvedRoots,
+		allowMissingManagedSubtrees: allowMissingManagedSubtrees,
+		descriptors:                 normalizedDescriptors,
+		instructions:                make(map[string]contracts.ResolvedInstructions),
+		policies:                    make(map[string]contracts.ResolvedModelPolicy),
+		gateways:                    make(map[string]contracts.ResolvedLLMGatewayConfig),
+		executionConfigs:            make(map[string]ResolvedExecutionConfigProfile),
+		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
+		workflows:                   make(map[string]ResolvedWorkflow),
+		auditProfiles:               make(map[string]ResolvedAuditProfile),
+		sources:                     make(map[string]ConfigurationSource),
 	}
 	if err := current.loadInstructionResources(); err != nil {
 		return nil, err
@@ -165,7 +164,10 @@ func (l *loader) discover(subtree string) ([]manifestFile, error) {
 	seen := make(map[string]ConfigurationSource)
 	for _, root := range l.roots {
 		base := filepath.Join(root.path, subtree)
-		if err := validateSubtree(base, subtree, l.strictSymlinks); err != nil {
+		if err := validateSubtree(base, subtree); err != nil {
+			if l.allowMissingManagedSubtrees && root.source == ConfigurationSourceManaged && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return nil, err
 		}
 		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -173,10 +175,7 @@ func (l *loader) discover(subtree string) ([]manifestFile, error) {
 				return walkErr
 			}
 			if entry.Type()&os.ModeSymlink != 0 {
-				if l.strictSymlinks {
-					return fmt.Errorf("configuration path %q is a symlink", path)
-				}
-				return nil
+				return fmt.Errorf("configuration path %q is a symlink", path)
 			}
 			if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
 				return nil
@@ -209,17 +208,15 @@ func (l *loader) discover(subtree string) ([]manifestFile, error) {
 	return result, nil
 }
 
-func validateSubtree(base, subtree string, strictSymlinks bool) error {
-	if strictSymlinks {
-		info, err := os.Lstat(base)
-		if err != nil {
-			return fmt.Errorf("configuration subtree %s: %w", subtree, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("configuration subtree %s is a symlink", subtree)
-		}
+func validateSubtree(base, subtree string) error {
+	info, err := os.Lstat(base)
+	if err != nil {
+		return fmt.Errorf("configuration subtree %s: %w", subtree, err)
 	}
-	info, err := os.Stat(base)
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("configuration subtree %s is a symlink", subtree)
+	}
+	info, err = os.Stat(base)
 	if err != nil {
 		return fmt.Errorf("configuration subtree %s: %w", subtree, err)
 	}
@@ -233,39 +230,23 @@ func (l *loader) loadInstructionResources() error {
 	seen := make(map[string]ConfigurationSource)
 	for _, root := range l.roots {
 		base := filepath.Join(root.path, "instructions")
-		if err := validateSubtree(base, "instructions", l.strictSymlinks); err != nil {
+		if err := validateSubtree(base, "instructions"); err != nil {
+			if l.allowMissingManagedSubtrees && root.source == ConfigurationSourceManaged && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return err
 		}
 		err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
-			isSymlink := entry.Type()&os.ModeSymlink != 0
-			readPath := path
-			if isSymlink {
-				if l.strictSymlinks {
-					return fmt.Errorf("instruction path %q is a symlink", path)
-				}
-				resolved, resolveErr := filepath.EvalSymlinks(path)
-				if resolveErr != nil {
-					return resolveErr
-				}
-				relativeTarget, relErr := filepath.Rel(root.path, resolved)
-				if relErr != nil || relativeTarget == ".." ||
-					strings.HasPrefix(relativeTarget, ".."+string(filepath.Separator)) ||
-					filepath.IsAbs(relativeTarget) {
-					return fmt.Errorf("instruction ref %q escapes configuration root", path)
-				}
-				info, statErr := os.Stat(resolved)
-				if statErr != nil || !info.Mode().IsRegular() {
-					return fmt.Errorf("instruction ref %q is not a regular file", path)
-				}
-				readPath = resolved
+			if entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("instruction path %q is a symlink", path)
 			}
 			if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 				return nil
 			}
-			if !isSymlink && !entry.Type().IsRegular() {
+			if !entry.Type().IsRegular() {
 				return fmt.Errorf("instruction path %q is not a regular file", path)
 			}
 			relative, relErr := filepath.Rel(root.path, path)
@@ -282,7 +263,7 @@ func (l *loader) loadInstructionResources() error {
 					relative, previous, root.source,
 				)
 			}
-			data, readErr := os.ReadFile(readPath)
+			data, readErr := os.ReadFile(path)
 			if readErr != nil {
 				return fmt.Errorf("read instruction %q: %w", relative, readErr)
 			}

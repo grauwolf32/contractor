@@ -38,6 +38,23 @@ func (p *SeedPlan) Packages() []SeedMetadata {
 	return result
 }
 
+// ResolveBundled returns an offline-validated package from the discovered
+// operator bundle. It never reads the database or publishes an artifact.
+func (p *SeedPlan) ResolveBundled(ref Reference) (Package, error) {
+	if p != nil {
+		for _, bundled := range p.packages {
+			if bundled.metadata.Reference == ref {
+				validated, err := Validate(bundled.payload, ref)
+				if err != nil {
+					return Package{}, err
+				}
+				return *validated, nil
+			}
+		}
+	}
+	return Package{}, ErrNotFound
+}
+
 type Catalog struct {
 	service *artifacts.Service
 }

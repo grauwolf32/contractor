@@ -8,7 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -102,29 +101,8 @@ func validateCatalogStandards(ctx context.Context, configurationManager *workflo
 					profile.Ref.Name, profile.Ref.Version, standard.Scheme, standard.Version, err,
 				)
 			}
-			if profile.Inventory.Implementation == "standard-mappings@1" {
-				var selection *auditdomain.StandardSelection
-				if profile.Inventory.StandardSelection != nil {
-					selection = &auditdomain.StandardSelection{
-						Scope:    profile.Inventory.StandardSelection.Scope,
-						Levels:   append([]string{}, profile.Inventory.StandardSelection.Levels...),
-						EntryIDs: append([]string{}, profile.Inventory.StandardSelection.EntryIDs...),
-					}
-				}
-				if _, err := auditdomain.BuildStandardMappingInventory(
-					resolved.Package,
-					auditdomain.InventoryOptions{
-						Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
-						SourceInputName: "standard", SourceRef: resolved.Source.Artifact,
-						ApprovalRequirement: auditdomain.ApprovalNone,
-						StandardSelection:   selection,
-					},
-				); err != nil {
-					return fmt.Errorf(
-						"validate AuditProfile %s@%s standard selection: %w",
-						profile.Ref.Name, profile.Ref.Version, err,
-					)
-				}
+			if err := validateProfileStandardSelection(profile, resolved.Package, resolved.Source.Artifact); err != nil {
+				return err
 			}
 		}
 	}
