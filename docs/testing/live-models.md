@@ -26,9 +26,9 @@ CONTRACTOR_LIVE_LLM_MODEL='planner-model' \
   make test-live-routing
 ```
 
-The wrapper `scripts/test-live-routing.sh` invokes the same target. Set
-`CONTRACTOR_LIVE_LLM_MODEL=planner-model` when using it with the checked-in
-LiteLLM profile; its older default model name is not a published proxy alias.
+The wrapper `scripts/test-live-routing.sh` invokes the same target and defaults
+to the checked-in LiteLLM profile's `planner-model` alias. Set
+`CONTRACTOR_LIVE_LLM_MODEL` explicitly when evaluating another published model.
 
 Use a token accepted by the Gateway; the local profile above requires one. The
 evaluation uses the production Go ADK Router and exact four-tool contract,

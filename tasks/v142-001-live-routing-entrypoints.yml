@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V142-001
+title: Remove stale workspace gate alias and use published live model
+milestone: live-routing-entrypoints-2026-10
+priority: P3
+status: completed
+implementation_commit: efed6f1cf2a2b73678dc2011905aa9aee00026dc
+depends_on: []
+languages: [shell, make, markdown]
+goal: Make local live-routing defaults match the checked-in LiteLLM profile.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/182
+  finding: Wrapper defaults to an unpublished model and Make keeps an unused compatibility alias.
+scope:
+  in:
+    - Remove test-project-workflows alias and phony declaration.
+    - Default live-routing wrapper to planner-model and update testing guide.
+  out:
+    - Change live Router behavior or run a live model without credentials.
+acceptance_criteria:
+  - {id: A1, text: The stale Make alias is absent and its dry-run fails.}
+  - {id: A2, text: Wrapper defaults to published planner-model; guide states the new default.}
+tests:
+  - {command: make -n test-project-workflows and fake-make wrapper environment probe, covers: [A1, A2]}

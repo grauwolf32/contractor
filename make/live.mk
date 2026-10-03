@@ -1,11 +1,8 @@
 # Suites that need something outside this repository: a live LLM
 # Gateway, or the production Node UI served next to the Go API.
 
-.PHONY: test-project-workflows test-project-workflows-live test-live-routing \
+.PHONY: test-project-workflows-live test-live-routing \
 	test-ui-stack
-
-# Backward-compatible name retained for local scripts.
-test-project-workflows: test-project-workspaces-e2e
 
 test-project-workflows-live: require-database runtime-venv
 	@test -n "$$CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL" || (echo "CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL is required" >&2; exit 1)
