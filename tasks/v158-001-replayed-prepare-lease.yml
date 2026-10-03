@@ -3,7 +3,8 @@ id: V158-001
 title: Refresh confirmed leases when preparing replayed reservations
 milestone: replayed-prepare-lease-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: c66f0f2a8d00e81dea244d242c81ea500ef7f332
 depends_on: []
 languages: [go, python]
 goal: Let a Stage resume preparation after its original confirmed lease expires while refusing allocations whose owning Agent actually lost its lease.
