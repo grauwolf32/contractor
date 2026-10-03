@@ -3,7 +3,8 @@ id: V103-001
 title: Keep Server ready when bundled catalog blob content is missing
 milestone: bundled-catalog-missing-blob-recovery-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: bf62105f61c5c7b6d40b619dc20758b45994903c
 depends_on: []
 languages: [go]
 goal: Avoid a startup crash loop after a filesystem blob root is replaced while preserving missing-content errors.
