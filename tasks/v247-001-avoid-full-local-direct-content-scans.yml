@@ -3,7 +3,8 @@ id: V247-001
 title: Avoid whole-workspace reads for local direct edits
 milestone: runtime-projectfs-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d1d9a7737ade8e1158a7bda63727f02f804caa40
 depends_on: []
 languages: [python]
 goal: Keep local direct mutations bounded by metadata and changed paths when workspace limits permit.
@@ -24,4 +25,5 @@ acceptance_criteria:
   - {id: A3, text: Managed-text and expanded-byte limits still reject oversized workspaces.}
   - {id: A4, text: Existing local direct freshness and transition tests pass.}
 tests:
-  - {command: cd runtime && uv run pytest tests/test_projectfs_local_direct.py, covers: [A1, A2, A3, A4]}
+  - {command: cd runtime && uv run pytest -q tests/test_projectfs_*.py tests/test_workspace_auto_export.py tests/test_workspace_state.py, covers: [A1, A2, A3, A4]}
+  - {command: cd runtime && uv run ruff check src tests, covers: [A4]}
