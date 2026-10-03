@@ -21,13 +21,11 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import (
-    artifact_observation_cursor,
-    clear_artifact_observations,
-    model_visible_exact_refs,
-    model_visible_observations_since,
+    ArtifactObservingTool,
 )
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -153,12 +151,10 @@ class CaidoToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
-        unavailable = sorted(set(selected) - CAIDO_TOOL_NAMES)
-        if unavailable:
-            raise ValueError(f"unavailable selected Caido tools: {', '.join(unavailable)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("caido@1 requires State.metrics")
+        require_selected_tools(
+            selected, CAIDO_TOOL_NAMES, description="unavailable selected Caido tools"
+        )
+        metrics = require_metrics(state, "caido@1")
         handle = adapter_handles.caido_graphql
         if not isinstance(handle, CaidoGraphQLClient):
             raise CaidoToolError("caido_not_configured")
@@ -167,7 +163,7 @@ class CaidoToolsetFactory:
             handle=handle,
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
-            metric_secrets=_runtime_secrets(runtime_settings),
+            metric_secrets=runtime_secrets(runtime_settings),
             target_policy=policy,
             sleep=self._sleep,
             monotonic=self._monotonic,
@@ -217,19 +213,8 @@ class _CaidoSession:
         return self._metric_secrets
 
     @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        client = self._artifact_client
-        return model_visible_exact_refs(getattr(client, "known_exact_refs", ()))
-
-    @property
-    def artifact_observation_cursor(self) -> int:
-        return artifact_observation_cursor(self._artifact_client)
-
-    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
-        return model_visible_observations_since(self._artifact_client, cursor)
-
-    def clear_artifact_observations(self) -> None:
-        clear_artifact_observations(self._artifact_client)
+    def artifact_client(self) -> ArtifactClient | None:
+        return self._artifact_client
 
     def _require_target(self, host: str, port: int) -> None:
         try:
@@ -901,7 +886,7 @@ class _CaidoSession:
             raise CaidoToolError(error.code, retryable=False) from None
 
 
-class _CaidoTool:
+class _CaidoTool(ArtifactObservingTool):
     name: str
     description: str
 
@@ -911,19 +896,8 @@ class _CaidoTool:
         self.__name__ = self.name
         self.__doc__ = self.description
 
-    @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return self._session.known_exact_refs
-
-    @property
-    def artifact_observation_cursor(self) -> int:
-        return self._session.artifact_observation_cursor
-
-    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
-        return self._session.observed_exact_refs_since(cursor)
-
-    def clear_artifact_observations(self) -> None:
-        self._session.clear_artifact_observations()
+    def _observed_artifact_client(self) -> object:
+        return self._session.artifact_client
 
     async def close(self) -> None:
         await self._session.close()
@@ -934,35 +908,16 @@ class _CaidoTool:
         summary: Callable[[Any], Mapping[str, Any]],
         operation: Callable[[], Any],
     ) -> Any:
-        started_ns = time.perf_counter_ns()
-        try:
+        with RecordedToolCall(
+            self._metrics,
+            self.name,
+            arguments,
+            secrets=self._session.metric_secrets,
+            bound_error=_bounded_caido_error,
+        ) as call:
             result = await operation()
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                result=summary(result),
-                secrets=self._session.metric_secrets,
-                duration_ms=_elapsed_ms(started_ns),
-            )
+            call.succeed(summary(result))
             return result
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            bounded = (
-                error
-                if isinstance(error, CaidoToolError)
-                else CaidoToolError("caido_request_failed")
-            )
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                error=bounded,
-                secrets=self._session.metric_secrets,
-                duration_ms=_elapsed_ms(started_ns),
-            )
-            if isinstance(error, CaidoToolError):
-                raise
-            raise bounded from None
 
 
 class CaidoScopeTool(_CaidoTool):
@@ -2110,18 +2065,8 @@ def _bounded_result(value: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
-    values: list[str] = []
-    token = settings.llm_gateway_token
-    if token is not None:
-        values.append(token.get_secret_value())
-    if settings.caido is not None and settings.caido.bearer_token is not None:
-        values.append(settings.caido.bearer_token.get_secret_value())
-    return tuple(value for value in values if value)
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
+def _bounded_caido_error(error: Exception) -> Exception:
+    return error if isinstance(error, CaidoToolError) else CaidoToolError("caido_request_failed")
 
 
 async def _closed_sleep(_seconds: float) -> None:

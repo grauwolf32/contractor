@@ -6,7 +6,7 @@ import asyncio
 import re
 import secrets
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -43,7 +43,12 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     probe_trailmark_child,
 )
 from contractor_runtime.toolsets.common import cursors
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.metrics import (
+    RecordedToolCall,
+    ToolMetrics,
+    instrumented_call,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
@@ -167,14 +172,12 @@ class CodeAnalysisToolsetFactory:
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
         del allocation_id, run_id, namespace, runtime_settings, adapter_handles
-        unavailable = sorted(set(selected) - self._available_tools)
-        if unavailable:
-            raise ValueError(f"unavailable selected code-analysis tools: {', '.join(unavailable)}")
+        require_selected_tools(
+            selected, self._available_tools, description="unavailable selected code-analysis tools"
+        )
         if project_workspace is None:
             raise CodeAnalysisError("workspace_required")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("code-analysis@1 requires State.metrics")
+        metrics = require_metrics(state, "code-analysis@1")
         graph_selected = bool(set(selected) & GRAPH_TOOLS)
         session = _CodeAnalysisSession(
             project_workspace,
@@ -1114,27 +1117,18 @@ class _BaseCodeAnalysisTool:
     async def close(self) -> None:
         await self._session.close()
 
-    def _success(self, started_ns: int, result: _OperationResult) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments={},
-            result=result.metric,
-            duration_ms=_elapsed_ms(started_ns),
+    async def _call(self, operation: Awaitable[_OperationResult]) -> dict[str, Any]:
+        result = await instrumented_call(
+            RecordedToolCall(
+                self._metrics,
+                self.name,
+                {},
+                cancelled=lambda: CodeAnalysisError("code_analysis_cancelled", retryable=True),
+            ),
+            operation,
+            lambda result: result.metric,
         )
-
-    def _failure(self, started_ns: int, error: Exception) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments={},
-            error=error,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-    def _cancelled(self, started_ns: int) -> None:
-        self._failure(
-            started_ns,
-            CodeAnalysisError("code_analysis_cancelled", retryable=True),
-        )
+        return result.value
 
 
 class SearchDefinitionTool(_BaseCodeAnalysisTool):
@@ -1162,17 +1156,7 @@ class SearchDefinitionTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 50,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.search_def(symbol, path, language, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.search_def(symbol, path, language, cursor, limit))
 
 
 class ListSymbolsTool(_BaseCodeAnalysisTool):
@@ -1203,17 +1187,9 @@ class ListSymbolsTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.list_symbols(path, language, node_type, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(
+            self._session.list_symbols(path, language, node_type, cursor, limit)
+        )
 
 
 class GraphSummaryTool(_BaseCodeAnalysisTool):
@@ -1228,17 +1204,7 @@ class GraphSummaryTool(_BaseCodeAnalysisTool):
     """
 
     async def __call__(self) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.graph_summary()
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.graph_summary())
 
 
 class FindSymbolTool(_BaseCodeAnalysisTool):
@@ -1263,17 +1229,7 @@ class FindSymbolTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 50,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.find_symbol(query, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.find_symbol(query, cursor, limit))
 
 
 class FindCallersTool(_BaseCodeAnalysisTool):
@@ -1297,17 +1253,9 @@ class FindCallersTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(
+            self._session.find_relationships(self.name, symbol_id, cursor, limit)
+        )
 
 
 class FindCalleesTool(_BaseCodeAnalysisTool):
@@ -1331,17 +1279,9 @@ class FindCalleesTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(
+            self._session.find_relationships(self.name, symbol_id, cursor, limit)
+        )
 
 
 class PathsBetweenTool(_BaseCodeAnalysisTool):
@@ -1368,22 +1308,14 @@ class PathsBetweenTool(_BaseCodeAnalysisTool):
         max_depth: int = 20,
         limit: int = 20,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.paths_between(
+        return await self._call(
+            self._session.paths_between(
                 source_id,
                 target_id,
                 max_depth,
                 limit,
             )
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        )
 
 
 class EntrypointPathsToTool(_BaseCodeAnalysisTool):
@@ -1410,17 +1342,7 @@ class EntrypointPathsToTool(_BaseCodeAnalysisTool):
         max_depth: int = 20,
         limit: int = 20,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.entrypoint_paths_to(symbol_id, max_depth, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.entrypoint_paths_to(symbol_id, max_depth, limit))
 
 
 class AttackSurfaceTool(_BaseCodeAnalysisTool):
@@ -1438,17 +1360,7 @@ class AttackSurfaceTool(_BaseCodeAnalysisTool):
     """
 
     async def __call__(self, cursor: str = "", limit: int = 100) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.attack_surface(cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.attack_surface(cursor, limit))
 
 
 class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
@@ -1472,17 +1384,7 @@ class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.complexity_hotspots(threshold, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.complexity_hotspots(threshold, cursor, limit))
 
 
 class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
@@ -1505,17 +1407,7 @@ class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
         cursor: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await self._session.functions_that_raise(exception, cursor, limit)
-            self._success(started_ns, result)
-            return result.value
-        except asyncio.CancelledError:
-            self._cancelled(started_ns)
-            raise
-        except Exception as error:
-            self._failure(started_ns, error)
-            raise
+        return await self._call(self._session.functions_that_raise(exception, cursor, limit))
 
 
 def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:
@@ -1734,7 +1626,3 @@ def _preview(source: bytes, start_byte: int, end_byte: int) -> str:
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:
     return value[:maximum].decode("utf-8", errors="ignore")
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

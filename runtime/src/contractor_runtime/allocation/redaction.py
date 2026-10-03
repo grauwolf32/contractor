@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.toolsets.common.artifacts import runtime_secrets
 
 # A private value this long is specific enough to be matched anywhere in
 # model- or Worker-authored text; a shorter one (a proxy username, a short
@@ -28,49 +29,7 @@ def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
         values.append(settings.caido.endpoint)
         if settings.caido.ca_bundle_pem is not None:
             values.append(settings.caido.ca_bundle_pem)
-    values.extend(_runtime_secret_values(settings))
-    return tuple(value for value in values if value)
-
-
-def _runtime_secret_values(settings: RuntimeSettings) -> tuple[str, ...]:
-    """Only the RuntimeSettings credentials, without endpoints or CA bundles.
-
-    Worker results may legitimately name an endpoint (a same-host deployment
-    audits services next to its own), but never a credential.
-    """
-
-    values: list[str] = []
-    token = settings.llm_gateway_token
-    if token is not None:
-        values.append(token.get_secret_value())
-    if settings.telemetry is not None:
-        values.extend(secret.get_secret_value() for secret in settings.telemetry.headers.values())
-    if settings.http_proxy is not None:
-        proxy = settings.http_proxy
-        if proxy.basic_auth is not None:
-            values.extend(
-                (
-                    proxy.basic_auth.username.get_secret_value(),
-                    proxy.basic_auth.password.get_secret_value(),
-                )
-            )
-        if proxy.bearer_token is not None:
-            values.append(proxy.bearer_token.get_secret_value())
-    if settings.caido is not None and settings.caido.bearer_token is not None:
-        values.append(settings.caido.bearer_token.get_secret_value())
-    if settings.http_origin_target is not None:
-        # The target URL is the audited application and legitimately appears in
-        # results; only the credentials Runtime injects for it are private.
-        target = settings.http_origin_target
-        if target.basic_auth is not None:
-            values.extend(
-                (
-                    target.basic_auth.username.get_secret_value(),
-                    target.basic_auth.password.get_secret_value(),
-                )
-            )
-        if target.bearer_token is not None:
-            values.append(target.bearer_token.get_secret_value())
+    values.extend(runtime_secrets(settings))
     return tuple(value for value in values if value)
 
 

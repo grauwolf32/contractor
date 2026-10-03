@@ -8,7 +8,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
@@ -22,23 +21,20 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifact_visibility import (
-    artifact_observation_cursor,
-    clear_artifact_observations,
-    model_visible_exact_refs,
-    model_visible_observations_since,
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    gateway_secrets,
+    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.document_write import write_document_exact
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.lines import split_lines
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
+from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_DOCUMENT_UTF8_BYTES = 1024 * 1024
@@ -98,18 +94,14 @@ class LikeC4ToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("likec4@1 requires State.metrics")
+        require_selected_tools(selected, self.exported_tools)
+        metrics = require_metrics(state, "likec4@1")
         client = self._client_factory(allocation_id, runtime_settings)
         launcher = adapter_handles.tool_subprocess
         if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
             raise TypeError("likec4@1 received an invalid subprocess handle")
         session = _LikeC4Session(client, namespace, workspace.path, launcher)
-        secrets = gateway_secrets(runtime_settings)
+        secrets = runtime_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_likec4": lambda: LoadLikeC4Tool(session, client, metrics, secrets),
             "write_likec4": lambda: WriteLikeC4Tool(session, client, metrics, secrets),
@@ -389,68 +381,7 @@ class _LikeC4Session:
         )
 
 
-class _BaseLikeC4Tool:
-    name: str
-    description: str
-
-    def __init__(
-        self,
-        session: _LikeC4Session,
-        client: ArtifactClient,
-        metrics: ToolMetrics,
-        secrets: tuple[str, ...],
-    ) -> None:
-        self._session = session
-        self._client = client
-        self._metrics = metrics
-        self._secrets = secrets
-        self.__name__ = self.name
-        self.__doc__ = self.description
-
-    @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
-
-    @property
-    def artifact_observation_cursor(self) -> int:
-        return artifact_observation_cursor(self._client)
-
-    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
-        return model_visible_observations_since(self._client, cursor)
-
-    def clear_artifact_observations(self) -> None:
-        clear_artifact_observations(self._client)
-
-    async def close(self) -> None:
-        await self._session.close()
-        self._secrets = ()
-
-    async def _call(
-        self,
-        arguments: Mapping[str, Any],
-        operation: Any,
-        metric_result: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-    ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
-            result = await operation
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                result=metric_result(result),
-                secrets=self._secrets,
-                duration_ms=_elapsed_ms(started_ns),
-            )
-            return result
-        except Exception as error:
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                error=error,
-                secrets=self._secrets,
-                duration_ms=_elapsed_ms(started_ns),
-            )
-            raise
+_BaseLikeC4Tool = SessionArtifactTool[_LikeC4Session]
 
 
 def _artifact_metric(result: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -924,7 +855,3 @@ def _document_state(
         "changed": changed,
         "copied": copied,
     }
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import copy
 import re
-import time
 from typing import Any
 
 from contractor_runtime.artifacts import (
@@ -15,7 +14,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
     MAX_ARCHIVE_BYTES,
@@ -172,14 +171,13 @@ class ListFindingsTool:
         limit: int | None = None,
         cursor: str | None = None,
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
         arguments = {
             "has_subject_kind": subject_kind is not None,
             "has_subject_key": subject_key is not None,
             "has_cursor": cursor is not None,
             "limit": limit if type(limit) is int and 1 <= limit <= 100 else None,
         }
-        try:
+        with RecordedToolCall(self._metrics, self.name, arguments, secrets=self._secrets) as call:
             require(not self._closed, "findings_reader_unavailable")
             require(subject_kind is None or identifier(subject_kind), "findings_arguments_invalid")
             require(
@@ -215,26 +213,13 @@ class ListFindingsTool:
                     require(result["items"], "findings_limit_exceeded")
                     break
                 result = candidate
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                result={
+            call.succeed(
+                {
                     "item_count": len(result["items"]),
                     "has_more": result["next_cursor"] is not None,
-                },
-                secrets=self._secrets,
-                duration_ms=_elapsed_ms(started),
+                }
             )
             return copy.deepcopy(result)
-        except Exception as error:
-            self._metrics.record_tool_call(
-                self.name,
-                arguments=arguments,
-                error=error,
-                secrets=self._secrets,
-                duration_ms=_elapsed_ms(started),
-            )
-            raise
 
     def _cursor(self, after: str, kind: str | None, key: str | None) -> str:
         return (
@@ -281,7 +266,3 @@ def _preview(text: str, limit: int) -> dict[str, Any]:
         "text": encoded[:limit].decode("utf-8", errors="ignore"),
         "truncated": len(encoded) > limit,
     }
-
-
-def _elapsed_ms(started: int) -> int:
-    return max(0, (time.perf_counter_ns() - started) // 1_000_000)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
@@ -13,8 +12,13 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.lines import newline_style, split_lines
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import (
+    RecordedToolCall,
+    ToolMetrics,
+    instrumented_call,
+)
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.worker.observations import WorkspaceToolObservation, edit_tool_observation
 from contractor_runtime.workspace import AllocationWorkspace
@@ -59,14 +63,10 @@ class EditFilesToolsetFactory:
         project_workspace: WorkspaceWriter | None = None,
     ) -> Mapping[str, Any]:
         del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
+        require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise FilesystemToolError("workspace_required")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("edit-files@1 requires State.metrics")
+        metrics = require_metrics(state, "edit-files@1")
         session = _EditSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "write_file": lambda: WriteFileTool(session, metrics),
@@ -139,24 +139,11 @@ class _BaseEditTool:
         return edit_tool_observation(self.name, tool_args, result)
 
     async def _invoke(self, operation: Callable[[], Awaitable[None]]) -> dict[str, bool]:
-        started = time.perf_counter_ns()
-        try:
-            result = await self._session.invoke(operation)
-            self._metrics.record_tool_call(
-                self.name,
-                arguments={},
-                result=result,
-                duration_ms=_elapsed_ms(started),
-            )
-            return result
-        except Exception as error:
-            self._metrics.record_tool_call(
-                self.name,
-                arguments={},
-                error=error,
-                duration_ms=_elapsed_ms(started),
-            )
-            raise
+        return await instrumented_call(
+            RecordedToolCall(self._metrics, self.name, {}),
+            self._session.invoke(operation),
+            lambda result: result,
+        )
 
 
 class WriteFileTool(_BaseEditTool):
@@ -435,7 +422,3 @@ def _require_bool(value: bool) -> None:
 def _require_positive_line(value: int) -> None:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise FilesystemToolError("workspace_line_invalid")
-
-
-def _elapsed_ms(started: int) -> int:
-    return max(0, (time.perf_counter_ns() - started) // 1_000_000)

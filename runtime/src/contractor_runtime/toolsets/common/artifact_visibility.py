@@ -72,3 +72,27 @@ def clear_artifact_observations(client: object) -> None:
     clear = getattr(client, "clear_observations", None)
     if callable(clear):
         clear()
+
+
+class ArtifactObservingTool:
+    """Expose model-visible Artifact observations of the tool's ArtifactClient."""
+
+    _client: object
+
+    def _observed_artifact_client(self) -> object:
+        return self._client
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        client = self._observed_artifact_client()
+        return model_visible_exact_refs(getattr(client, "known_exact_refs", ()))
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return artifact_observation_cursor(self._observed_artifact_client())
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return model_visible_observations_since(self._observed_artifact_client(), cursor)
+
+    def clear_artifact_observations(self) -> None:
+        clear_artifact_observations(self._observed_artifact_client())

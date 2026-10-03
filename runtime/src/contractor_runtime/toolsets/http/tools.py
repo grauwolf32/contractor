@@ -40,8 +40,9 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -189,12 +190,8 @@ class HTTPToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("http-tools@1 requires State.metrics")
+        require_selected_tools(selected, self.exported_tools)
+        metrics = require_metrics(state, "http-tools@1")
 
         proxy = adapter_handles.tool_http
         request_selected = "http_request" in selected
@@ -213,7 +210,7 @@ class HTTPToolsetFactory:
             namespace=namespace,
             timeout_cap_seconds=runtime_settings.request_timeout_seconds,
             target_policy=policy,
-            secrets_for_metrics=_runtime_secrets(runtime_settings),
+            secrets_for_metrics=_http_metric_secrets(runtime_settings),
             proxy=proxy,
             direct_client=direct_client,
             target_origin=_target_origin(runtime_settings),
@@ -443,7 +440,7 @@ class _HTTPSession:
                     artifact=artifact,
                     redirects=redirects,
                     retries=retries,
-                    elapsed_ms=_elapsed_ms(started_ns),
+                    elapsed_ms=elapsed_ms(started_ns),
                     preview=preview,
                     headers=safe_headers,
                     headers_truncated=headers_truncated,
@@ -880,35 +877,17 @@ class _HTTPTool:
     async def close(self) -> None:
         await self._session.close()
 
-    def _success(
-        self,
-        arguments: Mapping[str, Any],
-        result: Mapping[str, Any],
-        started_ns: int,
-    ) -> None:
-        self._metrics.record_tool_call(
+    def _recorded(
+        self, arguments: Mapping[str, Any], fallback: str = "http_request_failed"
+    ) -> RecordedToolCall:
+        return RecordedToolCall(
+            self._metrics,
             self.name,
-            arguments=arguments,
-            result=result,
+            arguments,
             secrets=self._session.metric_secrets,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-    def _failure(
-        self,
-        arguments: Mapping[str, Any],
-        error: Exception,
-        started_ns: int,
-    ) -> None:
-        bounded = (
-            error if isinstance(error, HTTPToolError) else HTTPToolError("http_request_failed")
-        )
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            error=bounded,
-            secrets=self._session.metric_secrets,
-            duration_ms=_elapsed_ms(started_ns),
+            bound_error=lambda error: (
+                error if isinstance(error, HTTPToolError) else HTTPToolError(fallback)
+            ),
         )
 
 
@@ -957,7 +936,6 @@ class HTTPRequestTool(_HTTPTool):
         follow_redirects: bool = True,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         safe_arguments = {
             "method": (
                 method.upper()
@@ -972,7 +950,7 @@ class HTTPRequestTool(_HTTPTool):
             "hasBody": body is not None,
             "followRedirects": follow_redirects if type(follow_redirects) is bool else False,
         }
-        try:
+        with self._recorded(safe_arguments) as call:
             result = await self._session.request(
                 url=url,
                 method=method,
@@ -984,23 +962,16 @@ class HTTPRequestTool(_HTTPTool):
                 follow_redirects=follow_redirects,
                 invocation_id=tool_context.invocation_id if tool_context is not None else None,
             )
-            self._success(
-                safe_arguments,
+            call.succeed(
                 {
                     "statusClass": result["status"] // 100,
                     "bodyKind": result["body_kind"],
                     "bodyBytes": result["content_length"],
                     "redirects": result["redirects"],
                     "retries": result["retries"],
-                },
-                started_ns,
+                }
             )
             return result
-        except Exception as error:
-            self._failure(safe_arguments, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_request_failed") from None
 
 
 class HTTPReadBodyTool(_HTTPTool):
@@ -1023,25 +994,15 @@ class HTTPReadBodyTool(_HTTPTool):
         offset: int = 0,
         length: int = MAX_READ_UNITS,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "requestId": request_id if type(request_id) is int else -1,
             "offset": offset if type(offset) is int else -1,
             "length": length if type(length) is int else -1,
         }
-        try:
+        with self._recorded(arguments, "http_body_not_found") as call:
             result = await self._session.read_body(request_id, offset, length)
-            self._success(
-                arguments,
-                {"kind": result["kind"], "length": result["length"], "eof": result["eof"]},
-                started_ns,
-            )
+            call.succeed({"kind": result["kind"], "length": result["length"], "eof": result["eof"]})
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_body_not_found") from None
 
 
 class HTTPHistoryTool(_HTTPTool):
@@ -1058,17 +1019,11 @@ class HTTPHistoryTool(_HTTPTool):
     """
 
     async def __call__(self, limit: int = MAX_HISTORY) -> list[dict[str, Any]]:
-        started_ns = time.perf_counter_ns()
         arguments = {"limit": limit if type(limit) is int else -1}
-        try:
+        with self._recorded(arguments) as call:
             result = await self._session.history(limit)
-            self._success(arguments, {"count": len(result)}, started_ns)
+            call.succeed({"count": len(result)})
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_request_failed") from None
 
 
 class HTTPSessionSetTool(_HTTPTool):
@@ -1098,7 +1053,6 @@ class HTTPSessionSetTool(_HTTPTool):
         replace_cookies: bool = False,
         replace_headers: bool = False,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "headerCount": len(headers) if isinstance(headers, dict) else 0,
             "cookieCount": len(cookies) if isinstance(cookies, dict) else 0,
@@ -1112,7 +1066,7 @@ class HTTPSessionSetTool(_HTTPTool):
             "replaceCookies": replace_cookies,
             "replaceHeaders": replace_headers,
         }
-        try:
+        with self._recorded(arguments, "http_request_invalid") as call:
             result = await self._session.set_session(
                 headers=headers,
                 cookies=cookies,
@@ -1120,13 +1074,8 @@ class HTTPSessionSetTool(_HTTPTool):
                 replace_cookies=replace_cookies,
                 replace_headers=replace_headers,
             )
-            self._success(arguments, {"authKind": result["auth_kind"]}, started_ns)
+            call.succeed({"authKind": result["auth_kind"]})
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_request_invalid") from None
 
 
 class HTTPSessionGetTool(_HTTPTool):
@@ -1138,16 +1087,10 @@ class HTTPSessionGetTool(_HTTPTool):
     """
 
     async def __call__(self) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
+        with self._recorded({}) as call:
             result = await self._session.get_session()
-            self._success({}, {"authKind": result["auth_kind"]}, started_ns)
+            call.succeed({"authKind": result["auth_kind"]})
             return result
-        except Exception as error:
-            self._failure({}, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_request_failed") from None
 
 
 class HTTPSessionClearTool(_HTTPTool):
@@ -1159,16 +1102,10 @@ class HTTPSessionClearTool(_HTTPTool):
     """
 
     async def __call__(self) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
-        try:
+        with self._recorded({}) as call:
             result = await self._session.clear_session()
-            self._success({}, {"cleared": True}, started_ns)
+            call.succeed({"cleared": True})
             return result
-        except Exception as error:
-            self._failure({}, error, started_ns)
-            if isinstance(error, HTTPToolError):
-                raise
-            raise HTTPToolError("http_request_failed") from None
 
 
 def _direct_client(policy: TargetPolicy) -> httpx.AsyncClient:
@@ -1184,37 +1121,10 @@ def _tool_http_proxy_required(settings: RuntimeSettings) -> bool:
     return settings.http_proxy is not None and "tool-http" in settings.http_proxy.targets
 
 
-def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
-    values: list[str] = []
-    token = settings.llm_gateway_token
-    if token is not None:
-        values.append(token.get_secret_value())
-    if settings.http_proxy is not None:
-        proxy = settings.http_proxy
-        if proxy.basic_auth is not None:
-            values.extend(
-                (
-                    proxy.basic_auth.username.get_secret_value(),
-                    proxy.basic_auth.password.get_secret_value(),
-                )
-            )
-        if proxy.bearer_token is not None:
-            values.append(proxy.bearer_token.get_secret_value())
-    if settings.http_origin_target is not None:
-        target = settings.http_origin_target
-        if target.basic_auth is not None:
-            values.extend(
-                (
-                    target.basic_auth.username.get_secret_value(),
-                    target.basic_auth.password.get_secret_value(),
-                )
-            )
-        if target.bearer_token is not None:
-            values.append(target.bearer_token.get_secret_value())
-        authorization = _target_authorization(settings)
-        if authorization is not None:
-            values.append(authorization)
-    return tuple(value for value in values if value)
+def _http_metric_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
+    authorization = _target_authorization(settings)
+    secrets = runtime_secrets(settings)
+    return secrets if authorization is None else (*secrets, authorization)
 
 
 def _target_origin(settings: RuntimeSettings) -> tuple[str, str, int] | None:
@@ -1631,10 +1541,6 @@ def _request_utf8_size(value: str) -> int:
         return len(value.encode("utf-8"))
     except UnicodeError:
         raise HTTPToolError("http_request_invalid") from None
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
 
 
 def _is_sensitive_header(name: str) -> bool:

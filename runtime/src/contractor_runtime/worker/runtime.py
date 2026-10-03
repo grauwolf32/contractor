@@ -66,6 +66,7 @@ from contractor_runtime.telemetry.execution import (
 )
 from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.common.artifacts import runtime_secrets
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.completion import (
@@ -1300,15 +1301,12 @@ def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
 
     # Imported here: the allocation package builds Workers, so a module-level
     # import would be circular.
-    from contractor_runtime.allocation.redaction import (
-        _contains_private_value,
-        _runtime_secret_values,
-    )
+    from contractor_runtime.allocation.redaction import _contains_private_value
 
     gateway_token = _gateway_token(context)
     if gateway_token and gateway_token in text:
         return True
-    return _contains_private_value(text, _runtime_secret_values(context.runtime_settings))
+    return _contains_private_value(text, runtime_secrets(context.runtime_settings))
 
 
 def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
