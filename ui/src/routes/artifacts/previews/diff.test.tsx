@@ -78,6 +78,54 @@ describe("Diff Artifact preview", () => {
     ]);
   });
 
+  it("counts only hunk changes in a format-patch with a commit preamble and signature", () => {
+    const patch = [
+      "From 0123456789abcdef Mon Sep 17 00:00:00 2001",
+      "Subject: [PATCH] Update cache behavior",
+      "",
+      "- remove the old cache",
+      "+ explain the new behavior",
+      "---",
+      " src/cache.ts | 2 +-(1)",
+      "diff --git a/src/cache.ts b/src/cache.ts",
+      "index 1234567..89abcde 100644",
+      "--- a/src/cache.ts",
+      "+++ b/src/cache.ts",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "-- ",
+      "2.45.0",
+    ].join("\n");
+    const parsed = parseUnifiedDiff(patch);
+    expect(parsed).toMatchObject({ additions: 1, deletions: 1, files: 1 });
+    for (const text of [
+      "- remove the old cache",
+      "+ explain the new behavior",
+      "---",
+      "-- ",
+    ]) {
+      expect(parsed.lines.find((line) => line.content === text)?.kind).toBe(
+        "meta",
+      );
+    }
+    expect(parsed.lines.find((line) => line.content === "-old")?.kind).toBe(
+      "deletion",
+    );
+    expect(parsed.lines.find((line) => line.content === "+new")?.kind).toBe(
+      "addition",
+    );
+    const view = render(<DiffArtifactPreview source={patch} />);
+    expect(view.container.querySelectorAll(".diff-line-deletion")).toHaveLength(
+      1,
+    );
+    expect(view.container.querySelectorAll(".diff-line-addition")).toHaveLength(
+      1,
+    );
+    expect(screen.getByText("+1 addition")).toBeVisible();
+    expect(screen.getByText("−1 deletion")).toBeVisible();
+  });
+
   it("shows an explicit empty state", () => {
     render(<DiffArtifactPreview source="" />);
 

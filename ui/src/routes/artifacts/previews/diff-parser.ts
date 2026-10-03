@@ -63,10 +63,13 @@ export function parseUnifiedDiff(source: string): ParsedDiff {
       }
       return { content: normalized, kind: "file" };
     }
+    if (!inHunk) {
+      return { content: normalized, kind: "meta" };
+    }
     if (normalized.startsWith("+")) {
       const line = { content: normalized, kind: "addition", newLine } as const;
       additions += 1;
-      if (inHunk && newLine !== undefined) {
+      if (newLine !== undefined) {
         newLine += 1;
         newLinesRemaining = Math.max(0, newLinesRemaining - 1);
         finishHunkIfComplete();
@@ -76,7 +79,7 @@ export function parseUnifiedDiff(source: string): ParsedDiff {
     if (normalized.startsWith("-")) {
       const line = { content: normalized, kind: "deletion", oldLine } as const;
       deletions += 1;
-      if (inHunk && oldLine !== undefined) {
+      if (oldLine !== undefined) {
         oldLine += 1;
         oldLinesRemaining = Math.max(0, oldLinesRemaining - 1);
         finishHunkIfComplete();
