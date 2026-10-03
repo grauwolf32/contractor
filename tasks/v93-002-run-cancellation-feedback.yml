@@ -3,8 +3,8 @@ id: V93-002
 title: Correct failed Run cancellation feedback and terminal race test
 milestone: ui-outcome-corrections-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e68475f041f7a0e7a9a54d3e08c666b0762e1775
 depends_on: []
 languages: [typescript]
 goal: Give operators accurate retryable cancellation feedback while the Run remains active.

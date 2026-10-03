@@ -3,8 +3,8 @@ id: V93-001
 title: Count only unified diff hunk changes in Artifact previews
 milestone: ui-outcome-corrections-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e1b3fec95f19b3e5de54fd6486a6fd4c338b3361
 depends_on: []
 languages: [typescript]
 goal: Prevent format-patch preambles and signatures from inflating change counts.
