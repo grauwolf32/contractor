@@ -3,8 +3,8 @@ id: V117-001
 title: Correct list_symbols node-type guidance
 milestone: list-symbols-node-type-help-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3c6672d4d17d9e0c468032c3f815c96e770eee2e
 depends_on: []
 languages: [python]
 goal: Make the model-visible list_symbols filter guidance match exact parser node types.
