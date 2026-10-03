@@ -1,9 +1,10 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { AuthenticatedRoute } from "../routes/guard";
 import { LoginRoute } from "../routes/login";
 import { NotFoundRoute, RouteChunkLoading } from "../routes/placeholders";
+import { RouteErrorPanel } from "./route-error";
 import { ApplicationShell } from "./shell";
 
 type RouteModule = Record<string, unknown>;
@@ -13,13 +14,20 @@ type RouteModule = Record<string, unknown>;
  * router loads on first navigation, so the eager bundle carries only the
  * shell, the guard and the shared API layer.
  */
-function lazyRoute<M extends RouteModule, K extends keyof M>(
+export function lazyRoute<M extends RouteModule, K extends keyof M>(
   load: () => Promise<M>,
   name: K,
 ): NonNullable<RouteObject["lazy"]> {
-  return {
-    Component: async () => (await load())[name] as ComponentType,
-  };
+  // React Router awaits a lazy route function as the navigation handler,
+  // surfacing a rejected import to the nearest route error boundary.
+  return async () => ({ Component: (await load())[name] as ComponentType });
+}
+
+function lazyElement<M>(
+  load: () => Promise<M>,
+  render: (module: M) => ReactNode,
+): NonNullable<RouteObject["lazy"]> {
+  return async () => ({ element: render(await load()) });
 }
 
 const projectSections = () => import("../routes/projects/sections");
@@ -29,12 +37,9 @@ function projectSection(
   section:
     "overview" | "artifacts" | "workflows" | "runs" | "audits" | "settings",
 ): NonNullable<RouteObject["lazy"]> {
-  return {
-    element: async () => {
-      const { ProjectSectionRoute } = await projectSections();
-      return <ProjectSectionRoute section={section} />;
-    },
-  };
+  return lazyElement(projectSections, ({ ProjectSectionRoute }) => (
+    <ProjectSectionRoute section={section} />
+  ));
 }
 
 export function applicationRoutes(): RouteObject[] {
@@ -42,9 +47,11 @@ export function applicationRoutes(): RouteObject[] {
     { path: "/login", element: <LoginRoute /> },
     {
       element: <AuthenticatedRoute />,
+      errorElement: <RouteErrorPanel />,
       children: [
         {
           element: <ApplicationShell />,
+          errorElement: <ApplicationShell error={<RouteErrorPanel />} />,
           hydrateFallbackElement: <RouteChunkLoading />,
           children: [
             {
@@ -72,12 +79,10 @@ export function applicationRoutes(): RouteObject[] {
                 { path: "audits", lazy: projectSection("audits") },
                 {
                   path: "findings",
-                  lazy: {
-                    element: async () => {
-                      const { ProjectFindingsRoute } = await projectFindings();
-                      return <ProjectFindingsRoute />;
-                    },
-                  },
+                  lazy: lazyElement(
+                    projectFindings,
+                    ({ ProjectFindingsRoute }) => <ProjectFindingsRoute />,
+                  ),
                 },
                 { path: "settings", lazy: projectSection("settings") },
               ],

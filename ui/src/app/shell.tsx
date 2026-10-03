@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import contractorLogoUrl from "../assets/contractor-logo.png";
@@ -17,7 +17,7 @@ const navigation = [
   { to: "/operations", label: "Operations", icon: "operations" },
 ] as const;
 
-export function ApplicationShell() {
+export function ApplicationShell({ error }: { error?: ReactNode }) {
   const { session, logout, isLoggingOut } = useSession();
   const { pathname } = useLocation();
   const skillDetail = pathname.startsWith("/artifacts/skills/");
@@ -118,7 +118,7 @@ export function ApplicationShell() {
         </div>
       </aside>
       <main id="main-content" className="content" tabIndex={-1}>
-        <Outlet />
+        {error ?? <Outlet />}
       </main>
     </div>
   );

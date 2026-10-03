@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI, type AuthSession } from "../api/client";
@@ -9,7 +9,7 @@ import { UI_VERSION } from "../build";
 import type { RuntimeConfig } from "../config/runtime-config";
 import type { SessionAPI } from "../auth/session";
 import { Application } from "./application";
-import { applicationRoutes } from "./router";
+import { applicationRoutes, lazyRoute } from "./router";
 
 const session: AuthSession = {
   principal: {
@@ -37,12 +37,16 @@ function response(value: unknown): Response {
   });
 }
 
-function renderApplication(api: SessionAPI, initialPath: string) {
+function renderApplication(
+  api: SessionAPI,
+  initialPath: string,
+  routes = applicationRoutes(),
+) {
   const publicAPI = new PublicAPI(
     runtimeConfig,
     vi.fn(async () => response({ items: [], page: { hasMore: false } })),
   );
-  const router = createMemoryRouter(applicationRoutes(), {
+  const router = createMemoryRouter(routes, {
     initialEntries: [initialPath],
   });
   const view = render(
@@ -51,7 +55,74 @@ function renderApplication(api: SessionAPI, initialPath: string) {
   return { ...view, router };
 }
 
+function runRoute(routes: RouteObject[]): RouteObject {
+  const route = routes[1]?.children?.[0]?.children?.find(
+    (candidate) => candidate.path === "/runs",
+  );
+  if (route === undefined) throw new Error("Runs route is missing");
+  return route;
+}
+
+function ThrowingRoute(): never {
+  throw new Error("Route render failed");
+}
+
 describe("application session shell", () => {
+  it("shows an in-shell reload action when a lazy route chunk fails", async () => {
+    const api: SessionAPI = {
+      getSession: vi.fn(async () => session),
+      login: vi.fn(async () => session),
+      logout: vi.fn(async () => undefined),
+    };
+    const routes = applicationRoutes();
+    runRoute(routes).lazy = lazyRoute(
+      async (): Promise<{ RunsRoute: () => null }> => {
+        throw new TypeError("Failed to fetch dynamically imported module");
+      },
+      "RunsRoute",
+    );
+    renderApplication(api, "/projects", routes);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("link", { name: "Runs" }));
+    const message = await screen.findByRole("alert");
+    expect(message).toHaveTextContent("This page needs a reload");
+    expect(
+      screen.getByRole("link", { name: "Reload application" }),
+    ).toHaveAttribute("href", "/runs");
+    expect(
+      screen.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("link", { name: "Projects" }));
+    expect(
+      await screen.findByRole("heading", { name: "Projects" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("link", { name: "Runs" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This page needs a reload",
+    );
+  });
+
+  it("keeps the shell visible when a child route throws while rendering", async () => {
+    const api: SessionAPI = {
+      getSession: vi.fn(async () => session),
+      login: vi.fn(async () => session),
+      logout: vi.fn(async () => undefined),
+    };
+    const routes = applicationRoutes();
+    const route = runRoute(routes);
+    delete route.lazy;
+    route.element = <ThrowingRoute />;
+    renderApplication(api, "/runs", routes);
+    expect(await screen.findByText("This page could not open")).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
+
   it("guards domain routes with the local login", async () => {
     const api: SessionAPI = {
       getSession: vi.fn(async () => null),
