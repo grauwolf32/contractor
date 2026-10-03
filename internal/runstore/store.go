@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -185,7 +186,7 @@ WHERE c.credential_id = $1 AND t.credential_id IS NULL`, credentialID).Scan(&kin
 			return nil
 		}
 	}
-	return fmt.Errorf("Runtime credential kind is incompatible")
+	return credentialerrors.RuntimeNotFound
 }
 
 func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (WorkflowRun, error) {

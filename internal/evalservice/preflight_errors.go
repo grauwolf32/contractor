@@ -42,9 +42,9 @@ func preflightDependencyError(cause error) error {
 	return cause
 }
 
-// Catalog validation hides lookup errors, and runtime pinning adds ErrInvalid
-// even to infrastructure failures. Retain the dependency error before either
-// boundary so only confirmed configuration failures return the experiment to draft.
+// Catalog validation can hide lookup errors. Retain the dependency error
+// before that boundary so only confirmed configuration failures return the
+// experiment to draft.
 type preflightCredentials struct {
 	config.CredentialLookup
 	runtime runtimeconfig.RuntimeCredentialValidator

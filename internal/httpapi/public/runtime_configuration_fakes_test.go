@@ -113,6 +113,9 @@ type fakeRuntimeConfigManagement struct {
 	bindings     map[string]runtimeconfig.Binding
 	publications map[string]runtimeconfig.PublishResult
 	mutations    map[string]runtimeconfig.BindingMutationResult
+	publishErr   error
+	createErr    error
+	rebindErr    error
 	deleteErr    error
 }
 
@@ -142,6 +145,9 @@ func (f *fakeRuntimeConfigManagement) Publish(
 ) (runtimeconfig.PublishResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.publishErr != nil {
+		return runtimeconfig.PublishResult{}, f.publishErr
+	}
 	prepared, err := runtimeconfig.PreparePublication(document)
 	if err != nil {
 		return runtimeconfig.PublishResult{}, err
@@ -236,6 +242,9 @@ func (f *fakeRuntimeConfigManagement) CreateBinding(
 ) (runtimeconfig.BindingMutationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.createErr != nil {
+		return runtimeconfig.BindingMutationResult{}, f.createErr
+	}
 	if replay, ok := f.mutations[key]; ok {
 		replay.Replayed = true
 		return replay, nil
@@ -260,6 +269,9 @@ func (f *fakeRuntimeConfigManagement) Rebind(
 ) (runtimeconfig.BindingMutationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.rebindErr != nil {
+		return runtimeconfig.BindingMutationResult{}, f.rebindErr
+	}
 	if replay, ok := f.mutations[key]; ok {
 		replay.Replayed = true
 		return replay, nil

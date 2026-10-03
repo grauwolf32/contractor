@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -201,9 +202,12 @@ func validateRunLLMCredential(
 		if contextError := ctx.Err(); contextError != nil {
 			return contextError
 		}
-		return persistencepostgres.WrapError(
-			invalid("RuntimeConfig references an unavailable LLM credential").Error(), errors.Join(ErrInvalid, err),
-		)
+		if errors.Is(err, credentialerrors.LLMNotFound) || errors.Is(err, pgx.ErrNoRows) {
+			return persistencepostgres.WrapError(
+				"invalid RuntimeConfig: LLM credential is unavailable", errors.Join(ErrInvalid, err),
+			)
+		}
+		return persistencepostgres.WrapError("validate RuntimeConfig LLM credential", err)
 	}
 	if metadata.Ref.CredentialID != patch.Credential.Value {
 		return invalid("RuntimeConfig LLM credential identity does not match")
