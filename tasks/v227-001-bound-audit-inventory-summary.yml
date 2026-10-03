@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V227-001
+title: Bound Audit inventory gaps in the human report
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let an accepted Audit inventory produce a bounded report.md at finalization.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/207
+  finding: Escaped inventory gap lines can exceed the 64 KiB human summary bound after all Audit work has completed.
+scope:
+  in:
+    - Bound displayed inventory gap lines and count omitted gaps deterministically.
+    - Keep the complete inventory gap list in report.json and preserve the final qualification.
+  out:
+    - Changing the machine report schema or accepted inventory limits.
+acceptance_criteria:
+  - {id: A1, text: A summary of 512 maximally long gaps fits within 64 KiB and ends with its certification disclaimer.}
+  - {id: A2, text: The omitted-gap marker reports the exact count.}
+  - {id: A3, text: Finalize accepts more than 400 realistic gaps and retains all of them in report.json.}
+tests:
+  - {command: go test ./internal/auditimport -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
