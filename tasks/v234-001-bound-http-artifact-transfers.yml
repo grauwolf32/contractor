@@ -3,7 +3,8 @@ id: V234-001
 title: Bound client I/O while artifact transfer slots are held
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 73bd3d5a349cb537da597efd070831868c8a274e
 depends_on: []
 languages: [go]
 goal: Release per-process artifact transfer slots when a client stalls during upload or download.
