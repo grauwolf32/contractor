@@ -60,8 +60,7 @@ _MEMORY_ERROR_RETRYABILITY = MappingProxyType(
 class MemoryToolError(RuntimeError):
     """Bounded model-facing failure with no note body, description or tags."""
 
-    def __init__(self, code: str, *, retryable: bool = False) -> None:
-        del retryable
+    def __init__(self, code: str) -> None:
         normalized = code if code in _MEMORY_ERROR_RETRYABILITY else "memory_unavailable"
         self.code = normalized
         self.retryable = _MEMORY_ERROR_RETRYABILITY[normalized]
@@ -130,7 +129,6 @@ class _LoadedNote:
     binding_created_at: datetime
     revision_created_at: datetime
     revision: str
-    payload: bytes
 
 
 class _MemorySession:
@@ -226,12 +224,12 @@ class _MemorySession:
             key=lambda ref: (ref.namespace, ref.name),
         )
         if len(memory_refs) > MAXIMUM_NOTES:
-            raise MemoryToolError("memory_unavailable", retryable=True)
+            raise MemoryToolError("memory_unavailable")
         result: list[_LoadedNote] = []
         seen: set[str] = set()
         for ref in memory_refs:
             if ref.namespace != self._namespace or ref.revision is not None or ref.name in seen:
-                raise MemoryToolError("memory_unavailable", retryable=True)
+                raise MemoryToolError("memory_unavailable")
             seen.add(ref.name)
             try:
                 value = await self._client.read_artifact(ref, max_bytes=MAXIMUM_PAYLOAD_BYTES)
@@ -281,7 +279,7 @@ class _MemorySession:
             pass
         except ArtifactAPIError as error:
             if error.code == "artifact_conflict":
-                raise MemoryToolError("memory_changed", retryable=True) from None
+                raise MemoryToolError("memory_changed") from None
             mapped = _mapped_client_error(error)
             if mapped.code == "memory_forbidden" or not 500 <= error.status_code < 600:
                 raise mapped from None
@@ -303,7 +301,7 @@ class _MemorySession:
             current = await self._client.read_artifact(target, max_bytes=MAXIMUM_PAYLOAD_BYTES)
         except ArtifactResponseLimitError:
             # A current value larger than any note cannot equal the payload.
-            raise MemoryToolError("memory_changed", retryable=True) from None
+            raise MemoryToolError("memory_changed") from None
         except (ArtifactTransportError, ArtifactAPIError) as read_error:
             # The reconciliation read is authoritative for whether the current
             # value could be inspected. A retry conflict alone cannot prove
@@ -311,7 +309,7 @@ class _MemorySession:
             raise _mapped_client_error(read_error) from None
         if current.media_type == MEDIA_TYPE and current.data == payload:
             return current
-        raise MemoryToolError("memory_changed", retryable=True)
+        raise MemoryToolError("memory_changed")
 
 
 class _BaseMemoryTool:
@@ -533,11 +531,11 @@ def _decode_value(namespace: str, binding_name: str, value: ArtifactValue) -> _L
         or not _valid_server_time(value.revision_created_at)
         or value.revision_created_at < value.binding_created_at
     ):
-        raise MemoryToolError("memory_unavailable", retryable=True)
+        raise MemoryToolError("memory_unavailable")
     try:
         note = decode_note(binding_name, value.data)
     except MemoryCodecError:
-        raise MemoryToolError("memory_unavailable", retryable=True) from None
+        raise MemoryToolError("memory_unavailable") from None
     revision = value.artifact.revision
     assert revision is not None
     return _LoadedNote(
@@ -545,7 +543,6 @@ def _decode_value(namespace: str, binding_name: str, value: ArtifactValue) -> _L
         binding_created_at=value.binding_created_at,
         revision_created_at=value.revision_created_at,
         revision=revision,
-        payload=value.data,
     )
 
 
@@ -721,7 +718,7 @@ def _full_from_metadata(
         or not _valid_server_time(metadata.revision_created_at)
         or metadata.revision_created_at < metadata.binding_created_at
     ):
-        raise MemoryToolError("memory_unavailable", retryable=True)
+        raise MemoryToolError("memory_unavailable")
     revision = metadata.artifact.require_exact().revision
     assert revision is not None
     return _full(
@@ -730,7 +727,6 @@ def _full_from_metadata(
             binding_created_at=metadata.binding_created_at,
             revision_created_at=metadata.revision_created_at,
             revision=revision,
-            payload=b"",
         )
     )
 
@@ -791,7 +787,7 @@ def _mapped_client_error(error: Exception) -> MemoryToolError:
         "artifact_access_denied",
     }:
         return MemoryToolError("memory_forbidden")
-    return MemoryToolError("memory_unavailable", retryable=True)
+    return MemoryToolError("memory_unavailable")
 
 
 def _normalize_tool_error(error: Exception) -> MemoryToolError:
