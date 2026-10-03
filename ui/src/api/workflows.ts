@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
 import { safeRunRuntimeConfiguration } from "./runtime-configuration";
@@ -31,17 +31,6 @@ export interface CatalogPageRequest extends PageRequest {
   q?: string;
   name?: string;
   signal?: AbortSignal;
-}
-
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
 }
 
 function requireWorkflowIdentity(name: string, version: string): void {
@@ -137,11 +126,10 @@ export async function listCredentials(
 }
 
 function invalidRunResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Run creation response",
-  });
+    "Server returned an invalid Run creation response",
+  );
 }
 
 export async function createRun(

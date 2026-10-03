@@ -140,3 +140,23 @@ export function publicAPIError(status: number, value: unknown): PublicAPIError {
     ...(inUse === undefined ? {} : { inUse }),
   });
 }
+
+/** Returns a response's data, or throws the error envelope it carried. */
+export function requireData<T>(result: {
+  data?: T;
+  error?: unknown;
+  response: Response;
+}): T {
+  if (result.data === undefined) {
+    throw publicAPIError(result.response.status, result.error);
+  }
+  return result.data;
+}
+
+/** An error for a response body that does not match the public contract. */
+export function invalidAPIResponse(
+  status: number,
+  message: string,
+): PublicAPIError {
+  return new PublicAPIError({ status, code: "invalid_api_response", message });
+}

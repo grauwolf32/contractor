@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import {
   safeConfigurationResource,
@@ -91,25 +91,6 @@ export type WritableConfigurationKind = "model-policies" | "llm-gateways";
 
 export interface CursorPageRequest {
   cursor?: string;
-}
-
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
-function invalidResponse(status: number, message: string): PublicAPIError {
-  return new PublicAPIError({
-    status,
-    code: "invalid_api_response",
-    message,
-  });
 }
 
 function requireExactRuntimeKeys(
@@ -834,7 +815,7 @@ function safeSchedulerSettings(
     typeof value.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(value.updatedAt))
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       response.status,
       "Server returned invalid Scheduler settings",
     );
@@ -844,7 +825,7 @@ function safeSchedulerSettings(
     etag !== `"${value.revision}"` ||
     response.headers.get("Cache-Control") !== "no-store"
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       response.status,
       "Server returned inconsistent Scheduler settings headers",
     );
@@ -895,7 +876,7 @@ export async function replaceSchedulerSettings(
   );
   const settings = safeSchedulerSettings(requireData(result), result.response);
   if (settings.resource.maxConcurrentRuns !== maxConcurrentRuns) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned a different Scheduler setting after replacement",
     );
@@ -911,7 +892,7 @@ export async function getOperationsSnapshot(
   );
   const snapshot = requireData(result);
   if (!validOperationsCursor(snapshot.cursor)) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Operations snapshot",
     );
@@ -968,7 +949,7 @@ export async function getRuntimeAgentPrincipal(
     principal.runtimeAgentId !== runtimeAgentId ||
     result.response.headers.get("etag") !== `"${principal.revision}"`
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Runtime Agent principal",
     );
@@ -1025,7 +1006,7 @@ export async function replaceRuntimeAgentPrincipalLabels(
     principal.runtimeAgentId !== runtimeAgentId ||
     result.response.headers.get("etag") !== `"${principal.revision}"`
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Runtime Agent label mutation",
     );
@@ -1088,7 +1069,7 @@ export async function getConfiguration(
     resource.ref.version !== version ||
     !DIGEST_PATTERN.test(resource.ref.digest)
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid configuration resource",
     );
@@ -1129,7 +1110,7 @@ export async function publishConfiguration(
     resource.ref.version !== request.version ||
     !DIGEST_PATTERN.test(resource.ref.digest)
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid configuration publication response",
     );
@@ -1149,7 +1130,7 @@ export async function getCredential(
   );
   const credential = safeCredentialResource(requireData(result));
   if (credential.credentialId !== credentialId) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid credential resource",
     );
@@ -1182,7 +1163,7 @@ export async function createCredential(
     credential.llmGateway.version !== request.llmGateway.version ||
     credential.llmGateway.digest !== request.llmGateway.digest
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid credential creation response",
     );
@@ -1245,7 +1226,7 @@ export async function getRuntimeConfig(
   );
   const resource = safeRuntimeConfigResource(requireData(result));
   if (resource.ref.name !== name || resource.ref.version !== version) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned the wrong RuntimeConfig resource",
     );
@@ -1271,7 +1252,7 @@ export async function publishRuntimeConfig(
     resource.ref.name !== document.metadata.name ||
     resource.ref.version !== document.metadata.version
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid RuntimeConfig publication response",
     );
@@ -1354,7 +1335,7 @@ export async function putRuntimeLabel(
     binding.label !== label ||
     result.response.headers.get("etag") !== `"${binding.revision}"`
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Runtime label mutation response",
     );
@@ -1433,7 +1414,7 @@ export async function createRuntimeCredential(
     metadata.credentialId !== request.credentialId ||
     metadata.kind !== request.kind
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid Runtime credential creation response",
     );

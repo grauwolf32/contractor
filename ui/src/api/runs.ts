@@ -10,7 +10,12 @@ import {
   type DownloadedArtifact,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import {
+  invalidAPIResponse,
+  PublicAPIError,
+  publicAPIError,
+  requireData,
+} from "./error";
 import type { components } from "./generated/public";
 import { safeAllocationResourceSummary } from "./performance";
 import {
@@ -101,17 +106,6 @@ export async function resumeRun(
   }
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function requireRunID(runId: string): void {
   if (!RUN_ID_PATTERN.test(runId)) {
     throw new TypeError("Run ID is invalid");
@@ -134,11 +128,7 @@ function requireRevision(revision: string): void {
 }
 
 function invalidRunResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
-    status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Run response",
-  });
+  return invalidAPIResponse(status, "Server returned an invalid Run response");
 }
 
 function runArtifactPath(
