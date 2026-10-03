@@ -3,7 +3,8 @@ id: V202-001
 title: Hold one transfer lease from blob staging through publication
 milestone: artifact-transfer-reliability-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 03b9715ebc0e27da9b6995ed9f7fbfb9902b525f
 depends_on: []
 languages: [go]
 goal: Prevent Planner Memory and finding proposal writes from losing transfer capacity after filesystem bytes are staged.
