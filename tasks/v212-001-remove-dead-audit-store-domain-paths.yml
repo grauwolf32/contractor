@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V212-001
+title: Remove dead Audit store and domain paths
+milestone: audit-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep the Audit store and domain API limited to active production behavior.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/162
+  finding: Unused claim renewal, broad repository interfaces, decoding helpers and an owner deletion transition suggest unsupported behavior.
+scope:
+  in:
+    - Remove unused Audit claim renewal and unconsumed store interfaces.
+    - Remove unused worklist and checklist decoding entry points.
+    - Reject owner deletion through the generic transition and remove its dead SQL branch.
+    - Cover deletion rejection with a validation test.
+  out:
+    - Changing the controller's legitimate deletion flow.
+acceptance_criteria:
+  - {id: A1, text: Dead Audit store and domain symbols have no remaining source references.}
+  - {id: A2, text: An owner draft-to-deleting transition returns ErrInvalid while RequestDelete remains the deletion path.}
+  - {id: A3, text: Audit packages build and their tests pass.}
+tests:
+  - {command: go test ./internal/auditstore/... ./internal/auditdomain/... ./internal/auditservice/... ./internal/auditcontroller/..., covers: [A1, A2, A3]}
+  - {command: go build ./..., covers: [A1, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

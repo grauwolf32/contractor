@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V212-001, file: v212-001-remove-dead-audit-store-domain-paths.yml}
   - {id: V211-001, file: v211-001-openapi-reference-provenance.yml}
   - {id: V210-001, file: v210-001-align-config-validate-with-server.yml}
   - {id: V209-001, file: v209-001-stop-unsupported-next-round-tasks.yml}
