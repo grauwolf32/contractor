@@ -660,8 +660,6 @@ class _HTTPSession:
             raise HTTPToolError("http_request_invalid") from None
         except (TargetDenied, ProxyTargetDenied):
             # Connect-time and proxy-route denials share the pre-send code.
-            if attempt is not None:
-                attempt.error = "target_denied"
             raise HTTPToolError("http_target_denied") from None
         except (httpx.HTTPError, ProxyRequestError):
             if attempt is not None:
