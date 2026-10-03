@@ -2,6 +2,8 @@ module github.com/grauwolf32/contractor
 
 go 1.26.0
 
+toolchain go1.26.8
+
 require (
 	github.com/a2aproject/a2a-go/v2 v2.5.0
 	github.com/getkin/kin-openapi v0.149.0

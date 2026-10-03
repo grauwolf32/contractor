@@ -12,7 +12,7 @@ Implementation status and recorded evidence live in [tasks/index.yml](../tasks/i
 | Component | Repository requirement |
 | --- | --- |
 | Host | Linux or macOS for Server/ordinary Runtime; Linux for the CI stack and Podman sandbox; see [deployment](deployment.md) |
-| Go | 1.25 or newer; see [go.mod](../go.mod) |
+| Go | 1.26.8 or newer; [go.mod](../go.mod) selects 1.26.8 automatically with `GOTOOLCHAIN=auto` |
 | Python | 3.13 and `uv`; see [runtime/pyproject.toml](../runtime/pyproject.toml) |
 | UI | Node 24.20, Corepack 0.36 and pnpm 11.24; see [ui/package.json](../ui/package.json) |
 | PostgreSQL | Required to run Server and database/process tests; CI uses PostgreSQL 17 |
