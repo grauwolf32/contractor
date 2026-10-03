@@ -98,6 +98,58 @@ def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_source_files_named_like_ignored_directories_remain_visible(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        source = client.seed(
+            "inputs",
+            "named-files",
+            "application/zip",
+            make_zip(
+                {
+                    "scripts/build": "needle build\n",
+                    "bin/target": "needle target\n",
+                    "docs/coverage": "needle coverage\n",
+                    "src/dist": "needle dist\n",
+                    "vendor": "needle vendor\n",
+                    "src/app.py": "normal source\n",
+                    "node_modules/": "",
+                    "node_modules/pkg/index.js": "ignored dependency",
+                    "build/": "",
+                    "build/out.js": "ignored build output",
+                    ".git/config": "ignored metadata",
+                }
+            ),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        opened = await tools["open_source_archive"]("inputs", "named-files", source.revision)
+        assert opened["fileCount"] == 6
+        assert opened["ignoredCount"] == 5
+        named = {"scripts/build", "bin/target", "docs/coverage", "src/dist", "vendor"}
+        listed = await tools["list_source_files"]()
+        assert {item["path"] for item in listed["files"]} == named | {"src/app.py"}
+        searched = await tools["search_source"]("needle")
+        assert {item["path"] for item in searched["matches"]} == named
+        for path in named:
+            assert (await tools["read_source"](path))["text"] == f"needle {Path(path).name}\n"
+
+        with_vendor_dir = client.seed(
+            "inputs",
+            "vendor-directory",
+            "application/zip",
+            make_zip({"vendor/lib/x.go": "ignored", "src/app.py": "visible"}),
+        )
+        reopened = await tools["open_source_archive"](
+            "inputs", "vendor-directory", with_vendor_dir.revision
+        )
+        assert reopened["fileCount"] == 1 and reopened["ignoredCount"] == 1
+        assert [item["path"] for item in (await tools["list_source_files"]())["files"]] == [
+            "src/app.py"
+        ]
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "unsafe_path",
     [
