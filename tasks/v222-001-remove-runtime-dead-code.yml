@@ -3,7 +3,8 @@ id: V222-001
 title: Remove unused and test-only Runtime code
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1e6b459248ef73dd6678fa089501328f5a3652a2
 depends_on: []
 languages: [python]
 goal: Keep Runtime production modules limited to active protocol and execution code.
