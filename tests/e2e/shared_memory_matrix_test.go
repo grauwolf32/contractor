@@ -94,18 +94,8 @@ func TestSharedMemoryHardeningMatrixIsComplete(t *testing.T) {
 
 func TestSharedMemoryUsesOnlyArtifactPlaneInventories(t *testing.T) {
 	repositoryRoot := filepath.Join("..", "..")
-	for _, relative := range []string{
-		"api/openapi/contractor-public-v1.yaml",
-		"internal/httpapi/public/router.go",
-		"internal/httpapi/privateartifacts/handler.go",
-	} {
-		data, err := os.ReadFile(filepath.Join(repositoryRoot, relative))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if bytes.Contains(bytes.ToLower(data), []byte("/memory")) {
-			t.Fatalf("Memory-specific HTTP route appears in %s", relative)
-		}
+	if err := checkArtifactPlaneRouteInventory(repositoryRoot, "/memory"); err != nil {
+		t.Fatal(err)
 	}
 	err := filepath.WalkDir(
 		filepath.Join(repositoryRoot, "internal", "persistence", "migrations"),
