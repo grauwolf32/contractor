@@ -3,7 +3,8 @@ id: V215-001
 title: Remove unused Audit Controller and service API surface
 milestone: audit-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 828db4aabb98d20fe1e82821b98706030cb82869
 depends_on: []
 languages: [go]
 goal: Remove Audit Controller paths that have no production callers while preserving periodic reconciliation.
