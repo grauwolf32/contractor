@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V123-001
+title: Distinguish read_file past EOF from a missing workspace file
+milestone: read-file-past-eof-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Give models an accurate line-range error when reading beyond an existing file.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/206
+  finding: read_file reports workspace_not_found for an existing file when start_line exceeds totalLines plus one.
+scope:
+  in:
+    - Return workspace_line_invalid for a start line beyond the file's append boundary.
+    - Document the read contract and stable error code.
+    - Test direct and overlay readers on non-empty and empty files.
+  out:
+    - Change missing-file behavior or pagination at exactly totalLines plus one.
+acceptance_criteria:
+  - {id: A1, text: Past-EOF reads of existing text files return workspace_line_invalid in direct and overlay modes.}
+  - {id: A2, text: Missing files still return workspace_not_found and the valid empty EOF page remains available.}
+  - {id: A3, text: The tool description and filesystem spec explain the behavior.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_filesystem_toolset.py, covers: [A1, A2, A3]}
