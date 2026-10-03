@@ -222,7 +222,7 @@ func newLaneTestScheduler(
 			PollInterval: poll, ClaimDuration: time.Hour, OperationTimeout: 250 * time.Millisecond,
 			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
-			RuntimeSettings: contracts.RuntimeSettings{
+			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
 			Settings: settings, Clock: &unsynchronizedLaneClock{now: time.Now().UTC()},

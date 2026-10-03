@@ -173,7 +173,7 @@ func (s *Scheduler) resumeFinalizing(
 			s.options.Logger.Warn("bounded allocation finalization was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
 	}
-	s.persistReports(ctx, execution, reservations, reports)
+	s.persistReports(ctx, run, workflow, execution, reservations, reports)
 
 	stateContext, cancelState := s.terminalOperationContext(ctx)
 	current, err := s.store.GetRun(stateContext, run.RunID)

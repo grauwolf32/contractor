@@ -13,6 +13,8 @@ import (
 
 func (s *Scheduler) persistReports(
 	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
 	execution runstore.StageExecution,
 	reservations []controlplane.Reservation,
 	reports map[string]contracts.AllocationFinalReport,
@@ -46,8 +48,9 @@ func (s *Scheduler) persistReports(
 	for _, allocation := range allocations {
 		report, ok := reports[allocation.LogicalAgentName]
 		reservation, live := byName[allocation.LogicalAgentName]
-		if !ok || report.AllocationID != allocation.AllocationID ||
-			(live && reservation.Grant.AllocationID != allocation.AllocationID) {
+		validReport := ok && report.AllocationID == allocation.AllocationID &&
+			(!live || reservation.Grant.AllocationID == allocation.AllocationID)
+		if !validReport {
 			retryable := true
 			report = contracts.AllocationFinalReport{
 				ReportID:     "allocation-final-missing-" + allocation.AllocationID,
@@ -68,12 +71,18 @@ func (s *Scheduler) persistReports(
 				Runtime: contracts.RuntimeReport{Complete: false},
 			}
 		}
+		secrets := s.telemetrySecrets()
+		if live && validReport {
+			resolutionContext, cancelResolution := s.terminalOperationContext(ctx)
+			secrets = s.allocationReportSecrets(resolutionContext, run, workflow, reservation)
+			cancelResolution()
+		}
 		operationContext, cancel := s.terminalOperationContext(ctx)
 		err := s.store.RecordStageExecutionReport(operationContext, runstore.RecordStageExecutionReportParams{
 			StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 			LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 			Report: report, PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
-			Secrets: s.telemetrySecrets(),
+			Secrets: secrets,
 		})
 		cancel()
 		if err != nil {
@@ -186,10 +195,31 @@ func (s *Scheduler) rebuildStageMetrics(ctx context.Context, stageExecutionID st
 }
 
 func (s *Scheduler) telemetrySecrets() []string {
-	result := make([]string, 0, len(s.options.TelemetrySecrets)+1)
-	result = append(result, s.options.TelemetrySecrets...)
-	if s.options.RuntimeSettings.LLMGatewayToken != nil {
-		result = append(result, s.options.RuntimeSettings.LLMGatewayToken.Reveal())
+	return append([]string(nil), s.options.TelemetrySecrets...)
+}
+
+func (s *Scheduler) allocationReportSecrets(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	workflow executableWorkflow,
+	reservation controlplane.Reservation,
+) []string {
+	secrets := s.telemetrySecrets()
+	if reservation.ResolvedRuntimeConfig != nil {
+		settings, err := s.materializeRuntimeSettings(ctx, reservation.ResolvedRuntimeConfig.Clone())
+		if err != nil {
+			s.options.Logger.Warn("allocation report credential resolution was incomplete", "allocation_id", reservation.Grant.AllocationID)
+		} else {
+			secrets = append(secrets, settings.SecretValues()...)
+		}
 	}
-	return result
+	if binding, ok := workflow.stage.Agents[reservation.Grant.LogicalAgentName]; ok && run.ProjectHTTPTarget != nil && agentUsesHTTPRequest(binding.Template) {
+		target, err := s.materializeHTTPOriginTarget(ctx, *run.ProjectHTTPTarget)
+		if err != nil {
+			s.options.Logger.Warn("allocation report HTTP origin credential resolution was incomplete", "allocation_id", reservation.Grant.AllocationID)
+		} else {
+			secrets = append(secrets, (contracts.RuntimeSettings{HTTPOriginTarget: target}).SecretValues()...)
+		}
+	}
+	return secrets
 }

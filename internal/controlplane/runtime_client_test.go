@@ -606,7 +606,7 @@ func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
 			URL: "https://app.example.test", BearerToken: &token,
 		},
 	}
-	if !slices.Contains(runtimeSettingSecrets(settings), "project-origin-secret") {
+	if !slices.Contains(settings.SecretValues(), "project-origin-secret") {
 		t.Fatal("Project origin credential is absent from WorkerHandle leak detection")
 	}
 }
