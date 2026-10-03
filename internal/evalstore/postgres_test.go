@@ -615,6 +615,84 @@ func TestPostgresEvalAuditWorkspaceDependencyFencesWithoutDeletingExperiment(t *
 	}
 }
 
+func TestPostgresEvalTerminalChildProjectDeletionPreservesLifecycle(t *testing.T) {
+	for _, terminal := range []evaldomain.State{evaldomain.StateFinished, evaldomain.StateCancelled} {
+		t.Run(string(terminal), func(t *testing.T) {
+			pool := testPool(t)
+			ctx := context.Background()
+			scope := setupProject(t, pool, "owner", "eval")
+			experiment := createExperiment(t, pool, scope, "exp", "trace-1", "external-audit")
+			member := members(t, pool, experiment)[0]
+			if _, err := admit(t, pool, experiment, member.MemberID, nil, "submit"); err != nil {
+				t.Fatal(err)
+			}
+			child := Scope{OwnerID: scope.OwnerID, ProjectID: "audit-workspace"}
+			if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+				OwnerID: child.OwnerID, ProjectID: child.ProjectID, Kind: projectstore.KindProject,
+				Name: "Audit member", IdempotencyKey: child.ProjectID,
+				RequestDigest: evaldomain.Digest([]byte(child.ProjectID)),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+INSERT INTO eval_project_dependencies(project_id, experiment_id, member_id, owner_id)
+VALUES($1, $2, $3, $4)`, child.ProjectID, experiment.ID, member.MemberID, scope.OwnerID); err != nil {
+				t.Fatal(err)
+			}
+			// The dependency remains as a tombstone after a member settles. Set up
+			// that terminal snapshot directly to isolate the Project trigger.
+			if _, err := pool.Exec(ctx, `
+UPDATE eval_submissions SET state='rejected'
+ WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, member.MemberID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+UPDATE eval_experiments SET state=$2, outstanding_count=0, revision=revision+1,
+    updated_at=GREATEST(clock_timestamp(), updated_at+interval '1 microsecond')
+ WHERE experiment_id=$1`, experiment.ID, terminal); err != nil {
+				t.Fatal(err)
+			}
+			before, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beginProjectDeletion(t, pool, child)
+			after, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, experiment.ID)
+			if err != nil || after.State != terminal || after.Revision != before.Revision ||
+				!after.UpdatedAt.Equal(before.UpdatedAt) || after.DeletionRequestedAt != nil {
+				t.Fatalf("terminal Eval changed after child deletion: before=%+v after=%+v err=%v", before, after, err)
+			}
+		})
+	}
+}
+
+func TestPostgresEvalProjectDeletionStillPurgesTerminalExperiments(t *testing.T) {
+	for _, terminal := range []evaldomain.State{evaldomain.StateFinished, evaldomain.StateCancelled} {
+		t.Run(string(terminal), func(t *testing.T) {
+			pool := testPool(t)
+			ctx := context.Background()
+			scope := setupProject(t, pool, "owner", "eval")
+			createExperiment(t, pool, scope, "exp", "trace-1", "external-audit")
+			if _, err := pool.Exec(ctx, `
+UPDATE eval_experiments SET state=$2, revision=revision+1,
+    updated_at=GREATEST(clock_timestamp(), updated_at+interval '1 microsecond')
+ WHERE experiment_id=$1`, "exp", terminal); err != nil {
+				t.Fatal(err)
+			}
+			beginProjectDeletion(t, pool, scope)
+			current, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")
+			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil {
+				t.Fatalf("own Project did not fence %s Eval: %+v (%v)", terminal, current, err)
+			}
+			mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
+			var remaining int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_experiments WHERE project_id=$1`, scope.ProjectID).Scan(&remaining); err != nil || remaining != 0 {
+				t.Fatalf("terminal Evals after Project purge = %d (%v)", remaining, err)
+			}
+		})
+	}
+}
+
 func TestPostgresEvalFrozenDeadlineAndOptionalTokenAllowance(t *testing.T) {
 	for _, tokenFence := range []bool{false, true} {
 		t.Run(fmt.Sprint(tokenFence), func(t *testing.T) {
