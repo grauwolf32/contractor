@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V132-001
+title: Remove dead credential sets and private contract re-exports
+milestone: contracts-public-surface-2026-10
+priority: P3
+status: completed
+implementation_commit: 0712ad41ed6ff52fc2d2070c7faa08987f444c2f
+depends_on: []
+languages: [python]
+goal: Keep the Runtime contracts package root limited to used public models and helpers.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/234
+  finding: Two unused constant sets are stale and private helper aliases inflate the package root.
+scope:
+  in:
+    - Remove RUNTIME_CREDENTIAL_KINDS and PROXY_TARGETS.
+    - Remove unused underscore-prefixed root re-exports.
+    - Verify public imports and contract suites still pass.
+  out:
+    - Change Runtime credential or proxy target validation.
+acceptance_criteria:
+  - {id: A1, text: No dead credential or proxy target sets remain in Runtime contracts.}
+  - {id: A2, text: Package root has no private helper re-exports and public imports remain healthy.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_contracts.py runtime/tests/test_allocation_contracts.py runtime/tests/test_capabilities.py, covers: [A1, A2]}

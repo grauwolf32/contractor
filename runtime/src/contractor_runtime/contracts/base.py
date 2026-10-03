@@ -189,10 +189,6 @@ def _encoded_state_path_list_size(paths: list[str]) -> int:
 
 
 RUNTIME_ADAPTER_REFS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
-RUNTIME_CREDENTIAL_KINDS = frozenset(
-    {"caido-bearer@1", "http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"}
-)
-PROXY_TARGETS = frozenset({"llm-gateway", "tool-http", "tool-subprocess"})
 _RUNTIME_AGENT_ID_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
