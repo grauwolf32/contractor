@@ -3,8 +3,8 @@ id: V96-002
 title: Label offline identity timestamps by what they record
 milestone: operations-detail-fact-clarity-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1e5a8593f830b6fb5a8af001658a596557838f5e
 depends_on: []
 languages: [typescript]
 goal: Stop presenting an offline principal's creation or label-edit time as its last sighting.

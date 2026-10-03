@@ -3,8 +3,8 @@ id: V96-001
 title: Render nested RuntimeConfig settings with labels and units
 milestone: operations-detail-fact-clarity-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 475ee22d9649f01ac0d2c5afb5bb333a4603e9da
 depends_on: []
 languages: [typescript]
 goal: Make immutable RuntimeConfig export, retry and explicit-clear settings readable to operators.
