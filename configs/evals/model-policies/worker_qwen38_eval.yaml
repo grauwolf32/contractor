@@ -5,7 +5,9 @@ metadata:
   name: worker-qwen38-eval
   version: "1"
 
-# Opt-in local Qwen3.8 thinking-mode sampling; original budgets are retained.
+# Opt-in local Qwen3.8 thinking-mode sampling. Relative to current worker@2,
+# temperature is 1.0 instead of 0.1 and maxOutputTokens is 16384 instead of
+# 32768; the smaller output limit is retained from the V53-002 experiment.
 # Reference: https://huggingface.co/Qwen/Qwen3.8-27B
 spec:
   model: worker-model
