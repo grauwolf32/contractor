@@ -75,6 +75,73 @@ func TestBuildRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestBuildRejectsTrackedFilesThroughIgnoredSymlinkedParent(t *testing.T) {
+	for _, location := range []string{"outside", "inside"} {
+		t.Run(location, func(t *testing.T) {
+			root := initGitRepository(t)
+			tracked := filepath.Join(root, "vendor", "lib.txt")
+			writeTestFile(t, tracked, "tracked content")
+			gitAdd(t, root, "vendor/lib.txt")
+			if err := os.Remove(tracked); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Dir(tracked)); err != nil {
+				t.Fatal(err)
+			}
+			targetDir := t.TempDir()
+			if location == "inside" {
+				targetDir = filepath.Join(root, "actual")
+			}
+			writeTestFile(t, filepath.Join(targetDir, "lib.txt"), "OUTSIDE SECRET")
+			if err := os.Symlink(targetDir, filepath.Join(root, "vendor")); err != nil {
+				t.Skipf("symlink unavailable: %v", err)
+			}
+			writeTestFile(t, filepath.Join(root, ".git", "info", "exclude"), "/vendor\n")
+
+			_, err := Build(root, Options{})
+			if err == nil || !strings.Contains(err.Error(), "vendor is a symbolic link") || !strings.Contains(err.Error(), ".contractorignore") {
+				t.Fatalf("Build error = %v, want rejection naming the symlinked parent", err)
+			}
+			if location == "outside" {
+				writeTestFile(t, filepath.Join(root, ".contractorignore"), "/vendor/\n")
+				bundle, err := Build(root, Options{})
+				if err != nil {
+					t.Fatalf("Build with .contractorignore remedy: %v", err)
+				}
+				if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, []string{".contractorignore"}) {
+					t.Fatalf("bundle paths = %v, want only .contractorignore", paths)
+				}
+			}
+		})
+	}
+}
+
+func TestCopyRegularFileCannotEscapeAfterParentChanges(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "vendor", "lib.txt"), "inside")
+	sourceRoot, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sourceRoot.Close()
+	files, _, err := inspectFiles(sourceRoot, []string{"vendor/lib.txt"})
+	if err != nil || len(files) != 1 {
+		t.Fatalf("inspect files = %v, %v", files, err)
+	}
+	if err := os.Rename(filepath.Join(root, "vendor"), filepath.Join(root, "old-vendor")); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	writeTestFile(t, filepath.Join(outside, "lib.txt"), "OUTSIDE SECRET")
+	if err := os.Symlink(outside, filepath.Join(root, "vendor")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	var copied bytes.Buffer
+	if err := copyRegularFile(&copied, sourceRoot, files[0]); err == nil || copied.Len() != 0 {
+		t.Fatalf("copy after parent swap = %q, %v; want no outside bytes", copied.String(), err)
+	}
+}
+
 func TestBuildHonorsGitAndContractorIgnore(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
