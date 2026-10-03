@@ -126,7 +126,17 @@ one implementation-defined static operation, never arbitrary model GraphQL.
   bounds each individual network operation. Expiry fails with the retryable
   `http_request_failed`; storing the body artifact afterwards is not included;
 - `follow_redirects`, with at most 10 redirects; every hop is parsed, stripped
-  of its fragment and checked against the target policy again.
+  of its fragment and checked against the target policy again. Runtime checks
+  the final httpx-built URL against the finding-evidence URL rules before each
+  send, including redirects and retries. A URL that grows past 8192 UTF-8
+  bytes after encoding, contains a backslash or has an invalid percent escape
+  fails `http_request_invalid` before that hop is sent.
+
+A response with a status outside 100..599 or headers that the finding-evidence
+contract cannot retain (including a block over 64 KiB) fails
+`http_response_invalid` before `http_request` completes. Runtime does not
+truncate the captured exchange; a completed request remains usable by
+`finding(request_id=...)`.
 
 The initial callable shape intentionally remains compatible with the migrated
 Skills: `http_request(url, method, headers, query, body, body_type, timeout,
@@ -457,7 +467,7 @@ adapter metrics remain the only durable metrics planes.
 Stable errors include:
 
 - `http_request_invalid`, `http_target_denied`, `http_request_failed`,
-  `http_response_too_large`, `http_body_not_found`;
+  `http_response_invalid`, `http_response_too_large`, `http_body_not_found`;
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid`, `caido_response_too_large`.
 

@@ -5,6 +5,7 @@ import base64
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import httpx
 import pytest
@@ -28,11 +29,34 @@ from contractor_runtime.toolsets.security_findings.facades import (
     HTTPFindingsToolsetFactory,
     HTTPFindingTool,
 )
+from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 LOCATION_CASES = json.loads(
     (Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json").read_text()
 )
+HTTP_ATTEMPT_CASES = json.loads(
+    (
+        Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-http-attempts.json"
+    ).read_text()
+)
+
+
+@pytest.mark.parametrize("case", HTTP_ATTEMPT_CASES, ids=lambda case: case["name"])
+def test_runtime_and_server_share_http_attempt_rules(case: dict[str, Any]) -> None:
+    attempt = {
+        "method": "GET",
+        "url": case["url"] + case.get("repeat", "") * case.get("count", 0),
+        "headers": [],
+        "body_base64": "",
+        "status": case["status"],
+        "response_headers": [],
+    }
+    if case["valid"]:
+        HTTPAttempt.model_validate(attempt)
+    else:
+        with pytest.raises(ValueError):
+            HTTPAttempt.model_validate(attempt)
 
 
 @pytest.mark.parametrize("case", LOCATION_CASES, ids=lambda case: case["name"])
@@ -308,6 +332,77 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         await http["http_session_clear"]()
         await http["http_request"].close()
         assert json.dumps(document) == retained
+
+    asyncio.run(scenario())
+
+
+def test_http_request_refuses_exchanges_finding_cannot_retain(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        sent: list[str] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            sent.append(str(request.url))
+            if request.url.path == "/redirect-long":
+                return httpx.Response(
+                    302, headers={"Location": "/" + "a" * 20_000}, request=request
+                )
+            if request.url.path == "/large-headers":
+                return httpx.Response(
+                    200,
+                    headers={f"X-Fill-{index}": "x" * 7000 for index in range(10)},
+                    request=request,
+                )
+            if request.url.path == "/bad-status":
+                return httpx.Response(999, request=request)
+            return httpx.Response(200, content=b"ok", request=request)
+
+        http, state = await create_tools(tmp_path, handler)
+        client = FakeFindingClient()
+        finding = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+        try:
+            for url in (
+                "https://target.example/download?file=..\\..\\win.ini",
+                "https://target.example/?q=50%",
+                "https://target.example/?q=%u0027",
+                "https://target.example/" + "é" * 3000,
+            ):
+                before = len(sent)
+                with pytest.raises(HTTPToolError) as failure:
+                    await http["http_request"](url, tool_context=context())
+                assert failure.value.code == "http_request_invalid"
+                assert len(sent) == before
+
+            before = len(sent)
+            with pytest.raises(HTTPToolError) as redirect_failure:
+                await http["http_request"](
+                    "https://target.example/redirect-long",
+                    follow_redirects=True,
+                    tool_context=context(),
+                )
+            assert redirect_failure.value.code == "http_request_invalid"
+            assert len(sent) == before + 1
+
+            for path in ("large-headers", "bad-status"):
+                before = len(sent)
+                with pytest.raises(HTTPToolError) as response_failure:
+                    await http["http_request"](
+                        f"https://target.example/{path}", tool_context=context()
+                    )
+                assert response_failure.value.code == "http_response_invalid"
+                assert len(sent) == before + 1
+
+            result = await http["http_request"]("https://target.example/ok", tool_context=context())
+            await finding(
+                title="Retained HTTP evidence",
+                description="The valid exchange remains selectable",
+                url="https://target.example/ok",
+                method="GET",
+                request_id=result["request_id"],
+                tool_context=context(),
+            )
+            assert client.requests[-1]["proposal"]["http_exchange"]["attempts"][0]["status"] == 200
+        finally:
+            await close_tools(http)
 
     asyncio.run(scenario())
 

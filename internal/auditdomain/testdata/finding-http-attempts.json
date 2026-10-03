@@ -1,0 +1,8 @@
+[
+  {"name":"valid","url":"https://target.example/ok?q=%2F","status":200,"valid":true},
+  {"name":"backslash","url":"https://target.example/download?file=..\\..\\win.ini","status":200,"valid":false},
+  {"name":"raw-percent","url":"https://target.example/?q=50%","status":200,"valid":false},
+  {"name":"legacy-percent-escape","url":"https://target.example/?q=%u0027","status":200,"valid":false},
+  {"name":"encoded-growth","url":"https://target.example/","repeat":"%C3%A9","count":3000,"status":200,"valid":false},
+  {"name":"status-above-range","url":"https://target.example/ok","status":999,"valid":false}
+]
