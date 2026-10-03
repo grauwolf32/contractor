@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V115-001, file: v115-001-patched-go-toolchain.yml}
   - {id: V114-001, file: v114-001-reregister-heartbeat-lease.yml}
   - {id: V113-001, file: v113-001-single-active-topology-spec.yml}
   - {id: V112-001, file: v112-001-ephemeral-managed-config-docs.yml}
