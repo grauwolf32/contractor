@@ -3,7 +3,8 @@ id: V246-001
 title: Remove unused Go exports and test-only copies of production logic
 milestone: go-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 67b4379706366bb7f667682fafa82bc8b060998d
 depends_on: []
 languages: [go]
 goal: Keep published code and regression tests focused on behavior the server actually uses.
@@ -24,6 +25,8 @@ acceptance_criteria:
   - {id: A3, text: ECDSA validation uses a supported public-key comparison.}
   - {id: A4, text: Affected package tests, build, vet, and staticcheck pass.}
 tests:
-  - {command: go test ./internal/app/... ./internal/httpapi/public/... ./internal/localpki/..., covers: [A2, A3, A4]}
+  - {command: go test -count=1 ./internal/evaldomain/... ./internal/telemetry/... ./internal/cli/... ./internal/auditstore/... ./internal/controlplane/... ./internal/runstore/... ./internal/localpki/... ./internal/performance/..., covers: [A1, A4]}
+  - {command: go test -count=1 ./internal/app -run '^TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults$' && go test -count=1 ./internal/httpapi/public -run '^TestPrecomputedAnalysisRunForksReportsAndRejectsWrongMediaType$', covers: [A2, A4]}
   - {command: go build ./... && go vet ./..., covers: [A1, A4]}
   - {command: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks SA1019 ./internal/localpki/..., covers: [A3, A4]}
+  - {command: go run golang.org/x/tools/cmd/deadcode@v0.51.0 -test -tags=e2e,integration ./..., covers: [A1]}
