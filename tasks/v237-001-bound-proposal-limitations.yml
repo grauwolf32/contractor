@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V237-001
+title: Bound proposal limitations before Audit Round materialization
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, yaml]
+goal: Prevent accepted finding proposals from wedging later Audit Round construction.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/143
+  finding: Duplicate or overlong limitation values pass intake but fail task or coverage validation during the next Round.
+scope:
+  in:
+    - Reject duplicate limitations and values exceeding the coverage-value byte bound at proposal intake.
+    - Match the public proposal schema to the Server's limitation rule.
+    - Finalize an Audit with an explicit reason when deterministic next-Round validation fails.
+    - Cover invalid admission and deterministic versus retryable builder and store errors.
+  out:
+    - Changing the meaning of already accepted finding decisions or observations.
+acceptance_criteria:
+  - {id: A1, text: A duplicate or over-512-byte limitation is rejected before an Audit holds the proposal.}
+  - {id: A2, text: Public OpenAPI describes unique limitations bounded to 512 bytes by the Server.}
+  - {id: A3, text: A deterministic next-Round validation error closes Audit dispatch with next_round_invalid rather than repeating forever.}
+  - {id: A4, text: Retryable next-Round errors and stale acceptance preconditions retain their retry behavior.}
+tests:
+  - {command: go test ./internal/auditdomain ./internal/findingintake ./internal/auditcontroller -count=1, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
