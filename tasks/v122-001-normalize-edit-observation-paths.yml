@@ -3,8 +3,8 @@ id: V122-001
 title: Normalize successful edit argument paths before observing them
 milestone: edit-observation-paths-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c778e32cb42f87669d85bfdb06c20304662539d6
 depends_on: []
 languages: [python]
 goal: Preserve successful edit mutations and complete workspace observations when model arguments use decomposed Unicode paths.
