@@ -42,6 +42,7 @@ type Store interface {
 	CreateExecutionIntent(context.Context, auditstore.CreateExecutionIntentParams) (auditstore.Execution, bool, error)
 	NextItemAttempt(context.Context, auditstore.ControllerClaim, string) (int, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
+	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
 	AcceptNextRound(context.Context, auditstore.AcceptRoundParams) (auditstore.Round, bool, error)

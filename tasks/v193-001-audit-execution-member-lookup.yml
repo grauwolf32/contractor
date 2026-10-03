@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V193-001
+title: Read Audit execution members outside the reconcile item window
+milestone: audit-collection-correctness-2026-10
+priority: P1
+status: completed
+implementation_commit: 43ec5757470cd25f4356c056c3ac0067b6c9625c
+depends_on: []
+languages: [go]
+goal: Keep valid high-ordinal Audit checks collectable and resumable when more than 200 items remain unsettled.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/195
+  finding: Controller and importer treat absence from the 200-row reconcile snapshot as an invalid execution member.
+scope:
+  in:
+    - Add a bounded exact item-by-ID read for execution members.
+    - Use those rows in check collection and intent replay while retaining membership and task validation.
+    - Exercise high-ordinal members with a truncated snapshot in unit and PostgreSQL integration tests.
+  out:
+    - Changing the general reconcile window or Audit dispatch limits.
+acceptance_criteria:
+  - {id: A1, text: A valid check member outside the snapshot window produces an accepted-result receipt.}
+  - {id: A2, text: Member validation rejects actual missing or inconsistent rows without treating snapshot truncation as corruption.}
+  - {id: A3, text: A valid high-ordinal intent resumes instead of failing submission.}
+  - {id: A4, text: PostgreSQL integration covers more than 200 unsettled items and high-ordinal collection.}
+tests:
+  - {command: go test ./internal/auditstore/... ./internal/auditimport/... ./internal/auditcontroller/..., covers: [A1, A2, A3]}
+  - {command: go test -tags=integration ./internal/auditcontroller/ -run 'TestPostgresControllerHighOrdinalMember', covers: [A1, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

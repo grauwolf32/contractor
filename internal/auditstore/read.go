@@ -73,6 +73,47 @@ func (s *PostgresStore) ListItems(ctx context.Context, auditID string) ([]Item, 
 	return s.listItems(ctx, auditID, 0)
 }
 
+// ListItemsByIDs reads the exact bounded member set of one execution. Unlike
+// the reconcile snapshot, its result does not depend on item ordinal or state.
+func (s *PostgresStore) ListItemsByIDs(ctx context.Context, auditID string, itemIDs []string) ([]Item, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return nil, err
+	}
+	if len(itemIDs) == 0 || len(itemIDs) > MaxCollectionItems {
+		return nil, invalidf("Audit item selection is invalid")
+	}
+	seen := make(map[string]struct{}, len(itemIDs))
+	for _, itemID := range itemIDs {
+		if err := validateID("itemID", itemID); err != nil {
+			return nil, err
+		}
+		if _, exists := seen[itemID]; exists {
+			return nil, invalidf("Audit item selection contains duplicates")
+		}
+		seen[itemID] = struct{}{}
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT `+prefixedItemColumns("item")+`
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.item_id = ANY($2::text[])`, auditID, itemIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list selected Audit items: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Item, 0, len(itemIDs))
+	for rows.Next() {
+		item, scanErr := scanItem(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan selected Audit item: %w", scanErr)
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate selected Audit items: %w", err)
+	}
+	return result, nil
+}
+
 // ListItemsPage is the owner-safe, filter-before-keyset projection used by the
 // public API. Controller reconciliation deliberately keeps its separate
 // bounded non-settled scan below.

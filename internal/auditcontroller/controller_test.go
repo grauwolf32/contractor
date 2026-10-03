@@ -207,6 +207,41 @@ func TestControllerReplaysIntentAfterSubmissionFailure(t *testing.T) {
 	}
 }
 
+func TestControllerResumesIntentOutsideReconcileWindow(t *testing.T) {
+	harness := newControllerHarness(t, auditstore.MaxReconcileRows+1, 1)
+	claims, err := harness.store.Claim(harness.ctx, auditstore.ClaimParams{
+		HolderID: "controller-test", Lease: time.Minute, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	snapshot, err := harness.store.GetReconcileSnapshot(harness.ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := snapshot.Items[auditstore.MaxReconcileRows]
+	prepared, err := (fakeSubmissionBuilder{}).Prepare(harness.ctx, snapshot, member, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared.Intent.Claim = claim
+	if _, created, err := harness.store.CreateExecutionIntent(harness.ctx, prepared.Intent); err != nil || !created {
+		t.Fatalf("high-ordinal intent = (%t, %v)", created, err)
+	}
+	snapshot, err = harness.store.GetReconcileSnapshot(harness.ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Items = snapshot.Items[:auditstore.MaxReconcileRows]
+	snapshot.MoreItems = true
+	worked, err := harness.controller.resumeOneIntent(harness.ctx, claim, snapshot)
+	if err != nil || !worked || harness.creator.createdCount() != 1 {
+		t.Fatalf("out-of-window intent replay = (%t, %v), created Runs = %d",
+			worked, err, harness.creator.createdCount())
+	}
+}
+
 func TestControllerCancellationClosesDispatchAndCancelsBoundRun(t *testing.T) {
 	harness := newControllerHarness(t, 2, 2)
 	_, _ = harness.controller.RunOnce(harness.ctx)
@@ -741,6 +776,24 @@ func (s *fakeControllerStore) ListExecutionItems(_ context.Context, executionID 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]auditstore.ExecutionItem(nil), s.members[executionID]...), nil
+}
+
+func (s *fakeControllerStore) ListItemsByIDs(_ context.Context, auditID string, itemIDs []string) ([]auditstore.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	selected := make(map[string]struct{}, len(itemIDs))
+	for _, id := range itemIDs {
+		selected[id] = struct{}{}
+	}
+	result := make([]auditstore.Item, 0, len(itemIDs))
+	for _, item := range s.items {
+		if item.AuditID == auditID {
+			if _, ok := selected[item.ItemID]; ok {
+				result = append(result, item)
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *fakeControllerStore) ObserveTerminal(_ context.Context, params auditstore.ObserveTerminalParams) (auditstore.Execution, error) {

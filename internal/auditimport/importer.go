@@ -383,9 +383,21 @@ func (i *Importer) prepareMembers(
 	snapshot auditstore.ReconcileSnapshot,
 	members []auditstore.ExecutionItem,
 ) ([]preparedMember, error) {
+	itemIDs := make([]string, len(members))
+	for index, member := range members {
+		itemIDs[index] = member.ItemID
+	}
+	items, err := i.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+	if err != nil {
+		return nil, err
+	}
+	itemsByID := make(map[string]auditstore.Item, len(items))
+	for _, item := range items {
+		itemsByID[item.ItemID] = item
+	}
 	result := make([]preparedMember, len(members))
 	for index, member := range members {
-		item, ok := findItem(snapshot.Items, member.ItemID)
+		item, ok := itemsByID[member.ItemID]
 		if !ok || item.State != auditstore.ItemCollecting || member.State != auditstore.ItemCollecting ||
 			item.RoundID != member.RoundID || item.Task.Digest != member.Task.Digest || !item.Task.Ref.SameExact(member.Task.Ref) {
 			return nil, fmt.Errorf("%w: collecting item membership is inconsistent", ErrPermanent)
@@ -843,15 +855,6 @@ func stableValidationCode(err error) string {
 		return code
 	}
 	return auditdomain.CodeResultSetInvalid
-}
-
-func findItem(items []auditstore.Item, itemID string) (auditstore.Item, bool) {
-	for _, item := range items {
-		if item.ItemID == itemID {
-			return item, true
-		}
-	}
-	return auditstore.Item{}, false
 }
 
 func sortedCopy(values []string) []string {
