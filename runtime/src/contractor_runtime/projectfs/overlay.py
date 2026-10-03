@@ -132,47 +132,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             self._text_bytes = (self._tree, total)
         return self._text_bytes[1]
 
-    async def make_directory(self, path: str, *, parents: bool = False) -> None:
-        normalized = normalize_project_path(path, allow_root=False)
-        async with self._lock:
-            self._require_open()
-            candidate = self._tree.clone()
-            existing = candidate.kind(normalized)
-            if existing == "directory":
-                return
-            if existing is not None:
-                raise WorkspaceStorageError("workspace_type_conflict")
-            missing = [
-                parent for parent in parent_paths(normalized) if candidate.kind(parent) is None
-            ]
-            if missing and not parents:
-                raise WorkspaceStorageError("workspace_not_found")
-            for parent in parent_paths(normalized):
-                kind = candidate.kind(parent)
-                if kind not in {None, "directory"}:
-                    raise WorkspaceStorageError("workspace_type_conflict")
-                candidate.directories.add(parent)
-            candidate.directories.add(normalized)
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
-
-    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
-        normalized = normalize_project_path(path, allow_root=False)
-        async with self._lock:
-            self._require_open()
-            if self._tree.kind(normalized) is None:
-                raise WorkspaceStorageError("workspace_not_found")
-            descendants = _descendants(self._tree, normalized)
-            selected = descendants | {normalized}
-            if any(candidate in self._tree.binary_paths for candidate in selected):
-                raise WorkspaceStorageError("binary_file_unsupported")
-            if descendants and not recursive:
-                raise WorkspaceStorageError("workspace_type_conflict")
-            candidate = self._tree.clone()
-            _remove_subtree(candidate, normalized)
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
-
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
         _validate_tree(candidate, self._limits)
         self._tree = candidate
@@ -552,11 +511,6 @@ def _copy_subtree(
     destination.stored_binary_paths.update(
         candidate for candidate in source.stored_binary_paths if _within(candidate, path)
     )
-
-
-def _descendants(tree: ManagedWorkspaceTree, path: str) -> set[str]:
-    prefix = f"{path}/"
-    return {candidate for candidate in tree.paths() if candidate.startswith(prefix)}
 
 
 def _within(path: str, root: str) -> bool:
