@@ -3,8 +3,8 @@ id: V95-001
 title: Reject symlinked source path parents in Git-mode bundles
 milestone: sourcebundle-symlink-boundary-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3f5df1e465524c52efc296dc75ad809f665ce795
 depends_on: []
 languages: [go]
 goal: Keep source push from reading tracked paths through symlinked directories outside the selected root.
