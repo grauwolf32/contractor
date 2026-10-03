@@ -3,7 +3,8 @@ id: V197-001
 title: Release lost Runtime grants after bounded release failure
 milestone: allocation-release-recovery-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 48996d059dc8290022221349ffb011804851452b
 depends_on: []
 languages: [go]
 goal: Let terminal Stage release converge when the owning Runtime lease has expired and its HTTP release can never succeed.
