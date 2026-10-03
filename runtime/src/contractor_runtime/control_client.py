@@ -237,7 +237,7 @@ class ControlClient:
         if response.ack_seq != request.heartbeat_seq:
             raise ControlClientError("heartbeat response acknowledged the wrong sequence")
         self._echoed_ack = response.ack_seq
-        if self._watchdog is not None:
+        if self._watchdog is not None and response.action is not ReconciliationAction.REREGISTER:
             await self._watchdog.acknowledge(
                 response.ack_seq, self._timing.confirmed_lease_seconds, sent_at
             )
