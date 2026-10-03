@@ -3,7 +3,8 @@ id: V221-001
 title: Fit code analysis pages without repeatedly canonicalizing full results
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: c4141d5d103e1c31f23f33a3d9e01cb7bb631432
 depends_on: []
 languages: [python]
 goal: Keep large code analysis result fitting efficient and off the Runtime Agent event loop.
