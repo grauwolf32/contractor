@@ -151,9 +151,11 @@ StageResult.
 
 A Planner implementation owns the semantic condition that ends its invocation:
 
-- `PassthroughPlanner` completes on its required remote Worker invocation's
-  immediate A2A Message, terminal Task or interaction-requiring Task state, as
-  specified in [00](00-workflow-and-planner.md#completion-semantics);
+- `PassthroughPlanner` returns a candidate for an immediate A2A Message or
+  terminal Task. `INPUT_REQUIRED` and `AUTH_REQUIRED` instead return the
+  non-retryable `worker_input_required` and `worker_auth_required` errors;
+  Scheduler interrupts the Stage and applies `on.interrupted`, as specified
+  in [00](00-workflow-and-planner.md#completion-semantics);
 - model-backed `streamline@1` and `router@1` Planners produce either a
   succeeded or failed semantic candidate only through their explicit
   `finish(StageResult)` operation;

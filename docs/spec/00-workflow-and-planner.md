@@ -1196,11 +1196,13 @@ Planner strategy determines when its invocation is semantically complete, while
 Workflow Scheduler owns the durable StageExecution transition. Planner returns
 a candidate StageResult and does not write RunStore directly.
 
-`PassthroughPlanner` completes when its required remote Worker invocation
-produces an immediate A2A `Message`, a terminal Task, or a Task state requiring
-interaction the baseline cannot provide. `INPUT_REQUIRED` and `AUTH_REQUIRED`
-therefore become stable failed candidates in the passthrough baseline rather
-than an unbounded wait. A more capable Planner may satisfy the requested
+`PassthroughPlanner` returns a candidate when its required remote Worker
+invocation produces an immediate A2A `Message` or a terminal Task. A Task in
+`INPUT_REQUIRED` or `AUTH_REQUIRED` ends the invocation promptly with the
+non-retryable Planner error `worker_input_required` or `worker_auth_required`,
+respectively; it produces no StageResult candidate. Scheduler records an
+interrupted StageTermination through bounded aborting and applies the Stage's
+`on.interrupted` action. A more capable Planner may satisfy the requested
 interaction and continue within its own budget.
 
 Model-backed `streamline@1` and `router@1` Planners terminate semantically only
