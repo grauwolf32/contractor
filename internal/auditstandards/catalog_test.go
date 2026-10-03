@@ -18,6 +18,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
+func validationCode(err error) string {
+	var validation *ValidationError
+	if errors.As(err, &validation) {
+		return validation.Code
+	}
+	return ""
+}
+
 func TestPackageDirectoryIsCanonicalAndStrict(t *testing.T) {
 	first := t.TempDir()
 	second := t.TempDir()
@@ -36,19 +44,19 @@ func TestPackageDirectoryIsCanonicalAndStrict(t *testing.T) {
 	if !bytes.Equal(left, right) || leftPackage.Digest != rightPackage.Digest {
 		t.Fatal("equivalent source JSON did not produce one canonical package")
 	}
-	if _, err := Validate(left, Reference{Scheme: "other", Version: "1.0"}); ErrorCode(err) != CodeIdentityMismatch {
+	if _, err := Validate(left, Reference{Scheme: "other", Version: "1.0"}); validationCode(err) != CodeIdentityMismatch {
 		t.Fatalf("identity mismatch error = %v", err)
 	}
 
 	unknown := append([]byte(nil), mustJSON(t, document)...)
 	unknown = bytes.Replace(unknown, []byte(`"schema":`), []byte(`"unknown":true,"schema":`), 1)
 	writeRaw(t, filepath.Join(first, ManifestPath), unknown)
-	if _, _, err := PackageDirectory(first); ErrorCode(err) != CodeManifestInvalid {
+	if _, _, err := PackageDirectory(first); validationCode(err) != CodeManifestInvalid {
 		t.Fatalf("unknown field error = %v", err)
 	}
 
 	pathAttack := rawArchive(t, "../standard.json", mustJSON(t, document))
-	if _, err := Validate(pathAttack, Reference{}); ErrorCode(err) != CodePathInvalid {
+	if _, err := Validate(pathAttack, Reference{}); validationCode(err) != CodePathInvalid {
 		t.Fatalf("path attack error = %v", err)
 	}
 
@@ -58,7 +66,7 @@ func TestPackageDirectoryIsCanonicalAndStrict(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(linked, ManifestPath)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := PackageDirectory(linked); ErrorCode(err) != CodeMemberForbidden {
+	if _, _, err := PackageDirectory(linked); validationCode(err) != CodeMemberForbidden {
 		t.Fatalf("source symlink error = %v", err)
 	}
 }
@@ -83,8 +91,8 @@ func TestValidationRejectsInvalidLicenseDuplicatesAndDanglingMappings(t *testing
 			root := t.TempDir()
 			writeDocument(t, root, document, false)
 			_, _, err := PackageDirectory(root)
-			if ErrorCode(err) != test.code {
-				t.Fatalf("error = %v (%q), want %q", err, ErrorCode(err), test.code)
+			if validationCode(err) != test.code {
+				t.Fatalf("error = %v (%q), want %q", err, validationCode(err), test.code)
 			}
 		})
 	}
@@ -104,7 +112,7 @@ func TestDiscoveryIsAllOrNothingAndRejectsDuplicateIdentity(t *testing.T) {
 	}
 	writePackageSource(t, root, "one", validDocument("example", "1"))
 	writePackageSource(t, root, "two", validDocument("example", "1"))
-	if plan, err := DiscoverBundled(root); ErrorCode(err) != CodeIdentityMismatch || plan != nil {
+	if plan, err := DiscoverBundled(root); validationCode(err) != CodeIdentityMismatch || plan != nil {
 		t.Fatalf("duplicate catalog = (%+v, %v)", plan, err)
 	}
 	if _, err := os.Stat(filepath.Join(root, CatalogNamespace, "one", ManifestPath)); err != nil {

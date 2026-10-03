@@ -326,8 +326,8 @@ provenance commit atomically with the first Round; retained package bytes count
 against `maxEvidenceBytes`. Reports include these baseline pins, so later
 catalog additions, source Run deletion, or restart cannot rewrite historical
 identity. Audit deletion removes them with the other Audit-managed artifacts.
-Legacy baseline snapshots without the additive `standards` field remain
-readable.
+The persisted baseline requires a `standards` array, which may be empty.
+Snapshots without the field or with `null` are invalid and cannot resume.
 
 `GET /v1/audit-standards` returns bounded metadata, counts, digest, and exact
 catalog ref. `GET /v1/audit-standards/{scheme}/versions/{version}` returns the
