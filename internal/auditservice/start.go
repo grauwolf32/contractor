@@ -627,7 +627,8 @@ func writeRoundPackage(
 		return auditstore.ExactArtifact{}, err
 	}
 	write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
-		Namespace: namespace, Name: "round-" + strconv.Itoa(roundOrdinal) + "-worklist",
+		Namespace: namespace,
+		Name:      auditdomain.DeterministicID("round-worklist", strconv.Itoa(roundOrdinal), validated.Digest),
 	}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload})
 	if err != nil {
 		return auditstore.ExactArtifact{}, err

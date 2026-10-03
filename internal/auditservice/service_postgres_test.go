@@ -1487,6 +1487,10 @@ func writeChecklist(
 }
 
 func loadAuditServiceProfiles(t *testing.T) *config.Snapshot {
+	return loadAuditServiceProfilesWithProfile(t, nil)
+}
+
+func loadAuditServiceProfilesWithProfile(t *testing.T, edit func(string) string) *config.Snapshot {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
@@ -1593,6 +1597,9 @@ spec:
     notApplicable: profile-rule
     reportAcceptance: automatic
 `,
+	}
+	if edit != nil {
+		files["audit-profiles/checklist.yaml"] = edit(files["audit-profiles/checklist.yaml"])
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

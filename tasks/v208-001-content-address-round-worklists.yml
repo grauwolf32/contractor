@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V208-001
+title: Content-address Audit Round worklist packages
+milestone: audit-round-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: e289fd7fe20765385e055f3341c185bbf4fe523b
+depends_on: []
+languages: [go]
+goal: Allow a later Audit Round to be rebuilt after its inbox changes before acceptance.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/213
+  finding: A fixed create-only worklist name conflicts when an unaccepted Round is prepared again with changed proposal checks.
+scope:
+  in:
+    - Name immutable Round worklist packages by their encoded content.
+    - Cover failed next-Round acceptance followed by inbox growth and successful re-preparation.
+    - Preserve byte-identical replay and validation of first-Round packages.
+  out:
+    - Changing the Round acceptance transaction or proposal selection rules.
+acceptance_criteria:
+  - {id: A1, text: Changed worklist bytes use a distinct Project artifact binding and no longer wedge preparation.}
+  - {id: A2, text: Identical preparation reuses the same exact worklist artifact.}
+  - {id: A3, text: After failed acceptance and a new receipt, the next Round accepts the expanded worklist.}
+tests:
+  - {command: go test ./internal/auditservice/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
