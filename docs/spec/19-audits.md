@@ -127,11 +127,12 @@ resolved profile snapshot and its canonical digest; later catalog reloads do
 not affect that Audit.
 
 Persisted snapshots require an explicit valid `kind` for every Workflow role.
-Their canonical digest includes each role kind, complete embedded Workflow and
-any explicit `workerCompletion` contract. The reader validates that digest
-without inferring roles, consulting the current catalog or rewriting the
-snapshot. Historical snapshots that omit role kinds or use the former digest
-without role kinds are unsupported; start and recovery fail validation.
+Their canonical digest includes each role kind, complete embedded Workflow,
+any explicit `workerCompletion` contract, and a prepare role's
+`maxRunAttempts`. The reader validates that digest without inferring roles,
+consulting the current catalog or rewriting the snapshot. Historical snapshots
+that omit role kinds or use the former digest without role kinds are unsupported;
+start and recovery fail validation.
 
 `audit-profiles` becomes the seventh fixed configuration subtree alongside
 `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,
