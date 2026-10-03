@@ -237,15 +237,6 @@ func resolveParameterWithoutItem(
 	return "", invalidSubmission("Audit role parameter mapping is invalid")
 }
 
-func (b *PinnedSubmissionBuilder) Prepare(
-	ctx context.Context,
-	snapshot auditstore.ReconcileSnapshot,
-	item auditstore.Item,
-	attempt int,
-) (PreparedSubmission, error) {
-	return b.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: item, Attempt: attempt}})
-}
-
 // PrepareBatch may reduce candidates to a non-empty ordered prefix when the
 // exact resolved task sizes cannot fit one deterministic item-task-set. The
 // returned intent is the authoritative selected membership; omitted items have
@@ -637,23 +628,6 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 		return nil, nil, invalidSubmission("execution manifest contains an unmapped input")
 	}
 	return runInputs, memberInputs, nil
-}
-
-// resolveInputs remains a narrow pure helper for contract-focused unit tests.
-// Production dispatch uses PinnedSubmissionBuilder.resolveInputs so a check
-// may also consume an exact, Audit-retained discovery output.
-func resolveInputs(
-	binding config.ResolvedAuditWorkflowBinding,
-	baseline auditservice.BaselineSnapshot,
-	manifest auditdomain.ExecutionItem,
-	task auditstore.ExactArtifact,
-	executionManifest auditstore.ExactArtifact,
-) (map[string]auditstore.ExactArtifact, []auditstore.ExactArtifact, error) {
-	builder := &PinnedSubmissionBuilder{}
-	return builder.resolveInputs(
-		context.Background(), auditstore.ReconcileSnapshot{}, binding, baseline,
-		manifest, task, executionManifest,
-	)
 }
 
 func resolveParameters(

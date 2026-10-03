@@ -134,7 +134,6 @@ type Controller struct {
 	roundBuilder RoundBuilder
 	notifier     RunNotifier
 	options      Options
-	wake         chan struct{}
 
 	runMu   sync.Mutex
 	running bool
@@ -190,7 +189,7 @@ func New(
 	return &Controller{
 		store: store, runs: runs, creator: creator, builder: builder,
 		collector: options.Collector, roundBuilder: options.RoundBuilder,
-		notifier: notifier, options: options, wake: make(chan struct{}, 1),
+		notifier: notifier, options: options,
 	}, nil
 }
 

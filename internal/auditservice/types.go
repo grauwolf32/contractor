@@ -131,9 +131,6 @@ type StartedAudit struct {
 	Replayed bool
 }
 
-type AuditPageParams = auditstore.ListParams
-type ItemPageParams = auditstore.ListItemsParams
-
 type ReportStatus string
 
 const (

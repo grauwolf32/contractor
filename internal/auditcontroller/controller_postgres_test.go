@@ -453,7 +453,7 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 		t.Fatal(err)
 	}
 	builder := harness.builder(t)
-	first, err := builder.Prepare(ctx, snapshot, snapshot.Items[0], 1)
+	first, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: snapshot.Items[0], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	if _, inserted, err := harness.audits.CreateExecutionIntent(ctx, first.Intent); err != nil || !inserted {
 		t.Fatalf("first reservation = (%t, %v)", inserted, err)
 	}
-	second, err := builder.Prepare(ctx, snapshot, snapshot.Items[1], 1)
+	second, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: snapshot.Items[1], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +505,7 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	} else if stored.Audit.OutstandingRunCount != 1 {
 		t.Fatalf("lower setting won but outstanding = %d, want 1", stored.Audit.OutstandingRunCount)
 	}
-	third, err := builder.Prepare(ctx, stored, stored.Items[2], 1)
+	third, err := builder.PrepareBatch(ctx, stored, []CheckExecutionMember{{Item: stored.Items[2], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +543,9 @@ func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := harness.builder(t).Prepare(ctx, preflightSnapshot, preflightSnapshot.Items[0], 1); err != nil {
+	if _, err := harness.builder(t).PrepareBatch(
+		ctx, preflightSnapshot, []CheckExecutionMember{{Item: preflightSnapshot.Items[0], Attempt: 1}},
+	); err != nil {
 		t.Fatalf("preflight pinned submission: %v", err)
 	}
 	if err := harness.audits.ReleaseClaim(ctx, preflightClaims[0]); err != nil {

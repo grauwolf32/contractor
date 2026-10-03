@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V215-001
+title: Remove unused Audit Controller and service API surface
+milestone: audit-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: 828db4aabb98d20fe1e82821b98706030cb82869
+depends_on: []
+languages: [go]
+goal: Remove Audit Controller paths that have no production callers while preserving periodic reconciliation.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/144
+  finding: An unwired wake channel and test-only builder wrappers suggest production paths that do not exist.
+scope:
+  in:
+    - Remove the unused Controller wake method and channel; retain interval-based reconciliation.
+    - Use PrepareBatch in integration tests and the builder method directly in unit tests.
+    - Remove unused Audit service parameter aliases.
+  out:
+    - Wiring new process-local wake hints.
+acceptance_criteria:
+  - {id: A1, text: Controller has no unused wake path.}
+  - {id: A2, text: Production builder and service files contain no test-only wrappers or dead aliases.}
+  - {id: A3, text: Unit and integration-tagged Audit Controller packages compile and tests pass.}
+tests:
+  - {command: go test ./internal/auditcontroller/... ./internal/auditservice/..., covers: [A1, A2, A3]}
+  - {command: go vet -tags integration ./internal/auditcontroller/ ./internal/auditservice/, covers: [A2, A3]}
+  - {command: go build ./..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
