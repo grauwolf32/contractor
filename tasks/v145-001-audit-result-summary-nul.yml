@@ -3,7 +3,8 @@ id: V145-001
 title: Reject NUL in Runtime Audit result summaries
 milestone: audit-result-summary-nul-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5eed7cd0de76907d9fd8fa3e18f54f8f5cb2bf85
 depends_on: []
 languages: [python, go, json]
 goal: Reject unimportable Audit result summaries before local collection changes.
