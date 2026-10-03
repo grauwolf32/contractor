@@ -3,7 +3,8 @@ id: V153-001
 title: Bound public request reads and give shutdown stages independent budgets
 milestone: public-server-shutdown-budgets-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 104a0f4df961a775460dc08cdd2c84c6335c00b8
 depends_on: [V152-001]
 languages: [go]
 goal: Prevent idle or stalled public clients from consuming connections indefinitely and keep Scheduler resources available through its drain.
