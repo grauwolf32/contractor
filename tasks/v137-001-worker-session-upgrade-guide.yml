@@ -3,8 +3,8 @@ id: V137-001
 title: Correct Worker session upgrade guidance for strict snapshots
 milestone: worker-session-upgrade-guide-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 03f2654cd0198981b7f994b2c6477c3940bb1930
 depends_on: []
 languages: [markdown, yaml]
 goal: Keep operator upgrade guidance aligned with strict persisted Worker session decoding.
