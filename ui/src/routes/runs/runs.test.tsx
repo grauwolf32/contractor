@@ -385,6 +385,74 @@ describe("Run routes", () => {
     expect(current.attempts).toHaveLength(1);
   });
 
+  it("keeps refreshing unchanged recovery until manual retry is required", async () => {
+    const now = Date.now();
+    const automaticUntil = new Date(now + 3300).toISOString();
+    const waiting = runFixture({
+      state: "waiting",
+      recovery: {
+        code: "model_unavailable",
+        since: new Date(now).toISOString(),
+        nextRetryAt: new Date(now + 100).toISOString(),
+        automaticUntil,
+        requiresRetry: false,
+      },
+    });
+    let detailReads = 0;
+    let withoutRecovery = false;
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router") {
+        detailReads++;
+        if (withoutRecovery)
+          return apiResponse({ ...waiting, recovery: undefined });
+        if (Date.now() >= Date.parse(automaticUntil)) {
+          return apiResponse({
+            ...waiting,
+            recovery: { ...waiting.recovery!, requiresRetry: true },
+          });
+        }
+        return apiResponse(waiting);
+      }
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    expect(await screen.findByText(/Next recovery check:/)).toBeInTheDocument();
+    await waitFor(() => expect(detailReads).toBeGreaterThanOrEqual(2), {
+      timeout: 6000,
+    });
+    expect(
+      screen.queryByRole("button", { name: "Retry model connection" }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: "Retry model connection" },
+        { timeout: 9000 },
+      ),
+    ).toBeInTheDocument();
+    expect(detailReads).toBeGreaterThanOrEqual(3);
+    const readsAtRetry = detailReads;
+    await new Promise((resolve) => setTimeout(resolve, 2300));
+    expect(detailReads).toBe(readsAtRetry);
+
+    withoutRecovery = true;
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Retry model connection" }),
+      ).not.toBeInTheDocument(),
+    );
+    const readsWithoutRecovery = detailReads;
+    await new Promise((resolve) => setTimeout(resolve, 2300));
+    expect(detailReads).toBe(readsWithoutRecovery);
+  }, 15000);
+
   it("keeps a loaded Run visible when a background refetch fails", async () => {
     let fail = false;
     const api = new PublicAPI(runtimeConfig, async (input, init) => {

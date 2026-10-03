@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { queryKeys } from "../../api/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePublicAPI } from "../../api/context";
@@ -22,23 +21,6 @@ export function RunRecoveryControl({ run }: { run: RunStatus }) {
       queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
   });
   const recovery = run.recovery;
-  useEffect(() => {
-    if (recovery === undefined || recovery.requiresRetry) return;
-    // Recovery deadlines can expire without a Run state transition. Refresh at
-    // the next advertised check; a one-second floor avoids polling past dates.
-    const next = Math.min(
-      Date.parse(recovery.nextRetryAt ?? recovery.automaticUntil),
-      Date.parse(recovery.automaticUntil),
-    );
-    const timer = window.setTimeout(
-      () =>
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.runs.detail(run.runId),
-        }),
-      Math.max(1000, next - Date.now()),
-    );
-    return () => window.clearTimeout(timer);
-  }, [recovery, queryClient, run.runId]);
   if (recovery === undefined) return null;
   return (
     <div className="run-next-action" role="status">

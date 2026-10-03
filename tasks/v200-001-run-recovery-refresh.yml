@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V200-001
+title: Continue Run recovery refreshes through unchanged snapshots
+milestone: run-recovery-ui-2026-10
+priority: P1
+status: completed
+implementation_commit: bceb239fa18b51674734e63323f7855530ec402c
+depends_on: []
+languages: [typescript]
+goal: Keep the Run detail query refreshing until automatic recovery ends even if its status remains unchanged.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/134
+  finding: A timer effect depends on recovery object identity, which structural sharing preserves after an identical fetch.
+scope:
+  in:
+    - Schedule bounded Run detail polling while recovery is automatic.
+    - Stop polling when recovery is absent or requires a manual retry.
+    - Test repeated identical responses and the transition to the retry button without events.
+  out:
+    - Changing Server recovery semantics or the manual retry mutation.
+acceptance_criteria:
+  - {id: A1, text: Identical automatic-recovery snapshots trigger repeated bounded refreshes.}
+  - {id: A2, text: The manual retry button appears after the Server reports that automatic recovery has ended, without a Run event or manual refresh.}
+  - {id: A3, text: Refresh polling stops when recovery is absent or requires a manual retry.}
+tests:
+  - {command: cd ui && pnpm test --run src/routes/runs/runs.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && pnpm typecheck, covers: [A1, A2, A3]}
+  - {command: cd ui && pnpm lint, covers: [A1, A2, A3]}
