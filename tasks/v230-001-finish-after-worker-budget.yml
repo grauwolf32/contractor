@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V230-001
+title: Allow Planner finish after the Worker-call budget is spent
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let Streamline and Router finish a Stage after their final permitted Worker call.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/266
+  finding: The post-turn budget check aborts on a spent Worker-call budget, including after a text-only turn, before the model can call finish.
+scope:
+  in:
+    - Enforce the Worker-call limit when reserving a dispatch, not while deciding whether the model may continue.
+    - Cover Streamline and Router finishing after a text-only turn with no Worker calls left.
+  out:
+    - Increasing the permitted number of Worker calls.
+acceptance_criteria:
+  - {id: A1, text: Streamline and Router can finish after exactly the permitted Worker calls and a text-only turn.}
+  - {id: A2, text: A further Worker dispatch still fails with planner_worker_call_limit before invoking a Worker.}
+  - {id: A3, text: Repeated text-only turns still stop at the model-call or token budget.}
+tests:
+  - {command: go test ./internal/planner/streamline ./internal/planner/router -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
