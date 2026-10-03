@@ -78,7 +78,14 @@ class Extractor:
         if self.operation in {"ls", "glob", "read_file", "grep"}:
             return filesystem_tool_observation(self.operation, tool_args, result)
         if self.operation in {
-            "write_file", "append_file", "rm", "insert_line", "edit", "replace_range", "cp", "mv"
+            "write_file",
+            "append_file",
+            "rm",
+            "insert_line",
+            "edit",
+            "replace_range",
+            "cp",
+            "mv",
         }:
             return edit_tool_observation(self.operation, tool_args, result)
         if self.operation == "annotate_trace":
