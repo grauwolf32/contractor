@@ -244,7 +244,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	bindings, err := NewBindingService(pool, allowRuntimeCredentialCatalog{})
+	bindings, err := NewBindingService(allowRuntimeCredentialCatalog{})
 	if err != nil {
 		t.Fatal(err)
 	}

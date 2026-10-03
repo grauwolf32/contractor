@@ -25,25 +25,6 @@ type Repository struct {
 
 func NewRepository(db persistencepostgres.DBTX) *Repository { return &Repository{db: db} }
 
-// Store is implemented by both pool-backed and transaction-backed
-// repositories. LockBindings is meaningful with a caller-owned transaction.
-type Store interface {
-	InsertVersion(context.Context, Version) (bool, error)
-	GetVersion(context.Context, string, string) (Version, error)
-	GetVersionByRef(context.Context, Ref) (Version, error)
-	ListVersions(context.Context, string, string, int) ([]Version, error)
-	GetPublication(context.Context, string) (Publication, error)
-	InsertPublication(context.Context, Publication) (bool, error)
-	CreateBinding(context.Context, string, Ref, string, time.Time) (Binding, error)
-	GetBinding(context.Context, string) (Binding, error)
-	ListBindings(context.Context, string, int) ([]Binding, error)
-	Rebind(context.Context, string, uint64, Ref, string, time.Time) (Binding, error)
-	DeleteBinding(context.Context, string, uint64) error
-	LockBindings(context.Context, []string) ([]Binding, error)
-}
-
-var _ Store = (*Repository)(nil)
-
 func (r *Repository) InsertVersion(ctx context.Context, version Version) (bool, error) {
 	if err := validateVersion(version); err != nil {
 		return false, err

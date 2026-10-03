@@ -78,7 +78,9 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err != nil || replayed.LabelRevision != 1 || !slices.Equal(replayed.Labels, created.Labels) {
 		t.Fatalf("replayed principal = (%+v, %v)", replayed, err)
 	}
-	if err := service.Delete(ctx, principalID, 1); !errors.Is(err, ErrConflict) {
+	if _, err := service.DeleteIdempotent(
+		ctx, principalID, 1, "principal-delete-labeled", "operator", now.Add(time.Minute),
+	); !errors.Is(err, ErrConflict) {
 		t.Fatalf("delete labeled principal error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
@@ -131,7 +133,9 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 		replayedMutation.Principal.LabelRevision != 2 {
 		t.Fatalf("label response-loss replay = (%+v, %v)", replayedMutation, err)
 	}
-	if _, err := service.ReplaceLabels(ctx, principalID, 1, []string{}, "operator"); !errors.Is(err, ErrPrecondition) {
+	if _, err := service.ReplaceLabelsIdempotent(
+		ctx, principalID, 1, []string{}, "principal-stale", "operator", now.Add(2*time.Minute),
+	); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("stale principal CAS error = %v", err)
 	}
 	deleted, err := service.DeleteIdempotent(
@@ -220,12 +224,16 @@ func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T)
 	); err != nil {
 		t.Fatal(err)
 	}
-	bindingService, err := NewBindingService(pool, allowRuntimeCredentialCatalog{})
+	bindingService, err := NewBindingService(allowRuntimeCredentialCatalog{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := bindingService.Rebind(
-		ctx, "route-two", 1, conflictingRef, "operator", now.Add(time.Minute),
+	management, err := NewManagementService(pool, publisher, bindingService)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := management.Rebind(
+		ctx, "route-two", 1, conflictingRef, "rebind-conflict", "operator", now.Add(time.Minute),
 	); err == nil {
 		t.Fatal("conflicting label rebind was accepted")
 	} else {
@@ -238,7 +246,9 @@ func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T)
 	if err != nil || current.Revision != 1 || current.Ref != identicalRef {
 		t.Fatalf("binding after rolled-back conflict = (%+v, %v)", current, err)
 	}
-	if err := bindingService.Delete(ctx, "route-one", 1); !errors.Is(err, ErrConflict) {
+	if _, err := management.DeleteBinding(
+		ctx, "route-one", 1, "delete-assigned", "operator", now.Add(2*time.Minute),
+	); !errors.Is(err, ErrConflict) {
 		t.Fatalf("delete assigned label error = %v", err)
 	}
 }

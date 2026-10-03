@@ -44,7 +44,7 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure RuntimeConfig publisher: %w", err)
 	}
-	runtimeBindingService, err := runtimeconfig.NewBindingService(pool, credentialSet.runtime, credentialSet.transactionLookup)
+	runtimeBindingService, err := runtimeconfig.NewBindingService(credentialSet.runtime, credentialSet.transactionLookup)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime label bindings: %w", err)
 	}
