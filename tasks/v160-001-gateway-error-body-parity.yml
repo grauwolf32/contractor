@@ -3,7 +3,8 @@ id: V160-001
 title: Classify numeric-code and unwrapped Gateway errors consistently
 milestone: gateway-error-body-parity-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0a6b6ba4bb9ada151161bdb0516bcf305d73d056
 depends_on: []
 languages: [go, json]
 goal: Make Planner Gateway failure classification match Runtime for common OpenAI-compatible error bodies.
