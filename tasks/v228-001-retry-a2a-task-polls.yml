@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V228-001
+title: Retry A2A Task polls and cancel abandoned tasks
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Retain a running Worker's result across transient GetTask transport failures.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/257
+  finding: One failed read-only A2A Task poll abandons the Worker Task without cancellation.
+scope:
+  in:
+    - Retry transient GetTask transport failures with bounded backoff and a consecutive failure limit.
+    - Send one best-effort CancelTask after an identified Task is abandoned.
+  out:
+    - Retrying SendMessage or semantic/protocol GetTask failures.
+acceptance_criteria:
+  - {id: A1, text: A transient failed GetTask can be followed by a successful completion without repeating SendMessage.}
+  - {id: A2, text: Persistent transport failures stop after the retry cap or invocation deadline.}
+  - {id: A3, text: Protocol errors do not retry and an abandoned known Task is cancelled once with its tenant and ID.}
+tests:
+  - {command: go test ./internal/planner/a2a -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
