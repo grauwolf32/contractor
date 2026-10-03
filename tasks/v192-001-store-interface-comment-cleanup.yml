@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V192-001
+title: Remove unused store interfaces and correct RunStore transaction docs
+milestone: persistence-api-cleanup-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Make store API declarations and transaction ownership match production behavior.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/194
+  finding: Project and settings Repository interfaces have no callers, and RunStore comments misstate its users and transaction policy.
+scope:
+  in:
+    - Remove unused ProjectStore and SettingsStore Repository interfaces and assertions.
+    - Keep RunStore Repository for existing e2e helpers and describe its actual test use.
+    - Document which pool-backed RunStore methods start retrying transactions.
+  out:
+    - Changing persistence behavior or rewriting e2e fixture signatures.
+acceptance_criteria:
+  - {id: A1, text: ProjectStore and SettingsStore no longer declare unused Repository interfaces.}
+  - {id: A2, text: RunStore Repository and PostgresStore comments accurately describe callers and transaction ownership.}
+  - {id: A3, text: Go build and vet pass, including e2e-tagged tests.}
+tests:
+  - {command: go build ./..., covers: [A1, A2, A3]}
+  - {command: go vet ./internal/runstore/... ./internal/projectstore/... ./internal/settingsstore/..., covers: [A1, A2, A3]}
+  - {command: go vet -tags=e2e ./tests/e2e/..., covers: [A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
