@@ -1638,6 +1638,8 @@ Owner comes from authentication and Project membership, never a request body.
 | --- | --- |
 | `GET /v1/audit-profiles` | Paginated exact profile versions with mode, input contract, limits, and Server compatibility |
 | `GET /v1/audit-profiles/{name}/versions/{version}` | One exact read-only profile projection and compatibility reason codes |
+| `GET /v1/audit-standards` | Bounded standards metadata and exact catalog references (see section 3) |
+| `GET /v1/audit-standards/{scheme}/versions/{version}` | One exact standards package projection (see section 3) |
 | `POST /v1/projects/{projectId}/audits` | Create idempotent draft from profile and exact input selections |
 | `GET /v1/projects/{projectId}/audits` | Keyset list with state/profile filters |
 | `GET /v1/audits/{auditId}` | Authoritative projection and revision |
@@ -1646,14 +1648,18 @@ Owner comes from authentication and Project membership, never a request body.
 | `POST /v1/audits/{auditId}/resume` | Resume a paused Audit with an optional time-limit override |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
 | `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
+| `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
+| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of current-round progress, gaps, findings and reviews |
+| `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
+| `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |
+| `POST /v1/finding-collections` | Publish selected exact proposals as an ordinary finding collection (see spec 27) |
 | `GET /v1/audits/{auditId}/findings` | Keyset list with triage, analyst verdict/severity and duplicate target; filters apply before pagination |
 | `GET /v1/audits/{auditId}/findings/{findingId}` | Exact finding revision, current assessment, analyst decision/rating and evidence links |
 | `GET /v1/audits/{auditId}/findings/{findingId}/provenance` | Paginated structured source proposals and verification attempts with Workflow/checklist provenance |
 | `POST /v1/audits/{auditId}/findings/{findingId}/reviews` | CAS/idempotent create or reuse of a pending finding-triage request for the exact current finding revision |
-| `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
 | `GET /v1/audits/{auditId}/reviews` | Pending/completed finding, item-action, and report review requests |
+| `GET /v1/audits/{auditId}/reviews/{requestId}` | Exact owned review subject and revision with an ETag |
 | `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject owner finding verdict or approve/reject action |
-| `POST /v1/audits/{auditId}/imports` | Import owner-selected exact proposal/evidence |
 | `GET /v1/audits/{auditId}/report` | Pending, frozen proposed, exact accepted, or unavailable report projection |
 | `DELETE /v1/audits/{auditId}` | Begin/replay durable delete and return current deletion state |
 
