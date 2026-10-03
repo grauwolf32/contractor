@@ -19,7 +19,8 @@ import (
 
 var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 
-// Repository is the durable boundary used by the public API and Scheduler.
+// Repository groups the broad RunStore operations used by e2e test helpers.
+// Production consumers declare narrower interfaces at their use sites.
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
 	PinRuntimeLabels(context.Context, []string, ...bool) (runtimeconfig.RunSnapshot, error)
@@ -132,8 +133,9 @@ LIMIT $2`, credentialID, limit)
 	return result, nil
 }
 
-// PostgresStore never starts a transaction. Pass a pgx.Tx to NewPostgresStore
-// when general repository operations must share one atomic boundary. Runtime
+// PostgresStore runs most operations on its supplied DBTX. When backed by a
+// pool, DeleteReleasedTerminalRun and ResumeFailedRun start their own retrying
+// transactions; with a pgx.Tx they join the caller's transaction. Runtime
 // label pinning additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
 	db                persistencepostgres.DBTX
