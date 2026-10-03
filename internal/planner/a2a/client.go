@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
@@ -28,6 +30,9 @@ const (
 	maxAgentCardBytes         = 1 << 20
 	maxA2AResponseBytes       = 1 << 20
 	defaultPollInterval       = 100 * time.Millisecond
+	maxGetTaskFailures        = 4
+	maxGetTaskRetryBackoff    = 500 * time.Millisecond
+	bestEffortCancelTimeout   = 2 * time.Second
 )
 
 type Options struct {
@@ -37,6 +42,7 @@ type Options struct {
 type protocolClient interface {
 	SendMessage(context.Context, *sdk.SendMessageRequest) (sdk.SendMessageResult, error)
 	GetTask(context.Context, *sdk.GetTaskRequest) (*sdk.Task, error)
+	CancelTask(context.Context, *sdk.CancelTaskRequest) (*sdk.Task, error)
 	Destroy() error
 }
 
@@ -118,7 +124,7 @@ func (i *Invoker) Invoke(
 	binding string,
 	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.WorkerCompletion, error) {
+) (result contracts.WorkerCompletion, runErr error) {
 	if strings.TrimSpace(binding) == "" || strings.TrimSpace(handle.AllocationID) == "" {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_worker_handle", "Worker binding and allocation identity are required", false, nil,
@@ -158,6 +164,15 @@ func (i *Invoker) Invoke(
 		return contracts.WorkerCompletion{}, transportError(ctx, buildErr)
 	}
 	defer func() { _ = client.Destroy() }()
+	var taskID sdk.TaskID
+	defer func() {
+		if runErr == nil || taskID == "" {
+			return
+		}
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bestEffortCancelTimeout)
+		defer cancel()
+		_, _ = client.CancelTask(cancelCtx, &sdk.CancelTaskRequest{Tenant: handle.AllocationID, ID: taskID})
+	}()
 
 	part := sdk.NewDataPart(request)
 	part.MediaType = stageContentMediaType
@@ -173,7 +188,7 @@ func (i *Invoker) Invoke(
 	if sendErr != nil {
 		return contracts.WorkerCompletion{}, transportError(ctx, sendErr)
 	}
-	completion, resolveErr := i.resolve(ctx, client, handle.AllocationID, response)
+	completion, resolveErr := i.resolve(ctx, client, handle.AllocationID, response, &taskID)
 	if resolveErr != nil {
 		return contracts.WorkerCompletion{}, resolveErr
 	}
@@ -188,8 +203,8 @@ func (i *Invoker) resolve(
 	client protocolClient,
 	allocationID string,
 	response sdk.SendMessageResult,
+	taskID *sdk.TaskID,
 ) (contracts.WorkerCompletion, error) {
-	var taskID sdk.TaskID
 	var contextID string
 	for {
 		switch current := response.(type) {
@@ -204,10 +219,10 @@ func (i *Invoker) resolve(
 					"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
 				)
 			}
-			if taskID == "" {
-				taskID = current.ID
+			if *taskID == "" {
+				*taskID = current.ID
 				contextID = current.ContextID
-			} else if current.ID != taskID || current.ContextID != contextID {
+			} else if current.ID != *taskID || current.ContextID != contextID {
 				return contracts.WorkerCompletion{}, planner.NewError(
 					"invalid_a2a_response", "Worker changed A2A Task correlation while polling", false, nil,
 				)
@@ -254,11 +269,13 @@ func (i *Invoker) resolve(
 				return contracts.WorkerCompletion{}, transportError(ctx, ctx.Err())
 			case <-timer.C:
 			}
-			historyLength := 1
-			next, getErr := client.GetTask(ctx, &sdk.GetTaskRequest{
-				Tenant: allocationID, ID: taskID, HistoryLength: &historyLength,
-			})
+			next, getErr := i.pollTask(ctx, client, allocationID, *taskID)
 			if getErr != nil {
+				if ctx.Err() == nil && errors.Is(getErr, context.DeadlineExceeded) {
+					return contracts.WorkerCompletion{}, planner.NewError(
+						"worker_unavailable", "Worker A2A endpoint is unavailable", true, getErr,
+					)
+				}
 				return contracts.WorkerCompletion{}, transportError(ctx, getErr)
 			}
 			response = next
@@ -268,6 +285,45 @@ func (i *Invoker) resolve(
 			)
 		}
 	}
+}
+
+func (i *Invoker) pollTask(
+	ctx context.Context, client protocolClient, allocationID string, taskID sdk.TaskID,
+) (*sdk.Task, error) {
+	backoff := min(i.pollInterval, maxGetTaskRetryBackoff)
+	var lastError error
+	for attempt := range maxGetTaskFailures {
+		historyLength := 1
+		next, err := client.GetTask(ctx, &sdk.GetTaskRequest{
+			Tenant: allocationID, ID: taskID, HistoryLength: &historyLength,
+		})
+		if err == nil {
+			return next, nil
+		}
+		lastError = err
+		if attempt == maxGetTaskFailures-1 || ctx.Err() != nil || !retryableGetTaskError(err) {
+			return nil, err
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+		backoff = min(backoff*2, maxGetTaskRetryBackoff)
+	}
+	return nil, lastError
+}
+
+func retryableGetTaskError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+	var networkError net.Error
+	return errors.As(err, &networkError) && (networkError.Timeout() || networkError.Temporary())
 }
 
 func validateResultMessageCorrelation(

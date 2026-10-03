@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"iter"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -97,8 +99,102 @@ func TestInvokerMapsInteractionStatesAndDeadlineToTypedFailures(t *testing.T) {
 		ctx, "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
 	)
 	assertPlannerCode(t, err, "worker_deadline_exceeded")
-	if time.Since(started) > time.Second || client.getCalls == 0 {
-		t.Fatalf("bounded polling elapsed=%s getCalls=%d", time.Since(started), client.getCalls)
+	if time.Since(started) > time.Second || client.getCalls == 0 || client.cancelCalls != 1 ||
+		client.cancelContextErr != nil {
+		t.Fatalf("bounded polling elapsed=%s getCalls=%d cancelCalls=%d cancelContextErr=%v",
+			time.Since(started), client.getCalls, client.cancelCalls, client.cancelContextErr)
+	}
+}
+
+func TestInvokerRetriesTransientGetTaskWithoutRepeatingSend(t *testing.T) {
+	want := successResult()
+	working := &sdk.Task{
+		ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking},
+	}
+	completed := &sdk.Task{
+		ID: "task-1", ContextID: "context-1",
+		Status: sdk.TaskStatus{State: sdk.TaskStateCompleted, Message: resultMessage(want)},
+	}
+	client := &fakeClient{
+		response: working, tasks: []*sdk.Task{completed},
+		getErrors: map[int]error{1: syscall.ECONNRESET, 2: io.EOF},
+	}
+	got, err := fakeInvoker(client).Invoke(
+		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+	)
+	if err != nil || !reflect.DeepEqual(got, want) || client.sendCalls != 1 || client.getCalls != 3 ||
+		client.cancelCalls != 0 {
+		t.Fatalf("recovered Task = (%+v, %v), send=%d get=%d cancel=%d",
+			got, err, client.sendCalls, client.getCalls, client.cancelCalls)
+	}
+}
+
+func TestInvokerCancelsTaskAfterPersistentPollFailure(t *testing.T) {
+	working := &sdk.Task{
+		ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking},
+	}
+	client := &fakeClient{
+		response: working, cancelErr: errors.New("cancellation failed"),
+		getErrors: map[int]error{
+			1: syscall.ECONNRESET, 2: syscall.ECONNRESET,
+			3: syscall.ECONNRESET, 4: syscall.ECONNRESET,
+		},
+	}
+	_, err := fakeInvoker(client).Invoke(
+		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+	)
+	assertPlannerCode(t, err, "worker_unavailable")
+	if client.sendCalls != 1 || client.getCalls != maxGetTaskFailures || client.cancelCalls != 1 ||
+		client.cancelRequest == nil || client.cancelRequest.Tenant != "allocation-1" ||
+		client.cancelRequest.ID != "task-1" {
+		t.Fatalf("persistent failure calls send=%d get=%d cancel=%d request=%+v",
+			client.sendCalls, client.getCalls, client.cancelCalls, client.cancelRequest)
+	}
+}
+
+func TestInvokerMapsRepeatedRequestTimeoutToUnavailable(t *testing.T) {
+	working := &sdk.Task{
+		ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking},
+	}
+	client := &fakeClient{
+		response: working,
+		getErrors: map[int]error{
+			1: context.DeadlineExceeded, 2: context.DeadlineExceeded,
+			3: context.DeadlineExceeded, 4: context.DeadlineExceeded,
+		},
+	}
+	_, err := fakeInvoker(client).Invoke(
+		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+	)
+	assertPlannerCode(t, err, "worker_unavailable")
+	if client.getCalls != maxGetTaskFailures || client.cancelCalls != 1 {
+		t.Fatalf("request timeout calls get=%d cancel=%d", client.getCalls, client.cancelCalls)
+	}
+}
+
+func TestInvokerDoesNotRetryProtocolGetTaskError(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "TaskNotFound", cause: sdk.NewError(sdk.ErrTaskNotFound, "Task not found")},
+		{name: "allocation inactive", cause: errors.New("unexpected HTTP status: 409 Conflict")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			working := &sdk.Task{
+				ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking},
+			}
+			client := &fakeClient{response: working, getErrors: map[int]error{1: test.cause}}
+			_, err := fakeInvoker(client).Invoke(
+				t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+			)
+			assertPlannerCode(t, err, "worker_unavailable")
+			if !errors.Is(err, test.cause) || client.sendCalls != 1 || client.getCalls != 1 ||
+				client.cancelCalls != 1 {
+				t.Fatalf("protocol error = %v, send=%d get=%d cancel=%d",
+					err, client.sendCalls, client.getCalls, client.cancelCalls)
+			}
+		})
 	}
 }
 
@@ -297,11 +393,16 @@ func fakeInvoker(client protocolClient) *Invoker {
 }
 
 type fakeClient struct {
-	response  sdk.SendMessageResult
-	tasks     []*sdk.Task
-	request   *sdk.SendMessageRequest
-	sendCalls int
-	getCalls  int
+	response         sdk.SendMessageResult
+	tasks            []*sdk.Task
+	getErrors        map[int]error
+	request          *sdk.SendMessageRequest
+	sendCalls        int
+	getCalls         int
+	cancelCalls      int
+	cancelRequest    *sdk.CancelTaskRequest
+	cancelContextErr error
+	cancelErr        error
 }
 
 func (c *fakeClient) SendMessage(
@@ -316,6 +417,9 @@ func (c *fakeClient) GetTask(
 	_ context.Context, _ *sdk.GetTaskRequest,
 ) (*sdk.Task, error) {
 	c.getCalls++
+	if err := c.getErrors[c.getCalls]; err != nil {
+		return nil, err
+	}
 	if len(c.tasks) == 0 {
 		return nil, errors.New("no scripted Task")
 	}
@@ -325,6 +429,13 @@ func (c *fakeClient) GetTask(
 	result := c.tasks[0]
 	c.tasks = c.tasks[1:]
 	return result, nil
+}
+
+func (c *fakeClient) CancelTask(ctx context.Context, request *sdk.CancelTaskRequest) (*sdk.Task, error) {
+	c.cancelCalls++
+	c.cancelRequest = request
+	c.cancelContextErr = ctx.Err()
+	return nil, c.cancelErr
 }
 
 func (*fakeClient) Destroy() error { return nil }

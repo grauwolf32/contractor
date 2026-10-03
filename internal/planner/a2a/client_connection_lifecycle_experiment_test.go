@@ -65,10 +65,15 @@ func TestConnectionReuseExperimentLifecycleCancellation(t *testing.T) {
 				activePoll := phase != "poll_wait" && strings.Contains(phase, "poll_")
 				ready := make(chan struct{})
 				stopped := make(chan struct{})
-				var sends, polls, connectionUses, reusedUses atomic.Int64
+				var sends, polls, cancels, connectionUses, reusedUses atomic.Int64
 				f := newConnectionExperiment(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					rpc, ok := lifecycleExperimentRPC(t, w, r)
 					if !ok {
+						return
+					}
+					if rpc.Method == "CancelTask" {
+						cancels.Add(1)
+						experimentResponse(w, rpc.ID, experimentWorkingTask())
 						return
 					}
 					if rpc.Method == "GetTask" {
@@ -139,26 +144,29 @@ func TestConnectionReuseExperimentLifecycleCancellation(t *testing.T) {
 					lifecycleExperimentWait(t, stopped, "server request context cancellation")
 				}
 				lifecycleExperimentWaitClosed(t, f)
-				var wantPolls, wantReused int64
-				wantConnections := int64(1)
+				var wantPolls, wantReused, wantCancels int64
 				if activePoll {
 					wantPolls = 1
 					if reuse {
 						wantReused = 1
-					} else {
-						wantConnections = 2
 					}
 				}
-				if sends.Load() != 1 || polls.Load() != wantPolls {
-					t.Fatalf("cancellation dispatches: SendMessage=%d GetTask=%d", sends.Load(), polls.Load())
+				if phase == "poll_wait" || activePoll {
+					wantCancels = 1
 				}
-				if connectionUses.Load() != 1+wantPolls || reusedUses.Load() != wantReused ||
-					f.accepts.Load() != wantConnections || f.handshakes.Load() != wantConnections {
+				if sends.Load() != 1 || polls.Load() != wantPolls || cancels.Load() != wantCancels {
+					t.Fatalf("cancellation dispatches: SendMessage=%d GetTask=%d CancelTask=%d",
+						sends.Load(), polls.Load(), cancels.Load())
+				}
+				if connectionUses.Load() != 1+wantPolls+wantCancels ||
+					reusedUses.Load() < wantReused || reusedUses.Load() > wantReused+wantCancels ||
+					f.accepts.Load() != connectionUses.Load()-reusedUses.Load() ||
+					f.handshakes.Load() != f.accepts.Load() {
 					t.Fatalf("cancellation connection path: GotConn=%d reused=%d accepted=%d handshakes=%d",
 						connectionUses.Load(), reusedUses.Load(), f.accepts.Load(), f.handshakes.Load())
 				}
-				t.Logf("%s: SendMessage=1 GetTask=%d GotConn=%d reused=%d accepted=%d closed=%d",
-					phase, polls.Load(), connectionUses.Load(), reusedUses.Load(), f.accepts.Load(), f.closed.Load())
+				t.Logf("%s: SendMessage=1 GetTask=%d CancelTask=%d GotConn=%d reused=%d accepted=%d closed=%d",
+					phase, polls.Load(), cancels.Load(), connectionUses.Load(), reusedUses.Load(), f.accepts.Load(), f.closed.Load())
 			})
 		}
 	}
@@ -207,7 +215,7 @@ func TestConnectionReuseExperimentLifecycleSimulatedRetirement(t *testing.T) {
 	for _, reuse := range []bool{false, true} {
 		t.Run(fmt.Sprintf("reuse=%t", reuse), func(t *testing.T) {
 			var retired atomic.Bool
-			var sends, rejected, polls atomic.Int64
+			var sends, rejected, polls, cancels atomic.Int64
 			f := newConnectionExperiment(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				rpc, ok := lifecycleExperimentRPC(t, w, r)
 				if !ok {
@@ -223,6 +231,9 @@ func TestConnectionReuseExperimentLifecycleSimulatedRetirement(t *testing.T) {
 				// This fixture models the Runtime allocation gate. It does not run
 				// the production Registry, release protocol or process watchdog.
 				if retired.Load() && params.Tenant == "allocation-retired" {
+					if rpc.Method == "CancelTask" {
+						cancels.Add(1)
+					}
 					rejected.Add(1)
 					http.Error(w, "allocation retired", http.StatusGone)
 					return
@@ -249,8 +260,9 @@ func TestConnectionReuseExperimentLifecycleSimulatedRetirement(t *testing.T) {
 			_, err := invoker.Invoke(context.Background(), "builder", lifecycleExperimentHandle(t, f, "allocation-retired"), stageRequest())
 			assertPlannerCode(t, err, "worker_unavailable")
 			lifecycleExperimentWaitClosed(t, f)
-			if sends.Load() != 1 || rejected.Load() != 1 || polls.Load() != 0 {
-				t.Fatalf("retired allocation crossed simulated gate: sends=%d rejected=%d dispatched polls=%d", sends.Load(), rejected.Load(), polls.Load())
+			if sends.Load() != 1 || rejected.Load() != 2 || polls.Load() != 0 || cancels.Load() != 1 {
+				t.Fatalf("retired allocation crossed simulated gate: sends=%d rejected=%d dispatched polls=%d cancel attempts=%d",
+					sends.Load(), rejected.Load(), polls.Load(), cancels.Load())
 			}
 			fresh := newExperimentInvoker(t, f, reuse, time.Millisecond, nil)
 			before := f.accepts.Load()
@@ -309,7 +321,7 @@ func TestConnectionReuseExperimentLifecycleCertificateExpiry(t *testing.T) {
 					t.Log("candidate limitation: established TLS connection continues after server-certificate NotAfter in client verification clock")
 				default:
 					assertPlannerCode(t, err, "worker_unavailable")
-					if requests.Load() != 1 || f.accepts.Load() != 2 {
+					if requests.Load() != 1 || f.accepts.Load() != 3 {
 						t.Fatalf("fresh handshake expiry bound: requests=%d accepts=%d", requests.Load(), f.accepts.Load())
 					}
 					t.Log("baseline: next poll performs fresh handshake and rejects expired server certificate before HTTP")
