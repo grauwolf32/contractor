@@ -2072,8 +2072,7 @@
             "pausing",
             "paused",
             "cancelling",
-            "cancelled",
-            "interrupted"
+            "cancelled"
           ]
         },
         "revision": {
@@ -3455,8 +3454,7 @@
             "pausing",
             "paused",
             "cancelling",
-            "cancelled",
-            "interrupted"
+            "cancelled"
           ]
         },
         "revision": {
@@ -3557,8 +3555,7 @@
             "pausing",
             "paused",
             "cancelling",
-            "cancelled",
-            "interrupted"
+            "cancelled"
           ]
         }
       },

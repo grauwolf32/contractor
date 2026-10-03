@@ -21,7 +21,6 @@ const EVAL_STATES = [
   "paused",
   "cancelling",
   "cancelled",
-  "interrupted",
 ] as const;
 
 export function EvalListRoute() {

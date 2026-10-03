@@ -210,9 +210,9 @@ cannot regenerate its private plan. Unsupported commands return an explicit mode
 or state conflict before effects.
 
 Native controls additionally use `pausing → paused → running` and
-`cancelling → cancelled`. `interrupted` means the coordinator needs recoverable
-operator attention; an ordinary process restart normally reacquires the claim
-and reconciles automatically. Finished can have `pass`, `regressions` or
+`cancelling → cancelled`. An ordinary process restart reacquires the claim
+and reconciles automatically. Reconciliation failures leave the experiment in
+its current active state for retry. Finished can have `pass`, `regressions` or
 `inconclusive` conclusion; awaiting assessment is separate from execution progress.
 Finished means accepted executions have drained, even if human review is still
 pending; later assessments can change the comparison without restarting execution.
@@ -242,7 +242,7 @@ reconciliation after Pause/Cancel was requested and remains counted as outstandi
   submissions. Paused requires no outstanding submission/execution. A closed
   browser does not pause an experiment.
 - Resume uses the same plan, IDs, deadline and token high-water marks. It never
-  resets limits or reruns a terminal member. Only paused/interrupted native
+  resets limits or reruns a terminal member. Only paused native
   experiments are resumable; expired remaining budget completes pending members
   as not submitted with the budget reason.
 - Cancel fences new intents, requests normal Run/Audit cancellation and remains

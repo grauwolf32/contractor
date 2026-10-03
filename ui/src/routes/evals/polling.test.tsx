@@ -45,14 +45,13 @@ function reads(fixture: ReturnType<typeof createEvalFixture>, path: string) {
 }
 
 describe("Eval polling", () => {
-  it("keeps active, interrupted, stale and deletion-pending detail views on short polling", () => {
+  it("keeps active, stale and deletion-pending detail views on short polling", () => {
     expect(evalExperimentPollInterval({ state: "draft" })).toBe(false);
     for (const state of [
       "preparing",
       "running",
       "settling",
       "cancelling",
-      "interrupted",
     ] as const) {
       expect(evalExperimentPollInterval({ state, freshness: "current" })).toBe(
         EVAL_POLL_MS,

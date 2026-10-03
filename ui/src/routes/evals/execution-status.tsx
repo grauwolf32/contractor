@@ -17,9 +17,7 @@ export function EvalExecutionStatus({
   const terminal = total("terminal");
   const failed = terminal - total("executionSucceeded");
   const excluded = total("unsupported") + total("blocked");
-  const finished = ["finished", "cancelled", "interrupted"].includes(
-    experiment.state,
-  );
+  const finished = ["finished", "cancelled"].includes(experiment.state);
   const base = `/evals/experiments/${encodeURIComponent(experiment.experimentId)}`;
 
   if (experiment.state === "paused" || experiment.state === "pausing") {
