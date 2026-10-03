@@ -3,6 +3,7 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -112,6 +113,43 @@ func TestPlanBuildsPrivatePortableClosureAndStableMatrix(t *testing.T) {
 		if bytes.Contains(raw, []byte("PRIVATE_")) {
 			t.Fatal("private recipe", mid)
 		}
+	}
+}
+
+func TestPlanFreezesAtNativeMemberCeiling(t *testing.T) {
+	draft, data, pre := planInputs(t)
+	caseTemplate := data.Cases[0]
+	draft.CaseIDs = make([]string, evaldomain.MaxNativeMembers/2)
+	data.Cases = make([]evaldomain.Case, len(draft.CaseIDs))
+	for i := range draft.CaseIDs {
+		id := fmt.Sprintf("case-%03d", i)
+		draft.CaseIDs[i] = id
+		data.Cases[i] = caseTemplate
+		data.Cases[i].ID = id
+		for arm, binding := range pre {
+			binding.Cases[id] = Eligibility{State: "eligible"}
+			pre[arm] = binding
+		}
+	}
+	draft.Repetitions = 1
+	draft.Budgets.MaxMembers = evaldomain.MaxNativeMembers
+	raw, err := json.Marshal(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaldomain.Validate("Draft", raw); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := BuildPlan("native-boundary", time.Now(), draft, data, pre)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := evaldomain.PublicPlanProjection(bundle.Plan)
+	if err != nil || len(plan.Members) != evaldomain.MaxNativeMembers {
+		t.Fatalf("plan: %v, members: %d", err, len(plan.Members))
+	}
+	if len(bundle.Plan.Bytes()) > evaldomain.MaxDocumentBytes {
+		t.Fatal("accepted draft produced oversized plan")
 	}
 }
 func TestPlanPinsAndUnsupportedMembersRemainExplicit(t *testing.T) {

@@ -173,7 +173,22 @@ func validateDraft(d Draft) error {
 	if err := validateVariants(d.Variants, d.Comparison, d.Checks, d.Budgets); err != nil {
 		return err
 	}
-	if len(d.CaseIDs)*2*d.Repetitions > d.Budgets.MaxMembers {
+	members := len(d.CaseIDs) * 2 * d.Repetitions
+	if members > d.Budgets.MaxMembers || members > MaxNativeMembers {
+		return Failure("eval_limit_exceeded")
+	}
+	// The native plan repeats the matrix as member objects and execution-order
+	// IDs. Its other fields repeat parts of the draft, especially comparison
+	// dimensions as two pin maps. Keep a generous allowance for those copies,
+	// fixed references and the bounded eligibility reasons. This intentionally
+	// rejects borderline drafts at authoring time before a frozen plan can fail.
+	raw, err := json.Marshal(d)
+	if err != nil {
+		return Failure("eval_invalid")
+	}
+	dimensions := len(d.Comparison.RequiredEqual) + len(d.Comparison.AllowedDifferences)
+	estimatedBytes := 3*len(raw) + 900*members + 128*dimensions + 32*1024
+	if estimatedBytes > MaxDocumentBytes {
 		return Failure("eval_limit_exceeded")
 	}
 	return nil

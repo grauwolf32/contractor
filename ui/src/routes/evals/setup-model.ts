@@ -2,7 +2,7 @@ import type { EvalCapabilities, EvalDraft, EvalVariant } from "../../api/evals";
 import { compareWorkflowVersions } from "../workflows/families";
 
 export const MAX_EVAL_CASES = 1000;
-export const MAX_EVAL_MEMBERS = 10000;
+export const MAX_EVAL_MEMBERS = 1000;
 export const MAX_EVAL_REPETITIONS = 100;
 export const MAX_EVAL_DOCUMENT_BYTES = 1024 * 1024;
 export const DEFAULT_WALL_MS = 90 * 60 * 1000;
@@ -133,6 +133,22 @@ export function draftProblem(name: string, draft: EvalDraft): string | null {
   const expected = draft.caseIds.length * 2 * draft.repetitions;
   if (expected > MAX_EVAL_MEMBERS || expected > draft.budgets.maxMembers)
     return "The matrix exceeds the selected member allowance.";
+  // Match the server's conservative authoring bound. The portable plan stores
+  // each member twice (member row and execution order) and repeats comparison
+  // dimensions in both arms' pin maps.
+  const draftJSON = JSON.stringify(draft).replace(
+    /[<>&\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+  const draftBytes = new TextEncoder().encode(draftJSON).length;
+  const dimensions =
+    draft.comparison.requiredEqual.length +
+    draft.comparison.allowedDifferences.length;
+  if (
+    3 * draftBytes + 900 * expected + 128 * dimensions + 32 * 1024 >
+    MAX_EVAL_DOCUMENT_BYTES
+  )
+    return "The matrix is too large for a frozen 1 MiB plan. Reduce cases or repetitions.";
   if (
     !Number.isInteger(draft.budgets.maxInFlight) ||
     draft.budgets.maxInFlight < 1 ||
