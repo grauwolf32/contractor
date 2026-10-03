@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V134-001
+title: Test production Run input validation and remove dead handler copy
+milestone: run-input-validation-test-2026-10
+priority: P3
+status: completed
+implementation_commit: a56bcf32d80ba3d60e31e753d4a73ee35c5fcf99
+depends_on: []
+languages: [go]
+goal: Make analysis workflow strict-input tests exercise the validator used by Run creation.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/238
+  finding: A public handler test calls only the dead validateRunInputs copy instead of runservice.validateWorkflowInputs.
+scope:
+  in:
+    - Remove the unused handler validator.
+    - Move complete and missing analysis input checks to in-package runservice tests.
+    - Retain analysis dependency report media-type assertions.
+  out:
+    - Change Run input validation semantics.
+acceptance_criteria:
+  - {id: A1, text: No validateRunInputs copy remains.}
+  - {id: A2, text: Production validator accepts complete analysis inputs and rejects missing dependency_report for both workflows.}
+  - {id: A3, text: Public and runservice package tests pass.}
+tests:
+  - {command: go test ./internal/httpapi/public/ ./internal/runservice/, covers: [A1, A2, A3]}
