@@ -3,8 +3,8 @@ id: V111-001
 title: Require a fresh registration after Runtime local lease expiry
 milestone: runtime-lease-rearm-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: f23343a9d8ded806519e3063000f221759749bbc
 depends_on: []
 languages: [go, python]
 goal: Keep a locally fenced Runtime unavailable until the Control Plane confirms a new lease generation.
