@@ -1491,6 +1491,12 @@ func loadAuditServiceProfiles(t *testing.T) *config.Snapshot {
 }
 
 func loadAuditServiceProfilesWithProfile(t *testing.T, edit func(string) string) *config.Snapshot {
+	return loadAuditServiceProfilesWithEdits(t, edit, nil)
+}
+
+func loadAuditServiceProfilesWithEdits(
+	t *testing.T, editProfile, editWorker func(string) string,
+) *config.Snapshot {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
@@ -1598,8 +1604,11 @@ spec:
     reportAcceptance: automatic
 `,
 	}
-	if edit != nil {
-		files["audit-profiles/checklist.yaml"] = edit(files["audit-profiles/checklist.yaml"])
+	if editProfile != nil {
+		files["audit-profiles/checklist.yaml"] = editProfile(files["audit-profiles/checklist.yaml"])
+	}
+	if editWorker != nil {
+		files["agent-templates/worker.yaml"] = editWorker(files["agent-templates/worker.yaml"])
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",
