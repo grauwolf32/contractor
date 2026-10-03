@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V188-001
+title: Retire write-only Planner session token counters
+milestone: planner-session-state-cleanup-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Stop persisting unused cumulative token counts without losing old Planner sessions.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/210
+  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  finding: Session token counters are written but Planner metrics use execution state and per-event facts.
+scope:
+  in:
+    - Remove the cumulative token fields and increments from active session state.
+    - Accept only the two known legacy token keys during strict state decode.
+    - Verify legacy running and completed states remain readable and later writes omit the keys.
+  out:
+    - Changing Planner token budgets or run-event token facts.
+acceptance_criteria:
+  - {id: A1, text: Active Planner state no longer writes unused cumulative token counters.}
+  - {id: A2, text: Strict decoding and LoadPlans accept old running and completed states with legacy counters.}
+  - {id: A3, text: Unknown state keys remain rejected.}
+tests:
+  - {command: go test ./internal/planner/session/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2]}
