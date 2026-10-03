@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V177-001
+title: Negotiate SSH host key types pinned for Git import
+milestone: git-host-key-trust-2026-10
+priority: P1
+status: completed
+implementation_commit: cbbb351b6fd84fca38187aa3707d9a2dbc16bb16
+depends_on: []
+languages: [go]
+goal: Import from multi-key SSH servers when a genuine single-type host key is pinned.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/235
+  finding: Default SSH host-key preference can select an unpinned type before known_hosts verification.
+scope:
+  in:
+    - Prefer known_hosts key algorithms for the requested host, including RSA-SHA2 for RSA pins.
+    - Keep strict material verification and unknown-host rejection.
+    - Cover multi-key SSH server and single-type pin combinations.
+  out:
+    - Change public Git import error codes or disable host-key verification.
+acceptance_criteria:
+  - {id: A1, text: Genuine Ed25519-only and RSA-only pins work against a multi-key server.}
+  - {id: A2, text: Wrong key material of a pinned type remains ErrTrust.}
+  - {id: A3, text: Unknown hosts remain ErrTrust.}
+  - {id: A4, text: Existing Git import behavior remains compatible.}
+tests:
+  - {command: go test -tags=integration -run '^TestRealSSH' ./internal/gitimport, covers: [A1, A2, A3, A4]}
+  - {command: go test ./internal/gitimport, covers: [A4]}

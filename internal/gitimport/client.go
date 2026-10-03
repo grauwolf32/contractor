@@ -3,6 +3,7 @@ package gitimport
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -419,6 +420,61 @@ type countedBody struct {
 }
 
 func (r *countedBody) Close() error { return r.close() }
+
+func pinnedHostKeyAlgorithms(verifier ssh.HostKeyCallback, host string) ([]string, error) {
+	// A deliberately unusable Ed25519 key asks knownhosts which ordinary keys
+	// match this host. The callback still verifies the real key after the SSH
+	// handshake; this probe grants no trust to the server.
+	probe, err := ssh.NewPublicKey(ed25519.PublicKey(make([]byte, ed25519.PublicKeySize)))
+	if err != nil {
+		return nil, ErrTrust
+	}
+	var mismatch *knownhosts.KeyError
+	if err := verifier(host, &net.TCPAddr{}, probe); !errors.As(err, &mismatch) {
+		return nil, ErrTrust
+	}
+	if len(mismatch.Want) == 0 {
+		// An unknown host will still fail the real callback. Leaving the SSH
+		// defaults also preserves hosts trusted only by a certificate authority.
+		return nil, nil
+	}
+
+	pinned := make(map[string]bool, len(mismatch.Want))
+	for _, known := range mismatch.Want {
+		switch known.Key.Type() {
+		case ssh.KeyAlgoRSA:
+			pinned[ssh.KeyAlgoRSASHA512] = true
+			pinned[ssh.KeyAlgoRSASHA256] = true
+			pinned[ssh.KeyAlgoRSA] = true // Existing SHA-1 fallback for older servers.
+		default:
+			pinned[known.Key.Type()] = true
+		}
+	}
+	algorithms := make([]string, 0, len(pinned)+8)
+	supported := ssh.SupportedAlgorithms().HostKeys
+	for _, algorithm := range supported {
+		if pinned[algorithm] && !strings.Contains(algorithm, "-cert-v01@openssh.com") {
+			algorithms = append(algorithms, algorithm)
+		}
+	}
+	for _, algorithm := range []string{ssh.KeyAlgoRSA, ssh.InsecureKeyAlgoDSA} {
+		if pinned[algorithm] {
+			algorithms = append(algorithms, algorithm)
+		}
+	}
+	if len(algorithms) == 0 {
+		return nil, nil // Keep the verifier authoritative for unsupported key types.
+	}
+	// Certificate authorities are not included in KeyError.Want. Retain their
+	// negotiated algorithms after the pinned ordinary types for mixed files.
+	for _, algorithm := range append(supported, ssh.InsecureAlgorithms().HostKeys...) {
+		if strings.Contains(algorithm, "-cert-v01@openssh.com") {
+			algorithms = append(algorithms, algorithm)
+		}
+	}
+	return algorithms, nil
+}
+
 func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*packp.AdvRefs, func([]byte) (io.ReadCloser, error), func(), error) {
 	if signer == nil {
 		return nil, nil, nil, ErrRemote
@@ -429,6 +485,10 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	verifier, err := knownhosts.New(c.config.KnownHostsFile)
 	if err != nil {
 		return nil, nil, nil, ErrTrust
+	}
+	hostKeyAlgorithms, err := pinnedHostKeyAlgorithms(verifier, remote.Address)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	conn, err := c.dial(ctx, "tcp", remote.Address)
 	if err != nil {
@@ -442,7 +502,7 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
-	cfg := &ssh.ClientConfig{User: remote.User, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: func(host string, address net.Addr, key ssh.PublicKey) error {
+	cfg := &ssh.ClientConfig{User: remote.User, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyAlgorithms: hostKeyAlgorithms, HostKeyCallback: func(host string, address net.Addr, key ssh.PublicKey) error {
 		if verifier(host, address, key) != nil {
 			return ErrTrust
 		}
