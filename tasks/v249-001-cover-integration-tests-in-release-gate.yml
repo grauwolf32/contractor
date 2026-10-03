@@ -3,7 +3,8 @@ id: V249-001
 title: Include integration regressions in the release gate
 milestone: release-gate-integration-coverage-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b3bc2f4afafcae5b94283de7f523f4e2a80c49c9
 depends_on: []
 languages: [make, go, python]
 goal: Ensure every integration-tagged regression has a reachable release-gate owner or an explicit tool-dependent exception.
