@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V242-001
+title: Refresh trace Skill digest after annotation contract change
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Restore the release gate's exact trace Skill package checks after an intentional annotation-reference update.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/304
+  finding: The trace Skill's current package digest differs from three stale test fixtures, causing the release race suite to fail before process tests run.
+scope:
+  in:
+    - Pin the verified current trace package digest in the package tests.
+    - Keep historical migration evidence distinct from the current package identity.
+    - Run the focused package suite and release-graph checks.
+  out:
+    - Changing the trace Skill content or release graph.
+acceptance_criteria:
+  - {id: A1, text: All current trace package checks pin the same verified digest.}
+  - {id: A2, text: Historical migration digest remains labeled as historical.}
+  - {id: A3, text: The release race suite passes the Agent Skills package.}
+tests:
+  - {command: go test -race -count=1 ./internal/agentskills/..., covers: [A1, A3]}
+  - {command: python3 scripts/check_release_verify_graph.py, covers: [A3]}
