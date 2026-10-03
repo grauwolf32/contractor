@@ -14,7 +14,8 @@ import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
 } from "./artifacts/artifact-file";
-import { ArtifactFileDrop, ErrorNotice } from "./artifacts/common";
+import { ArtifactFileDrop } from "./artifacts/common";
+import { ErrorNotice } from "../app/error-notice";
 
 export function SkillUploadDialog({
   onClose,

@@ -22,7 +22,8 @@ import { queryKeys } from "../../api/query-keys";
 import { DeleteIcon } from "../../app/delete-icon";
 import { Dialog } from "../../app/dialog";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
-import { CursorControls, ErrorNotice } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
 import { DeleteProjectDialog } from "./deletion";
 import { RefreshButton } from "../../app/refresh-button";
 

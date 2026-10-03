@@ -1,7 +1,8 @@
 import { useId, useRef, useState } from "react";
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
 import { Dialog } from "../../app/dialog";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 
 const deletionPhaseCopy: Record<
   ProjectDeletionPhase,

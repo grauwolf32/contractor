@@ -13,7 +13,7 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
 

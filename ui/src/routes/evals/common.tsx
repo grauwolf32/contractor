@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { PublicAPIError } from "../../api/error";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { KeyValueValidityContext } from "./key-value-validity";
 import "./evals.css";
 

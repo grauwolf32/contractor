@@ -3,7 +3,8 @@ import { queryKeys } from "../../api/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePublicAPI } from "../../api/context";
 import { retryRunGateway, type RunStatus } from "../../api/runs";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 
 const recoveryReasons = {
   model_unavailable: "The model was unloaded or is unavailable.",

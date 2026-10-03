@@ -12,7 +12,7 @@ import {
   getWorkflow,
   type WorkflowResource,
 } from "../../api/workflows";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "../catalog/navigation";
 import { WorkflowOverview } from "./overview";
 import { workflowSelector } from "./presentation";

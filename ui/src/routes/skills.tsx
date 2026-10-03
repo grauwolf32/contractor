@@ -5,7 +5,9 @@ import { useState } from "react";
 import { listArtifacts, type ArtifactWriteResponse } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
-import { CursorControls, ErrorNotice, formatBytes } from "./artifacts/common";
+import { CursorControls } from "../app/cursor-controls";
+import { ErrorNotice } from "../app/error-notice";
+import { formatBytes } from "../app/format";
 import { SkillUploadDialog } from "./skill-upload-dialog";
 import { SkillDescription } from "./skill-description";
 

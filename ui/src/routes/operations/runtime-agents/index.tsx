@@ -7,7 +7,7 @@ import {
   listAllRuntimeLabels,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { useOperationsSnapshot } from "../context";
 import { AgentCard } from "./agent-card";
 import { compareByName, isOfflineIdentity } from "./identity";

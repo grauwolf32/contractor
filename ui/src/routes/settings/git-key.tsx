@@ -7,7 +7,8 @@ import {
   removeGitKey,
   replaceGitKey,
 } from "../../api/git-artifacts";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 
 export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {

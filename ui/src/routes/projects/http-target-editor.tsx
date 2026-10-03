@@ -14,7 +14,7 @@ import {
   type Project,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 
 type TargetAuthMode = "none" | "existing" | "basic" | "bearer";
 type OriginCredential = RuntimeCredentialMetadata & {

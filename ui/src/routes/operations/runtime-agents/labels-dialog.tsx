@@ -12,7 +12,7 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 
 export function AgentLabelsDialog({
   principal,

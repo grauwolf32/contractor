@@ -30,7 +30,8 @@ import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import { CursorControls } from "../../../app/cursor-controls";
+import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
 

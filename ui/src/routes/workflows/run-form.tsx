@@ -58,7 +58,8 @@ import {
   type ConsumerOverrideDraft,
   type ExecutionOverrideDraft,
 } from "../../run-drafts/validation";
-import { ErrorNotice, formatBytes, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 

@@ -17,11 +17,8 @@ import {
   type PerformanceSnapshot,
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
-import {
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";

@@ -9,7 +9,8 @@ import { queryKeys } from "../../api/query-keys";
 import { getRun, type RunSummary } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import {
   organizeRunOutputs,

@@ -9,7 +9,8 @@ import {
   listConfigurations,
   type AgentTemplateBody,
 } from "../../api/operations";
-import { CursorControls, ErrorNotice } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
 

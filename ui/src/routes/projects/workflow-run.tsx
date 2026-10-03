@@ -10,7 +10,7 @@ import {
   CONFIG_VERSION_PATTERN,
   getWorkflow,
 } from "../../api/workflows";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { WorkflowRunForm } from "../workflows/run-form";
 
 export function ProjectWorkflowRunRoute() {

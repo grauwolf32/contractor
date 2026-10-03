@@ -10,7 +10,8 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
 import { Icon } from "../../../app/icon";
-import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatTimestamp } from "../../../app/format";
 import { agentDisplayName, relativeAge, shortAgentId } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 

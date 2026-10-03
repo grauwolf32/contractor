@@ -16,7 +16,7 @@ import {
 import { getProjectArtifactMetadata } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { Dialog } from "../../app/dialog";
-import { ErrorNotice } from "./common";
+import { ErrorNotice } from "../../app/error-notice";
 import "./git-artifacts.css";
 
 export function GitSourceDetails({

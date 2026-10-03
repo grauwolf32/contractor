@@ -28,7 +28,9 @@ import {
   type RunStatus,
 } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
-import { CursorControls, ErrorNotice, formatBytes } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { type RunDisclosureProps, RunDisclosureSummary } from "./components";
 import {

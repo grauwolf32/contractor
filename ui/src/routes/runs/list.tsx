@@ -19,11 +19,9 @@ import {
   type WorkflowRunState,
   type RunSummary,
 } from "../../api/runs";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";

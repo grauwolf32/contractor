@@ -8,7 +8,7 @@ import type {
   StageTransition,
   WorkflowRunState,
 } from "../../api/runs";
-import { formatTimestamp } from "../artifacts/common";
+import { formatTimestamp } from "../../app/format";
 import type { PlannerProjection } from "./live";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];

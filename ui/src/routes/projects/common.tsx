@@ -28,13 +28,10 @@ import {
   inferredArtifactMediaType,
 } from "../artifacts/artifact-file";
 import { ArtifactMediaTypeField } from "../artifacts/media-type-field";
-import {
-  ArtifactFileDrop,
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { ArtifactFileDrop } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import {
   PROJECT_ARTIFACT_SHORTCUTS,

@@ -25,11 +25,9 @@ import { listProjectArtifacts } from "../../../api/project-artifacts";
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { CursorControls } from "../../../app/cursor-controls";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatTimestamp } from "../../../app/format";
 import { AuditControls } from "./controls";
 import { auditProfileLabel } from "./labels";
 import { describeStopReason } from "./stop-reason";

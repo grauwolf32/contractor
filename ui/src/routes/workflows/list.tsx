@@ -1,5 +1,5 @@
 import { useLocation } from "react-router";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "../catalog/navigation";
 import { useCatalogQueryState } from "../catalog/query-state";
 import { WorkflowCard } from "./card";

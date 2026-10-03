@@ -7,11 +7,9 @@ import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";

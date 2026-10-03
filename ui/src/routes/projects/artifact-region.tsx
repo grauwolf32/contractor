@@ -15,12 +15,9 @@ import {
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import {
   ProjectArtifactDialog,
   ProjectArtifactShortcutGrid,

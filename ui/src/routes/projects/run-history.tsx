@@ -11,11 +11,9 @@ import {
 } from "../../api/runs";
 import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";

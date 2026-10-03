@@ -15,7 +15,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { AuditFindingCard } from "./finding-card";
 import { auditProfileLabel } from "./labels";
 import { useAuditCollection, useAuditCollections } from "./collections";

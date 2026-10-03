@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
 import type { Audit } from "../../../api/audits";
-import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { SourceLink } from "../../catalog/audit-preset-checks";
 import { AuditProgress } from "./progress";
 import { ExactArtifactLink } from "./shared";

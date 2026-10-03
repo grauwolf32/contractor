@@ -18,39 +18,11 @@ import {
   writeArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import { PublicAPIError } from "../../api/error";
 import { queryKeys } from "../../api/query-keys";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
 import { ArtifactMediaTypeField } from "./media-type-field";
-
-export function formatBytes(size: number): string {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KiB`;
-  }
-  if (size >= 1024 ** 4) return `${(size / 1024 ** 4).toFixed(1)} TiB`;
-  if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(1)} GiB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-const absoluteTimestamp = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
-
-/**
- * Absolute timestamp for detail metadata. Every absolute date in the UI goes
- * through this formatter so the shape is stable across call sites and
- * browser locales; lists and cards use RecordedTime (relative) instead.
- */
-export function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf())
-    ? value
-    : absoluteTimestamp.format(parsed);
-}
 
 export function ArtifactFileDrop({
   file,
@@ -118,116 +90,6 @@ export function ArtifactFileDrop({
         {file === null ? "Choose file" : "Choose another file"}
       </button>
     </div>
-  );
-}
-
-export function ErrorNotice({
-  error,
-  reconcileWrite = false,
-  context,
-  onRetry,
-  retryLabel = "Try again",
-  retryPending = false,
-}: {
-  error: unknown;
-  reconcileWrite?: boolean;
-  context?: string;
-  onRetry?: () => void;
-  retryLabel?: string;
-  retryPending?: boolean;
-}) {
-  const message = error instanceof Error ? error.message : "Request failed";
-  const requestId =
-    error instanceof PublicAPIError ? error.requestId : undefined;
-  return (
-    <div className="notice notice-error" role="alert">
-      <strong>{context ?? message}</strong>
-      {context === undefined ? null : <p>{message}</p>}
-      {reconcileWrite &&
-      error instanceof PublicAPIError &&
-      error.code === "conflict" ? (
-        <p>
-          The record or binding changed. Refresh its current revision before
-          choosing an explicit new update; this change was not retried.
-        </p>
-      ) : reconcileWrite &&
-        error instanceof PublicAPIError &&
-        error.status === 0 ? (
-        <p>
-          The Server response was not received, so the change may have been
-          applied. Refresh the current state before deciding whether to submit
-          it again.
-        </p>
-      ) : null}
-      {onRetry === undefined || reconcileWrite ? null : (
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={retryPending}
-          onClick={onRetry}
-        >
-          {retryPending ? "Loading…" : retryLabel}
-        </button>
-      )}
-      {error instanceof PublicAPIError ? (
-        <details className="error-details">
-          <summary>Request details</summary>
-          <small>
-            Code {error.code} · Status {error.status}
-          </small>
-          {requestId === undefined ? null : <small>Request {requestId}</small>}
-        </details>
-      ) : null}
-    </div>
-  );
-}
-
-export function CursorControls({
-  label,
-  canGoBack,
-  nextCursor,
-  onBack,
-  onNext,
-  onFirst,
-}: {
-  label: string;
-  canGoBack: boolean;
-  nextCursor?: string;
-  onBack: () => void;
-  onNext: (cursor: string) => void;
-  onFirst?: () => void;
-}) {
-  if (!canGoBack && nextCursor === undefined && onFirst === undefined) {
-    return null;
-  }
-  return (
-    <nav className="pagination" aria-label={label}>
-      {onFirst === undefined ? null : (
-        <button className="secondary-button" type="button" onClick={onFirst}>
-          First page
-        </button>
-      )}
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={!canGoBack}
-        onClick={onBack}
-      >
-        Previous
-      </button>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={nextCursor === undefined}
-        onClick={() => {
-          if (nextCursor !== undefined) {
-            onNext(nextCursor);
-          }
-        }}
-      >
-        Next
-      </button>
-    </nav>
   );
 }
 

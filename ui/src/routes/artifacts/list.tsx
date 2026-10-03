@@ -11,12 +11,10 @@ import {
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import {
-  ArtifactWriteForm,
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-} from "./common";
+import { ArtifactWriteForm } from "./common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { Dialog } from "../../app/dialog";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";

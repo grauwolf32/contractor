@@ -23,12 +23,10 @@ import {
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import {
-  ArtifactWriteForm,
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-} from "./common";
+import { ArtifactWriteForm } from "./common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { ArtifactPreviewPanel } from "./preview";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,

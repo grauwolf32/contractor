@@ -13,7 +13,7 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { CONFIG_VERSION_PATTERN } from "../../../api/workflows";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import {
   llmGatewayBody,
   modelPolicyBody,

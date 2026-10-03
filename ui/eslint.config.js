@@ -31,12 +31,7 @@ export default tseslint.config(
         "warn",
         {
           allowConstantExport: true,
-          allowExportNames: [
-            "formatBytes",
-            "formatTimestamp",
-            "usePublicAPI",
-            "useSession",
-          ],
+          allowExportNames: ["usePublicAPI", "useSession"],
         },
       ],
     },

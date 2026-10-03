@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { type Audit, type AuditItem } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { ContextLink } from "../../../app/context-navigation";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { StateBadge } from "../../runs/components";
 import { auditCheckTitle } from "./check-title";
 import { useAuditCoverage } from "./coverage-data";

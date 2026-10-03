@@ -5,11 +5,8 @@ import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
-import {
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 
 const FIELD_LABELS: Record<string, string> = {
   gatewayId: "Gateway ID",

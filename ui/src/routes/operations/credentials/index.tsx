@@ -7,7 +7,8 @@ import { usePublicAPI } from "../../../api/context";
 import { listCredentials } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
-import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import { CursorControls } from "../../../app/cursor-controls";
+import { ErrorNotice } from "../../../app/error-notice";
 import { CredentialCreateForm } from "./form";
 import { RecordedTime } from "../../../app/recorded-time";
 

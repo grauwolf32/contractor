@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
-import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState } from "../common";
 import { RecordedTime } from "../../../app/recorded-time";
 

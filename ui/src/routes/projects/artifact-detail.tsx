@@ -25,12 +25,9 @@ import {
 } from "../../api/project-artifacts";
 import { PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { ProjectArtifactWriteForm } from "./common";
 import { RefreshButton } from "../../app/refresh-button";

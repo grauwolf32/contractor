@@ -11,7 +11,7 @@ import { WorkflowCard } from "../workflows/card";
 import { useWorkflowFamilies } from "../workflows/families";
 import { useWorkflowInventory } from "../workflows/inventory";
 import { artifactOptionKey } from "../../run-drafts/validation";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { WorkflowRunForm } from "../workflows/run-form";
 import {
   workflowDisplayName,

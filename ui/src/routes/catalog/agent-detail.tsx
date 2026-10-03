@@ -16,7 +16,8 @@ import {
 } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
-import { CursorControls, ErrorNotice } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
 import { catalogReturnState, locationDestination } from "./navigation";
 import {

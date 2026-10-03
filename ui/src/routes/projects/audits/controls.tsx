@@ -15,7 +15,7 @@ import { Icon } from "../../../app/icon";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
 import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 
 export function AuditMutationNotice({ error }: { error: unknown }) {
   return (

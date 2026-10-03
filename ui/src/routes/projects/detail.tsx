@@ -7,7 +7,7 @@ import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { ProjectArtifactBindings, ProjectRegion } from "./common";
 import { ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";

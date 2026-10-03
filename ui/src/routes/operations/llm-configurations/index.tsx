@@ -10,7 +10,8 @@ import {
   type ConfigurationKind,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import { CursorControls } from "../../../app/cursor-controls";
+import { ErrorNotice } from "../../../app/error-notice";
 
 const kindLabels: Record<ConfigurationKind, string> = {
   "agent-templates": "AgentTemplates (read-only)",

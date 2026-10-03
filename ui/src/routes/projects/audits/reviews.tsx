@@ -14,7 +14,7 @@ import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { formatTimestamp } from "../../artifacts/common";
+import { formatTimestamp } from "../../../app/format";
 import { StateBadge } from "../../runs/components";
 import { AuditMutationNotice } from "./controls";
 import { useAuditCollection } from "./collections";

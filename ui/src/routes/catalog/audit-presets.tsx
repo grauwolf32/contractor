@@ -3,7 +3,7 @@ import { useState } from "react";
 import { auditPresetPath } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { compareWorkflowVersions } from "../workflows/families";
 import { useCatalogQueryState } from "./query-state";

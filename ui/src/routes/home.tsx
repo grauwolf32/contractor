@@ -22,7 +22,7 @@ import { useWorkflowInventory } from "./workflows/inventory";
 import { groupWorkflowVersions } from "./workflows/families";
 import { workflowDisplayName } from "./workflows/presentation";
 import { useSession } from "../auth/session";
-import { ErrorNotice } from "./artifacts/common";
+import { ErrorNotice } from "../app/error-notice";
 import { StateBadge } from "./runs/components";
 import { formatRunDuration } from "./runs/triage";
 import { RefreshButton } from "../app/refresh-button";

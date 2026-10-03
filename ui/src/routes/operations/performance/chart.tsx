@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { metricSeriesSegments } from "./series";
-import { formatTimestamp } from "../../artifacts/common";
+import { formatTimestamp } from "../../../app/format";
 
 export interface ChartDatum {
   observedAt: string;

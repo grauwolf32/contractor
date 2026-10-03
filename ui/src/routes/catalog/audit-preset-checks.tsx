@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getAuditStandard, type AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 
 export function SourceLink({
   url,

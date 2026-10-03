@@ -7,7 +7,7 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
 import { ContextLink, ReturnLink } from "../../app/context-navigation";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { compareWorkflowVersions } from "../workflows/families";
 import { AuditPresetStandardChecks } from "./audit-preset-checks";

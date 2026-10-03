@@ -16,7 +16,8 @@ import {
 } from "../api/queue";
 import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
-import { CursorControls, ErrorNotice } from "./artifacts/common";
+import { CursorControls } from "../app/cursor-controls";
+import { ErrorNotice } from "../app/error-notice";
 import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";

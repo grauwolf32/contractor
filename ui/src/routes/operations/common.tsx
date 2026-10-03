@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
-import { formatTimestamp } from "../artifacts/common";
+import { formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import type { ExactConfigurationRef } from "./references";
 

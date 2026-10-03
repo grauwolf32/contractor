@@ -10,7 +10,7 @@ import {
   type AuditItem,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import type { AuditCollectionQuery } from "./collections";
 import { AuditItemDetails } from "./executions";
 import { useAuditItems } from "./items-data";
