@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V222-001
+title: Remove unused and test-only Runtime code
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Keep Runtime production modules limited to active protocol and execution code.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/228
+  finding: Several obsolete gateway, sandbox, and mTLS definitions remain in production while test helpers live in factories and codec modules.
+scope:
+  in:
+    - Remove dead constants, protocols and the unused gateway-config mirror.
+    - Move stub Worker runtime and private encoder into test support.
+    - Remove unused mTLS socket wrappers while retaining peer verification coverage.
+    - Correct the private wire documentation.
+  out:
+    - Changing active wire models or Runtime behavior.
+acceptance_criteria:
+  - {id: A1, text: Production factories contain no Stub runtime classes and tests use local helpers.}
+  - {id: A2, text: Dead gateway mirror, digest helpers, constants and protocols are absent from production.}
+  - {id: A3, text: mTLS exposes role contexts and peer verification without socket wrappers.}
+  - {id: A4, text: Runtime tests and lint pass.}
+tests:
+  - {command: make test-runtime, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
