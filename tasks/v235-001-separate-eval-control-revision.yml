@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V235-001
+title: Keep Eval authority revisions stable across coordinator observations
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Let an owner pause or cancel an Eval using the last authority revision even while coordinator observations continue.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/211
+  finding: Routine token, admission, settle, selection, preparation, and tombstone observations advance the experiment's If-Match revision.
+scope:
+  in:
+    - Let observation-only experiment updates preserve the authority revision while retaining monotonic updated_at.
+    - Keep user mutations and Project deletion fences advancing the authority revision.
+    - Align receipts, native selection history, and public ETags with the split.
+    - Cover coordinator observations, stale authority mutations, and deletion tombstones against PostgreSQL.
+  out:
+    - Changing the separate collection and projection revision protocols.
+acceptance_criteria:
+  - {id: A1, text: ObserveTokens, Admit, Settle, and native selection do not invalidate an existing Pause or Cancel If-Match.}
+  - {id: A2, text: Draft updates, commands, deletion, user selection, and Project fences still advance authority CAS and reject stale If-Match.}
+  - {id: A3, text: A deletion tombstone does not change the experiment ETag or revision.}
+  - {id: A4, text: Eval store and managed-Eval specifications accurately describe authority and observation updates.}
+tests:
+  - {command: go test ./internal/evalstore ./internal/persistence/postgres -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
