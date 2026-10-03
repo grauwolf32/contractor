@@ -3,8 +3,8 @@ id: V140-001
 title: Align passthrough interaction-state completion specs
 milestone: passthrough-interaction-spec-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: fa6a850a7d668ad948be59ada6041808ca51f5c8
 depends_on: []
 languages: [markdown]
 goal: Describe interaction-required Worker Tasks as interrupted passthrough Stages.
