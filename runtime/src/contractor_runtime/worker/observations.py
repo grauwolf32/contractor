@@ -403,7 +403,10 @@ def _result_path(document: Mapping[str, Any]) -> str:
 def _argument_path(arguments: Mapping[str, Any], field_name: str) -> str:
     if not isinstance(arguments, Mapping):
         raise ValueError("tool observation arguments are invalid")
-    return _exact_path(arguments.get(field_name))
+    try:
+        return normalize_project_path(arguments.get(field_name), allow_root=False)
+    except ProjectPathError:
+        raise ValueError("workspace observation path is invalid") from None
 
 
 def _exact_path(value: Any) -> str:
