@@ -151,18 +151,12 @@ def test_private_urls_must_be_credential_free_https(
         parse_settings(arguments, {})
 
 
-def test_private_key_permissions_and_timing_are_strict(tmp_path: Path) -> None:
+def test_private_key_permissions_are_strict(tmp_path: Path) -> None:
     arguments = base_arguments(tmp_path)
     key = Path(arguments[arguments.index("--private-key-file") + 1])
     key.chmod(0o644)
     with pytest.raises(SystemExit):
         parse_settings(arguments, {})
-    key.chmod(0o600)
-    with pytest.raises(SystemExit):
-        parse_settings(
-            [*arguments, "--heartbeat-interval-seconds", "60", "--confirmed-lease-seconds", "10"],
-            {},
-        )
 
 
 def base_arguments(tmp_path: Path) -> list[str]:

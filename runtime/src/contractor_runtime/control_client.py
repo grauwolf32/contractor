@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 MAX_CONTROL_RESPONSE_BYTES = 1 << 20
 MAX_CONTROL_HEADERS = _https.MAX_RESPONSE_HEADERS
 MAX_CONTROL_HEADER_BYTES = _https.MAX_RESPONSE_HEADER_BYTES
+CONTROL_RETRY_BACKOFF_CEILING_SECONDS = 5.0
 
 
 class ControlTransport(Protocol):
@@ -155,10 +156,9 @@ class ControlClient:
         self._reconciliation_task: asyncio.Task[None] | None = None
         self._sequence = 0
         self._echoed_ack = 0
-        self._timing = ControlTiming(
-            heartbeat_interval_seconds=settings.heartbeat_interval_seconds,
-            confirmed_lease_seconds=settings.confirmed_lease_seconds,
-        )
+        # Registration replaces these protocol defaults before the production
+        # heartbeat loop or lease watchdog uses them.
+        self._timing = ControlTiming(heartbeat_interval_seconds=10.0, confirmed_lease_seconds=60.0)
 
     @property
     def sequence(self) -> int:
@@ -345,8 +345,7 @@ class ControlClient:
             await asyncio.gather(sleeping, stopped, return_exceptions=True)
 
     def _backoff(self, failures: int) -> float:
-        ceiling = min(5.0, self._timing.heartbeat_interval_seconds)
-        return bounded_backoff(failures, ceiling, self._jitter)
+        return bounded_backoff(failures, CONTROL_RETRY_BACKOFF_CEILING_SECONDS, self._jitter)
 
 
 def _consume_background_task(task: asyncio.Task[Any]) -> None:

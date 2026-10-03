@@ -61,8 +61,6 @@ class Settings:
     allowed_target_networks: tuple[IPNetwork, ...] = ()
     host: str = "127.0.0.1"
     port: int = 9443
-    heartbeat_interval_seconds: float = 10.0
-    confirmed_lease_seconds: float = 60.0
     request_timeout_seconds: float = 5.0
     shutdown_grace_seconds: float = 10.0
     work_root: Path = Path(".local/runtime/work")
@@ -129,16 +127,6 @@ def parse_settings(
         default=values.get("CONTRACTOR_RUNTIME_LISTEN", "127.0.0.1:9443"),
     )
     parser.add_argument(
-        "--heartbeat-interval-seconds",
-        type=float,
-        default=values.get("CONTRACTOR_HEARTBEAT_INTERVAL_SECONDS", "10"),
-    )
-    parser.add_argument(
-        "--confirmed-lease-seconds",
-        type=float,
-        default=values.get("CONTRACTOR_CONFIRMED_LEASE_SECONDS", "60"),
-    )
-    parser.add_argument(
         "--request-timeout-seconds",
         type=float,
         default=values.get("CONTRACTOR_REQUEST_TIMEOUT_SECONDS", "5"),
@@ -183,12 +171,8 @@ def parse_settings(
     if private_key_file.stat().st_mode & 0o077:
         parser.error("--private-key-file must not be accessible by group or other users")
 
-    heartbeat = _positive(parser, "--heartbeat-interval-seconds", args.heartbeat_interval_seconds)
-    lease = _positive(parser, "--confirmed-lease-seconds", args.confirmed_lease_seconds)
     request_timeout = _positive(parser, "--request-timeout-seconds", args.request_timeout_seconds)
     shutdown_grace = _positive(parser, "--shutdown-grace-seconds", args.shutdown_grace_seconds)
-    if lease <= heartbeat:
-        parser.error("--confirmed-lease-seconds must exceed --heartbeat-interval-seconds")
     work_root = Path(args.work_root).expanduser().resolve()
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
@@ -214,8 +198,6 @@ def parse_settings(
         allowed_target_networks=allowed_target_networks,
         host=host,
         port=port,
-        heartbeat_interval_seconds=heartbeat,
-        confirmed_lease_seconds=lease,
         request_timeout_seconds=request_timeout,
         shutdown_grace_seconds=shutdown_grace,
         work_root=work_root,
