@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V97-002
+title: Preserve proxy error status in public CLI client
+milestone: api-url-boundary-clarity-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Show a useful HTTP status when an intermediary responds without the Contractor API version header.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/250
+  finding: The checked transport classifies headerless proxy errors as API version incompatibility before looking at HTTP status.
+scope:
+  in:
+    - Report headerless HTTP errors with their status and a retry or size-limit hint where useful.
+    - Preserve compatibility errors for successful headerless and explicitly mismatched-version responses.
+    - Cover CLI public client transport behavior with focused tests.
+  out:
+    - Change the browser API client, which already classifies headerless 5xx responses separately.
+acceptance_criteria:
+  - {id: A1, text: Headerless 502, 503 and 504 errors retain status without an incompatible-version message.}
+  - {id: A2, text: Headerless 413 retains status and points to a request-size limit.}
+  - {id: A3, text: Headerless success and explicit mismatched version remain compatibility errors.}
+  - {id: A4, text: Public client tests and Go vet pass.}
+tests:
+  - {command: go test ./internal/publicclient, covers: [A1, A2, A3, A4]}
+  - {command: go vet ./internal/publicclient, covers: [A4]}

@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V97-001
+title: Keep Project target URL validation and readback usable
+milestone: api-url-boundary-clarity-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, typescript]
+goal: Reject unusable new HTTP target URLs while keeping legacy Project records editable in the UI.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/255
+  finding: Go accepts target URL forms that WHATWG URL rejects and the UI rejects the whole Project response.
+scope:
+  in:
+    - Reject invalid ports, zone IDs, numeric-looking invalid hosts and empty fragments in Server target validation.
+    - Preserve raw legacy target URL text when reading a Project so list, detail and target removal remain available.
+    - Align UI target authoring validation and cover both server and UI behavior.
+  out:
+    - Rewrite or delete already stored Project targets automatically.
+acceptance_criteria:
+  - {id: A1, text: Server rejects the issue's invalid URL examples on write.}
+  - {id: A2, text: Project list and detail still load with a legacy invalid target; its target can be removed.}
+  - {id: A3, text: UI authoring rejects empty query and fragment suffixes.}
+  - {id: A4, text: Go contracts and relevant UI checks pass.}
+tests:
+  - {command: go test ./internal/contracts, covers: [A1, A4]}
+  - {command: cd ui && ./node_modules/.bin/vitest run src/api/projects.test.ts src/routes/projects/http-target-editor.test.tsx, covers: [A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}
