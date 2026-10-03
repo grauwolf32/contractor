@@ -830,6 +830,9 @@ Path Item, operation, parameter, security declaration, or schema dependency
 rejects the entire inventory before dispatch. Remote refs that occur only in
 unsupported callbacks, webhooks, or other non-selected surfaces are not
 followed and become explicit named coverage gaps.
+Numbers in either form must be finite and within the exact integer range
+(±9007199254740991, without a fraction that rounds past it); a larger number
+rejects the document in JSON and YAML alike, as in scan preparation.
 
 `openapi-operations@1` enumerates explicit HTTP operations in `paths`. Callbacks
 and webhooks become named coverage gaps rather than counted checks. Path Item
@@ -1606,6 +1609,9 @@ Deleting one destination does not release another destination's retained
 evidence or change its finding decisions. A receipt read through one Audit
 lists only that Audit's own hold and, after source Run deletion, reads the
 proposal from that Audit's retained copy, never from another destination's.
+After source Run deletion, the Audit inbox omits a native child receipt the
+Audit never retained, such as a proposal collection rejected, because no
+readable copy remains for it.
 
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks

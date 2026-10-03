@@ -129,6 +129,27 @@ func TestOpenAPIYAMLPlainScalarNumberBoundsMatchScanplan(t *testing.T) {
 	}
 }
 
+func TestOpenAPIJSONAndYAMLNumberBoundsMatch(t *testing.T) {
+	for _, scalar := range []string{"9007199254740991", "-9007199254740991", "1.25", "1e3"} {
+		jsonRoot, jsonErr := parseJSONOrYAML([]byte(`{"value":`+scalar+`}`), "application/json")
+		yamlRoot, yamlErr := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml")
+		if jsonErr != nil || yamlErr != nil || !reflect.DeepEqual(jsonRoot, yamlRoot) {
+			t.Fatalf("number %s: JSON %#v, %v; YAML %#v, %v", scalar, jsonRoot, jsonErr, yamlRoot, yamlErr)
+		}
+	}
+	for _, scalar := range []string{"9007199254740992", "9223372036854775807", "9007199254740991.1", "1e300"} {
+		if _, err := parseJSONOrYAML([]byte(`{"value":`+scalar+`}`), "application/json"); ErrorCode(err) != CodeInvalid {
+			t.Fatalf("JSON number %s error = %v", scalar, err)
+		}
+		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); ErrorCode(err) != CodeInvalid {
+			t.Fatalf("YAML number %s error = %v", scalar, err)
+		}
+	}
+	if _, err := canonicalJSON(map[string]any{"value": int64(1) << 60}); err != nil {
+		t.Fatalf("canonical encoding of a large Server value: %v", err)
+	}
+}
+
 func TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap(t *testing.T) {
 	options := testInventoryOptions("trace")
 	selected := []byte(`{"openapi":"3.1.0","paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"$ref":"https://example.invalid/schema.json"}}}}}}}}}`)

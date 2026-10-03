@@ -425,11 +425,20 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	if err := runs.DeleteReleasedTerminalRun(ctx, ownerID, runID); err != nil {
 		t.Fatal(err)
 	}
+	// The first receipt is held by both Audits; each inbox names only its own hold.
 	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionAuditHeld ||
-		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 2 ||
-		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted {
+		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
+		listed[0].AuditHolds[0].AuditID != auditID || !sameRef(listed[0].AuditHolds[0].Proposal.Ref, hold.Proposal.Ref) ||
+		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted ||
+		len(listed[1].AuditHolds) != 1 || listed[1].AuditHolds[0].AuditID != auditID {
 		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
+	}
+	otherListed, err := service.ListAuditInbox(ctx, ownerID, otherAuditID, ListQuery{Limit: 10})
+	if err != nil || len(otherListed) != 1 || otherListed[0].ReceiptID != firstReceipt.ReceiptID ||
+		len(otherListed[0].AuditHolds) != 1 || otherListed[0].AuditHolds[0].AuditID != otherAuditID ||
+		!sameRef(otherListed[0].AuditHolds[0].Proposal.Ref, otherHold.Proposal.Ref) {
+		t.Fatalf("other Audit inbox after Run deletion = (%+v, %v)", otherListed, err)
 	}
 	secondAfterDelete, err := readReceiptByID(ctx, pool, secondReceipt.ReceiptID)
 	if err != nil || secondAfterDelete.Retention != RetentionDiscarded || !secondAfterDelete.Origin.RunDeleted {

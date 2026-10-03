@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V166-001
+title: Age deferred Run claims back into their tier
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: a2435bd4d42f850a1f2db7a925012028443160c0
+depends_on: [V105-001]
+languages: [go]
+goal: Prevent a deferred Run from starving behind newer work while keeping V105 fairness for fresh deferrals.
+context:
+  finding: V105 ranked every deferred Run behind all non-deferred work until a later successful release, so steady inflow could starve a Run whose capacity had freed.
+scope:
+  in:
+    - Rank a deferred Run behind pending work only for a fixed window after deferral.
+    - Return it to its state tier, ordered by age, after the window.
+    - Document the window in spec 20.
+  out:
+    - Change Scheduler lane limits or Runtime placement policy.
+acceptance_criteria:
+  - {id: A1, text: A freshly deferred Run still yields to pending Runs, including newer ones.}
+  - {id: A2, text: After the window a deferred running Run is claimed ahead of pending work and a deferred pending Run ahead of newer pending Runs.}
+  - {id: A3, text: Existing V105 runstore and scheduler claim tests pass.}
+tests:
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore ./internal/scheduler, covers: [A1, A2, A3]}

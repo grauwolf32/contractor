@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V164-001
+title: Validate CA bundles with one grammar in Server and Runtime
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: 03d0414cd5158cf5ea5ae80d97c4fc0f38bc8412
+depends_on: [V74-001]
+languages: [go, python]
+goal: Ensure every CA bundle the Server publishes is accepted by Runtime contract validation and loads in OpenSSL as one bundle.
+context:
+  finding: Server pem.Decode skipped malformed blocks (END-line trailers, missing newline before END) that Runtime rejected; Runtime used Unicode-aware whitespace.
+scope:
+  in:
+    - Enforce one ASCII-only, line-based PEM grammar from byte-identical regexes in Go and Python.
+    - Drive both suites from shared fixtures and a case table.
+    - Update the grammar description in spec 07.
+  out:
+    - Reconcile DER-level parser differences between Go x509 and OpenSSL.
+acceptance_criteria:
+  - {id: A1, text: Bundles with END-line trailers, truncated blocks, unterminated END lines, joined blocks or non-ASCII whitespace are rejected by both Server and Runtime.}
+  - {id: A2, text: Every shared valid case is accepted by both and loads in OpenSSL as one cadata value.}
+tests:
+  - {command: go test -count=1 ./internal/cabundle ./internal/contracts ./internal/runtimeconfig, covers: [A1, A2]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest -q runtime/tests/test_contracts.py, covers: [A1, A2]}

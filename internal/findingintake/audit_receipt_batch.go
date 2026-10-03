@@ -47,6 +47,58 @@ SELECT `+receiptProjection+`
 	if err != nil {
 		return nil, err
 	}
+	return s.hydrateAuditReceipts(ctx, ownerID, auditID, receipts)
+}
+
+func scanAuditReceiptBatch(rows pgx.Rows, ids []string) ([]Receipt, error) {
+	scanned, err := scanReceiptRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Receipt, len(scanned))
+	for _, receipt := range scanned {
+		byID[receipt.ReceiptID] = receipt
+	}
+	result := make([]Receipt, len(ids))
+	for index, id := range ids {
+		receipt, ok := byID[id]
+		if !ok {
+			return nil, ErrNotFound
+		}
+		result[index] = receipt
+	}
+	return result, nil
+}
+
+func scanReceiptRows(rows pgx.Rows) ([]Receipt, error) {
+	defer rows.Close()
+	result := make([]Receipt, 0)
+	for rows.Next() {
+		receipt, err := scanReceiptRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, receipt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Audit finding receipts: %w", err)
+	}
+	return result, nil
+}
+
+// hydrateAuditReceipts attaches only the requesting Audit's hold to each
+// receipt and reads its exact proposal, from that hold's retained copy once
+// the source Run is deleted.
+func (s *Service) hydrateAuditReceipts(
+	ctx context.Context, ownerID, auditID string, receipts []Receipt,
+) ([]Receipt, error) {
+	if len(receipts) == 0 {
+		return receipts, nil
+	}
+	ids := make([]string, len(receipts))
+	for index := range receipts {
+		ids[index] = receipts[index].ReceiptID
+	}
 	holds, err := s.readAuditHoldsBatch(ctx, ownerID, auditID, ids)
 	if err != nil {
 		return nil, err
@@ -58,30 +110,6 @@ SELECT `+receiptProjection+`
 		}
 	}
 	return s.hydrateAuditReceiptBatch(ctx, receipts)
-}
-
-func scanAuditReceiptBatch(rows pgx.Rows, ids []string) ([]Receipt, error) {
-	defer rows.Close()
-	byID := make(map[string]Receipt, len(ids))
-	for rows.Next() {
-		receipt, err := scanReceiptRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		byID[receipt.ReceiptID] = receipt
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate Audit finding receipts: %w", err)
-	}
-	result := make([]Receipt, len(ids))
-	for index, id := range ids {
-		receipt, ok := byID[id]
-		if !ok {
-			return nil, ErrNotFound
-		}
-		result[index] = receipt
-	}
-	return result, nil
 }
 
 // readAuditHoldsBatch returns only the requesting Audit's holds, and only

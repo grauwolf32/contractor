@@ -221,8 +221,16 @@ The first schema fixes those bounds so publication is independently testable:
   content export to a trusted telemetry sink;
 - proxy `targets` is a unique non-empty subset of the three values shown above;
 - `caBundlePem` is at most 64 KiB and contains one through eight parseable X.509
-  `CERTIFICATE` PEM blocks, with only whitespace before, between and after
-  blocks. PEM headers, other text and any `PRIVATE KEY` marker are invalid.
+  `CERTIFICATE` PEM blocks. Each `-----BEGIN CERTIFICATE-----` and
+  `-----END CERTIFICATE-----` marker starts a line, the BEGIN line ends right
+  after its marker, and the body between them is one or more non-empty base64
+  lines that decode with padding; lines end in LF or CRLF. Only ASCII
+  whitespace (tab, LF, FF, CR, space) appears before, between and after blocks,
+  and every block starts on a new line. Blank body lines, trailing whitespace
+  inside a block, PEM headers, other text, non-ASCII whitespace and any
+  `PRIVATE KEY` marker are invalid. Server and Runtime enforce this one grammar
+  against the shared cases in `api/testdata/v1alpha1/ca-bundle-cases.json`, and
+  every accepted bundle also loads through OpenSSL as one `cadata` value.
   The exact validated UTF-8 string
   bytes participate in the RuntimeConfig digest without Unicode/line-ending
   rewriting;

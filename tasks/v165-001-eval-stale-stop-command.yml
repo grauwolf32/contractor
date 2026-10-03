@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V165-001
+title: Clear stale Eval stop commands that are no longer allowed
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: eb9fbe68d0e1d2268848e0258107777bdd92e49b
+depends_on: [V72-001]
+languages: [typescript]
+goal: Keep Eval controls usable when a pending stop command becomes impossible after a revision conflict.
+context:
+  finding: After a 412 retry found the action no longer allowed, the pending command stayed in state and localStorage, was replayed forever and kept every control disabled.
+scope:
+  in:
+    - Drop a ruled-out stop intent from state and localStorage with a typed non-retryable error.
+    - Keep resume-after-reload for network and 5xx failures.
+  out:
+    - Change Server Eval command revision semantics.
+acceptance_criteria:
+  - {id: A1, text: A stop intent the refetched experiment no longer allows is cleared, controls re-enable, and no further POST is sent after a click or reload.}
+  - {id: A2, text: A retryable failure keeps the pending command and replays it with the same key after reload.}
+tests:
+  - {command: cd ui && pnpm run typecheck && pnpm exec vitest run src/routes/evals-setup.test.tsx src/routes/evals, covers: [A1, A2]}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import math
 import re
 import ssl
@@ -18,7 +19,8 @@ from pydantic import (
 
 from contractor_runtime.contracts.artifacts import ArtifactRef
 from contractor_runtime.contracts.base import (
-    _CERTIFICATE_PATTERN,
+    _CA_BUNDLE_PATTERN,
+    _CERTIFICATE_BLOCK_PATTERN,
     _FORBIDDEN_RUNTIME_HEADERS,
     _HEADER_NAME_PATTERN,
     ID_PATTERN,
@@ -294,21 +296,27 @@ class HTTPProxyBasicAuth(WireModel):
 
 
 def _validate_ca_bundle(owner: str, value: str) -> None:
-    if not 1 <= len(value.encode("utf-8")) <= 64 * 1024 or "PRIVATE KEY" in value:
+    """Apply the CA bundle grammar shared with Server ``cabundle.Validate``.
+
+    One to eight ``CERTIFICATE`` blocks whose markers each start a line, whose
+    bodies are non-empty LF/CRLF-terminated base64 lines, separated only by
+    ASCII whitespace; each body must decode with padding and load in OpenSSL.
+    """
+
+    if (
+        not 1 <= len(value.encode("utf-8")) <= 64 * 1024
+        or "PRIVATE KEY" in value
+        or _CA_BUNDLE_PATTERN.fullmatch(value) is None
+    ):
         raise ValueError(f"{owner} CA bundle is invalid")
-    certificates = _CERTIFICATE_PATTERN.findall(value)
-    remainder = _CERTIFICATE_PATTERN.sub("", value)
-    if not 1 <= len(certificates) <= 8 or remainder.strip():
+    blocks = list(_CERTIFICATE_BLOCK_PATTERN.finditer(value))
+    if not 1 <= len(blocks) <= 8:
         raise ValueError(f"{owner} CA bundle is invalid")
     try:
         trust = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        for certificate in certificates:
-            body = certificate.removeprefix("-----BEGIN CERTIFICATE-----").removesuffix(
-                "-----END CERTIFICATE-----"
-            )
-            if re.search(r"[^A-Za-z0-9+/=\r\n]", body):
-                raise ValueError("invalid certificate body")
-            trust.load_verify_locations(cadata=certificate)
+        for block in blocks:
+            base64.b64decode(block[1].replace("\r", "").replace("\n", ""), validate=True)
+            trust.load_verify_locations(cadata=block[0])
     except (ValueError, ssl.SSLError):
         raise ValueError(f"{owner} CA bundle is invalid") from None
 

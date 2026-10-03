@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V167-001
+title: Bound JSON Audit source numbers like their YAML form
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: e34e6820f1bff7b659dcc7f1c10939b85a8cc41e
+depends_on: [V100-001]
+languages: [go]
+goal: Make equivalent JSON and YAML Audit source documents accept and reject the same numbers.
+context:
+  finding: V100 bounded YAML numbers to the exact integer range while the JSON path still accepted any finite float64.
+scope:
+  in:
+    - Parse JSON OpenAPI and checklist sources with documentnumber.Float, as scan preparation does.
+    - Keep canonical encodings of Server values on the finite-float rule.
+    - Document the bound in spec 19.
+  out:
+    - Change scan preparation number handling.
+acceptance_criteria:
+  - {id: A1, text: Safe numbers parse identically from JSON and YAML.}
+  - {id: A2, text: Numbers beyond ±9007199254740991 or rounding past it are rejected in both forms.}
+  - {id: A3, text: Canonical encoding of large Server values still succeeds.}
+tests:
+  - {command: go test -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditimport ./internal/scanplan, covers: [A1, A2, A3]}

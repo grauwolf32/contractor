@@ -391,6 +391,56 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("route", ["direct", "proxy"])
+def test_ascii_host_names_outside_idna_rules_are_sent(tmp_path: Path, route: str) -> None:
+    async def scenario() -> None:
+        hosts: list[str] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            hosts.append(request.url.raw_host.decode("ascii"))
+            return httpx.Response(200, request=request)
+
+        proxy_client: httpx.AsyncClient | None = None
+        if route == "direct":
+            tools, _ = await create_tools(tmp_path, handler)
+        else:
+            proxy_client = httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), trust_env=False
+            )
+            factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
+            tools = await make_tools(
+                factory,
+                tmp_path,
+                settings=proxy_runtime_settings(),
+                adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
+            )
+        long_label = "a" * 64
+        try:
+            for url in (
+                "http://juice_shop:3000/",
+                "https://web_app.example/",
+                "https://ab--cd.example/",
+                f"https://{long_label}.example/",
+                "https://xn--bcher-kva.example/",
+                "https://bücher.example/",
+            ):
+                await tools["http_request"](url)
+        finally:
+            await close_tools(tools)
+            if proxy_client is not None:
+                await proxy_client.aclose()
+        assert hosts == [
+            "juice_shop",
+            "web_app.example",
+            "ab--cd.example",
+            f"{long_label}.example",
+            "xn--bcher-kva.example",
+            "xn--bcher-kva.example",
+        ]
+
+    asyncio.run(scenario())
+
+
 def test_connect_time_target_denial_does_not_retain_an_exchange(tmp_path: Path) -> None:
     async def handler(_request: httpx.Request) -> httpx.Response:
         raise TargetDenied

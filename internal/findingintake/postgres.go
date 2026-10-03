@@ -164,18 +164,25 @@ SELECT receipt.receipt_id
 	return s.hydrateReceiptDocuments(ctx, result)
 }
 
+// ListAuditInbox lists the Audit's native child receipts and the receipts it
+// holds, each with only this Audit's hold. After the source Run is deleted a
+// proposal is readable only from this Audit's retained copy, so a native
+// receipt the Audit never retained, such as one collection rejected, leaves
+// the inbox instead of failing the page.
 func (s *Service) ListAuditInbox(
 	ctx context.Context,
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
 	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT receipt.receipt_id
+SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_retention AS retention USING (receipt_id)
  WHERE receipt.owner_id = $1
-   AND (receipt.audit_id = $2 OR EXISTS (
+   AND ((receipt.audit_id = $2 AND retention.source_run_deleted_at IS NULL) OR EXISTS (
        SELECT 1 FROM finding_proposal_audit_holds AS hold
-        JOIN audits AS audit ON audit.audit_id = hold.audit_id
+        JOIN audits AS audit
+          ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
        WHERE hold.receipt_id = receipt.receipt_id
          AND hold.audit_id = $2 AND audit.owner_id = $1
    ))
@@ -186,24 +193,30 @@ SELECT receipt.receipt_id
 
 // ListAuditHeldInbox lists only receipts with an exact hold in the Audit. A
 // native child receipt that collection did not retain, such as a rejected
-// invalid proposal, stays in the owner inbox but is never schedulable work.
+// invalid proposal, stays in the owner inbox while its source Run exists but
+// is never schedulable work.
 func (s *Service) ListAuditHeldInbox(
 	ctx context.Context,
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
 	return s.listAuditInbox(ctx, ownerID, auditID, query, `
-SELECT receipt.receipt_id
+SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN finding_proposal_audit_holds AS hold
     ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-  JOIN audits AS audit ON audit.audit_id = hold.audit_id
+  JOIN audits AS audit
+    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
  WHERE receipt.owner_id = $1 AND audit.owner_id = $1
    AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
  ORDER BY receipt.created_at, receipt.receipt_id
  LIMIT $5`)
 }
 
+// listAuditInbox filters in the statement, so a page is never short because a
+// row was dropped after LIMIT, and hydrates through the same Audit-scoped
+// hold path as GetAuditReceipts.
 func (s *Service) listAuditInbox(
 	ctx context.Context,
 	ownerID, auditID string,
@@ -213,16 +226,16 @@ func (s *Service) listAuditInbox(
 	if ownerID == "" || auditID == "" || !validListQuery(query) {
 		return nil, ErrInvalid
 	}
-	ids, err := listReceiptIDs(ctx, s.pool, statement,
+	rows, err := s.pool.Query(ctx, statement,
 		ownerID, auditID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list Audit finding receipts: %w", err)
 	}
-	result, err := readReceipts(ctx, s.pool, ids)
+	receipts, err := scanReceiptRows(rows)
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateReceiptDocuments(ctx, result)
+	return s.hydrateAuditReceipts(ctx, ownerID, auditID, receipts)
 }
 
 // GetAuditReceipt returns one exact proposal only when the authenticated owner

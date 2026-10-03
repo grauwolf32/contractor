@@ -1409,25 +1409,36 @@ def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> floa
     return delay
 
 
+def _validate_idna_host(host: str) -> None:
+    # httpx sends ASCII names as written, so ordinary labels such as
+    # docker-compose service names with underscores stay valid. Only Unicode
+    # names, which httpx IDNA-encodes, and explicit A-labels need IDNA rules.
+    name = host.lower().rstrip(".")
+    if not name.isascii():
+        idna.encode(name)
+        return
+    for label in name.split("."):
+        if label.startswith("xn--"):
+            idna.decode(label)
+
+
 def _validate_target(url: str, policy: TargetPolicy) -> None:
     try:
         validate_web_url(url)
         parsed = urlsplit(url)
+        host = parsed.hostname
         if (
             parsed.scheme not in {"http", "https"}
-            or not parsed.hostname
+            or not host
             or parsed.username is not None
             or parsed.password is not None
             or parsed.fragment
         ):
             raise HTTPToolError("http_request_invalid")
-        host = parsed.hostname
-        assert host is not None
         try:
             ipaddress.ip_address(host)
         except ValueError:
-            # httpx validates even ASCII A-labels when building the request.
-            idna.encode(host.lower().rstrip("."))
+            _validate_idna_host(host)
         _origin(url)
     except HTTPToolError:
         raise

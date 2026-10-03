@@ -672,7 +672,8 @@ WITH candidate AS (
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
     ORDER BY CASE
                  WHEN state = 'cancelling' THEN 0
-                 WHEN scheduler_deferred THEN 3
+                 WHEN scheduler_deferred
+                  AND updated_at > clock_timestamp() - ($3::bigint * interval '1 microsecond') THEN 3
                  WHEN state IN ('running', 'waiting') THEN 1
                  ELSE 2
              END,
@@ -687,7 +688,7 @@ SET scheduler_claim_id = $1,
     updated_at = clock_timestamp()
 FROM candidate
 WHERE run.run_id = candidate.run_id
-RETURNING `+prefixedWorkflowRunColumns("run"), claimID, microseconds,
+RETURNING `+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds(),
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNoWork
@@ -706,8 +707,15 @@ func (s *PostgresStore) ReleaseRunClaim(ctx context.Context, runID, claimID stri
 	return s.releaseRunClaim(ctx, runID, claimID, false)
 }
 
-// DeferRunClaim releases the lease while moving this Run behind pending work.
-// A later successful attempt clears the marker through ReleaseRunClaim.
+// deferredClaimYield is how long a deferred Run ranks behind pending work.
+// After it, the Run competes in its own state's tier again, so a Run that stays
+// blocked takes at most one claim per window and never starves behind newer
+// Runs.
+const deferredClaimYield = 30 * time.Second
+
+// DeferRunClaim releases the lease while moving this Run behind pending work
+// for deferredClaimYield. A later successful attempt clears the marker
+// through ReleaseRunClaim.
 func (s *PostgresStore) DeferRunClaim(ctx context.Context, runID, claimID string) error {
 	return s.releaseRunClaim(ctx, runID, claimID, true)
 }

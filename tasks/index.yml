@@ -2801,6 +2801,13 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V168-001, file: v168-001-lease-session-keepalives.yml}
+  - {id: V167-001, file: v167-001-source-number-parity.yml}
+  - {id: V166-001, file: v166-001-deferred-claim-aging.yml}
+  - {id: V165-001, file: v165-001-eval-stale-stop-command.yml}
+  - {id: V164-001, file: v164-001-ca-bundle-single-grammar.yml}
+  - {id: V163-001, file: v163-001-audit-inbox-hold-scope.yml}
+  - {id: V162-001, file: v162-001-http-ascii-host-names.yml}
   - {id: V161-001, file: v161-001-code-analysis-symbol-names.yml}
   - {id: V160-001, file: v160-001-gateway-error-body-parity.yml}
   - {id: V159-001, file: v159-001-worker-handle-secret-collisions.yml}

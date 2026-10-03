@@ -1114,6 +1114,65 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	}
 }
 
+func TestPostgresDeferredClaimAgesBackIntoItsStateTier(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	claimAndDefer := func(claimID, wantRunID string) {
+		t.Helper()
+		claimed, err := store.ClaimRunnableRun(ctx, claimID, time.Minute)
+		if err != nil || claimed.RunID != wantRunID {
+			t.Fatalf("claim %s = (%+v, %v), want %s", claimID, claimed, err, wantRunID)
+		}
+		if err := store.DeferRunClaim(ctx, wantRunID, claimID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	age := func(runID string) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `
+UPDATE workflow_runs
+SET updated_at = clock_timestamp() - ($2::bigint * interval '1 microsecond') - interval '1 second'
+WHERE run_id = $1`, runID, deferredClaimYield.Microseconds()); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	blocked := createTestRun(t, ctx, store, "run-blocked-running")
+	if _, err := store.TransitionRun(ctx, blocked.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"}); err != nil {
+		t.Fatal(err)
+	}
+	claimAndDefer("claim-blocked-1", blocked.RunID)
+	waiting := createTestRun(t, ctx, store, "run-waiting-pending")
+	if _, err := store.TransitionRun(ctx, waiting.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A fresh deferral yields to pending work, including newer pending Runs.
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-waiting-1", time.Minute)
+	if err != nil || claimed.RunID != waiting.RunID {
+		t.Fatalf("pending Run after fresh deferral = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, waiting.RunID, "claim-waiting-1"); err != nil {
+		t.Fatal(err)
+	}
+	// Once its deferral ages out, the running Run is back ahead of pending work
+	// instead of waiting for every Run that arrives meanwhile.
+	age(blocked.RunID)
+	claimAndDefer("claim-blocked-2", blocked.RunID)
+	// A deferred pending Run likewise competes by age with newer pending work
+	// once its deferral ages out.
+	claimAndDefer("claim-waiting-2", waiting.RunID)
+	age(waiting.RunID)
+	newer := createTestRun(t, ctx, store, "run-newer-pending")
+	if _, err := store.TransitionRun(ctx, newer.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimAndDefer("claim-waiting-3", waiting.RunID)
+	claimAndDefer("claim-newer", newer.RunID)
+}
+
 func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
