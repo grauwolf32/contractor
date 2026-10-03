@@ -21,6 +21,7 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
+from contractor_runtime.toolsets.common.target_policy import TargetDenied
 from contractor_runtime.toolsets.http.tools import (
     HTTP_BODY_MEDIA_TYPE,
     HTTPToolError,
@@ -281,6 +282,35 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
             await close_tools(tools)
             if proxy_client is not None:
                 await proxy_client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_connect_time_target_denial_does_not_retain_an_exchange(tmp_path: Path) -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        raise TargetDenied
+
+    async def scenario() -> None:
+        tools, _ = await create_tools(tmp_path, handler)
+        try:
+            request = tools["http_request"]
+            session = request._session
+            with pytest.raises(HTTPToolError) as failure:
+                await request(
+                    "https://target.example/denied",
+                    tool_context=SimpleNamespace(invocation_id="invocation-1"),
+                )
+            assert failure.value.code == "http_target_denied"
+            assert failure.value.retryable is False
+            captured = session._exchanges._entries[1]
+            assert captured.complete is False
+            assert len(captured.attempts) == 1
+            assert captured.attempts[0].error is None
+            with pytest.raises(ValueError, match="request_id is unavailable"):
+                await session.finding_exchange(1, "invocation-1")
+            assert await tools["http_history"]() == []
+        finally:
+            await close_tools(tools)
 
     asyncio.run(scenario())
 
