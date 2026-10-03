@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V155-001
+title: Deduplicate release-gate race and process tests
+milestone: release-gate-test-dedup-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [make, yaml, python]
+goal: Run each Go race package and process e2e test once in release-verify while retaining focused family entry points.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/304
+  finding: Overlapping family targets rerun race package suites and two process e2e cases, exhausting CI time.
+scope:
+  in:
+    - Consolidate release-gate Go race packages into one invocation.
+    - Consolidate process e2e names into one invocation.
+    - Preserve every prior release-gate package and process test, plus local family target behavior.
+    - Set a realistic CI job timeout for the consolidated gate.
+  out:
+    - Change the underlying test cases or production behavior.
+acceptance_criteria:
+  - {id: A1, text: make -n release-verify shows one whole-package untagged race invocation and no duplicate process e2e name.}
+  - {id: A2, text: Every package and process test selected by the former gate remains selected.}
+  - {id: A3, text: Family targets still run their focused race and e2e commands when invoked directly.}
+  - {id: A4, text: CI timeout permits the consolidated gate to finish on a green tree.}
+tests:
+  - {command: python3 scripts/check_release_verify_graph.py, covers: [A1, A2, A3]}
+  - {command: make -n release-verify, covers: [A1]}
+  - {command: make -n test-worker-session-modes-hardening, covers: [A3]}
