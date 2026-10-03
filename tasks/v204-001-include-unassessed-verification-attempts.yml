@@ -3,7 +3,8 @@ id: V204-001
 title: Include unassessed verification attempts in finding provenance
 milestone: audit-provenance-truth-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1f5c138c607be784aaadf0498d2305dd3514fa23
 depends_on: []
 languages: [go, sql]
 goal: Show every attempt of a proposal-derived verification item even when no result was accepted.
