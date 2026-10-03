@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V137-001
+title: Correct Worker session upgrade guidance for strict snapshots
+milestone: worker-session-upgrade-guide-2026-10
+priority: P3
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [markdown, yaml]
+goal: Keep operator upgrade guidance aligned with strict persisted Worker session decoding.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/197
+  finding: The operations guide and task index still promise a removed missing-session compatibility rule.
+scope:
+  in:
+    - State that persisted Workflow and Stage snapshots require explicit isolated or shared.
+    - Correct the current worker_sessions authoring summary in the task index.
+  out:
+    - Change snapshot decoding or historical implementation records.
+acceptance_criteria:
+  - {id: A1, text: Upgrade guide describes missing and invalid session values as unsupported.}
+  - {id: A2, text: Task index no longer claims a legacy decode boundary.}
+tests:
+  - {command: compare docs with internal/config/persisted.go and TestPersistedSessionRequiresAnExplicitValidMode, covers: [A1, A2]}
