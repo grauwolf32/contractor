@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V112-001
+title: Disclose ephemeral managed configurations in the no-PVC deployment
+milestone: managed-config-deployment-docs-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [markdown, yaml]
+goal: Make the published-configuration data-loss boundary explicit in the no-PVC Kubernetes example.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/192
+  finding: The shipped /managed memory emptyDir loses API-published versions on pod replacement without a clear warning.
+scope:
+  in:
+    - Warn in the manifest, deployment and operations guides, Git guide and blob spec.
+    - Explain that published Gateway references must not be used with the ephemeral example.
+    - Reconcile backup guidance with the no-PVC exception.
+  out:
+    - Change managed-configuration storage or restore semantics.
+acceptance_criteria:
+  - {id: A1, text: Every no-PVC example says API-published configuration is lost when the pod is replaced.}
+  - {id: A2, text: Guidance warns against credentials, admin bindings and RuntimeConfigs that pin ephemeral published Gateways.}
+  - {id: A3, text: Backup guidance states the durable-root requirement and the exception consistently.}
+tests:
+  - {command: kubectl kustomize deploy/artifact-blobs/postgresql, covers: [A1]}
+  - {command: git diff --check, covers: [A1, A2, A3]}
