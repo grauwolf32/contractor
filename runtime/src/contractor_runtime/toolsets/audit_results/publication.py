@@ -1,7 +1,6 @@
 """Bounded create-only publication of an independently sealed Audit result set."""
 
 import asyncio
-import hashlib
 import math
 from collections.abc import Callable
 from typing import Protocol
@@ -13,6 +12,7 @@ from contractor_runtime.artifacts import (
     ArtifactValue,
 )
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_PACKAGE_BYTES,
     AuditInvocationOwner,
@@ -188,7 +188,7 @@ class DeterministicAuditResultPublisher:
             ref.namespace,
             ref.name,
             ref.revision,
-            "sha256:" + hashlib.sha256(data).hexdigest(),
+            sha256_digest(data),
             len(data),
         )
         # Deliver pending cancellation even when a local transport completes inline.

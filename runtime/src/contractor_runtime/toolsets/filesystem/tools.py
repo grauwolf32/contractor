@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -10,12 +9,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-import jcs
 import regex as bounded_regex
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     normalize_project_glob,
@@ -730,7 +729,7 @@ def _grep_matcher(pattern: str, regex: bool, case_sensitive: bool) -> Callable[[
 
 def _snapshot_token(snapshot: WorkspaceSnapshot) -> str:
     document = {"managedDigest": snapshot.digest, "binaryPaths": list(snapshot.binary_paths)}
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+    return jcs_digest(document)
 
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:

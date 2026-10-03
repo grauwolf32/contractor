@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
-import hashlib
 import json
 import mimetypes
 import os
@@ -31,6 +30,7 @@ from contractor_runtime.artifacts import (
     ArtifactClientError,
 )
 from contractor_runtime.contracts import ResolvedSkill, RuntimeSettings
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -516,10 +516,9 @@ async def prepare_agent_skills(
                 raise AgentSkillPreparationError(
                     "skill_media_type_invalid", retryable=False, status_code=422
                 )
-            package_hash = await to_thread_until_done(
-                hashlib.sha256, value.data, name="agent-skill-preparation"
+            digest = await to_thread_until_done(
+                sha256_digest, value.data, name="agent-skill-preparation"
             )
-            digest = f"sha256:{package_hash.hexdigest()}"
             if digest != selected.package_digest:
                 raise AgentSkillPreparationError(
                     "skill_digest_mismatch", retryable=False, status_code=422

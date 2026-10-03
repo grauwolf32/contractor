@@ -7,10 +7,11 @@ behavior lives in the corresponding implementation modules.
 
 from __future__ import annotations
 
-import hashlib
 import re
 from dataclasses import dataclass, field
 from typing import Literal
+
+from contractor_runtime.digests import sha256_digest
 
 MAX_ITEMS = 64
 MAX_SUMMARY_BYTES = 16 * 1024
@@ -91,12 +92,12 @@ class AuditTrustedInputs:
             or not 0 < len(self.execution_manifest) <= MAX_COLLECTED_BYTES
         ):
             raise ValueError("trusted Audit input bytes exceed bounds")
-        if self.owner.task_set_sha256 != "sha256:" + hashlib.sha256(self.task_package).hexdigest():
+        if self.owner.task_set_sha256 != sha256_digest(self.task_package):
             raise ValueError("trusted Audit task package changed digest")
 
     @property
     def execution_manifest_sha256(self):
-        return "sha256:" + hashlib.sha256(self.execution_manifest).hexdigest()
+        return sha256_digest(self.execution_manifest)
 
 
 @dataclass(frozen=True, slots=True)

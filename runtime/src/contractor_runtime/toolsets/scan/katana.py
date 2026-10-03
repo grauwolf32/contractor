@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import ipaddress
 import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.process import ProcessResult
 
@@ -233,5 +233,5 @@ def katana_observation(
         elif not selected:
             response.update(status="failed", errorCode="no_discovered_targets")
     if data:
-        response["targetsDigest"] = "sha256:" + hashlib.sha256(data).hexdigest()
+        response["targetsDigest"] = sha256_digest(data)
     return response, data

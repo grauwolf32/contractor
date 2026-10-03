@@ -33,7 +33,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
 )
-from contractor_runtime.digests import _agent_template_digest, _digest_bytes, _model_policy_digest
+from contractor_runtime.digests import _agent_template_digest, _model_policy_digest, sha256_digest
 from contractor_runtime.state import ProcessState
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
@@ -61,7 +61,7 @@ class ArtifactPeer:
     def __init__(self):
         self.source = source_archive()
         self.source_ref = ArtifactRef(
-            namespace="inputs", name="source", revision=_digest_bytes(self.source)
+            namespace="inputs", name="source", revision=sha256_digest(self.source)
         )
         self.writes = []
         self.observed = []
@@ -100,7 +100,7 @@ class ArtifactPeer:
         assert media_type == "application/json" and expected_revision is None
         # Static scripted model bytes cannot hide a failed/missing disk result.
         assert data == EXPECTED_REPORT == (await self.session.read_text("report.json")).encode()
-        ref = target.model_copy(update={"revision": _digest_bytes(data)})
+        ref = target.model_copy(update={"revision": sha256_digest(data)})
         self.writes.append((ref, data))
         self.observed.append(ref)
         return ArtifactWriteResult(
@@ -121,7 +121,7 @@ def sample_spec(peer):
     spec.agent_template.description = authored["description"]
     text = (CONFIGS / authored["instructions"]["ref"]).read_text()
     spec.agent_template.instructions = ResolvedInstructions(
-        ref=authored["instructions"]["ref"], text=text, digest=_digest_bytes(text.encode())
+        ref=authored["instructions"]["ref"], text=text, digest=sha256_digest(text.encode())
     )
     profile, version = authored["sandboxProfile"].split("@")
     spec.agent_template.sandbox_profile = SandboxProfileRef(

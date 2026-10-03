@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import calendar
-import hashlib
 import io
 import json
 import re
@@ -16,6 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
@@ -42,10 +42,6 @@ def require(condition: Any, code: str = "findings_collection_invalid") -> None:
 
 def identifier(value: Any) -> bool:
     return isinstance(value, str) and IDENTIFIER.fullmatch(value) is not None
-
-
-def digest(data: bytes) -> str:
-    return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
 def canonical(value: Any) -> bytes:
@@ -100,7 +96,7 @@ def document_id(document: dict[str, Any]) -> str:
     scope, ref = document["scope"], document["ref"]
     return (
         "doc-"
-        + digest(
+        + sha256_digest(
             canonical(
                 [
                     scope["kind"],
@@ -148,7 +144,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
             require(isinstance(path, str) and path > previous and path != "manifest.json")
             body = raw[path]
             require(type(member["size"]) is int and member["size"] == len(body))
-            require(member["digest"] == digest(body), "findings_digest_mismatch")
+            require(member["digest"] == sha256_digest(body), "findings_digest_mismatch")
             previous = path
             by_id[member["id"]] = member
         collection_member = by_id["collection"]
@@ -157,7 +153,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
         metadata_bytes = raw["collection.json"]
         require(len(metadata_bytes) <= 1024 * 1024, "findings_limit_exceeded")
         metadata = strict_json(metadata_bytes)
-        require(manifest["package_id"] == "collection-" + digest(metadata_bytes)[7:])
+        require(manifest["package_id"] == "collection-" + sha256_digest(metadata_bytes)[7:])
         _validate_metadata(metadata)
         require(len(members) == len(metadata["documents"]) + 1)
         contents: dict[str, bytes] = {}
@@ -185,7 +181,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
                 == [link["evidence_id"] for link in entry["evidence"]],
                 "findings_reference_invalid",
             )
-        return FindingCollection(metadata, contents, proposals, digest(payload))
+        return FindingCollection(metadata, contents, proposals, sha256_digest(payload))
     except FindingsError:
         raise
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as error:

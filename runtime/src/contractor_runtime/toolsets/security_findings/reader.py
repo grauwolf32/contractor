@@ -14,6 +14,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
@@ -21,7 +22,6 @@ from contractor_runtime.toolsets.security_findings.collection import (
     FindingsError,
     canonical,
     decode_collection,
-    digest,
     identifier,
     require,
     strict_json,
@@ -79,7 +79,7 @@ async def prepare_reader(
             and (exact.revision is None or ref.revision == exact.revision)
             and retained.media_type == document["media_type"]
             and len(retained.data) == document["size_bytes"]
-            and digest(retained.data) == document["digest"],
+            and sha256_digest(retained.data) == document["digest"],
             "findings_document_conflict",
         )
         documents[document["id"]] = {

@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
-import jcs
-
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import (
     WorkspaceChange,
@@ -268,7 +266,7 @@ def _change_fingerprint(entries: Sequence[WorkspaceChange]) -> str:
     document = [
         {"path": entry.path, "change": entry.change, "token": entry.token} for entry in entries
     ]
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+    return jcs_digest(document)
 
 
 def _limit(value: int) -> int:

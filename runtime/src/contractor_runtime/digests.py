@@ -1,4 +1,4 @@
-"""Cross-language RFC 8785 digest verification for resolved templates."""
+"""sha256 digests and cross-language RFC 8785 verification for resolved templates."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class GatewayDigestMismatch(ValueError):
 
 def verify_template_digests(template: ResolvedAgentTemplate) -> None:
     if template.instructions is not None:
-        instruction_digest = _digest_bytes(template.instructions.text.encode("utf-8"))
+        instruction_digest = sha256_digest(template.instructions.text.encode("utf-8"))
         if instruction_digest != template.instructions.digest:
             raise TemplateDigestMismatch("resolved instruction digest does not match its text")
 
@@ -37,7 +37,7 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
         verify_model_policy_digest(template.summarizer.model_policy)
         instructions = template.summarizer.instructions
         if instructions is not None and (
-            _digest_bytes(instructions.text.encode("utf-8")) != instructions.digest
+            sha256_digest(instructions.text.encode("utf-8")) != instructions.digest
         ):
             raise TemplateDigestMismatch(
                 "resolved summarizer instruction digest does not match its text"
@@ -69,7 +69,7 @@ def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
         "metadata": {"name": policy.ref.policy_id, "version": policy.ref.version},
         "spec": spec,
     }
-    return _digest_jcs(manifest)
+    return jcs_digest(manifest)
 
 
 def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
@@ -81,7 +81,7 @@ def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
         }
     if gateway.failure_signatures is not None:
         spec["failureSignatures"] = _failure_signatures_document(gateway.failure_signatures)
-    return _digest_jcs(
+    return jcs_digest(
         {
             "apiVersion": API_VERSION,
             "kind": "LLMGatewayConfig",
@@ -171,7 +171,7 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
                 "digest": instructions.digest,
             }
         manifest["spec"]["summarizer"] = summarizer
-    return _digest_jcs(manifest)
+    return jcs_digest(manifest)
 
 
 def _resolved_model_policy_value(policy: ResolvedModelPolicy) -> dict[str, Any]:
@@ -189,9 +189,9 @@ def _resolved_model_policy_value(policy: ResolvedModelPolicy) -> dict[str, Any]:
     return result
 
 
-def _digest_jcs(value: Any) -> str:
+def jcs_digest(value: Any) -> str:
     canonical = jcs.canonicalize(value)
-    return _digest_bytes(canonical)
+    return sha256_digest(canonical)
 
 
 def _add_policy_limits(target: dict[str, Any], policy: ResolvedModelPolicy) -> None:
@@ -207,5 +207,5 @@ def _add_policy_limits(target: dict[str, Any], policy: ResolvedModelPolicy) -> N
             target[name] = value
 
 
-def _digest_bytes(value: bytes) -> str:
+def sha256_digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import difflib
-import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -12,6 +11,7 @@ from typing import Any, Literal
 
 import jcs
 
+from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import normalize_project_path, parent_paths
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.projectfs.storage import (
@@ -599,7 +599,7 @@ def _change_token(before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, pat
         "before": _path_value(before, path),
         "after": _path_value(after, path),
     }
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+    return jcs_digest(document)
 
 
 def _tree_projection(tree: ManagedWorkspaceTree) -> tuple[set[str], dict[str, str], set[str]]:

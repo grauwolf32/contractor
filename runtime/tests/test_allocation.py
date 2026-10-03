@@ -33,8 +33,8 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
-    _digest_bytes,
     _model_policy_digest,
+    sha256_digest,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -724,7 +724,7 @@ def make_spec(
         runtime=WorkerRuntimeRef(runtimeId="adk", version="1"),
         instructions=ResolvedInstructions(
             ref="instructions/artifact-builder.md",
-            digest=_digest_bytes(instructions_text.encode()),
+            digest=sha256_digest(instructions_text.encode()),
             text=instructions_text,
         ),
         modelPolicy=policy,
