@@ -3,7 +3,8 @@ id: V186-001
 title: Align Gateway failure-signature Unicode validation
 milestone: gateway-signature-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0f35bb3a6493bb1f1a086e287847d82b6bde72b1
 depends_on: []
 languages: [go, python]
 goal: Reject Gateway signatures at publish time whenever Runtime would reject them.
