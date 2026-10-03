@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V178-001
+title: Clarify taint annotation symbol names and deterministic misses
+milestone: taint-symbol-resolution-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Give the Worker accurate structural symbol guidance and deterministic miss errors.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/248
+  finding: Tool descriptions suggest qualified method names that usually cannot resolve.
+scope:
+  in:
+    - Describe exact per-language structural declaration names in tools, spec and trace Skill.
+    - Return nonretryable target_not_found for missing symbols despite unrelated parse errors.
+    - Cover Python qualified/bare names and malformed-file misses.
+  out:
+    - Normalize declaration names across language parsers.
+acceptance_criteria:
+  - {id: A1, text: Tool descriptions and docs distinguish bare Python/Java names from C++ and Lua declarations.}
+  - {id: A2, text: A missing symbol in a file with a parse error is nonretryable target_not_found.}
+  - {id: A3, text: A Python Handler.get lookup misses while get resolves.}
+tests:
+  - {command: cd runtime && .venv/bin/python -m pytest tests/test_taint_annotations.py, covers: [A1, A2, A3]}

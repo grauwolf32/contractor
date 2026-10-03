@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V178-001, file: v178-001-taint-symbol-errors.yml}
   - {id: V177-001, file: v177-001-git-host-key-algorithms.yml}
   - {id: V176-001, file: v176-001-sandbox-contract-docs.yml}
   - {id: V175-001, file: v175-001-runtime-server-timing.yml}
