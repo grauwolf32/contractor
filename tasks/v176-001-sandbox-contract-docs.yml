@@ -3,7 +3,8 @@ id: V176-001
 title: Remove stale sandbox contracts and correct execution documentation
 milestone: sandbox-contract-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 87521b60de898b03d959d27b5cbc96c8b2bbaff2
 depends_on: []
 languages: [python]
 goal: Make sandbox contracts and docs describe the wired lifecycle and reachable errors.
