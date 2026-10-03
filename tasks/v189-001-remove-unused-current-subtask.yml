@@ -3,7 +3,8 @@ id: V189-001
 title: Remove unused pre-claim CurrentSubtask method
 milestone: planner-dispatch-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0ba3fb2f275080e8395873d8e4aa81ba41274217
 depends_on: []
 languages: [go]
 goal: Keep the Planner controller API aligned with the claim-first dispatch contract.
