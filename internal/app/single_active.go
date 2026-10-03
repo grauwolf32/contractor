@@ -31,10 +31,26 @@ type controlPlaneLease struct {
 	close   sync.Once
 }
 
+// PostgreSQL keeps a session advisory lock until it notices the session is
+// gone. When the active Server's host vanishes without closing the connection,
+// server-side keepalives bound that to about half a minute instead of the
+// operating system's two-hour default, so a standby can take over. They are
+// set after connecting because session poolers reject unknown startup
+// parameters.
+const controlPlaneLeaseKeepalives = `
+SELECT set_config('tcp_keepalives_idle', '10', false),
+       set_config('tcp_keepalives_interval', '5', false),
+       set_config('tcp_keepalives_count', '3', false),
+       set_config('tcp_user_timeout', '30000', false)`
+
 func openControlPlaneLease(ctx context.Context, pool *pgxpool.Pool) (*controlPlaneLease, error) {
 	conn, err := pgx.ConnectConfig(ctx, pool.Config().ConnConfig.Copy())
 	if err != nil {
 		return nil, fmt.Errorf("connect Control Plane lease session: %w", err)
+	}
+	if _, err := conn.Exec(ctx, controlPlaneLeaseKeepalives); err != nil {
+		_ = conn.Close(context.Background())
+		return nil, fmt.Errorf("configure Control Plane lease session keepalives: %w", err)
 	}
 	return &controlPlaneLease{conn: conn}, nil
 }

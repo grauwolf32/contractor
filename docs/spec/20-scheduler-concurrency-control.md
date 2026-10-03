@@ -295,8 +295,12 @@ holds a session-level PostgreSQL advisory lease on a dedicated connection. A
 second Server serves `/healthz` but returns 503 from `/readyz` and has no
 private API until it acquires that lease. The active Server closes its listeners
 and cancels the Scheduler when it detects lease-session loss; the standby then
-takes over. The dedicated connection requires direct PostgreSQL or session
-pooling, not transaction-mode pooling.
+takes over. The lease session sets server-side TCP keepalives (10 s idle, 5 s
+interval, 3 probes, 30 s user timeout), so PostgreSQL releases the lease within
+about half a minute when the active Server's host disappears without closing
+the connection. The dedicated connection requires direct PostgreSQL or session
+pooling, not transaction-mode pooling; behind a session pooler, the pooler's own
+client keepalive settings bound how long a vanished Server keeps the lease.
 
 The example Deployment uses one replica and `Recreate` updates. Active-active
 Server replicas are unsupported: two independently active Schedulers would each

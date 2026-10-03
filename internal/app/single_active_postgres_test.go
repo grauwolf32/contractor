@@ -34,6 +34,24 @@ func TestPostgresControlPlaneLeaseReleasesOnNormalExit(t *testing.T) {
 	}
 }
 
+func TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder(t *testing.T) {
+	pool := isolatedAppPool(t, t.Context())
+	lease, err := openControlPlaneLease(t.Context(), pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	for name, want := range map[string]string{
+		"tcp_keepalives_idle": "10", "tcp_keepalives_interval": "5",
+		"tcp_keepalives_count": "3", "tcp_user_timeout": "30000",
+	} {
+		var got string
+		if err := lease.conn.QueryRow(t.Context(), "SELECT current_setting($1)", name).Scan(&got); err != nil || got != want {
+			t.Errorf("%s = (%q, %v), want %q", name, got, err, want)
+		}
+	}
+}
+
 func TestPostgresControlPlaneLeaseStandbyAndTakeover(t *testing.T) {
 	ctx, stop := context.WithTimeout(t.Context(), 20*time.Second)
 	defer stop()
