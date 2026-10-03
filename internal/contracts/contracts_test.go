@@ -13,38 +13,8 @@ import (
 func TestValidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]func([]byte) ([]byte, error){
-		"agent-state-snapshot.json":                    roundTrip[AgentStateSnapshot],
-		"agent-registration.json":                      roundTrip[AgentRegistration],
-		"agent-registration-response.json":             roundTrip[AgentRegistrationResponse],
-		"agent-heartbeat.json":                         roundTrip[AgentHeartbeat],
-		"heartbeat-response.json":                      roundTrip[HeartbeatResponse],
-		"llm-gateway-config.json":                      roundTrip[ResolvedLLMGatewayConfig],
-		"llm-gateway-config-signatures.json":           roundTrip[ResolvedLLMGatewayConfig],
-		"allocation-spec-tool.json":                    roundTrip[AllocationSpec],
-		"allocation-spec.json":                         roundTrip[AllocationSpec],
-		"allocation-spec-summarizer.json":              roundTrip[AllocationSpec],
-		"allocation-spec-summarizer-instructions.json": roundTrip[AllocationSpec],
-		"allocation-spec-skills.json":                  roundTrip[AllocationSpec],
-		"allocation-final-response.json":               roundTrip[AllocationFinalResponse],
-		"finalize-allocation.json":                     roundTrip[FinalizeAllocationRequest],
-		"abort-allocation.json":                        roundTrip[AbortAllocationRequest],
-		"release-allocation.json":                      roundTrip[ReleaseAllocationRequest],
-		"artifact-read-result.json":                    roundTrip[ArtifactReadResult],
-		"artifact-list-result.json":                    roundTrip[ArtifactListResult],
-		"stage-content-request.json":                   roundTrip[StageContentRequest],
-		"stage-content-request-deadline.json":          roundTrip[StageContentRequest],
-		"stage-content-result-success.json":            roundTrip[StageContentResult],
-		"stage-content-result-failure.json":            roundTrip[StageContentResult],
-		"worker-completion-success.json":               roundTrip[WorkerCompletion],
-		"worker-completion-failure.json":               roundTrip[WorkerCompletion],
-		"worker-completion-empty-observations.json":    roundTrip[WorkerCompletion],
-		"runtime-settings-ca-bundle.json":              roundTrip[RuntimeSettings],
-		"runtime-settings-ca-bundle-crlf.json":         roundTrip[RuntimeSettings],
-	}
-
-	for filename, decode := range cases {
-		filename, decode := filename, decode
+	for filename, entry := range readFixtureIndex(t).Valid {
+		decode := fixtureCodecs[entry.Type].roundTrip
 		t.Run(filename, func(t *testing.T) {
 			t.Parallel()
 			input := readFixture(t, "valid", filename)
@@ -60,46 +30,11 @@ func TestValidGoldenFixtures(t *testing.T) {
 func TestInvalidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]func([]byte) error{
-		"registration-missing-labels.json":        reject[AgentRegistration],
-		"registration-missing-adapters.json":      reject[AgentRegistration],
-		"allocation-spec-tool-model.json":         reject[AllocationSpec],
-		"allocation-spec-adk-no-model.json":       reject[AllocationSpec],
-		"allocation-spec-missing-provenance.json": reject[AllocationSpec],
-
-		"agent-state-zero-revision.json":                      reject[AgentStateSnapshot],
-		"agent-state-echoed-allocation.json":                  reject[AgentStateSnapshot],
-		"agent-registration-idle-with-allocation.json":        reject[AgentRegistration],
-		"agent-registration-oversized-software-version.json":  reject[AgentRegistration],
-		"agent-heartbeat-missing-allocation.json":             reject[AgentHeartbeat],
-		"heartbeat-response-unknown-action.json":              reject[HeartbeatResponse],
-		"llm-gateway-config-secret-field.json":                reject[ResolvedLLMGatewayConfig],
-		"llm-gateway-config-signature-two-matchers.json":      reject[ResolvedLLMGatewayConfig],
-		"llm-gateway-config-signature-retryable-status.json":  reject[ResolvedLLMGatewayConfig],
-		"llm-gateway-config-permanent-code-newline.json":      reject[ResolvedLLMGatewayConfig],
-		"allocation-spec-bad-api-version.json":                reject[AllocationSpec],
-		"allocation-spec-resolved-skill-versionless.json":     reject[AllocationSpec],
-		"stage-content-request-unknown-field.json":            reject[StageContentRequest],
-		"stage-content-request-naive-deadline.json":           reject[StageContentRequest],
-		"stage-content-request-versioned-result-binding.json": reject[StageContentRequest],
-		"stage-content-result-unversioned-artifact.json":      reject[StageContentResult],
-		"stage-content-result-success-with-error.json":        reject[StageContentResult],
-		"worker-completion-both-variants.json":                reject[WorkerCompletion],
-		"worker-completion-no-variant.json":                   reject[WorkerCompletion],
-		"artifact-read-result-unversioned.json":               reject[ArtifactReadResult],
-		"runtime-settings-ca-preamble.json":                   reject[RuntimeSettings],
-		"runtime-settings-ca-between.json":                    reject[RuntimeSettings],
-		"runtime-settings-ca-key-comment.json":                reject[RuntimeSettings],
-		"runtime-settings-ca-header.json":                     reject[RuntimeSettings],
-		"runtime-settings-ca-end-comment.json":                reject[RuntimeSettings],
-		"runtime-settings-ca-truncated-block.json":            reject[RuntimeSettings],
-		"runtime-settings-ca-end-unterminated.json":           reject[RuntimeSettings],
-		"runtime-settings-ca-joined.json":                     reject[RuntimeSettings],
-		"runtime-settings-ca-unicode-space.json":              reject[RuntimeSettings],
-	}
-
-	for filename, decode := range cases {
-		filename, decode := filename, decode
+	for filename, entry := range readFixtureIndex(t).Invalid {
+		if !entry.Strict {
+			continue
+		}
+		decode := fixtureCodecs[entry.Type].reject
 		t.Run(filename, func(t *testing.T) {
 			t.Parallel()
 			if err := decode(readFixture(t, "invalid", filename)); err == nil {

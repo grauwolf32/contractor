@@ -20,7 +20,10 @@ This is the single private contract catalog. There is no separate protocol
 number, alternate DTO family or conversion path. HTTP routes retain their
 `/private/v1` prefix. The schemas are review artifacts and wire definitions. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures
-under `api/testdata/v1alpha1`.
+under `api/testdata/v1alpha1`. Its `index.json` assigns each fixture a message
+type and schema; Go and Python both validate it against the schema, decode it
+strictly and through the private canonical codec, and expect the listed
+rejections and error classes. A new fixture needs an index entry.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required
