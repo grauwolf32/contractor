@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-import jcs
 import regex as bounded_regex
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     normalize_project_glob,
@@ -34,8 +33,13 @@ from contractor_runtime.toolsets.common.cursors import (
     query_digest,
     require_limit,
 )
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.lines import split_lines
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import (
+    RecordedToolCall,
+    ToolMetrics,
+    instrumented_call,
+)
 from contractor_runtime.worker.observations import (
     WorkspaceToolObservation,
     filesystem_tool_observation,
@@ -88,14 +92,10 @@ class FilesystemToolsetFactory:
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
         del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
+        require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise FilesystemToolError("workspace_required")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("filesystem@1 requires State.metrics")
+        metrics = require_metrics(state, "filesystem@1")
         session = _FilesystemSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "ls": lambda: ListWorkspaceTool(session, metrics),
@@ -408,23 +408,9 @@ class _BaseFilesystemTool:
     ) -> WorkspaceToolObservation | None:
         return filesystem_tool_observation(self.name, tool_args, result)
 
-    def _success(self, name: str, started: int, result: Mapping[str, Any]) -> None:
-        self._metrics.record_tool_call(
-            name,
-            arguments={},
-            result={
-                "count": len(result.get("entries", result.get("matches", result.get("lines", [])))),
-                "truncated": bool(result.get("truncated", False)),
-            },
-            duration_ms=_elapsed_ms(started),
-        )
-
-    def _failure(self, name: str, started: int, error: Exception) -> None:
-        self._metrics.record_tool_call(
-            name,
-            arguments={},
-            error=error,
-            duration_ms=_elapsed_ms(started),
+    async def _call(self, operation: Awaitable[dict[str, Any]]) -> dict[str, Any]:
+        return await instrumented_call(
+            RecordedToolCall(self._metrics, self.name, {}), operation, _listing_metric
         )
 
 
@@ -445,14 +431,7 @@ class ListWorkspaceTool(_BaseFilesystemTool):
     async def __call__(
         self, path: str = "", cursor: str = "", limit: int = MAX_PAGE_ITEMS
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
-        try:
-            result = await self._session.ls(path, cursor, limit)
-            self._success(self.name, started, result)
-            return result
-        except Exception as error:
-            self._failure(self.name, started, error)
-            raise
+        return await self._call(self._session.ls(path, cursor, limit))
 
 
 class GlobWorkspaceTool(_BaseFilesystemTool):
@@ -473,14 +452,7 @@ class GlobWorkspaceTool(_BaseFilesystemTool):
     async def __call__(
         self, pattern: str, cursor: str = "", limit: int = MAX_PAGE_ITEMS
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
-        try:
-            result = await self._session.glob(pattern, cursor, limit)
-            self._success(self.name, started, result)
-            return result
-        except Exception as error:
-            self._failure(self.name, started, error)
-            raise
+        return await self._call(self._session.glob(pattern, cursor, limit))
 
 
 class ReadWorkspaceFileTool(_BaseFilesystemTool):
@@ -510,14 +482,9 @@ class ReadWorkspaceFileTool(_BaseFilesystemTool):
         max_lines: int = DEFAULT_READ_LINES,
         with_line_numbers: bool = False,
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
-        try:
-            result = await self._session.read_file(path, start_line, max_lines, with_line_numbers)
-            self._success(self.name, started, result)
-            return result
-        except Exception as error:
-            self._failure(self.name, started, error)
-            raise
+        return await self._call(
+            self._session.read_file(path, start_line, max_lines, with_line_numbers)
+        )
 
 
 class GrepWorkspaceTool(_BaseFilesystemTool):
@@ -551,16 +518,9 @@ class GrepWorkspaceTool(_BaseFilesystemTool):
         cursor: str = "",
         limit: int = MAX_PAGE_ITEMS,
     ) -> dict[str, Any]:
-        started = time.perf_counter_ns()
-        try:
-            result = await self._session.grep(
-                pattern, path, glob, regex, case_sensitive, cursor, limit
-            )
-            self._success(self.name, started, result)
-            return result
-        except Exception as error:
-            self._failure(self.name, started, error)
-            raise
+        return await self._call(
+            self._session.grep(pattern, path, glob, regex, case_sensitive, cursor, limit)
+        )
 
 
 def _path(value: str, *, allow_root: bool) -> str:
@@ -769,12 +729,15 @@ def _grep_matcher(pattern: str, regex: bool, case_sensitive: bool) -> Callable[[
 
 def _snapshot_token(snapshot: WorkspaceSnapshot) -> str:
     document = {"managedDigest": snapshot.digest, "binaryPaths": list(snapshot.binary_paths)}
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
+    return jcs_digest(document)
 
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:
     return value[:maximum].decode("utf-8", errors="ignore")
 
 
-def _elapsed_ms(started: int) -> int:
-    return max(0, (time.perf_counter_ns() - started) // 1_000_000)
+def _listing_metric(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    return {
+        "count": len(result.get("entries", result.get("matches", result.get("lines", [])))),
+        "truncated": bool(result.get("truncated", False)),
+    }

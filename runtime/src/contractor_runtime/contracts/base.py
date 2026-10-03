@@ -20,6 +20,9 @@ from pydantic import (
 
 API_VERSION = "contractor/v1alpha1"
 ARTIFACT_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+# RFC 6838 restricted names in canonical lowercase, without parameters or
+# wildcards; api/testdata/v1alpha1/media-type-cases.json pins the grammar.
+MEDIA_TYPE_PATTERN = re.compile(r"[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*")
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")

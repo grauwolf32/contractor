@@ -2,16 +2,15 @@ package runservice
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -74,9 +73,9 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					WorkflowVersion:       normalized.Workflow.Ref.Version,
 					WorkflowSchemaVersion: contracts.APIVersion,
 					WorkflowSnapshot:      workflowSnapshot,
-					Parameters:            cloneParameters(normalized.Parameters), MetadataLabels: labels,
+					Parameters:            clone.Map(normalized.Parameters), MetadataLabels: labels,
 					RuntimeConfig:     normalized.RuntimeConfig,
-					ProjectHTTPTarget: cloneHTTPOriginTarget(normalized.ProjectHTTPTarget),
+					ProjectHTTPTarget: normalized.ProjectHTTPTarget.Clone(),
 				},
 				AuditExecutionID:   intent.Execution.ExecutionID,
 				AuditSubmissionKey: intent.Execution.SubmissionKey,
@@ -171,8 +170,8 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		params.Claim.AuditID == "" || params.Claim.HolderID == "" || params.Claim.Epoch == 0 {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit Run identity is incomplete", ErrInvalid)
 	}
-	if !validDigest(params.RequestDigest) || params.ExecutionManifest.Ref.ValidateExact() != nil ||
-		!validDigest(params.ExecutionManifest.Digest) || params.ExecutionManifest.MediaType == "" ||
+	if !contentdigest.Valid(params.RequestDigest) || params.ExecutionManifest.Ref.ValidateExact() != nil ||
+		!contentdigest.Valid(params.ExecutionManifest.Digest) || params.ExecutionManifest.MediaType == "" ||
 		params.ExecutionManifest.SizeBytes < 0 {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit execution manifest is invalid", ErrInvalid)
 	}
@@ -196,18 +195,18 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 	refs := make(map[string]contracts.ArtifactRef, len(params.Inputs))
 	params.Inputs = cloneExactArtifacts(params.Inputs)
 	for slot, descriptor := range params.Inputs {
-		if descriptor.Ref.ValidateExact() != nil || !validDigest(descriptor.Digest) ||
+		if descriptor.Ref.ValidateExact() != nil || !contentdigest.Valid(descriptor.Digest) ||
 			descriptor.MediaType == "" || descriptor.SizeBytes < 0 {
 			return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit input %q is invalid", ErrInvalid, slot)
 		}
 		refs[slot] = descriptor.Ref
 	}
-	params.Parameters = cloneParameters(params.Parameters)
+	params.Parameters = clone.Map(params.Parameters)
 	if err := validateWorkflowInputs(params.Workflow, params.Parameters, refs); err != nil {
 		return AuditCreateParams{}, nil, err
 	}
 	params.ExecutionManifest = cloneExactArtifact(params.ExecutionManifest)
-	params.ProjectHTTPTarget = cloneHTTPOriginTarget(params.ProjectHTTPTarget)
+	params.ProjectHTTPTarget = params.ProjectHTTPTarget.Clone()
 	params.Skills = cloneSkills(params.Skills)
 	workflowSkillRefs, err := config.WorkflowSkillRefs(params.Workflow)
 	if err != nil || !matchingPinnedSkills(workflowSkillRefs, params.Skills) {
@@ -235,7 +234,7 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 		}
 	}
 	for slot, input := range params.Inputs {
-		if digest, ok := allowed[exactRefKey(input.Ref)]; !ok || digest != input.Digest {
+		if digest, ok := allowed[input.Ref.Key()]; !ok || digest != input.Digest {
 			return fmt.Errorf("%w: Audit input %q is outside immutable execution intent", auditstore.ErrConflict, slot)
 		}
 	}
@@ -338,27 +337,11 @@ func cloneExactArtifact(source auditstore.ExactArtifact) auditstore.ExactArtifac
 }
 
 func sameExactIdentity(left, right auditstore.ExactArtifact) bool {
-	return exactRefKey(left.Ref) == exactRefKey(right.Ref) && left.Digest == right.Digest
+	return left.Ref.Key() == right.Ref.Key() && left.Digest == right.Digest
 }
 
 func addAllowedArtifact(target map[string]string, artifact auditstore.ExactArtifact) {
 	if artifact.Ref.Revision != nil {
-		target[exactRefKey(artifact.Ref)] = artifact.Digest
+		target[artifact.Ref.Key()] = artifact.Digest
 	}
-}
-
-func exactRefKey(ref contracts.ArtifactRef) string {
-	revision := ""
-	if ref.Revision != nil {
-		revision = *ref.Revision
-	}
-	return ref.Namespace + "\x00" + ref.Name + "\x00" + revision
-}
-
-func validDigest(value string) bool {
-	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+sha256.Size*2 {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
-	return err == nil
 }

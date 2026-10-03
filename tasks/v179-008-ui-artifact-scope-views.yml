@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V179-008
+title: Build artifact detail, upload and binding views once for every scope
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: 0984b1fb3b1c509e3a3c993af0bac90f6fbbc339
+depends_on: [V179-007]
+languages: [typescript]
+goal: Render user, project and run artifacts through scope-parameterized views and API wrappers.
+context:
+  finding: >-
+    The artifact detail page is copied for user, project and run scope (about
+    90 percent identical, with drift in lineage fields, timestamps and
+    validation, and the user copy replaces only the first underscore of
+    lineage kinds); the upload form is copied twice and partially a third time;
+    the bindings table and namespace filter four and three times; metadata,
+    versions, lineage, download and preview wrappers three times in api/.
+scope:
+  in:
+    - Add scope-aware artifact API wrappers and query keys based on ArtifactArchiveScope.
+    - Replace the three detail pages with one view parameterized by scope.
+    - Replace the upload forms with one form parameterized by scope.
+    - Share the bindings table, namespace filter, stored notice and artifact detail path builder.
+  out:
+    - Changing routes or adding upload to run scope.
+    - Merging the typed per-scope API endpoint functions; they stay as the typed transport behind scopedArtifactAPI and are used directly by Git import and Run output previews.
+    - The Skill upload dialog; it uploads a ZIP package with its own package validation.
+acceptance_criteria:
+  - {id: A1, text: One detail view renders user, project and run artifacts with the same lineage fields and timestamps.}
+  - {id: A2, text: One upload form serves user and project scopes and resets after success.}
+  - {id: A3, text: Artifact API responses are validated the same way for every scope.}
+  - {id: A4, text: Lineage kinds with several underscores render with spaces only.}
+  - {id: A5, text: make ui-verify passes.}
+tests:
+  - {command: make ui-verify, covers: [A1, A2, A3, A4, A5]}

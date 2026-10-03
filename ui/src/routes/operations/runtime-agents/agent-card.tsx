@@ -7,7 +7,7 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
-import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
 import {
   agentDisplayName,

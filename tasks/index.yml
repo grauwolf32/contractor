@@ -2801,6 +2801,15 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V179-009, file: v179-009-cross-language-conformance.yml}
+  - {id: V179-008, file: v179-008-ui-artifact-scope-views.yml}
+  - {id: V179-007, file: v179-007-ui-shared-primitives.yml}
+  - {id: V179-006, file: v179-006-runtime-shared-helpers.yml}
+  - {id: V179-005, file: v179-005-runtime-tool-base.yml}
+  - {id: V179-004, file: v179-004-go-contract-value-methods.yml}
+  - {id: V179-003, file: v179-003-go-shared-helpers.yml}
+  - {id: V179-002, file: v179-002-cross-language-contract-drift.yml}
+  - {id: V179-001, file: v179-001-go-drift-fixes.yml}
   - {id: V178-001, file: v178-001-taint-symbol-errors.yml}
   - {id: V177-001, file: v177-001-git-host-key-algorithms.yml}
   - {id: V176-001, file: v176-001-sandbox-contract-docs.yml}

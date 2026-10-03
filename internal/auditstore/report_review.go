@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -108,7 +109,7 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	if err == nil {
 		return audit, true, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) && postgresState(err) != "23505" {
+	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
 		return Audit{}, false, fmt.Errorf("propose Audit report: %w", err)
 	}
 	candidate, replayErr := s.GetReportCandidate(ctx, params.Claim.AuditID)
@@ -127,15 +128,6 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 		return Audit{}, false, ErrClaimLost
 	}
 	return Audit{}, false, ErrPrecondition
-}
-
-func postgresState(err error) string {
-	type state interface{ SQLState() string }
-	var value state
-	if errors.As(err, &value) {
-		return value.SQLState()
-	}
-	return ""
 }
 
 func (s *PostgresStore) GetReportCandidate(

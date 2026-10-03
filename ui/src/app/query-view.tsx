@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { ErrorNotice } from "../routes/artifacts/common";
+import { ErrorNotice } from "./error-notice";
 
 /** The subset of a TanStack Query result that QueryView reads. */
 export interface QueryViewState<T> {
@@ -10,7 +10,7 @@ export interface QueryViewState<T> {
 }
 
 /**
- * Renders a query's loading, error, and loaded states. The error panel
+ * Renders a query's loading, error, empty, and loaded states. The error panel
  * replaces content only when no data has been loaded; a failed background
  * refetch keeps the last loaded data visible with an inline stale-data
  * warning and retry.
@@ -20,12 +20,17 @@ export function QueryView<T>({
   loading,
   errorContext,
   onRetry,
+  isEmpty,
+  empty,
   children,
 }: {
   query: QueryViewState<T>;
   loading: ReactNode;
   errorContext?: string;
   onRetry: () => void;
+  /** Selects loaded data that renders `empty` instead of `children`. */
+  isEmpty?: (data: T) => boolean;
+  empty?: ReactNode;
   children: (data: T) => ReactNode;
 }) {
   if (query.data === undefined) {
@@ -48,7 +53,7 @@ export function QueryView<T>({
           retryPending={query.isFetching}
         />
       )}
-      {children(query.data)}
+      {isEmpty?.(query.data) === true ? empty : children(query.data)}
     </>
   );
 }

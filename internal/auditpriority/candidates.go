@@ -1,18 +1,16 @@
 package auditpriority
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
-var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func validIdentifier(value string) bool {
 	return len(value) <= MaxIdentifierBytes && identifierPattern.MatchString(value)
@@ -22,15 +20,10 @@ func validText(value string, maximum int) bool {
 	return len(value) <= maximum && utf8.ValidString(value) && !strings.ContainsRune(value, 0) && strings.TrimSpace(value) != ""
 }
 
-func digestBytes(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
 // CandidateID depends on the exact inventory and original checklist identity,
 // never on input position, model score, Round, Run or descriptive title.
 func CandidateID(inventoryDigest, itemKey, itemVersion string) (string, error) {
-	if !digestPattern.MatchString(inventoryDigest) || !validIdentifier(itemKey) || !validText(itemVersion, MaxItemVersionBytes) {
+	if !contentdigest.Valid(inventoryDigest) || !validIdentifier(itemKey) || !validText(itemVersion, MaxItemVersionBytes) {
 		return "", invalid(CodeInvalidPool)
 	}
 	data, err := contracts.MarshalPrivateCanonical(struct {
@@ -42,14 +35,14 @@ func CandidateID(inventoryDigest, itemKey, itemVersion string) (string, error) {
 	if err != nil {
 		return "", invalid(CodeInvalidPool)
 	}
-	return "priority-candidate-" + strings.TrimPrefix(digestBytes(data), "sha256:"), nil
+	return "priority-candidate-" + strings.TrimPrefix(contentdigest.Bytes(data), "sha256:"), nil
 }
 
 // NewPool normalizes candidate order without changing identity or deduplicating
 // distinct items. Duplicate checklist keys, including differing versions, fail.
 // Empty remaining pools are allowed; initial empty-inventory policy is external.
 func NewPool(inventoryDigest string, items []ItemIdentity) (Pool, error) {
-	if !digestPattern.MatchString(inventoryDigest) || len(items) > MaxCandidates {
+	if !contentdigest.Valid(inventoryDigest) || len(items) > MaxCandidates {
 		return Pool{}, invalid(CodeInvalidPool)
 	}
 	pool := Pool{Schema: PoolSchema, InventoryDigest: inventoryDigest, Candidates: make([]Candidate, 0, len(items))}
@@ -67,7 +60,7 @@ func NewPool(inventoryDigest string, items []ItemIdentity) (Pool, error) {
 }
 
 func (p Pool) Validate() error {
-	if p.Schema != PoolSchema || !digestPattern.MatchString(p.InventoryDigest) || p.Candidates == nil || len(p.Candidates) > MaxCandidates {
+	if p.Schema != PoolSchema || !contentdigest.Valid(p.InventoryDigest) || p.Candidates == nil || len(p.Candidates) > MaxCandidates {
 		return invalid(CodeInvalidPool)
 	}
 	previous := ""
@@ -98,5 +91,5 @@ func PoolDigest(pool Pool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return digestBytes(data), nil
+	return contentdigest.Bytes(data), nil
 }

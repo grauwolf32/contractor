@@ -1,6 +1,7 @@
 import type { useAuditQueue } from "./queue-state";
 import { PublicAPIError } from "../../../api/error";
-import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatTimestamp } from "../../../app/format";
 import type { AuditFindingPage, AuditReviewPage } from "../../../api/audits";
 
 export function AuditQueueError({

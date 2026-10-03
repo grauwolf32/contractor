@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
-import { ProjectArtifactWriteForm } from "../projects/common";
 import { ArtifactWriteForm } from "./common";
 import { inferredArtifactMediaType } from "./artifact-file";
 import { LoadedArtifactPreview } from "./loaded-preview";
@@ -57,8 +56,8 @@ describe("Wordlist Artifact journey", () => {
                   onWritten={onWritten}
                 />
               ) : (
-                <ProjectArtifactWriteForm
-                  projectId="project_example"
+                <ArtifactWriteForm
+                  scope={{ kind: "project", id: "project_example" }}
                   fixedNamespace="inputs"
                   onWritten={onWritten}
                 />

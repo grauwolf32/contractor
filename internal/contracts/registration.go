@@ -6,11 +6,11 @@ package contracts
 // in agent.go.
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"regexp"
 	"sort"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 var runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -162,8 +162,7 @@ func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(canonical)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return contentdigest.Bytes(canonical), nil
 }
 
 // RuntimeAdapterCapabilityProjection returns a detached sorted safe view for

@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -406,25 +404,17 @@ func getRunStatus(ctx context.Context, client *publicclient.Client, runID string
 }
 
 func printRunPage(printer *Printer, page *publicapi.RunPage) error {
-	if printer.Mode() == OutputJSON {
-		return printer.JSON(page)
-	}
-	if printer.Mode() == OutputName {
-		names := make([]string, 0, len(page.Items))
-		for _, run := range page.Items {
-			names = append(names, run.RunId)
-		}
-		return printer.Names(names...)
-	}
-	rows := make([][]string, 0, len(page.Items))
-	for _, run := range page.Items {
-		project := "-"
-		if run.ProjectId != nil {
-			project = *run.ProjectId
-		}
-		rows = append(rows, []string{run.RunId, stringValue(run.State), run.Workflow, project, run.UpdatedAt.Format(time.RFC3339)})
-	}
-	return printer.Table([]string{"RUN", "STATE", "WORKFLOW", "PROJECT", "UPDATED"}, rows)
+	return List(printer, page, page.Items,
+		func(run publicapi.RunSummary) string { return run.RunId },
+		[]string{"RUN", "STATE", "WORKFLOW", "PROJECT", "UPDATED"},
+		func(run publicapi.RunSummary) []string {
+			project := "-"
+			if run.ProjectId != nil {
+				project = *run.ProjectId
+			}
+			return []string{run.RunId, stringValue(run.State), run.Workflow, project, run.UpdatedAt.Format(time.RFC3339)}
+		},
+	)
 }
 
 func printRunStatus(printer *Printer, status *publicapi.RunStatus) error {
@@ -474,16 +464,8 @@ func assignments(values []string) (map[string]string, error) {
 
 func (c *CLI) decodeRequestFile(path string, target any) error {
 	var reader io.Reader = c.stdin
-	var file *os.File
 	if path != "-" {
-		info, err := os.Lstat(filepath.Clean(path))
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return errors.New("request must be a regular file")
-		}
-		file, err = os.Open(filepath.Clean(path))
+		file, err := openRegularInput(path, "Run request")
 		if err != nil {
 			return err
 		}

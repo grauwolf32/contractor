@@ -7,14 +7,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 var (
-	idPattern        = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-	versionPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern    = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	mediaTypePattern = regexp.MustCompile(`^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$`)
+	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
 
 const maxJSONSafeInteger = 1<<53 - 1
@@ -51,7 +50,7 @@ func validateExecutionConfigRef(ref ExecutionConfigRef) error {
 	if _, err := ParseSelector(ref.ConfigID + "@" + ref.Version); err != nil {
 		return err
 	}
-	if !digestPattern.MatchString(ref.Digest) {
+	if !contentdigest.Valid(ref.Digest) {
 		return fmt.Errorf("digest %q must use sha256:<64 lowercase hex>", ref.Digest)
 	}
 	return nil
@@ -107,7 +106,7 @@ func validateMediaTypes(field string, values []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(values))
 	result := append([]string(nil), values...)
 	for _, value := range result {
-		if value != "*/*" && !mediaTypePattern.MatchString(value) {
+		if value != "*/*" && !contracts.ValidMediaType(value) {
 			return nil, fmt.Errorf("%s.mediaTypes contains non-canonical media type %q", field, value)
 		}
 		if _, exists := seen[value]; exists {

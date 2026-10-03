@@ -16,13 +16,17 @@ import {
 } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
-import { CursorControls, ErrorNotice } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
 import { catalogReturnState, locationDestination } from "./navigation";
 import {
   useCatalogCursorState,
   withoutCatalogPagination,
 } from "./cursor-state";
+import { nextPageCursor } from "../../app/pagination";
+import { QueryView } from "../../app/query-view";
+import { LoadMoreButton } from "../../app/load-more";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 const INITIAL_CURSOR = null;
@@ -36,7 +40,7 @@ function AgentVersionSelector({
   const navigate = useNavigate();
   const location = useLocation();
   const query = useInfiniteQuery({
-    queryKey: ["catalog", "agent-versions", resource.ref.name],
+    queryKey: queryKeys.catalog.agentVersions(resource.ref.name),
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam, signal }) =>
       listConfigurations(api, "agent-templates", {
@@ -44,8 +48,7 @@ function AgentVersionSelector({
         ...(pageParam === null ? {} : { cursor: pageParam }),
         signal,
       }),
-    getNextPageParam: (page) =>
-      page.page.hasMore ? page.page.nextCursor : undefined,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const versions = useMemo(() => {
     const byVersion = new Map([[resource.ref.version, resource]]);
@@ -87,18 +90,11 @@ function AgentVersionSelector({
         <span className="muted-copy">
           {versions.length} version{versions.length === 1 ? "" : "s"} loaded
         </span>
-        {query.hasNextPage ? (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage
-              ? "Loading versions…"
-              : "Load more versions"}
-          </button>
-        ) : null}
+        <LoadMoreButton
+          query={query}
+          label="Load more versions"
+          pendingLabel="Loading versions…"
+        />
       </div>
       {query.isPending ? (
         <p role="status">Loading published versions…</p>
@@ -113,13 +109,7 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
   const [view, setView] = useState<"preview" | "source">("preview");
   const [copyStatus, setCopyStatus] = useState("");
   const query = useQuery({
-    queryKey: [
-      "catalog",
-      "agent-instructions",
-      resource.ref.name,
-      resource.ref.version,
-      resource.ref.digest,
-    ],
+    queryKey: queryKeys.catalog.agentInstructions(resource.ref),
     queryFn: async ({ signal }) => {
       const result = await getAgentInstructions(
         api,
@@ -194,19 +184,23 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
           </button>
         </div>
         {copyStatus && <p role="status">{copyStatus}</p>}
-        {query.isPending ? (
-          <p role="status">Loading prompt…</p>
-        ) : query.error ? (
-          <ErrorNotice error={query.error} />
-        ) : view === "source" ? (
-          <pre className="catalog-prompt-source" tabIndex={0}>
-            {query.data.instructions.text}
-          </pre>
-        ) : (
-          <Suspense fallback={<p role="status">Loading preview…</p>}>
-            <MarkdownPreview source={query.data.instructions.text} />
-          </Suspense>
-        )}
+        <QueryView
+          query={query}
+          loading={<p role="status">Loading prompt…</p>}
+          onRetry={() => void query.refetch()}
+        >
+          {(data) =>
+            view === "source" ? (
+              <pre className="catalog-prompt-source" tabIndex={0}>
+                {data.instructions.text}
+              </pre>
+            ) : (
+              <Suspense fallback={<p role="status">Loading preview…</p>}>
+                <MarkdownPreview source={data.instructions.text} />
+              </Suspense>
+            )
+          }
+        </QueryView>
       </section>
       <aside
         className="panel catalog-agent-configuration"
@@ -225,14 +219,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   const pagination = useCatalogCursorState("usageCursor", "usagePage");
   const { cursor, page } = pagination;
   const query = useQuery({
-    queryKey: [
-      "catalog",
-      "agent-usage",
-      resource.ref.name,
-      resource.ref.version,
-      resource.ref.digest,
-      cursor ?? null,
-    ],
+    queryKey: queryKeys.catalog.agentUsage(resource.ref, cursor),
     queryFn: ({ signal }) =>
       listAgentTemplateWorkflowBindings(
         api,
@@ -253,52 +240,51 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
         </div>
         <span>Page {page}</span>
       </div>
-      {query.isPending ? (
-        <p role="status">Loading Workflow bindings…</p>
-      ) : query.error ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <p className="compact-empty">
-          This Agent version is not referenced by a published Workflow.
-        </p>
-      ) : (
-        <ul className="catalog-usage-list">
-          {query.data.items.map((binding) => {
-            const workflow = `${binding.workflow.name}@${binding.workflow.version}`;
-            return (
-              <li key={`${workflow}:${binding.stage}:${binding.logicalWorker}`}>
-                <Link
-                  to={`/catalog/workflows/${encodeURIComponent(binding.workflow.name)}/${encodeURIComponent(binding.workflow.version)}`}
-                  state={{
-                    returnTo: locationDestination(location),
-                    returnLabel: `${resource.ref.name}@${resource.ref.version}`,
-                    returnState: location.state,
-                  }}
+      <QueryView
+        query={query}
+        loading={<p role="status">Loading Workflow bindings…</p>}
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <p className="compact-empty">
+            This Agent version is not referenced by a published Workflow.
+          </p>
+        }
+      >
+        {(data) => (
+          <ul className="catalog-usage-list">
+            {data.items.map((binding) => {
+              const workflow = `${binding.workflow.name}@${binding.workflow.version}`;
+              return (
+                <li
+                  key={`${workflow}:${binding.stage}:${binding.logicalWorker}`}
                 >
-                  {workflow}
-                </Link>
-                <span>
-                  Stage <code>{binding.stage}</code>
-                </span>
-                <span>
-                  Worker <code>{binding.logicalWorker}</code>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  <Link
+                    to={`/catalog/workflows/${encodeURIComponent(binding.workflow.name)}/${encodeURIComponent(binding.workflow.version)}`}
+                    state={{
+                      returnTo: locationDestination(location),
+                      returnLabel: `${resource.ref.name}@${resource.ref.version}`,
+                      returnState: location.state,
+                    }}
+                  >
+                    {workflow}
+                  </Link>
+                  <span>
+                    Stage <code>{binding.stage}</code>
+                  </span>
+                  <span>
+                    Worker <code>{binding.logicalWorker}</code>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </QueryView>
       {query.data === undefined ? null : (
         <CursorControls
           label="Agent usage pages"
-          canGoBack={pagination.canGoBack}
-          {...(query.data.page.hasMore &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={pagination.previousPage}
-          onNext={pagination.nextPage}
-          {...(pagination.isFirstPage ? {} : { onFirst: pagination.firstPage })}
+          {...pagination.controls(query.data.page)}
         />
       )}
     </section>
@@ -335,29 +321,30 @@ export function AgentDetailRoute() {
       </header>
       {!valid ? (
         <ErrorNotice error={new Error("Agent version is invalid")} />
-      ) : query.isPending ? (
-        <p role="status">Loading Agent version…</p>
-      ) : query.error ? (
-        <ErrorNotice error={query.error} />
       ) : (
-        <>
-          <AgentVersionSelector resource={query.data} />
-          {(query.data.body as AgentTemplateBody).runtime === "tool@1" ? (
-            <p>
-              This agent runs its configured tool directly without a model or
-              prompt.
-            </p>
-          ) : (
-            <AgentPrompt
-              key={`prompt:${query.data.ref.digest}`}
-              resource={query.data}
-            />
+        <QueryView
+          query={query}
+          loading={<p role="status">Loading Agent version…</p>}
+          onRetry={() => void query.refetch()}
+        >
+          {(data) => (
+            <>
+              <AgentVersionSelector resource={data} />
+              {(data.body as AgentTemplateBody).runtime === "tool@1" ? (
+                <p>
+                  This agent runs its configured tool directly without a model
+                  or prompt.
+                </p>
+              ) : (
+                <AgentPrompt
+                  key={`prompt:${data.ref.digest}`}
+                  resource={data}
+                />
+              )}
+              <AgentUsage key={`usage:${data.ref.digest}`} resource={data} />
+            </>
           )}
-          <AgentUsage
-            key={`usage:${query.data.ref.digest}`}
-            resource={query.data}
-          />
-        </>
+        </QueryView>
       )}
     </section>
   );

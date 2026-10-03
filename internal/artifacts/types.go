@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"time"
 
@@ -168,8 +167,6 @@ type QueryRepository interface {
 	ListLineage(context.Context, Scope, ArtifactRef, LineagePageQuery) ([]LineageEdge, error)
 }
 
-var mediaTypePattern = regexp.MustCompile("^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$")
-
 func validateScope(scope Scope) error {
 	if scope.kind != ScopeUser && scope.kind != ScopeProject && scope.kind != ScopeRun ||
 		strings.TrimSpace(scope.id) == "" || strings.ContainsRune(scope.id, 0) {
@@ -216,7 +213,7 @@ func validateRevision(value string) error {
 }
 
 func validateMediaType(value string) error {
-	if value == "*/*" || !mediaTypePattern.MatchString(value) {
+	if !contracts.ValidMediaType(value) {
 		return ErrInvalidMediaType
 	}
 	return nil

@@ -5,18 +5,20 @@ import { usePublicAPI } from "../../../api/context";
 import { listAllocationResourceHistory } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
 import { RUN_ID_PATTERN } from "../../../api/runs";
-import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
 import { RefreshButton } from "../../../app/refresh-button";
+import { QueryView } from "../../../app/query-view";
 
 export function CompletedAllocationListRoute() {
   const api = usePublicAPI();
   const [draftRunId, setDraftRunId] = useState("");
   const [runId, setRunId] = useState<string>();
   const [validationError, setValidationError] = useState<string>();
-  const [cursors, setCursors] = useState<string[]>([]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.operations.allocationHistory.list(runId, cursor),
     queryFn: ({ signal }) =>
@@ -38,7 +40,7 @@ export function CompletedAllocationListRoute() {
       return;
     }
     setRunId(value === "" ? undefined : value);
-    setCursors([]);
+    pages.reset();
     setValidationError(undefined);
   }
 
@@ -84,7 +86,7 @@ export function CompletedAllocationListRoute() {
               onClick={() => {
                 setDraftRunId("");
                 setRunId(undefined);
-                setCursors([]);
+                pages.reset();
                 setValidationError(undefined);
               }}
             >
@@ -97,36 +99,31 @@ export function CompletedAllocationListRoute() {
             {validationError}
           </p>
         )}
-        {query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading completed allocations…
-          </p>
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No matching terminal allocation exists.</strong>
-            <p>
-              Missing reports are included, so an empty result means no owned
-              terminal allocation matches this page and filter.
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading completed allocations…
             </p>
-          </div>
-        ) : (
-          <AllocationResourceList items={query.data.items} compact />
-        )}
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No matching terminal allocation exists.</strong>
+              <p>
+                Missing reports are included, so an empty result means no owned
+                terminal allocation matches this page and filter.
+              </p>
+            </div>
+          }
+        >
+          {(data) => <AllocationResourceList items={data.items} compact />}
+        </QueryView>
         {query.data === undefined ? null : (
           <CursorControls
             label="Completed allocation pages"
-            canGoBack={cursors.length > 0}
-            {...(query.data.page.nextCursor === undefined
-              ? {}
-              : { nextCursor: query.data.page.nextCursor })}
-            onBack={() =>
-              setCursors((current) =>
-                current.slice(0, Math.max(0, current.length - 1)),
-              )
-            }
-            onNext={(next) => setCursors((current) => [...current, next])}
+            {...pages.controls(query.data.page)}
           />
         )}
       </section>

@@ -26,7 +26,7 @@
           "type": "array",
           "maxItems": 32,
           "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$", "not": {"pattern": "[^a-z0-9_]"}}
         }
       }
     },

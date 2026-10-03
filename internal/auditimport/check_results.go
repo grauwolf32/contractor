@@ -301,14 +301,14 @@ func (i *Importer) retainCheckResults(
 	// revision, or the result output itself, share that copy, so the store
 	// charges exactly the bytes retainedEvidenceFits admitted. The first
 	// sorted evidence ID names a copy, keeping retries deterministic.
-	retainedBySource := map[string]auditstore.ExactArtifact{exactRefKey(source.Ref): retainedResult}
+	retainedBySource := map[string]auditstore.ExactArtifact{source.Ref.Key(): retainedResult}
 	evidenceIDs := sortedEvidenceIDs(evidenceByID)
 	for _, id := range evidenceIDs {
 		evidence := evidenceByID[id]
 		artifact := retainedResult
 		displayRef := "member:" + evidence.value.ContentMemberID
 		if evidence.descriptor != nil {
-			key := exactRefKey(evidence.descriptor.Ref)
+			key := evidence.descriptor.Ref.Key()
 			shared, retained := retainedBySource[key]
 			if !retained {
 				shared, err = i.artifacts.RetainRunExact(

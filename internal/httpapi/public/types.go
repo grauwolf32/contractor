@@ -33,6 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -773,7 +774,7 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		var value struct {
 			Headers map[string]string `json:"headers"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewOTLPHeadersCredential(value.Headers)
 		}
 	case credentials.RuntimeCredentialProxyBasic:
@@ -781,21 +782,21 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPProxyBasicCredential(value.Username, value.Password)
 		}
 	case credentials.RuntimeCredentialProxyBearer:
 		var value struct {
 			Token string `json:"token"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPProxyBearerCredential(value.Token)
 		}
 	case credentials.RuntimeCredentialCaidoBearer:
 		var value struct {
 			Token string `json:"token"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewCaidoBearerCredential(value.Token)
 		}
 	case credentials.RuntimeCredentialOriginBasic:
@@ -803,14 +804,14 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPOriginBasicCredential(value.Username, value.Password)
 		}
 	case credentials.RuntimeCredentialOriginBearer:
 		var value struct {
 			Token string `json:"token"`
 		}
-		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+		if err = strictjson.Decode(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPOriginBearerCredential(value.Token)
 		}
 	default:
@@ -857,7 +858,7 @@ func (r *runtimeAgentLabelsMutationRequest) UnmarshalJSON(data []byte) error {
 	var envelope struct {
 		Labels json.RawMessage `json:"labels"`
 	}
-	if err := decodeStrictPublicJSON(data, &envelope); err != nil {
+	if err := strictjson.Decode(data, &envelope); err != nil {
 		return err
 	}
 	if len(envelope.Labels) == 0 || isJSONNull(envelope.Labels) {

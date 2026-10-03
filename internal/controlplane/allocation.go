@@ -58,7 +58,7 @@ type CandidateEdge struct {
 }
 
 // PinnedReservationConfig is attached only after durable allocation
-// provenance commits. It never contains RuntimeSettings or secret material.
+// provenance commits. It never slices.Contains RuntimeSettings or secret material.
 type PinnedReservationConfig struct {
 	RuntimeAgentLabelRevision   uint64
 	Resolved                    runtimeconfig.ResolvedRuntimeConfig

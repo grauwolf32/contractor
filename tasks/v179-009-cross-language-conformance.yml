@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V179-009
+title: Check hand-written Go, Python and UI contracts against shared schemas and fixtures
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: d0bcf6e1261cabc6c93eddfbd00a6a810d90747e
+depends_on: [V179-002]
+languages: [go, python, typescript]
+goal: Detect contract drift between Go, Python and the UI in tests instead of in production.
+context:
+  finding: >-
+    Only Python validates private wire fixtures against api/v1alpha1 schemas;
+    canonical digest manifests are rebuilt by hand in Go and Python without a
+    shared case file; about 40 UI regexes and enum sets copy the public OpenAPI
+    by hand; the UI does not read the shared run-metadata label cases; the
+    event-stream UI parser is never checked against the event schema.
+  outcome: >-
+    api/testdata/v1alpha1/index.json replaces the Go and Python fixture tables;
+    Go now validates every fixture against its schema (ECMA-262 patterns via
+    regexp2) and both languages round-trip every valid fixture strictly and
+    canonically and assert every listed private error class. digest-cases.json
+    is reproduced by both languages. The UI OpenAPI probe test found missing
+    length bounds on MEDIA_TYPE_PATTERN (255) and BUDGET_DURATION_PATTERN (32),
+    now fixed.
+scope:
+  in:
+    - Validate api/testdata/v1alpha1 fixtures against their schemas in Go using the existing jsonschema dependency, from one shared fixture index.
+    - Add shared digest cases covering canonical manifests and assert both languages reproduce them.
+    - Test UI patterns and enum sets against the public OpenAPI components.
+    - Use the shared run-metadata label cases in UI tests.
+    - Feed event schema examples to the UI event parser in tests.
+  out:
+    - Generating Go or Python DTOs from schemas.
+    - Module-private UI pattern copies (for example RESOURCE_ID_PATTERN in queue, workflows, performance, operations, error and run-events), which are not exported; consolidating them belongs to the UI helper work.
+    - Client-sent event frames (subscribe, unsubscribe), which the UI builds rather than parses.
+acceptance_criteria:
+  - {id: A1, text: Go and Python both validate every private fixture against its schema from one index.}
+  - {id: A2, text: Go and Python reproduce the shared digest cases.}
+  - {id: A3, text: A UI test fails when a hand-written pattern or enum differs from the OpenAPI.}
+  - {id: A4, text: UI tests read the shared run-metadata label and event examples.}
+  - {id: A5, text: Go, Runtime and UI tests and lint pass.}
+tests:
+  - {command: go test ./internal/contracts ./internal/config, covers: [A1, A2]}
+  - {command: cd runtime && uv run pytest tests/test_contracts.py tests/test_digest_cases.py, covers: [A1, A2]}
+  - {command: make ui-verify, covers: [A3, A4, A5]}
+  - {command: make lint, covers: [A5]}

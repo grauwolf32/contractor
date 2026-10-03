@@ -1,8 +1,6 @@
 package privateartifacts
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {
@@ -32,13 +31,10 @@ func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, ta
 	if err != nil {
 		return fmt.Errorf("%w: read JSON body", errInvalidRequest)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return fmt.Errorf("%w: decode JSON body", errInvalidRequest)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	if err := strictjson.Decode(data, target); errors.Is(err, strictjson.ErrTrailingData) {
 		return fmt.Errorf("%w: JSON body has trailing data", errInvalidRequest)
+	} else if err != nil {
+		return fmt.Errorf("%w: decode JSON body", errInvalidRequest)
 	}
 	return nil
 }

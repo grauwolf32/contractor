@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 )
 
@@ -9,9 +11,9 @@ func validateAuditWorkflowDependencies(
 	workflows map[string]ResolvedAuditWorkflowBinding,
 ) error {
 	dependencies := make(map[string][]string, len(workflows))
-	for _, role := range sortedMapKeys(workflows) {
+	for _, role := range slices.Sorted(maps.Keys(workflows)) {
 		binding := workflows[role]
-		for _, inputName := range sortedMapKeys(binding.Inputs) {
+		for _, inputName := range slices.Sorted(maps.Keys(binding.Inputs)) {
 			mapping := binding.Inputs[inputName]
 			if mapping.Source != AuditInputFromRetainedOutput && mapping.Source != AuditInputFromPreparation {
 				continue
@@ -60,7 +62,7 @@ func validateAuditWorkflowDependencies(
 		state[role] = visited
 		return nil
 	}
-	for _, role := range sortedMapKeys(workflows) {
+	for _, role := range slices.Sorted(maps.Keys(workflows)) {
 		if err := visit(role); err != nil {
 			return err
 		}
@@ -71,7 +73,7 @@ func validateAuditWorkflowDependencies(
 		AuditWorkflowCheck:      1,
 		AuditWorkflowAssessment: 2,
 	}
-	for _, role := range sortedMapKeys(workflows) {
+	for _, role := range slices.Sorted(maps.Keys(workflows)) {
 		for _, dependency := range dependencies[role] {
 			source, destination := workflows[dependency], workflows[role]
 			if source.Kind == AuditWorkflowCheck {

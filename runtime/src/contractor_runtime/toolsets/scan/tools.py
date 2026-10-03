@@ -22,8 +22,9 @@ from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -223,7 +224,7 @@ class ScanTool:
         observation: Callable[[ProcessResult], dict] | None = None,
         finalize: Callable[[dict], Awaitable[dict]] | None = None,
     ) -> dict:
-        started = time.monotonic()
+        started = time.perf_counter_ns()
         result = None
         error = None
         try:
@@ -241,7 +242,7 @@ class ScanTool:
             )
             return result
         except asyncio.CancelledError:
-            error = RuntimeError("scan cancelled")
+            error = ToolCallCancelled()
             raise
         except Exception as caught:
             error = caught
@@ -260,7 +261,7 @@ class ScanTool:
                 arguments={},
                 result=metric_result,
                 error=error,
-                duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+                duration_ms=elapsed_ms(started),
             )
 
 
@@ -946,13 +947,12 @@ class ScanToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, project_workspace
-        if set(selected) - self.exported_tools:
-            raise ValueError("unknown selected scan tools")
+        require_selected_tools(
+            selected, self.exported_tools, description="unknown selected scan tools"
+        )
         if not selected:
             return {}
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("scan@1 requires State.metrics")
+        metrics = require_metrics(state, "scan@1")
         session = _ScanSession(
             workspace.path,
             self._executables,

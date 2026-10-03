@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 )
 
 var testEpoch = time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
@@ -461,7 +462,7 @@ func (s *memoryArtifactStore) Write(
 		payload: artifacts.Payload{
 			MediaType: payload.MediaType, Data: append([]byte(nil), payload.Data...),
 		},
-		expectedRevision: cloneString(expectedRevision),
+		expectedRevision: clone.Pointer(expectedRevision),
 	}
 	s.attempts = append(s.attempts, attempt)
 	fault := ""

@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V179-003
+title: Consolidate duplicated Go digest, JSON, ID and collection helpers
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: dba6aacfdc48824a74e82d299ea74ee6d0cf663d
+depends_on: [V179-001]
+languages: [go]
+goal: Replace per-package copies of generic helpers with shared leaf packages and the standard library.
+context:
+  finding: >-
+    About 25 sites hand-build "sha256:" digests although internal/contentdigest
+    exists; strict-JSON primitives (duplicate keys, lone surrogate escapes,
+    trailing data, JCS canonicalization) exist in 4-6 copies; random prefixed
+    IDs in about 13; equalStrings, contains, sorted-unique, map and pointer
+    clones in many packages despite slices/maps in Go 1.26.
+scope:
+  in:
+    - Add contentdigest.Valid and use contentdigest for every sha256 digest built or validated in internal/ and cmd/.
+    - Add a leaf internal/strictjson package for strict decode, EOF check, duplicate-key and escape validation and JCS canonicalization; migrate the copies while keeping each caller's error mapping.
+    - Add a leaf random ID helper and migrate the copies.
+    - Replace hand-written slice, map and pointer helpers with slices, maps or the small internal/clone package.
+  out:
+    - Changing any persisted digest, ID format or wire encoding.
+    - Merging sortedUnique, sorted-copy and never-nil slice helpers whose nil-versus-empty results feed JSON; they keep per-package definitions.
+    - Merging the value-building strict JSON readers in auditdomain, evaldomain, scanplan and auditpriority; their limits, number policies and error codes differ.
+acceptance_criteria:
+  - {id: A1, text: No non-test Go code outside contentdigest builds "sha256:" plus hex by hand.}
+  - {id: A2, text: Strict JSON duplicate-key, escape and trailing-data checks have one implementation.}
+  - {id: A3, text: Random prefixed IDs have one implementation with unchanged format.}
+  - {id: A4, text: No package redefines equalStrings, contains/containsString, pointer clone, string-map clone or sorted-key helpers that slices, maps or clone cover.}
+  - {id: A5, text: Go unit tests and lint pass with unchanged pinned digests.}
+tests:
+  - {command: go test ./internal/... ./cmd/..., covers: [A1, A2, A3, A4, A5]}
+  - {command: make lint, covers: [A5]}

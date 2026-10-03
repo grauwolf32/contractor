@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,7 +14,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/clone"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
 )
@@ -308,13 +309,13 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 		}
 		spec := modelPolicySpecSource{
 			Model:               request.ModelPolicy.Model,
-			ContextWindowTokens: cloneInt(request.ModelPolicy.ContextWindowTokens),
-			MaxOutputTokens:     cloneInt(request.ModelPolicy.MaxOutputTokens),
-			MaxModelCalls:       cloneInt(request.ModelPolicy.MaxModelCalls),
-			MaxToolCalls:        cloneInt(request.ModelPolicy.MaxToolCalls),
-			MaxWorkerCalls:      cloneInt(request.ModelPolicy.MaxWorkerCalls),
-			MaxTotalTokens:      cloneInt(request.ModelPolicy.MaxTotalTokens),
-			Temperature:         cloneFloat(request.ModelPolicy.Temperature),
+			ContextWindowTokens: clone.Pointer(request.ModelPolicy.ContextWindowTokens),
+			MaxOutputTokens:     clone.Pointer(request.ModelPolicy.MaxOutputTokens),
+			MaxModelCalls:       clone.Pointer(request.ModelPolicy.MaxModelCalls),
+			MaxToolCalls:        clone.Pointer(request.ModelPolicy.MaxToolCalls),
+			MaxWorkerCalls:      clone.Pointer(request.ModelPolicy.MaxWorkerCalls),
+			MaxTotalTokens:      clone.Pointer(request.ModelPolicy.MaxTotalTokens),
+			Temperature:         clone.Pointer(request.ModelPolicy.Temperature),
 		}
 		if err := validateModelPolicySpec(&spec); err != nil {
 			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
@@ -324,7 +325,7 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			Model: spec.Model, ContextWindowTokens: optionalIntValue(spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(spec.MaxModelCalls), MaxToolCalls: optionalIntValue(spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(spec.MaxTotalTokens),
-			Temperature: cloneFloat(spec.Temperature),
+			Temperature: clone.Pointer(spec.Temperature),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {
@@ -418,20 +419,12 @@ func validatePublicationKey(value string) error {
 	return nil
 }
 
-func cloneInt(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
 func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	policies := s.policies
 	gateways := s.gateways
 	if candidate.policy != nil {
 		policies = cloneMap(s.policies)
-		policies[candidate.selector.String()] = cloneModelPolicy(*candidate.policy)
+		policies[candidate.selector.String()] = candidate.policy.Clone()
 	}
 	if candidate.gateway != nil {
 		gateways = cloneMap(s.gateways)
@@ -465,11 +458,11 @@ func (m *Manager) writeDurableManifest(candidate publicationCandidate) error {
 	}
 	defer unix.Close(directoryFD)
 
-	random := make([]byte, 16)
-	if _, err := cryptorand.Read(random); err != nil {
+	temporaryName, err := randomid.New(".contractor-publish-")
+	if err != nil {
 		return fmt.Errorf("generate publication temporary name: %w", err)
 	}
-	temporaryName := ".contractor-publish-" + hex.EncodeToString(random) + ".tmp"
+	temporaryName += ".tmp"
 	finalName := candidate.selector.ID + "@" + candidate.selector.Version + ".yaml"
 	temporaryFD, err := unix.Openat(
 		directoryFD,
@@ -530,7 +523,7 @@ func (m *Manager) recordAudit(
 	if m.audit == nil {
 		return
 	}
-	keyDigest := digestBytes([]byte(request.IdempotencyKey))
+	keyDigest := contentdigest.Bytes([]byte(request.IdempotencyKey))
 	err := m.audit.RecordConfigurationPublication(ctx, PublicationAudit{
 		Kind: request.Kind, Name: candidate.selector.ID, Version: candidate.selector.Version,
 		Digest: candidate.resource.Ref.Digest, RequestDigest: candidate.requestDigest,

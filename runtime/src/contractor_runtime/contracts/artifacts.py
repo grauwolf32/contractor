@@ -11,6 +11,7 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     ARTIFACT_NAME_PATTERN,
+    MEDIA_TYPE_PATTERN,
     VersionedWireModel,
     WireModel,
     _require_text,
@@ -43,13 +44,7 @@ class ArtifactRef(WireModel):
 
 
 def _validate_media_type(value: str) -> None:
-    parts = value.split("/")
-    if (
-        len(parts) != 2
-        or not all(parts)
-        or value != value.lower()
-        or any(char in value for char in "; ")
-    ):
+    if MEDIA_TYPE_PATTERN.fullmatch(value) is None:
         raise ValueError("mediaType must be lowercase type/subtype without parameters")
 
 

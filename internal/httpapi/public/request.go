@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const maxJSONRequestSize = 1 << 20
@@ -59,19 +60,6 @@ func exceedsBodyLimit(err error) bool {
 	return errors.As(err, &maximum)
 }
 
-func decodeStrictPublicJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("JSON value has trailing data")
-	}
-	return nil
-}
-
 // jsonMembers holds the raw top-level members of a JSON object so that an
 // absent member can be told apart from an explicit null.
 type jsonMembers map[string]json.RawMessage
@@ -96,7 +84,7 @@ func isJSONNull(raw []byte) bool {
 // also returns its top-level members for presence and null checks. A JSON
 // null decodes to nil members.
 func decodeStrictWithPresence(data []byte, target any) (jsonMembers, error) {
-	if err := decodeStrictPublicJSON(data, target); err != nil {
+	if err := strictjson.Decode(data, target); err != nil {
 		return nil, err
 	}
 	var members jsonMembers

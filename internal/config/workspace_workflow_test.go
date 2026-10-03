@@ -56,7 +56,7 @@ func TestResolveWorkspaceContextAndExportContract(t *testing.T) {
 		t.Fatalf("valid Runtime-owned result bindings: %v", err)
 	}
 	badBinding := result
-	badBinding.Artifacts = cloneArtifactSlots(result.Artifacts)
+	badBinding.Artifacts = CloneArtifactSlots(result.Artifacts)
 	state := badBinding.Artifacts["workspace_state"]
 	state.From = &ArtifactBinding{Namespace: "worker", Name: "workspace_state"}
 	badBinding.Artifacts["workspace_state"] = state
@@ -150,7 +150,7 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 		t.Fatal("workspace-changes@1 with direct mode was accepted")
 	}
 	badResult := validResult
-	badResult.Artifacts = cloneArtifactSlots(validResult.Artifacts)
+	badResult.Artifacts = CloneArtifactSlots(validResult.Artifacts)
 	badResult.Artifacts["state"] = ArtifactSlot{MediaTypes: []string{"application/json"}}
 	if err := validateStageWorkspace(overlay, badResult, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("overlay export with incorrect result media type was accepted")

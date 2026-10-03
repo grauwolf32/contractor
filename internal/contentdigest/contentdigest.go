@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 )
 
 // Bytes returns the "sha256:<lowercase hex>" digest of data.
@@ -23,4 +24,19 @@ func JSON(value any) (string, error) {
 		return "", err
 	}
 	return Bytes(encoded), nil
+}
+
+// Valid reports whether value is a "sha256:<64 lowercase hex>" digest, the
+// only spelling Bytes produces.
+func Valid(value string) bool {
+	digits, ok := strings.CutPrefix(value, "sha256:")
+	if !ok || len(digits) != sha256.Size*2 {
+		return false
+	}
+	for _, digit := range []byte(digits) {
+		if (digit < '0' || digit > '9') && (digit < 'a' || digit > 'f') {
+			return false
+		}
+	}
+	return true
 }

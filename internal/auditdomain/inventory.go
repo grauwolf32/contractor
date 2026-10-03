@@ -2,10 +2,11 @@ package auditdomain
 
 import (
 	"bytes"
+	"slices"
 	"sort"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 type inventorySubject struct {
@@ -59,7 +60,7 @@ func finishInventory(
 		document := ItemTask{
 			Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
 			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
+			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
 			CanonicalInventoryDigest: canonicalDigest,
 			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
 			Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
@@ -93,10 +94,10 @@ func finishInventory(
 			TaskPackageID: packageID, ApprovalRequirement: approval,
 		}
 		worklist.Items = append(worklist.Items, item)
-		inputs := []ExactInput{{Name: options.SourceInputName, Ref: copyArtifactRef(options.SourceRef), Digest: sourceDigest}}
+		inputs := []ExactInput{{Name: options.SourceInputName, Ref: options.SourceRef.Clone(), Digest: sourceDigest}}
 		if subject.scan != nil {
 			settings := subject.scan.Settings
-			settings.Ref = copyArtifactRef(settings.Ref)
+			settings.Ref = settings.Ref.Clone()
 			inputs = append(inputs, settings)
 			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
 		}
@@ -125,7 +126,7 @@ func finishInventory(
 	result := Inventory{
 		SourceContentDigest: sourceDigest, CanonicalInventoryDigest: canonicalDigest,
 		CanonicalInventory: canonical, Worklist: worklist, ExecutionManifest: execution,
-		Coverage: coverage, Tasks: tasks, Gaps: copyStrings(basis.Gaps),
+		Coverage: coverage, Tasks: tasks, Gaps: slices.Clone(basis.Gaps),
 	}
 	if err := ValidateInventory(result); err != nil {
 		return Inventory{}, err
@@ -136,7 +137,7 @@ func finishInventory(
 // ValidateInventory rechecks every cross-document identity and package before
 // a caller persists or dispatches any part of the all-or-nothing result.
 func ValidateInventory(value Inventory) error {
-	if !validDigest(value.SourceContentDigest) || !validDigest(value.CanonicalInventoryDigest) ||
+	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) ||
 		DigestBytes(value.CanonicalInventory) != value.CanonicalInventoryDigest {
 		return invalid(CodeInventoryInvalid, "inventory.digest")
 	}
@@ -213,7 +214,7 @@ func ValidateInventory(value Inventory) error {
 			}
 		}
 		if len(sourceInputs) != 1 || sourceInputs[0].Digest != value.SourceContentDigest ||
-			!sameArtifactRef(sourceInputs[0].Ref, generated.Document.SourceRef) {
+			!sourceInputs[0].Ref.Equal(generated.Document.SourceRef) {
 			return invalid(CodeInventoryInvalid, "inventory.inputs")
 		}
 		validated, err := ValidatePackage(generated.Package)
@@ -292,7 +293,7 @@ func validateBasisItem(
 			return invalid(CodeInventoryInvalid, "inventory.standard_mappings")
 		}
 		if basis.Selection != nil && (len(task.Standard.EntryIDs) != 1 ||
-			!containsString(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
+			!slices.Contains(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
 			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
 		}
 	case "openapi-operations":
@@ -334,22 +335,6 @@ func sameCanonicalValue(left, right any) bool {
 	leftBytes, leftErr := canonicalJSON(left)
 	rightBytes, rightErr := canonicalJSON(right)
 	return leftErr == nil && rightErr == nil && bytes.Equal(leftBytes, rightBytes)
-}
-
-func sameArtifactRef(left, right contracts.ArtifactRef) bool {
-	if left.Namespace != right.Namespace || left.Name != right.Name || (left.Revision == nil) != (right.Revision == nil) {
-		return false
-	}
-	return left.Revision == nil || *left.Revision == *right.Revision
-}
-
-func copyArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	result := contracts.ArtifactRef{Namespace: source.Namespace, Name: source.Name}
-	if source.Revision != nil {
-		revision := *source.Revision
-		result.Revision = &revision
-	}
-	return result
 }
 
 func equalStringSlices(left, right []string) bool {
@@ -419,24 +404,8 @@ func cloneJSONValue(value any) any {
 	}
 }
 
-func copyStrings(values []string) []string {
-	if values == nil {
-		return nil
-	}
-	return append([]string{}, values...)
-}
-
 func arrayStrings(values []string) []string {
 	return append([]string{}, values...)
-}
-
-func sortedMapKeys(value map[string]any) []string {
-	result := make([]string, 0, len(value))
-	for key := range value {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func openAPIOperationKey(inventoryDigest, pathTemplate, method string) (string, error) {

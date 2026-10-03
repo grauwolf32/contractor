@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 import { PublicAPIError } from "../../api/error";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { KeyValueValidityContext } from "./key-value-validity";
 import "./evals.css";
 
@@ -129,35 +129,6 @@ export function EvalField({
         : children}
       {hint ? <small id={`${id}-hint`}>{hint}</small> : null}
     </div>
-  );
-}
-
-export function EvalPages({
-  previous,
-  next,
-}: {
-  previous?: (() => void) | undefined;
-  next?: (() => void) | undefined;
-}) {
-  return (
-    <nav className="eval-actions" aria-label="Pagination">
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={!previous}
-        onClick={previous}
-      >
-        Previous page
-      </button>
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={!next}
-        onClick={next}
-      >
-        Next page
-      </button>
-    </nav>
   );
 }
 

@@ -1,10 +1,13 @@
 package scanplan
 
 import (
+	"maps"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -33,14 +36,14 @@ func (p *preparer) authenticate(op map[string]any, headers map[string]string, qu
 		if !ok || len(requirement) > 64 {
 			return "invalid_security"
 		}
-		h := cloneMap(headers)
-		c := cloneMap(cookies)
+		h := clone.Map(headers)
+		c := clone.Map(cookies)
 		q := url.Values{}
 		for key, value := range query {
 			q[key] = append([]string{}, value...)
 		}
 		valid := true
-		for _, name := range keys(requirement) {
+		for _, name := range slices.Sorted(maps.Keys(requirement)) {
 			scopes, ok := requirement[name].([]any)
 			if !ok {
 				return "invalid_security"
@@ -138,7 +141,7 @@ func (p *preparer) authenticate(op map[string]any, headers map[string]string, qu
 				continue
 			}
 			check := contracts.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []contracts.HTTPRequestHeader{}, Body: ""}
-			for _, name := range keys(h) {
+			for _, name := range slices.Sorted(maps.Keys(h)) {
 				check.Headers = append(check.Headers, contracts.HTTPRequestHeader{Name: name, Value: h[name]})
 			}
 			if check.Validate() != nil {
@@ -158,12 +161,4 @@ func (p *preparer) authenticate(op map[string]any, headers map[string]string, qu
 		}
 	}
 	return reason
-}
-
-func cloneMap(value map[string]string) map[string]string {
-	result := map[string]string{}
-	for key, value := range value {
-		result[key] = value
-	}
-	return result
 }

@@ -1,18 +1,21 @@
 package controlplane
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -146,14 +149,14 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		options.MonotonicNow = func() time.Duration { return time.Since(started) }
 	}
 	if options.NewID == nil {
-		options.NewID = randomID
+		options.NewID = randomid.New
 	}
 	if options.AgentOrderKey == nil {
 		options.AgentOrderKey = func(registration contracts.AgentRegistration) string {
 			return registration.InstanceID
 		}
 	}
-	operationsGeneration, err := randomID("operations-generation-")
+	operationsGeneration, err := randomid.New("operations-generation-")
 	if err != nil {
 		return nil, fmt.Errorf("generate Operations snapshot identity: %w", err)
 	}
@@ -214,7 +217,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		}
 		existing.principalMissing = false
 		existing.registration.ObservedState = normalized.ObservedState
-		existing.registration.AllocationID = cloneString(normalized.AllocationID)
+		existing.registration.AllocationID = clone.Pointer(normalized.AllocationID)
 		existing.lastSeenAt = now
 		if existing.authoritativeAllocationID == nil {
 			// A Runtime can self-fence before our confirmed lease expires.
@@ -259,7 +262,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		existing.reconciliationRequired = true
 		r.markAllocationLost(existing, LossRuntimeRestarted)
 		if existing.authoritativeAllocationID != nil {
-			entry.blockedByInstanceID = cloneString(&instanceID)
+			entry.blockedByInstanceID = clone.Pointer(&instanceID)
 			r.recordOperationsChangeLocked(OperationsRuntimeAgent, instanceID)
 		}
 	}
@@ -312,7 +315,7 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 	entry.lastHeartbeatSeq = heartbeat.HeartbeatSeq
 	entry.lastIssuedAckSeq = heartbeat.HeartbeatSeq
 	entry.registration.ObservedState = heartbeat.ObservedState
-	entry.registration.AllocationID = cloneString(heartbeat.AllocationID)
+	entry.registration.AllocationID = clone.Pointer(heartbeat.AllocationID)
 	r.detectObservedLoss(entry, LossRuntimeMismatch)
 	response, reconciliation := heartbeatAction(entry, heartbeat.HeartbeatSeq)
 	entry.reconciliationRequired = reconciliation || r.entryNeedsReconciliationLocked(entry)
@@ -480,7 +483,7 @@ func (r *InMemoryRegistry) reserveAll(
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			CompletionCapabilities: contracts.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
-			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
+			AgentTemplate:             binding.AgentTemplate.Clone(),
 			WorkerSessionMode:         binding.WorkerSessionMode,
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
@@ -490,7 +493,7 @@ func (r *InMemoryRegistry) reserveAll(
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 			initialLeaseExpiresAt:     entry.confirmedLeaseExpiresAt,
 		}
-		entry.authoritativeAllocationID = cloneString(&allocationID)
+		entry.authoritativeAllocationID = clone.Pointer(&allocationID)
 		entry.allocationActivated = false
 		r.allocations[allocationID] = storedReservation{
 			reservation: reservation, phase: AllocationPreparing, writeGate: &sync.RWMutex{},
@@ -555,7 +558,7 @@ func (r *InMemoryRegistry) CommitCandidateReservations(
 		stored.reservation.ExecutionConfig = AllocationExecutionConfig{
 			ModelPolicy: resolved.ModelPolicy.Ref,
 			LLMGateway:  resolved.LLMGateway.Ref,
-			Credential:  cloneCredentialRef(resolved.LLMCredential),
+			Credential:  clone.Pointer(resolved.LLMCredential),
 		}
 		stored.reservation.ResolvedRuntimeConfig = &resolved
 		stored.reservation.PerformanceCollectionPolicy = configurations[allocationID].PerformanceCollectionPolicy
@@ -935,7 +938,7 @@ func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatRes
 			response.Action = contracts.ActionContinue
 			return response, entry.blockedByInstanceID != nil || entry.superseded
 		}
-		response.AllocationID = cloneString(entry.registration.AllocationID)
+		response.AllocationID = clone.Pointer(entry.registration.AllocationID)
 		if entry.registration.ObservedState == contracts.AgentFenced {
 			response.Action = contracts.ActionRelease
 		} else {
@@ -943,7 +946,7 @@ func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatRes
 		}
 		return response, true
 	}
-	response.AllocationID = cloneString(entry.authoritativeAllocationID)
+	response.AllocationID = clone.Pointer(entry.authoritativeAllocationID)
 	if entry.leaseExpired || entry.superseded {
 		response.Action = contracts.ActionDrain
 		return response, true
@@ -1065,11 +1068,11 @@ func isCompatible(
 		return false
 	}
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
-	if !contains(registration.SupportedRuntimes, runtime) {
+	if !slices.Contains(registration.SupportedRuntimes, runtime) {
 		return false
 	}
 	sandbox := template.SandboxProfile.SandboxProfileID + "@" + template.SandboxProfile.Version
-	if !contains(registration.SupportedSandboxProfiles, sandbox) {
+	if !slices.Contains(registration.SupportedSandboxProfiles, sandbox) {
 		return false
 	}
 	capabilities := make(map[string]map[string]struct{}, len(registration.SupportedToolsets))
@@ -1178,7 +1181,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			CompletionContract: contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			LogicalAgentName:   binding.LogicalAgentName, Namespace: binding.Namespace,
 			WorkerSessionMode: binding.WorkerSessionMode,
-			AgentTemplate:     cloneAgentTemplate(binding.AgentTemplate),
+			AgentTemplate:     binding.AgentTemplate.Clone(),
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeSelection:  cloneRuntimeSelection(binding.RuntimeSelection),
@@ -1202,8 +1205,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), bindings, nil
+	return contentdigest.Bytes(encoded), bindings, nil
 }
 
 func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
@@ -1216,7 +1218,7 @@ func snapshotAgent(entry *agentEntry) AgentSnapshot {
 		Registration: cloneRegistration(entry.registration), LastSeenAt: entry.lastSeenAt,
 		LastHeartbeatSeq: entry.lastHeartbeatSeq, LastIssuedAckSeq: entry.lastIssuedAckSeq,
 		LastConfirmedAckSeq: entry.lastConfirmedAckSeq, ConfirmedLeaseExpiresAt: entry.confirmedLeaseExpiresAt,
-		AuthoritativeAllocationID: cloneString(entry.authoritativeAllocationID),
+		AuthoritativeAllocationID: clone.Pointer(entry.authoritativeAllocationID),
 		ReconciliationRequired:    entry.reconciliationRequired,
 		LeaseExpired:              entry.leaseExpired,
 	}
@@ -1468,19 +1470,6 @@ func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConf
 		}
 	}
 	return nil
-}
-
-func contains(values []string, expected string) bool {
-	index := sort.SearchStrings(values, expected)
-	return index < len(values) && values[index] == expected
-}
-
-func randomID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }
 
 func (r *InMemoryRegistry) nextID(prefix string) (string, error) {

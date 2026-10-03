@@ -1,5 +1,7 @@
 package auditpriority
 
+import "github.com/grauwolf32/contractor/internal/contentdigest"
+
 // ResolveTopN pins one effective value. Nil means omitted; zero is not omission.
 // It deliberately does not reduce topN to available candidates or execution
 // capacity. The selector handles all-if-fewer; admission must check full capacity.
@@ -30,7 +32,7 @@ func (c CycleBinding) Validate() error {
 		return invalid(CodeInvalidBinding)
 	}
 	for _, digest := range []string{c.InventoryDigest, c.PoolDigest, c.ContextDigest, c.PolicyDigest, c.PromptDigest, c.ModelConfigDigest} {
-		if !digestPattern.MatchString(digest) {
+		if !contentdigest.Valid(digest) {
 			return invalid(CodeInvalidBinding)
 		}
 	}

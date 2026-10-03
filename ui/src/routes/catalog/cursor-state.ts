@@ -1,5 +1,11 @@
 import { useLocation, useSearchParams } from "react-router";
 
+import {
+  type CursorStackControls,
+  nextPageCursor,
+  type PageContinuation,
+} from "../../app/pagination";
+
 function stateRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -80,25 +86,40 @@ export function useCatalogCursorState(
     });
   }
 
+  const canGoBack = cursor !== undefined && previousCursors.length > 0;
+  function nextPage(nextCursor: string): void {
+    if (Number.isSafeInteger(page + 1)) {
+      goTo(nextCursor, page + 1, [...previousCursors, cursor ?? null]);
+    }
+  }
+  function previousPage(): void {
+    if (canGoBack) {
+      goTo(
+        previousCursors.at(-1) ?? undefined,
+        page - 1,
+        previousCursors.slice(0, -1),
+      );
+    }
+  }
+  function firstPage(): void {
+    goTo(undefined, 1, []);
+  }
+
   return {
     cursor,
     page,
-    canGoBack: cursor !== undefined && previousCursors.length > 0,
-    isFirstPage: cursor === undefined,
-    nextPage: (nextCursor: string) => {
-      if (Number.isSafeInteger(page + 1)) {
-        goTo(nextCursor, page + 1, [...previousCursors, cursor ?? null]);
-      }
+    /** CursorControls props, with "First page" past the first page. */
+    controls: (
+      continuation: PageContinuation,
+    ): CursorStackControls & { onFirst?: () => void } => {
+      const next = nextPageCursor(continuation);
+      return {
+        canGoBack,
+        ...(next === undefined ? {} : { nextCursor: next }),
+        onBack: previousPage,
+        onNext: nextPage,
+        ...(cursor === undefined ? {} : { onFirst: firstPage }),
+      };
     },
-    previousPage: () => {
-      if (cursor !== undefined && previousCursors.length > 0) {
-        goTo(
-          previousCursors.at(-1) ?? undefined,
-          page - 1,
-          previousCursors.slice(0, -1),
-        );
-      }
-    },
-    firstPage: () => goTo(undefined, 1, []),
   };
 }

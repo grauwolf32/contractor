@@ -17,17 +17,14 @@ import {
   type PerformanceSnapshot,
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
-import {
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
 import { historyGPUDevices, useGPUColors, type GPUColors } from "./gpu-colors";
 import { RefreshButton } from "../../../app/refresh-button";
+import { QueryView } from "../../../app/query-view";
 
 interface HTTPOverview {
   requestRate?: number;
@@ -568,38 +565,42 @@ export function OperationsPerformanceRoute() {
         />
       </div>
 
-      {current.error !== null ? (
-        <ErrorNotice error={current.error} />
-      ) : current.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading current performance…
-        </p>
-      ) : !current.data.enabled ? (
-        <div
-          className="notice notice-warning performance-disabled"
-          role="status"
-        >
-          <strong>Performance collection is disabled.</strong>
-          <p>
-            Retained history remains available below until its seven-day expiry.
+      <QueryView
+        query={current}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading current performance…
           </p>
-        </div>
-      ) : current.data.current === undefined ? (
-        <div className="compact-empty" role="status">
-          Collection is enabled and waiting for its first bounded sample.
-        </div>
-      ) : (
-        <>
-          <p className="performance-observed-at">
-            Read {formatTimestamp(current.data.observedAt)} · generation{" "}
-            <code>{current.data.generation}</code>
-          </p>
-          <CurrentResourceSummary
-            snapshot={current.data}
-            gpuColors={gpuColors}
-          />
-        </>
-      )}
+        }
+        onRetry={() => void current.refetch()}
+      >
+        {(data) =>
+          !data.enabled ? (
+            <div
+              className="notice notice-warning performance-disabled"
+              role="status"
+            >
+              <strong>Performance collection is disabled.</strong>
+              <p>
+                Retained history remains available below until its seven-day
+                expiry.
+              </p>
+            </div>
+          ) : data.current === undefined ? (
+            <div className="compact-empty" role="status">
+              Collection is enabled and waiting for its first bounded sample.
+            </div>
+          ) : (
+            <>
+              <p className="performance-observed-at">
+                Read {formatTimestamp(data.observedAt)} · generation{" "}
+                <code>{data.generation}</code>
+              </p>
+              <CurrentResourceSummary snapshot={data} gpuColors={gpuColors} />
+            </>
+          )
+        }
+      </QueryView>
 
       <section
         className="performance-history"
@@ -632,55 +633,59 @@ export function OperationsPerformanceRoute() {
             </select>
           </label>
         </div>
-        {history.error !== null ? (
-          <ErrorNotice error={history.error} />
-        ) : history.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading bounded history…
-          </p>
-        ) : (
-          <>
-            {generations.size > 1 ? (
-              <div className="notice notice-warning" role="status">
-                This range crosses {generations.size} Server generations. Lines
-                are intentionally not joined across restarts.
+        <QueryView
+          query={history}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading bounded history…
+            </p>
+          }
+          onRetry={() => void history.refetch()}
+        >
+          {(historyData) => (
+            <>
+              {generations.size > 1 ? (
+                <div className="notice notice-warning" role="status">
+                  This range crosses {generations.size} Server generations.
+                  Lines are intentionally not joined across restarts.
+                </div>
+              ) : null}
+              <div className="performance-chart-grid">
+                <MetricChart
+                  title="CPU usage"
+                  description="Average Server process CPU expressed as used cores"
+                  data={series.cpu}
+                  expectedStepSeconds={stepSeconds}
+                  unit="cores"
+                />
+                <MetricChart
+                  title="Resident memory"
+                  description="Observed Server process resident set size"
+                  data={series.rss.map((datum) => ({
+                    ...datum,
+                    ...(datum.value === undefined
+                      ? {}
+                      : { value: datum.value / (1024 * 1024) }),
+                  }))}
+                  expectedStepSeconds={stepSeconds}
+                  unit="MiB"
+                />
+                <GPUHistoryCharts
+                  colors={gpuColors}
+                  history={historyData}
+                  stepSeconds={stepSeconds}
+                />
+                <MetricChart
+                  title="HTTP request rate"
+                  description="Public and private completed requests per second"
+                  data={series.requests}
+                  expectedStepSeconds={stepSeconds}
+                  unit="req/s"
+                />
               </div>
-            ) : null}
-            <div className="performance-chart-grid">
-              <MetricChart
-                title="CPU usage"
-                description="Average Server process CPU expressed as used cores"
-                data={series.cpu}
-                expectedStepSeconds={stepSeconds}
-                unit="cores"
-              />
-              <MetricChart
-                title="Resident memory"
-                description="Observed Server process resident set size"
-                data={series.rss.map((datum) => ({
-                  ...datum,
-                  ...(datum.value === undefined
-                    ? {}
-                    : { value: datum.value / (1024 * 1024) }),
-                }))}
-                expectedStepSeconds={stepSeconds}
-                unit="MiB"
-              />
-              <GPUHistoryCharts
-                colors={gpuColors}
-                history={history.data}
-                stepSeconds={stepSeconds}
-              />
-              <MetricChart
-                title="HTTP request rate"
-                description="Public and private completed requests per second"
-                data={series.requests}
-                expectedStepSeconds={stepSeconds}
-                unit="req/s"
-              />
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </QueryView>
       </section>
       {current.data?.current === undefined ? null : (
         <details

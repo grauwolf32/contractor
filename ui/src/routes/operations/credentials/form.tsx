@@ -13,9 +13,11 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
+import { compactDigest } from "../../../app/format";
+import { PublicationFeedback } from "../common";
 
 function configKey(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -231,7 +233,7 @@ export function CredentialCreateForm() {
                 />
                 <span>
                   {resource.ref.name}@{resource.ref.version} ·{" "}
-                  <code>{resource.ref.digest.slice(0, 18)}…</code>
+                  <code>{compactDigest(resource.ref.digest)}</code>
                 </span>
               </label>
             );
@@ -324,17 +326,11 @@ export function CredentialCreateForm() {
           </div>
         </div>
       </details>
-      {errors.length === 0 ? null : (
-        <div className="notice notice-error" role="alert">
-          <strong>Credential request is not valid</strong>
-          <ul>
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
+      <PublicationFeedback
+        title="Credential request is not valid"
+        errors={errors}
+        mutationError={mutation.error}
+      />
       <button
         type="submit"
         disabled={mutation.isPending || inventoryError !== null}

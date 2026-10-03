@@ -10,7 +10,8 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.security_findings.locations import (
     ExactEvidenceRef,
     LineNumber,
@@ -195,16 +196,15 @@ class GeneralFindingsToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, namespace, workspace, adapter_handles, project_workspace
-        if set(selected) - self.exported_tools:
-            raise ValueError("finding toolset selected an unknown tool")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("finding toolset requires State.metrics")
+        require_selected_tools(
+            selected, self.exported_tools, description="unknown selected finding tools"
+        )
+        metrics = require_metrics(state, "finding toolset")
         client = self._client_factory(allocation_id, runtime_settings)
         publisher = FindingPublisher(
             client,
             metrics,
-            gateway_secrets(runtime_settings),
+            runtime_secrets(runtime_settings),
             state,
         )
         result = {}
@@ -212,7 +212,7 @@ class GeneralFindingsToolsetFactory:
             result["finding"] = self.tool_class(publisher)
         if "list_findings" in selected:
             result["list_findings"] = await prepare_reader(
-                client, metrics, gateway_secrets(runtime_settings)
+                client, metrics, runtime_secrets(runtime_settings)
             )
         return result
 

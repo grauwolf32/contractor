@@ -11,6 +11,7 @@ import {
 import { listProjects } from "../../api/projects";
 import { useSession } from "../../auth/session";
 import { evalExperimentPollInterval } from "./polling";
+import { queryKeys } from "../../api/query-keys";
 
 export function useEvalOwner() {
   const api = usePublicAPI();
@@ -21,7 +22,7 @@ export function useEvalOwner() {
 export function useEvalProjects() {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["evals", "projects"],
+    queryKey: queryKeys.evals.projects,
     queryFn: ({ signal }) =>
       evalInventory(
         (cursor) =>
@@ -37,7 +38,7 @@ export function useEvalProjects() {
 export function useEvalCapabilities() {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["evals", "capabilities"],
+    queryKey: queryKeys.evals.capabilities,
     queryFn: async ({ signal }) => {
       let metadata: EvalCapabilities | undefined;
       const bindings = await evalInventory(async (cursor) => {
@@ -56,7 +57,7 @@ export function useEvalCapabilities() {
 export function useEvalDatasets(projectId: string) {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["evals", "datasets", projectId],
+    queryKey: queryKeys.evals.datasets(projectId),
     enabled: !!projectId,
     queryFn: ({ signal }) =>
       evalInventory(
@@ -69,7 +70,7 @@ export function useEvalDatasets(projectId: string) {
 export function useEvalCases(projectId: string, id: string, revision: string) {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["evals", "cases", projectId, id, revision],
+    queryKey: queryKeys.evals.cases(projectId, id, revision),
     enabled: !!projectId && !!id && !!revision,
     queryFn: ({ signal }) =>
       evalInventory(
@@ -82,7 +83,7 @@ export function useEvalCases(projectId: string, id: string, revision: string) {
 export function useEvalExperiment(id: string) {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["evals", "experiment", id],
+    queryKey: queryKeys.evals.experiment(id),
     enabled: !!id,
     queryFn: ({ signal }) => getEvalExperiment(api, id, signal),
     refetchInterval: (query) => evalExperimentPollInterval(query.state.data),

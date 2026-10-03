@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 )
 
@@ -30,8 +31,8 @@ func BuildChecklistInventory(source []byte, mediaType string, options InventoryO
 	for _, entry := range entries {
 		task := ChecklistTask{
 			Version: entry.Version, Statement: entry.Statement, Applicability: entry.Applicability,
-			AllowedMethods:   copyStrings(entry.AllowedMethods),
-			RequiredEvidence: copyStrings(entry.RequiredEvidence), ReviewPolicy: entry.ReviewPolicy,
+			AllowedMethods:   slices.Clone(entry.AllowedMethods),
+			RequiredEvidence: slices.Clone(entry.RequiredEvidence), ReviewPolicy: entry.ReviewPolicy,
 		}
 		basisSubjects = append(basisSubjects, map[string]any{
 			"item_key": entry.Key, "version": entry.Version, "statement": entry.Statement,
@@ -44,7 +45,7 @@ func BuildChecklistInventory(source []byte, mediaType string, options InventoryO
 		}
 		subjects = append(subjects, inventorySubject{
 			itemKey: entry.Key, kind: "checklist", subjectKey: entry.Key,
-			approval: approval, checklist: &task, requested: copyStrings(entry.RequiredEvidence),
+			approval: approval, checklist: &task, requested: slices.Clone(entry.RequiredEvidence),
 		})
 	}
 	basis := inventoryBasis{Schema: InventoryBasisSchema, Kind: "checklist", Subjects: basisSubjects, Gaps: []string{}}
@@ -73,8 +74,8 @@ func normalizeChecklist(document ChecklistDocument) ([]ChecklistEntry, error) {
 		if entry.AllowedMethods == nil || entry.RequiredEvidence == nil {
 			return nil, invalid(CodeInventoryInvalid, "items")
 		}
-		entry.AllowedMethods = copyStrings(entry.AllowedMethods)
-		entry.RequiredEvidence = copyStrings(entry.RequiredEvidence)
+		entry.AllowedMethods = slices.Clone(entry.AllowedMethods)
+		entry.RequiredEvidence = slices.Clone(entry.RequiredEvidence)
 		sort.Strings(entry.AllowedMethods)
 		sort.Strings(entry.RequiredEvidence)
 		if validateSortedStrings(entry.AllowedMethods, MaximumCoverageValues, "items.allowed_methods", true) != nil ||

@@ -1,7 +1,6 @@
 """Trusted Audit preparation and invocation-local completion strategy."""
 
 import asyncio
-import hashlib
 from collections.abc import Callable
 from dataclasses import replace
 
@@ -15,6 +14,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.collector import (
     AuditCollectionError,
     InvocationAuditCollector,
@@ -122,7 +122,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         owner = AuditInvocationOwner(
             allocation_id,
             "audit-preparation",
-            "sha256:" + hashlib.sha256(task.data).hexdigest(),
+            sha256_digest(task.data),
             tuple(record[0]["item_key"] for record in records),
         )
         inputs = AuditTrustedInputs(owner, task.data, manifest.data)

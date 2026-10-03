@@ -1,7 +1,7 @@
 import { validAuditComposition, validInventory } from "./audit-composition";
 import { validFindingCoordinates } from "./finding-locations";
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { requireProjectID } from "./projects";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
@@ -78,23 +78,11 @@ export interface AuditMutationOptions {
   deadlineSeconds?: number;
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function invalidAuditResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Audit response",
-  });
+    "Server returned an invalid Audit response",
+  );
 }
 
 function requireProfileIdentity(name: string, version: string): void {

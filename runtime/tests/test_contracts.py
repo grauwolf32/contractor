@@ -48,110 +48,48 @@ from contractor_runtime.digests import (
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
 
-DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
-    "registration-missing-api-version.json": (AgentRegistration, "version"),
-    "registration-bad-api-version.json": (AgentRegistration, "version"),
-    "registration-unsorted-labels.json": (AgentRegistration, "invariant"),
-    "registration-unsorted-adapters.json": (AgentRegistration, "invariant"),
-    "runtime-settings-duplicate-key.json": (RuntimeSettings, "duplicate_key"),
-    "runtime-settings-unknown-adapter.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-two-proxy-auth.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-secret-error.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-caido-secret-error.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-preamble.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-between.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-key-comment.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-header.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-end-comment.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-truncated-block.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-end-unterminated.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-joined.json": (RuntimeSettings, "invariant"),
-    "runtime-settings-ca-unicode-space.json": (RuntimeSettings, "invariant"),
-    "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenance, "schema"),
-    "workspace-capabilities-unsorted-modes.json": (
-        WorkspaceCapabilities,
-        "invariant",
-    ),
-    "allocation-workspace-versionless-source.json": (
+# api/testdata/v1alpha1/index.json assigns every fixture a message type, its
+# JSON Schema and the rejections Go and Python both assert.
+INDEX = json.loads((FIXTURES / "index.json").read_text(encoding="utf-8"))
+MODELS: dict[str, type[BaseModel]] = {
+    model.__name__: model
+    for model in (
+        AbortAllocationRequest,
+        AgentHeartbeat,
+        AgentRegistration,
+        AgentRegistrationResponse,
+        AgentStateSnapshot,
+        AllocationFinalResponse,
+        AllocationSpec,
         AllocationWorkspaceSpec,
-        "invariant",
-    ),
+        ArtifactListResult,
+        ArtifactReadResult,
+        FinalizeAllocationRequest,
+        HeartbeatResponse,
+        ReleaseAllocationRequest,
+        ResolvedLLMGatewayConfig,
+        ResolvedRuntimeConfigProvenance,
+        RuntimeReport,
+        RuntimeSettings,
+        StageContentRequest,
+        StageContentResult,
+        WorkerCompletion,
+        WorkspaceCapabilities,
+    )
+}
+
+DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
+    name: (MODELS[entry["type"]], entry["reason"])
+    for name, entry in INDEX["invalid"].items()
+    if "reason" in entry
 }
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
-    "runtime-settings-empty.json": RuntimeSettings,
-    "runtime-settings-telemetry.json": RuntimeSettings,
-    "runtime-settings-telemetry-export.json": RuntimeSettings,
-    "runtime-settings-proxy.json": RuntimeSettings,
-    "runtime-settings-combined.json": RuntimeSettings,
-    "runtime-settings-ca-bundle.json": RuntimeSettings,
-    "runtime-settings-ca-bundle-crlf.json": RuntimeSettings,
-    "runtime-provenance.json": ResolvedRuntimeConfigProvenance,
-    "runtime-provenance-empty.json": ResolvedRuntimeConfigProvenance,
-    "runtime-report.json": RuntimeReport,
-    "workspace-capabilities.json": WorkspaceCapabilities,
-    "allocation-workspace-overlay.json": AllocationWorkspaceSpec,
-    "agent-state-snapshot.json": AgentStateSnapshot,
-    "agent-registration.json": AgentRegistration,
-    "agent-registration-response.json": AgentRegistrationResponse,
-    "agent-heartbeat.json": AgentHeartbeat,
-    "heartbeat-response.json": HeartbeatResponse,
-    "llm-gateway-config.json": ResolvedLLMGatewayConfig,
-    "llm-gateway-config-signatures.json": ResolvedLLMGatewayConfig,
-    "allocation-spec.json": AllocationSpec,
-    "allocation-spec-tool.json": AllocationSpec,
-    "allocation-spec-summarizer.json": AllocationSpec,
-    "allocation-spec-summarizer-instructions.json": AllocationSpec,
-    "allocation-spec-skills.json": AllocationSpec,
-    "allocation-final-response.json": AllocationFinalResponse,
-    "finalize-allocation.json": FinalizeAllocationRequest,
-    "abort-allocation.json": AbortAllocationRequest,
-    "release-allocation.json": ReleaseAllocationRequest,
-    "artifact-read-result.json": ArtifactReadResult,
-    "artifact-list-result.json": ArtifactListResult,
-    "stage-content-request.json": StageContentRequest,
-    "stage-content-request-deadline.json": StageContentRequest,
-    "stage-content-result-success.json": StageContentResult,
-    "stage-content-result-failure.json": StageContentResult,
-    "worker-completion-success.json": WorkerCompletion,
-    "worker-completion-failure.json": WorkerCompletion,
-    "worker-completion-empty-observations.json": WorkerCompletion,
+    name: MODELS[entry["type"]] for name, entry in INDEX["valid"].items()
 }
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
-    "registration-missing-labels.json": AgentRegistration,
-    "registration-missing-adapters.json": AgentRegistration,
-    "allocation-spec-tool-model.json": AllocationSpec,
-    "allocation-spec-adk-no-model.json": AllocationSpec,
-    "allocation-spec-missing-provenance.json": AllocationSpec,
-    "agent-state-zero-revision.json": AgentStateSnapshot,
-    "agent-state-echoed-allocation.json": AgentStateSnapshot,
-    "agent-registration-idle-with-allocation.json": AgentRegistration,
-    "agent-registration-oversized-software-version.json": AgentRegistration,
-    "agent-heartbeat-missing-allocation.json": AgentHeartbeat,
-    "heartbeat-response-unknown-action.json": HeartbeatResponse,
-    "llm-gateway-config-secret-field.json": ResolvedLLMGatewayConfig,
-    "llm-gateway-config-signature-two-matchers.json": ResolvedLLMGatewayConfig,
-    "llm-gateway-config-signature-retryable-status.json": ResolvedLLMGatewayConfig,
-    "allocation-spec-bad-api-version.json": AllocationSpec,
-    "allocation-spec-resolved-skill-versionless.json": AllocationSpec,
-    "stage-content-request-unknown-field.json": StageContentRequest,
-    "stage-content-request-naive-deadline.json": StageContentRequest,
-    "stage-content-request-versioned-result-binding.json": StageContentRequest,
-    "stage-content-result-unversioned-artifact.json": StageContentResult,
-    "stage-content-result-success-with-error.json": StageContentResult,
-    "worker-completion-both-variants.json": WorkerCompletion,
-    "worker-completion-no-variant.json": WorkerCompletion,
-    "artifact-read-result-unversioned.json": ArtifactReadResult,
-    "runtime-settings-ca-preamble.json": RuntimeSettings,
-    "runtime-settings-ca-between.json": RuntimeSettings,
-    "runtime-settings-ca-key-comment.json": RuntimeSettings,
-    "runtime-settings-ca-header.json": RuntimeSettings,
-    "runtime-settings-ca-end-comment.json": RuntimeSettings,
-    "runtime-settings-ca-truncated-block.json": RuntimeSettings,
-    "runtime-settings-ca-end-unterminated.json": RuntimeSettings,
-    "runtime-settings-ca-joined.json": RuntimeSettings,
-    "runtime-settings-ca-unicode-space.json": RuntimeSettings,
+    name: MODELS[entry["type"]] for name, entry in INDEX["invalid"].items() if entry.get("strict")
 }
 
 
@@ -165,72 +103,10 @@ def test_stage_content_request_does_not_expose_session_controls() -> None:
 
 
 FIXTURE_SCHEMAS = {
-    "registration-missing-labels": "agent-registration.schema.json",
-    "registration-missing-adapters": "agent-registration.schema.json",
-    "allocation-spec-missing-provenance": "allocation.schema.json",
-    "runtime-report": "runtime-report.schema.json",
-    "runtime-provenance": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
-    "runtime-provenance-empty": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
-    "runtime-provenance-secret-field": (
-        "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
-    ),
-    "workspace-capabilities": "agent-registration.schema.json#/$defs/WorkspaceCapabilities",
-    "allocation-workspace-overlay": "allocation.schema.json#/$defs/AllocationWorkspaceSpec",
-    "registration-bad-api-version": "agent-registration.schema.json",
-    "registration-missing-api-version": "agent-registration.schema.json",
-    "runtime-settings-empty": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-telemetry": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-telemetry-export": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-proxy": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-combined": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-ca-bundle": "allocation.schema.json#/$defs/RuntimeSettings",
-    "runtime-settings-ca-bundle-crlf": "allocation.schema.json#/$defs/RuntimeSettings",
-    "agent-state-snapshot": "agent-state.schema.json",
-    "agent-registration": "agent-registration.schema.json",
-    "agent-registration-response": "agent-registration-response.schema.json",
-    "agent-heartbeat": "agent-heartbeat.schema.json",
-    "heartbeat-response": "agent-heartbeat.schema.json",
-    "llm-gateway-config": "llm-gateway-config.schema.json",
-    "llm-gateway-config-signatures": "llm-gateway-config.schema.json",
-    "allocation-spec": "allocation.schema.json",
-    "allocation-spec-tool": "allocation.schema.json",
-    "allocation-spec-tool-model": "allocation.schema.json",
-    "allocation-spec-adk-no-model": "allocation.schema.json",
-    "allocation-spec-summarizer": "allocation.schema.json",
-    "allocation-spec-summarizer-instructions": "allocation.schema.json",
-    "allocation-spec-skills": "allocation.schema.json",
-    "allocation-final-response": "allocation.schema.json",
-    "finalize-allocation": "allocation.schema.json",
-    "abort-allocation": "allocation.schema.json",
-    "release-allocation": "allocation.schema.json",
-    "artifact-read-result": "artifact.schema.json",
-    "artifact-list-result": "artifact.schema.json",
-    "stage-content-request": "stage-content.schema.json",
-    "stage-content-request-deadline": "stage-content.schema.json",
-    "stage-content-result-success": "stage-content.schema.json",
-    "stage-content-result-failure": "stage-content.schema.json",
-    "worker-completion-success": "worker-completion.schema.json",
-    "worker-completion-failure": "worker-completion.schema.json",
-    "worker-completion-empty-observations": "worker-completion.schema.json",
-    "agent-registration-idle-with-allocation": "agent-registration.schema.json",
-    "agent-state-zero-revision": "agent-state.schema.json",
-    "agent-state-echoed-allocation": "agent-state.schema.json",
-    "agent-registration-oversized-software-version": "agent-registration.schema.json",
-    "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
-    "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
-    "llm-gateway-config-secret-field": "llm-gateway-config.schema.json",
-    "llm-gateway-config-signature-two-matchers": "llm-gateway-config.schema.json",
-    "llm-gateway-config-signature-retryable-status": "llm-gateway-config.schema.json",
-    "allocation-spec-bad-api-version": "allocation.schema.json",
-    "allocation-spec-resolved-skill-versionless": "allocation.schema.json",
-    "stage-content-request-unknown-field": "stage-content.schema.json",
-    "stage-content-request-naive-deadline": "stage-content.schema.json",
-    "stage-content-request-versioned-result-binding": "stage-content.schema.json",
-    "stage-content-result-unversioned-artifact": "stage-content.schema.json",
-    "stage-content-result-success-with-error": "stage-content.schema.json",
-    "worker-completion-both-variants": "worker-completion.schema.json",
-    "worker-completion-no-variant": "worker-completion.schema.json",
-    "artifact-read-result-unversioned": "artifact.schema.json",
+    Path(name).stem: entry["schema"]
+    for kind in ("valid", "invalid")
+    for name, entry in INDEX[kind].items()
+    if "schema" in entry
 }
 
 
@@ -700,8 +576,10 @@ def test_allocation_resolved_skills_rejects_every_manifest_mismatch(mutation: An
 def test_all_golden_files_have_an_assigned_model() -> None:
     valid_files = {path.name for path in (FIXTURES / "valid").glob("*.json")}
     invalid_files = {path.name for path in (FIXTURES / "invalid").glob("*.json")}
-    assert valid_files == VALID_MODELS.keys()
-    assert invalid_files == INVALID_MODELS.keys() | DECODE_ERROR_CASES.keys()
+    assert valid_files == INDEX["valid"].keys()
+    assert invalid_files == INDEX["invalid"].keys()
+    for entry in INDEX["invalid"].values():
+        assert entry.keys() & {"schema", "strict", "reason"}
 
 
 def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> None:

@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V179-007
+title: Move shared UI primitives into app and share API and pagination helpers
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: c3754ee6a6847067f2b3f057cad38a36a4d2f94b
+depends_on: []
+languages: [typescript]
+goal: Give the UI one home and one implementation for formatting, errors, pagination, query states and API response checks.
+context:
+  finding: >-
+    Shared primitives live in routes/artifacts/common.tsx and app/ imports from
+    routes/; cursor pagination has four implementations over about 25 views;
+    QueryView is used by 4 files while about 63 chains hand-write loading,
+    error and empty states; api/ copies requireData 9 times and invalid
+    response helpers 10 times; evals and catalog build query keys inline;
+    confirm dialogs, downloads, ID truncation and idempotency helpers are
+    copied.
+scope:
+  in:
+    - Move formatting, ErrorNotice, CursorControls and other non-artifact primitives from routes/artifacts/common.tsx into app/.
+    - Add shared cursor-stack hooks and a next-cursor helper and migrate list views.
+    - Extend QueryView with an empty state and adopt it in hand-written chains.
+    - Export requireData, invalid response and page-shape helpers from api/error.ts and migrate api modules.
+    - Add evals and catalog query-key factories.
+    - Share confirm dialog headers, blob download, ID truncation and mutation idempotency helpers.
+    - Share JSON record and exact-key guards, Operations publication feedback and infinite-query load-more buttons.
+  out:
+    - Visual redesign or copy changes beyond removing accidental differences.
+    - Artifact detail, upload and binding views (V179-008).
+    - Loading chains driven by several queries or by EvalError/AuditQueueError; they keep their composed states.
+    - The invalid-route fallback, underscore humanizer, optionalNumber and performance seconds formatter; each copy is one to four lines.
+    - HTTP URL validators; their port, length and origin rules differ on purpose.
+    - api/audit-presets.ts, which V179-002 changes in parallel.
+acceptance_criteria:
+  - {id: A1, text: No app/ module other than the router imports from routes/.}
+  - {id: A2, text: List views use the shared cursor helpers.}
+  - {id: A3, text: Hand-written loading/error/empty chains are replaced by QueryView where data is a single query.}
+  - {id: A4, text: api modules share requireData and response-shape helpers.}
+  - {id: A5, text: evals and catalog use query-key factories.}
+  - {id: A6, text: make ui-verify passes.}
+tests:
+  - {command: make ui-verify, covers: [A1, A2, A3, A4, A5, A6]}

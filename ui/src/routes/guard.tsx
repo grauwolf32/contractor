@@ -4,7 +4,7 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import { APICompatibilityError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
 import { useSession } from "../auth/session";
-import { ErrorNotice } from "./artifacts/common";
+import { ErrorNotice } from "../app/error-notice";
 import { SessionConnectionError } from "./session-error";
 
 export function AuthenticatedRoute() {

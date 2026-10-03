@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import calendar
-import hashlib
 import io
 import json
 import re
@@ -15,14 +14,15 @@ from typing import Any
 
 import jcs
 
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
+from contractor_runtime.digests import sha256_digest
+from contractor_runtime.strict_json import unique_json_object
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 COLLECTION_MEDIA_TYPE = "application/vnd.contractor.findings-collection+zip"
 MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}")
-MEDIA_TYPE = re.compile(r"[a-z0-9!#$%&'+.^_`|~-]+/[a-z0-9!#$%&'+.^_`|~-]+")
 
 
 class FindingsError(ValueError):
@@ -44,10 +44,6 @@ def identifier(value: Any) -> bool:
     return isinstance(value, str) and IDENTIFIER.fullmatch(value) is not None
 
 
-def digest(data: bytes) -> str:
-    return "sha256:" + hashlib.sha256(data).hexdigest()
-
-
 def canonical(value: Any) -> bytes:
     return jcs.canonicalize(value)
 
@@ -64,15 +60,8 @@ def array(value: Any, maximum: int, minimum: int = 0) -> list[Any]:
 
 
 def strict_json(data: bytes, *, canonical_required: bool = True) -> Any:
-    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in items:
-            require(key not in result)
-            result[key] = value
-        return result
-
     try:
-        value = json.loads(data.decode("utf-8"), object_pairs_hook=pairs)
+        value = json.loads(data.decode("utf-8"), object_pairs_hook=unique_json_object)
         pending = [(value, 1)]
         nodes = 0
         while pending:
@@ -100,7 +89,7 @@ def document_id(document: dict[str, Any]) -> str:
     scope, ref = document["scope"], document["ref"]
     return (
         "doc-"
-        + digest(
+        + sha256_digest(
             canonical(
                 [
                     scope["kind"],
@@ -148,7 +137,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
             require(isinstance(path, str) and path > previous and path != "manifest.json")
             body = raw[path]
             require(type(member["size"]) is int and member["size"] == len(body))
-            require(member["digest"] == digest(body), "findings_digest_mismatch")
+            require(member["digest"] == sha256_digest(body), "findings_digest_mismatch")
             previous = path
             by_id[member["id"]] = member
         collection_member = by_id["collection"]
@@ -157,7 +146,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
         metadata_bytes = raw["collection.json"]
         require(len(metadata_bytes) <= 1024 * 1024, "findings_limit_exceeded")
         metadata = strict_json(metadata_bytes)
-        require(manifest["package_id"] == "collection-" + digest(metadata_bytes)[7:])
+        require(manifest["package_id"] == "collection-" + sha256_digest(metadata_bytes)[7:])
         _validate_metadata(metadata)
         require(len(members) == len(metadata["documents"]) + 1)
         contents: dict[str, bytes] = {}
@@ -185,7 +174,7 @@ def decode_collection(payload: bytes) -> FindingCollection:
                 == [link["evidence_id"] for link in entry["evidence"]],
                 "findings_reference_invalid",
             )
-        return FindingCollection(metadata, contents, proposals, digest(payload))
+        return FindingCollection(metadata, contents, proposals, sha256_digest(payload))
     except FindingsError:
         raise
     except (KeyError, TypeError, ValueError, OverflowError, RecursionError) as error:
@@ -276,7 +265,7 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(
             isinstance(media_type, str)
             and len(media_type) <= 127
-            and MEDIA_TYPE.fullmatch(media_type)
+            and MEDIA_TYPE_PATTERN.fullmatch(media_type)
         )
         size = document["size_bytes"]
         require(type(size) is int and 0 <= size <= MAX_ARCHIVE_BYTES)

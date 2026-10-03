@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -191,8 +193,8 @@ INSERT INTO runtime_agent_principals (
 ) VALUES ($1, $2, $3::numeric, $4, $5, $6, $7)
 ON CONFLICT (runtime_agent_id) DO NOTHING`,
 		principal.RuntimeAgentID, principal.Labels, strconv.FormatUint(principal.LabelRevision, 10),
-		principal.CreatedBy, databaseTime(principal.CreatedAt),
-		principal.UpdatedBy, databaseTime(principal.UpdatedAt),
+		principal.CreatedBy, persistencepostgres.Timestamp(principal.CreatedAt),
+		principal.UpdatedBy, persistencepostgres.Timestamp(principal.UpdatedAt),
 	)
 	if err != nil {
 		return false, classifyWrite(err)
@@ -221,7 +223,7 @@ SET labels = $3, label_revision = label_revision + 1,
     updated_by = $4, updated_at = $5
 WHERE runtime_agent_id = $1 AND label_revision = $2::numeric
   AND labels IS DISTINCT FROM $3`,
-		runtimeAgentID, strconv.FormatUint(expectedRevision, 10), labels, actor, databaseTime(at),
+		runtimeAgentID, strconv.FormatUint(expectedRevision, 10), labels, actor, persistencepostgres.Timestamp(at),
 	)
 	if err != nil {
 		return RuntimeAgentPrincipal{}, classifyWrite(err)
@@ -236,7 +238,7 @@ WHERE runtime_agent_id = $1 AND label_revision = $2::numeric
 	if existing.LabelRevision != expectedRevision {
 		return RuntimeAgentPrincipal{}, ErrPrecondition
 	}
-	if equalStrings(existing.Labels, labels) {
+	if slices.Equal(existing.Labels, labels) {
 		return existing, nil
 	}
 	return RuntimeAgentPrincipal{}, ErrPrecondition
@@ -449,7 +451,7 @@ func (s *PrincipalService) ReplaceLabels(
 			return err
 		}
 		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !equalStrings(locked.Labels, optimistic.Labels) {
+			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
 			return ErrPrecondition
 		}
 		// The union was locked above; validate only the desired same-layer set.
@@ -516,7 +518,7 @@ func (s *PrincipalService) ReplaceLabelsIdempotent(
 			return err
 		}
 		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !equalStrings(locked.Labels, optimistic.Labels) {
+			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
 			return ErrPrecondition
 		}
 		if _, err := validateAgentLabelSetFromLocked(ctx, tx, labels); err != nil {
@@ -665,7 +667,7 @@ func preparePrincipalMutation(
 	if err != nil {
 		return "", "", invalid("Runtime Agent principal mutation cannot be normalized")
 	}
-	return digest(request), keyDigest, nil
+	return contentdigest.Bytes(request), keyDigest, nil
 }
 
 func lookupPrincipalManagementReplay(
@@ -724,7 +726,7 @@ INSERT INTO runtime_management_operations (
     idempotency_key_digest, request_digest, operation_kind, resource_id,
     result, actor_id, performed_at
 ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, runtimeAgentID, string(encoded), actor, databaseTime(at))
+ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, runtimeAgentID, string(encoded), actor, persistencepostgres.Timestamp(at))
 	if err != nil {
 		return errors.New("store Runtime Agent management audit")
 	}
@@ -838,16 +840,4 @@ func sortedUnion(groups ...[]string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

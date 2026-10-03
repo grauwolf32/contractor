@@ -1,3 +1,11 @@
+import type { ArtifactArchiveScope } from "./artifact-archive";
+
+interface CatalogRef {
+  name: string;
+  version: string;
+  digest: string;
+}
+
 export const queryKeys = {
   session: ["auth", "session"] as const,
   workflows: {
@@ -243,6 +251,7 @@ export const queryKeys = {
         cursor ?? null,
       ] as const,
     detail: (runId: string) => ["runs", "detail", runId] as const,
+    artifactsAll: (runId: string) => ["runs", "artifacts", runId] as const,
     artifacts: (
       runId: string,
       namespace: string | undefined,
@@ -352,4 +361,137 @@ export const queryKeys = {
         ] as const,
     },
   },
+  catalog: {
+    agentTemplates: (search: string, cursor: string | undefined) =>
+      ["catalog", "agent-templates", search, cursor ?? null] as const,
+    agentVersions: (name: string) =>
+      ["catalog", "agent-versions", name] as const,
+    agentInstructions: (ref: CatalogRef) =>
+      [
+        "catalog",
+        "agent-instructions",
+        ref.name,
+        ref.version,
+        ref.digest,
+      ] as const,
+    agentUsage: (ref: CatalogRef, cursor: string | undefined) =>
+      [
+        "catalog",
+        "agent-usage",
+        ref.name,
+        ref.version,
+        ref.digest,
+        cursor ?? null,
+      ] as const,
+    auditPresets: ["catalog", "audit-presets"] as const,
+    auditStandard: (scheme: string, version: string) =>
+      ["audit-standards", scheme, version] as const,
+    skillDescription: (ref: {
+      namespace: string;
+      name: string;
+      revision: string;
+    }) => ["skill-description", ref.namespace, ref.name, ref.revision] as const,
+  },
+  evals: {
+    all: ["evals"] as const,
+    projects: ["evals", "projects"] as const,
+    capabilities: ["evals", "capabilities"] as const,
+    executionChoices: ["evals", "execution-choices"] as const,
+    datasets: (projectId: string) => ["evals", "datasets", projectId] as const,
+    cases: (projectId: string, datasetId: string, revision: string) =>
+      ["evals", "cases", projectId, datasetId, revision] as const,
+    lists: ["evals", "list"] as const,
+    list: (query: unknown) => ["evals", "list", query] as const,
+    experiment: (experimentId: string | undefined) =>
+      ["evals", "experiment", experimentId] as const,
+    /** Prefix of one experiment's member, pair or chart projections. */
+    projection: (
+      projection: "members" | "pairs" | "chart",
+      experimentId: string,
+    ) => ["evals", projection, experimentId] as const,
+    members: (experimentId: string, query: unknown) =>
+      ["evals", "members", experimentId, query] as const,
+    pairs: (experimentId: string, query: unknown) =>
+      ["evals", "pairs", experimentId, query] as const,
+    chart: (experimentId: string, chart: string, query: unknown) =>
+      ["evals", "chart", experimentId, chart, query] as const,
+    statusReasons: (experimentId: string, query: unknown) =>
+      ["evals", "status-reasons", experimentId, query] as const,
+    pair: (
+      experimentId: string,
+      pairId: string,
+      snapshot: string | undefined,
+    ) => ["evals", "pair", experimentId, pairId, snapshot] as const,
+    inventories: (experimentId: string) =>
+      ["evals", "inventory", experimentId] as const,
+    inventory: (
+      experimentId: string,
+      memberId: string,
+      cursor: string | undefined,
+    ) => ["evals", "inventory", experimentId, memberId, cursor] as const,
+    binding: (kind: string, selector: string) =>
+      ["evals", "binding", kind, selector] as const,
+    review: (
+      experimentId: string,
+      memberId: string,
+      resultDigest: string | null,
+    ) => ["evals", "review", experimentId, memberId, resultDigest] as const,
+    command: (experimentId: string, commandId: string | undefined) =>
+      ["evals", "command", experimentId, commandId] as const,
+    inputArtifacts: (
+      scope: string,
+      projectId: string,
+      cursor: string | undefined,
+    ) => ["evals", "input-artifacts", scope, projectId, cursor] as const,
+  },
 };
+
+/** Artifact binding keys of one scope; each maps to its scope's family. */
+export function artifactScopeKeys(scope: ArtifactArchiveScope) {
+  switch (scope.kind) {
+    case "user":
+      return {
+        all: queryKeys.artifacts.all,
+        metadata: queryKeys.artifacts.metadata,
+        versions: queryKeys.artifacts.versions,
+        lineage: queryKeys.artifacts.lineage,
+      };
+    case "project": {
+      const keys = queryKeys.projects.artifacts;
+      return {
+        all: keys.all(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          keys.metadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          keys.versions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) => keys.lineage(scope.id, namespace, name, revision, cursor),
+      };
+    }
+    case "run":
+      return {
+        all: queryKeys.runs.artifactsAll(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          queryKeys.runs.artifactMetadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          queryKeys.runs.artifactVersions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) =>
+          queryKeys.runs.artifactLineage(
+            scope.id,
+            namespace,
+            name,
+            revision,
+            cursor,
+          ),
+      };
+  }
+}

@@ -3,6 +3,7 @@ package auditdomain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"slices"
 	"sort"
 	"strconv"
 )
@@ -28,14 +29,14 @@ func BuildFindingInventory(
 		if proposal.Document.Subject != nil {
 			subjectKey = proposal.Document.Subject.Key
 		}
-		limitations := copyStrings(proposal.Document.Limitations)
+		limitations := slices.Clone(proposal.Document.Limitations)
 		sort.Strings(limitations)
 		for _, ordinal := range proposal.SelectedCheckOrdinals {
 			check := proposal.Document.ProposedChecks[ordinal]
 			finding := &FindingTask{
-				ReceiptID: proposal.ReceiptID, ProposalRef: copyArtifactRef(proposal.Proposal.Ref),
+				ReceiptID: proposal.ReceiptID, ProposalRef: proposal.Proposal.Ref.Clone(),
 				ProposalDigest: proposal.Proposal.Digest, ProposedCheckOrdinal: ordinal,
-				Objective: check.Objective, Method: check.Method, Limitations: copyStrings(limitations),
+				Objective: check.Objective, Method: check.Method, Limitations: slices.Clone(limitations),
 			}
 			itemKey := findingCheckItemKey(proposal.ReceiptID, ordinal)
 			basisSubjects = append(basisSubjects, map[string]any{
@@ -51,7 +52,7 @@ func BuildFindingInventory(
 			subjects = append(subjects, inventorySubject{
 				itemKey: itemKey, kind: "finding-verification",
 				subjectKey: subjectKey, finding: finding,
-				requested: []string{check.Method}, gaps: copyStrings(limitations),
+				requested: []string{check.Method}, gaps: slices.Clone(limitations),
 			})
 		}
 	}

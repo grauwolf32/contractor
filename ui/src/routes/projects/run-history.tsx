@@ -5,20 +5,19 @@ import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import {
   RUN_STATES,
-  TERMINAL_RUN_STATES,
+  isTerminalRunState,
   type RunSummary,
   type WorkflowRunState,
 } from "../../api/runs";
 import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
+import { compactId, formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";
+import { QueryView } from "../../app/query-view";
 
 export function ProjectRunIdentity({
   run,
@@ -36,11 +35,7 @@ export function ProjectRunIdentity({
       >
         {run.workflow}
       </ContextLink>
-      <code title={run.runId}>
-        {run.runId.length > 24
-          ? `${run.runId.slice(0, 8)}…${run.runId.slice(-8)}`
-          : run.runId}
-      </code>
+      <code title={run.runId}>{compactId(run.runId)}</code>
     </div>
   );
 }
@@ -54,15 +49,17 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     : "all";
   const states = RUN_STATES.filter(
     (state) =>
-      view === "all" ||
-      (view === "completed") ===
-        TERMINAL_RUN_STATES.includes(
-          state as (typeof TERMINAL_RUN_STATES)[number],
-        ),
+      view === "all" || (view === "completed") === isTerminalRunState(state),
   );
   const state = states.find((candidate) => candidate === filters.get("state"));
-  const cursors = filters.getAll("cursor");
-  const cursor = cursors.at(-1);
+  const pages = useURLCursorStack({
+    navigateOptions: { state: location.state },
+    onChange: () =>
+      document
+        .getElementById("project-runs")
+        ?.scrollIntoView?.({ block: "start" }),
+  });
+  const cursor = pages.cursor;
   const options = {
     limit: 25,
     ...(view === "all"
@@ -79,12 +76,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
     refetchInterval: (query) =>
       view === "active" ||
-      query.state.data?.items.some(
-        (run) =>
-          !TERMINAL_RUN_STATES.includes(
-            run.state as (typeof TERMINAL_RUN_STATES)[number],
-          ),
-      )
+      query.state.data?.items.some((run) => !isTerminalRunState(run.state))
         ? 5_000
         : false,
   });
@@ -102,15 +94,6 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     if (value === "") next.delete("state");
     else next.set("state", value);
     setFilters(next, { state: location.state });
-  }
-  function changePage(nextCursors: string[]) {
-    const next = new URLSearchParams(filters);
-    next.delete("cursor");
-    for (const value of nextCursors) next.append("cursor", value);
-    setFilters(next, { state: location.state });
-    document
-      .getElementById("project-runs")
-      ?.scrollIntoView?.({ block: "start" });
   }
   return (
     <section className="project-run-history" id="project-runs">
@@ -161,85 +144,86 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
           onRefresh={() => void runs.refetch()}
         />
       </div>
-      {runs.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Project Runs…
-        </p>
-      ) : runs.error ? (
-        <ErrorNotice error={runs.error} />
-      ) : runs.data.items.length === 0 ? (
-        <div className="panel compact-empty">
-          <h3>No Runs in this view</h3>
-          <p>
-            {view === "all" && !state
-              ? "Choose a Workflow to start a Project Run."
-              : "Choose another state or view to inspect the rest of the history."}
+      <QueryView
+        query={runs}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Project Runs…
           </p>
-        </div>
-      ) : (
-        <div className="table-scroll project-run-history-table">
-          <table className="responsive-table">
-            <thead>
-              <tr>
-                <th>Workflow / Run</th>
-                <th>State</th>
-                <th>Origin</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.data.items.map((run) => {
-                const auditId = run.labels["audit.id"];
-                return (
-                  <tr key={run.runId}>
-                    <td data-label="Workflow / Run">
-                      <ProjectRunIdentity run={run} />
-                      <details className="project-run-labels">
-                        <summary>
-                          Identity & labels
-                          {Object.keys(run.labels).length
-                            ? ` (${Object.keys(run.labels).length})`
-                            : ""}
-                        </summary>
-                        <code>{run.runId}</code>
-                        <RunMetadataLabelChips labels={run.labels} />
-                      </details>
-                    </td>
-                    <td data-label="State">
-                      <StateBadge state={run.state} />
-                    </td>
-                    <td data-label="Origin">
-                      {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
-                        <ContextLink
-                          returnLabel="Project Runs"
-                          to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`}
-                        >
-                          Audit · {auditId.slice(-8)} ↗
-                        </ContextLink>
-                      ) : (
-                        "Workflow Run"
-                      )}
-                    </td>
-                    <td data-label="Updated">
-                      <time dateTime={run.updatedAt}>
-                        {formatTimestamp(run.updatedAt)}
-                      </time>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+        }
+        onRetry={() => void runs.refetch()}
+        isEmpty={(runsData) => runsData.items.length === 0}
+        empty={
+          <div className="panel compact-empty">
+            <h3>No Runs in this view</h3>
+            <p>
+              {view === "all" && !state
+                ? "Choose a Workflow to start a Project Run."
+                : "Choose another state or view to inspect the rest of the history."}
+            </p>
+          </div>
+        }
+      >
+        {(runsData) => (
+          <div className="table-scroll project-run-history-table">
+            <table className="responsive-table">
+              <thead>
+                <tr>
+                  <th>Workflow / Run</th>
+                  <th>State</th>
+                  <th>Origin</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runsData.items.map((run) => {
+                  const auditId = run.labels["audit.id"];
+                  return (
+                    <tr key={run.runId}>
+                      <td data-label="Workflow / Run">
+                        <ProjectRunIdentity run={run} />
+                        <details className="project-run-labels">
+                          <summary>
+                            Identity & labels
+                            {Object.keys(run.labels).length
+                              ? ` (${Object.keys(run.labels).length})`
+                              : ""}
+                          </summary>
+                          <code>{run.runId}</code>
+                          <RunMetadataLabelChips labels={run.labels} />
+                        </details>
+                      </td>
+                      <td data-label="State">
+                        <StateBadge state={run.state} />
+                      </td>
+                      <td data-label="Origin">
+                        {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
+                          <ContextLink
+                            returnLabel="Project Runs"
+                            to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`}
+                          >
+                            Audit · {auditId.slice(-8)} ↗
+                          </ContextLink>
+                        ) : (
+                          "Workflow Run"
+                        )}
+                      </td>
+                      <td data-label="Updated">
+                        <time dateTime={run.updatedAt}>
+                          {formatTimestamp(run.updatedAt)}
+                        </time>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </QueryView>
       <CursorControls
         label="Project Run pages"
-        canGoBack={cursors.length > 0}
-        {...(runs.data?.page.hasMore && runs.data.page.nextCursor
-          ? { nextCursor: runs.data.page.nextCursor }
-          : {})}
-        onBack={() => changePage(cursors.slice(0, -1))}
-        onNext={(next) => changePage([...cursors, next])}
+        {...pages.controls(runs.data?.page)}
       />
     </section>
   );

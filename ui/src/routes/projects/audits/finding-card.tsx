@@ -16,7 +16,8 @@ import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice, formatBytes } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatBytes } from "../../../app/format";
 import { StateBadge } from "../../runs/components";
 import { exactArtifactLink } from "./artifact-links";
 import { AuditMutationNotice } from "./controls";
@@ -24,6 +25,7 @@ import { FINDING_SEVERITIES } from "./finding-options";
 import { FindingLocations } from "./finding-locations";
 import { auditProfileLabel } from "./labels";
 import { AuditMarkdown, ExactArtifactLink } from "./shared";
+import { QueryView } from "../../../app/query-view";
 
 const FINDING_VERDICTS: readonly {
   value: AuditAnalystVerdict;
@@ -291,85 +293,95 @@ function FindingProvenanceView({
       >
         {expanded ? "Hide provenance" : "Show provenance"}
       </button>
-      {!expanded ? null : provenance.isPending ? (
-        <p className="loading-copy">Loading exact provenance…</p>
-      ) : provenance.error !== null ? (
-        <ErrorNotice error={provenance.error} />
-      ) : (
-        <ol className="audit-provenance-list">
-          {provenance.data.items.map((record) => (
-            <li key={record.recordId}>
-              <div>
-                <StateBadge state={record.kind} />
-                <strong>{record.origin.workflow.name}</strong>
-                <code>@{record.origin.workflow.version}</code>
-              </div>
-              <span>
-                {record.origin.logicalAgentName} · {record.origin.runId}
-                {record.origin.runDeleted ? " · Run deleted" : ""}
-              </span>
-              {record.assessment === undefined ? null : (
-                <span>
-                  assessment {record.assessment.semanticAssessment} ·{" "}
-                  {record.supportsCurrentAssessment ? "current" : "historical"}
-                </span>
-              )}
-              {record.attempt === undefined ? null : (
-                <div className="audit-provenance-attempt">
+      {!expanded ? null : (
+        <QueryView
+          query={provenance}
+          loading={<p className="loading-copy">Loading exact provenance…</p>}
+          onRetry={() => void provenance.refetch()}
+        >
+          {(data) => (
+            <ol className="audit-provenance-list">
+              {data.items.map((record) => (
+                <li key={record.recordId}>
+                  <div>
+                    <StateBadge state={record.kind} />
+                    <strong>{record.origin.workflow.name}</strong>
+                    <code>@{record.origin.workflow.version}</code>
+                  </div>
                   <span>
-                    attempt {record.attempt.itemAttempt} · {record.attempt.role}
-                    /{record.attempt.workflowRole} · {record.attempt.state}
+                    {record.origin.logicalAgentName} · {record.origin.runId}
+                    {record.origin.runDeleted ? " · Run deleted" : ""}
                   </span>
-                  <span>
-                    {record.attempt.terminalOutcome ?? "execution pending"} ·{" "}
-                    {record.attempt.collectionDisposition ?? "not collected"}
-                    {record.attempt.runDeleted ? " · Run deleted" : ""}
-                  </span>
-                  {record.attempt.runProvenance?.workflow ===
-                  undefined ? null : (
+                  {record.assessment === undefined ? null : (
                     <span>
-                      verification Workflow{" "}
-                      <strong>
-                        {record.attempt.runProvenance.workflow.name}@
-                        {record.attempt.runProvenance.workflow.version}
-                      </strong>
+                      assessment {record.assessment.semanticAssessment} ·{" "}
+                      {record.supportsCurrentAssessment
+                        ? "current"
+                        : "historical"}
                     </span>
                   )}
-                  <span>
-                    inventory entry {record.attempt.itemOrigin.entryKey}
-                  </span>
-                  {record.attempt.itemOrigin.standard === undefined ? null : (
-                    <span>
-                      causal standard mapping{" "}
-                      <strong>
-                        {record.attempt.itemOrigin.standard.scheme}@
-                        {record.attempt.itemOrigin.standard.version}/
-                        {record.attempt.itemOrigin.standard.mappingKey}
-                      </strong>
-                    </span>
+                  {record.attempt === undefined ? null : (
+                    <div className="audit-provenance-attempt">
+                      <span>
+                        attempt {record.attempt.itemAttempt} ·{" "}
+                        {record.attempt.role}/{record.attempt.workflowRole} ·{" "}
+                        {record.attempt.state}
+                      </span>
+                      <span>
+                        {record.attempt.terminalOutcome ?? "execution pending"}{" "}
+                        ·{" "}
+                        {record.attempt.collectionDisposition ??
+                          "not collected"}
+                        {record.attempt.runDeleted ? " · Run deleted" : ""}
+                      </span>
+                      {record.attempt.runProvenance?.workflow ===
+                      undefined ? null : (
+                        <span>
+                          verification Workflow{" "}
+                          <strong>
+                            {record.attempt.runProvenance.workflow.name}@
+                            {record.attempt.runProvenance.workflow.version}
+                          </strong>
+                        </span>
+                      )}
+                      <span>
+                        inventory entry {record.attempt.itemOrigin.entryKey}
+                      </span>
+                      {record.attempt.itemOrigin.standard ===
+                      undefined ? null : (
+                        <span>
+                          causal standard mapping{" "}
+                          <strong>
+                            {record.attempt.itemOrigin.standard.scheme}@
+                            {record.attempt.itemOrigin.standard.version}/
+                            {record.attempt.itemOrigin.standard.mappingKey}
+                          </strong>
+                        </span>
+                      )}
+                      <ExactArtifactLink
+                        projectId={audit.projectId}
+                        artifact={record.attempt.task}
+                        label="Task"
+                        projectReadable
+                      />
+                      {record.attempt.result === undefined ? null : (
+                        <ExactArtifactLink
+                          projectId={audit.projectId}
+                          artifact={record.attempt.result}
+                          label="Result"
+                          projectReadable
+                        />
+                      )}
+                    </div>
                   )}
-                  <ExactArtifactLink
-                    projectId={audit.projectId}
-                    artifact={record.attempt.task}
-                    label="Task"
-                    projectReadable
-                  />
-                  {record.attempt.result === undefined ? null : (
-                    <ExactArtifactLink
-                      projectId={audit.projectId}
-                      artifact={record.attempt.result}
-                      label="Result"
-                      projectReadable
-                    />
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-          {provenance.data.items.length === 0 ? (
-            <li>No retained provenance records.</li>
-          ) : null}
-        </ol>
+                </li>
+              ))}
+              {data.items.length === 0 ? (
+                <li>No retained provenance records.</li>
+              ) : null}
+            </ol>
+          )}
+        </QueryView>
       )}
     </div>
   );

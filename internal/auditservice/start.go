@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -26,7 +27,7 @@ import (
 
 func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, error) {
 	if params.OwnerID == "" || params.AuditID == "" || params.ExpectedRevision == 0 ||
-		params.IdempotencyKey == "" || !validDigest(params.RequestDigest) {
+		params.IdempotencyKey == "" || !contentdigest.Valid(params.RequestDigest) {
 		return StartedAudit{}, fmt.Errorf("%w: Audit start request is invalid", ErrInvalid)
 	}
 	if err := validateDeadlineSeconds(params.DeadlineSeconds); err != nil {
@@ -62,7 +63,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	// began. Re-read idempotency only after rollback; mutable dependencies are
 	// still never consulted by this recovery path.
 	if errors.Is(err, auditstore.ErrConflict) || errors.Is(err, artifacts.ErrArtifactConflict) ||
-		persistencepostgres.SQLState(err) == "40001" {
+		persistencepostgres.SQLState(err) == persistencepostgres.SQLStateSerializationFailure {
 		if replay, found, replayErr := store.LookupMutationReplay(
 			ctx, params.OwnerID, auditstore.MutationStart,
 			params.IdempotencyKey, params.RequestDigest,
@@ -129,10 +130,10 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	if err := checkExpectedDigest(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
-	projectTarget := cloneProjectTarget(project.HTTPTarget)
+	projectTarget := project.HTTPTarget.Clone()
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
 		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredentialUse(
@@ -171,7 +172,7 @@ func (s *Service) startInTransaction(
 	for _, standard := range pinnedStandards {
 		expectedStandards = append(expectedStandards, standard.Catalog)
 	}
-	if err := checkExpectedDigest(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
 		return StartedAudit{}, err
 	}
 	standardLinks, err := auditStandardLinks(pinnedStandards)
@@ -197,7 +198,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 
-	if err := checkExpectedDigest(params.ExpectedSkillsSHA256, skills); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedSkillsSHA256, skills); err != nil {
 		return StartedAudit{}, err
 	}
 	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)
@@ -673,18 +674,6 @@ func (s *Service) startedProjectionWithStore(
 		return StartedAudit{}, err
 	}
 	return StartedAudit{Audit: audit, Round: round, Items: items, Replayed: replayed}, nil
-}
-
-func cloneProjectTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
-	}
-	return &result
 }
 
 func exactRefPointer(source contracts.ArtifactRef) *contracts.ArtifactRef {

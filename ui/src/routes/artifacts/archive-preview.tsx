@@ -10,7 +10,8 @@ import {
 } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import { ErrorNotice, formatBytes } from "./common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./archive-preview.css";
 

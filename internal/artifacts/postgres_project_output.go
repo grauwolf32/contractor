@@ -47,7 +47,7 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		if persistencepostgres.SQLState(err) == "55000" {
 			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == "23503" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
 			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrInvalidScope)
 		}
 		return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", err)
@@ -113,9 +113,9 @@ SELECT
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrInvalidScope)
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return ForkResult{}, &ConflictError{
 				Ref: ArtifactRef{Namespace: "outputs", Name: outputSlot},
 			}

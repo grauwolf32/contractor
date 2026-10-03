@@ -1,13 +1,12 @@
 package evalstore
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type DatasetReceipt struct {
@@ -47,16 +46,11 @@ func mutate[T any](ctx context.Context, s *Store, scope Scope, resource, operati
 // typed fields from an old receipt or rewrites the stored response.
 func decodeReceipt[T any](r Receipt) (T, error) {
 	var result T
-	decoder := json.NewDecoder(bytes.NewReader(r.Response))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return result, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	err := strictjson.Decode(r.Response, &result)
+	if errors.Is(err, strictjson.ErrTrailingData) {
 		return result, errReceipt
 	}
-	return result, nil
+	return result, err
 }
 
 var errReceipt = errors.New("invalid stored evaluation receipt")

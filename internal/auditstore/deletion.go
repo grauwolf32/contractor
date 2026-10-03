@@ -74,7 +74,7 @@ SELECT `+prefixedAuditColumns("selected")+` FROM selected`,
 	if err == nil {
 		return audit, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "23505" {
+	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 		return s.replayAudit(ctx, params.OwnerID, string(MutationDelete), params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

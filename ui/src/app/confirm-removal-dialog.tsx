@@ -1,21 +1,30 @@
 import { useId, useRef, type ReactNode } from "react";
 
-import { Dialog } from "./dialog";
+import { Dialog, DialogHeader } from "./dialog";
 
 export function ConfirmRemovalDialog({
   title,
   description,
   confirmLabel,
   pending,
+  eyebrow = "Confirm removal",
+  pendingLabel = "Removing…",
+  className,
+  dismissOnBackdrop = true,
   confirmDisabled = false,
   error,
   onCancel,
   onConfirm,
 }: {
-  title: string;
+  title: ReactNode;
   description: ReactNode;
   confirmLabel: string;
   pending: boolean;
+  eyebrow?: string;
+  pendingLabel?: string;
+  /** Extra class for the dialog panel. */
+  className?: string;
+  dismissOnBackdrop?: boolean;
   confirmDisabled?: boolean;
   error?: ReactNode;
   onCancel: () => void;
@@ -26,22 +35,21 @@ export function ConfirmRemovalDialog({
   const cancel = useRef<HTMLButtonElement>(null);
   return (
     <Dialog
-      className="project-dialog panel"
+      className={
+        className === undefined
+          ? "project-dialog panel"
+          : `project-dialog ${className} panel`
+      }
       role="alertdialog"
       labelledBy={heading}
       describedBy={details}
       initialFocusRef={cancel}
-      dismissOnBackdrop
+      dismissOnBackdrop={dismissOnBackdrop}
       onRequestClose={() => {
         if (!pending) onCancel();
       }}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Confirm removal</p>
-          <h2 id={heading}>{title}</h2>
-        </div>
-      </div>
+      <DialogHeader id={heading} eyebrow={eyebrow} title={title} />
       <p id={details}>{description}</p>
       {error}
       <div className="project-dialog-actions">
@@ -60,7 +68,7 @@ export function ConfirmRemovalDialog({
           disabled={pending || confirmDisabled}
           onClick={onConfirm}
         >
-          {pending ? "Removing…" : confirmLabel}
+          {pending ? pendingLabel : confirmLabel}
         </button>
       </div>
     </Dialog>

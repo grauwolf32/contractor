@@ -1,35 +1,27 @@
-import {
-  ArtifactMetadataSummary,
-  ArtifactHistoryDisclosure,
-  ArtifactHistoryButton,
-  ArtifactRevisionLede,
-} from "../artifacts/metadata-summary";
 import { ContextLink, ReturnLink } from "../../app/context-navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
-import { Link, useLocation, useParams, useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
-  type ArtifactMetadata,
-  type DownloadedArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
-  downloadRunArtifact,
-  getRunArtifactLineage,
   getRunArtifactMetadata,
   listRunArtifacts,
-  listRunArtifactVersions,
   previewRunArtifact,
   RUN_ID_PATTERN,
   type RunStatus,
 } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
-import { CursorControls, ErrorNotice, formatBytes } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
+import { ErrorNotice } from "../../app/error-notice";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
+import { ArtifactDetailView } from "../artifacts/artifact-detail-view";
 import { type RunDisclosureProps, RunDisclosureSummary } from "./components";
 import {
   missingOutputCopy,
@@ -40,24 +32,11 @@ import {
   type OutputEntry,
 } from "./output-model";
 import "./outputs.css";
-import { RefreshButton } from "../../app/refresh-button";
 import { useDocumentTitle } from "../../app/document-title";
-import { RecordedTime } from "../../app/recorded-time";
-
-function triggerDownload(downloaded: DownloadedArtifact): void {
-  const objectURL = URL.createObjectURL(downloaded.blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectURL;
-  anchor.download = downloaded.filename;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(objectURL);
-  }
-}
+import { ArtifactBindingsTable } from "../artifacts/bindings";
+import { useNamespaceFilter } from "../artifacts/namespace-filter";
+import { artifactDetailPath } from "../artifacts/paths";
+import { QueryView } from "../../app/query-view";
 
 function RunOutputPreview({
   runId,
@@ -78,26 +57,11 @@ function RunOutputPreview({
       artifact?.name ?? entry.slot,
       artifact?.revision,
     ),
-    queryFn: async () => {
+    queryFn: () => {
       if (artifact === undefined) {
         throw new Error("Run output is unavailable");
       }
-      const exact = await getRunArtifactMetadata(api, {
-        runId,
-        namespace: artifact.namespace,
-        name: artifact.name,
-        revision: artifact.revision,
-      });
-      if (
-        exact.artifact.namespace !== artifact.namespace ||
-        exact.artifact.name !== artifact.name ||
-        exact.artifact.revision !== artifact.revision
-      ) {
-        throw new Error(
-          "Artifact metadata did not match the selected Run output",
-        );
-      }
-      return exact;
+      return getRunArtifactMetadata(api, { runId, ...artifact });
     },
     enabled: requested && artifact !== undefined,
   });
@@ -119,7 +83,7 @@ function RunOutputPreview({
       </article>
     );
   }
-  const detailPath = `/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
+  const detailPath = artifactDetailPath({ kind: "run", id: runId }, artifact);
 
   return (
     <article className={`run-result-card run-result-${entry.kind}`}>
@@ -283,13 +247,9 @@ export function RunArtifactLibrary({
   ...disclosure
 }: { runId: string } & RunDisclosureProps) {
   const api = usePublicAPI();
-  const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
-  const [filterError, setFilterError] = useState<string | undefined>();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.runs.artifacts(runId, namespace, cursor),
     queryFn: () =>
@@ -300,17 +260,13 @@ export function RunArtifactLibrary({
       }),
   });
 
-  function applyFilter(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const candidate = namespaceDraft.trim();
-    if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
-      setFilterError("Namespace filter is not a valid Artifact name.");
-      return;
-    }
-    setFilterError(undefined);
-    setNamespace(candidate === "" ? undefined : candidate);
-    setCursors([undefined]);
-  }
+  const namespaceFilter = useNamespaceFilter({
+    value: namespace,
+    onApply: (candidate) => {
+      setNamespace(candidate);
+      pages.reset();
+    },
+  });
 
   const count =
     query.data === undefined
@@ -332,286 +288,42 @@ export function RunArtifactLibrary({
         }
       />
       <div className="run-disclosure-body">
-        <form className="inline-form" onSubmit={applyFilter}>
-          <label>
-            Namespace
-            <input
-              value={namespaceDraft}
-              placeholder="all namespaces"
-              onChange={(event) => setNamespaceDraft(event.target.value)}
+        {namespaceFilter.form}
+        {namespaceFilter.error}
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Run Artifacts…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(page) => page.items.length === 0}
+          empty={
+            <div className="compact-empty">No bindings match this view.</div>
+          }
+        >
+          {(page) => (
+            <ArtifactBindingsTable
+              items={page.items}
+              returnLabel="Run results"
+              showLocked
+              detailPath={(item) =>
+                artifactDetailPath({ kind: "run", id: runId }, item.artifact)
+              }
             />
-          </label>
-          <button className="secondary-button" type="submit">
-            Apply
-          </button>
-        </form>
-        {filterError === undefined ? null : (
-          <p className="form-error" role="alert">
-            {filterError}
-          </p>
-        )}
-        {query.isPending ? (
-          <p className="loading-copy">Loading Run Artifacts…</p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">No bindings match this view.</div>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Locked</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((metadata) => (
-                  <tr
-                    key={`${metadata.artifact.namespace}/${metadata.artifact.name}`}
-                  >
-                    <td>
-                      <ContextLink
-                        returnLabel="Run results"
-                        to={`/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`}
-                      >
-                        {metadata.artifact.namespace}/{metadata.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td>
-                      <code>{metadata.artifact.revision}</code>
-                    </td>
-                    <td>{metadata.mediaType}</td>
-                    <td>{formatBytes(metadata.size)}</td>
-                    <td>{metadata.frozen ? "yes" : "no"}</td>
-                    <td>
-                      <RecordedTime value={metadata.createdAt} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          )}
+        </QueryView>
         <CursorControls
           label="Run Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </details>
   );
 }
 
-function RunArtifactActions({
-  runId,
-  metadata,
-}: {
-  runId: string;
-  metadata: ArtifactMetadata;
-}) {
-  const api = usePublicAPI();
-  const download = useMutation({
-    mutationFn: () => downloadRunArtifact(api, runId, metadata),
-    onSuccess: triggerDownload,
-  });
-  return (
-    <div className="artifact-actions-grid run-artifact-actions">
-      <div className="artifact-file-toolbar">
-        {download.error === null ? null : (
-          <ErrorNotice error={download.error} />
-        )}
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={download.isPending}
-          onClick={() => download.mutate()}
-        >
-          {download.isPending ? "Downloading…" : "Download this revision"}
-        </button>
-        <ArtifactHistoryButton />
-      </div>
-      <ArtifactPreviewPanel
-        archiveScope={{ kind: "run", id: runId }}
-        metadata={metadata}
-        unavailableCopy="Inline preview is unavailable; the original file remains downloadable."
-        loadPreview={() => previewRunArtifact(api, runId, metadata)}
-      />
-    </div>
-  );
-}
-
-function RunArtifactHistory({
-  runId,
-  metadata,
-}: {
-  runId: string;
-  metadata: ArtifactMetadata;
-}) {
-  const location = useLocation();
-  const api = usePublicAPI();
-  const identity = metadata.artifact;
-  const [versionCursors, setVersionCursors] = useState<
-    Array<string | undefined>
-  >([undefined]);
-  const [lineageCursors, setLineageCursors] = useState<
-    Array<string | undefined>
-  >([undefined]);
-  const versionCursor = versionCursors.at(-1);
-  const lineageCursor = lineageCursors.at(-1);
-  const versions = useQuery({
-    queryKey: queryKeys.runs.artifactVersions(
-      runId,
-      identity.namespace,
-      identity.name,
-      versionCursor,
-    ),
-    queryFn: () =>
-      listRunArtifactVersions(api, {
-        runId,
-        namespace: identity.namespace,
-        name: identity.name,
-        ...(versionCursor === undefined ? {} : { cursor: versionCursor }),
-      }),
-  });
-  const lineage = useQuery({
-    queryKey: queryKeys.runs.artifactLineage(
-      runId,
-      identity.namespace,
-      identity.name,
-      identity.revision,
-      lineageCursor,
-    ),
-    queryFn: () =>
-      getRunArtifactLineage(api, {
-        runId,
-        namespace: identity.namespace,
-        name: identity.name,
-        revision: identity.revision,
-        ...(lineageCursor === undefined ? {} : { cursor: lineageCursor }),
-      }),
-  });
-  return (
-    <div className="artifact-history-grid">
-      <div className="panel">
-        <p className="eyebrow">History</p>
-        <h3>Versions</h3>
-        {versions.isPending ? (
-          <p className="loading-copy">Loading versions…</p>
-        ) : versions.error !== null ? (
-          <ErrorNotice error={versions.error} />
-        ) : versions.data.items.length === 0 ? (
-          <div className="compact-empty">No versions found.</div>
-        ) : (
-          <ul className="version-list">
-            {versions.data.items.map((item) => (
-              <li
-                key={item.artifact.revision}
-                className={
-                  item.artifact.revision === identity.revision
-                    ? "selected"
-                    : undefined
-                }
-              >
-                <Link
-                  to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
-                  state={location.state}
-                >
-                  <code>{item.artifact.revision}</code>
-                  <span>{formatBytes(item.size)}</span>
-                  <RecordedTime value={item.createdAt} />
-                  {item.current ? <strong>current</strong> : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        <CursorControls
-          label="Run Artifact version pages"
-          canGoBack={versionCursors.length > 1}
-          {...(versions.data?.page.hasMore === true &&
-          versions.data.page.nextCursor !== undefined
-            ? { nextCursor: versions.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setVersionCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setVersionCursors((current) => [...current, next])}
-        />
-      </div>
-      <div className="panel">
-        <p className="eyebrow">Provenance</p>
-        <h3>Lineage</h3>
-        {lineage.isPending ? (
-          <p className="loading-copy">Loading lineage…</p>
-        ) : lineage.error !== null ? (
-          <ErrorNotice error={lineage.error} />
-        ) : lineage.data.items.length === 0 ? (
-          <div className="compact-empty">
-            No lineage edges reference this revision.
-          </div>
-        ) : (
-          <ol className="lineage-list">
-            {lineage.data.items.map((edge, index) => (
-              <li
-                key={`${edge.kind}-${edge.createdAt}-${edge.source.revision}-${index}`}
-              >
-                <strong>{edge.kind.replaceAll("_", " ")}</strong>
-                <span>
-                  {edge.sourceScope}: {edge.source.namespace}/{edge.source.name}
-                  @{edge.source.revision}
-                </span>
-                <span aria-hidden="true">→</span>
-                <span>
-                  {edge.targetScope}: {edge.target.namespace}/{edge.target.name}
-                  @{edge.target.revision}
-                </span>
-                {edge.runId === undefined ? null : (
-                  <small>Run {edge.runId}</small>
-                )}
-                {edge.stageExecutionId === undefined ? null : (
-                  <small>Stage execution {edge.stageExecutionId}</small>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-        <CursorControls
-          label="Run Artifact lineage pages"
-          canGoBack={lineageCursors.length > 1}
-          {...(lineage.data?.page.hasMore === true &&
-          lineage.data.page.nextCursor !== undefined
-            ? { nextCursor: lineage.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setLineageCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setLineageCursors((current) => [...current, next])}
-        />
-      </div>
-    </div>
-  );
-}
-
 export function RunArtifactDetailRoute() {
-  const api = usePublicAPI();
   const { runId = "", namespace = "", name = "" } = useParams();
   const [searchParams] = useSearchParams();
   const revision = searchParams.get("revision") ?? undefined;
@@ -620,17 +332,6 @@ export function RunArtifactDetailRoute() {
     ARTIFACT_NAME_PATTERN.test(namespace) &&
     ARTIFACT_NAME_PATTERN.test(name) &&
     (revision === undefined || ARTIFACT_REVISION_PATTERN.test(revision));
-  const query = useQuery({
-    queryKey: queryKeys.runs.artifactMetadata(runId, namespace, name, revision),
-    queryFn: () =>
-      getRunArtifactMetadata(api, {
-        runId,
-        namespace,
-        name,
-        ...(revision === undefined ? {} : { revision }),
-      }),
-    enabled: valid,
-  });
   useDocumentTitle(valid ? `${namespace}/${name} · Run` : "Run Artifact");
   if (!valid) {
     return (
@@ -641,45 +342,19 @@ export function RunArtifactDetailRoute() {
     );
   }
   return (
-    <section className="route-page artifact-page runs-page">
-      <header className="route-header-row">
-        <div>
+    <ArtifactDetailView
+      key={`${runId}/${namespace}/${name}`}
+      scope={{ kind: "run", id: runId }}
+      namespace={namespace}
+      name={name}
+      revision={revision}
+      className="runs-page"
+      heading={
+        <>
           <ReturnLink to={`/runs/${encodeURIComponent(runId)}`} label="Run" />
           <p className="eyebrow">Run inputs</p>
-          <h2>
-            {namespace}/{name}
-          </h2>
-          <ArtifactRevisionLede
-            metadata={query.isSuccess ? query.data : undefined}
-          />
-        </div>
-        <RefreshButton
-          isFetching={query.isFetching}
-          onRefresh={() => void query.refetch()}
-          label="Refresh"
-        />
-      </header>
-      {query.isPending ? (
-        <p className="loading-copy">Loading Run Artifact metadata…</p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : (
-        <>
-          <ArtifactMetadataSummary metadata={query.data} />
-          <RunArtifactActions
-            key={`actions-${query.data.artifact.revision}`}
-            runId={runId}
-            metadata={query.data}
-          />
-          <ArtifactHistoryDisclosure>
-            <RunArtifactHistory
-              key={`history-${query.data.artifact.revision}`}
-              runId={runId}
-              metadata={query.data}
-            />
-          </ArtifactHistoryDisclosure>
         </>
-      )}
-    </section>
+      }
+    />
   );
 }

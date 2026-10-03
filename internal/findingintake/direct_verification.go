@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -204,7 +205,7 @@ func selectDirectVerificationOutput(
 	for _, name := range names {
 		slot := workflow.Outputs[name]
 		if !slot.Required || !slot.Primary ||
-			!containsString(slot.MediaTypes, auditdomain.DirectVerificationsMediaType) {
+			!slices.Contains(slot.MediaTypes, auditdomain.DirectVerificationsMediaType) {
 			continue
 		}
 		if selectedName != "" {
@@ -384,13 +385,4 @@ INSERT INTO audit_events (
     jsonb_build_object('assessmentId', $5::text, 'directVerification', true)
 )`, input.AuditID, sequence, findingID, findingRevision, assessmentID)
 	return err
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }

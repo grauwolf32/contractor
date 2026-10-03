@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -29,7 +30,7 @@ func TestSummaryInstructionsResolvePinAndPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	instruction := template.Summarizer.Instructions
-	if instruction == nil || instruction.Ref != "instructions/test-summary.md" || instruction.Text != text || instruction.Digest != digestBytes([]byte(text)) {
+	if instruction == nil || instruction.Ref != "instructions/test-summary.md" || instruction.Text != text || instruction.Digest != contentdigest.Bytes([]byte(text)) {
 		t.Fatalf("resolved instructions = %+v", instruction)
 	}
 	originalDigest := template.Ref.Digest
@@ -94,7 +95,7 @@ func TestSummaryInstructionGoldenDigest(t *testing.T) {
 	}
 	template := allocation.AgentTemplate
 	instruction := template.Summarizer.Instructions
-	if instruction == nil || instruction.Digest != digestBytes([]byte(instruction.Text)) {
+	if instruction == nil || instruction.Digest != contentdigest.Bytes([]byte(instruction.Text)) {
 		t.Fatal("incorrect instruction digest")
 	}
 	got, err := agentTemplateDigest(Selector{ID: template.Ref.TemplateID, Version: template.Ref.Version}, template)

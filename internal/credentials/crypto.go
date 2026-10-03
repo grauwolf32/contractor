@@ -6,11 +6,11 @@ import (
 	"crypto/hmac"
 	cryptorand "crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -37,7 +37,6 @@ func newTokenCipher(key []byte, random io.Reader) (*TokenCipher, error) {
 	if err != nil || aead.NonceSize() != 12 {
 		return nil, ErrKeyUnavailable
 	}
-	fingerprint := sha256.Sum256(key)
 	derivation := hmac.New(sha256.New, key)
 	_, _ = derivation.Write([]byte("contractor/runtime-credential-create-mac/v1"))
 	derivedMACKey := derivation.Sum(nil)
@@ -45,7 +44,7 @@ func newTokenCipher(key []byte, random io.Reader) (*TokenCipher, error) {
 	copy(runtimeMACKey[:], derivedMACKey)
 	clear(derivedMACKey)
 	return &TokenCipher{
-		aead: aead, keyID: "sha256:" + hex.EncodeToString(fingerprint[:]),
+		aead: aead, keyID: contentdigest.Bytes(key),
 		runtimeMACKey: runtimeMACKey, random: random,
 	}, nil
 }

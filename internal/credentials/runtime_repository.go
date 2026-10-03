@@ -4,17 +4,13 @@ import (
 	"context"
 	"crypto/hmac"
 	"errors"
-	"regexp"
-	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const maximumRuntimeCredentialPageSize = 200
-
-var runtimeCredentialDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type RuntimeCredentialRepository struct{ db persistencepostgres.DBTX }
 
@@ -54,7 +50,7 @@ func (r *RuntimeCredentialRepository) CountStored(ctx context.Context) (int64, e
 }
 
 func (r *RuntimeCredentialRepository) VerifyActiveKey(ctx context.Context, keyID string) error {
-	if !runtimeCredentialDigestPattern.MatchString(keyID) {
+	if !contentdigest.Valid(keyID) {
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
@@ -76,7 +72,7 @@ SELECT EXISTS (
 }
 
 func (r *RuntimeCredentialRepository) VerifyStoredKey(ctx context.Context, keyID string) error {
-	if !runtimeCredentialDigestPattern.MatchString(keyID) {
+	if !contentdigest.Valid(keyID) {
 		return ErrKeyUnavailable
 	}
 	var mismatch bool
@@ -102,7 +98,7 @@ INSERT INTO runtime_credentials (
 ON CONFLICT DO NOTHING`,
 		record.Metadata.CredentialID, string(record.Metadata.Kind), record.Envelope.SchemaVersion,
 		record.Envelope.KeyID, record.Envelope.Nonce, record.Envelope.Ciphertext,
-		record.Metadata.CreatedBy, runtimeDatabaseTime(record.Metadata.CreatedAt),
+		record.Metadata.CreatedBy, persistencepostgres.Timestamp(record.Metadata.CreatedAt),
 	)
 	if err != nil {
 		return false, classifyRuntimeCredentialWrite(err)
@@ -181,7 +177,7 @@ INSERT INTO runtime_credential_creations (
 ) VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT DO NOTHING`,
 		creation.IdempotencyKeyDigest, creation.RequestMAC, creation.CredentialID,
-		string(creation.Kind), creation.ActorID, runtimeDatabaseTime(creation.CreatedAt),
+		string(creation.Kind), creation.ActorID, persistencepostgres.Timestamp(creation.CreatedAt),
 	)
 	if err != nil {
 		return false, classifyRuntimeCredentialWrite(err)
@@ -197,7 +193,7 @@ ON CONFLICT DO NOTHING`,
 }
 
 func (r *RuntimeCredentialRepository) GetCreation(ctx context.Context, keyDigest string) (RuntimeCredentialCreation, error) {
-	if !runtimeCredentialDigestPattern.MatchString(keyDigest) {
+	if !contentdigest.Valid(keyDigest) {
 		return RuntimeCredentialCreation{}, runtimeInvalid("Runtime credential idempotency digest is invalid")
 	}
 	var result RuntimeCredentialCreation
@@ -227,7 +223,7 @@ func (r *RuntimeCredentialRepository) InsertTombstone(
 	command, err := r.db.Exec(ctx, `
 INSERT INTO runtime_credential_tombstones (credential_id, actor_id, deleted_at)
 VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, runtimeDatabaseTime(tombstone.DeletedAt))
+ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, persistencepostgres.Timestamp(tombstone.DeletedAt))
 	if err != nil {
 		return false, classifyRuntimeCredentialWrite(err)
 	}
@@ -450,7 +446,7 @@ func validateRuntimeCredentialRecord(record RuntimeCredentialRecord) error {
 	if validateRuntimeCredentialID(record.Metadata.CredentialID) != nil || !validRuntimeCredentialKind(record.Metadata.Kind) ||
 		!validActorID(record.Metadata.CreatedBy) || record.Metadata.CreatedAt.IsZero() ||
 		record.Envelope.SchemaVersion != RuntimeCredentialSchemaVersion ||
-		!runtimeCredentialDigestPattern.MatchString(record.Envelope.KeyID) || len(record.Envelope.Nonce) != 12 ||
+		!contentdigest.Valid(record.Envelope.KeyID) || len(record.Envelope.Nonce) != 12 ||
 		len(record.Envelope.Ciphertext) < 17 || len(record.Envelope.Ciphertext) > MaximumRuntimePlaintextBytes+16 {
 		return runtimeInvalid("Runtime credential record is invalid")
 	}
@@ -458,7 +454,7 @@ func validateRuntimeCredentialRecord(record RuntimeCredentialRecord) error {
 }
 
 func validateRuntimeCredentialCreation(value RuntimeCredentialCreation) error {
-	if !runtimeCredentialDigestPattern.MatchString(value.IdempotencyKeyDigest) || len(value.RequestMAC) != 32 ||
+	if !contentdigest.Valid(value.IdempotencyKeyDigest) || len(value.RequestMAC) != 32 ||
 		validateRuntimeCredentialID(value.CredentialID) != nil || !validRuntimeCredentialKind(value.Kind) ||
 		!validActorID(value.ActorID) || value.CreatedAt.IsZero() {
 		return runtimeInvalid("Runtime credential creation replay is invalid")
@@ -468,7 +464,7 @@ func validateRuntimeCredentialCreation(value RuntimeCredentialCreation) error {
 
 func runtimeCredentialRecordsEqual(left, right RuntimeCredentialRecord) bool {
 	return left.Metadata.CredentialID == right.Metadata.CredentialID && left.Metadata.Kind == right.Metadata.Kind &&
-		left.Metadata.CreatedBy == right.Metadata.CreatedBy && runtimeDatabaseTime(left.Metadata.CreatedAt).Equal(runtimeDatabaseTime(right.Metadata.CreatedAt)) &&
+		left.Metadata.CreatedBy == right.Metadata.CreatedBy && persistencepostgres.Timestamp(left.Metadata.CreatedAt).Equal(persistencepostgres.Timestamp(right.Metadata.CreatedAt)) &&
 		left.Envelope.SchemaVersion == right.Envelope.SchemaVersion && left.Envelope.KeyID == right.Envelope.KeyID &&
 		string(left.Envelope.Nonce) == string(right.Envelope.Nonce) && string(left.Envelope.Ciphertext) == string(right.Envelope.Ciphertext)
 }
@@ -476,20 +472,12 @@ func runtimeCredentialRecordsEqual(left, right RuntimeCredentialRecord) bool {
 func runtimeCredentialCreationsEqual(left, right RuntimeCredentialCreation) bool {
 	return left.IdempotencyKeyDigest == right.IdempotencyKeyDigest && hmac.Equal(left.RequestMAC, right.RequestMAC) &&
 		left.CredentialID == right.CredentialID && left.Kind == right.Kind && left.ActorID == right.ActorID &&
-		runtimeDatabaseTime(left.CreatedAt).Equal(runtimeDatabaseTime(right.CreatedAt))
+		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt))
 }
 
-func runtimeDatabaseTime(value time.Time) time.Time { return value.UTC().Truncate(time.Microsecond) }
-
 func classifyRuntimeCredentialWrite(err error) error {
-	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) {
-		switch postgresError.Code {
-		case "23505":
-			return ErrRuntimeCredentialConflict
-		case "23503", "23514", "22001", "22P02":
-			return ErrRuntimeCredentialInvalid
-		}
+	if class := persistencepostgres.ConstraintError(err, ErrRuntimeCredentialConflict, ErrRuntimeCredentialInvalid); class != nil {
+		return class
 	}
 	return errors.New("persist Runtime credential state")
 }

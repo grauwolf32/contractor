@@ -1,10 +1,9 @@
 import "./reading.css";
 import { ContextLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { Dialog } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
@@ -19,83 +18,18 @@ import {
   type WorkflowRunState,
   type RunSummary,
 } from "../../api/runs";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
+import { ErrorNotice } from "../../app/error-notice";
+import { compactId, formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
+import { QueryView } from "../../app/query-view";
+import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { DeleteIcon } from "../../app/delete-icon";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
-
-function DeleteRunDialog({
-  runId,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  runId: string;
-  pending: boolean;
-  error: Error | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const heading = useId();
-  const cancel = useRef<HTMLButtonElement>(null);
-
-  return (
-    <Dialog
-      className="project-dialog run-delete-dialog panel"
-      role="alertdialog"
-      labelledBy={heading}
-      initialFocusRef={cancel}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
-    >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Permanent action</p>
-          <h2 id={heading}>Delete completed Run?</h2>
-        </div>
-      </div>
-      <p>
-        This permanently removes Run <code>{runId}</code>, its execution
-        history, and all Run-owned Artifacts. Shared source Artifacts and
-        published Project outputs are retained.
-      </p>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="run-delete-dialog-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          ref={cancel}
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="danger-button"
-          type="button"
-          disabled={pending}
-          onClick={onConfirm}
-        >
-          {pending ? "Deleting…" : "Delete Run"}
-        </button>
-      </div>
-    </Dialog>
-  );
-}
-
-function compactRunId(runId: string): string {
-  return runId.length <= 24
-    ? runId
-    : `${runId.slice(0, 12)}…${runId.slice(-8)}`;
-}
 
 function decodeLabelSelectors(
   values: readonly string[],
@@ -369,7 +303,7 @@ function CompletedRunRow({
             aria-label={run.runId}
             title={run.runId}
           >
-            {compactRunId(run.runId)}
+            {compactId(run.runId)}
           </ContextLink>
         </td>
         <td className="run-list-workflow-cell" data-label="Workflow">
@@ -412,21 +346,7 @@ function CompletedRunRow({
               title="Delete completed Run"
               onClick={onDelete}
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-              >
-                <path
-                  d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <DeleteIcon />
             </button>
           ) : null}
         </td>
@@ -472,12 +392,9 @@ export function CompletedRunsPanel() {
   const state = TERMINAL_RUN_STATES.find(
     (candidate) => candidate === requestedState,
   ) as WorkflowRunState | undefined;
-  // Page cursors live in the URL next to the filters they were issued for,
-  // so any navigation that changes the filters (tab links, history) drops
-  // them together.
-  const cursors = searchParams.getAll("cursor");
+  const pages = useURLCursorStack();
   const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const encodedLabelSelectors = searchParams.getAll("label");
   const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors);
   const selectorTokens = decoded.selectors.map(selectorToken);
@@ -514,13 +431,6 @@ export function CompletedRunsPanel() {
       next.append("label", selectorToken(selector));
     }
     setSearchParams(next, { replace: true });
-  }
-
-  function changePage(nextCursors: readonly string[]): void {
-    const next = new URLSearchParams(searchParams);
-    next.delete("cursor");
-    for (const value of nextCursors) next.append("cursor", value);
-    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -571,62 +481,77 @@ export function CompletedRunsPanel() {
         <div className="compact-empty">
           Clear the malformed metadata filters to load Runs.
         </div>
-      ) : query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
-          Loading completed Runs…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No completed Runs match this view.</strong>
-          <p>Terminal Runs appear here after execution finishes.</p>
-        </div>
       ) : (
-        <div className="table-scroll">
-          <table className="responsive-table run-list-table compact-run-history">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Workflow</th>
-                <th>State</th>
-                <th>Context & details</th>
-                <th>Finished</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((run) => (
-                <CompletedRunRow
-                  key={run.runId}
-                  run={run}
-                  onDelete={() => {
-                    deletion.reset();
-                    setDeleteTarget(run.runId);
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" aria-live="polite">
+              Loading completed Runs…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No completed Runs match this view.</strong>
+              <p>Terminal Runs appear here after execution finishes.</p>
+            </div>
+          }
+        >
+          {(data) => (
+            <div className="table-scroll">
+              <table className="responsive-table run-list-table compact-run-history">
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Workflow</th>
+                    <th>State</th>
+                    <th>Context & details</th>
+                    <th>Finished</th>
+                    <th>
+                      <span className="visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((run) => (
+                    <CompletedRunRow
+                      key={run.runId}
+                      run={run}
+                      onDelete={() => {
+                        deletion.reset();
+                        setDeleteTarget(run.runId);
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
       )}
-      <CursorControls
-        label="Run pages"
-        canGoBack={cursors.length > 0}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() => changePage(cursors.slice(0, -1))}
-        onNext={(next) => changePage([...cursors, next])}
-      />
+      <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
-        <DeleteRunDialog
-          runId={deleteTarget}
+        <ConfirmRemovalDialog
+          className="run-delete-dialog"
+          eyebrow="Permanent action"
+          title="Delete completed Run?"
+          description={
+            <>
+              This permanently removes Run <code>{deleteTarget}</code>, its
+              execution history, and all Run-owned Artifacts. Shared source
+              Artifacts and published Project outputs are retained.
+            </>
+          }
+          confirmLabel="Delete Run"
+          pendingLabel="Deleting…"
           pending={deletion.isPending}
-          error={deletion.error}
+          dismissOnBackdrop={false}
+          error={
+            deletion.error === null ? null : (
+              <ErrorNotice error={deletion.error} />
+            )
+          }
           onCancel={() => {
             deletion.reset();
             setDeleteTarget(undefined);

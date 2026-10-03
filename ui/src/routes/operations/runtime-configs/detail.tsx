@@ -5,11 +5,8 @@ import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
-import {
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
+import { QueryView } from "../../../app/query-view";
 
 const FIELD_LABELS: Record<string, string> = {
   gatewayId: "Gateway ID",
@@ -90,66 +87,68 @@ export function RuntimeConfigDetailRoute() {
       <Link className="back-link" to={RUNTIME_CONFIGURATION_PATH}>
         ← Runtime configuration
       </Link>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading RuntimeConfig…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : (
-        <>
-          <div className="panel">
-            <p className="eyebrow">Runtime configuration</p>
-            <h3>
-              {query.data.ref.name}@{query.data.ref.version}
-            </h3>
-            <dl className="key-value-list">
-              <div>
-                <dt>Digest</dt>
-                <dd>
-                  <code>{query.data.ref.digest}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>
-                  {query.data.builtIn ? "built-in" : query.data.createdBy}
-                </dd>
-              </div>
-              <div>
-                <dt>Created</dt>
-                <dd>
-                  {query.data.builtIn
-                    ? "Built-in"
-                    : formatTimestamp(query.data.createdAt)}
-                </dd>
-              </div>
-            </dl>
-          </div>
-          <div className="runtime-config-detail-grid">
-            <OptionalBlock
-              title="Worker LLM Gateway"
-              value={query.data.document.spec.worker?.llmGateway}
-            />
-            <OptionalBlock
-              title="Worker telemetry"
-              value={query.data.document.spec.worker?.telemetry}
-            />
-            <OptionalBlock
-              title="Worker HTTP proxy"
-              value={query.data.document.spec.worker?.httpProxy}
-            />
-            <OptionalBlock
-              title="Worker Caido"
-              value={query.data.document.spec.worker?.caido}
-            />
-            <OptionalBlock
-              title="Planner telemetry"
-              value={query.data.document.spec.planner?.telemetry}
-            />
-          </div>
-        </>
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading RuntimeConfig…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {(data) => (
+          <>
+            <div className="panel">
+              <p className="eyebrow">Runtime configuration</p>
+              <h3>
+                {data.ref.name}@{data.ref.version}
+              </h3>
+              <dl className="key-value-list">
+                <div>
+                  <dt>Digest</dt>
+                  <dd>
+                    <code>{data.ref.digest}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>{data.builtIn ? "built-in" : data.createdBy}</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>
+                    {data.builtIn
+                      ? "Built-in"
+                      : formatTimestamp(data.createdAt)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="runtime-config-detail-grid">
+              <OptionalBlock
+                title="Worker LLM Gateway"
+                value={data.document.spec.worker?.llmGateway}
+              />
+              <OptionalBlock
+                title="Worker telemetry"
+                value={data.document.spec.worker?.telemetry}
+              />
+              <OptionalBlock
+                title="Worker HTTP proxy"
+                value={data.document.spec.worker?.httpProxy}
+              />
+              <OptionalBlock
+                title="Worker Caido"
+                value={data.document.spec.worker?.caido}
+              />
+              <OptionalBlock
+                title="Planner telemetry"
+                value={data.document.spec.planner?.telemetry}
+              />
+            </div>
+          </>
+        )}
+      </QueryView>
     </div>
   );
 }

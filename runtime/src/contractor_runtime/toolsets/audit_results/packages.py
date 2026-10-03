@@ -14,6 +14,8 @@ from typing import Any
 
 import jcs
 
+from contractor_runtime.digests import sha256_digest
+
 PACKAGE_SCHEMA = "contractor.audit.package.v1"
 TASK_SCHEMA = "contractor.audit.item-task.v1"
 EXECUTION_SCHEMA = "contractor.audit.execution-manifest.v1"
@@ -68,7 +70,7 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
         or member.get("path") != "task.json"
         or member.get("media_type") != JSON_MEDIA_TYPE
         or member.get("size") != len(task_bytes)
-        or member.get("digest") != _digest(task_bytes)
+        or member.get("digest") != sha256_digest(task_bytes)
     ):
         raise ValueError("task package member is invalid")
     task = _canonical_object(task_bytes, "task document")
@@ -132,7 +134,9 @@ def _decode_task_set(payload: bytes, media_type: str) -> list[tuple[dict[str, An
                 ):
                     raise ValueError("task set member is invalid")
                 nested = _read_bounded(archive, path, MAX_PACKAGE_MEMBER_BYTES)
-                if member.get("size") != len(nested) or member.get("digest") != _digest(nested):
+                if member.get("size") != len(nested) or member.get("digest") != sha256_digest(
+                    nested
+                ):
                     raise ValueError("task set member digest is invalid")
                 task, package_id = _decode_task_package(nested, PACKAGE_MEDIA_TYPE)
                 result.append((task, package_id, nested))
@@ -188,7 +192,7 @@ def _match_trusted_inputs(
             item.get("item_key") != task.get("item_key")
             or item.get("subject_key") != task.get("subject_key")
             or item.get("task_package_id") != task_package_id
-            or item.get("task_package_digest") != _digest(task_package)
+            or item.get("task_package_digest") != sha256_digest(task_package)
         ):
             raise ValueError("task and execution manifest identities differ")
         if not isinstance(task.get("item_key"), str) or not isinstance(
@@ -254,7 +258,7 @@ def _build_result_package(
         )
     result_document = {
         "schema": RESULT_SCHEMA,
-        "execution_manifest_digest": _digest(execution_bytes),
+        "execution_manifest_digest": sha256_digest(execution_bytes),
         "results": result_values,
     }
     members: list[tuple[str, str, str, bytes]] = [
@@ -281,7 +285,7 @@ def _build_result_package(
                 "path": path,
                 "media_type": media_type,
                 "size": len(data),
-                "digest": _digest(data),
+                "digest": sha256_digest(data),
             }
             for member_id, path, media_type, data in sorted(members, key=lambda item: item[1])
         ],
@@ -346,7 +350,3 @@ def _write_member(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     info.external_attr = (stat.S_IFREG | 0o644) << 16
     info.compress_type = zipfile.ZIP_STORED
     archive.writestr(info, data)
-
-
-def _digest(payload: bytes) -> str:
-    return "sha256:" + hashlib.sha256(payload).hexdigest()

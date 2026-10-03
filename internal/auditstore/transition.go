@@ -84,7 +84,7 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	if persistencepostgres.SQLState(err) == "55000" {
 		return Audit{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == "23505" {
+	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -257,7 +257,7 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	if persistencepostgres.SQLState(err) == "55000" {
 		return Audit{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == "23505" {
+	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

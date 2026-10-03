@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import io
 import re
 import stat
@@ -12,6 +11,8 @@ from types import MappingProxyType
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode
 from yaml.tokens import AliasToken, AnchorToken, ScalarToken, TagToken
+
+from contractor_runtime.digests import sha256_digest
 
 MEDIA_TYPE = "application/vnd.contractor.agent-skill+zip"
 
@@ -171,7 +172,7 @@ def validate_package(payload: bytes, expected_name: str = "") -> SkillPackage:
     )
     return SkillPackage(
         manifest=manifest,
-        digest=f"sha256:{hashlib.sha256(payload).hexdigest()}",
+        digest=sha256_digest(payload),
         resources=resources,
         stored_bytes=len(payload),
         expanded_bytes=expanded,

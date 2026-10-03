@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -77,7 +78,7 @@ type MetricsSummary struct {
 	Truncated       bool  `json:"truncated"`
 }
 
-// AllocationExecutionConfig contains only exact, non-secret refs. It is
+// AllocationExecutionConfig slices.Contains only exact, non-secret refs. It is
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {
@@ -538,8 +539,8 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		WorkspaceCapabilities:     cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
-		CurrentAllocationID:       cloneString(entry.registration.AllocationID),
-		AuthoritativeAllocationID: cloneString(entry.authoritativeAllocationID),
+		CurrentAllocationID:       clone.Pointer(entry.registration.AllocationID),
+		AuthoritativeAllocationID: clone.Pointer(entry.authoritativeAllocationID),
 	}
 	for index, capability := range entry.registration.SupportedToolsets {
 		result.SupportedToolsets[index] = RuntimeToolsetCapability{
@@ -601,7 +602,7 @@ func allocationObservation(
 		ObservedPhase:          AllocationObservedAbsent,
 		Reason:                 cloneSafeReason(stored.reason),
 		Metrics:                stored.metrics,
-		ExhaustedDimension:     cloneString(stored.exhaustedDimension),
+		ExhaustedDimension:     clone.Pointer(stored.exhaustedDimension),
 	}
 	if entry, ok := agents[reservation.Grant.RuntimeInstanceID]; ok {
 		result.ObservedPhase = observedAllocationPhase(entry, reservation.Grant.AllocationID)

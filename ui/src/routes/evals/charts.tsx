@@ -8,6 +8,7 @@ import {
 } from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
 import { EvalError } from "./common";
+import { queryKeys } from "../../api/query-keys";
 
 const CHART_TITLES: Record<EvalChart["chart"], string> = {
   quality: "Quality A/B",
@@ -454,7 +455,7 @@ export function EvalChartPanel({
       : {}),
   };
   const result = useQuery({
-    queryKey: ["evals", "chart", experiment.experimentId, chart, query],
+    queryKey: queryKeys.evals.chart(experiment.experimentId, chart, query),
     queryFn: ({ signal }) =>
       getEvalChart(api, experiment.experimentId, chart, query, signal),
   });
@@ -466,10 +467,10 @@ export function EvalChartPanel({
       return;
     }
     await cache.invalidateQueries({
-      queryKey: ["evals", "experiment", experiment.experimentId],
+      queryKey: queryKeys.evals.experiment(experiment.experimentId),
     });
     await cache.invalidateQueries({
-      queryKey: ["evals", "chart", experiment.experimentId],
+      queryKey: queryKeys.evals.projection("chart", experiment.experimentId),
     });
   }
   return (

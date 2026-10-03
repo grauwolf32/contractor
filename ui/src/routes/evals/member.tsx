@@ -8,6 +8,7 @@ import {
 } from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
 import { EvalError } from "./common";
+import { queryKeys } from "../../api/query-keys";
 
 function memberQuality(member: EvalMember): string {
   if (member.conflicting) return "Conflicting evidence";
@@ -72,7 +73,7 @@ export function MemberExecutions({
   const api = usePublicAPI();
   const [cursor, setCursor] = useState<string | undefined>();
   const inventory = useQuery({
-    queryKey: ["evals", "inventory", id, member.member.memberId, cursor],
+    queryKey: queryKeys.evals.inventory(id, member.member.memberId, cursor),
     queryFn: () => listEvalExecutions(api, id, member.member.memberId, cursor),
     refetchInterval: (query) =>
       !cursor && !query.state.error && !query.state.data?.inventoryComplete

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecordedTime } from "./recorded-time";
-import { formatTimestamp } from "../routes/artifacts/common";
+import { formatTimestamp } from "./format";
 
 describe("RecordedTime", () => {
   beforeEach(() => {

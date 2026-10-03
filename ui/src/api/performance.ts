@@ -1,6 +1,7 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
+import { hasExactKeys } from "./json-guards";
 
 export const ALLOCATION_HISTORY_PAGE_SIZE = 50;
 export const PERFORMANCE_RANGES = {
@@ -78,25 +79,6 @@ const HISTOGRAM_BOUNDS_SECONDS = [
   0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60,
 ] as const;
 
-function invalidResponse(status: number, message: string): PublicAPIError {
-  return new PublicAPIError({
-    status,
-    code: "invalid_api_response",
-    message,
-  });
-}
-
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function validTimestamp(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -118,14 +100,11 @@ function exactKeys(
   required: readonly string[],
   optional: readonly string[] = [],
 ): boolean {
-  if (value === null || value === undefined || Array.isArray(value)) {
-    return false;
-  }
-  const keys = Object.keys(value);
-  const allowed = new Set([...required, ...optional]);
   return (
-    required.every((key) => keys.includes(key)) &&
-    keys.every((key) => allowed.has(key))
+    value !== null &&
+    value !== undefined &&
+    !Array.isArray(value) &&
+    hasExactKeys(value, required, optional)
   );
 }
 
@@ -355,7 +334,10 @@ function safeSnapshot(
   status: number,
 ): PerformanceSnapshot {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidResponse(status, "Server returned invalid performance data");
+    throw invalidAPIResponse(
+      status,
+      "Server returned invalid performance data",
+    );
   }
   const diagnostics = value.diagnostics;
   if (
@@ -408,7 +390,10 @@ function safeSnapshot(
       (!validSample(value.current) ||
         value.current.generation !== value.generation))
   ) {
-    throw invalidResponse(status, "Server returned invalid performance data");
+    throw invalidAPIResponse(
+      status,
+      "Server returned invalid performance data",
+    );
   }
   return {
     ...value,
@@ -427,7 +412,7 @@ function safeHistory(
   status: number,
 ): PerformanceHistory {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       status,
       "Server returned invalid performance history",
     );
@@ -447,14 +432,14 @@ function safeHistory(
     !Array.isArray(value.points) ||
     value.points.length > 1_000
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       status,
       "Server returned invalid performance history",
     );
   }
   for (const point of value.points) {
     if (typeof point !== "object" || point === null || Array.isArray(point)) {
-      throw invalidResponse(
+      throw invalidAPIResponse(
         status,
         "Server returned invalid performance history points",
       );
@@ -519,7 +504,7 @@ function safeHistory(
       timestamp >= requestedTo ||
       timestamp < previous
     ) {
-      throw invalidResponse(
+      throw invalidAPIResponse(
         status,
         "Server returned invalid performance history points",
       );
@@ -534,7 +519,7 @@ export function safeAllocationResourceSummary(
   status = 200,
 ): AllocationResourceSummary {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       status,
       "Server returned an invalid allocation resource summary",
     );
@@ -659,7 +644,7 @@ export function safeAllocationResourceSummary(
     (value.status === "available" && resource?.status !== "complete") ||
     (value.status === "partial" && resource?.status !== "partial")
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       status,
       "Server returned an invalid allocation resource summary",
     );
@@ -769,7 +754,7 @@ export async function listAllocationResourceHistory(
     (page.page.nextCursor !== undefined &&
       (page.page.nextCursor.length === 0 || page.page.nextCursor.length > 512))
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned an invalid allocation resource page",
     );
@@ -782,7 +767,7 @@ export async function listAllocationResourceHistory(
     (request.runId !== undefined &&
       items.some((item) => item.runId !== request.runId))
   ) {
-    throw invalidResponse(
+    throw invalidAPIResponse(
       result.response.status,
       "Server returned mixed allocation resource identities",
     );

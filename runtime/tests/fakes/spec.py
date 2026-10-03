@@ -26,8 +26,8 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
-    _digest_bytes,
     _model_policy_digest,
+    sha256_digest,
 )
 
 
@@ -80,7 +80,7 @@ def allocation_spec(
         runtime=WorkerRuntimeRef(runtimeId="adk", version="1"),
         instructions=ResolvedInstructions(
             ref="instructions/artifact-builder.md",
-            digest=_digest_bytes(instructions.encode()),
+            digest=sha256_digest(instructions.encode()),
             text=instructions,
         ),
         modelPolicy=policy,

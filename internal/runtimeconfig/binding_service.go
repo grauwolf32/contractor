@@ -3,6 +3,7 @@ package runtimeconfig
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -151,7 +152,7 @@ func samePrincipalSnapshots(left, right []RuntimeAgentPrincipal) bool {
 	for index := range left {
 		if left[index].RuntimeAgentID != right[index].RuntimeAgentID ||
 			left[index].LabelRevision != right[index].LabelRevision ||
-			!equalStrings(left[index].Labels, right[index].Labels) {
+			!slices.Equal(left[index].Labels, right[index].Labels) {
 			return false
 		}
 	}

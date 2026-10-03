@@ -3,12 +3,9 @@ package runtimeconfig
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"regexp"
 	"sort"
@@ -16,8 +13,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/cabundle"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/ucarion/jcs"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -28,7 +26,6 @@ const (
 var (
 	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 type optional[T any] struct {
@@ -43,7 +40,7 @@ func (o *optional[T]) UnmarshalJSON(data []byte) error {
 		o.null = true
 		return nil
 	}
-	return decodeStrict(data, &o.value)
+	return strictjson.Decode(data, &o.value)
 }
 
 type documentSource struct {
@@ -154,7 +151,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 		return PreparedPublication{}, err
 	}
 	var source documentSource
-	if err := decodeStrict(data, &source); err != nil {
+	if err := strictjson.Decode(data, &source); err != nil {
 		return PreparedPublication{}, invalid("document does not match the RuntimeConfig schema")
 	}
 	if source.APIVersion != APIVersion || source.Kind != Kind {
@@ -176,7 +173,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 	if operations == 0 {
 		return PreparedPublication{}, invalid("spec must contain at least one patch operation")
 	}
-	canonical, err := canonicalize(map[string]any{
+	canonical, err := strictjson.Canonical(map[string]any{
 		"apiVersion": APIVersion,
 		"kind":       Kind,
 		"metadata":   map[string]any{"name": source.Metadata.Name, "version": source.Metadata.Version},
@@ -190,7 +187,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 	}
 	return PreparedPublication{
 		name: source.Metadata.Name, version: source.Metadata.Version, source: source,
-		authorCanonical: canonical, requestDigest: digest(canonical), gatewaySelectors: selectors,
+		authorCanonical: canonical, requestDigest: contentdigest.Bytes(canonical), gatewaySelectors: selectors,
 	}, nil
 }
 
@@ -222,7 +219,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 	if err != nil {
 		return Version{}, err
 	}
-	canonical, err := canonicalize(map[string]any{
+	canonical, err := strictjson.Canonical(map[string]any{
 		"apiVersion": APIVersion,
 		"kind":       Kind,
 		"metadata":   map[string]any{"name": p.name, "version": p.version},
@@ -231,7 +228,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 	if err != nil || len(canonical) > maxDocumentBytes {
 		return Version{}, invalid("normalized immutable document is invalid")
 	}
-	return Version{Ref: Ref{Name: p.name, Version: p.version, Digest: digest(canonical)}, Spec: spec, CanonicalDocument: canonical}, nil
+	return Version{Ref: Ref{Name: p.name, Version: p.version, Digest: contentdigest.Bytes(canonical)}, Spec: spec, CanonicalDocument: canonical}, nil
 }
 
 func DecodeStoredDocument(data []byte) (Version, error) {
@@ -245,7 +242,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 		return Version{}, err
 	}
 	var source documentSource
-	if err := decodeStrict(data, &source); err != nil {
+	if err := strictjson.Decode(data, &source); err != nil {
 		return Version{}, invalid("stored document does not match the RuntimeConfig schema")
 	}
 	if source.APIVersion != APIVersion || source.Kind != Kind {
@@ -264,7 +261,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	if operations == 0 && !(source.Metadata.Name == BuiltInName && source.Metadata.Version == BuiltInVersion) {
 		return Version{}, invalid("only the built-in RuntimeConfig may be empty")
 	}
-	canonical, err := canonicalize(map[string]any{
+	canonical, err := strictjson.Canonical(map[string]any{
 		"apiVersion": APIVersion, "kind": Kind,
 		"metadata": map[string]any{"name": source.Metadata.Name, "version": source.Metadata.Version},
 		"spec":     canonicalSpec,
@@ -272,7 +269,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	if err != nil || !bytes.Equal(canonical, data) {
 		return Version{}, invalid("stored document is not exact normalized JCS")
 	}
-	return Version{Ref: Ref{Name: source.Metadata.Name, Version: source.Metadata.Version, Digest: digest(canonical)}, Spec: spec, CanonicalDocument: canonical, BuiltIn: operations == 0}, nil
+	return Version{Ref: Ref{Name: source.Metadata.Name, Version: source.Metadata.Version, Digest: contentdigest.Bytes(canonical)}, Spec: spec, CanonicalDocument: canonical, BuiltIn: operations == 0}, nil
 }
 
 func validateSource(source specSource, author bool) (map[string]string, map[string]any, int, error) {
@@ -351,7 +348,7 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 				var ref contracts.LLMGatewayConfigRef
 				if resolved != nil {
 					ref = resolved[path]
-				} else if err := decodeStrict(source.LLMGateway.value.Gateway.value, &ref); err != nil {
+				} else if err := strictjson.Decode(source.LLMGateway.value.Gateway.value, &ref); err != nil {
 					return WorkerPatch{}, nil, 0, invalid("%s must be an exact Gateway ref", path)
 				}
 				if err := ref.ValidateRef(); err != nil {
@@ -648,7 +645,7 @@ func validateID(field, value string, maximum int) error {
 }
 
 func validateRef(ref Ref) error {
-	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !versionPattern.MatchString(ref.Version) || len(ref.Version) > 128 || !digestPattern.MatchString(ref.Digest) {
+	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !versionPattern.MatchString(ref.Version) || len(ref.Version) > 128 || !contentdigest.Valid(ref.Digest) {
 		return invalid("RuntimeConfig ref is invalid")
 	}
 	return nil
@@ -677,169 +674,33 @@ func validateCABundle(field, raw string) error {
 }
 
 func rejectDuplicateKeys(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	if err := scanJSONValue(decoder, "$"); err != nil {
-		return err
-	}
-	if token, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		if err == nil {
-			_ = token
-		}
+	switch err := strictjson.RejectDuplicateKeys(data); {
+	case err == nil:
+		return nil
+	case errors.Is(err, strictjson.ErrDuplicateKey):
+		return invalid("document contains a duplicate object key")
+	case errors.Is(err, strictjson.ErrTrailingData):
 		return invalid("document contains trailing JSON")
+	default:
+		return invalid("document is not valid JSON")
 	}
-	return nil
 }
 
 // encoding/json replaces isolated UTF-16 surrogate escapes with U+FFFD. JCS
 // requires I-JSON scalar values instead, so reject them before decoding loses
 // that distinction.
 func rejectInvalidUnicodeEscapes(data []byte) error {
-	insideString := false
-	for index := 0; index < len(data); index++ {
-		switch data[index] {
-		case '"':
-			insideString = !insideString
-		case '\\':
-			if !insideString || index+1 >= len(data) {
-				continue
-			}
-			index++
-			if data[index] != 'u' {
-				continue
-			}
-			code, ok := parseHexQuad(data, index+1)
-			if !ok {
-				continue // The JSON decoder reports malformed escapes generically.
-			}
-			index += 4
-			switch {
-			case code >= 0xd800 && code <= 0xdbff:
-				if index+6 >= len(data) || data[index+1] != '\\' || data[index+2] != 'u' {
-					return invalid("document contains an invalid Unicode scalar value")
-				}
-				low, validLow := parseHexQuad(data, index+3)
-				if !validLow || low < 0xdc00 || low > 0xdfff {
-					return invalid("document contains an invalid Unicode scalar value")
-				}
-				index += 6
-			case code >= 0xdc00 && code <= 0xdfff:
-				return invalid("document contains an invalid Unicode scalar value")
-			}
-		}
+	if !strictjson.ValidUnicodeEscapes(data) {
+		return invalid("document contains an invalid Unicode scalar value")
 	}
 	return nil
-}
-
-func parseHexQuad(data []byte, start int) (uint16, bool) {
-	if start+4 > len(data) {
-		return 0, false
-	}
-	var result uint16
-	for _, raw := range data[start : start+4] {
-		result <<= 4
-		switch {
-		case raw >= '0' && raw <= '9':
-			result += uint16(raw - '0')
-		case raw >= 'a' && raw <= 'f':
-			result += uint16(raw-'a') + 10
-		case raw >= 'A' && raw <= 'F':
-			result += uint16(raw-'A') + 10
-		default:
-			return 0, false
-		}
-	}
-	return result, true
-}
-
-func scanJSONValue(decoder *json.Decoder, path string) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return invalid("document is not valid JSON")
-	}
-	delim, ok := token.(json.Delim)
-	if !ok {
-		return nil
-	}
-	switch delim {
-	case '{':
-		seen := make(map[string]struct{})
-		for decoder.More() {
-			keyToken, err := decoder.Token()
-			if err != nil {
-				return invalid("document is not valid JSON")
-			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return invalid("document contains an invalid object key")
-			}
-			if _, exists := seen[key]; exists {
-				return invalid("document contains a duplicate object key")
-			}
-			seen[key] = struct{}{}
-			if err := scanJSONValue(decoder, path+"."+key); err != nil {
-				return err
-			}
-		}
-		if closeToken, err := decoder.Token(); err != nil || closeToken != json.Delim('}') {
-			return invalid("document is not valid JSON")
-		}
-	case '[':
-		index := 0
-		for decoder.More() {
-			if err := scanJSONValue(decoder, fmt.Sprintf("%s[%d]", path, index)); err != nil {
-				return err
-			}
-			index++
-		}
-		if closeToken, err := decoder.Token(); err != nil || closeToken != json.Delim(']') {
-			return invalid("document is not valid JSON")
-		}
-	default:
-		return invalid("document is not valid JSON")
-	}
-	return nil
-}
-
-func decodeStrict(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("multiple JSON values are not allowed")
-	}
-	return nil
-}
-
-func canonicalize(value any) ([]byte, error) {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	var generic any
-	if err := json.Unmarshal(encoded, &generic); err != nil {
-		return nil, err
-	}
-	formatted, err := jcs.Format(generic)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(formatted), nil
-}
-
-func digest(value []byte) string {
-	sum := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func DigestIdempotencyKey(value string) (string, error) {
 	if value == "" || len(value) > 128 || value != strings.TrimSpace(value) {
 		return "", invalid("idempotency key is invalid")
 	}
-	return digest([]byte(value)), nil
+	return contentdigest.Bytes([]byte(value)), nil
 }
 
 func invalid(format string, args ...any) error {

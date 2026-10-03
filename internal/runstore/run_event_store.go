@@ -1,16 +1,15 @@
 package runstore
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -82,14 +81,10 @@ func decodeLifecycleRunEventData(data json.RawMessage) (lifecycleRunEventData, e
 		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data exceeds its bounded contract")
 	}
 	var result lifecycleRunEventData
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data has an invalid closed schema: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if err := strictjson.Decode(data, &result); errors.Is(err, strictjson.ErrTrailingData) {
 		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data contains trailing JSON")
+	} else if err != nil {
+		return lifecycleRunEventData{}, invalidf("WorkflowRun lifecycle event data has an invalid closed schema: %v", err)
 	}
 	return result, nil
 }
@@ -182,14 +177,10 @@ func decodePlannerRunEventData(data json.RawMessage) (plannerRunEventData, error
 		return plannerRunEventData{}, invalidf("WorkflowRun event data exceeds its bounded contract")
 	}
 	var result plannerRunEventData
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return plannerRunEventData{}, invalidf("WorkflowRun event data has an invalid closed schema: %v", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if err := strictjson.Decode(data, &result); errors.Is(err, strictjson.ErrTrailingData) {
 		return plannerRunEventData{}, invalidf("WorkflowRun event data contains trailing JSON")
+	} else if err != nil {
+		return plannerRunEventData{}, invalidf("WorkflowRun event data has an invalid closed schema: %v", err)
 	}
 	return result, nil
 }

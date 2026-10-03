@@ -14,6 +14,7 @@ import { ContextLink } from "../../app/context-navigation";
 import { EvalError, EvalField } from "./common";
 import { useEvalOwner } from "./queries";
 import { finishMutation, recoverableMutation } from "./recovery";
+import { queryKeys } from "../../api/query-keys";
 
 type Decision = EvalAssessment["checks"][number]["status"];
 
@@ -31,13 +32,11 @@ export function EvalHumanReview({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient();
-  const reviewKey = [
-    "evals",
-    "review",
+  const reviewKey = queryKeys.evals.review(
     experiment.experimentId,
     member.member.memberId,
     member.resultSha256,
-  ];
+  );
   const review = useQuery({
     queryKey: reviewKey,
     queryFn: () =>
@@ -166,7 +165,7 @@ export function EvalHumanReview({
       await finishMutation(owner, operation, body);
     },
     onSuccess: async () => {
-      await cache.invalidateQueries({ queryKey: ["evals"] });
+      await cache.invalidateQueries({ queryKey: queryKeys.evals.all });
       onSaved();
     },
   });

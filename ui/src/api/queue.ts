@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { safeRunMetadataLabels } from "./run-metadata-labels";
 
@@ -34,22 +34,10 @@ const EVENT_SEQUENCE = /^(?:0|[1-9][0-9]{0,19})$/;
 const QUEUE_CONTROL_REVISION = /^(?:0|[1-9][0-9]{0,18})$/;
 
 function invalidQueueResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Queue response",
-  });
-}
-
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
+    "Server returned an invalid Queue response",
+  );
 }
 
 function safeQueueItem(item: QueueItem, status: number): QueueItem {

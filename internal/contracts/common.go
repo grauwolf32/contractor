@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const APIVersion = "contractor/v1alpha1"
@@ -22,7 +24,6 @@ var (
 	ErrValidation  = errors.New("contract validation failed")
 	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 // Validatable is implemented by every top-level wire DTO.
@@ -49,13 +50,12 @@ func DecodeStrict[T Validatable](data []byte) (T, error) {
 }
 
 func ensureJSONEOF(decoder *json.Decoder) error {
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); errors.Is(err, io.EOF) {
-		return nil
+	if err := strictjson.RequireEOF(decoder); errors.Is(err, strictjson.ErrTrailingData) {
+		return invalidf("multiple JSON values are not allowed")
 	} else if err != nil {
 		return fmt.Errorf("decode trailing JSON: %w", err)
 	}
-	return invalidf("multiple JSON values are not allowed")
+	return nil
 }
 
 func validateAPIVersion(value string) error {
@@ -84,7 +84,7 @@ func validateSelector(field, value string) error {
 }
 
 func validateDigest(field, value string) error {
-	if !digestPattern.MatchString(value) {
+	if !contentdigest.Valid(value) {
 		return invalidf("%s must be sha256 followed by 64 lowercase hex characters", field)
 	}
 	return nil

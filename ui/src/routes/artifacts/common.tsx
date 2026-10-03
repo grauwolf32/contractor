@@ -15,42 +15,17 @@ import {
   MEDIA_TYPE_PATTERN,
   type ArtifactWriteRequest,
   type ArtifactWriteResponse,
-  writeArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import { PublicAPIError } from "../../api/error";
-import { queryKeys } from "../../api/query-keys";
+import { artifactScopeKeys } from "../../api/query-keys";
+import {
+  writeScopeArtifact,
+  type WritableArtifactScope,
+} from "../../api/scoped-artifacts";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
 import { ArtifactMediaTypeField } from "./media-type-field";
-
-export function formatBytes(size: number): string {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KiB`;
-  }
-  if (size >= 1024 ** 4) return `${(size / 1024 ** 4).toFixed(1)} TiB`;
-  if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(1)} GiB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-const absoluteTimestamp = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
-
-/**
- * Absolute timestamp for detail metadata. Every absolute date in the UI goes
- * through this formatter so the shape is stable across call sites and
- * browser locales; lists and cards use RecordedTime (relative) instead.
- */
-export function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf())
-    ? value
-    : absoluteTimestamp.format(parsed);
-}
 
 export function ArtifactFileDrop({
   file,
@@ -121,117 +96,10 @@ export function ArtifactFileDrop({
   );
 }
 
-export function ErrorNotice({
-  error,
-  reconcileWrite = false,
-  context,
-  onRetry,
-  retryLabel = "Try again",
-  retryPending = false,
-}: {
-  error: unknown;
-  reconcileWrite?: boolean;
-  context?: string;
-  onRetry?: () => void;
-  retryLabel?: string;
-  retryPending?: boolean;
-}) {
-  const message = error instanceof Error ? error.message : "Request failed";
-  const requestId =
-    error instanceof PublicAPIError ? error.requestId : undefined;
-  return (
-    <div className="notice notice-error" role="alert">
-      <strong>{context ?? message}</strong>
-      {context === undefined ? null : <p>{message}</p>}
-      {reconcileWrite &&
-      error instanceof PublicAPIError &&
-      error.code === "conflict" ? (
-        <p>
-          The record or binding changed. Refresh its current revision before
-          choosing an explicit new update; this change was not retried.
-        </p>
-      ) : reconcileWrite &&
-        error instanceof PublicAPIError &&
-        error.status === 0 ? (
-        <p>
-          The Server response was not received, so the change may have been
-          applied. Refresh the current state before deciding whether to submit
-          it again.
-        </p>
-      ) : null}
-      {onRetry === undefined || reconcileWrite ? null : (
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={retryPending}
-          onClick={onRetry}
-        >
-          {retryPending ? "Loading…" : retryLabel}
-        </button>
-      )}
-      {error instanceof PublicAPIError ? (
-        <details className="error-details">
-          <summary>Request details</summary>
-          <small>
-            Code {error.code} · Status {error.status}
-          </small>
-          {requestId === undefined ? null : <small>Request {requestId}</small>}
-        </details>
-      ) : null}
-    </div>
-  );
-}
-
-export function CursorControls({
-  label,
-  canGoBack,
-  nextCursor,
-  onBack,
-  onNext,
-  onFirst,
-}: {
-  label: string;
-  canGoBack: boolean;
-  nextCursor?: string;
-  onBack: () => void;
-  onNext: (cursor: string) => void;
-  onFirst?: () => void;
-}) {
-  if (!canGoBack && nextCursor === undefined && onFirst === undefined) {
-    return null;
-  }
-  return (
-    <nav className="pagination" aria-label={label}>
-      {onFirst === undefined ? null : (
-        <button className="secondary-button" type="button" onClick={onFirst}>
-          First page
-        </button>
-      )}
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={!canGoBack}
-        onClick={onBack}
-      >
-        Previous
-      </button>
-      <button
-        className="secondary-button"
-        type="button"
-        disabled={nextCursor === undefined}
-        onClick={() => {
-          if (nextCursor !== undefined) {
-            onNext(nextCursor);
-          }
-        }}
-      >
-        Next
-      </button>
-    </nav>
-  );
-}
-
+/** One uploaded revision for a User or Project Artifact binding. */
 export function ArtifactWriteForm({
+  scope = { kind: "user" },
+  suggested,
   fixedIdentity,
   fixedNamespace,
   fixedMediaType,
@@ -247,6 +115,9 @@ export function ArtifactWriteForm({
   onCancel,
   onWritten,
 }: {
+  scope?: WritableArtifactScope;
+  /** Suggested namespace, media type and heading label for a new binding. */
+  suggested?: { label: string; namespace: string; mediaType: string };
   fixedIdentity?: { namespace: string; name: string };
   fixedNamespace?: string;
   fixedMediaType?: string;
@@ -273,24 +144,33 @@ export function ArtifactWriteForm({
   const queryClient = useQueryClient();
   const ownHeadingId = useId();
   const formId = headingId ?? ownHeadingId;
+  const project = scope.kind === "project";
+  const keys = artifactScopeKeys(scope);
   const [namespace, setNamespace] = useState(
-    fixedIdentity?.namespace ?? fixedNamespace ?? "projects",
+    fixedIdentity?.namespace ??
+      fixedNamespace ??
+      suggested?.namespace ??
+      (project ? "artifacts" : "projects"),
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
   const [mediaType, setMediaType] = useState(
-    fixedMediaType ?? initialMediaType ?? "application/octet-stream",
+    fixedMediaType ??
+      initialMediaType ??
+      suggested?.mediaType ??
+      "application/octet-stream",
   );
-  const preserveMediaType = useRef(initialMediaType !== undefined);
+  const preserveMediaType = useRef(
+    initialMediaType !== undefined || suggested?.mediaType !== undefined,
+  );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [excludedNamespaceError, setExcludedNamespaceError] = useState(false);
   const [inputRevision, setInputRevision] = useState(0);
   const mutation = useMutation({
-    mutationFn: (request: ArtifactWriteRequest) => writeArtifact(api, request),
+    mutationFn: (request: ArtifactWriteRequest) =>
+      writeScopeArtifact(api, scope, request),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.artifacts.all,
-      });
+      await queryClient.invalidateQueries({ queryKey: keys.all });
       onWritten(result);
       setFile(null);
       setInputRevision((value) => value + 1);
@@ -301,9 +181,7 @@ export function ArtifactWriteForm({
     onError: async () => {
       // A conflict or lost response is ambiguous by design. Reconcile every
       // active Artifact view with Server state, but never retry the unsafe PUT.
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.artifacts.all,
-      });
+      await queryClient.invalidateQueries({ queryKey: keys.all });
     },
   });
   useEffect(() => {
@@ -389,13 +267,27 @@ export function ArtifactWriteForm({
 
   const update = expectedRevision !== undefined;
   return (
-    <form className="artifact-form" onSubmit={submit} aria-labelledby={formId}>
+    <form
+      className={project ? "project-artifact-form" : "artifact-form"}
+      onSubmit={submit}
+      aria-labelledby={formId}
+    >
       {headingId === undefined ? (
         <div className="section-heading">
           <div>
-            <p className="eyebrow">{update ? "New version" : "New Artifact"}</p>
+            <p className="eyebrow">
+              {update
+                ? "New version"
+                : project
+                  ? "Project artifact"
+                  : "New Artifact"}
+            </p>
             <h3 id={formId}>
-              {update ? "Upload a new version" : "Upload Artifact"}
+              {update
+                ? "Upload a new version"
+                : suggested === undefined
+                  ? "Upload Artifact"
+                  : `Add ${suggested.label}`}
             </h3>
           </div>
           {update ? (
@@ -412,7 +304,13 @@ export function ArtifactWriteForm({
       {acceptedMediaTypes === undefined ? null : (
         <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
       )}
-      <div className="form-grid artifact-fields">
+      <div
+        className={
+          project
+            ? "form-grid project-artifact-fields"
+            : "form-grid artifact-fields"
+        }
+      >
         <label>
           Namespace
           <input

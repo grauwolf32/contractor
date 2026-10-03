@@ -2,14 +2,12 @@ package auditstore
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -101,7 +99,7 @@ func (s *PostgresStore) MaterializeRound(
 	switch persistencepostgres.SQLState(err) {
 	case "55000":
 		return Audit{}, false, ErrProjectDeleting
-	case "23505":
+	case persistencepostgres.SQLStateUniqueViolation:
 		return s.replayAudit(ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -177,7 +175,7 @@ func (s *PostgresStore) AcceptNextRound(
 	if persistencepostgres.SQLState(err) == "55000" {
 		return Round{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == "23505" || errors.Is(err, pgx.ErrNoRows) {
+	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
 		if replay, found, replayErr := s.lookupAcceptedRoundReplay(ctx, params); replayErr != nil || found {
 			return replay, false, replayErr
 		}
@@ -186,7 +184,7 @@ func (s *PostgresStore) AcceptNextRound(
 		} else if !live {
 			return Round{}, false, ErrClaimLost
 		}
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return Round{}, false, ErrConflict
 		}
 		return Round{}, false, ErrPrecondition
@@ -209,7 +207,7 @@ func (s *PostgresStore) lookupAcceptedRoundReplay(
 		return Round{}, false, err
 	}
 	if round.Ordinal != params.RoundOrdinal || round.ExpectedItemCount != len(params.Items) ||
-		round.Manifest.Digest != params.Manifest.Digest || !sameRoundArtifactRef(round.Manifest.Ref, params.Manifest.Ref) {
+		round.Manifest.Digest != params.Manifest.Digest || !round.Manifest.Ref.SameExact(params.Manifest.Ref) {
 		return Round{}, true, ErrConflict
 	}
 	var storedDigest *string
@@ -240,13 +238,7 @@ func roundAcceptanceDigest(params AcceptRoundParams) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode Audit Round acceptance identity: %w", err)
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
-}
-
-func sameRoundArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
+	return contentdigest.Bytes(encoded), nil
 }
 
 func (s *PostgresStore) TransitionRound(

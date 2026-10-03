@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"sort"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -50,13 +49,4 @@ func (h *handler) readEvalBin(r *http.Request, q url.Values, p *evalservice.Memb
 	}
 	p.Snapshot, p.MeasurementScope, p.Bin = token.Snapshot, token.Bin.Scope, &token.Bin
 	return nil
-}
-
-func sortedEvalKeys[T any](values map[string]T) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

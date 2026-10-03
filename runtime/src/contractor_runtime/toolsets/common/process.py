@@ -9,6 +9,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
+from typing import Protocol
 
 
 class ProcessOutputLimitError(RuntimeError):
@@ -158,3 +159,47 @@ async def run_command(
     if failure == "output_limit":
         raise ProcessOutputLimitError(process.returncode, bytes(stdout), bytes(stderr))
     return subprocess.CompletedProcess(command, process.returncode, bytes(stdout), bytes(stderr))
+
+
+class SubprocessLauncher(Protocol):
+    async def run_async(
+        self,
+        command: Sequence[str],
+        *,
+        input: bytes | None = None,
+        cwd: Path | str | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+        max_output_bytes: int = ...,
+    ) -> subprocess.CompletedProcess[bytes]: ...
+
+
+async def run_tool_command(
+    command: Sequence[str],
+    *,
+    launcher: SubprocessLauncher | None,
+    cwd: Path | str | None = None,
+    env: Mapping[str, str],
+    input: bytes | None = None,
+    timeout: float,
+    max_output_bytes: int,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a validator CLI directly, or through the allocation's proxy launcher."""
+
+    if launcher is None:
+        return await run_command(
+            command,
+            cwd=cwd,
+            env=env,
+            input=input,
+            timeout=timeout,
+            max_output_bytes=max_output_bytes,
+        )
+    return await launcher.run_async(
+        command,
+        cwd=cwd,
+        env=env,
+        input=input,
+        timeout=timeout,
+        max_output_bytes=max_output_bytes,
+    )

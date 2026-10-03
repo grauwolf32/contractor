@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import type { EvalExperiment } from "../../api/evals";
+import { queryKeys } from "../../api/query-keys";
 
 export function useEvalViewRefresh(
   experiment: EvalExperiment,
@@ -32,7 +33,7 @@ export function useEvalViewRefresh(
 
   return async function refresh() {
     const request = ++generation.current;
-    const experimentKey = ["evals", "experiment", experiment.experimentId];
+    const experimentKey = queryKeys.evals.experiment(experiment.experimentId);
     await cache.invalidateQueries({ queryKey: experimentKey });
     const context = current.current;
     if (context === null || request !== generation.current) return;
@@ -51,11 +52,16 @@ export function useEvalViewRefresh(
     }
     context.setParams(next);
     await Promise.all(
-      (view === "comparison" ? ["pairs", "chart"] : ["members"]).map(
-        (projection) =>
-          cache.invalidateQueries({
-            queryKey: ["evals", projection, experiment.experimentId],
-          }),
+      (view === "comparison"
+        ? (["pairs", "chart"] as const)
+        : (["members"] as const)
+      ).map((projection) =>
+        cache.invalidateQueries({
+          queryKey: queryKeys.evals.projection(
+            projection,
+            experiment.experimentId,
+          ),
+        }),
       ),
     );
   };

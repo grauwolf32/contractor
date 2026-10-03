@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V179-002
+title: Align drifted cross-language contract rules
+milestone: code-reuse-2026-10
+priority: P1
+status: completed
+implementation_commit: 0da3d64a0e2233215a2cc47e0dfc0f126c8f42f6
+depends_on: []
+languages: [go, python, typescript]
+goal: Give scan observation error codes, media types and configuration versions one rule shared by Go, Python and the UI.
+context:
+  finding: >-
+    Python scan tools emit errorCode values with exitCode null that the Go scan
+    planner reports as scan_report_invalid while the UI labels them unavailable;
+    the artifact store and Runtime accept a different media-type grammar than the
+    schemas, config loader and UI; the UI rejects audit-standard versions that
+    the public OpenAPI allows; Python gateway failure-code validation accepts a trailing newline.
+  decisions:
+    scan_error_codes: >-
+      api/scan/v1/testdata/worker-error-codes.json lists all 18 Runtime codes.
+      Following docs/spec/32-scan-planning.md, scanner absence
+      (scanner_unavailable, nuclei_templates_unavailable) is unavailable;
+      pre-launch refusals (closed session, unsupported proxy, denied or
+      unresolved target, unavailable request/wordlist/artifact input, existing
+      output), timeouts, truncation and malformed output are incomplete;
+      scanner_failed, scan_artifact_failed and no_discovered_targets are
+      failed. The Planner treats an unlisted code as scan_report_invalid and the
+      UI shows it as Unknown; scan_proxy_unsupported is now Incomplete in the UI.
+    media_type: >-
+      RFC 6838 restricted names in canonical lowercase, without parameters or
+      wildcards, for type and subtype. contracts.ValidMediaType and the Python
+      contracts MEDIA_TYPE_PATTERN serve the artifact store, config slots,
+      private wire contracts, findings collections and audit package members
+      (after their existing normalization); common.schema.json gains a
+      mediaType definition and the public MediaType component uses the same
+      pattern. Existing length limits are unchanged. The database CHECK from
+      migration 000002 keeps its wider RFC 9110 token grammar as a backstop,
+      and the response-only EvalMedia schema stays looser.
+scope:
+  in:
+    - Define the scan observation errorCode set and its scan job status in one shared fixture read by Go, Python and UI tests; classify every emitted code explicitly in Go.
+    - Use one media-type grammar in api schemas, OpenAPI, Go config and artifact store, Python Runtime and the UI, backed by a shared media-type case fixture.
+    - Validate audit-standard scheme and version in the UI with the OpenAPI patterns.
+    - Use full-string matching for Python gateway failure codes and add an invalid fixture.
+  out:
+    - Codegen of DTOs from schemas.
+    - A migration narrowing the artifact_versions media_type CHECK constraint.
+acceptance_criteria:
+  - {id: A1, text: Every scan errorCode emitted by Python maps to an explicit Go scan job status and the UI label agrees with it.}
+  - {id: A2, text: Go, Python, the schemas and the UI accept and reject the same media-type fixture cases.}
+  - {id: A3, text: The UI accepts every audit-standard version the OpenAPI pattern accepts.}
+  - {id: A4, text: A gateway failure code with a trailing newline is rejected by Go and Python.}
+  - {id: A5, text: Go, Runtime and UI tests and lint pass.}
+tests:
+  - {command: go test ./internal/planner/scan ./internal/artifacts ./internal/config ./internal/contracts ./internal/httpapi/public ./internal/auditdomain, covers: [A1, A2, A4]}
+  - {command: cd runtime && uv run pytest, covers: [A1, A2, A4, A5]}
+  - {command: make ui-verify, covers: [A1, A2, A3, A5]}
+  - {command: make lint, covers: [A5]}

@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -34,7 +35,7 @@ type Snapshot struct {
 
 func Encode(snapshot Snapshot) ([]byte, error) {
 	snapshot.SchemaVersion = SchemaVersion
-	snapshot.ProjectID = cloneString(snapshot.ProjectID)
+	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
 	snapshot.Inputs = cloneInputs(snapshot.Inputs)
 	if err := validate(snapshot); err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func Decode(encoded []byte) (Snapshot, error) {
 	if err := validate(snapshot); err != nil {
 		return Snapshot{}, err
 	}
-	snapshot.ProjectID = cloneString(snapshot.ProjectID)
+	snapshot.ProjectID = clone.Pointer(snapshot.ProjectID)
 	snapshot.Inputs = cloneInputs(snapshot.Inputs)
 	return snapshot, nil
 }
@@ -104,8 +105,7 @@ func validate(snapshot Snapshot) error {
 }
 
 func expectEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if strictjson.RequireEOF(decoder) != nil {
 		return fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
 	}
 	return nil
@@ -115,16 +115,8 @@ func cloneInputs(source map[string]contracts.ArtifactRef) map[string]contracts.A
 	result := make(map[string]contracts.ArtifactRef, len(source))
 	for slot, ref := range source {
 		copy := ref
-		copy.Revision = cloneString(ref.Revision)
+		copy.Revision = clone.Pointer(ref.Revision)
 		result[slot] = copy
 	}
 	return result
-}
-
-func cloneString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copy := *value
-	return &copy
 }

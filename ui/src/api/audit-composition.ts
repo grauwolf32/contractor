@@ -1,4 +1,5 @@
 import type { components } from "./generated/public";
+import { isRecord } from "./json-guards";
 
 type Audit = components["schemas"]["Audit"];
 
@@ -12,10 +13,6 @@ const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function keys(value: Record<string, unknown>, allowed: string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
 }
@@ -26,7 +23,7 @@ function name(value: unknown): value is string {
 
 function validSource(value: unknown): boolean {
   if (
-    !object(value) ||
+    !isRecord(value) ||
     !keys(value, ["source", "name", "role"]) ||
     !name(value.name)
   )
@@ -38,7 +35,7 @@ function validSource(value: unknown): boolean {
 
 export function validInventory(value: unknown): boolean {
   if (
-    !object(value) ||
+    !isRecord(value) ||
     !keys(value, [
       "implementation",
       "source",
@@ -73,7 +70,7 @@ function validOutput(
   runId: unknown,
 ): boolean {
   if (
-    !object(value) ||
+    !isRecord(value) ||
     !keys(value, ["artifact", "executionId", "runId", "workflowOutput"]) ||
     value.executionId !== executionId ||
     value.runId !== runId ||
@@ -82,7 +79,7 @@ function validOutput(
     return false;
   const artifact = value.artifact;
   if (
-    !object(artifact) ||
+    !isRecord(artifact) ||
     !keys(artifact, ["ref", "digest", "mediaType", "sizeBytes"]) ||
     typeof artifact.digest !== "string" ||
     !DIGEST.test(artifact.digest) ||
@@ -93,7 +90,7 @@ function validOutput(
   )
     return false;
   return (
-    object(artifact.ref) &&
+    isRecord(artifact.ref) &&
     keys(artifact.ref, ["namespace", "name", "revision"]) &&
     name(artifact.ref.namespace) &&
     name(artifact.ref.name) &&
@@ -104,7 +101,7 @@ function validOutput(
 
 function validRole(value: unknown): boolean {
   if (
-    !object(value) ||
+    !isRecord(value) ||
     !keys(value, [
       "status",
       "attempts",
@@ -124,7 +121,7 @@ function validRole(value: unknown): boolean {
     limit > MAX_RUN_ATTEMPTS ||
     attempts < 0 ||
     attempts > limit ||
-    !object(value.outputs) ||
+    !isRecord(value.outputs) ||
     Object.keys(value.outputs).length > MAX_ROLE_OUTPUTS
   )
     return false;
@@ -181,7 +178,7 @@ export function validPreparation(
   value: unknown,
   requireAccepted = false,
 ): boolean {
-  if (!object(value) || !keys(value, ["roles"]) || !object(value.roles))
+  if (!isRecord(value) || !keys(value, ["roles"]) || !isRecord(value.roles))
     return false;
   const roles = Object.entries(value.roles);
   return (
@@ -191,7 +188,7 @@ export function validPreparation(
       ([key, role]) =>
         name(key) &&
         validRole(role) &&
-        (!requireAccepted || (object(role) && role.status === "accepted")),
+        (!requireAccepted || (isRecord(role) && role.status === "accepted")),
     )
   );
 }

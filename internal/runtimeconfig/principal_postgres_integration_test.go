@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -69,12 +70,12 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	}
 	principalID := strings.Repeat("a", 64)
 	created, err := service.Register(ctx, principalID, []string{"agent-route"})
-	if err != nil || created.LabelRevision != 1 || !equalStrings(created.Labels, []string{"agent-route"}) {
+	if err != nil || created.LabelRevision != 1 || !slices.Equal(created.Labels, []string{"agent-route"}) {
 		t.Fatalf("created principal = (%+v, %v)", created, err)
 	}
 	// Startup arguments are seed-only after the first successful registration.
 	replayed, err := service.Register(ctx, principalID, []string{})
-	if err != nil || replayed.LabelRevision != 1 || !equalStrings(replayed.Labels, created.Labels) {
+	if err != nil || replayed.LabelRevision != 1 || !slices.Equal(replayed.Labels, created.Labels) {
 		t.Fatalf("replayed principal = (%+v, %v)", replayed, err)
 	}
 	if err := service.Delete(ctx, principalID, 1); !errors.Is(err, ErrConflict) {

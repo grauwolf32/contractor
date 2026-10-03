@@ -84,6 +84,15 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 		}
 	})
 
+	t.Run("untrusted directory layout", func(t *testing.T) {
+		valid := makeRawZIP(t, zip.Store, []rawZIPEntry{{"manifest.json", manifestBytes, 0}, {"body.txt", []byte("body"), 0}})
+		// archive/zip tolerates prepended bytes; the directory preflight does not.
+		_, err := ValidatePackage(append([]byte("prefix"), valid...))
+		if ErrorCode(err) != CodePackageInvalid {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
 	t.Run("expanded member limit", func(t *testing.T) {
 		oversized := bytes.Repeat([]byte("x"), MaximumMemberBytes+1)
 		_, err := ValidatePackage(makeRawZIP(t, zip.Deflate, []rawZIPEntry{{"manifest.json", manifestBytes, 0}, {"body.txt", oversized, 0}}))

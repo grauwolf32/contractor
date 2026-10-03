@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -59,7 +60,7 @@ func (b *resultBuilder) addPlan(ctx context.Context, prefix string, state planne
 		return err
 	}
 	plan, err := scanplan.DecodePlan(payload.Data)
-	if err != nil || payload.MediaType != scanplan.PlanMediaType || "sha256:"+hash(payload.Data) != state.PlanDigest {
+	if err != nil || payload.MediaType != scanplan.PlanMediaType || contentdigest.Bytes(payload.Data) != state.PlanDigest {
 		return fmt.Errorf("retained scan plan is invalid")
 	}
 	for _, candidate := range plan.Candidates {

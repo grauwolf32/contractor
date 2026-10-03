@@ -1,6 +1,6 @@
 import type { components } from "../../../api/generated/public";
 import type { PerformanceHistory } from "../../../api/performance";
-import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState } from "../common";
 import { MetricSeriesChart, type ChartDatum } from "./chart";
 import { performanceFreshnessState } from "./freshness";

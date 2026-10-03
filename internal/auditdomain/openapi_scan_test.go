@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func TestOpenAPIScanDocumentedInputs(t *testing.T) {
@@ -23,7 +26,7 @@ func TestOpenAPIScanDocumentedInputs(t *testing.T) {
 			}
 			options := testInventoryOptions("scan")
 			options.ApprovalRequirement = ApprovalActiveCheck
-			input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes(settings)}
+			input := ExactInput{Name: "settings", Ref: options.SourceRef.Clone(), Digest: DigestBytes(settings)}
 			input.Ref.Name = scanner + "-settings"
 			inventory, err := BuildOpenAPIScanInventory(source, "application/json", settings, input, options)
 			if err != nil || len(inventory.Tasks) != 1 {
@@ -82,7 +85,7 @@ func scanInventoryFixture(t *testing.T, settings string) (Inventory, InventoryOp
 	t.Helper()
 	options := testInventoryOptions("scan")
 	options.ApprovalRequirement = ApprovalActiveCheck
-	input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes([]byte(settings))}
+	input := ExactInput{Name: "settings", Ref: options.SourceRef.Clone(), Digest: DigestBytes([]byte(settings))}
 	input.Ref.Name = "scan-settings"
 	inventory, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(settings), input, options)
 	if err != nil {
@@ -99,7 +102,7 @@ func TestOpenAPIScanInventoryPinsRequestSettingsAndApproval(t *testing.T) {
 	task := inventory.Tasks[0].Document
 	if task.Kind != "openapi-scan" || task.Operation != nil || task.Checklist != nil || task.Scan == nil ||
 		!task.Scan.Runnable || task.Scan.Scanner != "sqlmap" || task.Scan.TargetURL != "" ||
-		!validDigest(task.Scan.RequestDigest) || !sameCanonicalValue(task.Scan.Settings, input) ||
+		!contentdigest.Valid(task.Scan.RequestDigest) || !sameCanonicalValue(task.Scan.Settings, input) ||
 		!equalStringSlices(inventory.Coverage.Rows[0].Requested, []string{"sqlmap-request-scan"}) ||
 		inventory.Worklist.Items[0].ApprovalRequirement != ApprovalActiveCheck {
 		t.Fatalf("wrong scan task: %+v", task)
@@ -150,14 +153,14 @@ func TestOpenAPIScanInventoryKeepsNucleiLimitationsAndUnpreparedItem(t *testing.
 		t.Fatal("lost unprepared operation")
 	}
 	missing, target := inventory.Tasks[0].Document, inventory.Tasks[1].Document
-	if missing.Scan.Runnable || missing.Scan.TargetURL != "" || !containsString(missing.Scan.Gaps, "missing_required_parameter") {
+	if missing.Scan.Runnable || missing.Scan.TargetURL != "" || !slices.Contains(missing.Scan.Gaps, "missing_required_parameter") {
 		t.Fatalf("missing value invented: %+v", missing.Scan)
 	}
 	if !target.Scan.Runnable || target.Scan.TargetURL != "https://target.test/api/pets/7" || target.Scan.RequestDigest != "" {
 		t.Fatalf("lost fixed URL: %+v", target.Scan)
 	}
 	for _, code := range []string{"url_template_scan_only", "http_method_not_replayed", "request_body_not_replayed", "authentication_not_applied"} {
-		if !containsString(target.Scan.Gaps, code) {
+		if !slices.Contains(target.Scan.Gaps, code) {
 			t.Fatalf("missing %s: %+v", code, target.Scan.Gaps)
 		}
 	}
@@ -223,7 +226,7 @@ func TestOpenAPIScanInventoryIdentityIncludesExactSettingsAndSelection(t *testin
 		if changed.CanonicalInventoryDigest == initial.CanonicalInventoryDigest || changed.Tasks[0].PackageDigest == initial.Tasks[0].PackageDigest {
 			t.Fatal("settings identity lost")
 		}
-		if strings.Contains(settings, `["excluded"]`) && (changed.Tasks[0].Document.Scan.Runnable || !containsString(changed.Tasks[0].Document.Scan.Gaps, "test_parameter_unavailable")) {
+		if strings.Contains(settings, `["excluded"]`) && (changed.Tasks[0].Document.Scan.Runnable || !slices.Contains(changed.Tasks[0].Document.Scan.Gaps, "test_parameter_unavailable")) {
 			t.Fatal("unavailable test parameter did not produce gap")
 		}
 	}

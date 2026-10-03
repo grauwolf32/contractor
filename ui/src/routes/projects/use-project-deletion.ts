@@ -31,7 +31,9 @@ export function useProjectDeletion(
       void queryClient.invalidateQueries({
         queryKey: queryKeys.projects.lists(deleting.kind),
       });
-      void queryClient.invalidateQueries({ queryKey: ["evals", "projects"] });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.evals.projects,
+      });
     },
   });
   const deletionObserved =

@@ -193,7 +193,7 @@ class GatewayFailureSignatures(WireModel):
         if len(seen) != len(self.model_unavailable):
             raise ValueError("failureSignatures.modelUnavailable repeats a signature")
         for code in self.permanent_codes:
-            if not _GATEWAY_FAILURE_CODE.match(code):
+            if not _GATEWAY_FAILURE_CODE.fullmatch(code):
                 raise ValueError(
                     "failureSignatures.permanentCodes must be snake_case provider codes"
                 )

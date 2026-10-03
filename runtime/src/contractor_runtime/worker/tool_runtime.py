@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
 import json
 import uuid
@@ -29,6 +28,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.digests import jcs_digest, sha256_digest
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 if TYPE_CHECKING:
@@ -60,10 +60,6 @@ class ToolWorkerError(Exception):
 
 def _json(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
-
-
-def _digest(value: Any) -> str:
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(value)).hexdigest()
 
 
 def _metrics(tool: str, calls: int = 0, failed: bool = False) -> dict:
@@ -220,7 +216,7 @@ class ToolWorkerRuntime:
         canonical = jcs.canonicalize(identity)
         if len(canonical) > MAX_INPUT_BYTES:
             raise ValueError("tool input exceeds its bound")
-        key = _digest(
+        key = jcs_digest(
             {
                 "runId": self._context.run_id,
                 "stageExecutionId": self._context.stage_execution_id,
@@ -228,7 +224,7 @@ class ToolWorkerRuntime:
                 "subtaskId": request.subtask_id,
             }
         ).removeprefix("sha256:")
-        return arguments, target, key, "sha256:" + hashlib.sha256(canonical).hexdigest()
+        return arguments, target, key, sha256_digest(canonical)
 
     def _additional_artifacts(self, value, request, *, complete):
         """Accept only exact refs for the declared, Worker-owned output bindings."""

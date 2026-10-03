@@ -19,6 +19,7 @@ import {
   KeyValueEditor,
 } from "./common";
 import { sortedBindings } from "./setup-model";
+import { queryKeys } from "../../api/query-keys";
 
 function ExecutionOverrides({
   value,
@@ -29,7 +30,7 @@ function ExecutionOverrides({
 }) {
   const api = usePublicAPI();
   const inventory = useQuery({
-    queryKey: ["evals", "execution-choices"],
+    queryKey: queryKeys.evals.executionChoices,
     queryFn: async ({ signal }) => {
       const [models, gateways, credentials] = await Promise.all([
         evalInventory(
@@ -148,7 +149,7 @@ export function VariantEditor({
   const families = [...new Set(options.map((x) => x.selector.split("@")[0]!))];
   const [name = "", version = ""] = value.selector.split("@");
   const contract = useQuery({
-    queryKey: ["evals", "binding", value.kind, value.selector],
+    queryKey: queryKeys.evals.binding(value.kind, value.selector),
     enabled: !!value.selector,
     queryFn: async () =>
       value.kind === "workflow"

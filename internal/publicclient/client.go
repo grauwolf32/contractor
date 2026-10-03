@@ -3,10 +3,8 @@ package publicclient
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +18,7 @@ import (
 	"time"
 
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 const (
@@ -285,11 +284,7 @@ func DecodeError(status int, body []byte) error {
 }
 
 func NewIdempotencyKey() (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generate idempotency key: %w", err)
-	}
-	return "cli_" + hex.EncodeToString(buffer), nil
+	return randomid.New("cli_")
 }
 
 func QuoteETag(revision string) (string, error) {

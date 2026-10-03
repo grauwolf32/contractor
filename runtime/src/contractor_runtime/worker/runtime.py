@@ -66,6 +66,7 @@ from contractor_runtime.telemetry.execution import (
 )
 from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.common.artifacts import runtime_secrets
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.completion import (
@@ -83,6 +84,7 @@ from contractor_runtime.worker.instrumentation import (
     WorkerSummarizationRequested,
 )
 from contractor_runtime.worker.observations import lean_workspace_summary
+from contractor_runtime.worker.one_shot import candidate_text, generation_config
 from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
@@ -166,9 +168,7 @@ class AdkWorkerRuntime:
         self._worker_state = context.state
 
         policy = context.model_policy
-        generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
-        if policy.temperature is not None:
-            generation.temperature = policy.temperature
+        generation = generation_config(policy)
         adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
         if self._agent_skills is not None:
             adk_tools.append(
@@ -635,7 +635,7 @@ class AdkWorkerRuntime:
                                         "Worker model returned an error",
                                         True,
                                     ), False
-                                text = _candidate_text(event)
+                                text = candidate_text(event)
                                 if text is not None:
                                     candidate = text
                     except Exception as error:
@@ -1219,20 +1219,6 @@ def _validate_result_fields(
     return fields
 
 
-def _candidate_text(event: Event) -> str | None:
-    content = event.content
-    if content is None or content.role != "model" or event.partial:
-        return None
-    text: list[str] = []
-    for part in content.parts or []:
-        if getattr(part, "thought", False):
-            continue
-        if part.text is None:
-            return None
-        text.append(part.text)
-    return "".join(text) if text else None
-
-
 def _latest_observed_exact_refs(refs: tuple[ArtifactRef, ...]) -> list[ArtifactRef]:
     latest: dict[tuple[str, str], ArtifactRef] = {}
     for ref in refs:
@@ -1300,15 +1286,12 @@ def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
 
     # Imported here: the allocation package builds Workers, so a module-level
     # import would be circular.
-    from contractor_runtime.allocation.redaction import (
-        _contains_private_value,
-        _runtime_secret_values,
-    )
+    from contractor_runtime.allocation.redaction import _contains_private_value
 
     gateway_token = _gateway_token(context)
     if gateway_token and gateway_token in text:
         return True
-    return _contains_private_value(text, _runtime_secret_values(context.runtime_settings))
+    return _contains_private_value(text, runtime_secrets(context.runtime_settings))
 
 
 def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { resumeRun, type RunStatus } from "../../api/runs";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 
 export function RunResumeControl({ run }: { run: RunStatus }) {
   const api = usePublicAPI();

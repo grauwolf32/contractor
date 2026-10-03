@@ -12,21 +12,19 @@ import {
   getWorkflow,
   type WorkflowResource,
 } from "../../api/workflows";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { locationDestination } from "../catalog/navigation";
 import { WorkflowOverview } from "./overview";
 import { workflowSelector } from "./presentation";
 
 import "../primary-actions.css";
+import { compactDigest } from "../../app/format";
+import { artifactDetailPath } from "../artifacts/paths";
 
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type ResolvedConfig = components["schemas"]["ResolvedStageExecutionConfig"];
 type SuccessTransition = components["schemas"]["WorkflowSucceededTransition"];
 type FailureTransition = components["schemas"]["WorkflowFailureTransition"];
-
-function compactDigest(digest: string): string {
-  return `${digest.slice(0, 15)}…${digest.slice(-8)}`;
-}
 
 function ConsumerConfigView({
   name,
@@ -210,7 +208,13 @@ function StageContract({
                       {(binding.skills ?? []).map((skill) => (
                         <Link
                           key={`${skill.namespace}/${skill.name}`}
-                          to={`/artifacts/${encodeURIComponent(skill.namespace)}/${encodeURIComponent(skill.name)}`}
+                          to={artifactDetailPath(
+                            { kind: "user" },
+                            {
+                              namespace: skill.namespace,
+                              name: skill.name,
+                            },
+                          )}
                         >
                           {skill.namespace}/{skill.name}
                         </Link>

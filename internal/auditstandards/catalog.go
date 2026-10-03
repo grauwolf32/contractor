@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -308,7 +309,7 @@ func (c *Catalog) ResolvePinned(
 		*read.Ref.Revision != *pinned.Retained.Artifact.Revision ||
 		read.Payload.MediaType != pinned.Retained.MediaType ||
 		int64(len(read.Payload.Data)) != pinned.Retained.SizeBytes ||
-		digest(read.Payload.Data) != pinned.Retained.Digest {
+		contentdigest.Bytes(read.Payload.Data) != pinned.Retained.Digest {
 		return ResolvedPackage{}, fmt.Errorf("%w: retained Audit standard identity", ErrDrift)
 	}
 	pkg, err := ValidateRetainedPayload(read.Payload.Data, pinned)
@@ -339,7 +340,7 @@ func (c *Catalog) writeRetained(
 	}
 	current, readErr := store.Read(ctx, target)
 	if readErr != nil || current.Ref.Revision == nil || current.Payload.MediaType != MediaType ||
-		digest(current.Payload.Data) != resolved.Package.Digest {
+		contentdigest.Bytes(current.Payload.Data) != resolved.Package.Digest {
 		return ExactPackage{}, fmt.Errorf("%w: retained Audit standard collision", ErrDrift)
 	}
 	return ExactPackage{Artifact: current.Ref, Digest: resolved.Package.Digest,
@@ -385,7 +386,7 @@ func ArtifactName(ref Reference) string {
 }
 
 func verifyCurrent(current artifacts.ReadResult, expected Reference, expectedDigest string) error {
-	if current.Ref.Revision == nil || current.Payload.MediaType != MediaType || digest(current.Payload.Data) != expectedDigest {
+	if current.Ref.Revision == nil || current.Payload.MediaType != MediaType || contentdigest.Bytes(current.Payload.Data) != expectedDigest {
 		return fmt.Errorf("%w: %s@%s", ErrDrift, expected.Scheme, expected.Version)
 	}
 	if _, err := Validate(current.Payload.Data, expected); err != nil {
@@ -409,11 +410,6 @@ func pkgReference(pkg *Package) Reference {
 }
 
 func referenceKey(ref Reference) string { return ref.Scheme + "\x00" + ref.Version }
-
-func digest(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
 
 func portableDirectoryName(value string) bool {
 	if len(value) == 0 || len(value) > 128 || value == "." || value == ".." {

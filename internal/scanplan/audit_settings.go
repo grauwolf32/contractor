@@ -3,6 +3,8 @@ package scanplan
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -141,8 +143,10 @@ func auditSettingsFields(root map[string]any) bool {
 	return true
 }
 
-func (s AuditScanSettings) Scanner() string      { return s.document.Scanner }
-func (s AuditScanSettings) Operations() []string { return keys(s.document.Operations) }
+func (s AuditScanSettings) Scanner() string { return s.document.Scanner }
+func (s AuditScanSettings) Operations() []string {
+	return slices.Sorted(maps.Keys(s.document.Operations))
+}
 func (s AuditScanSettings) TestParameters() []string {
 	return append([]string{}, s.document.TestParameters...)
 }

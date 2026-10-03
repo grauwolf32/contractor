@@ -74,3 +74,24 @@ func (p *Printer) Object(value any, names ...string) error {
 	}
 	return p.JSON(value)
 }
+
+// List prints a page as JSON, one name per item, or a table row per item.
+func List[T any](
+	p *Printer, page any, items []T, name func(T) string, headers []string, row func(T) []string,
+) error {
+	switch p.mode {
+	case OutputJSON:
+		return p.JSON(page)
+	case OutputName:
+		names := make([]string, 0, len(items))
+		for _, item := range items {
+			names = append(names, name(item))
+		}
+		return p.Names(names...)
+	}
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, row(item))
+	}
+	return p.Table(headers, rows)
+}

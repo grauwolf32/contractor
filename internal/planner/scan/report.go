@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -45,8 +45,6 @@ type workerReport struct {
 	InputArtifacts map[string]contracts.ArtifactRef `json:"inputArtifacts"`
 	Observation    map[string]json.RawMessage       `json:"observation"`
 }
-
-var workerDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request contracts.StageContentRequest, record planner.ScanJobRecord, completion contracts.WorkerCompletion) planner.ScanJobRecord {
 	if planner.ValidateWorkerCompletion(completion, job.ID) != nil {
@@ -97,11 +95,11 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		return record
 	}
 	var report workerReport
-	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !workerDigest.MatchString(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
+	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !contentdigest.Valid(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
 		record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_invalid"
 		return record
 	}
-	exact := planner.CloneArtifactRef(ref)
+	exact := ref.Clone()
 	record.Report = &exact
 	record.Status, record.Code = observationStatus(report.Observation)
 	if failedReport && record.Status == planner.ScanJobCompleted {
@@ -124,13 +122,14 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 			return invalid()
 		}
 	}
-	// Scanner timeouts may have no exit code or a signal exit code. Keep those
-	// technical outcomes distinct from an ordinary nonzero scanner exit.
-	switch errorCode {
-	case "scanner_unavailable":
-		return planner.ScanJobUnavailable, "scan_worker_unavailable"
-	case "scan_timeout", "output_limit_exceeded", "scan_incomplete", "scan_request_failed", "invalid_scanner_output":
-		return planner.ScanJobIncomplete, "scan_incomplete"
+	// Pre-launch refusals and timeouts have no exit code. Every reported code
+	// has a fixed outcome; an unknown code is not trusted as a scan result.
+	if errorCode != "" {
+		outcome, ok := workerErrorOutcomes[errorCode]
+		if !ok {
+			return invalid()
+		}
+		return outcome, outcomeCodes[outcome]
 	}
 	var exitCode int
 	if json.Unmarshal(observation["exitCode"], &exitCode) != nil || bytes.Equal(bytes.TrimSpace(observation["exitCode"]), []byte("null")) {
@@ -139,7 +138,7 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 	if status == "failed" || exitCode != 0 {
 		return planner.ScanJobFailed, "scan_failed"
 	}
-	incomplete := errorCode != ""
+	var incomplete bool
 	names := make([]string, 0, len(observation))
 	for name := range observation {
 		names = append(names, name)
@@ -170,6 +169,40 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 		return planner.ScanJobIncomplete, "scan_incomplete"
 	}
 	return planner.ScanJobCompleted, ""
+}
+
+// workerErrorOutcomes classifies every errorCode a scan Worker reports. The
+// shared table api/scan/v1/testdata/worker-error-codes.json pins it to the
+// Runtime producers and the UI.
+var workerErrorOutcomes = map[string]string{
+	// Scanner absence.
+	"scanner_unavailable":          planner.ScanJobUnavailable,
+	"nuclei_templates_unavailable": planner.ScanJobUnavailable,
+	// Pre-launch refusals: the scanner never ran.
+	"scan_closed":                    planner.ScanJobIncomplete,
+	"scan_proxy_unsupported":         planner.ScanJobIncomplete,
+	"scan_target_denied":             planner.ScanJobIncomplete,
+	"scan_target_unresolved":         planner.ScanJobIncomplete,
+	"scan_request_file_unavailable":  planner.ScanJobIncomplete,
+	"scan_wordlist_file_unavailable": planner.ScanJobIncomplete,
+	"scan_artifact_unavailable":      planner.ScanJobIncomplete,
+	"scan_output_exists":             planner.ScanJobIncomplete,
+	// Interrupted, truncated or malformed scanner output.
+	"scan_timeout":           planner.ScanJobIncomplete,
+	"output_limit_exceeded":  planner.ScanJobIncomplete,
+	"scan_incomplete":        planner.ScanJobIncomplete,
+	"scan_request_failed":    planner.ScanJobIncomplete,
+	"invalid_scanner_output": planner.ScanJobIncomplete,
+	// The scanner ran and reported failure.
+	"scanner_failed":        planner.ScanJobFailed,
+	"scan_artifact_failed":  planner.ScanJobFailed,
+	"no_discovered_targets": planner.ScanJobFailed,
+}
+
+var outcomeCodes = map[string]string{
+	planner.ScanJobUnavailable: "scan_worker_unavailable",
+	planner.ScanJobIncomplete:  "scan_incomplete",
+	planner.ScanJobFailed:      "scan_failed",
 }
 
 func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIdentity, plan scanplan.ScanPlan, state planner.ScanState) (contracts.StageContentResult, error) {
@@ -220,7 +253,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if state.Plan == nil {
 		return empty, scanError("scan_session_invalid", nil)
 	}
-	report := Report{SchemaVersion: 1, Plan: planner.CloneArtifactRef(*state.Plan), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
+	report := Report{SchemaVersion: 1, Plan: state.Plan.Clone(), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
 	data, err := contracts.MarshalPrivateCanonical(report)
 	if err != nil || len(data) > scanplan.MaxPlanBytes {
 		return empty, scanError("scan_report_invalid", err)
@@ -244,7 +277,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if err := p.factory.sessions.CompleteScan(writeCtx, identity, planner.Completion{Result: &result}); err != nil {
 		return empty, scanError("scan_completion_write_failed", err)
 	}
-	return planner.CloneStageResult(result), nil
+	return result.Clone(), nil
 }
 
 func strictWorkerReport(data []byte, out *workerReport) bool {

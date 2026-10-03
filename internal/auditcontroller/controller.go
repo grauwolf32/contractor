@@ -2,8 +2,6 @@ package auditcontroller
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -509,7 +507,7 @@ func matchingRoleIntent(
 		*execution.RoundID == *prepared.RoundID && execution.RoleAttempt != nil && prepared.RoleAttempt != nil &&
 		*execution.RoleAttempt == *prepared.RoleAttempt && execution.SubmissionKey == prepared.SubmissionKey &&
 		execution.RequestDigest == prepared.RequestDigest && execution.Manifest.Digest == prepared.Manifest.Digest &&
-		sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) && len(prepared.Members) == 0
+		execution.Manifest.Ref.SameExact(prepared.Manifest.Ref) && len(prepared.Members) == 0
 }
 
 func (c *Controller) dispatch(
@@ -616,7 +614,7 @@ func matchingIntent(
 		execution.WorkflowRole != prepared.WorkflowRole ||
 		execution.RoundID == nil || prepared.RoundID == nil || *execution.RoundID != *prepared.RoundID ||
 		execution.SubmissionKey != prepared.SubmissionKey || execution.RequestDigest != prepared.RequestDigest ||
-		execution.Manifest.Digest != prepared.Manifest.Digest || !sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) ||
+		execution.Manifest.Digest != prepared.Manifest.Digest || !execution.Manifest.Ref.SameExact(prepared.Manifest.Ref) ||
 		len(members) != len(prepared.Members) {
 		return false
 	}
@@ -625,7 +623,7 @@ func matchingIntent(
 		if member.ExecutionItemID != candidate.ExecutionItemID || member.ItemID != candidate.ItemID ||
 			member.BatchOrdinal != candidate.BatchOrdinal || member.BatchOrdinal != index ||
 			member.ItemAttempt != candidate.ItemAttempt || member.Task.Digest != candidate.Task.Digest ||
-			!sameExactRef(member.Task.Ref, candidate.Task.Ref) || !sameExactArtifacts(member.Inputs, candidate.Inputs) {
+			!member.Task.Ref.SameExact(candidate.Task.Ref) || !sameExactArtifacts(member.Inputs, candidate.Inputs) {
 			return false
 		}
 	}
@@ -638,7 +636,7 @@ func sameExactArtifacts(left, right []auditstore.ExactArtifact) bool {
 	}
 	for index := range left {
 		if left[index].Digest != right[index].Digest || left[index].MediaType != right[index].MediaType ||
-			left[index].SizeBytes != right[index].SizeBytes || !sameExactRef(left[index].Ref, right[index].Ref) {
+			left[index].SizeBytes != right[index].SizeBytes || !left[index].Ref.SameExact(right[index].Ref) {
 			return false
 		}
 	}
@@ -701,14 +699,6 @@ func (c *Controller) newID(prefix string) (string, error) {
 	c.idMu.Lock()
 	defer c.idMu.Unlock()
 	return c.options.NewID(prefix)
-}
-
-func randomID(prefix string) (string, error) {
-	var raw [16]byte
-	if _, err := cryptorand.Read(raw[:]); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(raw[:]), nil
 }
 
 func deadlineTarget(reason *auditstore.StopReason) auditstore.AuditState {

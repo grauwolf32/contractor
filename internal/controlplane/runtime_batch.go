@@ -2,8 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 type RuntimeLifecycle interface {
@@ -58,7 +57,7 @@ func NewRuntimeBatchController(
 		options.Now = time.Now
 	}
 	if options.NewID == nil {
-		options.NewID = lifecycleID
+		options.NewID = randomid.New
 	}
 	if options.CleanupTimeout == 0 {
 		options.CleanupTimeout = 10 * time.Second
@@ -375,21 +374,13 @@ func validateReservationBatch(reservations []Reservation) error {
 			return errors.New("allocation reservation is incomplete")
 		}
 		if _, duplicate := allocationIDs[reservation.Grant.AllocationID]; duplicate {
-			return errors.New("allocation reservation batch contains duplicate allocation IDs")
+			return errors.New("allocation reservation batch slices.Contains duplicate allocation IDs")
 		}
 		if _, duplicate := logicalNames[reservation.Grant.LogicalAgentName]; duplicate {
-			return errors.New("allocation reservation batch contains duplicate logical Agent names")
+			return errors.New("allocation reservation batch slices.Contains duplicate logical Agent names")
 		}
 		allocationIDs[reservation.Grant.AllocationID] = struct{}{}
 		logicalNames[reservation.Grant.LogicalAgentName] = struct{}{}
 	}
 	return nil
-}
-
-func lifecycleID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }

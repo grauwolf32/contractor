@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -418,7 +420,7 @@ func resolveAuditProfileInputs(
 		return nil, fmt.Errorf("spec.inputs may contain at most %d entries", MaxAuditProfileInputs)
 	}
 	result := make(map[string]AuditProfileInput, len(*source))
-	for _, name := range sortedMapKeys(*source) {
+	for _, name := range slices.Sorted(maps.Keys(*source)) {
 		candidate := (*source)[name]
 		if err := validateAuditMapKey("spec.inputs slot", name); err != nil {
 			return nil, err
@@ -447,7 +449,7 @@ func (l *loader) resolveAuditWorkflowBindings(
 		return nil, fmt.Errorf("spec.workflows may contain at most %d entries", MaxAuditProfileWorkflows)
 	}
 	result := make(map[string]ResolvedAuditWorkflowBinding, len(*source))
-	for _, role := range sortedMapKeys(*source) {
+	for _, role := range slices.Sorted(maps.Keys(*source)) {
 		candidate := (*source)[role]
 		if err := validateAuditMapKey("spec.workflows role", role); err != nil {
 			return nil, err
@@ -505,7 +507,7 @@ func resolveAuditWorkflowInputs(
 		return nil, fmt.Errorf("%s is required (use {} for none)", field)
 	}
 	result := make(map[string]AuditWorkflowInputMapping, len(*source))
-	for _, slotName := range sortedMapKeys(*source) {
+	for _, slotName := range slices.Sorted(maps.Keys(*source)) {
 		candidate := (*source)[slotName]
 		slot, exists := workflow.Inputs[slotName]
 		if !exists {
@@ -517,7 +519,7 @@ func resolveAuditWorkflowInputs(
 		}
 		result[slotName] = mapping
 	}
-	for _, slotName := range sortedMapKeys(workflow.Inputs) {
+	for _, slotName := range slices.Sorted(maps.Keys(workflow.Inputs)) {
 		if workflow.Inputs[slotName].Required {
 			if _, exists := result[slotName]; !exists {
 				return nil, fmt.Errorf("%s is missing required Workflow input %q", field, slotName)
@@ -586,7 +588,7 @@ func resolveAuditWorkflowParameters(
 		return nil, fmt.Errorf("%s is required (use {} for none)", field)
 	}
 	result := make(map[string]AuditWorkflowParameterMapping, len(*source))
-	for _, parameterName := range sortedMapKeys(*source) {
+	for _, parameterName := range slices.Sorted(maps.Keys(*source)) {
 		candidate := (*source)[parameterName]
 		if _, exists := workflow.Parameters[parameterName]; !exists {
 			return nil, fmt.Errorf("%s contains unknown Workflow parameter %q", field, parameterName)
@@ -597,7 +599,7 @@ func resolveAuditWorkflowParameters(
 		}
 		result[parameterName] = mapping
 	}
-	for _, parameterName := range sortedMapKeys(workflow.Parameters) {
+	for _, parameterName := range slices.Sorted(maps.Keys(workflow.Parameters)) {
 		if workflow.Parameters[parameterName].Required {
 			if _, exists := result[parameterName]; !exists {
 				return nil, fmt.Errorf("%s is missing required Workflow parameter %q", field, parameterName)
@@ -644,7 +646,7 @@ func resolveAuditWorkflowOutputs(
 	}
 	result := make(map[string]string, len(*source))
 	seenWorkflowOutputs := make(map[string]struct{}, len(*source))
-	for _, logicalName := range sortedMapKeys(*source) {
+	for _, logicalName := range slices.Sorted(maps.Keys(*source)) {
 		workflowOutput := (*source)[logicalName]
 		if err := validateAuditMapKey(field+" logical output", logicalName); err != nil {
 			return nil, err
@@ -963,13 +965,4 @@ func validateAuditMapKey(field, value string) error {
 		return fmt.Errorf("%s must be valid UTF-8 and at most 128 bytes", field)
 	}
 	return validateMapKey(field, value)
-}
-
-func sortedMapKeys[V any](source map[string]V) []string {
-	result := make([]string, 0, len(source))
-	for key := range source {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }

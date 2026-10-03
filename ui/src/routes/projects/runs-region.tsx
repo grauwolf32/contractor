@@ -1,20 +1,18 @@
 import { ProjectRunHistory } from "./run-history";
 import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
+import { compactId, formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
+import { QueryView } from "../../app/query-view";
 
 function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
   return (
@@ -63,11 +61,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                         returnHash="#project-runs"
                         to={`/runs/${encodeURIComponent(run.runId)}`}
                       >
-                        <span title={run.runId}>
-                          {run.runId.length > 24
-                            ? `${run.runId.slice(0, 12)}…${run.runId.slice(-8)}`
-                            : run.runId}
-                        </span>
+                        <span title={run.runId}>{compactId(run.runId)}</span>
                       </ContextLink>
                     </td>
                     <td data-label="Leg">
@@ -106,10 +100,8 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
 
 function EvaluationRunsRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.runs(projectId, cursor),
     queryFn: () =>
@@ -130,33 +122,27 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
         Succeeded describes execution only; open the recorded outputs to assess
         the result.
       </p>
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Eval Runs…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No Workflow Runs belong to this Eval.</strong>
-          <p>Runs labelled with this workspace appear here once launched.</p>
-        </div>
-      ) : (
-        <EvaluationRuns runs={query.data.items} />
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Eval Runs…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <div className="compact-empty">
+            <strong>No Workflow Runs belong to this Eval.</strong>
+            <p>Runs labelled with this workspace appear here once launched.</p>
+          </div>
+        }
+      >
+        {(data) => <EvaluationRuns runs={data.items} />}
+      </QueryView>
       <CursorControls
         label="Project Run pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        {...pages.controls(query.data?.page)}
       />
     </ProjectRegion>
   );

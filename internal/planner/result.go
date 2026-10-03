@@ -59,7 +59,7 @@ func validateCandidate(
 				nil,
 			)
 		}
-		metadata, err := inspector.Inspect(ctx, runID, cloneArtifactRef(ref))
+		metadata, err := inspector.Inspect(ctx, runID, ref.Clone())
 		if err != nil {
 			return NewError(
 				"result_artifact_unavailable",

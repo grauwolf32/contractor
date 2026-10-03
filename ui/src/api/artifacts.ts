@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
@@ -10,7 +10,11 @@ export const ARTIFACT_PAGE_SIZE = 50;
 export const ARTIFACT_NAME_PATTERN =
   /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
 export const ARTIFACT_REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-export const MEDIA_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/;
+// RFC 6838 restricted names in canonical lowercase, at most 255 characters as
+// in the public MediaType schema; the shared cases in
+// api/testdata/v1alpha1/media-type-cases.json pin the grammar.
+export const MEDIA_TYPE_PATTERN =
+  /^(?=.{3,255}$)[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
 
 const PREVIEW_MEDIA_TYPES = new Set([
   "application/json",
@@ -112,23 +116,11 @@ function requireRevision(value: string): void {
   }
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function invalidWriteResponse(status = 0): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Artifact write response",
-  });
+    "Server returned an invalid Artifact write response",
+  );
 }
 
 function parseWriteResponse(value: unknown): ArtifactWriteResponse {
@@ -192,6 +184,43 @@ export async function listArtifacts(
   return requireData(result);
 }
 
+/**
+ * Rejects metadata for another Artifact or, when a revision was requested,
+ * for another revision of it.
+ */
+export function requireRequestedMetadata(
+  metadata: ArtifactMetadata,
+  request: ArtifactDetailRequest,
+  status: number,
+): ArtifactMetadata {
+  if (
+    metadata.artifact.namespace !== request.namespace ||
+    metadata.artifact.name !== request.name ||
+    (request.revision !== undefined &&
+      metadata.artifact.revision !== request.revision)
+  ) {
+    throw invalidAPIResponse(
+      status,
+      "Artifact metadata did not match the requested Artifact revision",
+    );
+  }
+  return metadata;
+}
+
+/** Copies a list page after checking its items and continuation. */
+export function requireArtifactPage<T>(
+  page: { items: T[]; page: components["schemas"]["PageInfo"] },
+  status: number,
+): { items: T[]; page: components["schemas"]["PageInfo"] } {
+  if (!Array.isArray(page.items) || page.page === undefined) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid Artifact page",
+    );
+  }
+  return { items: [...page.items], page: { ...page.page } };
+}
+
 export async function getArtifactMetadata(
   api: PublicAPI,
   request: ArtifactDetailRequest,
@@ -205,7 +234,11 @@ export async function getArtifactMetadata(
       },
     }),
   );
-  return requireData(result);
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
 }
 
 export async function listArtifactVersions(
@@ -223,7 +256,7 @@ export async function listArtifactVersions(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getArtifactLineage(
@@ -244,7 +277,7 @@ export async function getArtifactLineage(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function writeArtifact(

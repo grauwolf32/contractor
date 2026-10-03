@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -161,5 +162,5 @@ func SelectionDigest(selection Selection) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return digestBytes(data), nil
+	return contentdigest.Bytes(data), nil
 }

@@ -1,26 +1,18 @@
-import { Dialog } from "../../app/dialog";
-import { ContextLink } from "../../app/context-navigation";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import {
   GitImportDialog,
   GitSourceDetails,
 } from "../artifacts/git-import-dialog";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState, useId } from "react";
+import { useState, useId } from "react";
 import { useLocation, Link, useSearchParams } from "react-router";
-import {
-  ARTIFACT_NAME_PATTERN,
-  type ArtifactWriteResponse,
-} from "../../api/artifacts";
+import { type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
 import {
   ProjectArtifactDialog,
   ProjectArtifactShortcutGrid,
@@ -28,6 +20,13 @@ import {
 } from "./common";
 import type { ShortcutDefinition } from "./shortcuts";
 import { RefreshButton } from "../../app/refresh-button";
+import { QueryView } from "../../app/query-view";
+import {
+  ArtifactBindingsTable,
+  ArtifactStoredNotice,
+} from "../artifacts/bindings";
+import { useNamespaceFilter } from "../artifacts/namespace-filter";
+import { artifactDetailPath } from "../artifacts/paths";
 
 export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
@@ -46,23 +45,10 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     }
   }
   const namespace = filters.get("artifactsNamespace") || undefined;
-  const cursors: Array<string | undefined> = [
-    undefined,
-    ...filters.getAll("artifactsCursor"),
-  ];
-  function setCursors(
-    update:
-      | Array<string | undefined>
-      | ((current: Array<string | undefined>) => Array<string | undefined>),
-  ) {
-    const next = new URLSearchParams(filters);
-    next.delete("artifactsCursor");
-    for (const cursor of typeof update === "function"
-      ? update(cursors)
-      : update)
-      if (cursor !== undefined) next.append("artifactsCursor", cursor);
-    setFilters(next, { preventScrollReset: true, state: location.state });
-  }
+  const pages = useURLCursorStack({
+    param: "artifactsCursor",
+    navigateOptions: { preventScrollReset: true, state: location.state },
+  });
   function setNamespaceFilter(value: string) {
     const next = new URLSearchParams(filters);
     next.delete("artifactsCursor");
@@ -75,8 +61,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const [written, setWritten] = useState<
     ArtifactWriteResponse | GitImportResult | null
   >(null);
-  const [filterError, setFilterError] = useState<string | null>(null);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.artifacts.list(projectId, namespace, cursor),
     queryFn: () =>
@@ -87,18 +72,10 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       }),
   });
 
-  function applyFilter(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const candidate = String(
-      new FormData(event.currentTarget).get("namespaceFilter") ?? "",
-    ).trim();
-    if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
-      setFilterError("Namespace filter is not a valid Artifact name.");
-      return;
-    }
-    setFilterError(null);
-    setNamespaceFilter(candidate);
-  }
+  const namespaceFilter = useNamespaceFilter({
+    value: namespace,
+    onApply: (candidate) => setNamespaceFilter(candidate ?? ""),
+  });
 
   function finishUpload(result: ArtifactWriteResponse): void {
     setWritten(result);
@@ -136,20 +113,12 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           labelledBy={addHeading}
           onRequestClose={closeAdd}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">Project materials</p>
-              <h2 id={addHeading}>Add artifact</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label="Close artifact choices"
-              onClick={closeAdd}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={addHeading}
+            eyebrow="Project materials"
+            title="Add artifact"
+            close={{ label: "Close artifact choices", onClose: closeAdd }}
+          />
           <p className="muted-copy">
             Upload a file or import a Git repository into this project.
           </p>
@@ -161,22 +130,22 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       ) : null}
 
       {written === null ? null : (
-        <div className="notice notice-success" role="status">
-          <strong>Project Artifact revision stored.</strong>
-          <ContextLink
-            returnLabel="Project Artifacts"
-            to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
-          >
-            Open {written.artifact.namespace}/{written.artifact.name}@
-            {written.artifact.revision}
-          </ContextLink>
+        <ArtifactStoredNotice
+          title="Project Artifact revision stored."
+          artifact={written.artifact}
+          returnLabel="Project Artifacts"
+          to={artifactDetailPath(
+            { kind: "project", id: projectId },
+            written.artifact,
+          )}
+        >
           <Link to={`/projects/${encodeURIComponent(projectId)}/workflows`}>
             Choose a Workflow for this project →
           </Link>
           {"gitSource" in written ? (
             <GitSourceDetails source={written.gitSource} />
           ) : null}
-        </div>
+        </ArtifactStoredNotice>
       )}
 
       <div className="project-artifact-library">
@@ -185,87 +154,46 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             <p className="eyebrow">Current bindings</p>
             <h4>Artifact library</h4>
           </div>
-          <form className="inline-form" onSubmit={applyFilter}>
-            <label>
-              Namespace
-              <input
-                name="namespaceFilter"
-                placeholder="all namespaces"
-                key={namespace ?? ""}
-                defaultValue={namespace ?? ""}
-              />
-            </label>
-            <button className="secondary-button" type="submit">
-              Apply
-            </button>
-          </form>
+          {namespaceFilter.form}
         </div>
-        {filterError === null ? null : (
-          <p className="form-error" role="alert">
-            {filterError}
-          </p>
-        )}
-        {query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading Project Artifacts…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Artifact bindings in this view.</strong>
-            <p>Add an artifact to prepare the inputs for your next analysis.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td data-label="Binding">
-                      <ContextLink
-                        returnLabel="Project Artifacts"
-                        to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
-                    </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {namespaceFilter.error}
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Project Artifacts…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No Artifact bindings in this view.</strong>
+              <p>
+                Add an artifact to prepare the inputs for your next analysis.
+              </p>
+            </div>
+          }
+        >
+          {(queryData) => (
+            <ArtifactBindingsTable
+              items={queryData.items}
+              returnLabel="Project Artifacts"
+              detailPath={(item) =>
+                artifactDetailPath(
+                  { kind: "project", id: projectId },
+                  {
+                    namespace: item.artifact.namespace,
+                    name: item.artifact.name,
+                  },
+                )
+              }
+            />
+          )}
+        </QueryView>
         <CursorControls
           label="Project Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
 

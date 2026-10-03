@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -70,7 +71,7 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		if persistencepostgres.SQLState(err) == "55000" {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == "23503" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
 		}
 		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
@@ -142,10 +143,10 @@ FROM inserted_revision, claimed_binding`,
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
-		case "23505":
-			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: cloneString(expectedRevision)}
+		case persistencepostgres.SQLStateUniqueViolation:
+			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}
 		return WriteResult{}, fmt.Errorf("write artifact %s/%s: %w", target.Namespace, target.Name, err)
 	}
@@ -181,13 +182,5 @@ WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4`,
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("inspect artifact write conflict: %w", err)
 	}
-	return &ConflictError{Ref: target, ExpectedRevision: cloneString(expectedRevision)}
-}
-
-func cloneString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copy := *value
-	return &copy
+	return &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 }

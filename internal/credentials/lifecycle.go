@@ -2,8 +2,6 @@ package credentials
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +12,13 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -132,7 +133,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 		options.Now = time.Now
 	}
 	if options.NewID == nil {
-		options.NewID = randomCredentialID
+		options.NewID = randomid.New
 	}
 	if options.Barrier == nil {
 		options.Barrier = NewLifecycleBarrier()
@@ -399,7 +400,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		}
 		storedRequest = deleteOperationRequest{
 			CredentialID: request.CredentialID, LLMGateway: record.LLMGateway,
-			RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: databaseTime(s.now()),
+			RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: persistencepostgres.Timestamp(s.now()),
 		}
 		operation, err = s.newOperation(
 			OperationDelete, request.CredentialID, request.IdempotencyKey, requestHash, storedRequest,
@@ -453,9 +454,9 @@ func normalizeCreateRequest(request CreateRequest) (createOperationRequest, stri
 	policy := request.GatewayPolicy
 	policy.ModelPolicies = append([]contracts.ModelPolicyRef(nil), policy.ModelPolicies...)
 	policy.MaxBudget = cloneFloat64Pointer(policy.MaxBudget)
-	policy.TPMLimit = cloneIntPointer(policy.TPMLimit)
-	policy.RPMLimit = cloneIntPointer(policy.RPMLimit)
-	policy.MaxParallelRequests = cloneIntPointer(policy.MaxParallelRequests)
+	policy.TPMLimit = clone.Pointer(policy.TPMLimit)
+	policy.RPMLimit = clone.Pointer(policy.RPMLimit)
+	policy.MaxParallelRequests = clone.Pointer(policy.MaxParallelRequests)
 	sort.Slice(policy.ModelPolicies, func(left, right int) bool {
 		return modelPolicyRefKey(policy.ModelPolicies[left]) < modelPolicyRefKey(policy.ModelPolicies[right])
 	})
@@ -536,7 +537,7 @@ func (s *Service) executeCreate(
 	record := Record{
 		CredentialID: request.CredentialID, LLMGateway: request.LLMGateway,
 		RemoteKeyID: generated.RemoteKeyID, Label: request.Label,
-		EffectivePolicy: effectivePolicy, Envelope: envelope, CreatedAt: databaseTime(s.now()),
+		EffectivePolicy: effectivePolicy, Envelope: envelope, CreatedAt: persistencepostgres.Timestamp(s.now()),
 	}
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		repository := NewRepository(tx)
@@ -702,7 +703,7 @@ func (s *Service) newOperation(
 	if err != nil {
 		return Operation{}, fmt.Errorf("%w: encode credential operation", ErrInvalid)
 	}
-	now := databaseTime(s.now())
+	now := persistencepostgres.Timestamp(s.now())
 	operation := Operation{
 		OperationID: operationID, IdempotencyKey: idempotencyKey, RequestHash: requestHash,
 		CredentialID: credentialID, Kind: kind, Phase: OperationPrepared,
@@ -716,7 +717,7 @@ func (s *Service) newOperation(
 
 func decodeCreateOperation(operation Operation) (createOperationRequest, error) {
 	var request createOperationRequest
-	if operation.Kind != OperationCreate || decodeStrictJSON(operation.Request, &request) != nil {
+	if operation.Kind != OperationCreate || strictjson.Decode(operation.Request, &request) != nil {
 		return createOperationRequest{}, errors.New("stored create-credential operation is invalid")
 	}
 	if err := validateCredentialID(request.CredentialID); err != nil || request.CredentialID != operation.CredentialID ||
@@ -740,7 +741,7 @@ func decodeCreateOperation(operation Operation) (createOperationRequest, error) 
 
 func decodeDeleteOperation(operation Operation) (deleteOperationRequest, error) {
 	var request deleteOperationRequest
-	if operation.Kind != OperationDelete || decodeStrictJSON(operation.Request, &request) != nil ||
+	if operation.Kind != OperationDelete || strictjson.Decode(operation.Request, &request) != nil ||
 		request.CredentialID != operation.CredentialID || validateDeleteOperationRequest(request) != nil {
 		return deleteOperationRequest{}, errors.New("stored delete-credential operation is invalid")
 	}
@@ -804,9 +805,9 @@ func cloneEffectiveGatewayPolicy(value EffectiveGatewayPolicy) EffectiveGatewayP
 	value.ModelPolicies = append([]contracts.ModelPolicyRef(nil), value.ModelPolicies...)
 	value.Models = append([]string(nil), value.Models...)
 	value.MaxBudget = cloneFloat64Pointer(value.MaxBudget)
-	value.TPMLimit = cloneIntPointer(value.TPMLimit)
-	value.RPMLimit = cloneIntPointer(value.RPMLimit)
-	value.MaxParallelRequests = cloneIntPointer(value.MaxParallelRequests)
+	value.TPMLimit = clone.Pointer(value.TPMLimit)
+	value.RPMLimit = clone.Pointer(value.RPMLimit)
+	value.MaxParallelRequests = clone.Pointer(value.MaxParallelRequests)
 	return value
 }
 
@@ -818,17 +819,9 @@ func cloneFloat64Pointer(value *float64) *float64 {
 	return &result
 }
 
-func cloneIntPointer(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
 func operationCompletionTime(operation Operation, candidate time.Time) time.Time {
-	result := databaseTime(candidate)
-	floor := databaseTime(operation.UpdatedAt)
+	result := persistencepostgres.Timestamp(candidate)
+	floor := persistencepostgres.Timestamp(operation.UpdatedAt)
 	if result.Before(floor) {
 		return floor
 	}
@@ -837,12 +830,4 @@ func operationCompletionTime(operation Operation, candidate time.Time) time.Time
 
 func validActorID(value string) bool {
 	return strings.TrimSpace(value) != "" && len(value) <= 256 && utf8.ValidString(value)
-}
-
-func randomCredentialID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := cryptorand.Read(buffer); err != nil {
-		return "", errors.New("generate random credential operation ID")
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }

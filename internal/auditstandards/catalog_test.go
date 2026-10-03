@@ -55,6 +55,11 @@ func TestPackageDirectoryIsCanonicalAndStrict(t *testing.T) {
 		t.Fatalf("unknown field error = %v", err)
 	}
 
+	// archive/zip tolerates prepended bytes; the directory preflight does not.
+	if _, err := Validate(append([]byte("prefix"), left...), document.Standard.Reference()); validationCode(err) != CodeArchiveInvalid {
+		t.Fatalf("prepended archive error = %v", err)
+	}
+
 	pathAttack := rawArchive(t, "../standard.json", mustJSON(t, document))
 	if _, err := Validate(pathAttack, Reference{}); validationCode(err) != CodePathInvalid {
 		t.Fatalf("path attack error = %v", err)

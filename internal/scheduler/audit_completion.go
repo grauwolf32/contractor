@@ -64,7 +64,7 @@ func auditPinnedContextRef(run runstore.WorkflowRun, ref contracts.ArtifactRef) 
 	if run.AuditCompletion != nil {
 		for _, pinned := range []contracts.ArtifactRef{run.AuditCompletion.Contract.Task, run.AuditCompletion.Contract.ExecutionManifest} {
 			if pinned.Namespace == ref.Namespace && pinned.Name == ref.Name {
-				return cloneArtifactRef(pinned)
+				return pinned.Clone()
 			}
 		}
 	}

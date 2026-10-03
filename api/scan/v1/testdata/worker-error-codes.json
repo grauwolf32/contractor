@@ -1,0 +1,27 @@
+{
+  "outcomes": {
+    "unavailable": "scan_worker_unavailable",
+    "incomplete": "scan_incomplete",
+    "failed": "scan_failed"
+  },
+  "codes": [
+    {"errorCode": "scanner_unavailable", "exitCode": null, "outcome": "unavailable"},
+    {"errorCode": "nuclei_templates_unavailable", "exitCode": null, "outcome": "unavailable"},
+    {"errorCode": "scan_closed", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_proxy_unsupported", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_target_denied", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_target_unresolved", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_request_file_unavailable", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_wordlist_file_unavailable", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_artifact_unavailable", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_output_exists", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_timeout", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "output_limit_exceeded", "exitCode": null, "outcome": "incomplete"},
+    {"errorCode": "scan_incomplete", "exitCode": 0, "outcome": "incomplete"},
+    {"errorCode": "scan_request_failed", "exitCode": 0, "outcome": "incomplete"},
+    {"errorCode": "invalid_scanner_output", "exitCode": 0, "outcome": "incomplete"},
+    {"errorCode": "scanner_failed", "exitCode": 2, "outcome": "failed"},
+    {"errorCode": "scan_artifact_failed", "exitCode": 0, "outcome": "failed"},
+    {"errorCode": "no_discovered_targets", "exitCode": 0, "outcome": "failed"}
+  ]
+}

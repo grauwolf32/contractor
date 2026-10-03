@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -125,7 +125,7 @@ func (s *Service) InitializeScan(ctx context.Context, identity planner.ScanSessi
 		if err != nil {
 			return err
 		}
-		next.RequestRecorded, next.RequestDigest = true, jsonDigest(payload)
+		next.RequestRecorded, next.RequestDigest = true, contentdigest.Bytes(payload)
 		if err := s.appendScan(ctx, identity, session, state.NextSequence, next, event); err != nil {
 			if errors.Is(err, runstore.ErrConflict) {
 				continue
@@ -240,7 +240,7 @@ func (s *Service) CompleteScan(ctx context.Context, identity planner.ScanSession
 		if !next.RequestRecorded {
 			// Input preparation can fail before a plan exists. Such a session
 			// can complete without creating any dispatchable jobs.
-			next.RequestRecorded, next.RequestDigest = true, jsonDigest([]byte(`{"kind":"scan_input_unavailable"}`))
+			next.RequestRecorded, next.RequestDigest = true, contentdigest.Bytes([]byte(`{"kind":"scan_input_unavailable"}`))
 		}
 		payload, err := encodeCompletionEvent(cloned)
 		if err != nil {
@@ -347,7 +347,7 @@ func validateScanState(value planner.ScanState) error {
 		}
 		return nil
 	}
-	if !validScanRef(*value.Plan) || !validDigest(value.PlanDigest) || value.PlanDigest != strings.ToLower(value.PlanDigest) {
+	if !validScanRef(*value.Plan) || !contentdigest.Valid(value.PlanDigest) {
 		return fmt.Errorf("scan plan reference or digest is invalid")
 	}
 	seen := map[string]bool{}
@@ -430,7 +430,7 @@ func scanJobIndex(state planner.ScanState, id string) int {
 func cloneScanState(state planner.ScanState) planner.ScanState {
 	result := state
 	if state.Plan != nil {
-		ref := cloneScanRef(*state.Plan)
+		ref := state.Plan.Clone()
 		result.Plan = &ref
 	}
 	result.Jobs = make([]planner.ScanJobRecord, len(state.Jobs))
@@ -442,21 +442,10 @@ func cloneScanState(state planner.ScanState) planner.ScanState {
 
 func cloneScanJob(job planner.ScanJobRecord) planner.ScanJobRecord {
 	result := job
-	result.InputArtifacts = make(map[string]contracts.ArtifactRef, len(job.InputArtifacts))
-	for name, ref := range job.InputArtifacts {
-		result.InputArtifacts[name] = cloneScanRef(ref)
-	}
+	result.InputArtifacts = contracts.CloneArtifactRefs(job.InputArtifacts)
 	if job.Report != nil {
-		ref := cloneScanRef(*job.Report)
+		ref := job.Report.Clone()
 		result.Report = &ref
 	}
 	return result
-}
-
-func cloneScanRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
-	if ref.Revision != nil {
-		revision := *ref.Revision
-		ref.Revision = &revision
-	}
-	return ref
 }

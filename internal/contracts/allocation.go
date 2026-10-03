@@ -63,6 +63,15 @@ type ResolvedModelPolicy struct {
 
 func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
 
+// Clone returns a copy that does not share the Temperature pointer.
+func (p ResolvedModelPolicy) Clone() ResolvedModelPolicy {
+	if p.Temperature != nil {
+		temperature := *p.Temperature
+		p.Temperature = &temperature
+	}
+	return p
+}
+
 func (p ResolvedModelPolicy) ValidateForWorker(hasTools bool) error {
 	return validateWorkerModelPolicy(p, hasTools)
 }
@@ -145,6 +154,37 @@ type ResolvedAgentTemplate struct {
 }
 
 func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
+
+// Clone returns a copy that shares no pointers, slices or Skill revisions
+// with t.
+func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
+	result := t
+	result.Execution = t.Execution.Clone()
+	result.ModelPolicy = t.ModelPolicy.Clone()
+	if t.Summarizer != nil {
+		summarizer := *t.Summarizer
+		if t.Summarizer.Instructions != nil {
+			instructions := *t.Summarizer.Instructions
+			summarizer.Instructions = &instructions
+		}
+		summarizer.ModelPolicy = t.Summarizer.ModelPolicy.Clone()
+		if t.Summarizer.CumulativeBudget != nil {
+			budget := *t.Summarizer.CumulativeBudget
+			summarizer.CumulativeBudget = &budget
+		}
+		result.Summarizer = &summarizer
+	}
+	result.Toolsets = make([]ToolsetSelection, len(t.Toolsets))
+	for index, toolset := range t.Toolsets {
+		result.Toolsets[index] = toolset
+		result.Toolsets[index].Tools = append([]string(nil), toolset.Tools...)
+	}
+	result.Skills = append([]ArtifactRef(nil), t.Skills...)
+	for index, skill := range result.Skills {
+		result.Skills[index] = skill.Clone()
+	}
+	return result
+}
 
 type WorkerHandle struct {
 	AllocationID string `json:"allocationId"`

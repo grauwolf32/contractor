@@ -1,17 +1,15 @@
 import { Link } from "react-router";
 
 import type { Audit } from "../../../api/audits";
-import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import {
+  compactDigest,
+  formatBytes,
+  formatTimestamp,
+} from "../../../app/format";
 import { SourceLink } from "../../catalog/audit-preset-checks";
 import { AuditProgress } from "./progress";
 import { ExactArtifactLink } from "./shared";
 import { describeStopReason } from "./stop-reason";
-
-function compactDigest(digest: string): string {
-  return digest.length <= 28
-    ? digest
-    : `${digest.slice(0, 15)}…${digest.slice(-8)}`;
-}
 
 function StringList({
   values,

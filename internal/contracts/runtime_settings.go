@@ -272,6 +272,20 @@ type HTTPOriginTargetRef struct {
 	Credential *RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
+// Clone returns a copy that shares no credential with t. A nil target stays
+// nil.
+func (t *HTTPOriginTargetRef) Clone() *HTTPOriginTargetRef {
+	if t == nil {
+		return nil
+	}
+	result := *t
+	if t.Credential != nil {
+		credential := *t.Credential
+		result.Credential = &credential
+	}
+	return &result
+}
+
 func (t HTTPOriginTargetRef) Validate() error {
 	if err := validateRuntimeEndpoint("httpOriginTarget.url", t.URL); err != nil {
 		return err

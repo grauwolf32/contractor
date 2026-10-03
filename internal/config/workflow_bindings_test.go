@@ -45,7 +45,7 @@ func TestWorkflowBindingIndexMatchesCatalogFingerprintAndDetachesPages(t *testin
 	}
 	// A rebuilt snapshot with the same selector and a new exact revision must
 	// exclude uses pinned to the previous digest, without changing old pages.
-	changed := cloneAgentTemplate(snapshot.templates["artifact_builder@1"])
+	changed := snapshot.templates["artifact_builder@1"].Clone()
 	changed.Ref.Digest = "sha256:changed"
 	templates := make(map[string]contracts.ResolvedAgentTemplate, len(snapshot.templates))
 	for key, template := range snapshot.templates {

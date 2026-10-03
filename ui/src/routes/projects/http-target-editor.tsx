@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
 import {
   createRuntimeCredential,
@@ -14,7 +14,8 @@ import {
   type Project,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { createMutationIdempotencyKey } from "../../mutations/idempotency";
 
 type TargetAuthMode = "none" | "existing" | "basic" | "bearer";
 type OriginCredential = RuntimeCredentialMetadata & {
@@ -227,7 +228,7 @@ function ProjectHTTPTargetDialog({
         const credential = await createRuntimeCredential(
           api,
           request,
-          `create-project-target-${crypto.randomUUID()}`,
+          createMutationIdempotencyKey("create-project-target"),
         );
         createdCredentialID = credential.credentialId;
         target = normalizeProjectHTTPTarget({
@@ -289,21 +290,16 @@ function ProjectHTTPTargetDialog({
         if (!pending) onClose();
       }}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Project HTTP target</p>
-          <h2 id={heading}>Application access</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close target dialog"
-          disabled={pending}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Project HTTP target"
+        title="Application access"
+        close={{
+          label: "Close target dialog",
+          disabled: pending,
+          onClose: onClose,
+        }}
+      />
       <p className="muted-copy">
         The URL and credential reference are safe metadata. Secret material is
         write-only and reaches only matching HTTP-enabled allocations.

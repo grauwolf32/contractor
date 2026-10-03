@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import time
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -23,8 +22,9 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.lines import split_lines
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
     AnnotationTarget,
@@ -147,16 +147,14 @@ class TaintAnnotationsToolsetFactory:
         project_workspace: WorkspaceWriter | None = None,
     ) -> Mapping[str, Any]:
         del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
-        unavailable = sorted(set(selected) - self._available_tools)
-        if unavailable:
-            raise ValueError(
-                f"unavailable selected taint annotation tools: {', '.join(unavailable)}"
-            )
+        require_selected_tools(
+            selected,
+            self._available_tools,
+            description="unavailable selected taint annotation tools",
+        )
         if project_workspace is None:
             raise TaintAnnotationError("workspace_required")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("taint-annotations@1 requires State.metrics")
+        metrics = require_metrics(state, "taint-annotations@1")
         session = _TaintAnnotationSession(project_workspace)
         builders: dict[str, Callable[[], Any]] = {
             "annotate_trace": lambda: AnnotateTraceTool(session, metrics),
@@ -275,38 +273,23 @@ class _BaseAnnotationTool:
         if _valid_raw_arguments(self.name, args):
             return None
         error = TaintAnnotationError("taint_annotation_input_invalid")
-        self._record_failure(error, time.perf_counter_ns())
+        self._recorded().fail(error)
         return error
 
     async def _invoke(self, request_factory: Callable[[], _AnnotationRequest]) -> dict[str, Any]:
-        started = time.perf_counter_ns()
-        try:
+        with self._recorded() as call:
             request = request_factory()
             result = await self._session.annotate(request)
-            self._metrics.record_tool_call(
-                self.name,
-                arguments={},
-                result={"kind": self.kind, "changed": result["changed"]},
-                duration_ms=_elapsed_ms(started),
-            )
+            call.succeed({"kind": self.kind, "changed": result["changed"]})
             return result
-        except asyncio.CancelledError:
-            self._record_failure(
-                TaintAnnotationError("taint_annotation_cancelled", retryable=True),
-                started,
-            )
-            raise
-        except Exception as error:
-            bounded = _normalize_error(error)
-            self._record_failure(bounded, started)
-            raise bounded from None
 
-    def _record_failure(self, error: TaintAnnotationError, started: int) -> None:
-        self._metrics.record_tool_call(
+    def _recorded(self) -> RecordedToolCall:
+        return RecordedToolCall(
+            self._metrics,
             self.name,
-            arguments={},
-            error=error,
-            duration_ms=_elapsed_ms(started),
+            {},
+            bound_error=_normalize_error,
+            cancelled=lambda: TaintAnnotationError("taint_annotation_cancelled", retryable=True),
         )
 
 
@@ -778,7 +761,3 @@ def _parse_target_file(
 
 def _without_newline(value: str) -> str:
     return value.removesuffix("\n").removesuffix("\r")
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

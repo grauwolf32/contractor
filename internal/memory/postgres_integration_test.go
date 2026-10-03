@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -381,7 +382,7 @@ func (s *recordingMemoryStore) Write(
 		payload: artifacts.Payload{
 			MediaType: payload.MediaType, Data: append([]byte(nil), payload.Data...),
 		},
-		expectedRevision: cloneString(expectedRevision),
+		expectedRevision: clone.Pointer(expectedRevision),
 	}
 	s.writes = append(s.writes, attempt)
 	if s.beforeWrite != nil {

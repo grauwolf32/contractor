@@ -2,7 +2,9 @@ package scanplan
 
 import (
 	"encoding/json"
+	"maps"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -141,7 +143,7 @@ func (p *preparer) example(object map[string]any, schema any) (resultValue any, 
 	code := ""
 	if raw, exists := object["examples"]; exists {
 		if examples, ok := raw.(map[string]any); ok {
-			for _, name := range keys(examples) {
+			for _, name := range slices.Sorted(maps.Keys(examples)) {
 				if failure := p.valueWork(1); failure != "" {
 					return nil, false, failure
 				}
@@ -382,7 +384,7 @@ func (p *preparer) objectValue(object map[string]any, chain []string, depth int)
 		}
 	}
 	if properties, ok := object["properties"].(map[string]any); ok {
-		for _, name := range keys(properties) {
+		for _, name := range slices.Sorted(maps.Keys(properties)) {
 			value := p.schemaValue(properties[name], chain, depth+1, true)
 			if p.schemaExhausted || p.exhausted {
 				return value

@@ -2,8 +2,6 @@ package auditdomain
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,20 +14,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/documentnumber"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/ucarion/jcs"
 	"go.yaml.in/yaml/v4"
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
-
-func validDigest(value string) bool {
-	if len(value) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	suffix := strings.TrimPrefix(value, "sha256:")
-	decoded, err := hex.DecodeString(suffix)
-	return err == nil && hex.EncodeToString(decoded) == suffix
-}
 
 func canonicalJSON(value any) ([]byte, error) {
 	encoded, err := json.Marshal(value)
@@ -58,7 +48,7 @@ func decodeStrictJSON(data []byte, target any) (any, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(normalized))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil || requireJSONEOF(decoder) != nil {
+	if err := decoder.Decode(target); err != nil || strictjson.RequireEOF(decoder) != nil {
 		return nil, invalid(CodeInvalid, "json")
 	}
 	return value, nil
@@ -72,7 +62,7 @@ func parseStrictJSON(data []byte) (any, error) {
 // number bound as their YAML form, while canonical encodings of Server values
 // keep accepting every finite float64.
 func parseStrictJSONNumbers(data []byte, number func(string) (float64, bool)) (any, error) {
-	if len(data) == 0 || len(data) > MaximumDocumentBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 || !validJSONUnicodeEscapes(data) {
+	if len(data) == 0 || len(data) > MaximumDocumentBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 || !strictjson.ValidUnicodeEscapes(data) {
 		return nil, errors.New("invalid JSON bytes")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -82,75 +72,10 @@ func parseStrictJSONNumbers(data []byte, number func(string) (float64, bool)) (a
 	if err != nil {
 		return nil, err
 	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := strictjson.RequireEOF(decoder); err != nil {
 		return nil, err
 	}
 	return value, nil
-}
-
-func validJSONUnicodeEscapes(data []byte) bool {
-	inString := false
-	for index := 0; index < len(data); index++ {
-		switch data[index] {
-		case '"':
-			inString = !inString
-		case '\\':
-			if !inString {
-				continue
-			}
-			if index+1 >= len(data) {
-				return false
-			}
-			if data[index+1] != 'u' {
-				index++
-				continue
-			}
-			if index+5 >= len(data) {
-				return false
-			}
-			code, ok := parseHex16(data[index+2 : index+6])
-			if !ok {
-				return false
-			}
-			if code >= 0xdc00 && code <= 0xdfff {
-				return false
-			}
-			if code >= 0xd800 && code <= 0xdbff {
-				if index+11 >= len(data) || data[index+6] != '\\' || data[index+7] != 'u' {
-					return false
-				}
-				low, valid := parseHex16(data[index+8 : index+12])
-				if !valid || low < 0xdc00 || low > 0xdfff {
-					return false
-				}
-				index += 11
-				continue
-			}
-			index += 5
-		}
-	}
-	return !inString
-}
-
-func parseHex16(value []byte) (uint16, bool) {
-	if len(value) != 4 {
-		return 0, false
-	}
-	var result uint16
-	for _, character := range value {
-		result <<= 4
-		switch {
-		case character >= '0' && character <= '9':
-			result |= uint16(character - '0')
-		case character >= 'a' && character <= 'f':
-			result |= uint16(character-'a') + 10
-		case character >= 'A' && character <= 'F':
-			result |= uint16(character-'A') + 10
-		default:
-			return 0, false
-		}
-	}
-	return result, true
 }
 
 func finiteJSONNumber(text string) (float64, bool) {
@@ -228,17 +153,6 @@ func readJSONValue(decoder *json.Decoder, depth int, nodes *int, number func(str
 	default:
 		return nil, errors.New("invalid JSON token")
 	}
-}
-
-func requireJSONEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err != nil {
-			return err
-		}
-		return errors.New("multiple JSON values")
-	}
-	return nil
 }
 
 func parseJSONOrYAML(data []byte, mediaType string) (map[string]any, error) {

@@ -3,9 +3,13 @@ import { collectAuditPages } from "./audit-collections";
 import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
+
+// The OpenAPI AuditStandardRef identity patterns.
+export const AUDIT_STANDARD_SCHEME_PATTERN = /^[a-z][a-z0-9.-]{0,63}$/;
+export const AUDIT_STANDARD_VERSION_PATTERN =
+  /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
 
 // The profile endpoint has no search filter. Read the bounded batch of pages
 // before searching or grouping versions so presets on later pages remain
@@ -31,8 +35,8 @@ export async function getAuditStandard(
   signal?: AbortSignal,
 ): Promise<AuditStandard> {
   if (
-    !CONFIG_ID_PATTERN.test(scheme) ||
-    !CONFIG_VERSION_PATTERN.test(version)
+    !AUDIT_STANDARD_SCHEME_PATTERN.test(scheme) ||
+    !AUDIT_STANDARD_VERSION_PATTERN.test(version)
   ) {
     throw new TypeError("Audit standard identity is invalid");
   }

@@ -155,7 +155,7 @@ func TestAuditCompletionValidatesReachableEscalationConfiguration(t *testing.T) 
 	}
 	b := profile.Workflows["check"]
 	s := b.Workflow.Stages["check"]
-	policy := cloneModelPolicy(s.ExecutionConfig.Agents["checker"].ModelPolicy)
+	policy := s.ExecutionConfig.Agents["checker"].ModelPolicy.Clone()
 	variant := ResolvedEscalationExecutionConfig{Override: ResolvedStageExecutionConfigOverride{Agents: map[string]ResolvedExecutionSelectionOverride{"checker": {ModelPolicy: &policy}}}}
 	effective := s
 	effective.ExecutionConfig = cloneStageExecutionConfig(s.ExecutionConfig)

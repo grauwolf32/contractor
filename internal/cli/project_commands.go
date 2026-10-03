@@ -69,21 +69,13 @@ func (c *CLI) listProjects(ctx context.Context, client *publicclient.Client, pri
 		return err
 	}
 	page := response.JSON200
-	if printer.Mode() == OutputJSON {
-		return printer.JSON(page)
-	}
-	if printer.Mode() == OutputName {
-		names := make([]string, 0, len(page.Items))
-		for _, project := range page.Items {
-			names = append(names, project.ProjectId)
-		}
-		return printer.Names(names...)
-	}
-	rows := make([][]string, 0, len(page.Items))
-	for _, project := range page.Items {
-		rows = append(rows, projectRow(project))
-	}
-	return printer.Table([]string{"ID", "NAME", "KIND", "LIFECYCLE", "UPDATED"}, rows)
+	return List(printer, page, page.Items,
+		func(project publicapi.Project) string { return project.ProjectId },
+		[]string{"ID", "NAME", "KIND", "LIFECYCLE", "UPDATED"},
+		func(project publicapi.Project) []string {
+			return projectRow(project)
+		},
+	)
 }
 
 func (c *CLI) createProject(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {

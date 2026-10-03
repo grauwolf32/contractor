@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import time
 from typing import Any
 
 from google.adk.tools.tool_context import ToolContext
@@ -12,7 +11,7 @@ from pydantic import ValidationError
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.security_findings.classification import cwe_reference
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import (
@@ -52,8 +51,9 @@ class FindingPublisher:
         standard_refs: list[StandardReference] | None = None,
         request_id: int | None = None,
     ) -> dict[str, str]:
-        started = time.perf_counter_ns()
-        try:
+        with RecordedToolCall(
+            self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
+        ) as call:
             normalized = normalize_locations(locations)
             # ADK leaves the whole list as raw values if any model item fails
             # conversion. The submission validator supplies bounded repair text.
@@ -106,36 +106,8 @@ class FindingPublisher:
                 "receipt_id": str(receipt["receiptId"]),
                 "client_key": proposal["client_key"],
             }
-            self.metrics.record_tool_call(
-                "finding",
-                arguments={"location_count": len(normalized)},
-                result=result,
-                secrets=self.secrets,
-                duration_ms=_elapsed_ms(started),
-            )
+            call.succeed(result, arguments={"location_count": len(normalized)})
             return result
-        except (ValidationError, UnicodeError, ValueError) as error:
-            # Pydantic diagnostics include input values; never log captured
-            # Authorization/Cookie/body data when a validation check fails.
-            if isinstance(error, ToolInputError):
-                bounded = error
-            elif isinstance(error, ValidationError):
-                # Field paths and error codes are useful for repair. Never include
-                # Pydantic's input or context, which may contain request secrets.
-                problem = error.errors(include_input=False, include_context=False)[0]
-                field = ".".join(str(part) for part in problem["loc"]) or "finding"
-                bounded = ToolInputError(
-                    f"invalid {field}: {problem['type']}; check the tool schema"
-                )
-            else:
-                bounded = ToolInputError(
-                    "invalid finding; check coordinates, classification and evidence"
-                )
-            self._record_failure(bounded, started)
-            raise bounded from None
-        except Exception as error:
-            self._record_failure(error, started)
-            raise
 
     async def _http_evidence(
         self, request_id: int | None, invocation_id: str
@@ -154,18 +126,21 @@ class FindingPublisher:
                 "request_id is unavailable in this invocation; use a recent ID or omit it"
             ) from None
 
-    def _record_failure(self, error: Exception, started: int) -> None:
-        self.metrics.record_tool_call(
-            "finding",
-            arguments={},
-            error=error,
-            secrets=self.secrets,
-            duration_ms=_elapsed_ms(started),
-        )
-
     def close(self) -> None:
         self.secrets = ()
 
 
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
+def _bounded_finding_error(error: Exception) -> Exception:
+    # Pydantic diagnostics include input values; never log captured
+    # Authorization/Cookie/body data when a validation check fails.
+    if isinstance(error, ToolInputError) or not isinstance(
+        error, ValidationError | UnicodeError | ValueError
+    ):
+        return error
+    if isinstance(error, ValidationError):
+        # Field paths and error codes are useful for repair. Never include
+        # Pydantic's input or context, which may contain request secrets.
+        problem = error.errors(include_input=False, include_context=False)[0]
+        field = ".".join(str(part) for part in problem["loc"]) or "finding"
+        return ToolInputError(f"invalid {field}: {problem['type']}; check the tool schema")
+    return ToolInputError("invalid finding; check coordinates, classification and evidence")

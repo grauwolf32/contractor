@@ -7,7 +7,7 @@ import {
   type ExactArtifactRef,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
-import { PublicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { PROJECT_ID_PATTERN } from "./projects";
 import { RUN_ID_PATTERN } from "./runs";
@@ -86,11 +86,7 @@ function archiveURL(
 }
 
 function invalidResponse(): PublicAPIError {
-  return new PublicAPIError({
-    status: 0,
-    code: "invalid_api_response",
-    message: "Server returned an invalid archive preview",
-  });
+  return invalidAPIResponse(0, "Server returned an invalid archive preview");
 }
 
 function object(value: unknown): value is Record<string, unknown> {

@@ -2,9 +2,11 @@ package auditdomain
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -95,13 +97,13 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 		if !ok {
 			return Inventory{}, invalid(CodeInventoryInvalid, "webhooks")
 		}
-		for _, name := range sortedMapKeys(webhookMap) {
+		for _, name := range slices.Sorted(maps.Keys(webhookMap)) {
 			globalGaps = append(globalGaps, formatGap("unsupported-webhook", name))
 		}
 	}
 
 	operations := make([]openAPIOperation, 0)
-	for _, pathTemplate := range sortedMapKeys(paths) {
+	for _, pathTemplate := range slices.Sorted(maps.Keys(paths)) {
 		if strings.HasPrefix(strings.ToLower(pathTemplate), "x-") {
 			continue
 		}
@@ -169,11 +171,11 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 		}
 		task := &OperationTask{
 			Path: operation.path, Method: operation.method, OperationID: operation.operationID,
-			Resolved: cloneMap(operation.resolved), Gaps: copyStrings(operation.gaps),
+			Resolved: cloneMap(operation.resolved), Gaps: slices.Clone(operation.gaps),
 		}
 		subjects = append(subjects, inventorySubject{
 			itemKey: operationKey, kind: "operation-trace", subjectKey: operationKey,
-			operation: task, requested: []string{"operation-resolution"}, gaps: copyStrings(operation.gaps),
+			operation: task, requested: []string{"operation-resolution"}, gaps: slices.Clone(operation.gaps),
 		})
 	}
 	return finishInventory(source.raw, source.mediaType, basis, subjects, options)
@@ -211,7 +213,7 @@ func (r *openAPIResolver) buildOperation(
 		if !ok {
 			return openAPIOperation{}, invalid(CodeInventoryInvalid, "callbacks")
 		}
-		for _, name := range sortedMapKeys(callbackMap) {
+		for _, name := range slices.Sorted(maps.Keys(callbackMap)) {
 			result.gaps = append(result.gaps, formatGap("unsupported-callback", method+" "+pathTemplate+" "+name))
 		}
 		delete(selectedOperation, "callbacks")
@@ -406,7 +408,7 @@ func (r *openAPIResolver) resolveValue(value any, documentPath string, stack map
 				return resolved, nil
 			}
 			result = cloneMap(result)
-			for _, key := range sortedMapKeys(typed) {
+			for _, key := range slices.Sorted(maps.Keys(typed)) {
 				if key == "$ref" {
 					continue
 				}
@@ -419,7 +421,7 @@ func (r *openAPIResolver) resolveValue(value any, documentPath string, stack map
 			return result, nil
 		}
 		result := make(map[string]any, len(typed))
-		for _, key := range sortedMapKeys(typed) {
+		for _, key := range slices.Sorted(maps.Keys(typed)) {
 			child, err := r.resolveValue(typed[key], documentPath, stack, depth+1)
 			if err != nil {
 				return nil, err
@@ -554,7 +556,7 @@ func (r *openAPIResolver) collectUnselectedRemoteGaps(value any, documentPath, l
 				}
 			}
 		}
-		for _, key := range sortedMapKeys(typed) {
+		for _, key := range slices.Sorted(maps.Keys(typed)) {
 			r.collectUnselectedRemoteGaps(typed[key], documentPath, location+"/"+escapeJSONPointerToken(key), gaps, depth+1)
 		}
 	case []any:

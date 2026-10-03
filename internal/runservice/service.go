@@ -21,14 +21,6 @@ func New(options Options) (*Service, error) {
 	}, nil
 }
 
-func cloneParameters(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
-}
-
 func cloneRefs(source map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
 	result := make(map[string]contracts.ArtifactRef, len(source))
 	for name, ref := range source {
@@ -39,16 +31,4 @@ func cloneRefs(source map[string]contracts.ArtifactRef) map[string]contracts.Art
 		result[name] = ref
 	}
 	return result
-}
-
-func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	if source.Credential != nil {
-		credential := *source.Credential
-		result.Credential = &credential
-	}
-	return &result
 }

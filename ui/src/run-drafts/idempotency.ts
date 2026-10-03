@@ -1,68 +1,34 @@
 import type { CreateRunRequest } from "../api/workflows";
+import {
+  createMutationIdempotencyKey,
+  MutationDraftKeyring,
+} from "../mutations/idempotency";
 
-const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-
-function canonicalValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(canonicalValue);
-  }
-  if (typeof value === "object" && value !== null) {
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(value).sort()) {
-      const child = (value as Record<string, unknown>)[key];
-      if (child !== undefined) {
-        result[key] = canonicalValue(child);
-      }
-    }
-    return result;
-  }
-  return value;
-}
-
-export function canonicalRunRequest(request: CreateRunRequest): string {
-  return JSON.stringify(canonicalValue(request));
-}
-
-export function createRunIdempotencyKey(): string {
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-  const random = Array.from(bytes, (value) =>
-    value.toString(16).padStart(2, "0"),
-  ).join("");
-  return `run-ui-${random}`;
-}
-
+/**
+ * Keeps one idempotency key per exact Run request and creation endpoint, so a
+ * key is never reused across the standalone and Project endpoints.
+ */
 export class RunDraftKeyring {
-  readonly #generate: () => string;
-  #canonical: string | undefined;
-  #key: string | undefined;
+  readonly #keyring: MutationDraftKeyring<{
+    endpoint: string;
+    request: CreateRunRequest;
+  }>;
 
-  constructor(generate: () => string = createRunIdempotencyKey) {
-    this.#generate = generate;
+  constructor(
+    generate: () => string = () => createMutationIdempotencyKey("run"),
+  ) {
+    this.#keyring = new MutationDraftKeyring("run", generate);
   }
 
   keyFor(request: CreateRunRequest, endpointIdentity = "standalone"): string {
-    const canonical = `${endpointIdentity}\u0000${canonicalRunRequest(request)}`;
-    if (canonical === this.#canonical && this.#key !== undefined) {
-      return this.#key;
-    }
-    const key = this.#generate();
-    if (!IDEMPOTENCY_KEY_PATTERN.test(key)) {
-      throw new TypeError("Generated Run idempotency key is invalid");
-    }
-    this.#canonical = canonical;
-    this.#key = key;
-    return key;
+    return this.#keyring.keyFor({ endpoint: endpointIdentity, request });
   }
 
   matches(request: CreateRunRequest, endpointIdentity = "standalone"): boolean {
-    return (
-      `${endpointIdentity}\u0000${canonicalRunRequest(request)}` ===
-      this.#canonical
-    );
+    return this.#keyring.matches({ endpoint: endpointIdentity, request });
   }
 
   hasSubmission(): boolean {
-    return this.#canonical !== undefined && this.#key !== undefined;
+    return this.#keyring.hasSubmission();
   }
 }

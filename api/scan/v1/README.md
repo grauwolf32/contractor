@@ -1,7 +1,8 @@
 # Scan artifacts v1
 
 This directory defines [HTTPRequestSet](http-request-set.schema.json) and
-[ScanPlan](scan-plan.schema.json) structural schemas.
+[ScanPlan](scan-plan.schema.json) structural schemas, and the
+[Worker error code table](testdata/worker-error-codes.json).
 
 ## HTTPRequestSet
 
@@ -98,3 +99,14 @@ revisions and physical allocations are excluded from semantic job identity.
 fixed Worker bindings, SQLMap/ffuf materialization, durable intent, aggregate
 coverage and recovery behavior. Recovery preserves completed and unknown job
 outcomes instead of silently rescanning them.
+
+## Worker error codes
+
+A scan Worker observation reports `status: completed|failed` and a nullable
+`errorCode`. [worker-error-codes.json](testdata/worker-error-codes.json) lists
+every code the Runtime scan tools emit, an example `exitCode` and the job
+outcome the Planner records for it: scanner absence is `unavailable`;
+pre-launch refusals, timeouts, truncation and malformed output are
+`incomplete`; a scanner that ran and reported failure is `failed`. The Planner
+treats an unlisted code as an invalid report. Go, Runtime and UI tests read the
+same table, so adding a code requires registering its outcome here.

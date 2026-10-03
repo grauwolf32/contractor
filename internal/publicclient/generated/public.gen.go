@@ -26994,6 +26994,7 @@ func (r ListArtifactsResponse) ContentType() string {
 
 // DownloadArtifactResponse200Headers the declared response headers of an HTTP 200 response for DownloadArtifact
 type DownloadArtifactResponse200Headers struct {
+	CacheControl       string
 	ContentDisposition *string
 	ContentLength      int
 	ETag               string
@@ -39651,6 +39652,7 @@ func (r ListProjectArtifactsResponse) ContentType() string {
 
 // DownloadProjectArtifactResponse200Headers the declared response headers of an HTTP 200 response for DownloadProjectArtifact
 type DownloadProjectArtifactResponse200Headers struct {
+	CacheControl       string
 	ContentDisposition *string
 	ContentLength      int
 	ETag               string
@@ -42984,6 +42986,7 @@ func (r ListRunArtifactsResponse) ContentType() string {
 
 // DownloadRunArtifactResponse200Headers the declared response headers of an HTTP 200 response for DownloadRunArtifact
 type DownloadRunArtifactResponse200Headers struct {
+	CacheControl       string
 	ContentDisposition *string
 	ContentLength      int
 	ETag               string
@@ -44013,6 +44016,7 @@ func (r ListRunFindingProposalsResponse) ContentType() string {
 
 // DownloadRunOutputResponse200Headers the declared response headers of an HTTP 200 response for DownloadRunOutput
 type DownloadRunOutputResponse200Headers struct {
+	CacheControl       string
 	ContentDisposition *string
 	ContentLength      int
 	ETag               string
@@ -47568,6 +47572,13 @@ func ParseDownloadArtifactResponse(rsp *http.Response) (*DownloadArtifactRespons
 	switch {
 	case rsp.StatusCode == 200:
 		var headers DownloadArtifactResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
 		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
@@ -63147,6 +63158,13 @@ func ParseDownloadProjectArtifactResponse(rsp *http.Response) (*DownloadProjectA
 	switch {
 	case rsp.StatusCode == 200:
 		var headers DownloadProjectArtifactResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
 		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
@@ -67185,6 +67203,13 @@ func ParseDownloadRunArtifactResponse(rsp *http.Response) (*DownloadRunArtifactR
 	switch {
 	case rsp.StatusCode == 200:
 		var headers DownloadRunArtifactResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
 		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
@@ -68409,6 +68434,13 @@ func ParseDownloadRunOutputResponse(rsp *http.Response) (*DownloadRunOutputRespo
 	switch {
 	case rsp.StatusCode == 200:
 		var headers DownloadRunOutputResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
 		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import type { Audit } from "../../../api/audits";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { AuditMutationNotice } from "./controls";
 
 export function AuditTimeLimitDialog({
@@ -53,21 +53,16 @@ export function AuditTimeLimitDialog({
           if (valid && !pending) onConfirm(seconds);
         }}
       >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Execution time</p>
-            <h2 id={heading}>{title}</h2>
-          </div>
-          <button
-            type="button"
-            className="project-dialog-close"
-            aria-label="Close Audit time settings"
-            disabled={pending}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
+        <DialogHeader
+          id={heading}
+          eyebrow="Execution time"
+          title={title}
+          close={{
+            label: "Close Audit time settings",
+            disabled: pending,
+            onClose: onClose,
+          }}
+        />
         <p>
           {action === "start"
             ? "Choose how long this audit may submit new Runs."

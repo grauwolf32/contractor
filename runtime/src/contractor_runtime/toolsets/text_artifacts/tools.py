@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -13,20 +12,18 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import (
-    artifact_observation_cursor,
-    clear_artifact_observations,
-    model_visible_exact_refs,
-    model_visible_observations_since,
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _reject_unconfigured_client,
-    gateway_secrets,
+    runtime_secrets,
 )
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_TEXT_WRITE_BYTES = 1024 * 1024
@@ -62,14 +59,10 @@ class TextArtifactsToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, adapter_handles
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("text-artifacts@1 requires State.metrics")
+        require_selected_tools(selected, self.exported_tools)
+        metrics = require_metrics(state, "text-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
-        secrets = gateway_secrets(runtime_settings)
+        secrets = runtime_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "read_text_artifact": lambda: ReadTextArtifactTool(client, metrics, secrets),
             "write_text_artifact": lambda: WriteTextArtifactTool(
@@ -79,61 +72,7 @@ class TextArtifactsToolsetFactory:
         return {name: builders[name]() for name in selected}
 
 
-class _BaseTextTool:
-    name: str
-    description: str
-
-    def __init__(
-        self,
-        client: ArtifactClient,
-        metrics: ToolMetrics,
-        secrets: tuple[str, ...],
-    ) -> None:
-        self._client = client
-        self._metrics = metrics
-        self._secrets = secrets
-        self.__name__ = self.name
-        self.__doc__ = self.description
-
-    @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
-
-    @property
-    def artifact_observation_cursor(self) -> int:
-        return artifact_observation_cursor(self._client)
-
-    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
-        return model_visible_observations_since(self._client, cursor)
-
-    def clear_artifact_observations(self) -> None:
-        clear_artifact_observations(self._client)
-
-    async def close(self) -> None:
-        self._secrets = ()
-
-    def _success(
-        self, arguments: Mapping[str, Any], result: Mapping[str, Any], started_ns: int
-    ) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            result=result,
-            secrets=self._secrets,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-    def _failure(self, arguments: Mapping[str, Any], error: Exception, started_ns: int) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            error=error,
-            secrets=self._secrets,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-
-class ReadTextArtifactTool(_BaseTextTool):
+class ReadTextArtifactTool(ArtifactTool):
     name = "read_text_artifact"
     description = """Read a bounded UTF-8 line window from an artifact in this Workflow Run.
 
@@ -167,7 +106,6 @@ class ReadTextArtifactTool(_BaseTextTool):
         max_lines: int = DEFAULT_TEXT_READ_LINES,
         line_offset: int = 0,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "namespace": namespace,
             "name": name,
@@ -176,7 +114,7 @@ class ReadTextArtifactTool(_BaseTextTool):
             "max_lines": max_lines,
             "line_offset": line_offset,
         }
-        try:
+        with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
             _validate_line_window(start_line, max_lines)
             if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
@@ -211,8 +149,7 @@ class ReadTextArtifactTool(_BaseTextTool):
                 "nextStartLine": window.next_start_line if truncated else None,
                 "nextLineOffset": window.next_line_offset if truncated else None,
             }
-            self._success(
-                arguments,
+            call.succeed(
                 {
                     "artifact": result["artifact"],
                     "mediaType": value.media_type,
@@ -223,16 +160,12 @@ class ReadTextArtifactTool(_BaseTextTool):
                     "visibleUtf8Bytes": len(selected.encode("utf-8")),
                     "truncated": truncated,
                     "partialLine": partial_line,
-                },
-                started_ns,
+                }
             )
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            raise
 
 
-class WriteTextArtifactTool(_BaseTextTool):
+class WriteTextArtifactTool(ArtifactTool):
     name = "write_text_artifact"
     description = """Create or update a UTF-8 artifact in the Worker's fixed namespace.
 
@@ -267,14 +200,13 @@ class WriteTextArtifactTool(_BaseTextTool):
         media_type: str,
         expected_revision: str | None = None,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "name": name,
             "media_type": media_type,
             "expected_revision": expected_revision,
             "content": text,
         }
-        try:
+        with self._recorded(arguments) as call:
             if not isinstance(text, str):
                 raise ToolInputError("text must be a string")
             try:
@@ -292,19 +224,14 @@ class WriteTextArtifactTool(_BaseTextTool):
                 expected_revision=expected_revision,
             )
             serialized = result.model_dump(by_alias=True)
-            self._success(
-                arguments,
+            call.succeed(
                 {
                     "artifact": serialized["artifact"],
                     "mediaType": result.media_type,
                     "size": result.size,
-                },
-                started_ns,
+                }
             )
             return serialized
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            raise
 
 
 def _validate_line_window(start_line: int, max_lines: int) -> None:
@@ -364,7 +291,3 @@ def _bounded_lines(
         break
     end_line = start_line + len(result) - 1
     return _LineWindow(b"".join(result).decode("utf-8"), end_line, False, end_line + 1, 0)
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

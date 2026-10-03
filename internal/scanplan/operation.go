@@ -1,8 +1,10 @@
 package scanplan
 
 import (
+	"maps"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,7 +31,7 @@ func (p *preparer) prepareOperation(path, method string, item, op map[string]any
 	headers := map[string]string{}
 	query := url.Values{}
 	cookies := map[string]string{}
-	for _, key := range keys(parameters) {
+	for _, key := range slices.Sorted(maps.Keys(parameters)) {
 		param := parameters[key]
 		name := param["name"].(string)
 		location := param["in"].(string)
@@ -128,7 +130,7 @@ func (p *preparer) prepareOperation(path, method string, item, op map[string]any
 			return empty, "authentication_collision"
 		}
 		values := []string{}
-		for _, name := range keys(cookies) {
+		for _, name := range slices.Sorted(maps.Keys(cookies)) {
 			values = append(values, name+"="+cookies[name])
 		}
 		headers["cookie"] = strings.Join(values, "; ")
@@ -141,7 +143,7 @@ func preparedRequestURL(server, path string, query url.Values, method string, he
 	if len(query) > 0 {
 		request.URL += "?" + strings.ReplaceAll(query.Encode(), "+", "%20")
 	}
-	for _, name := range keys(headers) {
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
 		request.Headers = append(request.Headers, contracts.HTTPRequestHeader{Name: name, Value: headers[name]})
 	}
 	if request.Validate() != nil {
@@ -340,7 +342,7 @@ func (p *preparer) body(op map[string]any, input *BodyInput, pointer string) (st
 		return omitOrFail("invalid_body")
 	}
 	lastCode := "unsupported_body_media_type"
-	for _, mediaType := range keys(content) {
+	for _, mediaType := range slices.Sorted(maps.Keys(content)) {
 		if mediaType != "application/json" && mediaType != "text/plain" {
 			continue
 		}

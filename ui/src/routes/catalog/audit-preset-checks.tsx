@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getAuditStandard, type AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { queryKeys } from "../../api/query-keys";
 
 export function SourceLink({
   url,
@@ -193,7 +194,10 @@ export function AuditPresetStandardChecks({
 }) {
   const api = usePublicAPI();
   const query = useQuery({
-    queryKey: ["audit-standards", reference.scheme, reference.version],
+    queryKey: queryKeys.catalog.auditStandard(
+      reference.scheme,
+      reference.version,
+    ),
     queryFn: ({ signal }) =>
       getAuditStandard(api, reference.scheme, reference.version, signal),
   });

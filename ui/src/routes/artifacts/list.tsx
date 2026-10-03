@@ -1,54 +1,34 @@
 import { useDocumentTitle } from "../../app/document-title";
-import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
-import {
-  ARTIFACT_NAME_PATTERN,
-  listArtifacts,
-  type ArtifactWriteResponse,
-} from "../../api/artifacts";
+import { listArtifacts, type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import {
-  ArtifactWriteForm,
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-} from "./common";
-import { Dialog } from "../../app/dialog";
+import { ArtifactWriteForm } from "./common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { RefreshButton } from "../../app/refresh-button";
-import { RecordedTime } from "../../app/recorded-time";
+import { QueryView } from "../../app/query-view";
+import { ArtifactBindingsTable, ArtifactStoredNotice } from "./bindings";
+import { useNamespaceFilter } from "./namespace-filter";
+import { artifactDetailPath } from "./paths";
 
 const EXCLUDED_SKILL_NAMESPACE = "skills";
+const USER_SCOPE = { kind: "user" } as const;
 
 export function ArtifactListRoute() {
   useDocumentTitle("Artifacts");
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const namespace = filters.get("namespace") || undefined;
-  const cursors: Array<string | undefined> = [
-    undefined,
-    ...filters.getAll("cursor"),
-  ];
-  function setCursors(
-    update:
-      | Array<string | undefined>
-      | ((current: Array<string | undefined>) => Array<string | undefined>),
-  ) {
-    const nextCursors = typeof update === "function" ? update(cursors) : update;
-    const next = new URLSearchParams(filters);
-    next.delete("cursor");
-    for (const cursor of nextCursors)
-      if (cursor !== undefined) next.append("cursor", cursor);
-    setFilters(next, { preventScrollReset: true });
-  }
-  const [filterError, setFilterError] = useState<string | null>(null);
+  const pages = useURLCursorStack();
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const uploadHeading = useId();
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.artifacts.list(
       namespace,
@@ -63,22 +43,16 @@ export function ArtifactListRoute() {
       }),
   });
 
-  function applyFilter(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const candidate = String(
-      new FormData(event.currentTarget).get("namespaceFilter") ?? "",
-    ).trim();
-    if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
-      setFilterError("Namespace filter is not a valid Artifact name.");
-      return;
-    }
-    setFilterError(null);
-    const next = new URLSearchParams(filters);
-    next.delete("cursor");
-    if (candidate === "") next.delete("namespace");
-    else next.set("namespace", candidate);
-    setFilters(next, { preventScrollReset: true });
-  }
+  const namespaceFilter = useNamespaceFilter({
+    value: namespace,
+    onApply: (candidate) => {
+      const next = new URLSearchParams(filters);
+      next.delete("cursor");
+      if (candidate === undefined) next.delete("namespace");
+      else next.set("namespace", candidate);
+      setFilters(next, { preventScrollReset: true });
+    },
+  });
 
   return (
     <section className="route-page artifact-page">
@@ -107,20 +81,15 @@ export function ArtifactListRoute() {
           labelledBy={uploadHeading}
           onRequestClose={() => setUploadOpen(false)}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">New Artifact</p>
-              <h2 id={uploadHeading}>Upload Artifact</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label="Close Upload Artifact form"
-              onClick={() => setUploadOpen(false)}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={uploadHeading}
+            eyebrow="New Artifact"
+            title="Upload Artifact"
+            close={{
+              label: "Close Upload Artifact form",
+              onClose: () => setUploadOpen(false),
+            }}
+          />
           <ArtifactWriteForm
             excludedNamespace={{
               namespace: EXCLUDED_SKILL_NAMESPACE,
@@ -131,23 +100,19 @@ export function ArtifactListRoute() {
             onCancel={() => setUploadOpen(false)}
             onWritten={(result) => {
               setWritten(result);
-              setCursors([undefined]);
+              pages.reset();
               setUploadOpen(false);
             }}
           />
         </Dialog>
       ) : null}
       {written === null ? null : (
-        <div className="notice notice-success" role="status">
-          <strong>Artifact revision stored.</strong>
-          <ContextLink
-            returnLabel="Artifacts"
-            to={`/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
-          >
-            Open {written.artifact.namespace}/{written.artifact.name}@
-            {written.artifact.revision}
-          </ContextLink>
-        </div>
+        <ArtifactStoredNotice
+          title="Artifact revision stored."
+          artifact={written.artifact}
+          returnLabel="Artifacts"
+          to={artifactDetailPath(USER_SCOPE, written.artifact)}
+        />
       )}
 
       <div className="panel artifact-library">
@@ -160,92 +125,39 @@ export function ArtifactListRoute() {
               <Link to="/catalog/skills">Skills</Link> tab.
             </small>
           </div>
-          <form className="inline-form" onSubmit={applyFilter}>
-            <label>
-              Namespace
-              <input
-                name="namespaceFilter"
-                placeholder="all namespaces"
-                key={namespace ?? ""}
-                defaultValue={namespace ?? ""}
-              />
-            </label>
-            <button className="secondary-button" type="submit">
-              Apply
-            </button>
-          </form>
+          {namespaceFilter.form}
         </div>
-        {filterError === null ? null : (
-          <p className="form-error" role="alert">
-            {filterError}
-          </p>
-        )}
-        {query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading Artifact bindings…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice
-            error={query.error}
-            context="Could not load Artifact bindings"
-            onRetry={() => void query.refetch()}
-            retryPending={query.isFetching}
-          />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Artifact bindings found.</strong>
-            <p>Upload the first Workflow input above.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td data-label="Binding">
-                      <ContextLink
-                        returnLabel="Artifacts"
-                        to={`/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
-                    </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      <RecordedTime value={item.createdAt} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {namespaceFilter.error}
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Artifact bindings…
+            </p>
+          }
+          errorContext="Could not load Artifact bindings"
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No Artifact bindings found.</strong>
+              <p>Upload the first Workflow input above.</p>
+            </div>
+          }
+        >
+          {(queryData) => (
+            <ArtifactBindingsTable
+              items={queryData.items}
+              returnLabel="Artifacts"
+              detailPath={(item) =>
+                artifactDetailPath(USER_SCOPE, item.artifact)
+              }
+            />
+          )}
+        </QueryView>
         <CursorControls
           label="Artifact binding pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </section>

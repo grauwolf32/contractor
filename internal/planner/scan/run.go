@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -135,7 +136,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 			if ref == nil {
 				return emptyPlan, emptyState, scanError("scan_source_unavailable", nil)
 			}
-			wordlists[tool.WordlistArtifact] = planner.CloneArtifactRef(*ref)
+			wordlists[tool.WordlistArtifact] = ref.Clone()
 		}
 	}
 	plan, err := scanplan.BuildPlan(scanplan.PlanInput{Artifact: *source, MediaType: payload.MediaType, Data: payload.Data}, policy, bindings, wordlists)
@@ -149,7 +150,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 	state := start.State
 	if state.Plan != nil {
 		frozen, err := p.factory.artifacts.Read(ctx, p.invocation.RunID, *state.Plan, scanplan.MaxPlanBytes)
-		if err != nil || frozen.MediaType != scanplan.PlanMediaType || state.PlanDigest != "sha256:"+stableHash(string(data)) || !bytes.Equal(frozen.Data, data) || len(state.Jobs) != len(plan.Jobs) {
+		if err != nil || frozen.MediaType != scanplan.PlanMediaType || state.PlanDigest != contentdigest.Bytes(data) || !bytes.Equal(frozen.Data, data) || len(state.Jobs) != len(plan.Jobs) {
 			return emptyPlan, emptyState, scanError("scan_saved_plan_invalid", err)
 		}
 		for i, job := range plan.Jobs {
@@ -167,7 +168,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 	if err != nil {
 		return emptyPlan, emptyState, scanError("scan_plan_write_failed", err)
 	}
-	state = planner.ScanState{Plan: &planRef, PlanDigest: "sha256:" + stableHash(string(data)), Jobs: []planner.ScanJobRecord{}}
+	state = planner.ScanState{Plan: &planRef, PlanDigest: contentdigest.Bytes(data), Jobs: []planner.ScanJobRecord{}}
 	for _, job := range plan.Jobs {
 		inputs, err := p.materialize(ctx, job)
 		if err != nil {
@@ -184,7 +185,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJob, record planner.ScanJobRecord) error {
 	expected := map[string]contracts.ArtifactRef{}
 	for name, ref := range job.Artifacts {
-		expected[name] = planner.CloneArtifactRef(ref)
+		expected[name] = ref.Clone()
 	}
 	if job.Request != nil {
 		binding := job.Execution.Arguments["request_ref"]
@@ -212,7 +213,7 @@ func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJo
 func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[string]contracts.ArtifactRef, error) {
 	inputs := map[string]contracts.ArtifactRef{}
 	for name, ref := range job.Artifacts {
-		inputs[name] = planner.CloneArtifactRef(ref)
+		inputs[name] = ref.Clone()
 	}
 	if job.Request != nil {
 		data, err := contracts.MarshalPrivateCanonical(job.Request)

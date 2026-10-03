@@ -102,7 +102,7 @@ func (s *RuntimeCredentialService) Create(
 		if sealErr != nil {
 			return sealErr
 		}
-		createdAt := runtimeDatabaseTime(s.now())
+		createdAt := persistencepostgres.Timestamp(s.now())
 		record := RuntimeCredentialRecord{
 			Metadata: RuntimeCredentialMetadata{
 				CredentialID: request.CredentialID, Kind: request.Material.kind,
@@ -296,7 +296,7 @@ func (s *RuntimeCredentialService) Delete(
 			return &RuntimeCredentialInUseError{Usage: usage}
 		}
 		inserted, insertErr := s.repository.InsertTombstone(ctx, RuntimeCredentialTombstone{
-			CredentialID: credentialID, ActorID: actor, DeletedAt: runtimeDatabaseTime(s.now()),
+			CredentialID: credentialID, ActorID: actor, DeletedAt: persistencepostgres.Timestamp(s.now()),
 		})
 		if insertErr != nil {
 			return insertErr

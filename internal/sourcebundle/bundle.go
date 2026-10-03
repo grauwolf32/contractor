@@ -4,8 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/flate"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +18,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
@@ -113,10 +112,9 @@ func Build(source string, options Options) (Bundle, error) {
 		return Bundle{}, archiveError(err)
 	}
 	payload := append([]byte(nil), buffer.Bytes()...)
-	digest := sha256.Sum256(payload)
 	return Bundle{
 		Data: payload, Files: len(files), ExpandedBytes: expanded,
-		SHA256:              "sha256:" + hex.EncodeToString(digest[:]),
+		SHA256:              contentdigest.Bytes(payload),
 		SkippedRepositories: skipped,
 	}, nil
 }

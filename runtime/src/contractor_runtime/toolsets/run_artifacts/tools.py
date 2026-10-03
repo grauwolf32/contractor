@@ -4,30 +4,26 @@ from __future__ import annotations
 
 import base64
 import binascii
-import time
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
+from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import (
-    artifact_observation_cursor,
-    clear_artifact_observations,
     is_model_hidden_binding,
-    model_visible_exact_refs,
-    model_visible_observations_since,
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    gateway_secrets,
+    runtime_secrets,
 )
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_BASE64_PAYLOAD_LENGTH = ((MAX_ARTIFACT_BYTES + 2) // 3) * 4
@@ -59,14 +55,10 @@ class RunArtifactsToolsetFactory:
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del adapter_handles
-        unknown = sorted(set(selected) - self.exported_tools)
-        if unknown:
-            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
-        metrics = getattr(state, "metrics", None)
-        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
-            raise TypeError("run-artifacts@1 requires State.metrics")
+        require_selected_tools(selected, self.exported_tools)
+        metrics = require_metrics(state, "run-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
-        secrets = gateway_secrets(runtime_settings)
+        secrets = runtime_secrets(runtime_settings)
         builders = {
             "list_artifacts": lambda: ListArtifactsTool(client, metrics, secrets),
             "read_artifact": lambda: ReadArtifactTool(client, metrics, secrets),
@@ -75,62 +67,7 @@ class RunArtifactsToolsetFactory:
         return {name: builders[name]() for name in selected}
 
 
-class _BaseTool:
-    name: str
-    description: str
-
-    def __init__(
-        self,
-        client: ArtifactClient,
-        metrics: ToolMetrics,
-        secrets: tuple[str, ...],
-    ) -> None:
-        self._client = client
-        self._metrics = metrics
-        self._secrets = secrets
-        self.__name__ = self.name
-        self.__doc__ = self.description
-
-    @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        value = getattr(self._client, "known_exact_refs", ())
-        return model_visible_exact_refs(value)
-
-    @property
-    def artifact_observation_cursor(self) -> int:
-        return artifact_observation_cursor(self._client)
-
-    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
-        return model_visible_observations_since(self._client, cursor)
-
-    def clear_artifact_observations(self) -> None:
-        clear_artifact_observations(self._client)
-
-    async def close(self) -> None:
-        self._secrets = ()
-
-    def _success(
-        self, arguments: Mapping[str, Any], result: Mapping[str, Any], started_ns: int
-    ) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            result=result,
-            secrets=self._secrets,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-    def _failure(self, arguments: Mapping[str, Any], error: Exception, started_ns: int) -> None:
-        self._metrics.record_tool_call(
-            self.name,
-            arguments=arguments,
-            error=error,
-            secrets=self._secrets,
-            duration_ms=_elapsed_ms(started_ns),
-        )
-
-
-class ListArtifactsTool(_BaseTool):
+class ListArtifactsTool(ArtifactTool):
     name = "list_artifacts"
     description = """List current artifact references visible in this Workflow Run.
 
@@ -142,9 +79,8 @@ class ListArtifactsTool(_BaseTool):
     """
 
     async def __call__(self, namespace: str | None = None) -> list[dict[str, Any]]:
-        started_ns = time.perf_counter_ns()
         arguments = {"namespace": namespace}
-        try:
+        with self._recorded(arguments) as call:
             if namespace == "skills":
                 require_model_visible_binding(namespace, "selected")
             refs = await self._client.list_artifacts(namespace)
@@ -153,14 +89,11 @@ class ListArtifactsTool(_BaseTool):
                 for ref in refs
                 if not is_model_hidden_binding(ref.namespace, ref.name)
             ]
-            self._success(arguments, {"count": len(result)}, started_ns)
+            call.succeed({"count": len(result)})
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            raise
 
 
-class ReadArtifactTool(_BaseTool):
+class ReadArtifactTool(ArtifactTool):
     name = "read_artifact"
     description = """Read artifact bytes from this Workflow Run as base64, in pages.
 
@@ -190,7 +123,6 @@ class ReadArtifactTool(_BaseTool):
         offset: int = 0,
         length: int = MAX_READ_CHUNK_BYTES,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "namespace": namespace,
             "name": name,
@@ -198,7 +130,7 @@ class ReadArtifactTool(_BaseTool):
             "offset": offset,
             "length": length,
         }
-        try:
+        with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
             if type(offset) is not int or offset < 0:
                 raise ToolInputError("offset must be a non-negative integer")
@@ -223,8 +155,7 @@ class ReadArtifactTool(_BaseTool):
                 "hasMore": end < size,
                 "nextOffset": end if end < size else None,
             }
-            self._success(
-                arguments,
+            call.succeed(
                 {
                     "artifact": result["artifact"],
                     "mediaType": value.media_type,
@@ -232,16 +163,12 @@ class ReadArtifactTool(_BaseTool):
                     "offset": offset,
                     "length": len(chunk),
                     "hasMore": result["hasMore"],
-                },
-                started_ns,
+                }
             )
             return result
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            raise
 
 
-class WriteArtifactTool(_BaseTool):
+class WriteArtifactTool(ArtifactTool):
     name = "write_artifact"
     description = """Create or update an artifact in this Workflow Run from base64 bytes.
 
@@ -268,7 +195,6 @@ class WriteArtifactTool(_BaseTool):
         data_base64: str,
         expected_revision: str | None = None,
     ) -> dict[str, Any]:
-        started_ns = time.perf_counter_ns()
         arguments = {
             "namespace": namespace,
             "name": name,
@@ -276,7 +202,7 @@ class WriteArtifactTool(_BaseTool):
             "data_base64": data_base64,
             "expected_revision": expected_revision,
         }
-        try:
+        with self._recorded(arguments) as call:
             require_model_visible_binding(namespace, name)
             if not isinstance(data_base64, str):
                 raise ToolInputError("data_base64 must be a canonical base64 string")
@@ -295,20 +221,11 @@ class WriteArtifactTool(_BaseTool):
                 expected_revision=expected_revision,
             )
             serialized = result.model_dump(by_alias=True)
-            self._success(
-                arguments,
+            call.succeed(
                 {
                     "artifact": serialized["artifact"],
                     "mediaType": result.media_type,
                     "size": result.size,
-                },
-                started_ns,
+                }
             )
             return serialized
-        except Exception as error:
-            self._failure(arguments, error, started_ns)
-            raise
-
-
-def _elapsed_ms(started_ns: int) -> int:
-    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)
