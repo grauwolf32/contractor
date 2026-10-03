@@ -683,7 +683,7 @@ def _extract_archive(data: bytes, staging: Path) -> tuple[list[_SourceFile], int
             for info in entries:
                 normalized = _validated_member_path(info.filename)
                 if info.is_dir():
-                    if _is_ignored_path(normalized):
+                    if _is_ignored_path(normalized, is_dir=True):
                         ignored_count += 1
                     continue
                 if (
@@ -778,8 +778,9 @@ def _read_member_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> byt
     return payload
 
 
-def _is_ignored_path(path: str) -> bool:
-    return any(part in IGNORED_DIRECTORY_NAMES for part in PurePosixPath(path).parts)
+def _is_ignored_path(path: str, *, is_dir: bool = False) -> bool:
+    parts = PurePosixPath(path).parts
+    return any(part in IGNORED_DIRECTORY_NAMES for part in (parts if is_dir else parts[:-1]))
 
 
 def _validate_pattern(pattern: str) -> None:
