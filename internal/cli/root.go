@@ -67,17 +67,16 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 		return &UsageError{Message: fmt.Sprintf("unknown command %q", command)}
 	}
 
-	configPath, err := DefaultContextPath(c.getenv)
-	if err != nil {
-		return err
-	}
-	store := NewContextStore(configPath)
 	if command == "context" || command == "contexts" {
-		return c.runContext(ctx, store, printer, commandArgs, options.timeout)
+		configPath, err := DefaultContextPath(c.getenv)
+		if err != nil {
+			return err
+		}
+		return c.runContext(ctx, NewContextStore(configPath), printer, commandArgs, options.timeout)
 	}
 
 	options.transfer = transferCommand(command, commandArgs)
-	client, selected, err := c.client(options, store)
+	client, selected, err := c.client(options)
 	if err != nil {
 		return err
 	}
@@ -195,10 +194,14 @@ func (c *CLI) parseGlobal(args []string) (globalOptions, string, []string, error
 	return options, remaining[0], remaining[1:], nil
 }
 
-func (c *CLI) client(options globalOptions, store *ContextStore) (*publicclient.Client, string, error) {
+func (c *CLI) client(options globalOptions) (*publicclient.Client, string, error) {
 	selected := "direct"
 	if options.contextName != "" || options.server == "" {
-		config, err := store.Load()
+		configPath, err := DefaultContextPath(c.getenv)
+		if err != nil {
+			return nil, "", err
+		}
+		config, err := NewContextStore(configPath).Load()
 		if err != nil {
 			return nil, "", err
 		}
