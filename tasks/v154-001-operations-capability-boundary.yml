@@ -3,7 +3,8 @@ id: V154-001
 title: Enforce Operations capability across management routes
 milestone: operations-capability-boundary-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6b33b34862f329297747ab73ff3a84071c16f965
 depends_on: [V153-001]
 languages: [go]
 goal: Require the Operations capability before any management request reaches its handler.
