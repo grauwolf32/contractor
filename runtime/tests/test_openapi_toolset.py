@@ -11,11 +11,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 import yaml
+from document_write_faults import FaultInjectingArtifactClient
 
 import contractor_runtime.toolsets.openapi.tools as openapi_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
+    ArtifactAPIError,
     ArtifactResponseLimitError,
     ArtifactValue,
 )
@@ -27,6 +29,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.openapi.tools import (
     MAX_DOCUMENT_BYTES,
     MAX_DOCUMENT_DEPTH,
@@ -34,6 +37,7 @@ from contractor_runtime.toolsets.openapi.tools import (
     _run_vacuum,
     _validate_json_tree,
 )
+from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "openapi-tool-recognizable-secret"
@@ -955,6 +959,81 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
         "read_openapi_document",
         "validate_openapi",
     }
+
+
+@pytest.mark.parametrize("failure", ["lost_transport", "lost_500"])
+def test_openapi_ambiguous_mutation_adopts_committed_revision(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Initial")
+        client.failure = failure
+        before = len(client.attempts)
+        changed = await tools["set_openapi_info"]("Updated")
+        assert changed["artifact"]["revision"] == "revision-2"
+        assert client.inner.write_count == 2
+        assert client.attempts[before:] == [client.attempts[before]] * 2
+        read = await tools["read_openapi_document"]()
+        assert yaml.safe_load(read["document"])["info"]["title"] == "Updated"
+        assert read["artifact"]["revision"] == "revision-2"
+        later = await tools["set_openapi_servers"]([{"url": "https://api.example.test"}])
+        assert later["artifact"]["revision"] == "revision-3"
+        assert client.inner.write_count == 3
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["conflict", "diverged"])
+def test_openapi_concurrent_change_requires_reload(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Initial")
+        client.concurrent_data = yaml.safe_dump(minimal_document("Concurrent")).encode()
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["set_openapi_info"]("Mine")
+        assert rejected.value.code == "document_changed"
+        assert rejected.value.retryable is False
+        assert "load_openapi" in str(rejected.value)
+        assert "read_openapi_document" in str(rejected.value)
+        visible = _safe_tool_response("set_openapi_info", rejected.value)["error"]
+        assert visible["code"] == "document_changed" and visible["retryable"] is False
+        assert "load_openapi" in visible["message"]
+        assert len(client.attempts) - before == (1 if failure == "conflict" else 2)
+        loaded = await tools["load_openapi"]("openapi", "openapi")
+        assert (
+            loaded["artifact"]["revision"] == client.inner.bindings[("openapi", "openapi")].revision
+        )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("failure", "code"),
+    [
+        ("fenced", "allocation_write_fenced"),
+        ("forbidden", "artifact_access_denied"),
+        ("invalid", "artifact_invalid"),
+    ],
+)
+def test_openapi_definite_rejection_is_not_replayed(
+    tmp_path: Path, failure: str, code: str
+) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Initial")
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ArtifactAPIError) as rejected:
+            await tools["set_openapi_info"]("Denied")
+        assert rejected.value.code == code
+        assert len(client.attempts) == before + 1
+        assert client.inner.write_count == 1
+
+    asyncio.run(scenario())
 
 
 async def make_tools(

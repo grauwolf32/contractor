@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V120-001
+title: Reconcile ambiguous LikeC4 and OpenAPI document writes
+milestone: document-write-reconciliation-2026-10
+priority: P2
+status: completed
+implementation_commit: ef804f3fc00ab1b186ee4029e202715eec3e059f
+depends_on: []
+languages: [python]
+goal: Keep document sessions and Artifact bindings in sync after a committed PUT loses its response.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/291
+  finding: An ambiguous write leaves the cached revision stale and later mutations stuck on CAS conflicts.
+scope:
+  in:
+    - Share byte-identical replay and current-binding reconciliation between LikeC4 and OpenAPI.
+    - Return a non-retryable reload instruction for a true concurrent document change.
+    - Leave fenced, forbidden and other definite 4xx rejections unreplayed.
+  out:
+    - Change Artifact API CAS semantics.
+acceptance_criteria:
+  - {id: A1, text: A committed write with transport loss or HTTP 500 returns success and updates cached revision.}
+  - {id: A2, text: A lost append response never stores the same append twice.}
+  - {id: A3, text: A true concurrent change produces non-retryable document_changed with a reload hint.}
+  - {id: A4, text: Fenced, forbidden and other definite 4xx errors are not replayed.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_likec4_toolset.py runtime/tests/test_openapi_toolset.py, covers: [A1, A2, A3, A4]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests, covers: [A1, A2, A3, A4]}

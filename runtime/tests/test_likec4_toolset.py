@@ -11,11 +11,13 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from document_write_faults import FaultInjectingArtifactClient
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
+    ArtifactAPIError,
     ArtifactResponseLimitError,
     ArtifactValue,
 )
@@ -26,11 +28,13 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.factories import built_in_factories
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.likec4.tools import (
     MAX_DOCUMENT_UTF8_BYTES,
     LikeC4ToolsetFactory,
     _run_likec4,
 )
+from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "likec4-tool-recognizable-secret"
@@ -618,6 +622,81 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
         "replace_likec4",
         "validate_likec4",
     }
+
+
+@pytest.mark.parametrize("failure", ["lost_transport", "lost_500"])
+def test_likec4_ambiguous_append_adopts_committed_revision(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.failure = failure
+        before = len(client.attempts)
+        appended = await tools["append_likec4"]("// once\n")
+        assert appended["artifact"]["revision"] == "revision-2"
+        assert client.inner.write_count == 2
+        assert client.attempts[before:] == [client.attempts[before]] * 2
+        read = await tools["read_likec4"]()
+        assert read["text"].count("// once") == 1
+        assert read["artifact"]["revision"] == "revision-2"
+        later = await tools["append_likec4"]("// later\n")
+        assert later["artifact"]["revision"] == "revision-3"
+        assert client.inner.write_count == 3
+        assert (await tools["read_likec4"]())["text"].count("// once") == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["conflict", "diverged"])
+def test_likec4_concurrent_change_requires_reload(tmp_path: Path, failure: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.concurrent_data = (BASE_DOCUMENT + "// concurrent\n").encode()
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["append_likec4"]("// mine\n")
+        assert rejected.value.code == "document_changed"
+        assert rejected.value.retryable is False
+        assert "load_likec4" in str(rejected.value)
+        assert "read_likec4" in str(rejected.value)
+        visible = _safe_tool_response("append_likec4", rejected.value)["error"]
+        assert visible["code"] == "document_changed" and visible["retryable"] is False
+        assert "load_likec4" in visible["message"]
+        assert len(client.attempts) - before == (1 if failure == "conflict" else 2)
+        loaded = await tools["load_likec4"]("architecture", "architecture")
+        assert (
+            loaded["artifact"]["revision"]
+            == client.inner.bindings[("architecture", "architecture")].revision
+        )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("failure", "code"),
+    [
+        ("fenced", "allocation_write_fenced"),
+        ("forbidden", "artifact_access_denied"),
+        ("invalid", "artifact_invalid"),
+    ],
+)
+def test_likec4_definite_rejection_is_not_replayed(tmp_path: Path, failure: str, code: str) -> None:
+    async def scenario() -> None:
+        client = FaultInjectingArtifactClient(MemoryArtifactClient())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"](BASE_DOCUMENT)
+        client.failure = failure
+        before = len(client.attempts)
+        with pytest.raises(ArtifactAPIError) as rejected:
+            await tools["append_likec4"]("// denied\n")
+        assert rejected.value.code == code
+        assert len(client.attempts) == before + 1
+        assert client.inner.write_count == 1
+
+    asyncio.run(scenario())
 
 
 async def make_tools(
