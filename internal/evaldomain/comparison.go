@@ -2,7 +2,9 @@ package evaldomain
 
 import (
 	"encoding/json"
+	"math/big"
 	"slices"
+	"strconv"
 )
 
 type SelectedMember struct {
@@ -223,7 +225,8 @@ func conclude(s *Summary, comparison Comparison, pinsVerified bool, ta, tb float
 	if y.EndToEndPass.Value == nil || x.ConditionalQuality.Value == nil || y.ConditionalQuality.Value == nil {
 		return
 	}
-	regression := *y.EndToEndPass.Value < comparison.Gates.MinCandidateEndToEndPass || *x.ConditionalQuality.Value-*y.ConditionalQuality.Value > comparison.Gates.MaxQualityDrop
+	regression := *y.EndToEndPass.Value < comparison.Gates.MinCandidateEndToEndPass ||
+		qualityDropExceedsGate(s.Counts[a], s.Counts[b], comparison.Gates.MaxQualityDrop)
 	if gate := comparison.Gates.MaxTotalTokensRatio; gate != nil {
 		if !tokenCoverage || ta <= 0 {
 			return
@@ -234,4 +237,19 @@ func conclude(s *Summary, comparison Comparison, pinsVerified bool, ta, tb float
 	if regression {
 		s.Conclusion = "regressions"
 	}
+}
+
+// Compare exact scored fractions against the decimal gate supplied by the
+// caller. Subtracting two rounded display ratios can cross an equal boundary.
+func qualityDropExceedsGate(baseline, candidate Counts, maximum float64) bool {
+	gate, ok := new(big.Rat).SetString(strconv.FormatFloat(maximum, 'g', -1, 64))
+	if !ok {
+		return false
+	}
+	drop := big.NewRat(
+		int64(baseline.QualityPassed)*int64(candidate.Scored)-
+			int64(candidate.QualityPassed)*int64(baseline.Scored),
+		int64(baseline.Scored)*int64(candidate.Scored),
+	)
+	return drop.Cmp(gate) > 0
 }
