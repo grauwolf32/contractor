@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V206-001
+title: Preserve owner Queue control revision during Stage admission
+milestone: queue-control-consistency-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Keep scheduler Stage admission from changing the owner's public Queue pause control.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/183
+  finding: Admission inserts an unpaused control row at revision 1, invalidating an owner's initial If-Match 0 token.
+scope:
+  in:
+    - Serialize admission and owner pause updates with a transaction-scoped owner lock.
+    - Treat a missing control row as unpaused without materializing it during admission.
+    - Cover first-Stage admission followed by revision-0 pause and idempotent resume.
+  out:
+    - Changing the public control schema or real pause/resume revision behavior.
+acceptance_criteria:
+  - {id: A1, text: Stage admission leaves the initial unpaused control at revision 0 with no update time.}
+  - {id: A2, text: Revision-0 pause or idempotent resume succeeds after Stage admission.}
+  - {id: A3, text: Real state changes still invalidate stale revisions and race orderings remain serialized.}
+tests:
+  - {command: go test ./internal/runstore/... ./internal/scheduler/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
