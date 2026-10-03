@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V232-001
+title: Keep binary Agent Skill assets compatible with the text Gateway
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Let a Worker continue after requesting a binary Skill asset without sending unsupported media to the model adapter.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/261
+  finding: Native Skill binary status causes Runtime to append inline_data that the only production Gateway adapter rejects.
+scope:
+  in:
+    - Return a bounded text status for binary assets and charge only its model-visible envelope.
+    - Classify deterministic request-construction adapter errors as non-retryable invalid requests.
+    - Verify the full Worker path with the production adapter and a mock HTTP Gateway.
+  out:
+    - Adding multimodal Gateway transport or rejecting binary packages at publication.
+acceptance_criteria:
+  - {id: A1, text: A Worker can load a binary Skill asset and complete without an adapter error; raw binary bytes never reach the Gateway.}
+  - {id: A2, text: Binary disclosure charges cover the bounded status and no longer include encoded binary bytes.}
+  - {id: A3, text: Unsupported request content and other deterministic adapter construction errors are non-retryable and use a code other than worker_gateway_unavailable.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_agent_skill_toolset.py tests/test_openai_gateway_llm.py tests/test_adk_runtime.py -q, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
