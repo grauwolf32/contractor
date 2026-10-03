@@ -92,21 +92,46 @@ WITH live_claim AS MATERIALIZED (
            updated_at = GREATEST(clock_timestamp(), coverage.updated_at + interval '1 microsecond')
       FROM settlement
      WHERE coverage.item_id = settlement.item_id
+), expired_reviews AS (
+    UPDATE audit_review_requests AS review
+       SET state = 'expired', revision = review.revision + 1,
+           updated_at = GREATEST(clock_timestamp(), review.updated_at + interval '1 microsecond')
+      FROM changed_items AS item
+     WHERE review.audit_id = item.audit_id
+       AND review.subject_kind = 'audit-item-action'
+       AND review.subject_id = item.item_id AND review.state = 'pending'
+    RETURNING review.request_id, review.audit_id, review.subject_id,
+              review.kind, review.revision
+), expired_review_count AS MATERIALIZED (
+    SELECT count(*)::bigint AS expired FROM expired_reviews
 ), advanced_audit AS (
     UPDATE audits AS audit
-       SET revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+       SET revision = audit.revision + 1 + expired_review_count.expired,
+           next_event_sequence = audit.next_event_sequence + 1 + expired_review_count.expired,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM target_audit
+      FROM target_audit, expired_review_count
      WHERE audit.audit_id = target_audit.audit_id
        AND EXISTS (SELECT 1 FROM changed_items)
-    RETURNING audit.audit_id, audit.next_event_sequence
+    RETURNING audit.audit_id,
+              audit.next_event_sequence - 1 - expired_review_count.expired AS dispatch_sequence
 ), event_row AS (
     INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT advanced_audit.audit_id, advanced_audit.next_event_sequence - 1,
+    SELECT advanced_audit.audit_id, advanced_audit.dispatch_sequence,
            'items.dispatch_closed', advanced_audit.audit_id,
            jsonb_build_object('count', (SELECT count(*) FROM changed_items))
       FROM advanced_audit
+), expired_review_events AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT review.audit_id,
+           advanced_audit.dispatch_sequence + row_number() OVER (ORDER BY review.request_id),
+           'review.expired', review.request_id, review.revision,
+           jsonb_build_object(
+               'subjectKind', 'audit-item-action', 'subjectId', review.subject_id,
+               'kind', review.kind
+           )
+      FROM expired_reviews AS review JOIN advanced_audit USING (audit_id)
 )
 SELECT EXISTS(SELECT 1 FROM target_audit), count(*) FROM changed_items`,
 		claim.AuditID, claim.HolderID, claim.Epoch, limit,
