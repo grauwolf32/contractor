@@ -11,7 +11,11 @@ func TestNewPeerPolicyAcceptsAddressesAndPrefixesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(policy.Values(), " "); got != "10.0.0.0/8 192.0.2.7/32 2001:db8:1::1/128 2001:db8::/32" {
+	values := make([]string, 0, len(policy.trusted))
+	for _, prefix := range policy.trusted {
+		values = append(values, prefix.String())
+	}
+	if got := strings.Join(values, " "); got != "10.0.0.0/8 192.0.2.7/32 2001:db8::/32 2001:db8:1::1/128" {
 		t.Fatalf("canonical values = %q", got)
 	}
 	for _, invalid := range [][]string{
@@ -25,8 +29,8 @@ func TestNewPeerPolicyAcceptsAddressesAndPrefixesOnly(t *testing.T) {
 		}
 	}
 	empty, err := NewPeerPolicy(nil)
-	if err != nil || len(empty.Values()) != 0 {
-		t.Fatalf("empty policy = %v, %v", empty.Values(), err)
+	if err != nil || len(empty.trusted) != 0 {
+		t.Fatalf("empty policy = %v, %v", empty.trusted, err)
 	}
 }
 

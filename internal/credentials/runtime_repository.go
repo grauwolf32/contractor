@@ -28,47 +28,12 @@ func (r *RuntimeCredentialRepository) Get(ctx context.Context, credentialID stri
 	return record.Metadata, nil
 }
 
-func (r *RuntimeCredentialRepository) CountActive(ctx context.Context) (int64, error) {
-	var count int64
-	if r == nil || r.db == nil || r.db.QueryRow(ctx, `
-SELECT count(*)
-FROM runtime_credentials c
-WHERE NOT EXISTS (
-    SELECT 1 FROM runtime_credential_tombstones t WHERE t.credential_id = c.credential_id
-)`).Scan(&count) != nil {
-		return 0, errors.New("count active Runtime credentials")
-	}
-	return count, nil
-}
-
 func (r *RuntimeCredentialRepository) CountStored(ctx context.Context) (int64, error) {
 	var count int64
 	if r == nil || r.db == nil || r.db.QueryRow(ctx, `SELECT count(*) FROM runtime_credentials`).Scan(&count) != nil {
 		return 0, errors.New("count stored Runtime credentials")
 	}
 	return count, nil
-}
-
-func (r *RuntimeCredentialRepository) VerifyActiveKey(ctx context.Context, keyID string) error {
-	if !contentdigest.Valid(keyID) {
-		return ErrKeyUnavailable
-	}
-	var mismatch bool
-	if r == nil || r.db == nil || r.db.QueryRow(ctx, `
-SELECT EXISTS (
-    SELECT 1
-    FROM runtime_credentials c
-    WHERE c.key_id <> $1
-      AND NOT EXISTS (
-          SELECT 1 FROM runtime_credential_tombstones t WHERE t.credential_id = c.credential_id
-      )
-)`, keyID).Scan(&mismatch) != nil {
-		return errors.New("verify Runtime credential encryption key")
-	}
-	if mismatch {
-		return ErrKeyUnavailable
-	}
-	return nil
 }
 
 func (r *RuntimeCredentialRepository) VerifyStoredKey(ctx context.Context, keyID string) error {

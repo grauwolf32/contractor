@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
 )
 
 type connectionExperiment struct {
@@ -49,7 +50,7 @@ func newConnectionExperiment(t testing.TB, handler http.Handler) *connectionExpe
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverConfig, err := mtls.RuntimeAgentServerConfig(mtls.Files{Certificate: agent.Certificate, PrivateKey: agent.PrivateKey, CA: ca.Certificate})
+	serverConfig, err := mtlstest.AgentServerConfig(mtlstest.Files{Certificate: agent.Certificate, PrivateKey: agent.PrivateKey, CA: ca.Certificate})
 	if err != nil {
 		t.Fatal(err)
 	}

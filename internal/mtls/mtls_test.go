@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
 )
 
 func TestRoleSpecificTLSHandshakes(t *testing.T) {
@@ -27,7 +28,7 @@ func TestRoleSpecificTLSHandshakes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtimeClient, err := RuntimeAgentClientConfig(files.agent, "localhost")
+	runtimeClient, err := mtlstest.AgentClientConfig(mtlstest.Files(files.agent), "localhost")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,14 +36,15 @@ func TestRoleSpecificTLSHandshakes(t *testing.T) {
 		t.Fatalf("Agent -> Control Plane handshake = client %v, server %v", clientErr, serverErr)
 	}
 
-	runtimeServer, err := RuntimeAgentServerConfig(files.agent)
+	runtimeServer, err := mtlstest.AgentServerConfig(mtlstest.Files(files.agent))
 	if err != nil {
 		t.Fatal(err)
 	}
-	controlPlaneClient, err := ControlPlaneClientConfig(files.controlPlane, "localhost")
+	controlPlaneClient, err := ControlPlaneEndpointClientConfig(files.controlPlane)
 	if err != nil {
 		t.Fatal(err)
 	}
+	controlPlaneClient.ServerName = "localhost"
 	if clientErr, serverErr := handshake(controlPlaneClient, runtimeServer); clientErr != nil || serverErr != nil {
 		t.Fatalf("Control Plane -> Agent handshake = client %v, server %v", clientErr, serverErr)
 	}
@@ -54,12 +56,12 @@ func TestRuntimeAgentRejectsCAValidPeerWithoutControlPlaneURI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := RuntimeAgentClientConfig(files.agent, "localhost")
+	client, err := mtlstest.AgentClientConfig(mtlstest.Files(files.agent), "localhost")
 	if err != nil {
 		t.Fatal(err)
 	}
 	clientErr, _ := handshake(client, server)
-	if !errors.Is(clientErr, ErrControlPlaneRole) {
+	if !errors.Is(clientErr, mtlstest.ErrControlPlaneRole) {
 		t.Fatalf("client handshake error = %v, want Control Plane role error", clientErr)
 	}
 }
@@ -73,10 +75,11 @@ func TestControlPlaneRejectsForeignRuntimeAgent(t *testing.T) {
 	}
 	foreignIdentityTrustingServer := foreign.agent
 	foreignIdentityTrustingServer.CA = trusted.controlPlane.CA
-	client, err := ControlPlaneClientConfig(foreignIdentityTrustingServer, "localhost")
+	client, err := ControlPlaneEndpointClientConfig(foreignIdentityTrustingServer)
 	if err != nil {
 		t.Fatal(err)
 	}
+	client.ServerName = "localhost"
 	clientErr, serverErr := handshake(client, server)
 	if clientErr == nil && serverErr == nil {
 		t.Fatal("foreign Runtime Agent certificate was accepted")
@@ -85,10 +88,11 @@ func TestControlPlaneRejectsForeignRuntimeAgent(t *testing.T) {
 
 func TestNormalVerificationRejectsValidityAndEKUErrors(t *testing.T) {
 	files := generateFiles(t, "deployment")
-	client, err := ControlPlaneClientConfig(files.controlPlane, "localhost")
+	client, err := ControlPlaneEndpointClientConfig(files.controlPlane)
 	if err != nil {
 		t.Fatal(err)
 	}
+	client.ServerName = "localhost"
 	tests := []struct {
 		name      string
 		notBefore time.Time
@@ -131,7 +135,7 @@ func TestRuntimeAgentPrincipalUsesSPKIAndBindsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := RuntimeAgentServerConfig(files.agent)
+	server, err := mtlstest.AgentServerConfig(mtlstest.Files(files.agent))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +154,7 @@ func TestRuntimeAgentPrincipalUsesSPKIAndBindsEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	otherAgent := Files{Certificate: issued.Certificate, PrivateKey: issued.PrivateKey, CA: files.agent.CA}
-	otherServer, err := RuntimeAgentServerConfig(otherAgent)
+	otherServer, err := mtlstest.AgentServerConfig(mtlstest.Files(otherAgent))
 	if err != nil {
 		t.Fatal(err)
 	}

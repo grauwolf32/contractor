@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -49,7 +50,7 @@ func TestRuntimeControlClientRejectsDifferentCAValidPrincipalBeforeRequest(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverTLS, err := mtls.RuntimeAgentServerConfig(mtls.Files{
+	serverTLS, err := mtlstest.AgentServerConfig(mtlstest.Files{
 		Certificate: wrongEndpoint.Certificate, PrivateKey: wrongEndpoint.PrivateKey, CA: ca.Certificate,
 	})
 	if err != nil {

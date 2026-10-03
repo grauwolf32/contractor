@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V216-001
+title: Remove test-only mTLS, credential and peer-policy exports
+milestone: security-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: 37cb1a3ef261cd30bec8f8bb65b808e3f09a543e
+depends_on: []
+languages: [go, python]
+goal: Keep security-sensitive exported APIs limited to production behavior while preserving role-check tests.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/189
+  finding: Go Runtime Agent role helpers, active-only Runtime credential queries and peer-policy Values are used only by tests.
+scope:
+  in:
+    - Move Go Runtime Agent mTLS role stand-ins into an explicitly test-only helper package.
+    - Use production endpoint client TLS configuration in Go tests.
+    - Remove active-only Runtime credential repository methods and test the stored-key path.
+    - Remove PeerPolicy Values and its backing sorted slice.
+    - Retain Python Runtime Agent role tests.
+  out:
+    - Changing production TLS or credential behavior.
+acceptance_criteria:
+  - {id: A1, text: Production Go packages no longer export Runtime Agent TLS role stand-ins or old single-endpoint client config.}
+  - {id: A2, text: Credential and PeerPolicy tests use current production paths.}
+  - {id: A3, text: mTLS role rejection remains covered by Python Runtime tests.}
+tests:
+  - {command: go test ./internal/mtls/... ./internal/controlplane/... ./internal/planner/a2a/... ./internal/credentials/... ./internal/auth/..., covers: [A1, A2]}
+  - {command: make test-mtls, covers: [A1, A3]}
+  - {command: go build ./..., covers: [A1, A2]}
+  - {command: make lint, covers: [A1, A2, A3]}
