@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V150-001
+title: Prevent browser caching of raw Artifact downloads
+milestone: artifact-bytes-no-store-2026-10
+priority: P2
+status: completed
+implementation_commit: 16f99cad9dc70318baee5f31bac025c329409a68
+depends_on: []
+languages: [go, yaml]
+goal: Return and document Cache-Control no-store on every public raw Artifact bytes route.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/133
+  finding: Cookie-authenticated raw Artifact downloads have no cache policy.
+scope:
+  in:
+    - Set no-store at the shared raw-bytes response writer.
+    - Assert the header on User, Project, Run Artifact and Run output routes.
+    - Declare the response header in public OpenAPI.
+  out:
+    - Change cache behavior for unrelated metadata endpoints.
+acceptance_criteria:
+  - {id: A1, text: All four raw-bytes routes return Cache-Control no-store.}
+  - {id: A2, text: The OpenAPI ArtifactBytes response declares the header.}
+tests:
+  - {command: go test ./internal/httpapi/public -run 'TestRawArtifactBytesAreNeverRenderedInAPIOrigin|TestPublicOpenAPIContractIsValidAndPolicySafe', covers: [A1, A2]}

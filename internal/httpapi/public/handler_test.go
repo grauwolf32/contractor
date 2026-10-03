@@ -2006,6 +2006,17 @@ func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
 		artifacts.Payload{MediaType: "text/html", Data: markup}, nil); err != nil {
 		t.Fatal(err)
 	}
+	fixture.projects.projects["project-owned"] = projectstore.Project{
+		ProjectID: "project-owned", OwnerID: "user-1", Lifecycle: projectstore.LifecycleActive,
+	}
+	projectArtifacts, err := fixture.artifacts.Project("project-owned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectArtifacts.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "page"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil); err != nil {
+		t.Fatal(err)
+	}
 	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{
 		RunID: "run-owned", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunSucceeded,
 	}
@@ -2018,11 +2029,17 @@ func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
 	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/v1/artifacts/projects/page", "/v1/runs/run-owned/outputs/result"} {
+	for _, path := range []string{
+		"/v1/artifacts/projects/page",
+		"/v1/projects/project-owned/artifacts/sources/page",
+		"/v1/runs/run-owned/artifacts/builder/result",
+		"/v1/runs/run-owned/outputs/result",
+	} {
 		response := httptest.NewRecorder()
 		fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil)))
 		header := response.Header()
 		if response.Code != http.StatusOK || response.Body.String() != string(markup) || header.Get("Content-Type") != "text/html" ||
+			header.Get("Cache-Control") != "no-store" ||
 			header.Get("X-Content-Type-Options") != "nosniff" ||
 			header.Get("Content-Security-Policy") != "sandbox; default-src 'none'" ||
 			header.Get("Content-Disposition") != "attachment" {

@@ -6392,6 +6392,7 @@ components:
       description: Original artifact bytes
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
         ETag: {$ref: '#/components/headers/ETag'}
         Content-Length:
           required: true
