@@ -90,6 +90,7 @@ type InMemoryRegistry struct {
 
 type agentEntry struct {
 	principal                 AuthenticatedPrincipal
+	principalMissing          bool
 	registration              contracts.AgentRegistration
 	identity                  string
 	orderKey                  string
@@ -207,7 +208,10 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		if existing.identity != identity || existing.principal.RuntimeAgentID != principal.RuntimeAgentID {
 			return AgentSnapshot{}, ErrRegistrationConflict
 		}
-		existing.principal = clonePrincipal(principal)
+		if principal.LabelRevision >= existing.principal.LabelRevision {
+			existing.principal = clonePrincipal(principal)
+		}
+		existing.principalMissing = false
 		existing.registration.ObservedState = normalized.ObservedState
 		existing.registration.AllocationID = cloneString(normalized.AllocationID)
 		existing.lastSeenAt = now
@@ -354,6 +358,24 @@ func (r *InMemoryRegistry) PlacementCandidates() []AgentSnapshot {
 		return left.orderKey < right.orderKey
 	})
 	return result
+}
+
+// MarkPrincipalMissing excludes an instance whose durable principal was
+// deleted on another Server. A later authenticated registration may restore
+// it only after reading a principal from the database.
+func (r *InMemoryRegistry) MarkPrincipalMissing(runtimeAgentID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	changed := false
+	for _, entry := range r.agents {
+		if entry.principal.RuntimeAgentID != runtimeAgentID || entry.principalMissing {
+			continue
+		}
+		entry.principalMissing = true
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+		changed = true
+	}
+	return changed
 }
 
 // ReserveCandidateEdges installs a complete provisional batch using only the
@@ -986,7 +1008,7 @@ func (r *InMemoryRegistry) retireInactiveAgentLocked(instanceID string) bool {
 
 func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 	return entry.authoritativeAllocationID == nil && !entry.reconciliationRequired &&
-		!entry.leaseExpired && !entry.superseded && entry.blockedByInstanceID == nil &&
+		!entry.leaseExpired && !entry.superseded && !entry.principalMissing && entry.blockedByInstanceID == nil &&
 		entry.registration.ObservedState == contracts.AgentIdle &&
 		entry.confirmedLeaseDeadline > monotonicNow
 }
@@ -1309,9 +1331,11 @@ func (r *InMemoryRegistry) ApplyPrincipalLabels(principal AuthenticatedPrincipal
 		}
 		if entry.principal.LabelRevision == principal.LabelRevision &&
 			equalAuthenticatedPrincipal(entry.principal, principal) {
+			entry.principalMissing = false
 			continue
 		}
 		entry.principal = clonePrincipal(principal)
+		entry.principalMissing = false
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
 	}
 	return nil

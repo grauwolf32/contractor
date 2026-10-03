@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,49 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+func TestPrincipalOperationsAppliesCommittedLabelsBeforeFollowupRead(t *testing.T) {
+	for _, scenario := range []string{"read-failure", "cancelled-context"} {
+		t.Run(scenario, func(t *testing.T) {
+			clock := newTestClock()
+			registry := newTestRegistry(t, clock)
+			principal := runtimeconfig.RuntimeAgentPrincipal{
+				RuntimeAgentID: strings.Repeat("f", 64), Labels: []string{"old"}, LabelRevision: 1,
+				CreatedBy: "runtime-registration", CreatedAt: clock.Now(),
+				UpdatedBy: "runtime-registration", UpdatedAt: clock.Now(),
+			}
+			registration := testRegistration("agent-followup-read")
+			if _, err := registry.RegisterAuthenticated(AuthenticatedPrincipal{
+				RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels, LabelRevision: 1,
+			}, registration); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			catalog := &principalOperationsCatalogFake{principal: principal}
+			catalog.afterReplace = func() {
+				if scenario == "cancelled-context" {
+					cancel()
+				} else {
+					catalog.getErr = errors.New("follow-up read failed")
+				}
+			}
+			operations, err := NewPrincipalOperations(catalog, registry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := operations.ReplaceLabels(ctx, principal.RuntimeAgentID, 1,
+				[]string{"new"}, "replace-key", "operator", clock.Now()); err == nil {
+				t.Fatal("fixture follow-up read unexpectedly succeeded")
+			}
+			snapshot, err := registry.GetAgent(registration.InstanceID)
+			if err != nil || snapshot.Principal.LabelRevision != 2 ||
+				!equalTestStrings(snapshot.Principal.Labels, []string{"new"}) {
+				t.Fatalf("committed labels did not reach Registry: %+v, %v", snapshot, err)
+			}
+		})
+	}
+}
 
 func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T) {
 	clock := newTestClock()
@@ -71,13 +115,21 @@ func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T)
 }
 
 type principalOperationsCatalogFake struct {
-	principal runtimeconfig.RuntimeAgentPrincipal
-	required  []string
+	principal    runtimeconfig.RuntimeAgentPrincipal
+	required     []string
+	getErr       error
+	afterReplace func()
 }
 
 func (f *principalOperationsCatalogFake) Get(
-	context.Context, string,
+	ctx context.Context, _ string,
 ) (runtimeconfig.RuntimeAgentPrincipal, error) {
+	if err := ctx.Err(); err != nil {
+		return runtimeconfig.RuntimeAgentPrincipal{}, err
+	}
+	if f.getErr != nil {
+		return runtimeconfig.RuntimeAgentPrincipal{}, f.getErr
+	}
 	return f.principal, nil
 }
 
@@ -104,6 +156,9 @@ func (f *principalOperationsCatalogFake) ReplaceLabelsIdempotent(
 	f.principal.UpdatedBy = actor
 	f.principal.UpdatedAt = at
 	result := f.principal
+	if f.afterReplace != nil {
+		f.afterReplace()
+	}
 	return runtimeconfig.PrincipalMutationResult{Principal: &result}, nil
 }
 

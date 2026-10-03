@@ -744,6 +744,17 @@ func TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat(t *testin
 		!equalTestStrings(snapshot.Principal.Labels, []string{"debug"}) {
 		t.Fatalf("same-process retry = (%+v, %v)", snapshot, err)
 	}
+	newer := principal
+	newer.LabelRevision = 4
+	newer.Labels = []string{"current"}
+	if err := registry.ApplyPrincipalLabels(newer); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = registry.RegisterAuthenticated(principal, retry)
+	if err != nil || snapshot.Principal.LabelRevision != 4 ||
+		!equalTestStrings(snapshot.Principal.Labels, []string{"current"}) {
+		t.Fatalf("stale registration lowered cached principal = (%+v, %v)", snapshot, err)
+	}
 	second := testRegistration("agent-principal-second")
 	if _, err := registry.RegisterAuthenticated(principal, second); !errors.Is(err, ErrRegistrationConflict) {
 		t.Fatalf("concurrent same-principal registration error = %v", err)

@@ -147,6 +147,15 @@ func (s *PrincipalOperations) ReplaceLabels(
 	if result.Principal == nil {
 		return RuntimeAgentPrincipalProjection{}, false, errors.New("Runtime Agent label mutation returned no principal")
 	}
+	// The CAS is already durable. Advance this process's placement snapshot
+	// before any follow-up read that can fail or lose the request context.
+	if err := s.registry.ApplyPrincipalLabels(AuthenticatedPrincipal{
+		RuntimeAgentID: result.Principal.RuntimeAgentID,
+		Labels:         append([]string{}, result.Principal.Labels...),
+		LabelRevision:  result.Principal.LabelRevision,
+	}); err != nil {
+		return RuntimeAgentPrincipalProjection{}, false, err
+	}
 	current, err := s.catalog.Get(ctx, runtimeAgentID)
 	if err != nil {
 		return RuntimeAgentPrincipalProjection{}, false, err
