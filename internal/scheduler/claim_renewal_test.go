@@ -35,7 +35,7 @@ func TestClaimRenewalRetriesTransientErrorsUntilLeaseMargin(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				s.renewClaim(ownership, cancelOwnership, func(error) {}, nil, "run-1", "claim-1", leaseExpiresAt)
+				s.renewClaim(ownership, cancelOwnership, func(error) {}, nil, "run-1", "claim-1", runstore.RunRunning, leaseExpiresAt)
 			}()
 			if test.lost == nil {
 				// Keep renewing well past the original lease expiry.
