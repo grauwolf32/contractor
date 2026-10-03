@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V119-001
+title: Classify Trailmark child memory exhaustion as capacity
+milestone: trailmark-memory-capacity-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Tell the model that a fixed child-memory limit is non-retryable capacity exhaustion.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/285
+  finding: A MemoryError exits the child without a response; the host turns EOF into retryable engine failure.
+scope:
+  in:
+    - Return a framed capacity response when request dispatch raises MemoryError.
+    - Recognize a natural child exit 71 after EOF as capacity exhaustion.
+    - Distinguish memory exhaustion from unrelated abrupt child deaths in tests.
+  out:
+    - Increase the fixed child address-space limit.
+acceptance_criteria:
+  - {id: A1, text: A child MemoryError produces non-retryable code_analysis_capacity_exceeded.}
+  - {id: A2, text: A natural exit 71 without a frame also produces non-retryable capacity.}
+  - {id: A3, text: SIGKILL and other crashes remain retryable engine failures.}
+  - {id: A4, text: Child and scratch mirror are removed after each failure.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_code_analysis_faults.py, covers: [A1, A2, A3, A4]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests, covers: [A1, A2, A3, A4]}
