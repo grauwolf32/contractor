@@ -3,7 +3,8 @@ id: V152-001
 title: Bound login password work and prevent broad authentication lockout
 milestone: login-resource-limits-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 05ce1839c3cea2c33cf4e9f502c3bbb98c120ca3
 depends_on: []
 languages: [go]
 goal: Keep login memory bounded while preserving access after distributed failures.
