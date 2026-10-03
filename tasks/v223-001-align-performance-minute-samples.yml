@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V223-001
+title: Align scheduled performance samples to minute boundaries
+milestone: runtime-maintenance-2026-10
+priority: P1
+status: completed
+implementation_commit: bcd156ca3cea660b552f4cd6fd1d3fb085c08372
+depends_on: []
+languages: [go]
+goal: Preserve every scheduled 15-second window in durable minute aggregates despite collection jitter.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/247
+  finding: Positive collection latency makes a boundary sample fall into the next minute, where its window is omitted.
+scope:
+  in:
+    - Publish on-time scheduled samples at their tick while retaining actual elapsed time for CPU rates and gap detection.
+    - Test positive and negative tick jitter and genuinely missed ticks through Collector and Diagnostics.
+  out:
+    - Changing the standalone Collect sampling seam or database schema.
+acceptance_criteria:
+  - {id: A1, text: Steady-state minutes retain four HTTP windows and 60 seconds of CPU coverage under small positive or negative jitter.}
+  - {id: A2, text: Missing ticks remain partial and produce skipped-minute diagnostics.}
+  - {id: A3, text: Emitted minutes pass validation and existing Go performance tests.}
+tests:
+  - {command: go test ./internal/performance -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

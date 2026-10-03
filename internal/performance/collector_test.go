@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +57,17 @@ func (c *fakeClock) advance(d time.Duration) {
 	}
 }
 func (c *fakeClock) timerCount() int { c.mu.Lock(); defer c.mu.Unlock(); return len(c.timers) }
-func ptr[T any](v T) *T              { return &v }
+func (c *fakeClock) fireNextEarly(jitter time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for timer := range c.timers {
+		c.at = timer.at.Add(-jitter)
+		delete(c.timers, timer)
+		timer.ch <- c.at
+		return
+	}
+}
+func ptr[T any](v T) *T { return &v }
 func testProcess(cpu float64) Process {
 	return Process{CPUUserSeconds: ptr(cpu), CPUSystemSeconds: ptr(cpu / 2), RSSBytes: ptr(uint64(2048)), HeapLiveBytes: ptr(uint64(1024)), Goroutines: ptr(uint64(3)), GCCycles: ptr(uint64(1))}
 }
@@ -101,6 +112,107 @@ func TestPerformanceScheduleSkipsMissedTicksAndStops(t *testing.T) {
 	clock.advance(time.Hour)
 	if reads.Load() != 2 {
 		t.Fatal("reads after stop")
+	}
+}
+
+func TestScheduledMinuteWindowsSurviveTickJitter(t *testing.T) {
+	for _, jitter := range []time.Duration{time.Millisecond, -3 * time.Millisecond} {
+		t.Run(jitter.String(), func(t *testing.T) {
+			clock := newFakeClock()
+			start := clock.Now()
+			diagnostics := NewDiagnostics(DiagnosticOptions{Clock: clock})
+			collector := New(Options{
+				Clock:       clock,
+				Diagnostics: diagnostics,
+				ReadProcess: func() (Process, Reason) {
+					if jitter > 0 {
+						clock.advance(jitter)
+					}
+					return testProcess(clock.Now().Sub(start).Seconds()), ""
+				},
+				ReadPool: func() (Pool, Reason) { return testPool(), "" },
+			})
+			handler := collector.Wrap(Public, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- collector.Run(ctx) }()
+			await(t, func() bool { return clock.timerCount() == 1 && collector.Snapshot().RetainedFrames == 1 })
+			if jitter > 0 {
+				// The diagnostics worker can publish a fresh gauge while the
+				// scheduled sampler is reading. It belongs to the next sample.
+				future := start.Add(SampleInterval + jitter)
+				database := counterDatabase(1)
+				database.Freshness = databaseFreshness(start, future, 60, 1, "", true)
+				diagnostics.mu.Lock()
+				diagnostics.view.Database = &database
+				diagnostics.mu.Unlock()
+			}
+			for tick := 1; tick <= 12; tick++ {
+				handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/work", nil))
+				if jitter > 0 {
+					clock.advance(SampleInterval)
+				} else {
+					clock.fireNextEarly(-jitter)
+				}
+				await(t, func() bool { return clock.timerCount() == 1 && collector.Snapshot().RetainedFrames == tick+1 })
+				if jitter > 0 && tick == 1 && (collector.Snapshot().Current.Database != nil || collector.Snapshot().RejectedSamples != 0) {
+					t.Fatal("newer diagnostic gauge invalidated the scheduled sample")
+				}
+				if jitter > 0 && tick == 2 && collector.Snapshot().Current.Database == nil {
+					t.Fatal("deferred diagnostic gauge did not reach the next sample")
+				}
+			}
+			diagnostics.mu.Lock()
+			closed := append([]pendingMinute(nil), diagnostics.queue...)
+			diagnostics.mu.Unlock()
+			if len(closed) != 3 {
+				t.Fatalf("expected three closed minutes, got %d", len(closed))
+			}
+			var requestCount uint64
+			for index, entry := range closed {
+				var minute Minute
+				if err := json.Unmarshal(entry.raw, &minute); err != nil {
+					t.Fatal(err)
+				}
+				if err := minute.Validate(); err != nil {
+					t.Fatalf("minute %d invalid: %v", index, err)
+				}
+				if minute.HTTP == nil || minute.HTTP[0].Counts[0][1] != 4 || minute.HTTP[0].Duration.Count != 4 {
+					t.Fatalf("minute %d lost HTTP windows: %+v", index, minute)
+				}
+				requestCount += minute.HTTP[0].Counts[0][1]
+				if (index > 0 || jitter < 0) && (minute.Status != OK || minute.OmittedWindows != 0 || minute.CoverageSeconds != 60 || minute.CPU == nil || minute.CPU.DurationSeconds != 60 || math.Abs(minute.CPU.UserSeconds-60) > .01) {
+					t.Fatalf("minute %d incomplete under jitter: %+v", index, minute)
+				}
+			}
+			if requestCount != 12 {
+				t.Fatalf("closed minutes retained %d of 12 requests", requestCount)
+			}
+			if jitter > 0 {
+				clock.advance(11 * SampleInterval)
+				await(t, func() bool { return clock.timerCount() == 1 && collector.Snapshot().RetainedFrames == 14 })
+				clock.advance(SampleInterval)
+				await(t, func() bool { return clock.timerCount() == 1 && collector.Snapshot().RetainedFrames == 15 })
+				if diagnostics.Snapshot().SkippedMinutes == 0 || collector.Snapshot().SkippedSamples < 10 {
+					t.Fatal("missed ticks were treated as on-time samples")
+				}
+				diagnostics.mu.Lock()
+				last := diagnostics.queue[len(diagnostics.queue)-1]
+				diagnostics.mu.Unlock()
+				var minute Minute
+				if err := json.Unmarshal(last.raw, &minute); err != nil {
+					t.Fatal(err)
+				}
+				if minute.Status != Partial || minute.OmittedWindows == 0 || minute.Validate() != nil {
+					t.Fatalf("missing ticks produced a complete or invalid minute: %+v", minute)
+				}
+			}
+			cancel()
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
