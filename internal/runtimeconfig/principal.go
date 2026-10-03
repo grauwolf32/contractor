@@ -438,6 +438,9 @@ func (s *PrincipalService) ReplaceLabels(
 		// configuration layer: a label being removed may legitimately conflict
 		// with one being added.
 		if _, err := NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return ErrUnknownLabel
+			}
 			return err
 		}
 		principalRepository := NewPrincipalRepository(tx)
@@ -502,6 +505,9 @@ func (s *PrincipalService) ReplaceLabelsIdempotent(
 			return nil
 		}
 		if _, err := NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return ErrUnknownLabel
+			}
 			return err
 		}
 		repository := NewPrincipalRepository(tx)
@@ -750,6 +756,9 @@ func validateAgentLabelSetFromLocked(
 	for _, label := range labels {
 		binding, err := repository.GetBinding(ctx, label)
 		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return nil, ErrUnknownLabel
+			}
 			return nil, err
 		}
 		bindings = append(bindings, binding)

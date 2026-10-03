@@ -121,6 +121,10 @@ func (h *handler) putRuntimeAgentLabels(w http.ResponseWriter, r *http.Request) 
 	principal, replayed, err := h.dependencies.RuntimeAgentPrincipals.ReplaceLabels(
 		r.Context(), id, revision, labels, key, principalUserID(r.Context()), h.dependencies.Now(),
 	)
+	if errors.Is(err, runtimeconfig.ErrUnknownLabel) {
+		h.handleError(w, err)
+		return
+	}
 	if errors.Is(err, runtimeconfig.ErrNotFound) {
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 		return

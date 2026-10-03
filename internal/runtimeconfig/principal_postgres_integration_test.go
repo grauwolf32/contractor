@@ -80,6 +80,16 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err := service.Delete(ctx, principalID, 1); !errors.Is(err, ErrConflict) {
 		t.Fatalf("delete labeled principal error = %v", err)
 	}
+	if _, err := service.ReplaceLabelsIdempotent(
+		ctx, principalID, 1, []string{"missing"}, "principal-unknown-label", "operator", now.Add(time.Minute),
+	); !errors.Is(err, ErrUnknownLabel) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown body label error = %v", err)
+	}
+	if _, err := service.ReplaceLabelsIdempotent(
+		ctx, strings.Repeat("b", 64), 1, []string{"missing"}, "principal-missing", "operator", now.Add(time.Minute),
+	); !errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnknownLabel) {
+		t.Fatalf("missing principal error = %v", err)
+	}
 
 	type concurrentResult struct {
 		key    string

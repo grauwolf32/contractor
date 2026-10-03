@@ -24,12 +24,15 @@ const (
 )
 
 var (
-	ErrInvalid        = errors.New("invalid RuntimeConfig")
-	ErrNotFound       = errors.New("RuntimeConfig resource not found")
-	ErrConflict       = errors.New("RuntimeConfig conflict")
-	ErrPrecondition   = errors.New("RuntimeConfig revision precondition failed")
-	ErrReserved       = errors.New("reserved RuntimeConfig resource")
-	ErrPrincipalInUse = fmt.Errorf("%w: Runtime Agent principal is in use", ErrConflict)
+	ErrInvalid         = errors.New("invalid RuntimeConfig")
+	ErrNotFound        = errors.New("RuntimeConfig resource not found")
+	ErrLabelNotFound   = fmt.Errorf("%w: Runtime label path binding", ErrNotFound)
+	ErrUnknownLabel    = fmt.Errorf("%w: selected Runtime label", ErrNotFound)
+	ErrVersionNotFound = fmt.Errorf("%w: selected RuntimeConfig version", ErrNotFound)
+	ErrConflict        = errors.New("RuntimeConfig conflict")
+	ErrPrecondition    = errors.New("RuntimeConfig revision precondition failed")
+	ErrReserved        = errors.New("reserved RuntimeConfig resource")
+	ErrPrincipalInUse  = fmt.Errorf("%w: Runtime Agent principal is in use", ErrConflict)
 )
 
 type Ref struct {
