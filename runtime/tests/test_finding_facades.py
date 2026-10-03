@@ -117,6 +117,109 @@ def test_code_call_normalizes_coordinates_and_keeps_retry_identity():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "factory_type,location_args",
+    [
+        (GeneralFindingsToolsetFactory, {}),
+        (CodeFindingsToolsetFactory, {"file": "src/order.py"}),
+        (HTTPFindingsToolsetFactory, {"url": "https://target.example", "method": "GET"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "field,refs,repair_text",
+    [
+        (
+            "evidence_refs",
+            [{"namespace": "worker", "name": "private-proof-canary"}],
+            "non-empty revision",
+        ),
+        (
+            "evidence_refs",
+            [{"namespace": "worker", "name": "private-proof-canary", "revision": ""}],
+            "non-empty revision",
+        ),
+        (
+            "evidence_refs",
+            [
+                {
+                    "namespace": "worker",
+                    "name": "private-proof-canary",
+                    "revision": "r1",
+                    "mediaType": "private-media-canary",
+                }
+            ],
+            "non-empty revision",
+        ),
+        (
+            "evidence_refs",
+            [
+                {"namespace": "worker", "name": "valid", "revision": "r1"},
+                {"namespace": "worker", "name": "private-proof-canary"},
+            ],
+            "non-empty revision",
+        ),
+        (
+            "standard_refs",
+            [
+                {
+                    "scheme": "private-scheme-canary",
+                    "version": "1",
+                    "requirement_id": "R1",
+                    "title": "private-title-canary",
+                }
+            ],
+            "standard_refs objects",
+        ),
+        (
+            "standard_refs",
+            [{"scheme": "private-scheme-canary", "version": "1"}],
+            "standard_refs objects",
+        ),
+        (
+            "standard_refs",
+            [
+                {"scheme": "VALID", "version": "1", "requirement_id": "R1"},
+                {"scheme": "private-scheme-canary", "version": "1"},
+            ],
+            "standard_refs objects",
+        ),
+    ],
+)
+def test_invalid_finding_references_return_bounded_repair_error(
+    factory_type, location_args, field, refs, repair_text
+):
+    async def scenario():
+        client = FakeFindingClient()
+        state = WorkerState()
+        tool = await finding_tool(factory_type, client, state)
+        with pytest.raises(ToolInputError) as failure:
+            await FunctionTool(tool).run_async(
+                args={
+                    "title": "PrivateFindingCanary",
+                    "description": "Observation",
+                    field: refs,
+                    **location_args,
+                },
+                tool_context=context(),
+            )
+        assert failure.value.code == "tool_input_invalid"
+        assert repair_text in str(failure.value)
+        assert client.requests == []
+        assert state.metrics.counters["tool_errors"] == 1
+        assert state.metrics.tool_calls[-1].error.code == "tool_input_invalid"
+        diagnostics = str(failure.value) + repr(state.metrics.tool_calls[-1])
+        for value in (
+            "PrivateFindingCanary",
+            "private-proof-canary",
+            "private-media-canary",
+            "private-scheme-canary",
+            "private-title-canary",
+        ):
+            assert value not in diagnostics
+
+    asyncio.run(scenario())
+
+
 def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp_path):
     async def scenario():
         observed = []

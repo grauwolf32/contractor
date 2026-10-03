@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: openapi-yaml-and-finding-input-repair-2026-10
+    exit_task: V100-002
+    outcome: >-
+      Date-style OpenAPI YAML scalars remain strings across parsers, and
+      malformed finding references return safe, repairable input errors.
   - id: operations-in-use-error-details-2026-10
     exit_task: V99-001
     outcome: >-
@@ -2781,6 +2786,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V100-001, file: v100-001-openapi-yaml-timestamp.yml}
+  - {id: V100-002, file: v100-002-finding-reference-input-errors.yml}
   - {id: V99-001, file: v99-001-operations-in-use-error-details.yml}
   - {id: V98-001, file: v98-001-route-chunk-recovery.yml}
   - {id: V98-002, file: v98-002-run-attempt-disclosure-state.yml}
