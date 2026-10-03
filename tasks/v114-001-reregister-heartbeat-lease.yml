@@ -3,8 +3,8 @@ id: V114-001
 title: Do not renew a Runtime lease from a reregister heartbeat
 milestone: reregister-heartbeat-lease-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: faa8b3b2dc8ffd968596dc2530ac952261fe69c1
 depends_on: [V111-001]
 languages: [python]
 goal: Let the Runtime self-fence when Server has lost its registration and re-registration keeps failing.
