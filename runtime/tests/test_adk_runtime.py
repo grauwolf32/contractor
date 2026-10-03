@@ -361,6 +361,68 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_a2a_task_span_counts_are_per_invocation_and_absent_on_rejection(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="first-task-read",
+                ),
+                terminal_text("First task complete"),
+                terminal_text("Second task complete"),
+            ]
+        )
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            model,
+            instrumentation=instrumentation,
+            session_mode=WorkerSessionMode.SHARED,
+        )
+
+        first = await runtime.invoke(stage_request())
+        assert first.result is not None
+        first_state = (await runtime._worker_state.snapshot())["lastCompletedInvocation"]
+        assert first_state["invocationId"] == first.invocation_id
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        assert second.result is not None
+        second_state = (await runtime._worker_state.snapshot())["lastCompletedInvocation"]
+        assert second_state["invocationId"] == second.invocation_id
+        runtime._accepting = False
+        rejected = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "2"}))
+        assert rejected.failure is not None
+        assert rejected.failure.code == "worker_draining"
+
+        task_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.a2a_task"
+        ]
+        assert len(task_spans) == 3
+        assert [
+            (
+                span.attributes.get("counts.model_calls"),
+                span.attributes.get("counts.tool_calls"),
+            )
+            for span in task_spans
+        ] == [(3, 1), (2, 0), (None, None)]
+        for span, invocation in zip(task_spans[:2], (first_state, second_state), strict=True):
+            assert span.attributes["counts.model_calls"] == invocation["metrics"]["modelCalls"]
+            assert span.attributes["counts.tool_calls"] == invocation["metrics"]["toolCalls"]
+        assert state.metrics.counters["llm_calls"] == 5
+        assert state.metrics.counters["tool_calls"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry() -> None:
     from google.adk.tools import FunctionTool
 
