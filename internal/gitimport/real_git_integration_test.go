@@ -6,8 +6,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -190,7 +193,11 @@ func newSigner(t *testing.T) ssh.Signer {
 	}
 	return signer
 }
-func serveGitSSH(t *testing.T, repo string, owner ssh.Signer) (string, ssh.Signer) {
+func serveGitSSH(t *testing.T, repo string, owner ssh.Signer, extraHosts ...ssh.Signer) (string, ssh.Signer) {
+	return serveGitSSHRecording(t, repo, owner, nil, extraHosts...)
+}
+
+func serveGitSSHRecording(t *testing.T, repo string, owner ssh.Signer, negotiated chan<- string, extraHosts ...ssh.Signer) (string, ssh.Signer) {
 	t.Helper()
 	host := newSigner(t)
 	config := &ssh.ServerConfig{PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -200,6 +207,9 @@ func serveGitSSH(t *testing.T, repo string, owner ssh.Signer) (string, ssh.Signe
 		return nil, nil
 	}}
 	config.AddHostKey(host)
+	for _, extra := range extraHosts {
+		config.AddHostKey(extra)
+	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -226,6 +236,12 @@ func serveGitSSH(t *testing.T, repo string, owner ssh.Signer) (string, ssh.Signe
 					return
 				}
 				defer connection.Close()
+				if negotiated != nil {
+					select {
+					case negotiated <- connection.Conn.(ssh.AlgorithmsConnMetadata).Algorithms().HostKey:
+					default:
+					}
+				}
 				go ssh.DiscardRequests(requests)
 				for incoming := range channels {
 					if incoming.ChannelType() != "session" {
@@ -299,6 +315,74 @@ func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
 	}
 	if _, err := client.Fetch(context.Background(), remote, "main", owner); !errors.Is(err, ErrTrust) {
 		t.Fatalf("changed host: %v", err)
+	}
+}
+
+func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
+	repo, commit := realRepository(t)
+	owner := newSigner(t)
+	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecdsaHost, err := ssh.NewSignerFromKey(ecdsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaHost, err := ssh.NewSignerFromKey(rsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	negotiated := make(chan string, 2)
+	address, ed25519Host := serveGitSSHRecording(t, repo, owner, negotiated, ecdsaHost, rsaHost)
+	known := filepath.Join(t.TempDir(), "known_hosts")
+	remote, err := ParseRemote("ssh://git@" + address + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.allowLoopback = true
+	for _, test := range []struct {
+		name, host, algorithm string
+		key                   ssh.PublicKey
+		wantTrust             bool
+	}{
+		{"ed25519 pin", address, ssh.KeyAlgoED25519, ed25519Host.PublicKey(), false},
+		{"rsa pin", address, "rsa-sha2-", rsaHost.PublicKey(), false},
+		{"wrong ed25519 material", address, "", newSigner(t).PublicKey(), true},
+		{"unknown host", "other.example:22", "", ed25519Host.PublicKey(), true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := os.WriteFile(known, []byte(knownhosts.Line([]string{test.host}, test.key)+"\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := client.Fetch(context.Background(), remote, "main", owner)
+			if test.wantTrust {
+				if !errors.Is(err, ErrTrust) {
+					t.Fatalf("untrusted host error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSnapshot(t, snapshot, commit)
+			select {
+			case algorithm := <-negotiated:
+				if !strings.HasPrefix(algorithm, test.algorithm) {
+					t.Fatalf("negotiated host key algorithm = %q, want %q", algorithm, test.algorithm)
+				}
+			default:
+				t.Fatal("server did not record host key algorithm")
+			}
+		})
 	}
 }
 
