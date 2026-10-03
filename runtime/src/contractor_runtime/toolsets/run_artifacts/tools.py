@@ -10,8 +10,12 @@ from typing import Any
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES
+from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.common.artifact_read_cache import (
+    ExactArtifactReadCache,
+    allocation_artifact_read_cache,
+)
 from contractor_runtime.toolsets.common.artifact_visibility import (
     is_model_hidden_binding,
     require_model_visible_binding,
@@ -23,6 +27,7 @@ from contractor_runtime.toolsets.common.artifacts import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -59,9 +64,10 @@ class RunArtifactsToolsetFactory:
         metrics = require_metrics(state, "run-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
+        cache = allocation_artifact_read_cache(state) if "read_artifact" in selected else None
         builders = {
             "list_artifacts": lambda: ListArtifactsTool(client, metrics, secrets),
-            "read_artifact": lambda: ReadArtifactTool(client, metrics, secrets),
+            "read_artifact": lambda: ReadArtifactTool(client, metrics, secrets, cache=cache),
             "write_artifact": lambda: WriteArtifactTool(client, metrics, secrets),
         }
         return {name: builders[name]() for name in selected}
@@ -115,6 +121,21 @@ class ReadArtifactTool(ArtifactTool):
         bytes remain).
     """
 
+    def __init__(
+        self,
+        client: ArtifactClient,
+        metrics: ToolMetrics,
+        secrets: tuple[str, ...],
+        *,
+        cache: ExactArtifactReadCache | None = None,
+    ) -> None:
+        super().__init__(client, metrics, secrets)
+        self._cache = cache or ExactArtifactReadCache()
+
+    async def close(self) -> None:
+        await self._cache.clear()
+        await super().close()
+
     async def __call__(
         self,
         namespace: str,
@@ -136,9 +157,9 @@ class ReadArtifactTool(ArtifactTool):
                 raise ToolInputError("offset must be a non-negative integer")
             if type(length) is not int or not 1 <= length <= MAX_READ_CHUNK_BYTES:
                 raise ToolInputError(f"length must be between 1 and {MAX_READ_CHUNK_BYTES}")
-            # The Artifact API has no range reads, so page within one bounded read.
-            value = await self._client.read_artifact(
-                ArtifactRef(namespace=namespace, name=name, revision=revision)
+            # The Artifact API has no range reads, so page a cached exact revision.
+            value = await self._cache.read(
+                self._client, ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
             size = len(value.data)
             if offset > size:

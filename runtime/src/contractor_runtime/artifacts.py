@@ -219,6 +219,11 @@ class ArtifactClient:
 
         self._observed_exact_refs.clear()
 
+    def observe_cached_read(self, ref: ArtifactRef) -> None:
+        """Record an exact revision served from an allocation-owned read cache."""
+
+        self._remember(ref.require_exact())
+
     async def list_artifacts(
         self,
         namespace: str | None = None,

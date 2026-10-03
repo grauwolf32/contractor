@@ -11,6 +11,10 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.common.artifact_read_cache import (
+    ExactArtifactReadCache,
+    allocation_artifact_read_cache,
+)
 from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
@@ -63,8 +67,11 @@ class TextArtifactsToolsetFactory:
         metrics = require_metrics(state, "text-artifacts@1")
         client = self._client_factory(allocation_id, runtime_settings)
         secrets = runtime_secrets(runtime_settings)
+        cache = allocation_artifact_read_cache(state) if "read_text_artifact" in selected else None
         builders: dict[str, Callable[[], Any]] = {
-            "read_text_artifact": lambda: ReadTextArtifactTool(client, metrics, secrets),
+            "read_text_artifact": lambda: ReadTextArtifactTool(
+                client, metrics, secrets, cache=cache
+            ),
             "write_text_artifact": lambda: WriteTextArtifactTool(
                 client, metrics, secrets, namespace
             ),
@@ -97,6 +104,21 @@ class ReadTextArtifactTool(ArtifactTool):
         has been read to its end). Non-UTF-8 content is rejected.
     """
 
+    def __init__(
+        self,
+        client: ArtifactClient,
+        metrics: ToolMetrics,
+        secrets: tuple[str, ...],
+        *,
+        cache: ExactArtifactReadCache | None = None,
+    ) -> None:
+        super().__init__(client, metrics, secrets)
+        self._cache = cache or ExactArtifactReadCache()
+
+    async def close(self) -> None:
+        await self._cache.clear()
+        await super().close()
+
     async def __call__(
         self,
         namespace: str,
@@ -119,8 +141,8 @@ class ReadTextArtifactTool(ArtifactTool):
             _validate_line_window(start_line, max_lines)
             if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
                 raise ToolInputError("line_offset must be a non-negative integer")
-            value = await self._client.read_artifact(
-                ArtifactRef(namespace=namespace, name=name, revision=revision)
+            value = await self._cache.read(
+                self._client, ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
             try:
                 content = value.data.decode("utf-8", errors="strict")

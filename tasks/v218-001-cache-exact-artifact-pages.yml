@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V218-001
+title: Cache exact artifact revisions across paged read tools
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: ff9e05dfc8080832182e76575477037b5319f925
+depends_on: []
+languages: [python]
+goal: Avoid repeated full artifact transfers while paging exact revisions through Run and text artifact tools.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/110
+  finding: Both read_artifact and read_text_artifact download complete artifacts for every page.
+scope:
+  in:
+    - Cache one exact revision payload per allocation within a documented byte budget.
+    - Share that cache between run-artifacts and text-artifacts tools.
+    - Clear cached data when either read tool closes.
+    - Preserve paging projections and let revisionless reads resolve the current binding anew.
+  out:
+    - Server-side range reads or changes to the private Artifact API.
+acceptance_criteria:
+  - {id: A1, text: Multiple pages of one exact revision need only one Artifact API read.}
+  - {id: A2, text: Text windows of the same exact revision reuse the payload, including across the two read tools.}
+  - {id: A3, text: The cache holds at most one payload within a 64 MiB bound and releases it on close.}
+  - {id: A4, text: Revisionless reads observe binding updates and paging results stay unchanged.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_artifacts.py tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py, covers: [A1, A2, A3, A4]}
+  - {command: make test-runtime, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

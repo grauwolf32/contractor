@@ -73,6 +73,7 @@ def test_read_artifact_pages_large_payloads() -> None:
         tools = await create_tools(factory, state, ["read_artifact"])
 
         first = await tools["read_artifact"]("inputs", "source")
+        revision = first["artifact"]["revision"]
         assert first["size"] == len(client.read_data)
         assert first["offset"] == 0 and first["length"] == chunk
         assert len(base64.b64decode(first["dataBase64"])) == chunk
@@ -81,15 +82,17 @@ def test_read_artifact_pages_large_payloads() -> None:
         collected = base64.b64decode(first["dataBase64"])
         offset = first["nextOffset"]
         while offset is not None:
-            page = await tools["read_artifact"]("inputs", "source", offset=offset)
+            page = await tools["read_artifact"]("inputs", "source", revision, offset=offset)
             collected += base64.b64decode(page["dataBase64"])
             offset = page["nextOffset"]
         assert collected == client.read_data
         assert not page["hasMore"] and page["length"] == 4
+        assert client.read_calls == 1
 
-        window = await tools["read_artifact"]("inputs", "source", offset=2, length=3)
+        window = await tools["read_artifact"]("inputs", "source", revision, offset=2, length=3)
         assert base64.b64decode(window["dataBase64"]) == bytes([2, 3, 4])
         assert window["hasMore"]
+        assert client.read_calls == 1
 
         for arguments in ({"length": 0}, {"length": chunk + 1}, {"offset": -1}):
             with pytest.raises(ToolInputError):
@@ -311,7 +314,8 @@ class FakeArtifactClient:
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.read_calls += 1
-        assert ref == ArtifactRef(namespace="inputs", name="source")
+        assert ref.namespace == "inputs" and ref.name == "source"
+        assert ref.revision in {None, "revision-read"}
         return ArtifactValue(
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
             media_type="text/plain",
