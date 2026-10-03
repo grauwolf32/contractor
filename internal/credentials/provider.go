@@ -10,9 +10,10 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
 
-var ErrNotFound = errors.New("LLM credential not found")
+var ErrNotFound = credentialerrors.LLMNotFound
 
 type Resolver interface {
 	config.CredentialLookup

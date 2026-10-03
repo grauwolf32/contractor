@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
 
 const (
@@ -34,9 +36,9 @@ const (
 )
 
 var (
-	ErrRuntimeCredentialInvalid  = errors.New("invalid Runtime adapter credential")
+	ErrRuntimeCredentialInvalid  = credentialerrors.RuntimeInvalid
 	ErrRuntimeCredentialConflict = errors.New("Runtime adapter credential conflict")
-	ErrRuntimeCredentialNotFound = errors.New("Runtime adapter credential not found")
+	ErrRuntimeCredentialNotFound = credentialerrors.RuntimeNotFound
 	ErrRuntimeCredentialInUse    = errors.New("Runtime adapter credential is in use")
 
 	headerNamePattern    = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
