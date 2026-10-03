@@ -236,7 +236,8 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
         pids: list[int] = []
         try:
             async with asyncio.timeout(3):
-                while not marker.exists():
+                # write_text creates the file before it flushes both PIDs.
+                while not marker.exists() or len(marker.read_text().split()) != 2:
                     await asyncio.sleep(0.01)
             pids = [int(value) for value in marker.read_text().split()]
             if stop == "cancel":

@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V250-001
+title: Upgrade urllib3 and audit the Runtime lock in the release gate
+milestone: runtime-dependency-hygiene-2026-10
+priority: P2
+status: completed
+implementation_commit: 3bb5993e2abdb060e96bd728ff818a7bf1217983
+depends_on: []
+languages: [python, make]
+goal: Keep the shipped Runtime dependency lock free of known vulnerabilities.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/152
+  finding: The locked urllib3 2.7.0 is affected by three advisories fixed in 2.8.0.
+scope:
+  in:
+    - Constrain urllib3 to the fixed release line and refresh the uv lock.
+    - Audit frozen production dependencies in release-verify with a pinned scanner.
+    - Verify Runtime tests and the release graph.
+  out:
+    - Change Runtime HTTP behavior or add advisory-specific application workarounds.
+acceptance_criteria:
+  - {id: A1, text: uv sync --locked resolves urllib3 at 2.8.0 or later.}
+  - {id: A2, text: The production lock passes pip-audit with no known vulnerabilities.}
+  - {id: A3, text: The audit runs in release-verify and fails for a vulnerable lock.}
+  - {id: A4, text: Runtime tests and lint pass.}
+tests:
+  - {command: "cd runtime && uv sync --locked", covers: [A1]}
+  - {command: "make test-runtime-dependencies-audit", covers: [A2, A3]}
+  - {command: "cd runtime && .venv/bin/python -m pytest", covers: [A4]}
+  - {command: "make lint", covers: [A4]}
