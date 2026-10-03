@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V243-001
+title: Remove test-only RuntimeConfig mutation protocols
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Keep binding and principal lock-ordering invariants in the production mutation paths only.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/282
+  finding: Non-idempotent BindingService and PrincipalService mutators duplicate production protocols and remain used by integration tests.
+scope:
+  in:
+    - Remove test-only mutation methods and the unused Store interface.
+    - Move affected PostgreSQL tests to ManagementService and idempotent principal methods.
+    - Preserve credential, merge-conflict, label-in-use, and concurrency checks against production paths.
+  out:
+    - Changing public mutation semantics or database schemas.
+acceptance_criteria:
+  - {id: A1, text: The duplicate mutator methods and unused Store interface are absent.}
+  - {id: A2, text: Affected invariant tests call only production mutation services and use distinct idempotency keys.}
+  - {id: A3, text: PostgreSQL integration tests, build, and vet pass.}
+tests:
+  - {command: go test -tags=integration ./internal/runtimeconfig ./internal/credentials -count=1, covers: [A1, A2, A3]}
+  - {command: go build ./..., covers: [A3]}
+  - {command: go vet ./internal/runtimeconfig/... ./internal/credentials/... ./internal/controlplane/... ./internal/app/..., covers: [A3]}
