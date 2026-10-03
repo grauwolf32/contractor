@@ -94,6 +94,31 @@
       }
     },
     {
+      "name": "declared 404 message with numeric provider code",
+      "status": 404,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "model 'worker' not found",
+          "code": 404
+        }
+      }
+    },
+    {
+      "name": "declared 404 unwrapped provider message",
+      "status": 404,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "object": "error",
+        "message": "model 'worker' not found",
+        "code": 404
+      }
+    },
+    {
       "name": "declared 409 beats generic conflict",
       "status": 409,
       "signatures": "declared",
@@ -175,6 +200,18 @@
         "error": {
           "code": "insufficient_quota"
         }
+      }
+    },
+    {
+      "name": "unwrapped permanent code wins over rate limit",
+      "status": 429,
+      "signatures": "declared",
+      "code": "insufficient_quota",
+      "retryable": false,
+      "body": {
+        "object": "error",
+        "message": "quota exhausted",
+        "code": "insufficient_quota"
       }
     },
     {

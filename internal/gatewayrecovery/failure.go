@@ -28,24 +28,26 @@ const (
 // declared failure signatures. Signature text is matched exactly so arbitrary
 // 4xx bodies can never become a transient availability failure.
 func Classify(status int, header http.Header, body []byte, signatures contracts.GatewayFailureSignatures) Failure {
-	var response struct {
-		Error json.RawMessage `json:"error"`
-	}
-	var detail struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	var message string
+	var code, message string
+	var response map[string]json.RawMessage
 	if len(body) <= maximumClassificationBytes && json.Unmarshal(body, &response) == nil {
-		if json.Unmarshal(response.Error, &detail) == nil {
-			message = detail.Message
+		selected := json.RawMessage(body)
+		if wrapped, present := response["error"]; present {
+			selected = wrapped
+		}
+		var detail map[string]json.RawMessage
+		if json.Unmarshal(selected, &detail) == nil {
+			// A provider may encode code as a number. Its type must not discard
+			// a valid message signature (or vice versa).
+			_ = json.Unmarshal(detail["code"], &code)
+			_ = json.Unmarshal(detail["message"], &message)
 		} else {
-			_ = json.Unmarshal(response.Error, &message)
+			_ = json.Unmarshal(selected, &message)
 		}
 	}
-	for _, code := range signatures.PermanentCodes {
-		if detail.Code == code {
-			return Failure{code, false}
+	for _, permanentCode := range signatures.PermanentCodes {
+		if code == permanentCode {
+			return Failure{permanentCode, false}
 		}
 	}
 	if modelUnavailable(status, message, signatures) {
