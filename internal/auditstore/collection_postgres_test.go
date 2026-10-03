@@ -198,10 +198,22 @@ type collectingAuditFixture struct {
 	itemID    string
 }
 
-// newCollectingAuditFixture starts a one-item Audit and leaves its only
-// execution collecting a succeeded Run under a live Controller claim.
-func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64) collectingAuditFixture {
+type collectingAuditFixtureOptions struct {
+	extraPending    bool
+	terminalOutcome string
+}
+
+// newCollectingAuditFixture leaves one execution collecting a terminal Run
+// under a live Controller claim. An optional second item remains unattempted.
+func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64, options ...collectingAuditFixtureOptions) collectingAuditFixture {
 	t.Helper()
+	var option collectingAuditFixtureOptions
+	if len(options) != 0 {
+		option = options[0]
+	}
+	if option.terminalOutcome == "" {
+		option.terminalOutcome = "succeeded"
+	}
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
@@ -217,13 +229,17 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 		t.Fatal(err)
 	}
 	store := NewPostgresStore(pool)
+	maxItems := 1
+	if option.extraPending {
+		maxItems = 2
+	}
 	audit, _, err := store.CreateDraft(ctx, CreateDraftParams{
 		AuditID: "audit-" + name, OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         ProfileIdentity{Name: "checklist", Version: "1", Digest: testDigest("2")},
 		ProfileSnapshot: json.RawMessage(`{"name":"checklist","workflows":{"check":{"kind":"check"}}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: Limits{
-			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: maxItems, MaxItemsTotal: maxItems,
 			MaxSubmittedRuns: 2, MaxItemRunAttempts: 2, MaxEvidenceBytes: maxEvidenceBytes,
 		},
 		IdempotencyKey: "audit-create", RequestDigest: testDigest("3"),
@@ -238,12 +254,22 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 		SubjectKey: "subject-" + name, Task: task, Origin: testOrigin("check-" + name),
 		WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage(),
 	}
+	items := []MaterializedItem{item}
+	if option.extraPending {
+		items = append(items, MaterializedItem{
+			ItemID: "pending-item-" + name, ItemKey: "pending-check-" + name,
+			Ordinal: 1, Kind: "checklist", SubjectKey: "pending-subject-" + name,
+			Task:   testExact("audits", name+"-pending-task", "task-r1"),
+			Origin: testOrigin("pending-check-" + name), WorkflowRole: "check",
+			InitialState: ItemReady, Coverage: emptyCoverage(),
+		})
+	}
 	audit, _, err = store.MaterializeRound(ctx, MaterializeRoundParams{
 		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
 		RoundID: roundID, RoundOrdinal: 1, Manifest: testExact("audits", name+"-worklist", "worklist-r1"),
 		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
 		DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "audit-start",
-		RequestDigest: testDigest("4"), Items: []MaterializedItem{item},
+		RequestDigest: testDigest("4"), Items: items,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -277,7 +303,7 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 	if err != nil {
 		t.Fatal(err)
 	}
-	generation, sequence := terminateTestRun(t, ctx, pool, runID, "succeeded")
+	generation, sequence := terminateTestRun(t, ctx, pool, runID, option.terminalOutcome)
 	execution, err = store.ObserveTerminal(ctx, ObserveTerminalParams{
 		Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 		Generation: generation, Sequence: sequence,

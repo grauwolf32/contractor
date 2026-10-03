@@ -53,26 +53,45 @@ WITH live_claim AS MATERIALIZED (
            updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
       FROM candidates, target_audit
      WHERE item.item_id = candidates.item_id
-    RETURNING item.item_id, item.audit_id
+    RETURNING item.item_id, item.audit_id,
+              item.last_execution_item_id IS NOT NULL AS had_attempt
+), settlement AS (
+    SELECT changed_items.item_id, changed_items.had_attempt, target_audit.state,
+           CASE
+               WHEN changed_items.had_attempt AND target_audit.state = 'finalizing'
+                   THEN 'audit-closed-before-retry'
+               WHEN changed_items.had_attempt THEN 'audit-cancelled-before-retry'
+               WHEN target_audit.state = 'finalizing' THEN 'audit-closed-before-dispatch'
+               ELSE 'audit-cancelled-before-dispatch'
+           END AS gap,
+           CASE
+               WHEN changed_items.had_attempt AND target_audit.state = 'finalizing'
+                   THEN 'Audit dispatch closed before a retry of this item was submitted.'
+               WHEN changed_items.had_attempt
+                   THEN 'Audit cancellation closed this item before a retry was submitted.'
+               WHEN target_audit.state = 'finalizing'
+                   THEN 'Audit dispatch closed before this item was submitted.'
+               ELSE 'Audit cancellation closed this item before dispatch.'
+           END AS message
+      FROM changed_items CROSS JOIN target_audit
 ), changed_coverage AS (
     UPDATE audit_coverage_rows AS coverage
-       SET status = CASE WHEN target_audit.state = 'finalizing'
-               THEN 'not-tested' ELSE 'blocked' END,
+       SET status = CASE WHEN settlement.had_attempt THEN coverage.status
+               WHEN settlement.state = 'finalizing' THEN 'not-tested' ELSE 'blocked' END,
            gaps = CASE
-               WHEN coverage.gaps ? CASE WHEN target_audit.state = 'finalizing'
-                   THEN 'audit-closed-before-dispatch' ELSE 'audit-cancelled-before-dispatch' END
+               WHEN coverage.gaps ? settlement.gap
                THEN coverage.gaps
-               ELSE coverage.gaps || jsonb_build_array(
-                   CASE WHEN target_audit.state = 'finalizing'
-                       THEN 'audit-closed-before-dispatch' ELSE 'audit-cancelled-before-dispatch' END
-               )
+               ELSE coverage.gaps || jsonb_build_array(settlement.gap)
            END,
-           rationale = CASE WHEN target_audit.state = 'finalizing'
-               THEN 'Audit dispatch closed before this item was submitted.'
-               ELSE 'Audit cancellation closed this item before dispatch.' END,
+           rationale = CASE
+               WHEN NOT settlement.had_attempt THEN settlement.message
+               WHEN octet_length(concat_ws(' ', nullif(coverage.rationale, ''), settlement.message)) <= 4096
+                   THEN concat_ws(' ', nullif(coverage.rationale, ''), settlement.message)
+               ELSE coverage.rationale
+           END,
            updated_at = GREATEST(clock_timestamp(), coverage.updated_at + interval '1 microsecond')
-      FROM changed_items, target_audit
-     WHERE coverage.item_id = changed_items.item_id
+      FROM settlement
+     WHERE coverage.item_id = settlement.item_id
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET revision = audit.revision + 1,
