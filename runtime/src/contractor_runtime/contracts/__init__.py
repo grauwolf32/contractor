@@ -85,7 +85,6 @@ from contractor_runtime.contracts.codec import (
     PrivateProtocolDecodeError as PrivateProtocolDecodeError,
 )
 from contractor_runtime.contracts.codec import decode_private as decode_private
-from contractor_runtime.contracts.codec import encode_private as encode_private
 from contractor_runtime.contracts.registration import AgentHeartbeat as AgentHeartbeat
 from contractor_runtime.contracts.registration import AgentRegistration as AgentRegistration
 from contractor_runtime.contracts.registration import (
@@ -134,15 +133,9 @@ from contractor_runtime.contracts.settings import HTTPProxyBasicAuth as HTTPProx
 from contractor_runtime.contracts.settings import HTTPProxySettings as HTTPProxySettings
 from contractor_runtime.contracts.settings import LLMCredentialRef as LLMCredentialRef
 from contractor_runtime.contracts.settings import LLMGatewayConfigRef as LLMGatewayConfigRef
-from contractor_runtime.contracts.settings import (
-    LLMGatewayCredentialManager as LLMGatewayCredentialManager,
-)
 from contractor_runtime.contracts.settings import ModelPolicyRef as ModelPolicyRef
 from contractor_runtime.contracts.settings import ResolvedAgentTemplate as ResolvedAgentTemplate
 from contractor_runtime.contracts.settings import ResolvedInstructions as ResolvedInstructions
-from contractor_runtime.contracts.settings import (
-    ResolvedLLMGatewayConfig as ResolvedLLMGatewayConfig,
-)
 from contractor_runtime.contracts.settings import ResolvedModelPolicy as ResolvedModelPolicy
 from contractor_runtime.contracts.settings import (
     ResolvedRuntimeConfigProvenance as ResolvedRuntimeConfigProvenance,

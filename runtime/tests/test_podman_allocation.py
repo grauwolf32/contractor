@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from fakes.podman_lifecycle import owner
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 from test_lease_watchdog import FakeMonotonic, ScriptedTransport, make_settings
 from test_projectfs_storage import local_settings
 from test_projectfs_zip import archive, workspace_inputs
@@ -28,8 +29,6 @@ from contractor_runtime.factories import (
     FactoryRegistry,
     PodmanWorkdirFactory,
     RunArtifactsToolsetFactory,
-    StubADKWorkerRuntimeFactory,
-    StubWorkerRuntime,
 )
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.projectfs import LocalWorkspaceProvider

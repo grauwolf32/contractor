@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 from pydantic import SecretStr
 
 from contractor_runtime.a2a_server import agent_card_dict, build_agent_card
@@ -32,8 +33,6 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
-    StubADKWorkerRuntimeFactory,
-    StubWorkerRuntime,
     WorkerBuildContext,
 )
 from contractor_runtime.state import ProcessState, RuntimeState

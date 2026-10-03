@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 import json
 import re
 import unicodedata
@@ -62,54 +61,6 @@ def _require_url(field: str, value: str) -> str:
     parsed = urlsplit(value)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username is not None:
         raise ValueError(f"{field} must be an absolute HTTP(S) URL without user information")
-    return value
-
-
-def _require_inference_gateway_url(value: str) -> str:
-    parsed = urlsplit(value)
-    if (
-        value != value.strip()
-        or parsed.scheme not in {"http", "https"}
-        or not parsed.netloc
-        or parsed.hostname is None
-        or parsed.username is not None
-        or parsed.password is not None
-        or "?" in value
-        or "#" in value
-        or parsed.query
-        or parsed.fragment
-        or not parsed.path.startswith("/")
-    ):
-        raise ValueError(
-            "llmGatewayConfig.url must be an absolute HTTP(S) URL with an explicit "
-            "path and no userinfo, query, or fragment"
-        )
-    return value
-
-
-def _require_management_gateway_origin(value: str) -> str:
-    parsed = urlsplit(value)
-    if (
-        value != value.strip()
-        or parsed.scheme not in {"http", "https"}
-        or not parsed.netloc
-        or parsed.hostname is None
-        or parsed.username is not None
-        or parsed.password is not None
-        or "?" in value
-        or "#" in value
-        or parsed.query
-        or parsed.fragment
-        or parsed.path
-    ):
-        raise ValueError("managementUrl must be a canonical HTTP(S) origin")
-    if parsed.scheme == "http":
-        try:
-            loopback = ipaddress.ip_address(parsed.hostname).is_loopback
-        except ValueError:
-            loopback = False
-        if not loopback:
-            raise ValueError("HTTP managementUrl is allowed only for a loopback IP origin")
     return value
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from test_projectfs_zip import archive, workspace_inputs
 
 from contractor_runtime.allocation import AllocationService
@@ -19,7 +20,6 @@ from contractor_runtime.contracts import (
 from contractor_runtime.factories import (
     FactoryRegistry,
     RunArtifactsToolsetFactory,
-    StubADKWorkerRuntimeFactory,
 )
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,

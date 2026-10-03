@@ -7,13 +7,12 @@ import math
 import re
 import ssl
 import unicodedata
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import (
     Field,
     SecretStr,
     field_serializer,
-    field_validator,
     model_validator,
 )
 
@@ -31,8 +30,6 @@ from contractor_runtime.contracts.base import (
     RuntimeCredentialKind,
     WireModel,
     _require_digest,
-    _require_inference_gateway_url,
-    _require_management_gateway_origin,
     _require_runtime_endpoint,
     _require_runtime_label,
     _require_selector,
@@ -120,16 +117,6 @@ class ResolvedInstructions(WireModel):
         _require_digest("instructions.digest", self.digest)
         _require_text("instructions.text", self.text)
         return self
-
-
-class LLMGatewayCredentialManager(WireModel):
-    implementation: Literal["litellm-virtual-keys@1"]
-    management_url: str
-
-    @field_validator("management_url")
-    @classmethod
-    def validate_management_url(cls, value: str) -> str:
-        return _require_management_gateway_origin(value)
 
 
 GATEWAY_FAILURE_SIGNATURE_STATUSES = frozenset({400, 404, 409, 422})
@@ -382,26 +369,6 @@ class ToolsetSelection(WireModel):
         for tool in self.tools:
             _require_text("selected tool", tool)
         return self
-
-
-class ResolvedLLMGatewayConfig(WireModel):
-    ref: LLMGatewayConfigRef
-    protocol: Literal["openai-compatible@1"]
-    url: str
-    credential_manager: LLMGatewayCredentialManager | None = None
-    # Present only when the Gateway declares its own set, keeping existing
-    # digests stable; readers use effective_failure_signatures().
-    failure_signatures: GatewayFailureSignatures | None = None
-
-    def effective_failure_signatures(self) -> GatewayFailureSignatures:
-        if self.failure_signatures is not None:
-            return self.failure_signatures
-        return default_gateway_failure_signatures()
-
-    @field_validator("url")
-    @classmethod
-    def validate_inference_url(cls, value: str) -> str:
-        return _require_inference_gateway_url(value)
 
 
 class TelemetrySettings(WireModel):

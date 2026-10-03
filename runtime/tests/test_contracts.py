@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.private_codec import encode_private
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
@@ -28,7 +29,6 @@ from contractor_runtime.contracts import (
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
     ResolvedAgentTemplate,
-    ResolvedLLMGatewayConfig,
     ResolvedRuntimeConfigProvenance,
     RuntimeReport,
     RuntimeSettings,
@@ -39,18 +39,15 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
     WorkspaceCapabilities,
     decode_private,
-    encode_private,
 )
 from contractor_runtime.digests import (
-    GatewayDigestMismatch,
     _agent_template_digest,
-    verify_gateway_config_digest,
 )
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
 
 # api/testdata/v1alpha1/index.json assigns every fixture a message type, its
-# JSON Schema and the rejections Go and Python both assert.
+# JSON Schema and the rejections applicable to each implementation.
 INDEX = json.loads((FIXTURES / "index.json").read_text(encoding="utf-8"))
 MODELS: dict[str, type[BaseModel]] = {
     model.__name__: model
@@ -68,7 +65,6 @@ MODELS: dict[str, type[BaseModel]] = {
         FinalizeAllocationRequest,
         HeartbeatResponse,
         ReleaseAllocationRequest,
-        ResolvedLLMGatewayConfig,
         ResolvedRuntimeConfigProvenance,
         RuntimeReport,
         RuntimeSettings,
@@ -82,15 +78,17 @@ MODELS: dict[str, type[BaseModel]] = {
 DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
     name: (MODELS[entry["type"]], entry["reason"])
     for name, entry in INDEX["invalid"].items()
-    if "reason" in entry
+    if "reason" in entry and entry["type"] in MODELS
 }
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
-    name: MODELS[entry["type"]] for name, entry in INDEX["valid"].items()
+    name: MODELS[entry["type"]] for name, entry in INDEX["valid"].items() if entry["type"] in MODELS
 }
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
-    name: MODELS[entry["type"]] for name, entry in INDEX["invalid"].items() if entry.get("strict")
+    name: MODELS[entry["type"]]
+    for name, entry in INDEX["invalid"].items()
+    if entry.get("strict") and entry["type"] in MODELS
 }
 
 
@@ -369,36 +367,6 @@ def test_runtime_settings_accepts_explicit_unauthenticated_gateway() -> None:
         }
     )
     assert settings.llm_gateway_token.get_secret_value() == ""
-
-
-def test_resolved_gateway_digest_matches_go_fixture() -> None:
-    raw = (FIXTURES / "valid" / "llm-gateway-config.json").read_text(encoding="utf-8")
-    gateway = ResolvedLLMGatewayConfig.model_validate_json(raw)
-    verify_gateway_config_digest(gateway)
-    assert "token" not in gateway.model_dump_json(by_alias=True).lower()
-    changed = gateway.model_copy(update={"url": "http://127.0.0.1:4001/v1"})
-    with pytest.raises(GatewayDigestMismatch):
-        verify_gateway_config_digest(changed)
-
-
-def test_declared_failure_signatures_join_the_gateway_digest() -> None:
-    raw = (FIXTURES / "valid" / "llm-gateway-config-signatures.json").read_text(encoding="utf-8")
-    gateway = ResolvedLLMGatewayConfig.model_validate_json(raw)
-    verify_gateway_config_digest(gateway)
-    declared = gateway.effective_failure_signatures()
-    assert [item.status for item in declared.model_unavailable] == [404, 400]
-    assert declared.permanent_codes == ["insufficient_quota", "context_length_exceeded"]
-    # Dropping the declaration reverts to the protocol default and a different digest.
-    undeclared = gateway.model_copy(update={"failure_signatures": None})
-    with pytest.raises(GatewayDigestMismatch):
-        verify_gateway_config_digest(undeclared)
-    default = undeclared.effective_failure_signatures()
-    assert len(default.model_unavailable) == 4
-    assert default.permanent_codes == [
-        "insufficient_quota",
-        "budget_exceeded",
-        "context_length_exceeded",
-    ]
 
 
 @pytest.mark.parametrize(
@@ -721,8 +689,8 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
         for path in (FIXTURES / kind).glob("*.json"):
             if path.stem not in FIXTURE_SCHEMAS:
                 # These cases exercise semantic invariants or duplicate JSON keys
-                # in the Go/Python codecs, which JSON Schema cannot express.
-                assert path.name in DECODE_ERROR_CASES
+                # in the applicable codecs, which JSON Schema cannot express.
+                assert "reason" in INDEX[kind][path.name]
                 continue
             schema_name = FIXTURE_SCHEMAS[path.stem]
             filename, _, fragment = schema_name.partition("#")

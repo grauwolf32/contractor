@@ -318,52 +318,6 @@ class PodmanWorkdirFactory(LocalWorkdirFactory):
         return self._available()
 
 
-class StubADKWorkerRuntimeFactory:
-    """Lifecycle-complete stand-in replaced by the real ADK adapter in MVP-012."""
-
-    ref = "adk@1"
-    supports_agent_skills = False
-
-    async def probe(self) -> bool:
-        return True
-
-    async def create(self, context: WorkerBuildContext) -> WorkerRuntime:
-        return StubWorkerRuntime(context)
-
-
-class StubWorkerRuntime:
-    def __init__(self, context: WorkerBuildContext) -> None:
-        endpoint = (
-            f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{context.allocation_id}/a2a"
-        )
-        self._agent_card: dict[str, Any] = {
-            "name": context.logical_agent_name,
-            "description": context.description,
-            "url": endpoint,
-            "protocolVersion": "1.0",
-            "version": context.card_version,
-            "capabilities": {},
-            "defaultInputModes": ["application/json"],
-            "defaultOutputModes": ["application/json"],
-            "skills": [],
-        }
-        self._worker_state = context.state
-        self.stopped = False
-
-    @property
-    def agent_card(self) -> Mapping[str, Any]:
-        return dict(self._agent_card)
-
-    async def agent_state_snapshot(self) -> AgentStateSnapshot:
-        return await self._worker_state.agent_state_snapshot()
-
-    async def finalize(self, deadline: datetime) -> None:
-        self.stopped = True
-
-    async def abort(self, deadline: datetime) -> None:
-        self.stopped = True
-
-
 def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bool = False) -> None:
     if not entries and not allow_empty:
         raise ValueError(f"{kind} registry must not be empty")

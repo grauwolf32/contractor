@@ -14,9 +14,7 @@ from contractor_runtime.mtls import (
     CONTROL_PLANE_URI_PREFIX,
     runtime_agent_client_context,
     runtime_agent_server_context,
-    verify_control_plane_certificate,
-    wrap_control_plane_client_socket,
-    wrap_control_plane_server_socket,
+    verify_control_plane_peer,
 )
 
 
@@ -80,10 +78,8 @@ def test_runtime_agent_outgoing_chain_hostname_and_role_verification(
 
     def connect(address: tuple[str, int]) -> bytes:
         raw = socket.create_connection(address, timeout=2)
-        connection = wrap_control_plane_client_socket(
-            client_context, raw, server_hostname="localhost"
-        )
-        with connection:
+        with client_context.wrap_socket(raw, server_hostname="localhost") as connection:
+            verify_control_plane_peer(connection)
             return connection.recv(2)
 
     assert exchange_once(server_context, connect) == b"ok"
@@ -144,8 +140,11 @@ def test_runtime_agent_rejects_ca_valid_server_without_control_plane_uri(
 
     def connect(address: tuple[str, int]) -> bytes:
         raw = socket.create_connection(address, timeout=2)
-        with pytest.raises(ssl.SSLCertVerificationError):
-            wrap_control_plane_client_socket(client_context, raw, server_hostname="localhost")
+        with (
+            pytest.raises(ssl.SSLCertVerificationError),
+            client_context.wrap_socket(raw, server_hostname="localhost") as connection,
+        ):
+            verify_control_plane_peer(connection)
         return b"rejected"
 
     assert exchange_once(server_context, connect, allow_server_error=True) == b"rejected"
@@ -168,19 +167,27 @@ def test_runtime_agent_rejects_foreign_ca_server(
 
     def connect(address: tuple[str, int]) -> bytes:
         raw = socket.create_connection(address, timeout=2)
-        with pytest.raises(ssl.SSLCertVerificationError):
-            wrap_control_plane_client_socket(client_context, raw, server_hostname="localhost")
+        with (
+            pytest.raises(ssl.SSLCertVerificationError),
+            client_context.wrap_socket(raw, server_hostname="localhost") as connection,
+        ):
+            verify_control_plane_peer(connection)
         return b"rejected"
 
     assert exchange_once(server_context, connect, allow_server_error=True) == b"rejected"
 
 
 def test_control_plane_uri_requires_nonempty_suffix() -> None:
-    verify_control_plane_certificate(
-        {"subjectAltName": (("URI", CONTROL_PLANE_URI_PREFIX + "cp-1"),)}
-    )
+    class Peer:
+        def __init__(self, suffix: str) -> None:
+            self.suffix = suffix
+
+        def getpeercert(self) -> dict:
+            return {"subjectAltName": (("URI", CONTROL_PLANE_URI_PREFIX + self.suffix),)}
+
+    verify_control_plane_peer(Peer("cp-1"))  # type: ignore[arg-type]
     with pytest.raises(ssl.SSLCertVerificationError):
-        verify_control_plane_certificate({"subjectAltName": (("URI", CONTROL_PLANE_URI_PREFIX),)})
+        verify_control_plane_peer(Peer(""))  # type: ignore[arg-type]
 
 
 def private_server_context(pki: PKI, certificate: Path, key: Path) -> ssl.SSLContext:
@@ -217,7 +224,12 @@ def exchange_once(
         try:
             raw, _ = listener.accept()
             if verify_server_peer:
-                connection = wrap_control_plane_server_socket(server_context, raw)
+                connection = server_context.wrap_socket(raw, server_side=True)
+                try:
+                    verify_control_plane_peer(connection)
+                except BaseException:
+                    connection.close()
+                    raise
             else:
                 connection = server_context.wrap_socket(raw, server_side=True)
             with connection:

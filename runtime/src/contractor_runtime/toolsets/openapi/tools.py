@@ -73,7 +73,6 @@ OPENAPI_30_COMPONENT_SECTIONS = frozenset(
 )
 ALLOWED_COMPONENT_SECTIONS = OPENAPI_30_COMPONENT_SECTIONS | {"pathItems"}
 
-HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
 BASE_DOCUMENT: dict[str, Any] = {
     "openapi": "3.0.3",

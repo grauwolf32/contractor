@@ -5,8 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fakes.private_codec import encode_private
 
-from contractor_runtime.contracts import encode_private
 from contractor_runtime.telemetry.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
     MAX_METRIC_COUNTER,

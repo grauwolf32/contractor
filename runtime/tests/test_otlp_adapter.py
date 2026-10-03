@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
     ExportTraceServiceResponse,
@@ -35,7 +36,6 @@ from contractor_runtime.contracts import (
 from contractor_runtime.factories import (
     FactoryRegistry,
     RunArtifactsToolsetFactory,
-    StubADKWorkerRuntimeFactory,
 )
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory

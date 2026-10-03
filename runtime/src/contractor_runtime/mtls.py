@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import socket
 import ssl
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from os import PathLike
-from typing import Any
 
 CONTROL_PLANE_URI_PREFIX = "urn:contractor:control-plane:"
 
@@ -19,9 +17,8 @@ def runtime_agent_client_context(
 ) -> ssl.SSLContext:
     """Create the Agent's normal hostname-verifying outgoing TLS context.
 
-    Call :func:`wrap_control_plane_client_socket` (or call
-    :func:`verify_control_plane_peer` immediately after a framework completes
-    its TLS handshake) to add the required Control Plane URI SAN check.
+    Call :func:`verify_control_plane_peer` immediately after the TLS handshake
+    to add the required Control Plane URI SAN check.
     """
 
     context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca_file)
@@ -41,9 +38,8 @@ def runtime_agent_server_context(
     """Create the Agent's incoming context requiring a CA-valid client cert.
 
     The stdlib has no portable certificate-verification callback. Acceptors
-    must therefore use :func:`wrap_control_plane_server_socket` or invoke
-    :func:`verify_control_plane_peer` immediately after ``accept``/handshake
-    and before reading an HTTP byte.
+    must invoke :func:`verify_control_plane_peer` immediately after the TLS
+    handshake and before reading an HTTP byte.
     """
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -74,45 +70,3 @@ def verify_control_plane_peer(connection: ssl.SSLSocket | ssl.SSLObject) -> None
         ):
             return
     raise ssl.SSLCertVerificationError("peer certificate lacks the Control Plane URI SAN")
-
-
-def verify_control_plane_certificate(certificate: Mapping[str, Any]) -> None:
-    """Testable certificate-dictionary variant of the post-handshake check."""
-
-    class _Peer:
-        def getpeercert(self) -> Mapping[str, Any]:
-            return certificate
-
-    verify_control_plane_peer(_Peer())  # type: ignore[arg-type]
-
-
-def wrap_control_plane_client_socket(
-    context: ssl.SSLContext,
-    raw_socket: socket.socket,
-    *,
-    server_hostname: str,
-) -> ssl.SSLSocket:
-    """Perform chain, hostname, and role verification before returning a socket."""
-
-    connection = context.wrap_socket(raw_socket, server_hostname=server_hostname)
-    try:
-        verify_control_plane_peer(connection)
-    except BaseException:
-        connection.close()
-        raise
-    return connection
-
-
-def wrap_control_plane_server_socket(
-    context: ssl.SSLContext,
-    raw_socket: socket.socket,
-) -> ssl.SSLSocket:
-    """Perform client-chain and Control Plane role verification on accept."""
-
-    connection = context.wrap_socket(raw_socket, server_side=True)
-    try:
-        verify_control_plane_peer(connection)
-    except BaseException:
-        connection.close()
-        raise
-    return connection

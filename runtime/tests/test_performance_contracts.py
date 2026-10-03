@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import pytest
+from fakes.private_codec import encode_private
 from fakes.spec import allocation_spec
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
@@ -19,7 +20,6 @@ from contractor_runtime.contracts import (
     RuntimeReport,
     RuntimeResources,
     decode_private,
-    encode_private,
 )
 
 ROOT = Path(__file__).parents[2]

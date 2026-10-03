@@ -46,7 +46,6 @@ _SUMMARIZER_COUNTER_FIELDS = (
     "totalTokens",
     "tokenUsageUnavailable",
 )
-_SUMMARIZER_PHASES = frozenset({"disabled", "not_requested", "requested", "succeeded", "failed"})
 _FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 InvocationPhase = Literal["running", "succeeded", "failed", "cancelled"]
