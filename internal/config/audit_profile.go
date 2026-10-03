@@ -908,6 +908,9 @@ func auditProfileDigest(selector Selector, profile ResolvedAuditProfile) (string
 		if binding.WorkerCompletion != nil {
 			value["workerCompletion"] = binding.WorkerCompletion
 		}
+		if binding.MaxRunAttempts != 0 {
+			value["maxRunAttempts"] = binding.MaxRunAttempts
+		}
 		workflows[role] = value
 	}
 	return digestJCS(map[string]any{

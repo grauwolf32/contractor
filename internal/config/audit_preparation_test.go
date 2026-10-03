@@ -61,6 +61,56 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 	}
 }
 
+func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
+	root := copyConfigTree(t)
+	writeAuditProfile(t, root, "prepared-openapi-scan", string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml")))
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("prepared-openapi-scan@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Workflows["generate-api"].MaxRunAttempts != 2 {
+		t.Fatal("prepare fixture no longer has two attempts")
+	}
+	digests := map[string]bool{profile.Ref.Digest: true}
+	for _, attempts := range []int{1, 3} {
+		candidate := cloneAuditProfile(profile)
+		binding := candidate.Workflows["generate-api"]
+		binding.MaxRunAttempts = attempts
+		candidate.Workflows["generate-api"] = binding
+		digest, err := auditProfileDigest(Selector{ID: profile.Ref.Name, Version: profile.Ref.Version}, candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if digests[digest] {
+			t.Fatalf("maxRunAttempts=%d reused digest %s", attempts, digest)
+		}
+		digests[digest] = true
+		raw, err := json.Marshal(candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := DecodeResolvedAuditProfileSnapshot(raw); err == nil || !strings.Contains(err.Error(), "persisted AuditProfile digest is invalid") {
+			t.Fatalf("changed maxRunAttempts=%d with stale digest = %v", attempts, err)
+		}
+	}
+}
+
+func TestRepositoryAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	for ref, digest := range map[string]string{
+		"source-checklist@1":          "sha256:e1546170093cc6e83617a83d635c8d54a1cb7d0487e6ba6e0f524832be05cffb",
+		"openapi-operation-observe@1": "sha256:6e6d3e396810e990da04faa18bd3b5f4dc896d6e830361f9df06aae7c1515b4e",
+	} {
+		profile, err := snapshot.AuditProfile(ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if profile.Ref.Digest != digest {
+			t.Fatalf("%s digest = %s, want %s", ref, profile.Ref.Digest, digest)
+		}
+	}
+}
+
 func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
 	root := copyConfigTree(t)
 	data := string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml"))
