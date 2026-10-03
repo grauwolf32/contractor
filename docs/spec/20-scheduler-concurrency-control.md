@@ -285,11 +285,20 @@ change.
 
 ## 10. Supported topology and non-goals
 
-The supported deployment has one active Server/Scheduler process and one or
-more Runtime Agent processes. PostgreSQL claims make accidental duplicate
-claiming safe, but two independently active Scheduler processes would each
-apply their local lane count. A distributed global semaphore and multiple
-active Control Plane replicas remain a separate feature.
+The supported deployment has one active Server/Scheduler process per PostgreSQL
+database and one or more Runtime Agent processes. Before credential recovery,
+the process-local Control Plane, Scheduler or private API starts, the Server
+holds a session-level PostgreSQL advisory lease on a dedicated connection. A
+second Server serves `/healthz` but returns 503 from `/readyz` and has no
+private API until it acquires that lease. The active Server closes its listeners
+and cancels the Scheduler when it detects lease-session loss; the standby then
+takes over. The dedicated connection requires direct PostgreSQL or session
+pooling, not transaction-mode pooling.
+
+The example Deployment uses one replica and `Recreate` updates. Active-active
+Server replicas are unsupported: two independently active Schedulers would each
+apply their local lane count. A distributed global semaphore and shared Control
+Plane Registry remain separate features.
 
 This increment does not add:
 
