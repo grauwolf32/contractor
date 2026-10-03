@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V145-001
+title: Reject NUL in Runtime Audit result summaries
+milestone: audit-result-summary-nul-2026-10
+priority: P2
+status: completed
+implementation_commit: 5eed7cd0de76907d9fd8fa3e18f54f8f5cb2bf85
+depends_on: []
+languages: [python, go, json]
+goal: Reject unimportable Audit result summaries before local collection changes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/193
+  finding: Runtime accepts NUL in result and evidence summaries although Go package decoding rejects it.
+scope:
+  in:
+    - Reject NUL in the Audit result tool and immutable constructor text checks.
+    - Cover result and evidence summaries in shared Python and Go acceptance fixtures.
+    - Verify scalar and batch errors leave the collection unchanged.
+  out:
+    - Change the Audit package format or importer text rules.
+acceptance_criteria:
+  - {id: A1, text: NUL in a result or evidence summary returns a field-specific repairable error without mutation.}
+  - {id: A2, text: Immutable Audit result and evidence constructors reject NUL summaries.}
+  - {id: A3, text: Shared fixtures reject NUL in Python collector and Go codecs.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_audit_result_collector.py, covers: [A1, A2, A3]}
+  - {command: go test ./internal/auditimport -run TestAuditCompletionSharedTaskLocalValidation, covers: [A3]}

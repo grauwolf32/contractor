@@ -52,11 +52,14 @@ func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 				t.Fatalf("invalid trusted task fixture: %v", err)
 			}
 			evidence := map[string]validatedEvidence{}
+			evidenceValues := make([]auditdomain.Evidence, 0, len(fixture.Result.Evidence))
 			ids := []string{}
 			for index, value := range fixture.Result.Evidence {
 				id := fmt.Sprintf("ev-%03d", index)
 				value.ID = id
+				value.ContentMemberID = id
 				evidence[id] = validatedEvidence{value: value}
+				evidenceValues = append(evidenceValues, value)
 				ids = append(ids, id)
 			}
 			result := auditdomain.CheckResult{
@@ -73,6 +76,11 @@ func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 				ExecutionManifestDigest: "sha256:" + strings.Repeat("a", 64),
 				Results:                 []auditdomain.CheckResult{result},
 			})
+			if resultErr == nil {
+				_, resultErr = auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
+					Schema: auditdomain.EvidenceSchema, Evidence: evidenceValues,
+				})
+			}
 			if resultErr == nil {
 				_, resultErr = semanticCoverage(fixture.Mode, task, result, evidence)
 			}

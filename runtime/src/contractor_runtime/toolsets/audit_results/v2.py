@@ -36,13 +36,18 @@ from contractor_runtime.toolsets.common.metrics import ToolMetrics
 def _text(value, field, key):
     try:
         valid = (
-            isinstance(value, str) and value.strip() and len(value.encode()) <= MAX_SUMMARY_BYTES
+            isinstance(value, str)
+            and value.strip()
+            and "\x00" not in value
+            and len(value.encode()) <= MAX_SUMMARY_BYTES
         )
     except UnicodeError:
         valid = False
     if not valid:
         raise AuditCollectionError(
-            field, "Provide nonempty UTF-8 text of at most 16 KiB.", item_key=key
+            field,
+            "Provide nonempty UTF-8 text without NUL characters, at most 16 KiB.",
+            item_key=key,
         )
     return value
 
@@ -174,7 +179,7 @@ class SubmitCheckResultTool:
                 and evidence contract. For a checklist outside risk-assessment,
                 use satisfied or violated instead of supported. Finding checks
                 may use supported.
-            summary: Non-empty explanation of the outcome, at most 16 KiB of UTF-8.
+            summary: Non-empty explanation without NUL characters, at most 16 KiB of UTF-8.
             completed: Array of coverage identifiers actually verified. Use only
                 the matching requestedCoverage from read_audit_task, not work steps.
                 Required for individual submission; [] is allowed.
@@ -183,6 +188,7 @@ class SubmitCheckResultTool:
                 digits, '.', '_', ':', '-' only; start with a letter or digit;
                 at most 160 characters each. Required for individual submission.
             evidence: Optional array of objects with kind and summary only.
+                Each summary follows the same text rule as the result summary.
                 Follow the assigned task's requested evidence kinds and bounds.
             proposal_keys: Optional array of client_key values returned by successful
                 finding calls in this invocation. A linked finding on a standard

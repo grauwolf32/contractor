@@ -41,7 +41,12 @@ def _tuple(values, maximum):
 
 
 def _text(value: str) -> None:
-    if not isinstance(value, str) or not value.strip() or len(value.encode()) > MAX_SUMMARY_BYTES:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or "\x00" in value
+        or len(value.encode()) > MAX_SUMMARY_BYTES
+    ):
         raise ValueError("Audit summary must be nonempty and bounded")
 
 
