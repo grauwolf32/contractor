@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V160-001
+title: Classify numeric-code and unwrapped Gateway errors consistently
+milestone: gateway-error-body-parity-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, json]
+goal: Make Planner Gateway failure classification match Runtime for common OpenAI-compatible error bodies.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/229
+  finding: Go discards message when code is numeric and ignores top-level error fields entirely.
+scope:
+  in:
+    - Read a wrapped error when present, otherwise read top-level error fields.
+    - Treat non-string code independently of a valid message.
+    - Add numeric-code, unwrapped and top-level permanent-code shared fixtures.
+  out:
+    - Change signature precedence or unrelated Gateway recovery policy.
+acceptance_criteria:
+  - {id: A1, text: Numeric-code and unwrapped 404 errors match declared model-unavailable signatures.}
+  - {id: A2, text: A top-level permanent string code wins over HTTP 429 retry classification.}
+  - {id: A3, text: Go and Python shared-fixture classifiers pass the new cases.}
+tests:
+  - {command: go test ./internal/gatewayrecovery -run TestClassifyGatewayFailureMatchesSharedFixture, covers: [A1, A2, A3]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest -q runtime/tests/test_gateway_error_classification.py, covers: [A1, A2, A3]}
