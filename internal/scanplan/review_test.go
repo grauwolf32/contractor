@@ -6,11 +6,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
-func TestPrepareMisspelledPathMethodReportsGap(t *testing.T) {
+func TestPrepareMisspelledPathMethodRejectsSelection(t *testing.T) {
 	doc := document(map[string]any{"/x": map[string]any{"GET": map[string]any{}}})
-	view := mustDocument(t, doc, scanplan.Options{})
-	if view.Coverage.Complete || len(view.Gaps) == 0 || len(view.Requests) != 0 {
-		t.Fatalf("misspelled method became complete empty coverage: %+v", view)
+	_, err := scanplan.PrepareOperation(encoded(t, doc), "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1x/get")
+	if err == nil {
+		t.Fatal("misspelled method was accepted as an operation")
 	}
 }
 

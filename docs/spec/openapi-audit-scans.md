@@ -129,7 +129,7 @@ Unknown selectors fail explicitly. An unresolved selected path or unusable
 request remains one skipped operation with diagnostics, never an empty success.
 
 The preparation identity binds the policy-2 base digest, selected operation and
-`request` mode. Whole-document `Prepare` keeps its existing canonical identity.
+`request` mode.
 Source parsing and size/depth/node bounds still apply to the entire document;
 reference expansion and request preparation only concern the assigned operation.
 

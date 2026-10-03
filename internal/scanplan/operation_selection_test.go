@@ -223,17 +223,13 @@ func TestOperationPreparationIdentitySeparatesSourceAssignmentAndMode(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	all, err := scanplan.Prepare(data, "application/json", ref, scanplan.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	*ref.Revision = "source-2"
 	newRevision, err := scanplan.PrepareOperation(data, "application/json", ref, scanplan.Options{}, "#/paths/~1pets/get")
 	if err != nil {
 		t.Fatal(err)
 	}
 	seen := map[string]bool{}
-	for _, identity := range []string{get.PreparationDigest, post.PreparationDigest, target.PreparationDigest, all.PreparationDigest, newRevision.PreparationDigest} {
+	for _, identity := range []string{get.PreparationDigest, post.PreparationDigest, target.PreparationDigest, newRevision.PreparationDigest} {
 		if identity == "" || seen[identity] {
 			t.Fatal("preparation identity lost mode, operation or exact revision")
 		}

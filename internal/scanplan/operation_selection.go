@@ -55,7 +55,7 @@ func (s operationSelection) valid() bool {
 // source. Other operations neither consume its request budget nor contribute gaps.
 // Bindings for other operations are rejected, never silently broadened.
 func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (contracts.HTTPRequestSet, error) {
-	return prepare(data, mediaType, source, options, &operationSelection{pointer: pointer, mode: "request"})
+	return prepare(data, mediaType, source, options, operationSelection{pointer: pointer, mode: "request"})
 }
 
 // OperationTarget is an in-process URL preparation result, not a persisted scan
@@ -88,7 +88,7 @@ func PrepareOperationTarget(data []byte, mediaType string, source contracts.Arti
 			}
 		}
 	}
-	set, err := prepare(data, mediaType, source, options, &operationSelection{pointer: pointer, mode: "url-target"})
+	set, err := prepare(data, mediaType, source, options, operationSelection{pointer: pointer, mode: "url-target"})
 	if err != nil {
 		return OperationTarget{}, err
 	}

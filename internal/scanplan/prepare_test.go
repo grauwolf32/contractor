@@ -80,9 +80,9 @@ func document(paths map[string]any) map[string]any {
 	}
 }
 
-func mustPrepare(t *testing.T, data []byte, media string, ref contracts.ArtifactRef, options scanplan.Options) (preparedView, []byte) {
+func mustPrepare(t *testing.T, data []byte, media string, ref contracts.ArtifactRef, options scanplan.Options, pointer string) (preparedView, []byte) {
 	t.Helper()
-	result, err := scanplan.Prepare(data, media, ref, options)
+	result, err := scanplan.PrepareOperation(data, media, ref, options, pointer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,30 @@ func mustPrepare(t *testing.T, data []byte, media string, ref contracts.Artifact
 
 func mustDocument(t *testing.T, doc map[string]any, options scanplan.Options) preparedView {
 	t.Helper()
-	view, _ := mustPrepare(t, encoded(t, doc), "application/json", sourceRef(), options)
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok || len(paths) != 1 {
+		t.Fatal("mustDocument requires one selected path")
+	}
+	var pointer string
+	for path, raw := range paths {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatal("mustDocument requires one path item")
+		}
+		for method := range item {
+			candidate := "#/paths/" + strings.ReplaceAll(strings.ReplaceAll(path, "~", "~0"), "/", "~1") + "/" + method
+			if scanplan.ValidOperationPointer(candidate) {
+				if pointer != "" {
+					t.Fatal("mustDocument requires one selected operation")
+				}
+				pointer = candidate
+			}
+		}
+	}
+	if pointer == "" {
+		t.Fatal("mustDocument requires one selected operation")
+	}
+	view, _ := mustPrepare(t, encoded(t, doc), "application/json", sourceRef(), options, pointer)
 	return view
 }
 
@@ -163,18 +186,19 @@ func TestPrepareStableIdentityAndExactInputProvenance(t *testing.T) {
 	otherOptions := scanplan.Options{Authentication: map[string]contracts.SecretString{}}
 	otherOptions.Authentication["a"] = contracts.NewSecretString("unused-a")
 	otherOptions.Authentication["z"] = contracts.NewSecretString("unused-z")
-	left, leftBytes := mustPrepare(t, first, "application/json", sourceRef(), options)
-	right, rightBytes := mustPrepare(t, first, "application/json", sourceRef(), otherOptions)
+	const pointer = "#/paths/~1a/get"
+	left, leftBytes := mustPrepare(t, first, "application/json", sourceRef(), options, pointer)
+	right, rightBytes := mustPrepare(t, first, "application/json", sourceRef(), otherOptions, pointer)
 	if !bytes.Equal(leftBytes, rightBytes) {
 		t.Fatal("identical exact inputs or map insertion order changed canonical output")
 	}
 	if left.Source.ContentDigest != digest(first) || !reflect.DeepEqual(left.Source.Artifact, sourceRef()) {
 		t.Fatal("source provenance is not exact")
 	}
-	if !left.Coverage.Complete || left.Coverage.Prepared != 2 {
+	if !left.Coverage.Complete || left.Coverage.Prepared != 1 {
 		t.Fatalf("coverage: %+v", left.Coverage)
 	}
-	right, _ = mustPrepare(t, reordered, "application/json", sourceRef(), options)
+	right, _ = mustPrepare(t, reordered, "application/json", sourceRef(), options, pointer)
 	if !reflect.DeepEqual(left.Requests, right.Requests) {
 		t.Fatal("JSON property order changed request identity")
 	}
@@ -184,32 +208,30 @@ func TestPrepareStableIdentityAndExactInputProvenance(t *testing.T) {
 	ref := sourceRef()
 	revision := "source-2"
 	ref.Revision = &revision
-	right, _ = mustPrepare(t, first, "application/json", ref, options)
+	right, _ = mustPrepare(t, first, "application/json", ref, options, pointer)
 	if !reflect.DeepEqual(left.Requests, right.Requests) || left.PreparationDigest == right.PreparationDigest {
 		t.Fatal("source revision must affect preparation, not request identity")
 	}
 	otherOptions.Authentication["a"] = contracts.NewSecretString("changed-binding")
-	right, _ = mustPrepare(t, first, "application/json", sourceRef(), otherOptions)
+	right, _ = mustPrepare(t, first, "application/json", sourceRef(), otherOptions, pointer)
 	if !reflect.DeepEqual(left.Requests, right.Requests) || left.PreparationDigest == right.PreparationDigest {
 		t.Fatal("preparation digest omitted explicit options")
 	}
 }
 
-func TestPrepareDeduplicatesWithoutDroppingOriginsOrLimitCoverage(t *testing.T) {
+func TestPrepareOperationSelectsOneRequestWithoutUnrelatedCoverage(t *testing.T) {
 	doc := document(map[string]any{
 		"/a":    map[string]any{"get": map[string]any{}},
 		"/b":    map[string]any{"get": map[string]any{}},
 		"/{id}": map[string]any{"get": map[string]any{"parameters": []any{map[string]any{"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string"}, "example": "a"}}}},
 	})
-	view := mustDocument(t, doc, scanplan.Options{MaxRequests: 1})
-	if len(view.Requests) != 1 || len(view.Requests[0].Origins) != 2 || view.Coverage.Operations != 3 || view.Coverage.Prepared != 2 || view.Coverage.Skipped != 1 || view.Coverage.Complete {
-		t.Fatalf("deduplication or request bound lost origins: %+v", view)
-	}
-	if view.Requests[0].Origins[0].Pointer != "#/paths/~1a/get" || view.Requests[0].Origins[1].Pointer != "#/paths/~1{id}/get" {
-		t.Fatal("wrong retained origins")
-	}
-	if len(view.Gaps) != 1 || view.Gaps[0].Pointer != "#/paths/~1b/get" {
-		t.Fatalf("request limit is not accounted for: %+v", view.Gaps)
+	data := encoded(t, doc)
+	for _, pointer := range []string{"#/paths/~1a/get", "#/paths/~1b/get", "#/paths/~1{id}/get"} {
+		view, _ := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{MaxRequests: 1}, pointer)
+		if len(view.Requests) != 1 || len(view.Requests[0].Origins) != 1 || view.Requests[0].Origins[0].Pointer != pointer ||
+			view.Coverage.Operations != 1 || view.Coverage.Prepared != 1 || !view.Coverage.Complete || len(view.Gaps) != 0 {
+			t.Fatalf("unrelated operations affected %s: %+v", pointer, view)
+		}
 	}
 }
 
@@ -327,14 +349,27 @@ func TestPrepareMissingInputsUnsupportedMethodsAndCallbacksAreCoverageGaps(t *te
 		"/trace":              map[string]any{"trace": map[string]any{}},
 		"/callback":           map[string]any{"get": map[string]any{"callbacks": map[string]any{"event": map[string]any{"{$request.body#/url}": map[string]any{"post": map[string]any{}}}}}},
 	})
-	view := mustDocument(t, doc, scanplan.Options{})
-	if view.Coverage.Operations != 7 || view.Coverage.Prepared != 4 || view.Coverage.Skipped != 3 || view.Coverage.Complete || len(view.Gaps) < 6 {
-		t.Fatalf("missing/unsupported input was hidden: %+v", view)
-	}
-	for _, entry := range view.Requests {
-		if strings.Contains(entry.Request.URL, "do-not-invent") || entry.Request.Body != "" {
-			t.Fatal("missing data was invented")
+	prepared, skipped, gaps := 0, 0, 0
+	for _, pointer := range []string{
+		"#/paths/~1required-parameter/get", "#/paths/~1optional-parameter/get",
+		"#/paths/~1required-body/post", "#/paths/~1optional-body/post",
+		"#/paths/~1plain/get", "#/paths/~1trace/trace", "#/paths/~1callback/get",
+	} {
+		view, _ := mustPrepare(t, encoded(t, doc), "application/json", sourceRef(), scanplan.Options{}, pointer)
+		if view.Coverage.Operations != 1 {
+			t.Fatalf("coverage included unrelated operations: %+v", view)
 		}
+		prepared += view.Coverage.Prepared
+		skipped += view.Coverage.Skipped
+		gaps += len(view.Gaps)
+		for _, entry := range view.Requests {
+			if strings.Contains(entry.Request.URL, "do-not-invent") || entry.Request.Body != "" {
+				t.Fatal("missing data was invented")
+			}
+		}
+	}
+	if prepared != 4 || skipped != 3 || gaps < 6 {
+		t.Fatalf("missing/unsupported input was hidden: prepared=%d skipped=%d gaps=%d", prepared, skipped, gaps)
 	}
 }
 
@@ -475,7 +510,7 @@ func TestPrepareJSONAndYAMLProduceSameRequests(t *testing.T) {
 	yamlDoc := []byte("openapi: 3.0.3\ninfo: {title: Fixture, version: '1'}\nservers:\n  - url: https://api.example.test/base\npaths:\n  /x:\n    get:\n      parameters:\n        - name: q\n          in: query\n          schema: {type: string}\n          example: snow 雪\n")
 	left := mustDocument(t, jsonDoc, scanplan.Options{})
 	for _, media := range []string{"application/yaml", "application/x-yaml", "text/yaml"} {
-		right, _ := mustPrepare(t, yamlDoc, media, sourceRef(), scanplan.Options{})
+		right, _ := mustPrepare(t, yamlDoc, media, sourceRef(), scanplan.Options{}, "#/paths/~1x/get")
 		if !reflect.DeepEqual(left.Requests, right.Requests) || !right.Coverage.Complete {
 			t.Fatalf("JSON/YAML preparation differs for %s", media)
 		}
@@ -525,7 +560,7 @@ func TestPrepareHeaderParameterBindingsAreCaseInsensitive(t *testing.T) {
 	options := scanplan.Options{Operations: map[string]scanplan.OperationInput{
 		"#/paths/~1x/get": {Parameters: map[string]any{"header:X-ENABLED": true, "header:x-enabled": false}},
 	}}
-	_, err := scanplan.Prepare(encoded(t, doc), "application/json", sourceRef(), options)
+	_, err := scanplan.PrepareOperation(encoded(t, doc), "application/json", sourceRef(), options, "#/paths/~1x/get")
 	var preparationError *scanplan.PreparationError
 	if !errors.As(err, &preparationError) || preparationError.Code != "duplicate_parameter_binding" {
 		t.Fatalf("case-duplicate header bindings accepted or misclassified: %v", err)
@@ -592,7 +627,7 @@ func TestPrepareAcceptsOpenAPI30And31PatchVersions(t *testing.T) {
 	}
 }
 
-func TestPrepareInvalidWholeInputsAndBindingsHavePrivateErrors(t *testing.T) {
+func TestPrepareOperationInvalidInputsAndBindingsHavePrivateErrors(t *testing.T) {
 	valid := encoded(t, document(map[string]any{"/x": map[string]any{"get": map[string]any{}}}))
 	for name, test := range map[string]struct {
 		data    []byte
@@ -621,7 +656,7 @@ func TestPrepareInvalidWholeInputsAndBindingsHavePrivateErrors(t *testing.T) {
 			if test.ref.Namespace == "" {
 				test.ref = sourceRef()
 			}
-			_, err := scanplan.Prepare(test.data, test.media, test.ref, test.options)
+			_, err := scanplan.PrepareOperation(test.data, test.media, test.ref, test.options, "#/paths/~1x/get")
 			if err == nil {
 				t.Fatal("invalid input accepted")
 			}
@@ -634,50 +669,17 @@ func TestPrepareInvalidWholeInputsAndBindingsHavePrivateErrors(t *testing.T) {
 	}
 }
 
-func TestPrepareOperationAndGlobalReferenceWorkBounds(t *testing.T) {
+func TestPrepareOperationIgnoresUnselectedReferenceWork(t *testing.T) {
 	paths := make(map[string]any)
+	paths["/selected"] = map[string]any{"get": map[string]any{}}
 	for i := 0; i <= scanplan.MaxOperations; i++ {
-		paths[fmt.Sprintf("/p%04d", i)] = map[string]any{"get": map[string]any{}}
-	}
-	if _, err := scanplan.Prepare(encoded(t, document(paths)), "application/json", sourceRef(), scanplan.Options{}); err == nil {
-		t.Fatal("operation limit accepted")
-	}
-	paths = make(map[string]any)
-	parameters := make(map[string]any)
-	refs := make([]any, 5)
-	for i := range refs {
-		name := fmt.Sprintf("Q%d", i)
-		parameters[name] = map[string]any{"name": name, "in": "query", "schema": map[string]any{"type": "string"}, "example": "value"}
-		refs[i] = map[string]any{"$ref": "#/components/parameters/" + name}
-	}
-	for i := 0; i < scanplan.MaxOperations; i++ {
-		paths[fmt.Sprintf("/p%04d", i)] = map[string]any{"get": map[string]any{"parameters": refs}}
+		paths[fmt.Sprintf("/unselected-%04d", i)] = map[string]any{"get": map[string]any{
+			"parameters": []any{map[string]any{"$ref": "#/components/parameters/Missing"}},
+		}}
 	}
 	doc := document(paths)
-	doc["components"] = map[string]any{"parameters": parameters}
-	if _, err := scanplan.Prepare(encoded(t, doc), "application/json", sourceRef(), scanplan.Options{}); err == nil {
-		t.Fatal("reference budget was reset for each operation")
-	}
-}
-
-func TestPrepareRetainedOutputHasAnIndependentByteBound(t *testing.T) {
-	paths := make(map[string]any)
-	for i := 0; i < scanplan.MaxOperations; i++ {
-		paths[fmt.Sprintf("/p%04d", i)] = map[string]any{"post": map[string]any{"requestBody": map[string]any{"$ref": "#/components/requestBodies/Shared"}}}
-	}
-	doc := document(paths)
-	doc["components"] = map[string]any{"requestBodies": map[string]any{"Shared": map[string]any{
-		"required": true, "content": map[string]any{"text/plain": map[string]any{"schema": map[string]any{"type": "string"}, "example": strings.Repeat("x", 6000)}},
-	}}}
-	data := encoded(t, doc)
-	if len(data) >= scanplan.MaxSourceBytes {
-		t.Fatal("fixture exceeds source bound")
-	}
-	result, err := scanplan.Prepare(data, "application/json", sourceRef(), scanplan.Options{})
-	if err == nil {
-		t.Fatalf("oversized retained output accepted with %d requests", len(result.Requests))
-	}
-	if len(result.Requests) != 0 {
-		t.Fatal("output bound returned unaccounted partial requests")
+	view, _ := mustPrepare(t, encoded(t, doc), "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1selected/get")
+	if len(view.Requests) != 1 || view.Coverage.Operations != 1 || !view.Coverage.Complete || len(view.Gaps) != 0 {
+		t.Fatalf("unselected operations consumed preparation work: %+v", view)
 	}
 }
