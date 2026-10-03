@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V168-001
+title: Bound Control Plane lease hold after holder host loss
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: cd09287cf698d3fa6facbd8cf9c9476e76aeacdb
+depends_on: [V107-001]
+languages: [go]
+goal: Let a standby Server take over within about half a minute when the active Server host disappears without closing its lease session.
+context:
+  finding: The lease session used OS keepalive defaults (tcp_keepalives_idle 7200 s), so PostgreSQL held the advisory lock for about two hours after a node failure.
+scope:
+  in:
+    - Set server-side tcp_keepalives_* and tcp_user_timeout on the lease session after connecting.
+    - Document the bound and session-pooler behaviour in spec 20.
+  out:
+    - Change lease polling, standby readiness or pool connection settings.
+acceptance_criteria:
+  - {id: A1, text: The lease session reports keepalive idle 10 s, interval 5 s, count 3 and user timeout 30 s.}
+  - {id: A2, text: Lease acquisition, standby and takeover tests still pass.}
+tests:
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/app, covers: [A1, A2]}

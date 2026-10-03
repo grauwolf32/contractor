@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V162-001
+title: Accept ASCII HTTP host names outside IDNA rules
+milestone: review-defects-2026-10
+priority: P1
+status: completed
+implementation_commit: 54f4c899fb77df303aa0db61d6281c432742c145
+depends_on: [V128-001]
+languages: [python]
+goal: Send valid ASCII host names such as docker-compose service names while still rejecting invalid IDNA hosts before dispatch.
+context:
+  finding: V128 ran idna.encode on every non-IP host, so http_request rejected names httpx sends as written (underscores, -- in positions 3-4, labels over 63 bytes).
+scope:
+  in:
+    - Apply IDNA validation only to Unicode host names and explicit xn-- A-labels, matching httpx.
+    - Remove the production assert in target validation.
+  out:
+    - Change target policy classification or retry policy.
+acceptance_criteria:
+  - {id: A1, text: juice_shop, web_app.example, ab--cd.example and 64-byte labels are sent on direct and proxy routes.}
+  - {id: A2, text: Invalid A-labels such as xn--zz still fail as non-retryable http_request_invalid before dispatch.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest -q runtime/tests/test_http_toolset.py, covers: [A1, A2]}
