@@ -3,8 +3,8 @@ id: V125-001
 title: Remove ignored memory retryability argument and unread payload
 milestone: memory-dead-fields-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a2b0398efd54b8734acaa7c3e59752f704f414f9
 depends_on: []
 languages: [python]
 goal: Keep memory tool error and loaded-note interfaces aligned with their actual behavior.
@@ -21,7 +21,7 @@ scope:
 acceptance_criteria:
   - {id: A1, text: MemoryToolError takes only a code and retains table-driven retryability including unknown-code normalization.}
   - {id: A2, text: _LoadedNote stores no raw payload and projections remain unchanged.}
-  - {id: A3, text: Memory toolset tests, lint and type checks pass.}
+  - {id: A3, text: Memory toolset tests and configured Runtime lint pass.}
 tests:
   - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_memory_toolset.py, covers: [A1, A2]}
   - {command: runtime/.venv/bin/ruff check runtime/src/contractor_runtime/toolsets/memory/tools.py runtime/tests/test_memory_toolset.py, covers: [A3]}
