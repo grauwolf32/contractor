@@ -550,15 +550,18 @@ func validateWorkerHandle(
 		handle.LeaseExpiresAt.After(wireTime(reservation.LeaseExpiresAt)) {
 		return errors.New("Runtime Agent returned a WorkerHandle for different resolved inputs")
 	}
-	encoded, err := json.Marshal(handle)
-	if err != nil {
+	if _, err := json.Marshal(handle); err != nil {
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
-	handleStrings := workerHandleStringValues(handle)
+	cardStrings := workerHandleUntrustedCardStrings(handle.AgentCard, reservation)
 	for _, secret := range settings.SecretValues() {
-		_, exact := handleStrings[secret]
-		if secret != "" && (exact || (len([]byte(secret)) >= 16 && bytes.Contains(encoded, []byte(secret)))) {
-			return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
+		if secret == "" {
+			continue
+		}
+		for value := range cardStrings {
+			if secret == value || len([]byte(secret)) >= 16 && strings.Contains(value, secret) {
+				return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
+			}
 		}
 	}
 	if err := validateA2AAgentCard(
@@ -569,28 +572,79 @@ func validateWorkerHandle(
 	return nil
 }
 
-func workerHandleStringValues(handle contracts.WorkerHandle) map[string]struct{} {
-	result := map[string]struct{}{
-		handle.AllocationID: {}, handle.AgentTemplateRef.TemplateID: {},
-		handle.AgentTemplateRef.Version: {}, handle.AgentTemplateRef.Digest: {},
-		handle.WorkerRuntimeRef.RuntimeID: {}, handle.WorkerRuntimeRef.Version: {},
-	}
-	collectStringValues(result, handle.AgentCard)
+// The handle identity is validated against the reservation, and these exact
+// Agent Card fields are fixed by the Server/Runtime protocol. A credential
+// coinciding with one of them is not a leak. Other card text remains checked,
+// including changed values at a normally fixed path.
+func workerHandleUntrustedCardStrings(card map[string]any, reservation Reservation) map[string]struct{} {
+	result := make(map[string]struct{})
+	collectUntrustedCardStrings(result, card, nil, reservation)
 	return result
 }
 
-func collectStringValues(result map[string]struct{}, value any) {
+func collectUntrustedCardStrings(result map[string]struct{}, value any, path []string, reservation Reservation) {
 	switch typed := value.(type) {
 	case string:
-		result[typed] = struct{}{}
+		if !trustedWorkerCardString(path, typed, reservation) {
+			result[typed] = struct{}{}
+		}
 	case []any:
-		for _, item := range typed {
-			collectStringValues(result, item)
+		for index, item := range typed {
+			collectUntrustedCardStrings(result, item, append(path, fmt.Sprint(index)), reservation)
+		}
+	case []string:
+		for index, item := range typed {
+			collectUntrustedCardStrings(result, item, append(path, fmt.Sprint(index)), reservation)
 		}
 	case map[string]any:
-		for _, item := range typed {
-			collectStringValues(result, item)
+		for key, item := range typed {
+			collectUntrustedCardStrings(result, item, append(path, key), reservation)
 		}
+	}
+}
+
+func trustedWorkerCardString(path []string, value string, reservation Reservation) bool {
+	grant := reservation.Grant
+	endpoint := strings.TrimRight(reservation.A2AURL, "/") +
+		"/private/v1/allocations/" + grant.AllocationID + "/a2a"
+	encodedPath, _ := json.Marshal(path)
+	switch string(encodedPath) {
+	case `["name"]`:
+		return value == grant.LogicalAgentName || value == "Contractor Worker "+grant.LogicalAgentName
+	case `["description"]`:
+		return value == reservation.AgentTemplate.Description
+	case `["version"]`:
+		return value == reservation.AgentTemplate.Ref.Version
+	case `["url"]`, `["supportedInterfaces","0","url"]`:
+		return value == endpoint
+	case `["protocolVersion"]`, `["supportedInterfaces","0","protocolVersion"]`:
+		return value == "1.0"
+	case `["supportedInterfaces","0","protocolBinding"]`:
+		return value == "JSONRPC"
+	case `["supportedInterfaces","0","tenant"]`:
+		return value == grant.AllocationID
+	case `["defaultInputModes","0"]`:
+		return value == stageContentMediaType || value == "application/json"
+	case `["defaultOutputModes","0"]`:
+		return value == workerCompletionMediaType || value == "application/json"
+	case `["skills","0","id"]`:
+		return value == "contractor_stage_content"
+	case `["skills","0","name"]`:
+		return value == "Execute Contractor stage content"
+	case `["skills","0","description"]`:
+		return value == "Execute one strict Contractor StageContentRequest."
+	case `["skills","0","tags","0"]`:
+		return value == "contractor"
+	case `["skills","0","tags","1"]`:
+		return value == "stage"
+	case `["skills","0","inputModes","0"]`:
+		return value == stageContentMediaType
+	case `["skills","0","outputModes","0"]`:
+		return value == workerCompletionMediaType
+	case `["securitySchemes","mutualTLS","mtlsSecurityScheme","description"]`:
+		return value == "Deployment-CA mutual TLS with a Contractor Control Plane peer"
+	default:
+		return false
 	}
 }
 

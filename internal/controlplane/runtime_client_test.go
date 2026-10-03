@@ -280,6 +280,82 @@ func TestWorkerHandleAcceptsOriginalLeaseOnRenewedPrepare(t *testing.T) {
 	}
 }
 
+func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.T) {
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute))
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example", template, lease,
+	)
+	card := testAgentCard("builder", "allocation_1",
+		"https://runtime.example/private/v1/allocations/allocation_1/a2a")
+	card["version"] = template.Ref.Version
+	card["description"] = template.Description
+	skill := card["skills"].([]any)[0].(map[string]any)
+	skill["name"] = "Execute Contractor stage content"
+	skill["description"] = "Execute one strict Contractor StageContentRequest."
+	skill["tags"] = []any{"contractor", "stage"}
+	card["securitySchemes"].(map[string]any)["mutualTLS"].(map[string]any)["mtlsSecurityScheme"].(map[string]any)["description"] =
+		"Deployment-CA mutual TLS with a Contractor Control Plane peer"
+	handle := contracts.WorkerHandle{
+		AllocationID: reservation.Grant.AllocationID, AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, AgentCard: card, LeaseExpiresAt: lease,
+	}
+	for _, value := range []string{"1", "1.0", "JSONRPC", "contractor", "stage", "adk"} {
+		t.Run(value, func(t *testing.T) {
+			settings := testRuntimeSettings()
+			settings.Telemetry = &contracts.TelemetrySettings{
+				Adapter:             contracts.RuntimeAdapterOTLPHTTP,
+				Endpoint:            "https://telemetry.example/v1/traces",
+				Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString(value)},
+				FlushTimeoutSeconds: 1,
+			}
+			settings.HTTPProxy = &contracts.HTTPProxySettings{
+				Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+				BasicAuth: &contracts.HTTPProxyBasicAuth{
+					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
+				},
+				Targets: []contracts.HTTPProxyTarget{contracts.ProxyTargetLLMGateway},
+			}
+			settings.HTTPOriginTarget = &contracts.HTTPOriginTargetSettings{
+				URL: "https://origin.example",
+				BasicAuth: &contracts.HTTPProxyBasicAuth{
+					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
+				},
+			}
+			if err := validateWorkerHandle(handle, reservation, settings); err != nil {
+				t.Fatalf("fixed card string %q triggered a false secret match: %v", value, err)
+			}
+		})
+	}
+	settings := testRuntimeSettings()
+	settings.Telemetry = &contracts.TelemetrySettings{
+		Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+		Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString("stage")},
+		FlushTimeoutSeconds: 1,
+	}
+	card["description"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret in Runtime-chosen card description")
+	}
+	card["description"] = template.Description
+	card["extension"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret in an unrecognized card field")
+	}
+	delete(card, "extension")
+	card["skills.0.tags.1"] = "stage"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a short secret under a lookalike card field")
+	}
+	delete(card, "skills.0.tags.1")
+	longSecret := "recognizable-private-header-value"
+	settings.Telemetry.Headers["X-Scope-OrgID"] = contracts.NewSecretString(longSecret)
+	card["description"] = "prefix-" + longSecret + "-suffix"
+	if err := validateWorkerHandle(handle, reservation, settings); err == nil {
+		t.Fatal("accepted a long secret substring in Runtime-chosen card text")
+	}
+}
+
 func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *testing.T) {
 	t.Parallel()
 

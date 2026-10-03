@@ -26,8 +26,8 @@ from contractor_runtime.allocation.errors import AllocationError, _conflict, _no
 from contractor_runtime.allocation.identity import _spec_fingerprint
 from contractor_runtime.allocation.redaction import (
     _contains_private_value,
-    _nested_strings,
     _runtime_setting_values,
+    _untrusted_agent_card_strings,
     _url_hosts,
 )
 from contractor_runtime.allocation.reports import _build_report
@@ -42,7 +42,6 @@ from contractor_runtime.contracts import (
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
-    RuntimeSettings,
     TerminationError,
     WorkerHandle,
 )
@@ -315,7 +314,7 @@ class AllocationService:
                     agentCard=dict(worker.agent_card),
                     leaseExpiresAt=spec.lease_expires_at,
                 )
-                self._assert_safe_handle(handle, spec.runtime_settings, workspace)
+                self._assert_safe_handle(handle, spec, workspace, self._a2a_base_url)
                 response = PrepareAllocationResponse(
                     apiVersion=API_VERSION,
                     workerHandle=handle,
@@ -1136,16 +1135,23 @@ class AllocationService:
     @staticmethod
     def _assert_safe_handle(
         handle: WorkerHandle,
-        settings: RuntimeSettings,
+        spec: AllocationSpec,
         workspace: AllocationWorkspace,
+        a2a_base_url: str,
     ) -> None:
         wire = handle.model_dump(mode="json", by_alias=True)
         encoded = json.dumps(wire, ensure_ascii=False)
-        handle_strings = _nested_strings(wire)
-        private_values = _runtime_setting_values(settings)
-        leaked = any(value in handle_strings for value in private_values) or (
-            _contains_private_value(encoded, private_values)
+        endpoint = f"{a2a_base_url.rstrip('/')}/private/v1/allocations/{spec.allocation_id}/a2a"
+        card_strings = _untrusted_agent_card_strings(
+            handle.agent_card,
+            allocation_id=spec.allocation_id,
+            logical_agent_name=spec.logical_agent_name,
+            description=spec.agent_template.description,
+            version=spec.agent_template.ref.version,
+            endpoint=endpoint,
         )
+        private_values = _runtime_setting_values(spec.runtime_settings)
+        leaked = any(_contains_private_value(value, private_values) for value in card_strings)
         if leaked or str(workspace.path) in encoded:
             raise AllocationError(
                 "unsafe_worker_handle",

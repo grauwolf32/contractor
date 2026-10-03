@@ -9,7 +9,9 @@ from typing import Any
 
 import pytest
 from fakes.spec import allocation_spec
+from pydantic import SecretStr
 
+from contractor_runtime.a2a_server import agent_card_dict, build_agent_card
 from contractor_runtime.adapters import (
     AdapterFactoryError,
     AdapterHandles,
@@ -422,6 +424,79 @@ def test_adapter_secret_in_worker_handle_is_rejected_and_every_resource_rolls_ba
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("telemetry", "1"),
+        ("proxy", "contractor"),
+        ("proxy", "stage"),
+        ("proxy", "JSONRPC"),
+        ("proxy", "adk"),
+    ],
+)
+def test_short_credentials_matching_fixed_card_strings_allow_prepare(
+    tmp_path: Path, kind: str, value: str
+) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        adapters = {
+            "otlp-http@1": FakeAdapterFactory(
+                "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+            )
+        }
+        if kind == "proxy":
+            adapters["http-proxy@1"] = FakeAdapterFactory(
+                "http-proxy@1", events, handles=AdapterHandles(model_http=object())
+            )
+        _, service = await make_service(
+            tmp_path, runtime_adapters=adapters, runtime=ProductionCardRuntimeFactory()
+        )
+        spec = configured_spec(
+            telemetry=True, proxy_targets=["llm-gateway"] if kind == "proxy" else None
+        )
+        assert spec.runtime_settings.telemetry is not None
+        if kind == "telemetry":
+            spec.runtime_settings.telemetry.headers["X-Scope-OrgID"] = SecretStr(value)
+        else:
+            assert spec.runtime_settings.http_proxy is not None
+            assert spec.runtime_settings.http_proxy.basic_auth is not None
+            spec.runtime_settings.http_proxy.basic_auth.username = SecretStr(value)
+        response = await service.prepare(spec)
+        assert response.worker_handle.allocation_id == spec.allocation_id
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("secret", "card_text"),
+    [
+        ("stage", "stage"),
+        (TELEMETRY_SECRET, f"prefix-{TELEMETRY_SECRET}-suffix"),
+    ],
+)
+def test_runtime_chosen_card_text_still_rejects_private_values(
+    tmp_path: Path, secret: str, card_text: str
+) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        telemetry = FakeAdapterFactory(
+            "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+        )
+        _, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            runtime=LeakingCardTextRuntimeFactory(card_text),
+        )
+        spec = configured_spec(telemetry=True)
+        assert spec.runtime_settings.telemetry is not None
+        spec.runtime_settings.telemetry.headers["Authorization"] = SecretStr(secret)
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(spec)
+        assert failure.value.code == "unsafe_worker_handle"
+
+    asyncio.run(scenario())
+
+
 def test_metrics_saturate_and_reject_unbounded_error_codes() -> None:
     metrics = RuntimeAdapterMetricsState(
         operations=2**64 - 1,
@@ -669,4 +744,32 @@ class LeakingRuntimeFactory(CapturingRuntimeFactory):
     async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
         runtime = await super().create(context)
         runtime._agent_card["description"] = TELEMETRY_SECRET
+        return runtime
+
+
+class ProductionCardRuntimeFactory(CapturingRuntimeFactory):
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        card = build_agent_card(
+            allocation_id=context.allocation_id,
+            endpoint=(
+                f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/"
+                f"{context.allocation_id}/a2a"
+            ),
+            logical_agent_name=context.logical_agent_name,
+            description=context.description,
+            version=context.card_version,
+        )
+        runtime._agent_card = agent_card_dict(card)
+        return runtime
+
+
+class LeakingCardTextRuntimeFactory(ProductionCardRuntimeFactory):
+    def __init__(self, card_text: str) -> None:
+        super().__init__()
+        self.card_text = card_text
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        runtime._agent_card["description"] = self.card_text
         return runtime
