@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -306,7 +307,7 @@ func validateActionDecision(params DecideActionReviewParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.RequestID, 256) || !validReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision == 0 || !params.Action.Valid() ||
-		!validReviewIdentity(params.IdempotencyKey, 128) || !validDigest(params.RequestDigest) ||
+		!validReviewIdentity(params.IdempotencyKey, 128) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}

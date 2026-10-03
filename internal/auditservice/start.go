@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -26,7 +27,7 @@ import (
 
 func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, error) {
 	if params.OwnerID == "" || params.AuditID == "" || params.ExpectedRevision == 0 ||
-		params.IdempotencyKey == "" || !validDigest(params.RequestDigest) {
+		params.IdempotencyKey == "" || !contentdigest.Valid(params.RequestDigest) {
 		return StartedAudit{}, fmt.Errorf("%w: Audit start request is invalid", ErrInvalid)
 	}
 	if err := validateDeadlineSeconds(params.DeadlineSeconds); err != nil {

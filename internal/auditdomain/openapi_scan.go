@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -121,7 +122,7 @@ func openAPIScanKey(inventoryDigest, pointer string) string {
 func validateOpenAPIScanTask(value OpenAPIScanTask) error {
 	if value.Scanner != "sqlmap" && value.Scanner != "nuclei" || !scanplan.ValidOperationPointer(value.Operation) ||
 		validateIdentifier(value.Settings.Name, "scan.settings.name") != nil || value.Settings.Ref.ValidateExact() != nil ||
-		!validDigest(value.Settings.Digest) || !validDigest(value.PreparationDigest) ||
+		!contentdigest.Valid(value.Settings.Digest) || !contentdigest.Valid(value.PreparationDigest) ||
 		validateSortedStrings(value.Gaps, MaximumCoverageValues, "scan.gaps", false) != nil ||
 		value.TestParameters == nil || !sort.StringsAreSorted(value.TestParameters) ||
 		!value.Runnable && len(value.Gaps) == 0 {
@@ -132,7 +133,7 @@ func validateOpenAPIScanTask(value OpenAPIScanTask) error {
 	}
 	if value.Scanner == "sqlmap" {
 		if value.TargetURL != "" || len(value.TestParameters) == 0 ||
-			(value.RequestDigest != "" || value.Runnable) && !validDigest(value.RequestDigest) {
+			(value.RequestDigest != "" || value.Runnable) && !contentdigest.Valid(value.RequestDigest) {
 			return invalid(CodeInvalid, "scan.request")
 		}
 	} else {

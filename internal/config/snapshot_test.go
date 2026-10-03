@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	t.Parallel()
@@ -56,5 +60,19 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 		stageAgain.Agents["builder"].Template.Toolsets[0].Tools[0] != "append_memory" ||
 		stageAgain.WorkflowOutputs["result"] != "copied" {
 		t.Fatalf("nested Workflow mutation leaked into Snapshot: %+v", stageAgain)
+	}
+}
+
+func TestCloneAgentTemplateCopiesSkillRevisions(t *testing.T) {
+	t.Parallel()
+
+	revision := "rev-1"
+	source := contracts.ResolvedAgentTemplate{
+		Skills: []contracts.ArtifactRef{{Namespace: "skills", Name: "alpha", Revision: &revision}},
+	}
+	clone := cloneAgentTemplate(source)
+	*clone.Skills[0].Revision = "corrupted"
+	if revision != "rev-1" {
+		t.Fatalf("cloned Skill revision aliases the source: %q", revision)
 	}
 }

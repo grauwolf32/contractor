@@ -13,7 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -46,59 +45,57 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 	if params.OwnerID == "" {
 		return PublishedCollection{}, ErrInvalid
 	}
-	for attempt := 0; attempt < 3; attempt++ {
-		var result PublishedCollection
-		err = postgres.InTx(ctx, p.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-			// A competing transaction may have taken its snapshot before this
-			// lock was released. PostgreSQL's serialization error is retried below.
-			key := deterministicID("collection-lock", params.OwnerID, request.ClientKey)
-			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key); err != nil {
-				return err
-			}
-			service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-			user, err := service.User(params.OwnerID)
-			if err != nil {
-				return err
-			}
-			if replay, found, err := readCollectionReplay(ctx, user, request.ClientKey, requestDigest); err != nil || found {
-				result = replay
-				return err
-			}
-			var captured time.Time
-			if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&captured); err != nil {
-				return err
-			}
-			value, contents, err := p.captureCollection(ctx, tx, service, params.OwnerID, request, captured)
-			if err != nil {
-				return err
-			}
-			payload, err := auditdomain.BuildFindingCollectionPackage(value, contents)
-			if err != nil {
-				return err
-			}
-			written, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: request.ClientKey},
-				artifacts.Payload{MediaType: auditdomain.FindingCollectionMediaType, Data: payload}, nil)
-			if err != nil {
-				return err
-			}
-			exact := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size}
-			receipt, err := json.Marshal(collectionPublication{Schema: collectionPublicationSchema, RequestDigest: requestDigest, Artifact: exact})
-			if err != nil {
-				return err
-			}
-			if _, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionReceiptNamespace, Name: request.ClientKey},
-				artifacts.Payload{MediaType: "application/json", Data: receipt}, nil); err != nil {
-				return err
-			}
-			result = PublishedCollection{Artifact: exact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries)}
-			return nil
-		})
-		var postgresError *pgconn.PgError
-		if !errors.As(err, &postgresError) || postgresError.Code != "40001" {
-			return result, err
+	var result PublishedCollection
+	err = postgres.InTxWithRetry(ctx, p.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		result = PublishedCollection{}
+		// A competing transaction may have taken its snapshot before this
+		// lock was released; InTxWithRetry replays PostgreSQL's serialization error.
+		key := deterministicID("collection-lock", params.OwnerID, request.ClientKey)
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key); err != nil {
+			return err
 		}
+		service := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		user, err := service.User(params.OwnerID)
+		if err != nil {
+			return err
+		}
+		if replay, found, err := readCollectionReplay(ctx, user, request.ClientKey, requestDigest); err != nil || found {
+			result = replay
+			return err
+		}
+		var captured time.Time
+		if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&captured); err != nil {
+			return err
+		}
+		value, contents, err := p.captureCollection(ctx, tx, service, params.OwnerID, request, captured)
+		if err != nil {
+			return err
+		}
+		payload, err := auditdomain.BuildFindingCollectionPackage(value, contents)
+		if err != nil {
+			return err
+		}
+		written, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: request.ClientKey},
+			artifacts.Payload{MediaType: auditdomain.FindingCollectionMediaType, Data: payload}, nil)
+		if err != nil {
+			return err
+		}
+		exact := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size}
+		receipt, err := json.Marshal(collectionPublication{Schema: collectionPublicationSchema, RequestDigest: requestDigest, Artifact: exact})
+		if err != nil {
+			return err
+		}
+		if _, err := user.Write(ctx, contracts.ArtifactRef{Namespace: CollectionReceiptNamespace, Name: request.ClientKey},
+			artifacts.Payload{MediaType: "application/json", Data: receipt}, nil); err != nil {
+			return err
+		}
+		result = PublishedCollection{Artifact: exact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries)}
+		return nil
+	})
+	if postgres.IsTransactionConflict(err) {
+		return PublishedCollection{}, ErrConflict
 	}
-	return PublishedCollection{}, ErrConflict
+	return result, err
 }
 
 func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, requestDigest string) (PublishedCollection, bool, error) {

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func TestOpenAPIScanDocumentedInputs(t *testing.T) {
@@ -99,7 +101,7 @@ func TestOpenAPIScanInventoryPinsRequestSettingsAndApproval(t *testing.T) {
 	task := inventory.Tasks[0].Document
 	if task.Kind != "openapi-scan" || task.Operation != nil || task.Checklist != nil || task.Scan == nil ||
 		!task.Scan.Runnable || task.Scan.Scanner != "sqlmap" || task.Scan.TargetURL != "" ||
-		!validDigest(task.Scan.RequestDigest) || !sameCanonicalValue(task.Scan.Settings, input) ||
+		!contentdigest.Valid(task.Scan.RequestDigest) || !sameCanonicalValue(task.Scan.Settings, input) ||
 		!equalStringSlices(inventory.Coverage.Rows[0].Requested, []string{"sqlmap-request-scan"}) ||
 		inventory.Worklist.Items[0].ApprovalRequirement != ApprovalActiveCheck {
 		t.Fatalf("wrong scan task: %+v", task)

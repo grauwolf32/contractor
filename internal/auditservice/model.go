@@ -2,8 +2,6 @@ package auditservice
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -110,8 +109,8 @@ func ValidateBaseline(value BaselineSnapshot) error {
 		}
 	}
 	if validateExactArtifact(value.Inventory.Worklist, true) != nil ||
-		!validDigest(value.Inventory.SourceContentDigest) ||
-		!validDigest(value.Inventory.CanonicalInventoryDigest) ||
+		!contentdigest.Valid(value.Inventory.SourceContentDigest) ||
+		!contentdigest.Valid(value.Inventory.CanonicalInventoryDigest) ||
 		value.Inventory.Gaps == nil || !sort.StringsAreSorted(value.Inventory.Gaps) ||
 		auditdomain.ValidateDispatchExecutionManifest(value.Inventory.ExecutionManifest) != nil {
 		return fmt.Errorf("%w: Audit baseline inventory is invalid", ErrInvalid)
@@ -167,7 +166,7 @@ func decodeStrict(data []byte, target any) error {
 }
 
 func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error {
-	if value.Ref.ValidateExact() != nil || !validDigest(value.Digest) {
+	if value.Ref.ValidateExact() != nil || !contentdigest.Valid(value.Digest) {
 		return ErrInvalid
 	}
 	if metadata && (value.MediaType == "" || value.SizeBytes < 0) {
@@ -179,14 +178,6 @@ func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error 
 func validComponent(value string) bool {
 	return value != "" && len([]byte(value)) <= 128 && utf8.ValidString(value) &&
 		!strings.Contains(value, "/") && !strings.ContainsRune(value, 0)
-}
-
-func validDigest(value string) bool {
-	if len(value) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
-	return err == nil
 }
 
 func validSortedIDs(values []string) bool {

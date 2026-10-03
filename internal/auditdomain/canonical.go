@@ -2,8 +2,6 @@ package auditdomain
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,15 +19,6 @@ import (
 )
 
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
-
-func validDigest(value string) bool {
-	if len(value) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	suffix := strings.TrimPrefix(value, "sha256:")
-	decoded, err := hex.DecodeString(suffix)
-	return err == nil && hex.EncodeToString(decoded) == suffix
-}
 
 func canonicalJSON(value any) ([]byte, error) {
 	encoded, err := json.Marshal(value)

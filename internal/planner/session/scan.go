@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -347,7 +347,7 @@ func validateScanState(value planner.ScanState) error {
 		}
 		return nil
 	}
-	if !validScanRef(*value.Plan) || !validDigest(value.PlanDigest) || value.PlanDigest != strings.ToLower(value.PlanDigest) {
+	if !validScanRef(*value.Plan) || !contentdigest.Valid(value.PlanDigest) {
 		return fmt.Errorf("scan plan reference or digest is invalid")
 	}
 	seen := map[string]bool{}

@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -474,16 +472,8 @@ func assignments(values []string) (map[string]string, error) {
 
 func (c *CLI) decodeRequestFile(path string, target any) error {
 	var reader io.Reader = c.stdin
-	var file *os.File
 	if path != "-" {
-		info, err := os.Lstat(filepath.Clean(path))
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return errors.New("request must be a regular file")
-		}
-		file, err = os.Open(filepath.Clean(path))
+		file, err := openRegularInput(path, "Run request")
 		if err != nil {
 			return err
 		}

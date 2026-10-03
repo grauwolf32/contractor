@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -136,7 +137,7 @@ func finishInventory(
 // ValidateInventory rechecks every cross-document identity and package before
 // a caller persists or dispatches any part of the all-or-nothing result.
 func ValidateInventory(value Inventory) error {
-	if !validDigest(value.SourceContentDigest) || !validDigest(value.CanonicalInventoryDigest) ||
+	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) ||
 		DigestBytes(value.CanonicalInventory) != value.CanonicalInventoryDigest {
 		return invalid(CodeInventoryInvalid, "inventory.digest")
 	}

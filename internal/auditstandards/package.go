@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
 func PackageDirectory(source string) ([]byte, *Package, error) {
@@ -60,6 +62,11 @@ func PackageDirectory(source string) ([]byte, *Package, error) {
 func Validate(payload []byte, expected Reference) (*Package, error) {
 	if len(payload) == 0 || len(payload) > MaximumPackageBytes {
 		return nil, validationError(CodeLimitExceeded, "")
+	}
+	// A Standard package holds exactly one member; reject other directory
+	// counts before zip.NewReader allocates one zip.File per record.
+	if _, err := zipdirectory.Check(payload, 1); err != nil {
+		return nil, validationError(CodeArchiveInvalid, "")
 	}
 	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
 	if err != nil || len(reader.File) != 1 {

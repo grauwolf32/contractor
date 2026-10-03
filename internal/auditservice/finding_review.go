@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -926,7 +927,7 @@ func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.FindingID, 256) || !validReviewIdentity(params.RequestID, 256) ||
 		params.ExpectedRevision < 1 || !validIdempotencyKey(params.IdempotencyKey) ||
-		!validDigest(params.RequestDigest) {
+		!contentdigest.Valid(params.RequestDigest) {
 		return auditstore.ErrInvalid
 	}
 	if params.ExpiresAt != nil && (!params.ExpiresAt.After(now) || params.ExpiresAt.After(now.Add(maximumReviewTTL))) {
@@ -939,7 +940,7 @@ func validateFindingDecision(params DecideFindingParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.RequestID, 256) || !validReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision < 1 || !params.Verdict.Valid() ||
-		!validIdempotencyKey(params.IdempotencyKey) || !validDigest(params.RequestDigest) ||
+		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}

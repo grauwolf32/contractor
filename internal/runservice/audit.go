@@ -2,16 +2,14 @@ package runservice
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -171,8 +169,8 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		params.Claim.AuditID == "" || params.Claim.HolderID == "" || params.Claim.Epoch == 0 {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit Run identity is incomplete", ErrInvalid)
 	}
-	if !validDigest(params.RequestDigest) || params.ExecutionManifest.Ref.ValidateExact() != nil ||
-		!validDigest(params.ExecutionManifest.Digest) || params.ExecutionManifest.MediaType == "" ||
+	if !contentdigest.Valid(params.RequestDigest) || params.ExecutionManifest.Ref.ValidateExact() != nil ||
+		!contentdigest.Valid(params.ExecutionManifest.Digest) || params.ExecutionManifest.MediaType == "" ||
 		params.ExecutionManifest.SizeBytes < 0 {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit execution manifest is invalid", ErrInvalid)
 	}
@@ -196,7 +194,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 	refs := make(map[string]contracts.ArtifactRef, len(params.Inputs))
 	params.Inputs = cloneExactArtifacts(params.Inputs)
 	for slot, descriptor := range params.Inputs {
-		if descriptor.Ref.ValidateExact() != nil || !validDigest(descriptor.Digest) ||
+		if descriptor.Ref.ValidateExact() != nil || !contentdigest.Valid(descriptor.Digest) ||
 			descriptor.MediaType == "" || descriptor.SizeBytes < 0 {
 			return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit input %q is invalid", ErrInvalid, slot)
 		}
@@ -353,12 +351,4 @@ func exactRefKey(ref contracts.ArtifactRef) string {
 		revision = *ref.Revision
 	}
 	return ref.Namespace + "\x00" + ref.Name + "\x00" + revision
-}
-
-func validDigest(value string) bool {
-	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+sha256.Size*2 {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
-	return err == nil
 }

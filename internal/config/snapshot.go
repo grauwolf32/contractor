@@ -264,6 +264,12 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 		result.Toolsets[index].Tools = append([]string(nil), toolset.Tools...)
 	}
 	result.Skills = append([]contracts.ArtifactRef(nil), source.Skills...)
+	for index, skill := range result.Skills {
+		if skill.Revision != nil {
+			revision := *skill.Revision
+			result.Skills[index].Revision = &revision
+		}
+	}
 	return result
 }
 

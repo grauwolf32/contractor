@@ -524,24 +524,12 @@ func downloadArtifact(ctx context.Context, client *publicclient.Client, scope ar
 
 func (c *CLI) readArtifactInput(path string) ([]byte, error) {
 	reader := c.stdin
-	var file *os.File
 	if path != "-" {
-		info, err := os.Lstat(filepath.Clean(path))
+		file, err := openRegularInput(path, "Artifact input")
 		if err != nil {
-			return nil, fmt.Errorf("inspect Artifact input: %w", err)
-		}
-		if !info.Mode().IsRegular() {
-			return nil, errors.New("Artifact input must be a regular file")
-		}
-		file, err = os.Open(filepath.Clean(path))
-		if err != nil {
-			return nil, fmt.Errorf("open Artifact input: %w", err)
+			return nil, err
 		}
 		defer file.Close()
-		opened, err := file.Stat()
-		if err != nil || !os.SameFile(info, opened) {
-			return nil, errors.New("Artifact input changed while opening it")
-		}
 		reader = file
 	}
 	payload, err := io.ReadAll(io.LimitReader(reader, artifacts.MaxPayloadSize+1))
@@ -552,6 +540,29 @@ func (c *CLI) readArtifactInput(path string) ([]byte, error) {
 		return nil, fmt.Errorf("Artifact exceeds %d-byte upload limit", artifacts.MaxPayloadSize)
 	}
 	return payload, nil
+}
+
+// openRegularInput opens a regular, non-symlink input file and refuses a path
+// that was replaced between inspection and opening.
+func openRegularInput(path, label string) (*os.File, error) {
+	path = filepath.Clean(path)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("inspect %s: %w", label, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s must be a regular file", label)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", label, err)
+	}
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(info, opened) {
+		file.Close()
+		return nil, fmt.Errorf("%s changed while opening it", label)
+	}
+	return file, nil
 }
 
 func writeDownloadedFile(path string, payload []byte, force bool) error {

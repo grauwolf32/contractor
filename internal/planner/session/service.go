@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -567,8 +568,8 @@ type completionEvent struct {
 func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
 	bindings := append([]string(nil), facts.Bindings...)
 	sort.Strings(bindings)
-	if len(bindings) == 0 || !validDigest(facts.ObjectiveDigest) ||
-		!validDigest(facts.InstructionsDigest) {
+	if len(bindings) == 0 || !contentdigest.Valid(facts.ObjectiveDigest) ||
+		!contentdigest.Valid(facts.InstructionsDigest) {
 		return nil, fmt.Errorf("Planner request facts are invalid")
 	}
 	for index, binding := range bindings {
@@ -644,7 +645,7 @@ func encodeState(state persistentState) (json.RawMessage, error) {
 		if err := state.Plan.Validate(); err != nil {
 			return nil, fmt.Errorf("Planner plan state is invalid: %w", err)
 		}
-		if !validDigest(state.LastPlanTransitionDigest) {
+		if !contentdigest.Valid(state.LastPlanTransitionDigest) {
 			return nil, fmt.Errorf("Planner plan transition digest is invalid")
 		}
 	} else if state.LastPlanTransitionDigest != "" {
@@ -654,7 +655,7 @@ func encodeState(state persistentState) (json.RawMessage, error) {
 		return nil, fmt.Errorf("Planner fact state exceeds its limit")
 	}
 	for key, digest := range state.FactDigests {
-		if !validPlannerFactKey(key) || !validDigest(digest) {
+		if !validPlannerFactKey(key) || !contentdigest.Valid(digest) {
 			return nil, fmt.Errorf("Planner fact state is invalid")
 		}
 	}
@@ -740,14 +741,6 @@ func encodeBounded(value any) (json.RawMessage, error) {
 func jsonDigest(value []byte) string {
 	digest := sha256.Sum256(value)
 	return "sha256:" + hex.EncodeToString(digest[:])
-}
-
-func validDigest(value string) bool {
-	if len(value) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
-	return err == nil
 }
 
 func validatePlannerFact(fact planner.PlannerFact) error {
