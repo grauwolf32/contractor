@@ -155,10 +155,10 @@ SELECT `+prefixedAuditColumns("inserted")+` FROM inserted`,
 	switch persistencepostgres.SQLState(err) {
 	case "55000":
 		return Audit{}, false, ErrProjectDeleting
-	case "23503":
+	case persistencepostgres.SQLStateForeignKeyViolation:
 		return Audit{}, false, ErrNotFound
 	}
-	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != "23505" {
+	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
 		return Audit{}, false, fmt.Errorf("create Audit: %w", err)
 	}
 	return s.replayAudit(ctx, params.OwnerID, "audit.create", params.IdempotencyKey, params.RequestDigest)

@@ -118,10 +118,10 @@ SELECT EXISTS (SELECT 1 FROM locked), EXISTS (SELECT 1 FROM updated)`,
 	).Scan(&sessionExists, &appended)
 	if err != nil {
 		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == "23505" {
+		if sqlState == persistencepostgres.SQLStateUniqueViolation {
 			return fmt.Errorf("append Planner event %q: %w", params.EventID, ErrConflict)
 		}
-		if sqlState == "23503" || errors.Is(err, pgx.ErrNoRows) {
+		if sqlState == persistencepostgres.SQLStateForeignKeyViolation || errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("append Planner event for session %q: %w", params.SessionID, ErrNotFound)
 		}
 		return fmt.Errorf("append Planner event %q: %w", params.EventID, err)

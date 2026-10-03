@@ -400,7 +400,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		}
 		storedRequest = deleteOperationRequest{
 			CredentialID: request.CredentialID, LLMGateway: record.LLMGateway,
-			RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: databaseTime(s.now()),
+			RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: persistencepostgres.Timestamp(s.now()),
 		}
 		operation, err = s.newOperation(
 			OperationDelete, request.CredentialID, request.IdempotencyKey, requestHash, storedRequest,
@@ -537,7 +537,7 @@ func (s *Service) executeCreate(
 	record := Record{
 		CredentialID: request.CredentialID, LLMGateway: request.LLMGateway,
 		RemoteKeyID: generated.RemoteKeyID, Label: request.Label,
-		EffectivePolicy: effectivePolicy, Envelope: envelope, CreatedAt: databaseTime(s.now()),
+		EffectivePolicy: effectivePolicy, Envelope: envelope, CreatedAt: persistencepostgres.Timestamp(s.now()),
 	}
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		repository := NewRepository(tx)
@@ -703,7 +703,7 @@ func (s *Service) newOperation(
 	if err != nil {
 		return Operation{}, fmt.Errorf("%w: encode credential operation", ErrInvalid)
 	}
-	now := databaseTime(s.now())
+	now := persistencepostgres.Timestamp(s.now())
 	operation := Operation{
 		OperationID: operationID, IdempotencyKey: idempotencyKey, RequestHash: requestHash,
 		CredentialID: credentialID, Kind: kind, Phase: OperationPrepared,
@@ -820,8 +820,8 @@ func cloneFloat64Pointer(value *float64) *float64 {
 }
 
 func operationCompletionTime(operation Operation, candidate time.Time) time.Time {
-	result := databaseTime(candidate)
-	floor := databaseTime(operation.UpdatedAt)
+	result := persistencepostgres.Timestamp(candidate)
+	floor := persistencepostgres.Timestamp(operation.UpdatedAt)
 	if result.Before(floor) {
 		return floor
 	}

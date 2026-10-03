@@ -13,7 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const maximumPageSize = 200
@@ -55,7 +54,7 @@ INSERT INTO runtime_config_versions (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT DO NOTHING`,
 		version.Ref.Name, version.Ref.Version, version.Ref.Digest, string(version.CanonicalDocument),
-		version.BuiltIn, version.ActorID, databaseTime(version.CreatedAt),
+		version.BuiltIn, version.ActorID, persistencepostgres.Timestamp(version.CreatedAt),
 	)
 	if err != nil {
 		return false, classifyWrite(err)
@@ -160,7 +159,7 @@ INSERT INTO runtime_config_publications (
 ON CONFLICT DO NOTHING`,
 		publication.IdempotencyKeyDigest, publication.RequestDigest,
 		publication.Ref.Name, publication.Ref.Version, publication.Ref.Digest,
-		publication.ActorID, databaseTime(publication.PublishedAt),
+		publication.ActorID, persistencepostgres.Timestamp(publication.PublishedAt),
 	)
 	if err != nil {
 		return false, classifyWrite(err)
@@ -184,7 +183,7 @@ INSERT INTO runtime_label_bindings (
     label, config_name, config_version, config_digest, revision,
     created_by, created_at, updated_by, updated_at
 ) VALUES ($1, $2, $3, $4, 1, $5, $6, $5, $6)
-ON CONFLICT DO NOTHING`, label, ref.Name, ref.Version, ref.Digest, actor, databaseTime(at))
+ON CONFLICT DO NOTHING`, label, ref.Name, ref.Version, ref.Digest, actor, persistencepostgres.Timestamp(at))
 	if err != nil {
 		return Binding{}, classifyWrite(err)
 	}
@@ -243,7 +242,7 @@ SET config_name = $3, config_version = $4, config_digest = $5,
     revision = revision + 1, updated_by = $6, updated_at = $7
 WHERE label = $1 AND revision = $2::numeric
   AND (config_name, config_version, config_digest) IS DISTINCT FROM ($3, $4, $5)`,
-		label, strconv.FormatUint(expectedRevision, 10), ref.Name, ref.Version, ref.Digest, actor, databaseTime(at))
+		label, strconv.FormatUint(expectedRevision, 10), ref.Name, ref.Version, ref.Digest, actor, persistencepostgres.Timestamp(at))
 	if err != nil {
 		return Binding{}, classifyWrite(err)
 	}
@@ -402,19 +401,11 @@ func validateBindingMutation(label string, ref Ref, actor string, at time.Time) 
 
 func validActor(actor string) bool { return strings.TrimSpace(actor) != "" && len(actor) <= 256 }
 
-func databaseTime(value time.Time) time.Time { return value.UTC().Truncate(time.Microsecond) }
-
 func specEqual(left, right Spec) bool { return reflect.DeepEqual(left, right) }
 
 func classifyWrite(err error) error {
-	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) {
-		switch postgresError.Code {
-		case "23505":
-			return persistencepostgres.WrapError(ErrConflict.Error(), errors.Join(ErrConflict, err))
-		case "23503", "23514", "22001", "22P02":
-			return persistencepostgres.WrapError(ErrInvalid.Error(), errors.Join(ErrInvalid, err))
-		}
+	if class := persistencepostgres.ConstraintError(err, ErrConflict, ErrInvalid); class != nil {
+		return persistencepostgres.WrapError(class.Error(), errors.Join(class, err))
 	}
 	return persistencepostgres.WrapError("persist RuntimeConfig state", err)
 }

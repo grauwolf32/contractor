@@ -63,7 +63,7 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 	// began. Re-read idempotency only after rollback; mutable dependencies are
 	// still never consulted by this recovery path.
 	if errors.Is(err, auditstore.ErrConflict) || errors.Is(err, artifacts.ErrArtifactConflict) ||
-		persistencepostgres.SQLState(err) == "40001" {
+		persistencepostgres.SQLState(err) == persistencepostgres.SQLStateSerializationFailure {
 		if replay, found, replayErr := store.LookupMutationReplay(
 			ctx, params.OwnerID, auditstore.MutationStart,
 			params.IdempotencyKey, params.RequestDigest,

@@ -54,7 +54,7 @@ FROM workflow_run_output_publications
 WHERE run_id = $1 AND output_name = $2`, params.RunID, params.OutputName))
 	}
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "23503" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
 			return RunOutputPublication{}, false, fmt.Errorf("record Project output publication: %w", ErrNotFound)
 		}
 		return RunOutputPublication{}, false, fmt.Errorf("record Project output publication: %w", err)

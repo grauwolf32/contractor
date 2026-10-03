@@ -244,7 +244,7 @@ FROM inserted_run`,
 		if persistencepostgres.SQLState(err) == "55000" {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 		}
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)

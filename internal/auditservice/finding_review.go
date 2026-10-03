@@ -127,7 +127,7 @@ INSERT INTO audit_review_requests (
 			requestID, params.AuditID, params.FindingID, row.revision, subjectDigest,
 			actions, expiresAt, params.IdempotencyKey, params.RequestDigest,
 			int64(defaultReviewTTL/time.Second)); err != nil {
-			if persistencepostgres.SQLState(err) == "23505" {
+			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 				return auditstore.ErrConflict
 			}
 			return err
@@ -266,7 +266,7 @@ INSERT INTO audit_review_decisions (
 			string(params.Verdict), severity, params.Rationale, target,
 			request.SubjectRevision, request.SubjectDigest, params.IdempotencyKey,
 			params.RequestDigest); err != nil {
-			if persistencepostgres.SQLState(err) == "23505" {
+			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 				return auditstore.ErrConflict
 			}
 			return err

@@ -71,7 +71,7 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		if persistencepostgres.SQLState(err) == "55000" {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == "23503" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
 		}
 		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
@@ -143,9 +143,9 @@ FROM inserted_revision, claimed_binding`,
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}
 		return WriteResult{}, fmt.Errorf("write artifact %s/%s: %w", target.Namespace, target.Name, err)

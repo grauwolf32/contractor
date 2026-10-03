@@ -122,7 +122,7 @@ RETURNING allocation_id`,
 	}
 	if err != nil {
 		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == "23503" {
+		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
 			return fmt.Errorf("record Stage allocation for execution %q: %w", allocation.StageExecutionID, ErrNotFound)
 		}
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, err)

@@ -99,7 +99,7 @@ func (s *PostgresStore) MaterializeRound(
 	switch persistencepostgres.SQLState(err) {
 	case "55000":
 		return Audit{}, false, ErrProjectDeleting
-	case "23505":
+	case persistencepostgres.SQLStateUniqueViolation:
 		return s.replayAudit(ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -175,7 +175,7 @@ func (s *PostgresStore) AcceptNextRound(
 	if persistencepostgres.SQLState(err) == "55000" {
 		return Round{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == "23505" || errors.Is(err, pgx.ErrNoRows) {
+	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
 		if replay, found, replayErr := s.lookupAcceptedRoundReplay(ctx, params); replayErr != nil || found {
 			return replay, false, replayErr
 		}
@@ -184,7 +184,7 @@ func (s *PostgresStore) AcceptNextRound(
 		} else if !live {
 			return Round{}, false, ErrClaimLost
 		}
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return Round{}, false, ErrConflict
 		}
 		return Round{}, false, ErrPrecondition

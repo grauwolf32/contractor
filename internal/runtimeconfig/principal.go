@@ -193,8 +193,8 @@ INSERT INTO runtime_agent_principals (
 ) VALUES ($1, $2, $3::numeric, $4, $5, $6, $7)
 ON CONFLICT (runtime_agent_id) DO NOTHING`,
 		principal.RuntimeAgentID, principal.Labels, strconv.FormatUint(principal.LabelRevision, 10),
-		principal.CreatedBy, databaseTime(principal.CreatedAt),
-		principal.UpdatedBy, databaseTime(principal.UpdatedAt),
+		principal.CreatedBy, persistencepostgres.Timestamp(principal.CreatedAt),
+		principal.UpdatedBy, persistencepostgres.Timestamp(principal.UpdatedAt),
 	)
 	if err != nil {
 		return false, classifyWrite(err)
@@ -223,7 +223,7 @@ SET labels = $3, label_revision = label_revision + 1,
     updated_by = $4, updated_at = $5
 WHERE runtime_agent_id = $1 AND label_revision = $2::numeric
   AND labels IS DISTINCT FROM $3`,
-		runtimeAgentID, strconv.FormatUint(expectedRevision, 10), labels, actor, databaseTime(at),
+		runtimeAgentID, strconv.FormatUint(expectedRevision, 10), labels, actor, persistencepostgres.Timestamp(at),
 	)
 	if err != nil {
 		return RuntimeAgentPrincipal{}, classifyWrite(err)
@@ -726,7 +726,7 @@ INSERT INTO runtime_management_operations (
     idempotency_key_digest, request_digest, operation_kind, resource_id,
     result, actor_id, performed_at
 ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, runtimeAgentID, string(encoded), actor, databaseTime(at))
+ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, runtimeAgentID, string(encoded), actor, persistencepostgres.Timestamp(at))
 	if err != nil {
 		return errors.New("store Runtime Agent management audit")
 	}

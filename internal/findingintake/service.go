@@ -360,7 +360,7 @@ INSERT INTO finding_proposal_receipts (
 		evidenceJSON,
 	)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return ErrConflict
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)

@@ -97,9 +97,9 @@ func normalize(err error) error {
 	var p *pgconn.PgError
 	if errors.As(err, &p) {
 		switch p.Code {
-		case "23505":
+		case pg.SQLStateUniqueViolation:
 			return evaldomain.Failure("eval_member_conflict")
-		case "23503":
+		case pg.SQLStateForeignKeyViolation:
 			return evaldomain.Failure("eval_not_ready")
 		case "55000":
 			return evaldomain.Failure("eval_project_deleting")

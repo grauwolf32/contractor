@@ -17,7 +17,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -130,7 +129,7 @@ func (r *Repository) ReserveCredentialID(
 	command, err := r.db.Exec(ctx, `
 INSERT INTO llm_credential_identities (credential_id, reserved_at)
 VALUES ($1, $2)
-ON CONFLICT DO NOTHING`, credentialID, databaseTime(reservedAt))
+ON CONFLICT DO NOTHING`, credentialID, persistencepostgres.Timestamp(reservedAt))
 	if err != nil {
 		return classifyRepositoryWrite(err)
 	}
@@ -155,7 +154,7 @@ ON CONFLICT DO NOTHING`,
 		record.CredentialID, record.LLMGateway.GatewayID, record.LLMGateway.Version,
 		record.LLMGateway.Digest, record.RemoteKeyID, record.Label, policy,
 		record.Envelope.SchemaVersion, record.Envelope.KeyID,
-		record.Envelope.Nonce, record.Envelope.Ciphertext, databaseTime(record.CreatedAt),
+		record.Envelope.Nonce, record.Envelope.Ciphertext, persistencepostgres.Timestamp(record.CreatedAt),
 	)
 	if err != nil {
 		return classifyRepositoryWrite(err)
@@ -193,7 +192,7 @@ func (r *Repository) InsertTombstone(ctx context.Context, tombstone Tombstone) e
 	command, err := r.db.Exec(ctx, `
 INSERT INTO llm_credential_tombstones (credential_id, actor_id, deleted_at)
 VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, databaseTime(tombstone.DeletedAt))
+ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, persistencepostgres.Timestamp(tombstone.DeletedAt))
 	if err != nil {
 		return classifyRepositoryWrite(err)
 	}
@@ -203,7 +202,7 @@ ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, databaseTime
 	existing, getErr := r.GetTombstone(ctx, tombstone.CredentialID)
 	if getErr == nil && existing.CredentialID == tombstone.CredentialID &&
 		existing.ActorID == tombstone.ActorID &&
-		databaseTime(existing.DeletedAt).Equal(databaseTime(tombstone.DeletedAt)) {
+		persistencepostgres.Timestamp(existing.DeletedAt).Equal(persistencepostgres.Timestamp(tombstone.DeletedAt)) {
 		return nil
 	}
 	return ErrConflict
@@ -275,7 +274,7 @@ ON CONFLICT DO NOTHING`,
 		operation.OperationID, operation.IdempotencyKey, operation.RequestHash,
 		operation.CredentialID, operation.Kind, operation.Phase,
 		CredentialSchemaVersion, operation.Request,
-		databaseTime(operation.CreatedAt), databaseTime(operation.UpdatedAt),
+		persistencepostgres.Timestamp(operation.CreatedAt), persistencepostgres.Timestamp(operation.UpdatedAt),
 	)
 	if err != nil {
 		return classifyRepositoryWrite(err)
@@ -327,7 +326,7 @@ func (r *Repository) finishOperation(
 UPDATE credential_operations
 SET phase = $3, updated_at = $2
 WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
-		operationID, databaseTime(finishedAt), phase,
+		operationID, persistencepostgres.Timestamp(finishedAt), phase,
 	)
 	if err != nil {
 		return classifyRepositoryWrite(err)
@@ -524,7 +523,7 @@ func recordsEqual(left, right Record) bool {
 		left.Envelope.SchemaVersion == right.Envelope.SchemaVersion &&
 		left.Envelope.KeyID == right.Envelope.KeyID && bytes.Equal(left.Envelope.Nonce, right.Envelope.Nonce) &&
 		bytes.Equal(left.Envelope.Ciphertext, right.Envelope.Ciphertext) &&
-		databaseTime(left.CreatedAt).Equal(databaseTime(right.CreatedAt))
+		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt))
 }
 
 func operationsEqual(left, right Operation) bool {
@@ -532,8 +531,8 @@ func operationsEqual(left, right Operation) bool {
 		left.RequestHash == right.RequestHash && left.CredentialID == right.CredentialID &&
 		left.Kind == right.Kind && left.Phase == right.Phase &&
 		jsonSemanticEqual(left.Request, right.Request) &&
-		databaseTime(left.CreatedAt).Equal(databaseTime(right.CreatedAt)) &&
-		databaseTime(left.UpdatedAt).Equal(databaseTime(right.UpdatedAt))
+		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt)) &&
+		persistencepostgres.Timestamp(left.UpdatedAt).Equal(persistencepostgres.Timestamp(right.UpdatedAt))
 }
 
 func jsonSemanticEqual(left, right []byte) bool {
@@ -542,17 +541,9 @@ func jsonSemanticEqual(left, right []byte) bool {
 		reflect.DeepEqual(leftValue, rightValue)
 }
 
-func databaseTime(value time.Time) time.Time { return value.UTC().Truncate(time.Microsecond) }
-
 func classifyRepositoryWrite(err error) error {
-	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) {
-		switch postgresError.Code {
-		case "23505":
-			return persistencepostgres.WrapError(ErrConflict.Error(), errors.Join(ErrConflict, err))
-		case "23503", "23514", "22001", "22P02":
-			return persistencepostgres.WrapError(ErrInvalid.Error(), errors.Join(ErrInvalid, err))
-		}
+	if class := persistencepostgres.ConstraintError(err, ErrConflict, ErrInvalid); class != nil {
+		return persistencepostgres.WrapError(class.Error(), errors.Join(class, err))
 	}
 	return persistencepostgres.WrapError("persist encrypted credential state", err)
 }

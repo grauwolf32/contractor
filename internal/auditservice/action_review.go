@@ -133,7 +133,7 @@ INSERT INTO audit_review_decisions (
 			decisionID, requestID, params.AuditID, params.OwnerID, params.Action,
 			params.Rationale, subjectRevision, subjectDigest,
 			params.IdempotencyKey, params.RequestDigest); err != nil {
-			if persistencepostgres.SQLState(err) == "23505" {
+			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 				return auditstore.ErrConflict
 			}
 			return err

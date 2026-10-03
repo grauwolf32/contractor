@@ -52,10 +52,10 @@ RETURNING `+stageExecutionColumns,
 	))
 	if err != nil {
 		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == "23505" {
+		if sqlState == persistencepostgres.SQLStateUniqueViolation {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
-		if sqlState == "23503" {
+		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrNotFound)
 		}
 		return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, err)
@@ -264,7 +264,7 @@ FROM inserted_planner_event`,
 		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
 	}
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)

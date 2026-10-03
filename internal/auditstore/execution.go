@@ -37,7 +37,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		return Execution{}, false, ErrProjectDeleting
 	}
 	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == "23505" || errors.Is(err, pgx.ErrNoRows) {
+	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupExecutionReplay(
 			ctx, params.Claim.AuditID, params.SubmissionKey, params.RequestDigest,
 		); replayErr != nil || found {
@@ -48,7 +48,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		} else if !live {
 			return Execution{}, false, ErrClaimLost
 		}
-		if sqlState == "23505" {
+		if sqlState == persistencepostgres.SQLStateUniqueViolation {
 			return Execution{}, false, ErrConflict
 		}
 		return Execution{}, false, ErrPrecondition
@@ -177,7 +177,7 @@ SELECT `+prefixedExecutionColumns("changed")+` FROM changed`,
 		return Execution{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return Execution{}, ErrConflict
 		}
 		return Execution{}, fmt.Errorf("bind Audit execution Run: %w", err)
