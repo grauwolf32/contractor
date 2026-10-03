@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V187-001
+title: Remove unused unbound A2A mTLS client builder
+milestone: a2a-mtls-cleanup-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Ensure the production A2A invoker constructs only principal-bound transports.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/205
+  specification: docs/spec/02-runtime-and-a2a.md
+  decision: docs/research/2026-09-19-a2a-connection-reuse-decision.md
+  finding: NewMTLS stores a pooled unbound builder that Invoke always replaces.
+scope:
+  in:
+    - Keep only mTLS configuration and invocation settings in NewMTLS.
+    - Bind the Runtime Agent principal before constructing each invocation's HTTP transport.
+    - Test the actual NewMTLS path against a wrong-principal certificate.
+  out:
+    - Changing keepalive, retry, polling or connection reuse policy.
+acceptance_criteria:
+  - {id: A1, text: NewMTLS stores no unbound client builder or idle connection pool.}
+  - {id: A2, text: Production invocation retains 21 TLS connections for one send and 20 polls.}
+  - {id: A3, text: A wrong Runtime Agent principal receives no protected HTTP request.}
+tests:
+  - {command: "go test ./internal/planner/a2a -run 'TestConnectionReuseExperimentCounts/production|TestNewMTLSRejectsWrongRuntimePrincipal|TestConnectionReuseExperimentLifecycleWrongPrincipal' -count=1", covers: [A1, A2, A3]}
+  - {command: go test ./internal/planner/a2a, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1]}
