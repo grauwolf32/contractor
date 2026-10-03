@@ -144,36 +144,6 @@ class ProxyHTTPClient:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxyTargetDenied from None
 
-    async def request(
-        self,
-        method: str,
-        url: str,
-        *,
-        target_policy: TargetPolicy,
-        **kwargs: object,
-    ) -> httpx.Response:
-        if kwargs.pop("follow_redirects", False):
-            # Each redirect must be checked as a separate request by the caller.
-            raise ProxyRequestError
-        try:
-            client = self.async_client
-            request = client.build_request(method, url, **kwargs)
-        except Exception:
-            raise ProxyRequestError from None
-        self._require_permitted(request, target_policy)
-        try:
-            response = await client.send(request, follow_redirects=False)
-            if _proxy_rejected(response.request, response):
-                await response.aclose()
-                raise ProxyRequestError
-            return response
-        except asyncio.CancelledError:
-            raise
-        except ProxyRequestError:
-            raise
-        except Exception:
-            raise ProxyRequestError from None
-
     async def stream_request(
         self,
         method: str,

@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V130-001
+title: Remove unbounded buffered proxy request helper
+milestone: proxy-stream-only-2026-10
+priority: P3
+status: completed
+implementation_commit: 245bb6767f4d3e1fc09fbc904ea268d95f997410
+depends_on: []
+languages: [python]
+goal: Keep proxy HTTP handles on the streaming request path so callers must bound response reads.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/220
+  finding: Unused ProxyHTTPClient.request buffers complete responses without a size limit.
+scope:
+  in:
+    - Remove the unused buffered request method.
+    - Port proxy routing tests to stream_request with explicit response closure and bounded reads.
+  out:
+    - Change production HTTP tool retry or body limits.
+acceptance_criteria:
+  - {id: A1, text: ProxyHTTPClient exposes no unbounded buffered request helper.}
+  - {id: A2, text: Proxy tests still cover target denial, plain HTTP 407, HTTPS CONNECT refusal and target 4xx/5xx responses.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_http_proxy_adapter.py runtime/tests/test_http_toolset.py, covers: [A1, A2]}

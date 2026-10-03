@@ -36,6 +36,7 @@ from contractor_runtime.adapters.http_proxy import (
 )
 from contractor_runtime.contracts import HTTPProxySettings
 from contractor_runtime.factories import FactoryRegistry
+from contractor_runtime.http_body import read_limited_body
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
 from contractor_runtime.toolsets.common.target_policy import (
@@ -140,14 +141,17 @@ def test_tool_http_and_subprocess_use_authenticated_tls_proxy_and_remove_ca(
             assert isinstance(launcher, ProxySubprocessLauncher)
             policy = TargetPolicy(protected_names=frozenset({("control.example", 443)}))
             with pytest.raises(ProxyTargetDenied):
-                await http_handle.request(
+                await http_handle.stream_request(
                     "GET", "https://control.example/private/v1", target_policy=policy
                 )
             assert proxy.requests == []
-            response = await http_handle.request(
+            response = await http_handle.stream_request(
                 "GET", "http://public.example/tool", target_policy=policy
             )
-            assert response.text == "proxied"
+            try:
+                assert await read_limited_body(response, 1024) == b"proxied"
+            finally:
+                await response.aclose()
 
             script = (
                 "import os, urllib.request; "
@@ -244,10 +248,11 @@ def test_bearer_subprocess_fails_closed_and_registry_rejects_channel_mismatch() 
             launcher = adapter.handles.tool_subprocess
             assert isinstance(http_handle, ProxyHTTPClient)
             assert isinstance(launcher, ProxySubprocessLauncher)
-            response = await http_handle.request(
+            response = await http_handle.stream_request(
                 "GET", "http://public.example/bearer", target_policy=TargetPolicy()
             )
             assert response.is_success
+            await response.aclose()
             assert proxy.requests[0].headers["proxy-authorization"] == (f"Bearer {PROXY_BEARER}")
             with pytest.raises(ProxySubprocessError) as captured:
                 await launcher.run_async([sys.executable, "-c", "print('x')"])
@@ -277,11 +282,14 @@ def test_proxy_handle_preserves_target_http_errors_as_responses() -> None:
             )
             handle = adapter.handles.tool_http
             assert isinstance(handle, ProxyHTTPClient)
-            response = await handle.request(
+            response = await handle.stream_request(
                 "GET", "http://public.example/failure", target_policy=TargetPolicy()
             )
-            assert response.status_code == 503
-            assert response.text == "target unavailable"
+            try:
+                assert response.status_code == 503
+                assert await read_limited_body(response, 1024) == b"target unavailable"
+            finally:
+                await response.aclose()
             assert adapter.metrics.operations == 1
             assert adapter.metrics.failed_operations == 0
             await adapter.close()
@@ -308,7 +316,9 @@ def test_only_a_plain_http_407_is_attributed_to_the_proxy() -> None:
         assert (metrics.operations, metrics.failed_operations) == (1, 0)
         # A forwarded plain-HTTP request cannot tell the two apart; fail closed.
         with pytest.raises(ProxyRequestError):
-            await handle.request("GET", "http://public.example/", target_policy=TargetPolicy())
+            await handle.stream_request(
+                "GET", "http://public.example/", target_policy=TargetPolicy()
+            )
         assert (metrics.operations, metrics.failed_operations) == (2, 1)
         await client.aclose()
 
@@ -324,7 +334,7 @@ def test_https_connect_rejected_by_the_proxy_is_a_route_failure() -> None:
             handle = adapter.handles.tool_http
             assert isinstance(handle, ProxyHTTPClient)
             with pytest.raises(ProxyRequestError):
-                await handle.request(
+                await handle.stream_request(
                     "GET", "https://public.example/tunnel", target_policy=TargetPolicy()
                 )
             assert proxy.requests[0].target == "public.example:443"
@@ -373,7 +383,7 @@ async def assert_safe_proxy_failure(proxy_url: str, backend_url: str) -> None:
     # The loopback backend is an allowed network, so the proxy hop itself fails.
     allowed = TargetPolicy(allowed_networks=parse_allowed_networks(["127.0.0.0/8"]))
     with pytest.raises(ProxyRequestError) as captured:
-        await handle.request("GET", backend_url, target_policy=allowed)
+        await handle.stream_request("GET", backend_url, target_policy=allowed)
     assert not isinstance(captured.value, ProxyTargetDenied)
     rendered = f"{captured.value!s} {captured.value!r} {adapter!r} {adapter.metrics!r}"
     for forbidden in (PROXY_PASSWORD, BACKEND_SECRET, proxy_url):
