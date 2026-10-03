@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V146-001
+title: Compare eval quality drops at exact decimal gate boundaries
+milestone: exact-eval-quality-drop-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep equal quality drops within the configured gate for experiment and suite conclusions.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/198
+  finding: Subtracting rounded float ratios can put an equal drop above its decimal gate.
+scope:
+  in:
+    - Compare integer quality counts against the configured decimal gate without ratio subtraction.
+    - Cover equality and above-gate decisions in experiment and suite summaries.
+  out:
+    - Change displayed ratio values or unrelated gates.
+acceptance_criteria:
+  - {id: A1, text: Equal quality drops at 0.05, 0.1, 0.2 and 0.3 gates pass.}
+  - {id: A2, text: Drops above the gate still report regressions.}
+  - {id: A3, text: Experiment and suite conclusions agree with exact rational boundary decisions.}
+tests:
+  - {command: go test ./internal/evaldomain -count=1, covers: [A1, A2, A3]}
