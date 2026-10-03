@@ -49,7 +49,7 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	publisher, bindings, resolver := newReferenceTestServices(t, pool, fixture.gateway, factory)
+	publisher, bindings, resolver := newReferenceTestServices(t, pool, fixture.gateway, factory, fixture.service.barrier)
 	repository := runtimeconfig.NewRepository(pool)
 	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	publisher, bindings, _ := newReferenceTestServices(t, pool, fixture.gateway, factory)
+	publisher, bindings, _ := newReferenceTestServices(t, pool, fixture.gateway, factory, fixture.service.barrier)
 	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +203,7 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 
 func newReferenceTestServices(
 	t *testing.T, pool *pgxpool.Pool, gateway contracts.ResolvedLLMGatewayConfig,
-	factory *TransactionLookupFactory,
+	factory *TransactionLookupFactory, barrier *LifecycleBarrier,
 ) (*runtimeconfig.Publisher, *runtimeconfig.BindingService, runtimeconfig.GatewayResolver) {
 	t.Helper()
 	resolver := runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
@@ -212,7 +212,9 @@ func newReferenceTestServices(
 		}
 		return gateway, nil
 	})
-	catalog := transactionTestRuntimeCredentialCatalog{}
+	// A reference commit and credential deletion must share the same process
+	// barrier, just as they do in the application composition.
+	catalog := referenceTestRuntimeCredentialCatalog{barrier: barrier}
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, GatewayResolver: resolver, RuntimeCredentials: catalog,
 		TransactionLLMCredentials: factory,
@@ -226,6 +228,17 @@ func newReferenceTestServices(
 		t.Fatal(err)
 	}
 	return publisher, bindings, resolver
+}
+
+type referenceTestRuntimeCredentialCatalog struct {
+	transactionTestRuntimeCredentialCatalog
+	barrier *LifecycleBarrier
+}
+
+func (c referenceTestRuntimeCredentialCatalog) WithCredentialReferences(
+	ctx context.Context, fn func() error,
+) error {
+	return c.barrier.WithCredentialReferences(ctx, fn)
 }
 
 func referenceTestDocument(name, credentialID string) []byte {
