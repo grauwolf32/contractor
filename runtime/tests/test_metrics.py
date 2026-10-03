@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from contractor_runtime.contracts import encode_private
 from contractor_runtime.telemetry.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
     MAX_METRIC_COUNTER,
@@ -17,6 +19,9 @@ from contractor_runtime.toolsets.audit_results.arguments import AuditArgumentErr
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 
 SECRET = "metrics-secret-that-must-not-survive"
+TELEMETRY_SIZE_CASES = json.loads(
+    (Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-json-size-cases.json").read_text()
+)
 
 
 class ToolFailure(RuntimeError):
@@ -27,6 +32,28 @@ class ToolFailure(RuntimeError):
 class SkillDisclosureFailure(RuntimeError):
     code = "SKILL_DISCLOSURE_LIMIT"
     retryable = False
+
+
+@pytest.mark.parametrize("case", TELEMETRY_SIZE_CASES, ids=lambda case: case["name"])
+def test_argument_summary_uses_shared_compact_utf8_limit(case):
+    arguments = {"path": case["unit"] * case["repeat"]}
+    assert (
+        len(json.dumps(arguments, ensure_ascii=False, separators=(",", ":")).encode())
+        == case["compact_bytes"]
+    )
+    state = MetricsState()
+    state.record_tool_call("read_source_file", arguments=arguments)
+    report = state.build_report(report_id="worker-size", duration_ms=1)
+    call = report.tool_calls[0]
+    if case["valid"]:
+        assert call.arguments == arguments
+        assert not call.arguments_truncated
+        assert case["unit"].encode() in encode_private(report)
+    else:
+        assert call.arguments_truncated
+        assert call.arguments is not None
+        assert call.arguments["summary"] == "[TRUNCATED]"
+        assert call.arguments["originalSizeBytes"] > MAX_ARGUMENT_SUMMARY_BYTES
 
 
 @pytest.mark.parametrize("error_type", [AuditArgumentError, AuditCollectionError])

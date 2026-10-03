@@ -634,9 +634,11 @@ map without exposing it to either model.
 The first-slice bounded policy is fixed: at most 1,000 tool-call records and 100
 errors per participant, at most 4,096 UTF-8/JSON bytes per argument summary or
 error message, and at most 1 MiB per final allocation report. Overflow removes
-the oldest detail, preserves aggregate counters and sets `truncated`. Durable
-telemetry expires after 30 days; cleanup is batch-bounded and may delete only
-telemetry belonging to a terminal StageExecution. Each telemetry table has a
+the oldest detail, preserves aggregate counters and sets `truncated`.
+JSON sizes count compact UTF-8 bytes without HTML escaping; U+2028 and U+2029
+count as three-byte UTF-8 characters. Error-message sizes count UTF-8 text bytes.
+Durable telemetry expires after 30 days; cleanup is batch-bounded and may delete
+only telemetry belonging to a terminal StageExecution. Each telemetry table has a
 bounded deletion budget; full batches are drained with a short pause before
 the next retention interval, so a metrics backlog cannot starve reports.
 These values may become

@@ -285,8 +285,8 @@ func (r ExecutionReport) Validate() error {
 			return invalidf("tool call %d marks absent arguments truncated", index)
 		}
 		if call.Arguments != nil {
-			encoded, err := json.Marshal(call.Arguments)
-			if err != nil || len(encoded) > 4096 {
+			size, err := ResultJSONSize(call.Arguments)
+			if err != nil || size > 4096 {
 				return invalidf("tool call %d arguments exceed 4096 bytes", index)
 			}
 		}
@@ -315,11 +315,11 @@ func (r ExecutionReport) Validate() error {
 	if len(r.ToolCalls) > 1000 || len(r.Errors) > 100 {
 		return invalidf("execution report detail exceeds bounded record limits")
 	}
-	encoded, err := json.Marshal(r)
+	size, err := ResultJSONSize(r)
 	if err != nil {
 		return invalidf("execution report cannot be encoded")
 	}
-	if len(encoded) > 1024*1024 {
+	if size > 1024*1024 {
 		return invalidf("execution report exceeds 1 MiB")
 	}
 	return nil
@@ -392,11 +392,11 @@ func (r AllocationFinalReport) Validate() error {
 	if err := r.Runtime.validateAdapters(); err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(r)
+	size, err := ResultJSONSize(r)
 	if err != nil {
 		return invalidf("allocation final report cannot be encoded")
 	}
-	if len(encoded) > 1024*1024 {
+	if size > 1024*1024 {
 		return invalidf("allocation final report exceeds 1 MiB")
 	}
 	return nil
