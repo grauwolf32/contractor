@@ -477,6 +477,8 @@ func hasIncompleteCoverage(counts reportCoverageCounts) bool {
 }
 
 func humanSummary(report machineReport) string {
+	const qualification = "\nCompletion describes the bounded Audit process; it is not a security or compliance certification.\n"
+	const gapPrefix = "- Inventory gap: "
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "# Audit %s\n\n", markdownText(report.AuditID))
 	fmt.Fprintf(&builder, "- Profile: %s@%s (%s)\n", markdownText(report.Profile.Name), markdownText(report.Profile.Version), markdownText(string(report.Profile.Mode)))
@@ -523,11 +525,32 @@ func humanSummary(report machineReport) string {
 	if report.StopReason != nil {
 		fmt.Fprintf(&builder, "- Stop reason: %s — %s\n", markdownText(report.StopReason.Code), markdownText(report.StopReason.Message))
 	}
-	for _, gap := range report.Baseline.InventoryGaps {
-		fmt.Fprintf(&builder, "- Inventory gap: %s\n", markdownText(gap))
+	for index, gap := range report.Baseline.InventoryGaps {
+		remaining := len(report.Baseline.InventoryGaps) - index - 1
+		reserve := len(qualification)
+		if remaining > 0 {
+			reserve += len(omittedInventoryGaps(remaining))
+		}
+		// Escaping only grows the text. Skip an obviously oversized gap before
+		// allocating its escaped representation.
+		if builder.Len()+len(gapPrefix)+len(gap)+1+reserve <= auditstore.MaxSummaryBytes {
+			escaped := markdownText(gap)
+			if builder.Len()+len(gapPrefix)+len(escaped)+1+reserve <= auditstore.MaxSummaryBytes {
+				builder.WriteString(gapPrefix)
+				builder.WriteString(escaped)
+				builder.WriteByte('\n')
+				continue
+			}
+		}
+		builder.WriteString(omittedInventoryGaps(len(report.Baseline.InventoryGaps) - index))
+		break
 	}
-	builder.WriteString("\nCompletion describes the bounded Audit process; it is not a security or compliance certification.\n")
+	builder.WriteString(qualification)
 	return builder.String()
+}
+
+func omittedInventoryGaps(count int) string {
+	return fmt.Sprintf("- … and %d more inventory gaps (see report.json)\n", count)
 }
 
 // Dynamic report fields are prose, never executable Markdown or raw HTML.

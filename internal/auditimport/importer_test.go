@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -957,6 +958,92 @@ func TestMarkdownSummaryEscapesDynamicFields(t *testing.T) {
 		if !strings.Contains(summary, expected) {
 			t.Errorf("summary lacks %q: %s", expected, summary)
 		}
+	}
+}
+
+func TestHumanSummaryBoundsMaximalInventoryGaps(t *testing.T) {
+	const maxGapBytes = 64 << 10
+	tail := strings.Repeat("_&", (maxGapBytes-8)/2)
+	gaps := make([]string, auditdomain.MaximumCoverageValues)
+	for index := range gaps {
+		gaps[index] = fmt.Sprintf("%08d%s", index, tail)
+	}
+	summary := humanSummary(machineReport{
+		AuditID:  "audit-large-inventory",
+		Baseline: reportBaseline{InventoryGaps: gaps},
+	})
+	if len(summary) > auditstore.MaxSummaryBytes ||
+		!strings.Contains(summary, "- … and 512 more inventory gaps (see report.json)\n") ||
+		!strings.HasSuffix(summary, "Completion describes the bounded Audit process; it is not a security or compliance certification.\n") {
+		t.Fatalf("maximal inventory summary is not bounded and qualified: length=%d, tail=%q", len(summary), summary[max(0, len(summary)-180):])
+	}
+}
+
+func TestImporterFinalizesLargeInventoryWithFullMachineGapList(t *testing.T) {
+	profile := loadResultProfile(t)
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gaps := make([]string, 420)
+	for index := range gaps {
+		gaps[index] = fmt.Sprintf(
+			"unselected-remote-ref:source/openapi#/paths/~1v1~1resource_%03d/post/callbacks/~1notify/schema/%s",
+			index, strings.Repeat("segment_", 16),
+		)
+	}
+	baselineSnapshot, err := json.Marshal(map[string]any{
+		"schema":    "contractor.audit.baseline.v1",
+		"inventory": map[string]any{"gaps": gaps},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const auditID = "audit-large-inventory"
+	round := auditstore.Round{
+		RoundID: "round-large-inventory", AuditID: auditID, Ordinal: 1,
+		State: auditstore.RoundClosed, Revision: 3,
+	}
+	store := &fakeImportStore{rounds: []auditstore.Round{round}}
+	artifactAccess := &fakeImportArtifacts{writes: map[string][]byte{}}
+	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := auditstore.ReconcileSnapshot{
+		Audit: auditstore.Audit{
+			AuditID: auditID, ProjectID: "project-large-inventory",
+			Profile: auditstore.ProfileIdentity{
+				Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+			},
+			ProfileSnapshot: profileSnapshot, BaselineSnapshot: baselineSnapshot,
+			State: auditstore.AuditFinalizing, Revision: 7, UpdatedAt: time.Unix(100, 0),
+		},
+		Round: &round,
+	}
+	claim := auditstore.ControllerClaim{AuditID: auditID, HolderID: "holder", Epoch: 2}
+	worked, err := importer.Finalize(t.Context(), claim, snapshot)
+	if err != nil || !worked || store.committed.Summary.Artifact.Ref.Revision == nil ||
+		store.committed.Machine.Artifact.Ref.Revision == nil {
+		t.Fatalf("finalize large inventory = (%t, %v, %+v)", worked, err, store.committed)
+	}
+	summary := string(artifactAccess.writes["report.md"])
+	shown := strings.Count(summary, "- Inventory gap: ")
+	omitted := len(gaps) - shown
+	if len(summary) > auditstore.MaxSummaryBytes || omitted <= 0 ||
+		!strings.Contains(summary, fmt.Sprintf("- … and %d more inventory gaps (see report.json)\n", omitted)) {
+		t.Fatalf("large inventory summary length=%d, shown=%d, omitted=%d", len(summary), shown, omitted)
+	}
+	var machine struct {
+		Baseline struct {
+			InventoryGaps []string `json:"inventoryGaps"`
+		} `json:"baseline"`
+	}
+	if err := json.Unmarshal(artifactAccess.writes["report.json"], &machine); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(machine.Baseline.InventoryGaps, gaps) {
+		t.Fatal("machine report lost inventory gaps")
 	}
 }
 
