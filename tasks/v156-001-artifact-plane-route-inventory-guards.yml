@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V156-001
+title: Scan all public route sources for Skill and Memory endpoints
+milestone: artifact-plane-route-inventory-guards-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep Skill and Memory inventory guards effective as public routes move between source files.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/292
+  finding: E2E guards scan router.go only, while route registration lives in other public package files; the Skill needle misses Operations paths.
+scope:
+  in:
+    - Scan every non-test Go source file in public and private Artifact API packages.
+    - Match Skill and Memory path segments, including under Operations.
+    - Test that newly added route files are included automatically.
+  out:
+    - Add a new public route or change the API contract.
+acceptance_criteria:
+  - {id: A1, text: A Skill or Memory route in any production public source file fails its guard.}
+  - {id: A2, text: /v1/operations/skills and new route source files are covered.}
+  - {id: A3, text: Test-only path examples do not fail the guard.}
+tests:
+  - {command: go test ./tests/e2e -run 'Test(AgentSkillsUseOnlyArtifactPlaneInventories|SharedMemoryUsesOnlyArtifactPlaneInventories|ArtifactPlaneInventory)' -count=1, covers: [A1, A2, A3]}
+  - {command: go vet ./tests/e2e, covers: [A1, A2, A3]}
