@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -25,6 +26,71 @@ import (
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
 )
+
+type streamlineMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
+
+func (f streamlineMetadataReader) Metadata(ctx context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+	return f(ctx, ref)
+}
+
+func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t *testing.T) {
+	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	for range 4 {
+		_, release, err := artifacts.AcquireTransfer(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(release)
+	}
+	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+		t.Fatalf("transfer gate was not saturated: %v", err)
+	}
+	const revision = "report-r1"
+	report := exactRef("review", "report", revision)
+	source := exactRef("inputs", "source", "source-r1")
+	inspected := map[string]int{}
+	inspector, err := planner.NewRunArtifactInspector("run-1", streamlineMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+		inspected[refKey(ref)]++
+		switch refKey(ref) {
+		case refKey(source):
+			return artifacts.Metadata{Ref: source, MediaType: "text/plain"}, nil
+		case refKey(report):
+			return artifacts.Metadata{Ref: report, MediaType: "application/json"}, nil
+		default:
+			return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &scriptedModel{steps: []modelStep{
+		addSubtaskStep("Analyze the input", "Produce the final report"),
+		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
+		}),
+	}}
+	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{"report": report}),
+	}}
+	sessions := newFakeSessions()
+	factory, err := NewConfiguredFactory(sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, testModelFactory(model), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(ctx)
+	if err != nil || result.Outcome != contracts.StageSucceeded {
+		t.Fatalf("Streamline under saturated transfer gate = (%+v, %v)", result, err)
+	}
+	if inspected[refKey(source)] == 0 || inspected[refKey(report)] == 0 || len(workers.calls) != 1 {
+		t.Fatalf("metadata inspections = %v; Worker calls = %d", inspected, len(workers.calls))
+	}
+}
 
 func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testing.T) {
 	reportRevision := "report-r1"

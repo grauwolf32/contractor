@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V169-001
+title: Inspect Planner artifacts through exact metadata
+milestone: planner-artifact-metadata-2026-10
+priority: P2
+status: completed
+implementation_commit: 3762e921ed57312e79c7a0343b946dda9c3c40b3
+depends_on: []
+languages: [go]
+goal: Keep Planner artifact validation independent of blob transfer slots and full-content reads.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/251
+  finding: Artifact inspectors call ScopedStore.Read for metadata, holding transfer slots and loading payloads.
+scope:
+  in:
+    - Use exact ScopedStore.Metadata in production and test inspectors.
+    - Preserve RunScope and exact-revision checks.
+    - Cover saturated transfer slots in inspector and affected Planner validation paths.
+  out:
+    - Change artifact content integrity checks by consumers that actually read bytes.
+acceptance_criteria:
+  - {id: A1, text: Inspect succeeds with all transfer slots held and never reads payloads.}
+  - {id: A2, text: Missing, foreign RunScope and mismatched revisions still fail.}
+  - {id: A3, text: Passthrough, streamline and scan validation do not fail from saturated transfer slots.}
+  - {id: A4, text: Streamline dispatch does not read Stage input payloads for metadata.}
+tests:
+  - {command: go test ./internal/planner/..., covers: [A1, A2, A3, A4]}
+  - {command: go test ./internal/scheduler -run '^TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated$', covers: [A1, A2]}

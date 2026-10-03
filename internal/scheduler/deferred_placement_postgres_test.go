@@ -91,6 +91,42 @@ type deferredPlacementHarness struct {
 	workers   *memoryWorkers
 }
 
+func TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	service := artifacts.NewService(artifacts.NewPostgresRepository(h.pool))
+	store, err := service.Run("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspector, err := planner.NewRunArtifactInspector("run-1", store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	for range 4 {
+		_, release, err := artifacts.AcquireTransfer(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(release)
+	}
+	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+		t.Fatalf("transfer gate was not saturated: %v", err)
+	}
+	ref := h.invoker.result.Artifacts["copied"]
+	metadata, err := inspector.Inspect(ctx, "run-1", ref)
+	if err != nil || metadata.MediaType != "text/plain" {
+		t.Fatalf("PostgreSQL metadata lookup = (%+v, %v)", metadata, err)
+	}
+	missing := ref
+	missing.Name = "missing"
+	if _, err := inspector.Inspect(ctx, "run-1", missing); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("missing exact revision = %v", err)
+	}
+}
+
 // newDeferredPlacementHarness pins allocation rows during placement, as
 // production placement does, so a deferral cannot hide lost durable state.
 func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(AtomicPersistence) AtomicPersistence, configure ...func(*workflowconfig.ResolvedWorkflow)) deferredPlacementHarness {
