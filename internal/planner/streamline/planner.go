@@ -305,7 +305,13 @@ func (p *streamlinePlanner) newRootAgent(
 					endModelSpan("cancelled", "planner_cancelled", nil)
 					return nil, providerErr
 				}
-				failure := state.providerFailure()
+				var rejected *gatewayResponseRejected
+				var failure *planner.Error
+				if errors.As(providerErr, &rejected) {
+					failure = state.rejectedGatewayResponse(rejected)
+				} else {
+					failure = state.providerFailure()
+				}
 				endModelSpan("failed", planner.FailureFrom(failure).Code, nil)
 				return nil, failure
 			},

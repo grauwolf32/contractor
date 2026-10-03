@@ -287,29 +287,53 @@ type chatResponse struct {
 			ToolCalls []chatToolCall `json:"tool_calls"`
 		} `json:"message"`
 	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int32 `json:"prompt_tokens"`
-		CompletionTokens int32 `json:"completion_tokens"`
-		TotalTokens      int32 `json:"total_tokens"`
-	} `json:"usage"`
+	Usage *chatUsage `json:"usage"`
+}
+
+type chatUsage struct {
+	PromptTokens     int32 `json:"prompt_tokens"`
+	CompletionTokens int32 `json:"completion_tokens"`
+	TotalTokens      int32 `json:"total_tokens"`
+}
+
+// gatewayResponseRejected identifies a received but unusable HTTP 200 reply.
+// Its reason is adapter-owned text and its usage is safe to charge when valid.
+type gatewayResponseRejected struct {
+	reason string
+	usage  *genai.GenerateContentResponseUsageMetadata
+}
+
+func (e *gatewayResponseRejected) Error() string {
+	return "Planner Gateway returned " + e.reason
 }
 
 func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 	var response chatResponse
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	if err := decoder.Decode(&response); err != nil {
-		return nil, fmt.Errorf("Planner Gateway returned invalid JSON")
-	}
-	if len(response.Choices) == 0 {
-		return nil, fmt.Errorf("Planner Gateway returned no choices")
+		return nil, &gatewayResponseRejected{reason: "invalid JSON"}
 	}
 	if response.Usage == nil || response.Usage.PromptTokens < 0 ||
 		response.Usage.CompletionTokens < 0 || response.Usage.TotalTokens <= 0 ||
 		int64(response.Usage.TotalTokens) <
 			int64(response.Usage.PromptTokens)+int64(response.Usage.CompletionTokens) {
-		return nil, fmt.Errorf("Planner Gateway returned invalid token usage")
+		return nil, &gatewayResponseRejected{reason: "invalid token usage"}
+	}
+	usage := &genai.GenerateContentResponseUsageMetadata{
+		PromptTokenCount:     response.Usage.PromptTokens,
+		CandidatesTokenCount: response.Usage.CompletionTokens,
+		TotalTokenCount:      response.Usage.TotalTokens,
+	}
+	reject := func(reason string) (*model.LLMResponse, error) {
+		return nil, &gatewayResponseRejected{reason: reason, usage: usage}
+	}
+	if len(response.Choices) == 0 {
+		return reject("no choices")
 	}
 	choice := response.Choices[0]
+	if choice.FinishReason == "length" {
+		return reject("a length-limited choice")
+	}
 	parts := make([]*genai.Part, 0, len(choice.Message.ToolCalls)+1)
 	if choice.Message.Content != "" {
 		parts = append(parts, genai.NewPartFromText(choice.Message.Content))
@@ -318,20 +342,15 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		var arguments map[string]any
 		if strings.TrimSpace(call.Function.Arguments) == "" {
 			arguments = map[string]any{}
-		} else if err := json.Unmarshal([]byte(call.Function.Arguments), &arguments); err != nil {
-			return nil, fmt.Errorf("Planner Gateway returned invalid tool arguments")
+		} else if err := json.Unmarshal([]byte(call.Function.Arguments), &arguments); err != nil || arguments == nil {
+			return reject("invalid tool arguments")
 		}
 		part := genai.NewPartFromFunctionCall(call.Function.Name, arguments)
 		part.FunctionCall.ID = call.ID
 		parts = append(parts, part)
 	}
 	if len(parts) == 0 {
-		return nil, fmt.Errorf("Planner Gateway returned an empty choice")
-	}
-	usage := &genai.GenerateContentResponseUsageMetadata{
-		PromptTokenCount:     response.Usage.PromptTokens,
-		CandidatesTokenCount: response.Usage.CompletionTokens,
-		TotalTokenCount:      response.Usage.TotalTokens,
+		return reject("an empty choice")
 	}
 	return &model.LLMResponse{
 		Content:       &genai.Content{Role: genai.RoleModel, Parts: parts},

@@ -122,6 +122,23 @@ func (s *executionState) providerFailure() *planner.Error {
 	))
 }
 
+func (s *executionState) rejectedGatewayResponse(rejected *gatewayResponseRejected) *planner.Error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if rejected.usage != nil {
+		s.inputTokens += int64(rejected.usage.PromptTokenCount)
+		s.outputTokens += int64(rejected.usage.CandidatesTokenCount)
+		if s.inputTokens+s.outputTokens > s.limits.MaxTokens {
+			return s.setFailureLocked(limitError(
+				"planner_token_limit", "Planner exhausted its cumulative token limit",
+			))
+		}
+	}
+	return s.setFailureLocked(planner.NewError(
+		"planner_gateway_invalid_response", "Planner Gateway returned an invalid response", true, nil,
+	))
+}
+
 func (s *executionState) reserveWorkerCall() *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
