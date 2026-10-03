@@ -166,10 +166,11 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 
 	registration := testRegistration("trusted-agent")
 	body, _ := json.Marshal(registration)
-	trustedClientTLS, err := mtls.ControlPlaneClientConfig(trusted.agent, "127.0.0.1")
+	trustedClientTLS, err := mtls.ControlPlaneEndpointClientConfig(trusted.agent)
 	if err != nil {
 		t.Fatal(err)
 	}
+	trustedClientTLS.ServerName = "127.0.0.1"
 	trustedClient := &http.Client{Transport: &http.Transport{TLSClientConfig: trustedClientTLS}, Timeout: 3 * time.Second}
 	response, err := postJSON(trustedClient, server.URL+"/private/v1/agents/register", body)
 	if err != nil {
@@ -182,10 +183,11 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 
 	foreignIdentity := foreign.agent
 	foreignIdentity.CA = trusted.controlPlane.CA
-	foreignClientTLS, err := mtls.ControlPlaneClientConfig(foreignIdentity, "127.0.0.1")
+	foreignClientTLS, err := mtls.ControlPlaneEndpointClientConfig(foreignIdentity)
 	if err != nil {
 		t.Fatal(err)
 	}
+	foreignClientTLS.ServerName = "127.0.0.1"
 	foreignClient := &http.Client{Transport: &http.Transport{TLSClientConfig: foreignClientTLS}, Timeout: 3 * time.Second}
 	foreignRegistration := testRegistration("foreign-agent")
 	foreignBody, _ := json.Marshal(foreignRegistration)

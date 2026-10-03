@@ -89,20 +89,17 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 			t.Fatalf("use %s: %v", test.id, err)
 		}
 	}
-	if count, err := repository.CountActive(ctx); err != nil || count != 4 {
-		t.Fatalf("active Runtime credential count = (%d, %v)", count, err)
-	}
 	listed, err := service.List(ctx, "", 10)
 	if err != nil || len(listed) != 4 || listed[0].CredentialID != "caido-bearer" ||
 		listed[1].CredentialID != "otel-auth" || listed[2].CredentialID != "proxy-basic" ||
 		listed[3].CredentialID != "proxy-bearer" {
 		t.Fatalf("safe Runtime credential list = (%+v, %v)", listed, err)
 	}
-	if err := repository.VerifyActiveKey(ctx, cipher.KeyID()); err != nil {
+	if err := repository.VerifyStoredKey(ctx, cipher.KeyID()); err != nil {
 		t.Fatalf("verify Runtime credential key: %v", err)
 	}
 	wrongCipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x72}, 32))
-	if err := repository.VerifyActiveKey(ctx, wrongCipher.KeyID()); !errors.Is(err, ErrKeyUnavailable) {
+	if err := repository.VerifyStoredKey(ctx, wrongCipher.KeyID()); !errors.Is(err, ErrKeyUnavailable) {
 		t.Fatalf("wrong Runtime credential key error = %v", err)
 	}
 	if err := service.ValidateRuntimeCredential(ctx, "otel-auth", string(RuntimeCredentialProxyBearer)); !errors.Is(err, ErrRuntimeCredentialNotFound) {

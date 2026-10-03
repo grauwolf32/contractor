@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sort"
 	"strings"
 )
 
@@ -25,7 +24,6 @@ var ErrInvalidTrustedProxy = errors.New("invalid trusted proxy")
 // bucket by sending forwarded headers of its own.
 type PeerPolicy struct {
 	trusted []netip.Prefix
-	values  []string
 }
 
 // NewPeerPolicy accepts exact IP addresses and CIDR prefixes. An empty list is
@@ -46,9 +44,7 @@ func NewPeerPolicy(proxies []string) (PeerPolicy, error) {
 		}
 		seen[prefix] = struct{}{}
 		result.trusted = append(result.trusted, prefix)
-		result.values = append(result.values, prefix.String())
 	}
-	sort.Strings(result.values)
 	return result, nil
 }
 
@@ -81,9 +77,6 @@ func parseTrustedProxy(source string) (netip.Prefix, error) {
 	}
 	return prefix.Masked(), nil
 }
-
-// Values returns the canonical trusted prefixes for logging and diagnostics.
-func (p PeerPolicy) Values() []string { return append([]string(nil), p.values...) }
 
 func (p PeerPolicy) trusts(address netip.Addr) bool {
 	for _, prefix := range p.trusted {
