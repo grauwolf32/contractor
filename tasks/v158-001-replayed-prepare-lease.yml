@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V158-001
+title: Refresh confirmed leases when preparing replayed reservations
+milestone: replayed-prepare-lease-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: Let a Stage resume preparation after its original confirmed lease expires while refusing allocations whose owning Agent actually lost its lease.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/244
+  finding: Placement pins leaseExpiresAt once; replay sends the stale timestamp and Runtime rejects it.
+scope:
+  in:
+    - Refresh the prepare reservation from the owner's current confirmed lease under the Registry lock.
+    - Preserve Runtime prepare idempotence when only the lease timestamp changes.
+    - Report actual control lease loss as control_lease_expired.
+    - Cover deferred admission, expired-owner, and repeated-prepare cases.
+  out:
+    - Extend an already-prepared allocation's effective Runtime lease.
+acceptance_criteria:
+  - {id: A1, text: A replayed preparing reservation uses the current confirmed lease after the original timestamp passes.}
+  - {id: A2, text: Deferred Stage admission succeeds after that timestamp without allocation_preparation_failed.}
+  - {id: A3, text: Runtime returns the original WorkerHandle for same-allocation prepare with a newer lease timestamp.}
+  - {id: A4, text: An actually expired owning Agent is rejected and Stage reports control_lease_expired.}
+tests:
+  - {command: go test ./internal/controlplane ./internal/scheduler, covers: [A1, A2, A4]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest -q runtime/tests/test_allocation.py, covers: [A3]}
