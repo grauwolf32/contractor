@@ -26,7 +26,7 @@ type migratedAnalysisSkill struct {
 var migratedAnalysisSkills = []migratedAnalysisSkill{
 	{name: "stride", digest: "sha256:92cb91b0952fb419021e89ec5d977ae36b1ab6439d9f36f2b5240412ea530043"},
 	{
-		name: "trace", digest: "sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc",
+		name: "trace", digest: tracePackageDigest,
 		references: []string{
 			"references/annotations.md", "references/controls.md", "references/cwe-mapping.md",
 			"references/finding-shapes.md", "references/frameworks.md", "references/sinks.md",

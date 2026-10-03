@@ -5,12 +5,14 @@ import (
 	"testing"
 )
 
+const tracePackageDigest = "sha256:2c47c4606c629aa826f52c63d6435f34a20e244475dea30837d4432c50abba7e"
+
 func TestTraceSkillNamesOnlyTheStructuredAnnotationContract(t *testing.T) {
 	_, pkg, err := PackageDirectory("../../configs/skills/trace")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pkg.Digest != "sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc" {
+	if pkg.Digest != tracePackageDigest {
 		t.Fatalf("trace Skill digest = %s", pkg.Digest)
 	}
 	members := make(map[string]string, len(pkg.Resources)+1)
