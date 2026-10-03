@@ -59,25 +59,17 @@ func (c *CLI) runOperations(ctx context.Context, client *publicclient.Client, pr
 			return err
 		}
 		page := response.JSON200
-		if printer.Mode() == OutputJSON {
-			return printer.JSON(page)
-		}
-		if printer.Mode() == OutputName {
-			names := make([]string, 0, len(page.Items))
-			for _, item := range page.Items {
-				names = append(names, item.InstanceId)
-			}
-			return printer.Names(names...)
-		}
-		rows := make([][]string, 0, len(page.Items))
-		for _, item := range page.Items {
-			last := "-"
-			if item.LastAcceptedHeartbeat != nil {
-				last = item.LastAcceptedHeartbeat.Format(time.RFC3339)
-			}
-			rows = append(rows, []string{item.InstanceId, stringValue(item.ObservedState), stringValue(item.SlotState), item.SoftwareVersion, last})
-		}
-		return printer.Table([]string{"INSTANCE", "STATE", "SLOT", "VERSION", "LAST HEARTBEAT"}, rows)
+		return List(printer, page, page.Items,
+			func(item publicapi.RuntimeAgentObservation) string { return item.InstanceId },
+			[]string{"INSTANCE", "STATE", "SLOT", "VERSION", "LAST HEARTBEAT"},
+			func(item publicapi.RuntimeAgentObservation) []string {
+				last := "-"
+				if item.LastAcceptedHeartbeat != nil {
+					last = item.LastAcceptedHeartbeat.Format(time.RFC3339)
+				}
+				return []string{item.InstanceId, stringValue(item.ObservedState), stringValue(item.SlotState), item.SoftwareVersion, last}
+			},
+		)
 	case "principals":
 		response, err := client.API.ListRuntimeAgentPrincipalsWithResponse(ctx, &publicapi.ListRuntimeAgentPrincipalsParams{Limit: &limitValue, Cursor: cursorValue})
 		if err != nil {
@@ -87,21 +79,13 @@ func (c *CLI) runOperations(ctx context.Context, client *publicclient.Client, pr
 			return err
 		}
 		page := response.JSON200
-		if printer.Mode() == OutputJSON {
-			return printer.JSON(page)
-		}
-		if printer.Mode() == OutputName {
-			names := make([]string, 0, len(page.Items))
-			for _, item := range page.Items {
-				names = append(names, item.RuntimeAgentId)
-			}
-			return printer.Names(names...)
-		}
-		rows := make([][]string, 0, len(page.Items))
-		for _, item := range page.Items {
-			rows = append(rows, []string{item.RuntimeAgentId, stringValue(item.Availability), fmt.Sprint(len(item.Labels)), item.Revision, item.UpdatedAt.Format(time.RFC3339)})
-		}
-		return printer.Table([]string{"RUNTIME AGENT", "AVAILABILITY", "LABELS", "REVISION", "UPDATED"}, rows)
+		return List(printer, page, page.Items,
+			func(item publicapi.RuntimeAgentPrincipal) string { return item.RuntimeAgentId },
+			[]string{"RUNTIME AGENT", "AVAILABILITY", "LABELS", "REVISION", "UPDATED"},
+			func(item publicapi.RuntimeAgentPrincipal) []string {
+				return []string{item.RuntimeAgentId, stringValue(item.Availability), fmt.Sprint(len(item.Labels)), item.Revision, item.UpdatedAt.Format(time.RFC3339)}
+			},
+		)
 	case "allocations":
 		response, err := client.API.ListAllocationsWithResponse(ctx, &publicapi.ListAllocationsParams{Limit: &limitValue, Cursor: cursorValue})
 		if err != nil {
@@ -111,21 +95,13 @@ func (c *CLI) runOperations(ctx context.Context, client *publicclient.Client, pr
 			return err
 		}
 		page := response.JSON200
-		if printer.Mode() == OutputJSON {
-			return printer.JSON(page)
-		}
-		if printer.Mode() == OutputName {
-			names := make([]string, 0, len(page.Items))
-			for _, item := range page.Items {
-				names = append(names, item.AllocationId)
-			}
-			return printer.Names(names...)
-		}
-		rows := make([][]string, 0, len(page.Items))
-		for _, item := range page.Items {
-			rows = append(rows, []string{item.AllocationId, item.RunId, item.LogicalWorker, stringValue(item.AuthoritativePhase), stringValue(item.ObservedPhase), item.RuntimeAgentInstanceId})
-		}
-		return printer.Table([]string{"ALLOCATION", "RUN", "WORKER", "PHASE", "OBSERVED", "RUNTIME"}, rows)
+		return List(printer, page, page.Items,
+			func(item publicapi.AllocationObservation) string { return item.AllocationId },
+			[]string{"ALLOCATION", "RUN", "WORKER", "PHASE", "OBSERVED", "RUNTIME"},
+			func(item publicapi.AllocationObservation) []string {
+				return []string{item.AllocationId, item.RunId, item.LogicalWorker, stringValue(item.AuthoritativePhase), stringValue(item.ObservedPhase), item.RuntimeAgentInstanceId}
+			},
+		)
 	default:
 		return &UsageError{Message: fmt.Sprintf("unknown ops command %q", args[0])}
 	}

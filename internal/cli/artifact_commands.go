@@ -652,22 +652,14 @@ func exactArtifactName(reference publicapi.ExactArtifactRef) string {
 }
 
 func printArtifactPage(printer *Printer, page *publicapi.ArtifactPage) error {
-	if printer.Mode() == OutputJSON {
-		return printer.JSON(page)
-	}
-	if printer.Mode() == OutputName {
-		names := make([]string, 0, len(page.Items))
-		for _, item := range page.Items {
-			names = append(names, exactArtifactName(item.Artifact))
-		}
-		return printer.Names(names...)
-	}
-	rows := make([][]string, 0, len(page.Items))
-	for _, item := range page.Items {
-		rows = append(rows, []string{
-			exactArtifactName(item.Artifact), stringValue(item.MediaType), strconv.Itoa(item.Size),
-			strconv.FormatBool(item.Current), strconv.FormatBool(item.Frozen), item.CreatedAt.Format(time.RFC3339),
-		})
-	}
-	return printer.Table([]string{"ARTIFACT", "TYPE", "BYTES", "CURRENT", "FROZEN", "CREATED"}, rows)
+	return List(printer, page, page.Items,
+		func(item publicapi.ArtifactMetadata) string { return exactArtifactName(item.Artifact) },
+		[]string{"ARTIFACT", "TYPE", "BYTES", "CURRENT", "FROZEN", "CREATED"},
+		func(item publicapi.ArtifactMetadata) []string {
+			return []string{
+				exactArtifactName(item.Artifact), stringValue(item.MediaType), strconv.Itoa(item.Size),
+				strconv.FormatBool(item.Current), strconv.FormatBool(item.Frozen), item.CreatedAt.Format(time.RFC3339),
+			}
+		},
+	)
 }
