@@ -29,7 +29,6 @@ var (
 	agentStateETagPattern = regexp.MustCompile(`^"contractor-agent-state-v1-[1-9][0-9]*"$`)
 )
 
-type WorkerStateReader = planner.WorkerStateReader
 type WorkerStateReadResult = planner.WorkerStateReadResult
 type WorkerStateReadError = planner.WorkerStateReadError
 

@@ -437,7 +437,7 @@ FROM (SELECT 'fixture-'||g AS generation, $1::timestamptz - n * interval '1 minu
 		args         []any
 	}{
 		{"EXPLAIN (FORMAT JSON) " + historyReadSQL, "performance_minutes_range_idx", []any{now.Add(-5 * time.Minute), now, now, 1001}},
-		{"EXPLAIN (FORMAT JSON) " + cleanupPerformanceSQL, "performance_minutes_expiry_idx", []any{now}},
+		{"EXPLAIN (FORMAT JSON) " + cleanupPerformanceSQL, "performance_minutes_expiry_idx", []any{now, MaxCleanupRows}},
 	} {
 		var raw []byte
 		if err = working.QueryRow(ctx, plan.query, plan.args...).Scan(&raw); err != nil {

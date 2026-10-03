@@ -251,7 +251,7 @@ func loadCA(root string, now time.Time) (*x509.Certificate, *ecdsa.PrivateKey, e
 		return nil, nil, errors.New("CA key is not an ECDSA P-256 private key")
 	}
 	publicKey, ok := certificate.PublicKey.(*ecdsa.PublicKey)
-	if !ok || publicKey.Curve != elliptic.P256() || publicKey.X.Cmp(key.X) != 0 || publicKey.Y.Cmp(key.Y) != 0 {
+	if !ok || publicKey.Curve != elliptic.P256() || !publicKey.Equal(key.Public()) {
 		return nil, nil, errors.New("CA certificate and private key do not match")
 	}
 	return certificate, key, nil

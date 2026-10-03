@@ -81,22 +81,6 @@ func Summarize(metrics contracts.StageMetrics) Summary {
 	return result
 }
 
-func MergeSummaries(summaries ...Summary) Summary {
-	result := Summary{ReportsComplete: true}
-	for _, summary := range summaries {
-		result.ReportsComplete = result.ReportsComplete && summary.ReportsComplete
-		result.ModelCalls += summary.ModelCalls
-		result.InputTokens += summary.InputTokens
-		result.OutputTokens += summary.OutputTokens
-		result.TotalTokens += summary.TotalTokens
-		result.ToolCalls += summary.ToolCalls
-		result.ToolFailures += summary.ToolFailures
-		result.ErrorCount += summary.ErrorCount
-		result.Truncated = result.Truncated || summary.Truncated
-	}
-	return result
-}
-
 // ProjectAttemptDiagnostics returns only already normalized Planner and Worker
 // report errors and bounded completion facts. Reports are ordered Planner first and then by logical Agent;
 // error order within each report is preserved. If the public cap is exceeded,

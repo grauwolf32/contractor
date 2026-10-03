@@ -17,7 +17,6 @@ const (
 	// A native plan embeds each member and its execution-order entry in one
 	// 1 MiB document. External registrations retain the portable 10,000 limit.
 	MaxNativeMembers = 1000
-	MaxCases         = 1000
 	MaxRepetitions   = 100
 	MaxPageSize      = 100
 )
