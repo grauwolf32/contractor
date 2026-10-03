@@ -3,7 +3,8 @@ id: V223-001
 title: Align scheduled performance samples to minute boundaries
 milestone: runtime-maintenance-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: bcd156ca3cea660b552f4cd6fd1d3fb085c08372
 depends_on: []
 languages: [go]
 goal: Preserve every scheduled 15-second window in durable minute aggregates despite collection jitter.
