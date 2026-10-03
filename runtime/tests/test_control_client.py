@@ -352,7 +352,7 @@ def test_local_lease_loss_stays_fenced_until_release_registration_succeeds(
     asyncio.run(scenario())
 
 
-def test_retry_backoff_is_jittered_but_bounded() -> None:
+def test_registration_retry_backoff_has_fixed_ceiling_before_server_timing() -> None:
     low = ControlClient(make_settings(), RuntimeState(), FakeTransport([]), jitter=lambda: 0.0)
     high = ControlClient(make_settings(), RuntimeState(), FakeTransport([]), jitter=lambda: 1.0)
     assert low._backoff(1) == 0.375

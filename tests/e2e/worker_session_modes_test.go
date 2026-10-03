@@ -119,8 +119,6 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 			"--work-root", workRoot,
 			"--request-timeout-seconds", "10",
 			"--shutdown-grace-seconds", "5",
-			"--heartbeat-interval-seconds", "1",
-			"--confirmed-lease-seconds", "12",
 		)
 		waitForHTTP(t, ctx, process, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 		waitForProcessLog(t, ctx, process, "runtime agent registered")

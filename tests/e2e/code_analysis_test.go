@@ -362,8 +362,6 @@ func startCodeAnalysisRuntime(
 		"--workspace-storage", storage,
 		"--request-timeout-seconds", "30",
 		"--shutdown-grace-seconds", "8",
-		"--heartbeat-interval-seconds", "1",
-		"--confirmed-lease-seconds", "12",
 	}
 	if workspaceRoot != "" {
 		args = append(args, "--workspace-work-root", workspaceRoot)
