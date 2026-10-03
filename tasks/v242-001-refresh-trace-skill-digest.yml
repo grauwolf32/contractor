@@ -3,8 +3,8 @@ id: V242-001
 title: Refresh trace Skill digest after annotation contract change
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 0c24ef34e65c3659e4e28753c0f53fac465ca0fb
 depends_on: []
 languages: [go]
 goal: Restore the release gate's exact trace Skill package checks after an intentional annotation-reference update.
