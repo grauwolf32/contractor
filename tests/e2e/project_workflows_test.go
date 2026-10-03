@@ -1090,40 +1090,6 @@ func uploadProjectArtifact(
 	return payload.Artifact
 }
 
-func createProjectRun(
-	t *testing.T,
-	client *http.Client,
-	baseURL, workflow string,
-	inputs map[string]artifactRef,
-) string {
-	t.Helper()
-	body, err := json.Marshal(map[string]any{
-		"workflow": workflow,
-		"parameters": map[string]string{
-			"objective": "Model the implemented API, architecture, and trust boundaries",
-		},
-		"artifacts": inputs,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request, err := http.NewRequest(http.MethodPost, baseURL+"/v1/runs", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Authorization", "Bearer "+publicToken)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Idempotency-Key", "project-e2e-"+strings.ReplaceAll(workflow, "@", "-v"))
-	response := do(t, client, request, http.StatusAccepted)
-	defer response.Body.Close()
-	var payload runCreateResponse
-	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "initializing" && payload.State != "pending" && payload.State != "running" {
-		t.Fatalf("create %s Run response = %+v", workflow, payload)
-	}
-	return payload.RunID
-}
-
 func waitForDomainRun(
 	t *testing.T,
 	ctx context.Context,

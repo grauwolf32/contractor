@@ -664,50 +664,6 @@ func workspaceLikeC4ValidateGatewayStage(tools []string) domainGatewayStage {
 	return stage
 }
 
-func discoveryGatewayStage(name string, tools []string, dependency bool) domainGatewayStage {
-	steps := []domainGatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-	}
-	if dependency {
-		steps = append(steps,
-			toolGatewayStep("list_source_files", fixedArguments(map[string]any{
-				"pattern": "**/*", "offset": 0, "limit": 50,
-			})),
-		)
-	} else {
-		steps = append(steps,
-			toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		)
-	}
-	steps = append(steps,
-		toolGatewayStep("read_source", fixedArguments(map[string]any{
-			"path": "app.py", "start_line": 1, "max_lines": 100,
-		})),
-	)
-	if dependency {
-		steps = append(steps,
-			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
-				"name": "dependencies", "text": dependencyReport, "media_type": "text/markdown",
-				"expected_revision": nil,
-			})),
-			finalGatewayStep("Dependency inventory published", map[string]domainArtifactBinding{
-				"dependency_report": {namespace: "analysis", name: "dependencies"},
-			}),
-		)
-	} else {
-		steps = append(steps,
-			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
-				"name": "project", "text": projectReport, "media_type": "text/markdown",
-				"expected_revision": nil,
-			})),
-			finalGatewayStep("Project inventory published", map[string]domainArtifactBinding{
-				"project_report": {namespace: "analysis", name: "project"},
-			}),
-		)
-	}
-	return domainGatewayStage{name: name, tools: tools, steps: steps}
-}
-
 func openAPIBuildGatewayStage(tools []string) domainGatewayStage {
 	return domainGatewayStage{name: "openapi/openapi_build", tools: tools, steps: []domainGatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),

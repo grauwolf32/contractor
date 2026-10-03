@@ -194,24 +194,6 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// workerModelResultMessage mirrors the only model-facing Worker result schema.
-// The requested subtask ID is deliberately copied from the Runtime-rendered task
-// prompt so process fixtures exercise the same correlation check as a real model.
-func workerModelResultMessage(request map[string]any, result string) (map[string]any, error) {
-	subtaskID, err := workerRequestSubtaskID(request)
-	if err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(map[string]any{
-		"subtaskId": subtaskID,
-		"result":    result,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("encode WorkerModelResult: %w", err)
-	}
-	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
-}
-
 func workerRequestSubtaskID(request map[string]any) (string, error) {
 	const marker = "Subtask ID:\n"
 	var found string

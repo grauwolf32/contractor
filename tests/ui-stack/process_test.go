@@ -5,8 +5,6 @@ package uistack
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -191,15 +189,4 @@ func appendOverrides(result []string, overrides map[string]string) []string {
 		result = append(result, key+"="+overrides[key])
 	}
 	return result
-}
-
-func copyBounded(reader io.Reader) string {
-	data, err := io.ReadAll(io.LimitReader(reader, retainedProcessLogBytes+1))
-	if err != nil {
-		return fmt.Sprintf("read response: %v", err)
-	}
-	if len(data) > retainedProcessLogBytes {
-		data = data[:retainedProcessLogBytes]
-	}
-	return string(data)
 }
