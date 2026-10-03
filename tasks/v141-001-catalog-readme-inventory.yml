@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V141-001
+title: Reconcile bundled configuration catalog README
+milestone: catalog-readme-inventory-2026-10
+priority: P3
+status: completed
+implementation_commit: 5f207ad351fde55d5673ed5b15cee451c21e47ac
+depends_on: []
+languages: [markdown]
+goal: Describe every bundled Workflow and AuditProfile and their actual runtime contracts.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/174
+  finding: README omits shipped scan paths and overgeneralizes Audit completion and template counts.
+scope:
+  in:
+    - Name all loaded Workflows and AuditProfiles, including source findings and scan paths.
+    - Distinguish model-backed Audit results from tool-runtime scans.
+    - Remove stale template counts and clarify the empty default execution-config directory.
+  out:
+    - Change shipped manifest values or catalog loading.
+acceptance_criteria:
+  - {id: A1, text: Every bundled Workflow and AuditProfile selector appears in the README.}
+  - {id: A2, text: Audit completion, output budgets, summarization and escalation prose match manifests.}
+tests:
+  - {command: compare README selectors and claims with loaded YAML manifests, covers: [A1, A2]}
