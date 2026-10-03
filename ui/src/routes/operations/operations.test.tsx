@@ -475,7 +475,7 @@ describe("Operations routes", () => {
     ]);
   });
 
-  it("keeps an in-use credential active and links only safe Run IDs", async () => {
+  it("shows Run, Audit and RuntimeConfig label holds on a credential", async () => {
     const credential = {
       credentialId: "worker-budget",
       llmGateway: { gatewayId: "local-litellm", version: "1", digest },
@@ -503,8 +503,9 @@ describe("Operations routes", () => {
                 requestId: "request-delete-1",
                 details: {
                   kind: "credential_in_use",
-                  runIds: ["run-openapi", "run-likec4"],
-                  bindingLabels: ["default", "debug"],
+                  runIds: ["run-openapi", "run-likec4", "../escape"],
+                  auditIds: ["audit-held", "bad/audit"],
+                  bindingLabels: ["default", "debug", "../escape"],
                 },
               },
               409,
@@ -536,11 +537,70 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "debug" })).toHaveAttribute(
       "href",
-      "/operations/runtime-configs",
+      "/operations/configuration",
     );
+    expect(screen.getByText("audit-held")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "audit-held" })).toBeNull();
+    expect(screen.getByText(/Audit dispatch hold/)).toBeVisible();
+    expect(screen.queryByText("../escape")).toBeNull();
+    expect(screen.queryByText("bad/audit")).toBeNull();
     expect(
       screen.getByText("active", { selector: ".state-badge" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows an Audit-only hold when the Server sends null Run IDs", async () => {
+    const credential = {
+      credentialId: "worker-budget",
+      llmGateway: { gatewayId: "local-litellm", version: "1", digest },
+      createdAt: "2026-08-31T12:00:00Z",
+      effectivePolicy: {
+        modelPolicies: [{ policyId: "worker", version: "1", digest }],
+        models: ["qwen-worker"],
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+        if (path === "/v1/operations/credentials/worker-budget") {
+          return request.method === "DELETE"
+            ? apiResponse(
+                {
+                  code: "credential_in_use",
+                  message: "Credential is held by an Audit",
+                  retryable: false,
+                  details: {
+                    kind: "credential_in_use",
+                    runIds: null,
+                    auditIds: ["audit-only"],
+                  },
+                },
+                409,
+              )
+            : apiResponse(credential);
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations/credentials/worker-budget");
+    const user = userEvent.setup();
+    await screen.findByText("active", { selector: ".state-badge" });
+    await user.click(
+      screen.getByLabelText(/I understand that the LiteLLM key/),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Delete from LiteLLM and Contractor",
+      }),
+    );
+    expect(await screen.findByText("audit-only")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Audits" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Runs" })).toBeNull();
   });
 
   it("publishes typed Runtime configuration, erases secrets, and exposes stale binding CAS", async () => {
