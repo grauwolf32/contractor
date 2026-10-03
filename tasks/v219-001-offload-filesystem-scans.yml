@@ -3,7 +3,8 @@ id: V219-001
 title: Keep filesystem read and grep scans off the asyncio loop
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: bf3c722d26a76ecdd76164da7a588ccc3234561b
 depends_on: []
 languages: [python]
 goal: Prevent large read_file and grep CPU scans from stalling the Runtime Agent event loop.
