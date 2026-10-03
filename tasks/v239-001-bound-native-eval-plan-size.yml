@@ -3,7 +3,8 @@ id: V239-001
 title: Reject native Eval matrices that cannot fit a frozen plan
 milestone: runtime-maintenance-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 08e130f2c460ce5108b859b5a094cd9ebf949618
 depends_on: []
 languages: [go, typescript]
 goal: Reject oversized native Eval drafts before persistence rather than failing Prepare with a plan document limit.
