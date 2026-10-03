@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V121-001
+title: Preserve source files named like ignored directories
+milestone: source-analysis-file-names-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Keep regular source files whose own names match ignored directory names.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/242
+  finding: Archive extraction applies the ignored-directory set to the file's final path component.
+scope:
+  in:
+    - Distinguish directory entries from regular file entries in ignore checks.
+    - Verify named files are visible while files inside ignored directories remain excluded.
+  out:
+    - Change the ignored directory list.
+acceptance_criteria:
+  - {id: A1, text: Regular files named build, target, coverage, dist or vendor remain searchable and readable.}
+  - {id: A2, text: Directory entries and files below ignored directories are still counted as ignored.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_source_analysis_toolset.py, covers: [A1, A2]}
