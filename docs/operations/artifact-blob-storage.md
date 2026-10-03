@@ -39,9 +39,15 @@ active Server releases its database lease. The example Deployment uses
 `Recreate` so an update does not require two active pods. A shared filesystem
 blob directory alone does not make active replicas supported.
 
-The Server admits four concurrent full-payload transfers. Saturation returns
-503 with retryable `artifact_transfer_capacity`. Memory also includes request,
-driver and serialization buffers; four slots are not a total process RAM cap.
+Each Server process admits four concurrent full-payload transfers. Saturation
+returns 503 with retryable `artifact_transfer_capacity`. HTTP uploads have five
+seconds of grace plus one second per started MiB of payload (minimum throughput:
+1 MiB/s). Unknown-length uploads use the 64 MiB maximum, so their deadline is
+69 seconds. Downloads start with a 69-second cap; once the payload is loaded,
+the socket write deadline tightens to the same size-based budget measured from
+slot acquisition. Stalled client reads or writes end at the applicable deadline
+and release the slot. Memory also includes request, driver and serialization
+buffers; four slots are not a total process RAM cap.
 PostgreSQL mode needs no local artifact scratch directory.
 
 Filesystem publication makes a complete file visible before committing its

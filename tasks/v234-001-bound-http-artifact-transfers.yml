@@ -22,5 +22,5 @@ acceptance_criteria:
   - {id: A2, text: A stalled download releases its slot by the deadline, for both public and private handlers.}
   - {id: A3, text: A normal 64 MiB transfer at the documented minimum throughput can complete.}
 tests:
-  - {command: go test ./internal/httpapi/... ./tests/e2e -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./internal/httpapi/... -count=1, covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2, A3]}

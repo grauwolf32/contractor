@@ -6,6 +6,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -54,6 +55,8 @@ func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	defer releaseTransfer()
 	r = r.WithContext(ctx)
+	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
+	defer deadline.Close()
 	store, _, err := h.ownedActiveProjectArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)
