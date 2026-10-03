@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V170-001
+title: Remove dead Audit results scaffolding
+milestone: audit-results-cleanup-2026-10
+priority: P2
+status: completed
+implementation_commit: d0640cf4f99e793098187d64ba80c2e5d1860177
+depends_on: []
+languages: [python]
+goal: Keep only the authoritative Audit results value contracts and package builder behavior.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/263
+  finding: Unused Protocols, duplicate limits and an unreachable allow_empty branch outlived the concrete collector.
+scope:
+  in:
+    - Remove unused Protocol interfaces and duplicate package constants.
+    - Make empty prospective result packages unconditional and remove stale legacy wording.
+  out:
+    - Change Audit package bytes or publication behavior.
+acceptance_criteria:
+  - {id: A1, text: No unused AuditPackageEncoder, AuditCollector or AuditResultPublisher Protocol remains.}
+  - {id: A2, text: Package constants are no longer duplicated or unused.}
+  - {id: A3, text: Empty prospective package encoding remains valid with no allow_empty switch.}
+  - {id: A4, text: Existing Audit results tests and pinned package digest pass unchanged.}
+tests:
+  - {command: cd runtime && .venv/bin/python -m pytest tests/test_audit_result_publication.py tests/test_audit_result_collector.py tests/test_audit_completion_contracts.py tests/test_audit_results_toolset.py, covers: [A3, A4]}

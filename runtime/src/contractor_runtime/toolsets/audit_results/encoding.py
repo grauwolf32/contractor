@@ -89,12 +89,11 @@ class CanonicalAuditPackageEncoder:
                 tasks=selected_tasks,
                 execution_bytes=inputs.execution_manifest,
                 results=results,
-                allow_empty=True,
             )
         except AuditResultError:
             raise
         except ValueError as error:
-            # The legacy builder's sole aggregate size failure is stable and local.
+            # The builder's sole aggregate size failure is stable and local.
             code = (
                 "audit_result_size_exceeded"
                 if str(error) == "result package exceeds its aggregate bound"
