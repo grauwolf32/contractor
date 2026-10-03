@@ -98,8 +98,8 @@ WHERE experiment_id=$1
 UPDATE eval_experiments SET state='running',outstanding_count=outstanding_count+1,
 started_at=COALESCE(started_at,statement_timestamp()),deadline_at=COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond'),
 last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,
-`+advance+` WHERE experiment_id=$1`, e.ID)
-		return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision + 1, State: "intent"}, err
+`+observe+` WHERE experiment_id=$1`, e.ID)
+		return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision, State: "intent"}, err
 	})
 }
 
@@ -436,6 +436,6 @@ SELECT EXISTS(SELECT 1
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET outstanding_count=outstanding_count-1,`+advance+` WHERE experiment_id=$1`, id)
+	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET outstanding_count=outstanding_count-1,`+observe+` WHERE experiment_id=$1`, id)
 	return err
 }

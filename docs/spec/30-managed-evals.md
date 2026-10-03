@@ -95,7 +95,13 @@ conflicting digest is 409, not replacement. Public API lookup IDs are opaque
 server IDs, separate from the portable experiment ID. A pair ID is the canonical
 hash of `[experiment_id,suite_id,case_id,sample]`, not a Run ID.
 
-Managed resources have `revision`/ETag for selection and lifecycle CAS. Content
+Managed resources have `revision`/ETag for selection and lifecycle CAS. The
+experiment revision advances on draft edits, commands, deletion, explicit owner
+selection and Project deletion fences. Native plan preparation and coordinator
+observations (including admission, settlement, token usage, first native
+selection and execution tombstones) update progress and `updatedAt` without
+consuming that authority revision. A previously read ETag therefore remains
+valid for Pause or Cancel until another authority mutation occurs. Content
 hashes are SHA-256 over exact retained bytes. Secret values do not enter public
 DTOs, logs, cursors or error text. Objects/arrays remain bounded by spec 26;
 DTO schema validation is closed, with explicitly versioned extensions only.
@@ -390,7 +396,7 @@ Content-Type: application/json
 ```
 
 202 returns a command ID. GET of the completed command returns the prepared plan
-SHA-256, new experiment revision and ready/blocked diagnostics. Prepare submits
+SHA-256, current authority revision and ready/blocked diagnostics. Prepare submits
 zero Runs/Audits. Start names the exact reviewed hash and latest revision:
 
 ```http
@@ -458,7 +464,8 @@ requires an explicit actor, rubric pin and exact result, with text/evidence boun
 Registered required-check policy follows spec 26 precedence: error, fail,
 incomplete, pass. Missing required evidence or checks cannot become a pass.
 The first native collected result and its first registered-check assessment are
-selected through recorded system CAS transitions. Later revisions never silently
+selected through a recorded system selection under the experiment lock, without
+advancing the owner CAS revision. Later revisions never silently
 replace the selected record. External clients select exact ingested records
 explicitly. Human UI Save and use first persists the immutable review, then posts
 the exact selection under CAS; if selection conflicts, the review is retained and

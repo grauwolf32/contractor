@@ -53,8 +53,13 @@ Referenced dataset revisions are protected by foreign keys.
 V38-006 separates immutable records, selection history, mutable dirty-member
 projections and immutable published generations. Run/Audit, child inventory,
 metric and exact artifact-deletion triggers invalidate affected members. A bulk
-matrix insert invalidates the experiment queue once per statement. Observation
-revisions do not consume the user's authority CAS revision.
+matrix insert invalidates the experiment queue once per statement. The public
+experiment `revision` is the owner's authority CAS token: draft edits, commands,
+deletion, explicit user selection and Project deletion fences advance it. Native
+plan preparation, coordinator transitions, token observations, admission, settlement,
+first native selection, external producer activity and execution tombstones update
+`updated_at` without consuming that token. A submission receipt reports the
+current authority revision; selected-view and collection revisions remain separate.
 
 Collection revalidates selected evidence and publishes every expected member,
 pair, suite summary and chart aggregate atomically. Failure leaves the last

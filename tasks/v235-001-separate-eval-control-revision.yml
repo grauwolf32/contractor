@@ -25,4 +25,5 @@ acceptance_criteria:
   - {id: A4, text: Eval store and managed-Eval specifications accurately describe authority and observation updates.}
 tests:
   - {command: go test ./internal/evalstore ./internal/persistence/postgres -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./internal/evalservice ./internal/httpapi/public -run Eval -count=1, covers: [A1, A2]}
   - {command: make lint, covers: [A1, A2, A3, A4]}

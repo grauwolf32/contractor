@@ -158,7 +158,7 @@ func (s *Store) ObserveTokens(ctx context.Context, scope Scope, id, member strin
 		return err
 	}
 	if tokens > prior {
-		_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET observed_tokens=observed_tokens+$2,`+advance+` WHERE experiment_id=$1`, id, tokens-prior)
+		_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET observed_tokens=observed_tokens+$2,`+observe+` WHERE experiment_id=$1`, id, tokens-prior)
 		return err
 	}
 	return nil
