@@ -3,8 +3,8 @@ id: V142-001
 title: Remove stale workspace gate alias and use published live model
 milestone: live-routing-entrypoints-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: efed6f1cf2a2b73678dc2011905aa9aee00026dc
 depends_on: []
 languages: [shell, make, markdown]
 goal: Make local live-routing defaults match the checked-in LiteLLM profile.
