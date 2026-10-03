@@ -3,7 +3,8 @@ id: V218-001
 title: Cache exact artifact revisions across paged read tools
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ff9e05dfc8080832182e76575477037b5319f925
 depends_on: []
 languages: [python]
 goal: Avoid repeated full artifact transfers while paging exact revisions through Run and text artifact tools.
