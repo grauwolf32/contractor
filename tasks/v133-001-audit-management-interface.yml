@@ -3,8 +3,8 @@ id: V133-001
 title: Remove unused unpaged AuditManagement methods
 milestone: audit-management-interface-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e42444f5e2d3d08ca2b1a209a8483f769bc8b763
 depends_on: []
 languages: [go]
 goal: Keep the public Audit handler dependency interface aligned with the paged methods it calls.
