@@ -25,8 +25,12 @@ database across Server replacement. Filesystem may use an ephemeral `emptyDir`;
 volume loss then leaves metadata whose bytes are unavailable. Reads return
 `artifact_content_missing`, not a successful empty file. Corruption returns
 `artifact_content_corrupt`. There is no automatic Git refetch or repair.
-Filesystem deployments with separate per-pod directories must use one Server
-replica. Replicas require a genuinely shared underlying blob directory.
+Only one Server may be active per PostgreSQL database, with either blob
+backend. A second Server serves `/healthz` but returns 503 on `/readyz` and
+does not start its private API, credential recovery, or Scheduler until the
+active Server releases its database lease. The example Deployment uses
+`Recreate` so an update does not require two active pods. A shared filesystem
+blob directory alone does not make active replicas supported.
 
 The Server admits four concurrent full-payload transfers. Saturation returns
 503 with retryable `artifact_transfer_capacity`. Memory also includes request,

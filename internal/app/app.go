@@ -138,6 +138,24 @@ func runCLI(
 		return err
 	}
 	defer pool.Close()
+	// Credential recovery, the process-local Runtime Agent Registry, Scheduler
+	// and private API must have one owner per database. A standby serves only
+	// health and unready status until the dedicated PostgreSQL session wins.
+	lease, err := awaitControlPlaneLease(ctx, pool, cfg.ListenAddress, cfg.ShutdownTimeout, logger)
+	if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
+	activeContext, cancelActive := context.WithCancelCause(ctx)
+	watchDone := lease.watch(activeContext, cancelActive)
+	defer func() {
+		cancelActive(nil)
+		<-watchDone
+	}()
+	ctx = activeContext
 	var blobStore artifacts.BlobStore = artifacts.PostgresBlobStore{}
 	if cfg.ArtifactBlobBackend == artifacts.BlobFilesystem {
 		files, err := artifacts.OpenFilesystemBlobStore(ctx, cfg.ArtifactBlobPath)
@@ -230,7 +248,11 @@ func runCLI(
 		return fmt.Errorf("listen privately on %q: %w", cfg.PrivateListenAddress, err)
 	}
 	privateListener := tls.NewListener(privateTCPListener, control.tls)
-	return ServeSystem(
+	if err := lease.attachPrivate(privateListener); err != nil {
+		_ = publicListener.Close()
+		return err
+	}
+	err = ServeSystem(
 		ctx,
 		publicListener,
 		privateListener,
@@ -240,6 +262,10 @@ func runCLI(
 		handlers.private,
 		runners,
 	)
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+		return errors.Join(err, cause)
+	}
+	return err
 }
 
 // Serve runs the bootstrap HTTP server on an already-created listener. Taking

@@ -6,6 +6,13 @@ The baseline deployment is one host with PostgreSQL, one Contractor Server,
 one or more Python Runtime Agents, and an optional Node UI. An external
 OpenAI-compatible Gateway supplies the models. This guide covers the service
 layout and installation sequence; the local walkthrough includes a first Run.
+Only one Server may be active per database. A second process remains unready
+until it acquires the Control Plane lease; the Kubernetes example uses a
+`Recreate` update to avoid overlapping active pods.
+The lease uses a dedicated PostgreSQL session, so connect directly to
+PostgreSQL or through a session-pooling proxy, not transaction-mode pooling.
+The active Server checks that session every second; if it is lost, the Server
+closes both listeners and stops the Scheduler immediately.
 
 ## Install the release
 
