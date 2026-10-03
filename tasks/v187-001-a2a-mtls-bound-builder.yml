@@ -3,7 +3,8 @@ id: V187-001
 title: Remove unused unbound A2A mTLS client builder
 milestone: a2a-mtls-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 80528238a9f42a8437b529da1b39229936233b2e
 depends_on: []
 languages: [go]
 goal: Ensure the production A2A invoker constructs only principal-bound transports.
