@@ -30,7 +30,7 @@ func (r Request) Validate() error {
 		return ErrInvalid
 	}
 	switch r.Action {
-	case "acquire", "succeeded", "finished":
+	case "acquire", "succeeded", "finished", "released":
 		return nil
 	case "failed":
 		if ValidFailure(r.Code) {
@@ -160,6 +160,20 @@ WHERE route_key=$1`, key)
 				if err != nil {
 					return err
 				}
+			}
+			return clearWaiting(ctx, tx, participantID, request.Model, runID)
+		case "released":
+			// The Runtime abandoned its granted call without observing a model
+			// result. Relinquish only its current probe; a stale release must not
+			// clear a newer probe or its participant's wait.
+			if state.probeID == nil || *state.probeID != request.RequestID {
+				return nil
+			}
+			_, err = tx.Exec(ctx, `
+UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=NULL,probe_until=NULL
+WHERE route_key=$1 AND probe_id=$2`, key, request.RequestID)
+			if err != nil {
+				return err
 			}
 			return clearWaiting(ctx, tx, participantID, request.Model, runID)
 		}

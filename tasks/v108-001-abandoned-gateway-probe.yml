@@ -23,6 +23,6 @@ acceptance_criteria:
   - {id: A2, text: Releasing the current probe preserves blocked route state and clears its lease.}
   - {id: A3, text: Stale releases do not change route state; observed successful or permanent outcomes still reopen the route.}
 tests:
-  - {command: runtime/.venv/bin/python -m pytest runtime/tests/test_gateway_recovery.py, covers: [A1, A3]}
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_gateway_recovery.py, covers: [A1, A3]}
   - {command: go test ./internal/scheduler -run TestGatewayRecovery -count=1, covers: [A2, A3]}
   - {command: go test ./..., covers: [A2, A3]}

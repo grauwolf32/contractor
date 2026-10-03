@@ -38,8 +38,10 @@ A Runtime call that abandons a granted attempt, through cancellation or an
 unexpected failure at any point before its terminal update is acknowledged
 (including while reporting the outcome), re-delivers that idempotent update as a
 bounded best effort, so the leased probe is not held until it expires; an
-attempt abandoned before any outcome reports `finished`. Cancellation before a
-grant is known sends nothing and leaves an unknown lease to its expiry.
+attempt abandoned before any outcome reports `released`, which relinquishes the
+probe without reopening the blocked route or resetting its retry window.
+`finished` is reserved for an observed non-retryable response. Cancellation
+before a grant is known sends nothing and leaves an unknown lease to its expiry.
 This does not persist or restore an ADK session after Runtime process loss.
 
 Failure classification has two layers. Status rules belong to the
