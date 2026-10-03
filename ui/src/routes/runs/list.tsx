@@ -1,10 +1,9 @@
 import "./reading.css";
 import { ContextLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { Dialog } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
@@ -27,69 +26,9 @@ import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
+import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
-
-function DeleteRunDialog({
-  runId,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  runId: string;
-  pending: boolean;
-  error: Error | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const heading = useId();
-  const cancel = useRef<HTMLButtonElement>(null);
-
-  return (
-    <Dialog
-      className="project-dialog run-delete-dialog panel"
-      role="alertdialog"
-      labelledBy={heading}
-      initialFocusRef={cancel}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
-    >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Permanent action</p>
-          <h2 id={heading}>Delete completed Run?</h2>
-        </div>
-      </div>
-      <p>
-        This permanently removes Run <code>{runId}</code>, its execution
-        history, and all Run-owned Artifacts. Shared source Artifacts and
-        published Project outputs are retained.
-      </p>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="run-delete-dialog-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          ref={cancel}
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="danger-button"
-          type="button"
-          disabled={pending}
-          onClick={onConfirm}
-        >
-          {pending ? "Deleting…" : "Delete Run"}
-        </button>
-      </div>
-    </Dialog>
-  );
-}
 
 function compactRunId(runId: string): string {
   return runId.length <= 24
@@ -612,10 +551,26 @@ export function CompletedRunsPanel() {
       )}
       <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
-        <DeleteRunDialog
-          runId={deleteTarget}
+        <ConfirmRemovalDialog
+          className="run-delete-dialog"
+          eyebrow="Permanent action"
+          title="Delete completed Run?"
+          description={
+            <>
+              This permanently removes Run <code>{deleteTarget}</code>, its
+              execution history, and all Run-owned Artifacts. Shared source
+              Artifacts and published Project outputs are retained.
+            </>
+          }
+          confirmLabel="Delete Run"
+          pendingLabel="Deleting…"
           pending={deletion.isPending}
-          error={deletion.error}
+          dismissOnBackdrop={false}
+          error={
+            deletion.error === null ? null : (
+              <ErrorNotice error={deletion.error} />
+            )
+          }
           onCancel={() => {
             deletion.reset();
             setDeleteTarget(undefined);

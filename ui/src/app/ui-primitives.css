@@ -97,8 +97,7 @@ summary:focus-visible,
 
 .inline-actions,
 .project-form-actions,
-.skill-upload-actions,
-.run-delete-dialog-actions {
+.skill-upload-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

@@ -15,7 +15,7 @@ import {
 } from "../../api/git-artifacts";
 import { getProjectArtifactMetadata } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import "./git-artifacts.css";
 
@@ -153,17 +153,11 @@ export function GitImportDialog({
       initialFocusRef={initialFocus}
       onRequestClose={close}
     >
-      <div className="project-dialog-heading">
-        <h2 id={heading}>Import Git repository</h2>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Git import"
-          onClick={close}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        title="Import Git repository"
+        close={{ label: "Close Git import", onClose: close }}
+      />
       <p>
         Import a tracked source snapshot as a ZIP. Private SSH uses your{" "}
         <Link to="/operations/settings#repository-access" onClick={close}>

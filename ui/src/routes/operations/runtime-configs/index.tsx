@@ -25,7 +25,7 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
@@ -1174,21 +1174,16 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
         noValidate
         autoComplete="off"
       >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Secret</p>
-            <h2 id={heading}>Create Runtime credential</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close Runtime credential form"
-            disabled={pending}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
+        <DialogHeader
+          id={heading}
+          eyebrow="Secret"
+          title="Create Runtime credential"
+          close={{
+            label: "Close Runtime credential form",
+            disabled: pending,
+            onClose: onClose,
+          }}
+        />
         <p className="muted-copy">
           Secret values are erased from the form immediately on submit and are
           never readable through the API. A failed request requires re-entry.
@@ -1496,22 +1491,16 @@ function RuntimeBindingsDialog({
       labelledBy={heading}
       onRequestClose={onClose}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">
+      <DialogHeader
+        id={heading}
+        eyebrow={
+          <>
             {target.ref.name}@{target.ref.version}
-          </p>
-          <h2 id={heading}>Runtime label bindings</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Runtime bindings"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+          </>
+        }
+        title="Runtime label bindings"
+        close={{ label: "Close Runtime bindings", onClose: onClose }}
+      />
       <RuntimeBindings target={target} configs={configs} bindings={bindings} />
     </Dialog>
   );

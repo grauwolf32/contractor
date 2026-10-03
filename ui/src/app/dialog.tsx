@@ -288,3 +288,42 @@ export function Dialog({
     container,
   );
 }
+
+/** A dialog's heading row: optional eyebrow, title and close button. */
+export function DialogHeader({
+  id,
+  title,
+  eyebrow,
+  close,
+}: {
+  /** Heading element id that labels the dialog. */
+  id: string;
+  title: ReactNode;
+  eyebrow?: ReactNode;
+  close?: { label: string; disabled?: boolean; onClose: () => void };
+}) {
+  const heading = <h2 id={id}>{title}</h2>;
+  return (
+    <div className="project-dialog-heading">
+      {eyebrow === undefined ? (
+        heading
+      ) : (
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          {heading}
+        </div>
+      )}
+      {close === undefined ? null : (
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label={close.label}
+          disabled={close.disabled}
+          onClick={close.onClose}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}

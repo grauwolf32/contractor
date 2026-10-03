@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 
@@ -58,12 +58,11 @@ export function DeleteProjectDialog({
       }}
       role="alertdialog"
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Permanent workspace deletion</p>
-          <h2 id={heading}>Delete {project.name}?</h2>
-        </div>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Permanent workspace deletion"
+        title={<>Delete {project.name}?</>}
+      />
       <p className="project-delete-warning" id={warning}>
         This cancels every active Run and permanently deletes all Project Runs,
         execution history, and Project-scoped Artifacts. Shared User Artifacts,

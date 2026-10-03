@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import { usePublicAPI } from "../../../api/context";
 import {
@@ -8,73 +8,12 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
+import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import { agentDisplayName, relativeAge, shortAgentId } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
-
-function ForgetIdentityDialog({
-  principal,
-  pending,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  principal: RuntimeAgentPrincipal;
-  pending: boolean;
-  error: Error | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const heading = useId();
-  const cancel = useRef<HTMLButtonElement>(null);
-  return (
-    <Dialog
-      className="project-dialog runtime-agent-forget-dialog panel"
-      role="alertdialog"
-      labelledBy={heading}
-      initialFocusRef={cancel}
-      onRequestClose={() => {
-        if (!pending) onCancel();
-      }}
-    >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Permanent action</p>
-          <h2 id={heading}>Forget {agentDisplayName(principal)}?</h2>
-        </div>
-      </div>
-      <p>
-        This removes the offline identity{" "}
-        <code>{principal.runtimeAgentId}</code> from Server. A process that
-        registers with this ID again starts as a new identity without saved
-        labels.
-      </p>
-      {error === null ? null : <ErrorNotice error={error} />}
-      <div className="runtime-agent-dialog-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          ref={cancel}
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-        <button
-          className="danger-button"
-          type="button"
-          disabled={pending}
-          onClick={onConfirm}
-        >
-          {pending ? "Forgetting…" : "Forget identity"}
-        </button>
-      </div>
-    </Dialog>
-  );
-}
 
 function OfflineIdentityRow({
   principal,
@@ -203,10 +142,27 @@ function OfflineIdentityRow({
         />
       ) : null}
       {forgetting ? (
-        <ForgetIdentityDialog
-          principal={principal}
+        <ConfirmRemovalDialog
+          className="runtime-agent-forget-dialog"
+          eyebrow="Permanent action"
+          title={<>Forget {agentDisplayName(principal)}?</>}
+          description={
+            <>
+              This removes the offline identity{" "}
+              <code>{principal.runtimeAgentId}</code> from Server. A process
+              that registers with this ID again starts as a new identity without
+              saved labels.
+            </>
+          }
+          confirmLabel="Forget identity"
+          pendingLabel="Forgetting…"
           pending={deletion.isPending}
-          error={deletion.error}
+          dismissOnBackdrop={false}
+          error={
+            deletion.error === null ? null : (
+              <ErrorNotice error={deletion.error} />
+            )
+          }
           onCancel={() => setForgetting(false)}
           onConfirm={() => deletion.mutate()}
         />

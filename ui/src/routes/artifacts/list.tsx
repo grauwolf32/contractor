@@ -15,7 +15,7 @@ import { ArtifactWriteForm } from "./common";
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
 import { formatBytes } from "../../app/format";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
@@ -91,20 +91,15 @@ export function ArtifactListRoute() {
           labelledBy={uploadHeading}
           onRequestClose={() => setUploadOpen(false)}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">New Artifact</p>
-              <h2 id={uploadHeading}>Upload Artifact</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label="Close Upload Artifact form"
-              onClick={() => setUploadOpen(false)}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={uploadHeading}
+            eyebrow="New Artifact"
+            title="Upload Artifact"
+            close={{
+              label: "Close Upload Artifact form",
+              onClose: () => setUploadOpen(false),
+            }}
+          />
           <ArtifactWriteForm
             excludedNamespace={{
               namespace: EXCLUDED_SKILL_NAMESPACE,

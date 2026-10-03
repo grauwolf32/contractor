@@ -10,7 +10,7 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 
@@ -110,24 +110,21 @@ export function AgentLabelsDialog({
             mutation.mutate();
         }}
       >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">
+        <DialogHeader
+          id={heading}
+          eyebrow={
+            <>
               Agent · {principal.runtimeAgentId.slice(0, 6)}…
               {principal.runtimeAgentId.slice(-4)}
-            </p>
-            <h2 id={heading}>Edit Agent labels</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close Agent labels"
-            disabled={pending}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
+            </>
+          }
+          title="Edit Agent labels"
+          close={{
+            label: "Close Agent labels",
+            disabled: pending,
+            onClose: onClose,
+          }}
+        />
         <p className="muted-copy" id={description}>
           Changes apply to future allocations. Work already in progress keeps
           its current settings.

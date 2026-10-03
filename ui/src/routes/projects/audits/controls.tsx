@@ -10,7 +10,7 @@ import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { ActionMenu } from "../../../app/action-menu";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { Icon } from "../../../app/icon";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
 import { DeleteIcon } from "../../../app/delete-icon";
@@ -84,23 +84,16 @@ function AuditMutationDialog({
       onRequestClose={onClose}
       role="alertdialog"
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Audit action</p>
-          <h2 id={heading}>
-            {cancelling ? "Cancel this Audit?" : "Delete this Audit?"}
-          </h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Audit confirmation"
-          disabled={pending}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Audit action"
+        title={cancelling ? "Cancel this Audit?" : "Delete this Audit?"}
+        close={{
+          label: "Close Audit confirmation",
+          disabled: pending,
+          onClose: onClose,
+        }}
+      />
       <p id={description}>
         {cancelling
           ? "Stop this audit and cancel its running checks. Results already collected will remain available. Cancellation may take a moment."

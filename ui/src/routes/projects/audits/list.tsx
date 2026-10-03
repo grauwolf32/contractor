@@ -23,7 +23,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { listProjectArtifacts } from "../../../api/project-artifacts";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
 import { nextPageCursor, useURLCursorStack } from "../../../app/pagination";
@@ -281,21 +281,16 @@ function AuditCreateForm({
       labelledBy={heading}
       onRequestClose={close}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Pinned program and inputs</p>
-          <h2 id={heading}>New Audit</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close New Audit form"
-          disabled={create.isPending}
-          onClick={close}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Pinned program and inputs"
+        title="New Audit"
+        close={{
+          label: "Close New Audit form",
+          disabled: create.isPending,
+          onClose: close,
+        }}
+      />
       <form className="audit-create-form" onSubmit={submit}>
         <QueryView
           query={profiles}

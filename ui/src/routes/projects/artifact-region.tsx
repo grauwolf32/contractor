@@ -1,4 +1,4 @@
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ContextLink } from "../../app/context-navigation";
 import {
   GitImportDialog,
@@ -121,20 +121,12 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           labelledBy={addHeading}
           onRequestClose={closeAdd}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">Project materials</p>
-              <h2 id={addHeading}>Add artifact</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label="Close artifact choices"
-              onClick={closeAdd}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={addHeading}
+            eyebrow="Project materials"
+            title="Add artifact"
+            close={{ label: "Close artifact choices", onClose: closeAdd }}
+          />
           <p className="muted-copy">
             Upload a file or import a Git repository into this project.
           </p>

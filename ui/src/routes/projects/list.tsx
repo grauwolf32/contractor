@@ -20,7 +20,7 @@ import {
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { DeleteIcon } from "../../app/delete-icon";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
@@ -155,21 +155,16 @@ function ProjectCollectionRoute({
           initialFocusRef={createNameField}
           onRequestClose={closeCreate}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">Workspace</p>
-              <h2 id={createHeading}>{presentation.createLabel}</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label={`Close ${presentation.createLabel} form`}
-              disabled={create.isPending}
-              onClick={closeCreate}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={createHeading}
+            eyebrow="Workspace"
+            title={presentation.createLabel}
+            close={{
+              label: `Close ${presentation.createLabel} form`,
+              disabled: create.isPending,
+              onClose: closeCreate,
+            }}
+          />
           <form className="project-dialog-form" onSubmit={submit}>
             <div className="form-grid">
               <label>

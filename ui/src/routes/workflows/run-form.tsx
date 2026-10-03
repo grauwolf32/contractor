@@ -40,7 +40,7 @@ import {
   type CreateRunRequest,
   type WorkflowResource,
 } from "../../api/workflows";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import {
   initialRunDraftState,
   type RunDraftEntry,
@@ -694,20 +694,12 @@ function DiscardRunDraftDialog({
       onRequestClose={onClose}
       role="alertdialog"
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Unsaved Run setup</p>
-          <h2 id={heading}>Discard this Run draft?</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close discard confirmation"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Unsaved Run setup"
+        title="Discard this Run draft?"
+        close={{ label: "Close discard confirmation", onClose: onClose }}
+      />
       <p>
         Parameters, Artifact selections, labels, overrides and any ambiguous
         submission identity in this tab will be removed.
