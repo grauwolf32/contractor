@@ -6,7 +6,7 @@ import asyncio
 import re
 import secrets
 import time
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -327,7 +327,7 @@ class _CodeAnalysisSession:
                 files,
                 name="code-analysis-cpu",
             )
-            value = self._page(
+            value = await self._page(
                 rows,
                 offset=offset,
                 limit=resolved_limit,
@@ -374,7 +374,7 @@ class _CodeAnalysisSession:
             if normalized_node_type:
                 symbols = tuple(item for item in symbols if item.node_type == normalized_node_type)
             rows = [_symbol_row(item) for item in sorted(symbols, key=_symbol_sort_key)]
-            value = self._page(
+            value = await self._page(
                 rows,
                 offset=offset,
                 limit=resolved_limit,
@@ -435,7 +435,7 @@ class _CodeAnalysisSession:
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             rows = [_graph_symbol_row(item) for item in page.items]
-            value = self._graph_page(
+            value = await self._graph_page(
                 rows,
                 observed_total=page.observed_total,
                 offset=offset,
@@ -501,7 +501,7 @@ class _CodeAnalysisSession:
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             rows = [_graph_relationship_row(item) for item in page.items]
-            value = self._graph_page(
+            value = await self._graph_page(
                 rows,
                 observed_total=page.observed_total,
                 offset=offset,
@@ -547,7 +547,7 @@ class _CodeAnalysisSession:
                 )
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
-            return self._path_operation_result(
+            return await self._path_operation_result(
                 page,
                 graph,
                 invalidations=invalidations,
@@ -575,7 +575,7 @@ class _CodeAnalysisSession:
                 )
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
-            return self._path_operation_result(
+            return await self._path_operation_result(
                 page,
                 graph,
                 invalidations=invalidations,
@@ -598,7 +598,7 @@ class _CodeAnalysisSession:
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             rows = [_graph_entrypoint_row(item) for item in page.items]
-            value = self._graph_page(
+            value = await self._graph_page(
                 rows,
                 observed_total=page.observed_total,
                 offset=offset,
@@ -652,7 +652,7 @@ class _CodeAnalysisSession:
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             rows = [_graph_complexity_row(item) for item in page.items]
-            value = self._graph_page(
+            value = await self._graph_page(
                 rows,
                 observed_total=page.observed_total,
                 offset=offset,
@@ -706,7 +706,7 @@ class _CodeAnalysisSession:
             except TrailmarkHostError as error:
                 raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             rows = [_graph_symbol_row(item) for item in page.items]
-            value = self._graph_page(
+            value = await self._graph_page(
                 rows,
                 observed_total=page.observed_total,
                 offset=offset,
@@ -737,7 +737,7 @@ class _CodeAnalysisSession:
         except TrailmarkHostError as error:
             raise CodeAnalysisError(error.code, retryable=error.retryable) from None
 
-    def _path_operation_result(
+    async def _path_operation_result(
         self,
         page: GraphPathPage,
         graph: GraphBuildResult,
@@ -745,27 +745,28 @@ class _CodeAnalysisSession:
         invalidations: int,
     ) -> _OperationResult:
         paths = [[_graph_symbol_row(item) for item in path] for path in page.items]
-        truncated = page.truncated
-        while True:
-            value = {
-                "items": paths,
-                "truncated": truncated,
-                "coverage": graph.coverage.wire(),
+        coverage = graph.coverage.wire()
+
+        def result_for(count: int, items: list[Any]) -> dict[str, Any]:
+            return {
+                "items": items,
+                "truncated": page.truncated or count < len(paths),
+                "coverage": coverage,
             }
-            if len(jcs.canonicalize(value)) <= MAX_RESULT_BYTES:
-                metric = self._graph_metric(
-                    count=len(paths),
-                    truncated=truncated,
-                    graph=graph,
-                    invalidations=invalidations,
-                )
-                metric["traversal_steps"] = page.traversal_steps
-                metric["path_nodes"] = sum(len(path) for path in paths)
-                return _OperationResult(value, metric)
-            if not paths:
-                raise CodeAnalysisError("code_analysis_capacity_exceeded")
-            paths = paths[:-1]
-            truncated = True
+
+        value = await to_thread_until_done(
+            _fit_result_page, paths, result_for, name="code-analysis-cpu"
+        )
+        selected_paths = value["items"]
+        metric = self._graph_metric(
+            count=len(selected_paths),
+            truncated=bool(value["truncated"]),
+            graph=graph,
+            invalidations=invalidations,
+        )
+        metric["traversal_steps"] = page.traversal_steps
+        metric["path_nodes"] = sum(len(path) for path in selected_paths)
+        return _OperationResult(value, metric)
 
     async def _ensure_graph(self, snapshot: WorkspaceSnapshot) -> GraphBuildResult:
         host = self._require_graph_host()
@@ -791,7 +792,7 @@ class _CodeAnalysisSession:
             raise CodeAnalysisError("code_analysis_engine_failed")
         return self._graph_host
 
-    def _graph_page(
+    async def _graph_page(
         self,
         rows: list[dict[str, Any]],
         *,
@@ -805,26 +806,26 @@ class _CodeAnalysisSession:
     ) -> dict[str, Any]:
         if offset > observed_total or len(rows) > limit or offset + len(rows) > observed_total:
             raise CodeAnalysisError("code_analysis_engine_failed", retryable=True)
-        page = rows
-        while True:
-            next_offset = offset + len(page)
+        coverage_wire = coverage.wire()
+
+        def result_for(count: int, items: list[Any]) -> dict[str, Any]:
+            next_offset = offset + count
             next_cursor = (
                 self._encode_cursor(snapshot, operation, query, next_offset)
                 if next_offset < observed_total
                 else None
             )
-            result = {
-                "items": page,
+            return {
+                "items": items,
                 "nextCursor": next_cursor,
                 "truncated": next_cursor is not None,
                 "observedTotal": observed_total,
-                "coverage": coverage.wire(),
+                "coverage": coverage_wire,
             }
-            if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
-                return result
-            if not page:
-                raise CodeAnalysisError("code_analysis_capacity_exceeded")
-            page = page[:-1]
+
+        return await to_thread_until_done(
+            _fit_result_page, rows, result_for, name="code-analysis-cpu"
+        )
 
     def _graph_metric(
         self,
@@ -1033,7 +1034,7 @@ class _CodeAnalysisSession:
             self._cached_symbols += len(parsed.symbols)
         return parsed, False
 
-    def _page(
+    async def _page(
         self,
         rows: list[dict[str, Any]],
         *,
@@ -1051,25 +1052,26 @@ class _CodeAnalysisSession:
         if offset > observed_total:
             raise CodeAnalysisError("code_analysis_cursor_invalid")
         page = rows[offset : offset + limit] if total is None else rows[:limit]
-        while True:
-            next_offset = offset + len(page)
+        coverage_wire = coverage.wire()
+
+        def result_for(count: int, items: list[Any]) -> dict[str, Any]:
+            next_offset = offset + count
             next_cursor = (
                 self._encode_cursor(snapshot, operation, query, next_offset)
                 if next_offset < observed_total
                 else None
             )
-            result = {
-                "items": page,
+            return {
+                "items": items,
                 "nextCursor": next_cursor,
                 "truncated": next_cursor is not None,
                 "observedTotal": observed_total,
-                "coverage": coverage.wire(),
+                "coverage": coverage_wire,
             }
-            if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
-                return result
-            if not page:
-                raise CodeAnalysisError("code_analysis_capacity_exceeded")
-            page = page[:-1]
+
+        return await to_thread_until_done(
+            _fit_result_page, page, result_for, name="code-analysis-cpu"
+        )
 
     def _cursor_offset(
         self,
@@ -1409,6 +1411,49 @@ class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
         limit: int = 100,
     ) -> dict[str, Any]:
         return await self._call(self._session.functions_that_raise(exception, cursor, limit))
+
+
+def _fit_result_page(
+    rows: list[Any],
+    build_result: Callable[[int, list[Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Fit the largest prefix without repeatedly encoding the same rows."""
+
+    full = build_result(len(rows), rows)
+    if len(jcs.canonicalize(full)) <= MAX_RESULT_BYTES:
+        return full
+    if not rows:
+        raise CodeAnalysisError("code_analysis_capacity_exceeded")
+
+    # Replacing an empty items array adds each canonical row and one comma
+    # between adjacent rows. Only the small envelope and cursor vary by count.
+    prefix = [0]
+    for row in rows:
+        prefix.append(prefix[-1] + len(jcs.canonicalize(row)))
+
+    def projected_size(count: int) -> int:
+        envelope = build_result(count, [])
+        return len(jcs.canonicalize(envelope)) + prefix[count] + max(0, count - 1)
+
+    if projected_size(0) > MAX_RESULT_BYTES:
+        raise CodeAnalysisError("code_analysis_capacity_exceeded")
+    low, high = 0, len(rows) - 1
+    while low < high:
+        middle = (low + high + 1) // 2
+        if projected_size(middle) <= MAX_RESULT_BYTES:
+            low = middle
+        else:
+            high = middle - 1
+
+    # Confirm the final wire result. The fallback preserves fail-closed
+    # behavior if a future envelope contains count-dependent encoding.
+    while True:
+        result = build_result(low, rows[:low])
+        if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
+            return result
+        if low == 0:
+            raise CodeAnalysisError("code_analysis_capacity_exceeded")
+        low -= 1
 
 
 def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:
