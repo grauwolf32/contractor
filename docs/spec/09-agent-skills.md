@@ -458,12 +458,17 @@ returns selected `SKILL.md` instructions as a tool response;
 not copy every body into system instructions, synthesize activation calls or
 automatically activate a skill.
 
+Binary assets remain valid package members, but the text-only Gateway cannot
+receive their bytes. Loading one returns a bounded text status that the content
+is unavailable to this model; Runtime never appends an `inline_data` part.
+
 `list_skills`, `load_skill` and `load_skill_resource` share a 16 MiB
 allocation-lifetime disclosure budget. Before native dispatch, a Runtime-owned
 ADK callback computes and atomically reserves a deterministic conservative
 charge no smaller than the complete model-visible result: UTF-8 structured
-envelopes include descriptions/frontmatter, and binary resources include their
-encoded representation. Repeated calls reserve again; reservations are not
+envelopes include descriptions/frontmatter. Binary assets reserve only their
+bounded text status and envelope, since their bytes are never model-visible.
+Repeated calls reserve again; reservations are not
 refunded when native dispatch later returns an error. A call that would exceed
 the budget returns bounded `SKILL_DISCLOSURE_LIMIT` before activation or content
 lookup, reveals no partial content and still counts against the same

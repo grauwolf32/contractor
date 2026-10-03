@@ -2812,6 +2812,7 @@ tasks:
   - {id: V229-001, file: v229-001-prune-gateway-run-routes.yml}
   - {id: V230-001, file: v230-001-finish-after-worker-budget.yml}
   - {id: V231-001, file: v231-001-charge-rejected-gateway-responses.yml}
+  - {id: V232-001, file: v232-001-skill-binary-gateway-contract.yml}
   - {id: V220-001, file: v220-001-align-katana-lock-deadline.yml}
   - {id: V219-001, file: v219-001-offload-filesystem-scans.yml}
   - {id: V218-001, file: v218-001-cache-exact-artifact-pages.yml}
