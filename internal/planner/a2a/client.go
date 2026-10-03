@@ -64,24 +64,13 @@ func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker
 	if err != nil {
 		return nil, fmt.Errorf("build A2A mTLS client: %w", err)
 	}
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig:       tlsConfig,
-			ForceAttemptHTTP2:     false,
-			MaxIdleConnsPerHost:   2,
-			IdleConnTimeout:       30 * time.Second,
-			TLSHandshakeTimeout:   timeout,
-			ResponseHeaderTimeout: timeout,
-		},
-		Timeout: timeout,
-	}
-	result, err := newInvoker(httpClient, options, true)
+	pollInterval, err := validatedPollInterval(options)
 	if err != nil {
 		return nil, err
 	}
-	result.tlsConfig = tlsConfig
-	result.timeout = timeout
-	return result, nil
+	return &Invoker{
+		pollInterval: pollInterval, requireHTTPS: true, tlsConfig: tlsConfig, timeout: timeout,
+	}, nil
 }
 
 func newInvoker(
@@ -90,16 +79,24 @@ func newInvoker(
 	if httpClient == nil {
 		return nil, fmt.Errorf("A2A HTTP client is required")
 	}
+	pollInterval, err := validatedPollInterval(options)
+	if err != nil {
+		return nil, err
+	}
+	builder := sdkClientBuilder(cloneBoundedHTTPClient(httpClient))
+	return &Invoker{
+		build: builder, pollInterval: pollInterval, requireHTTPS: requireHTTPS,
+	}, nil
+}
+
+func validatedPollInterval(options Options) (time.Duration, error) {
 	if options.PollInterval == 0 {
 		options.PollInterval = defaultPollInterval
 	}
 	if options.PollInterval < 0 {
-		return nil, fmt.Errorf("A2A poll interval must be positive")
+		return 0, fmt.Errorf("A2A poll interval must be positive")
 	}
-	builder := sdkClientBuilder(cloneBoundedHTTPClient(httpClient))
-	return &Invoker{
-		build: builder, pollInterval: options.PollInterval, requireHTTPS: requireHTTPS,
-	}, nil
+	return options.PollInterval, nil
 }
 
 func sdkClientBuilder(client *http.Client) clientBuilder {
@@ -150,6 +147,11 @@ func (i *Invoker) Invoke(
 		}
 		client := &http.Client{Transport: transport, Timeout: i.timeout}
 		builder = sdkClientBuilder(cloneBoundedHTTPClient(client))
+	}
+	if builder == nil {
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"worker_unavailable", "A2A client is not configured", false, nil,
+		)
 	}
 	client, buildErr := builder(ctx, card)
 	if buildErr != nil {
