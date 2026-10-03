@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V197-001
+title: Release lost Runtime grants after bounded release failure
+milestone: allocation-release-recovery-2026-10
+priority: P1
+status: completed
+implementation_commit: 48996d059dc8290022221349ffb011804851452b
+depends_on: []
+languages: [go]
+goal: Let terminal Stage release converge when the owning Runtime lease has expired and its HTTP release can never succeed.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/186
+  finding: ReleaseAll retains the Registry grant forever after Runtime release failure, blocking durable release and deletion.
+scope:
+  in:
+    - Add a write-gated Registry release allowed only for expired or superseded owners.
+    - Use it after failed bounded Runtime release and failed-prepare cleanup.
+    - Cover live-owner retention, lost-owner release, Scheduler durable marker and returning fenced Runtime behavior.
+  out:
+    - Forcing a live Runtime grant release or changing successful release semantics.
+acceptance_criteria:
+  - {id: A1, text: An expired owner with an unreachable Runtime loses its grant and can be retired and deleted.}
+  - {id: A2, text: Scheduler marks the terminal Stage allocation released and stops retrying.}
+  - {id: A3, text: Live owners retain their grant on Runtime release failure.}
+  - {id: A4, text: A returning fenced Runtime receives release action and cannot be placed until idle and a new lease is confirmed.}
+tests:
+  - {command: go test ./internal/controlplane/... ./internal/scheduler/..., covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

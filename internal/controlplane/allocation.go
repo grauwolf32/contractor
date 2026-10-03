@@ -88,8 +88,9 @@ const (
 )
 
 // AllocationLoss is an irreversible edge emitted once for the durable
-// StageExecution owner. The Registry retains the fenced grant until normal
-// bounded abort/release reconciliation removes it.
+// StageExecution owner. The Registry retains the fenced grant until bounded
+// release reconciliation removes it, including a failed release from an
+// expired owner.
 type AllocationLoss struct {
 	AllocationID      string
 	RuntimeAgentID    string

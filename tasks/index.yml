@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V197-001, file: v197-001-release-lost-runtime-grants.yml}
   - {id: V196-001, file: v196-001-remove-unreachable-runtime-restart-loss.yml}
   - {id: V195-001, file: v195-001-audit-dispatch-blob-leak.yml}
   - {id: V194-001, file: v194-001-stable-root-init-symbol-ids.yml}

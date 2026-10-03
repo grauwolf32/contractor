@@ -806,14 +806,26 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 }
 
 func (r *InMemoryRegistry) Release(allocationID string) error {
+	_, err := r.releaseAllocation(allocationID, false)
+	return err
+}
+
+// ReleaseLost removes a grant only after its owning Runtime can no longer
+// hold a live Control Plane lease. It takes the same exclusive write gate as
+// Release, so no earlier authorized private write can commit afterward.
+func (r *InMemoryRegistry) ReleaseLost(allocationID string) (bool, error) {
+	return r.releaseAllocation(allocationID, true)
+}
+
+func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool) (bool, error) {
 	if strings.TrimSpace(allocationID) == "" {
-		return ErrAllocationNotFound
+		return false, ErrAllocationNotFound
 	}
 	r.mu.Lock()
 	stored, ok := r.allocations[allocationID]
 	if !ok || stored.writeGate == nil {
 		r.mu.Unlock()
-		return ErrAllocationNotFound
+		return false, ErrAllocationNotFound
 	}
 	gate := stored.writeGate
 	r.mu.Unlock()
@@ -824,11 +836,19 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 	defer r.mu.Unlock()
 	stored, ok = r.allocations[allocationID]
 	if !ok || stored.writeGate != gate {
-		return ErrAllocationNotFound
+		return false, ErrAllocationNotFound
 	}
 	entry, ok := r.agents[stored.reservation.Grant.RuntimeInstanceID]
 	if !ok || entry.authoritativeAllocationID == nil || *entry.authoritativeAllocationID != allocationID {
-		return ErrAllocationNotFound
+		return false, ErrAllocationNotFound
+	}
+	if lostOnly {
+		r.expireEntry(entry, r.monotonicNow())
+		stored = r.allocations[allocationID]
+		if (!entry.leaseExpired && !entry.superseded) || stored.loss == nil ||
+			!stored.reservation.Grant.WriteFenced {
+			return false, nil
+		}
 	}
 	entry.authoritativeAllocationID = nil
 	entry.allocationLost = false
@@ -852,7 +872,7 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 	if !r.retireInactiveAgentLocked(entry.registration.InstanceID) {
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
 	}
-	return nil
+	return true, nil
 }
 
 func (r *InMemoryRegistry) compactStageReservationLocked(stageExecutionID string) {

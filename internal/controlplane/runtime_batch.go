@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -25,10 +26,12 @@ type AllocationRegistry interface {
 	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
 	RecordAllocationReport(string, contracts.AllocationFinalReport) error
 	Release(string) error
+	ReleaseLost(string) (bool, error)
 }
 
 // RuntimeBatchController coordinates allocation lifecycle calls and Registry
-// observations. Registry grants remain owned until Runtime release succeeds.
+// observations. Failed Runtime releases retain live grants; expired owners can
+// be retired after their bounded release attempt fails.
 type RuntimeBatchController struct {
 	runtime        RuntimeLifecycle
 	registry       AllocationRegistry
@@ -229,11 +232,13 @@ func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []
 	})
 	for index, reservation := range reservations {
 		if results[index].err != nil {
-			failures = append(failures, fmt.Errorf(
+			if err := c.releaseAfterRuntimeFailure(reservation.Grant.AllocationID, fmt.Errorf(
 				"release Runtime Agent allocation %q: %w",
 				reservation.Grant.AllocationID,
 				results[index].err,
-			))
+			)); err != nil {
+				failures = append(failures, err)
+			}
 			continue
 		}
 		if err := c.registry.Release(reservation.Grant.AllocationID); err != nil {
@@ -310,7 +315,11 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 			failures = append(failures, fmt.Errorf("observe failed prepare release %q: %w", allocationID, result.releasingPhaseError))
 		}
 		if result.releaseErr != nil {
-			failures = append(failures, fmt.Errorf("release failed prepare Runtime Agent allocation %q: %w", allocationID, result.releaseErr))
+			if err := c.releaseAfterRuntimeFailure(allocationID, fmt.Errorf(
+				"release failed prepare Runtime Agent allocation %q: %w", allocationID, result.releaseErr,
+			)); err != nil {
+				failures = append(failures, err)
+			}
 			continue
 		}
 		if err := c.registry.Release(allocationID); err != nil {
@@ -318,6 +327,21 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (c *RuntimeBatchController) releaseAfterRuntimeFailure(allocationID string, runtimeErr error) error {
+	released, err := c.registry.ReleaseLost(allocationID)
+	if released {
+		slog.Warn("released allocation after Runtime lease loss", "allocation_id", allocationID)
+		return nil
+	}
+	if errors.Is(err, ErrAllocationNotFound) {
+		return nil
+	}
+	if err != nil {
+		return errors.Join(runtimeErr, fmt.Errorf("release lost registry allocation %q: %w", allocationID, err))
+	}
+	return runtimeErr
 }
 
 func (c *RuntimeBatchController) nextID(prefix string) (string, error) {
