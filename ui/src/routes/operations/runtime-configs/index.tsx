@@ -32,6 +32,7 @@ import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { CursorControls, ErrorNotice } from "../../artifacts/common";
 import { RecordedTime } from "../../../app/recorded-time";
+import { InUseErrorDetails } from "../in-use-details";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -889,7 +890,10 @@ function BindingEditor({
           </button>
         </div>
       ) : mutation.error === null && deletion.error === null ? null : (
-        <ErrorNotice error={mutation.error ?? deletion.error} />
+        <>
+          <ErrorNotice error={mutation.error ?? deletion.error} />
+          <InUseErrorDetails error={mutation.error ?? deletion.error} />
+        </>
       )}
       {confirmRemoval ? (
         <ConfirmRemovalDialog
@@ -905,7 +909,10 @@ function BindingEditor({
           confirmDisabled={stale}
           error={
             deletion.error === null ? null : (
-              <ErrorNotice error={deletion.error} />
+              <>
+                <ErrorNotice error={deletion.error} />
+                <InUseErrorDetails error={deletion.error} />
+              </>
             )
           }
           onCancel={() => {
@@ -1452,7 +1459,10 @@ function RuntimeCredentialList({
           pending={deletion.isPending}
           error={
             deletion.error === null ? null : (
-              <ErrorNotice error={deletion.error} />
+              <>
+                <ErrorNotice error={deletion.error} />
+                <InUseErrorDetails error={deletion.error} />
+              </>
             )
           }
           onCancel={() => {

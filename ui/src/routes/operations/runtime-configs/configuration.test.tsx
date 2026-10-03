@@ -11,6 +11,7 @@ function setup(
   authorized = true,
   withRemovalFixtures = false,
   workerSettings?: Record<string, unknown>,
+  deleteFailure?: { path: string; body: unknown },
 ) {
   const requests: string[] = [];
   const deletes: Request[] = [];
@@ -74,6 +75,15 @@ function setup(
       requests.push(pathname);
       if (request.method === "DELETE") {
         deletes.push(request.clone());
+        if (deleteFailure?.path === pathname) {
+          return new Response(JSON.stringify(deleteFailure.body), {
+            status: 409,
+            headers: {
+              "content-type": "application/json",
+              "X-Contractor-API-Version": "contractor.public.v1",
+            },
+          });
+        }
         if (pathname === "/v1/operations/runtime-credentials/caido-local") {
           credentials = [];
         } else if (pathname === "/v1/operations/runtime-labels/debug") {
@@ -221,6 +231,49 @@ describe("Runtime configuration hub navigation", () => {
     await waitFor(() => expect(trigger).not.toBeInTheDocument());
   });
 
+  it("shows every Runtime credential deletion blocker in the dialog", async () => {
+    setup("/operations/configuration", true, true, undefined, {
+      path: "/v1/operations/runtime-credentials/caido-local",
+      body: {
+        code: "runtime_credential_in_use",
+        message: "Runtime credential is referenced by active configuration",
+        retryable: false,
+        details: {
+          kind: "runtime_credential_in_use",
+          bindingLabels: ["debug"],
+          projectIds: ["project-one"],
+          runIds: ["run-one"],
+          auditIds: ["audit-one"],
+          allocationIds: ["allocation-one"],
+        },
+      },
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Runtime credential caido-local",
+      }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Delete Runtime credential caido-local?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete Runtime credential" }),
+    );
+    expect(await within(dialog).findByText("audit-one")).toBeVisible();
+    expect(within(dialog).getByRole("link", { name: "debug" })).toHaveAttribute(
+      "href",
+      "/operations/configuration",
+    );
+    expect(
+      within(dialog).getByRole("link", { name: "project-one" }),
+    ).toHaveAttribute("href", "/projects/project-one");
+    expect(
+      within(dialog).getByRole("link", { name: "run-one" }),
+    ).toHaveAttribute("href", "/runs/run-one");
+    expect(within(dialog).getByText("allocation-one")).toBeVisible();
+  });
+
   it("confirms Runtime label removal after safe dismissals", async () => {
     const { deletes } = setup("/operations/configuration", true, true);
     const user = userEvent.setup();
@@ -267,6 +320,41 @@ describe("Runtime configuration hub navigation", () => {
     expect(deletes[0]!.headers.get("If-Match")).toBe('"1"');
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     await waitFor(() => expect(trigger).not.toBeInTheDocument());
+  });
+
+  it("shows Runtime Agent IDs blocking label removal", async () => {
+    const agentID = "a".repeat(64);
+    setup("/operations/configuration", true, true, undefined, {
+      path: "/v1/operations/runtime-labels/debug",
+      body: {
+        code: "runtime_label_in_use",
+        message: "Runtime label is assigned to a Runtime Agent",
+        retryable: false,
+        details: {
+          kind: "runtime_label_in_use",
+          runtimeAgentIds: [agentID],
+        },
+      },
+    });
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Manage bindings for debug@1",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Remove binding debug" }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Remove binding debug?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove binding" }),
+    );
+    expect(await within(dialog).findByText(agentID)).toBeVisible();
+    expect(
+      within(dialog).getByRole("heading", { name: "Runtime Agents" }),
+    ).toBeVisible();
   });
 
   it("opens creation forms from icons and clears a closed credential draft", async () => {

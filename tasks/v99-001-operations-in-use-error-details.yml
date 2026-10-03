@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V99-001
+title: Show structured deletion blockers in Operations
+milestone: operations-in-use-error-details-2026-10
+priority: P2
+status: completed
+implementation_commit: 25ae067dc9628bb5b4f4dc6a77a9064bb159d0eb
+depends_on: []
+languages: [typescript]
+goal: Show every safe resource reference supplied by in-use deletion errors.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/259
+  finding: PublicAPIError keeps only managed credential Run and binding references; Runtime credential and label blockers are hidden.
+scope:
+  in:
+    - Parse bounded, validated references for all three in-use error detail kinds, treating null arrays as empty.
+    - Show Audit holds alongside managed credential Runs and RuntimeConfig labels.
+    - Show Runtime credential binding, Project, Run, Audit and allocation references and Runtime label Agent references.
+    - Cover safe and malformed details in API and Operations UI tests.
+  out:
+    - Change Server response encoding for empty arrays or add Audit project context.
+acceptance_criteria:
+  - {id: A1, text: Audit-only and mixed managed credential blockers are visible.}
+  - {id: A2, text: Every Runtime credential blocker group and Runtime label Agent IDs are visible.}
+  - {id: A3, text: Unsafe or oversized reference arrays cannot become links or visible IDs.}
+  - {id: A4, text: UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/api/client.test.ts src/routes/operations/operations.test.tsx src/routes/operations/runtime-configs/configuration.test.tsx, covers: [A1, A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

@@ -196,7 +196,7 @@ describe("PublicAPI", () => {
     });
   });
 
-  it("retains only bounded credential-in-use Run references", async () => {
+  it("retains bounded references for each in-use deletion error", async () => {
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async () =>
@@ -209,6 +209,7 @@ describe("PublicAPI", () => {
             details: {
               kind: "credential_in_use",
               runIds: ["run-2", "run-1"],
+              auditIds: ["audit-1"],
               bindingLabels: ["default", "debug"],
             },
           },
@@ -218,8 +219,27 @@ describe("PublicAPI", () => {
     );
     const response = await api.fetch("/v1/test");
     const error = await api.error(response);
-    expect(error.referencedRunIds).toEqual(["run-2", "run-1"]);
-    expect(error.referencedBindingLabels).toEqual(["default", "debug"]);
+    expect(error.inUse).toEqual({
+      kind: "credential_in_use",
+      runIds: ["run-2", "run-1"],
+      auditIds: ["audit-1"],
+      bindingLabels: ["default", "debug"],
+    });
+
+    expect(
+      publicAPIError(409, {
+        details: {
+          kind: "credential_in_use",
+          runIds: null,
+          auditIds: ["audit-only"],
+        },
+      }).inUse,
+    ).toEqual({
+      kind: "credential_in_use",
+      runIds: [],
+      auditIds: ["audit-only"],
+      bindingLabels: [],
+    });
 
     const unsafe = publicAPIError(409, {
       code: "credential_in_use",
@@ -231,8 +251,47 @@ describe("PublicAPI", () => {
         bindingLabels: ["../escape"],
       },
     });
-    expect(unsafe.referencedRunIds).toBeUndefined();
-    expect(unsafe.referencedBindingLabels).toBeUndefined();
+    expect(unsafe.inUse).toEqual({
+      kind: "credential_in_use",
+      runIds: [],
+      auditIds: [],
+      bindingLabels: [],
+    });
+
+    expect(
+      publicAPIError(409, {
+        details: {
+          kind: "runtime_credential_in_use",
+          bindingLabels: ["debug", "../escape"],
+          projectIds: ["project-one", "../escape", "x".repeat(257)],
+          runIds: ["run-one"],
+          auditIds: ["audit-one"],
+          allocationIds: Array.from(
+            { length: 129 },
+            (_, index) => `allocation-${index}`,
+          ),
+        },
+      }).inUse,
+    ).toEqual({
+      kind: "runtime_credential_in_use",
+      bindingLabels: ["debug"],
+      projectIds: ["project-one"],
+      runIds: ["run-one"],
+      auditIds: ["audit-one"],
+      allocationIds: [],
+    });
+
+    expect(
+      publicAPIError(409, {
+        details: {
+          kind: "runtime_label_in_use",
+          runtimeAgentIds: ["a".repeat(64), "../escape", "b".repeat(65)],
+        },
+      }).inUse,
+    ).toEqual({
+      kind: "runtime_label_in_use",
+      runtimeAgentIds: ["a".repeat(64)],
+    });
   });
 
   it("fences direct binary requests and attaches the current CSRF", async () => {

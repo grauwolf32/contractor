@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
-import { PublicAPIError } from "../../../api/error";
 import { deleteCredential, getCredential } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { CONFIG_ID_PATTERN } from "../../../api/workflows";
@@ -12,6 +11,7 @@ import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 import { CredentialPolicyView } from "./policy";
+import { InUseErrorDetails } from "../in-use-details";
 
 function CredentialDeletion({ credentialId }: { credentialId: string }) {
   const api = usePublicAPI();
@@ -42,22 +42,14 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
       });
     },
   });
-  const inUseRuns =
-    mutation.error instanceof PublicAPIError
-      ? mutation.error.referencedRunIds
-      : undefined;
-  const inUseLabels =
-    mutation.error instanceof PublicAPIError
-      ? mutation.error.referencedBindingLabels
-      : undefined;
   return (
     <div className="panel credential-delete-panel">
       <p className="eyebrow">Permanent action</p>
       <h3>Delete credential</h3>
       <p className="muted-copy">
-        Deletion is rejected while a non-terminal Run or active RuntimeConfig
-        label references this credential. No disable, update, rotation, or
-        force-delete shortcut exists.
+        Deletion is rejected while a non-terminal Run, Audit dispatch hold, or
+        active RuntimeConfig label references this credential. No disable,
+        update, rotation, or force-delete shortcut exists.
       </p>
       <label className="checkbox-label">
         <input
@@ -69,33 +61,7 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
         be removed.
       </label>
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
-      {inUseRuns === undefined || inUseRuns.length === 0 ? null : (
-        <div className="notice notice-warning">
-          <strong>Credential remains active because these Runs pin it:</strong>
-          <ul>
-            {inUseRuns.map((runId) => (
-              <li key={runId}>
-                <Link to={`/runs/${encodeURIComponent(runId)}`}>{runId}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {inUseLabels === undefined || inUseLabels.length === 0 ? null : (
-        <div className="notice notice-warning">
-          <strong>
-            Credential remains active because these RuntimeConfig labels
-            reference it:
-          </strong>
-          <ul>
-            {inUseLabels.map((label) => (
-              <li key={label}>
-                <Link to="/operations/runtime-configs">{label}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <InUseErrorDetails error={mutation.error} />
       <button
         className="danger-button"
         type="button"
