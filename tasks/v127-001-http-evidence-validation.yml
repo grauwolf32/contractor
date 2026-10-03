@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V127-001
+title: Reject HTTP exchanges that finding evidence cannot retain
+milestone: http-evidence-validation-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, go]
+goal: Keep every successfully completed http_request exchange selectable as finding evidence.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/284
+  specification: docs/spec/11-http-and-caido-tools.md
+  finding: Captured URLs, response headers and status can exceed Runtime and Server finding-evidence rules after a request is sent.
+scope:
+  in:
+    - Validate httpx-built request URLs before every send, including redirect and retry hops.
+    - Reject responses whose status or headers cannot be represented as evidence.
+    - Share attempt validity fixtures across Runtime and Go audit-domain tests.
+    - Verify successful exchanges still attach through finding(request_id).
+  out:
+    - Relax finding URL and status rules or silently truncate evidence.
+acceptance_criteria:
+  - {id: A1, text: Invalid original and redirect URLs are refused before their requests are sent.}
+  - {id: A2, text: Response status outside 100..599 or headers over 64 KiB fail with an explicit HTTP error before tool completion.}
+  - {id: A3, text: Runtime and Server agree on shared URL and status fixtures; a valid completed exchange attaches to a finding.}
+  - {id: A4, text: HTTP tool documentation describes the new response error and evidence boundary.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_http_toolset.py runtime/tests/test_finding_facades.py, covers: [A1, A2, A3, A4]}
+  - {command: go test ./internal/auditdomain, covers: [A3]}
