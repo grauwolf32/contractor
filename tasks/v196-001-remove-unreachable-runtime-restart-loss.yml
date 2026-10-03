@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V196-001
+title: Remove unreachable Runtime restart allocation loss reason
+milestone: controlplane-registry-cleanup-2026-10
+priority: P2
+status: completed
+implementation_commit: 45aa724b89a548b27618e45087121dfcd7c380f5
+depends_on: []
+languages: [go]
+goal: Match allocation loss reasons and tests to the current lease-expiry admission policy.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/187
+  finding: A new same-principal instance is rejected while the old lease is live, and after expiry its allocation already has control_lease_expired loss.
+scope:
+  in:
+    - Remove the unreachable restart-specific loss reason and no-op supersede call.
+    - Assert live restart rejection and exact lease-expiry loss in unit and integration tests.
+  out:
+    - Changing superseded or blockedByInstanceID state and lease admission policy.
+acceptance_criteria:
+  - {id: A1, text: No repository reference to the obsolete restart-specific loss remains.}
+  - {id: A2, text: A live same-principal restart is rejected; after lease expiry exactly one control_lease_expired loss is observed.}
+  - {id: A3, text: Existing supersession, retirement and lease integration tests pass.}
+tests:
+  - {command: go test ./internal/controlplane/... ./tests/integration/lease/..., covers: [A1, A2, A3]}
+  - {command: go build ./..., covers: [A1, A3]}
+  - {command: go vet ./..., covers: [A1, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

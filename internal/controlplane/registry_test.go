@@ -1053,16 +1053,29 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 		t.Fatal(err)
 	}
 
-	// A restart under the same principal is admitted only once the previous
-	// process's control lease has expired.
-	clock.Advance(61 * time.Second)
 	restarted := testRegistration("agent-new")
 	restarted.ControlURL = oldRegistration.ControlURL
 	restarted.A2AURL = oldRegistration.A2AURL
+	if _, err := registry.RegisterAuthenticated(principal, restarted); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("live same-principal restart = %v, want registration conflict", err)
+	}
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("live restart revoked old allocation: %+v", losses)
+	}
+	if old := registry.agents[oldRegistration.InstanceID]; old == nil || old.superseded {
+		t.Fatal("live restart superseded the old process")
+	}
+	// A restart under the same principal is admitted only once the previous
+	// process's control lease has expired.
+	clock.Advance(61 * time.Second)
 	registerReadyAs(t, registry, principal, restarted)
 	losses := registry.PollAllocationLosses()
-	if len(losses) != 1 || losses[0].AllocationID != reservations[0].Grant.AllocationID {
+	if len(losses) != 1 || losses[0].AllocationID != reservations[0].Grant.AllocationID ||
+		losses[0].Reason != LossControlLeaseExpired {
 		t.Fatalf("restart losses = %+v", losses)
+	}
+	if repeated := registry.PollAllocationLosses(); len(repeated) != 0 {
+		t.Fatalf("restart repeated allocation loss: %+v", repeated)
 	}
 	if old := registry.agents[oldRegistration.InstanceID]; old == nil || !old.superseded {
 		t.Fatal("restarted process did not supersede its predecessor on the same endpoint")

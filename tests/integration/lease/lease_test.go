@@ -313,8 +313,7 @@ func reservationRequest(t *testing.T, runID, stageID string) controlplane.Reserv
 func assertSingleLoss(t *testing.T, losses []controlplane.AllocationLoss, allocationID string) {
 	t.Helper()
 	if len(losses) != 1 || losses[0].AllocationID != allocationID ||
-		(losses[0].Reason != controlplane.LossControlLeaseExpired &&
-			losses[0].Reason != controlplane.LossRuntimeRestarted) {
+		losses[0].Reason != controlplane.LossControlLeaseExpired {
 		t.Fatalf("allocation losses = %+v", losses)
 	}
 }
