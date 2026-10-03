@@ -272,13 +272,3 @@ func assertBoundedRetry(t *testing.T, action TransitionAction, maxAttempts int) 
 		t.Fatalf("retry transition = %+v, want maxAttempts=%d then fail", action, maxAttempts)
 	}
 }
-
-func assertEscalation(t *testing.T, action TransitionAction, maxAttempts int, configID string) {
-	t.Helper()
-	if action.Kind != TransitionEscalate || action.Escalate == nil ||
-		action.Escalate.MaxAttempts != maxAttempts || action.Escalate.ExecutionConfig.Ref == nil ||
-		action.Escalate.ExecutionConfig.Ref.ConfigID != configID ||
-		action.Escalate.Then.Kind != TransitionFail {
-		t.Fatalf("unexpected escalation Transition: %+v", action)
-	}
-}

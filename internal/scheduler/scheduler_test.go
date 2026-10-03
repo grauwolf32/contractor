@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -2998,15 +2997,6 @@ func eventIndex(events []string, expected string) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-func sortedKeys[T any](values map[string]T) []string {
-	result := make([]string, 0, len(values))
-	for key := range values {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID string) (runstore.StageExecution, error) {

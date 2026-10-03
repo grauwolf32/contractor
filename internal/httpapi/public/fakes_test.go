@@ -1278,7 +1278,3 @@ var _ artifacts.QueryRepository = (*fakeArtifactRepository)(nil)
 var _ RunReader = (*fakeRunStore)(nil)
 var _ RunWriter = (*fakeRunStore)(nil)
 var _ UnitOfWork = (*fakeUnitOfWork)(nil)
-
-func exactArtifact(namespace, name, revision string) contracts.ArtifactRef {
-	return contracts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
-}
