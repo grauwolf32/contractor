@@ -3,7 +3,8 @@ id: V220-001
 title: Align Katana scan and publication deadlines after scan lock acquisition
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b74fb9d58c2953ca2819b28185ff82957e7bc91f
 depends_on: []
 languages: [python]
 goal: Prevent a Katana crawl from losing its targets publication budget solely while waiting for the allocation scan lock.
