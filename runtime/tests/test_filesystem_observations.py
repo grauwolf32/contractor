@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from test_adk_runtime import create_runtime, stage_request
 from test_filesystem_toolset import create_tools, workspace
@@ -28,6 +29,7 @@ from contractor_runtime.worker.observations import (
     edit_tool_observation,
     filesystem_tool_observation,
     lean_workspace_summary,
+    validate_workspace_observation,
     workspace_changes_observation,
 )
 from contractor_runtime.worker.state import WorkerStateStore
@@ -75,7 +77,9 @@ class Extractor:
     ) -> WorkspaceToolObservation | None:
         if self.operation in {"ls", "glob", "read_file", "grep"}:
             return filesystem_tool_observation(self.operation, tool_args, result)
-        if self.operation == "edit":
+        if self.operation in {
+            "write_file", "append_file", "rm", "insert_line", "edit", "replace_range", "cp", "mv"
+        }:
             return edit_tool_observation(self.operation, tool_args, result)
         if self.operation == "annotate_trace":
             return annotation_tool_observation(tool_args, result)
@@ -120,6 +124,91 @@ def test_only_reviewed_workspace_tools_expose_observation_extractors() -> None:
         {"changes": [{"path": "d.py", "change": "created"}]},
     ) == WorkspaceToolObservation(modified=("d.py",))
     assert not hasattr(analyzer, "contractor_observation")
+
+
+@pytest.mark.parametrize(
+    ("operation", "arguments", "expected"),
+    [
+        ("write_file", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("append_file", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("rm", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("insert_line", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("edit", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("replace_range", {"path": "cafe\u0301.py"}, ("café.py",)),
+        ("cp", {"source": "a.py", "destination": "cafe\u0301.py"}, ("café.py",)),
+        (
+            "mv",
+            {"source": "cafe\u0301.py", "destination": "re\u0301sume\u0301.py"},
+            ("café.py", "résumé.py"),
+        ),
+    ],
+)
+def test_successful_edits_observe_canonical_argument_paths(
+    operation: str, arguments: dict[str, str], expected: tuple[str, ...]
+) -> None:
+    assert edit_tool_observation(operation, arguments, {"changed": True}) == (
+        WorkspaceToolObservation(modified=expected)
+    )
+    assert edit_tool_observation(operation, arguments, {"changed": False}) == (
+        WorkspaceToolObservation()
+    )
+
+
+@pytest.mark.parametrize("path", ["", "../escape.py", "/absolute.py", "a//b.py", "C:\\bad.py"])
+def test_edit_observation_rejects_invalid_argument_paths(path: str) -> None:
+    with pytest.raises(ValueError, match="workspace observation path is invalid"):
+        edit_tool_observation("write_file", {"path": path}, {"changed": True})
+
+
+def test_decomposed_edit_path_keeps_workspace_observation_complete() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        source = MetadataSource()
+        source.metadata = WorkspaceObservationMetadata(
+            digest="sha256:" + "1" * 64,
+            managed_text_paths=("a.py", "b.py", "café.py"),
+        )
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            workspace_observation_source=source,
+        )
+        invocation_id = "worker-decomposed-edit"
+        plugin.prepare_invocation(invocation_id=invocation_id, subtask_id="1")
+        await plugin.before_run_callback(invocation_context=Context(invocation_id))
+        await call(
+            plugin,
+            invocation_id,
+            "write_file",
+            Extractor("write_file"),
+            {"path": "cafe\u0301.py", "content": SECRET},
+            {"changed": True},
+        )
+
+        completed = await plugin.complete_invocation(invocation_id=invocation_id, phase="succeeded")
+        assert completed is not None
+        workspace = completed["lastCompletedInvocation"]["workspace"]
+        assert workspace["detailComplete"] is True
+        assert [(item["path"], item["mutationCalls"]) for item in workspace["interactions"]] == [
+            ("café.py", 1)
+        ]
+        summary, truncated = lean_workspace_summary(workspace)
+        assert summary is not None
+        assert summary.modified_files == 1
+        assert summary.unread_files == 3
+        assert summary.detail_complete is True
+        assert truncated is False
+        assert plugin.projection_failed is False
+
+        invalid = dict(workspace)
+        invalid["interactions"] = [dict(workspace["interactions"][0], path="cafe\u0301.py")]
+        with pytest.raises(ValueError, match="workspace observation path is not normalized"):
+            validate_workspace_observation(invalid)
+
+    asyncio.run(scenario())
 
 
 def test_plugin_records_only_successful_visible_workspace_facts() -> None:
