@@ -886,6 +886,74 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 }
 
+func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	for _, test := range []struct {
+		name   string
+		owner  string
+		paused bool
+	}{
+		{"pause", "user-pause", true},
+		{"idempotent-resume", "user-resume", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			runID := "run-initial-control-" + test.name
+			params := testRunParams(runID)
+			params.OwnerID = test.owner
+			if _, err := store.CreateRun(ctx, params); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "ready"}); err != nil {
+				t.Fatal(err)
+			}
+			initial, err := store.GetOwnerQueueControl(ctx, test.owner)
+			if err != nil || initial.Paused || initial.Revision != 0 || !initial.UpdatedAt.IsZero() {
+				t.Fatalf("initial Queue control = (%+v, %v)", initial, err)
+			}
+			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				admission := NewPostgresStore(tx)
+				if err := admission.LockRunQueueAdmission(ctx, runID); err != nil {
+					return err
+				}
+				_, err := admission.CreateStageExecution(ctx, CreateStageExecutionParams{
+					StageExecutionID: "stage-initial-control-" + test.name,
+					RunID:            runID, StageName: "copy", Attempt: 1,
+					StageSpecSchemaVersion:    contracts.APIVersion,
+					StageSpecSnapshot:         json.RawMessage(`{}`),
+					StageContextSchemaVersion: contracts.APIVersion,
+					StageContext:              StageContextSnapshot{},
+				})
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			afterAdmission, err := store.GetOwnerQueueControl(ctx, test.owner)
+			if err != nil || afterAdmission != initial {
+				t.Fatalf("Stage admission changed Queue control: before=%+v after=%+v err=%v", initial, afterAdmission, err)
+			}
+			var rows int
+			if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM owner_queue_controls WHERE owner_id = $1`, test.owner).Scan(&rows); err != nil || rows != 0 {
+				t.Fatalf("Stage admission materialized Queue control = (%d, %v)", rows, err)
+			}
+			updated, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+				OwnerID: test.owner, ExpectedRevision: 0, Paused: test.paused,
+			})
+			if err != nil || updated.Paused != test.paused || updated.Revision != 1 {
+				t.Fatalf("first Queue update after admission = (%+v, %v)", updated, err)
+			}
+			if _, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+				OwnerID: test.owner, ExpectedRevision: 0, Paused: !test.paused,
+			}); !errors.Is(err, ErrPrecondition) {
+				t.Fatalf("stale Queue update error = %v, want precondition", err)
+			}
+		})
+	}
+}
+
 func TestPostgresOwnerQueueControlSerializesWithStageAdmission(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
