@@ -268,20 +268,9 @@ func runCLI(
 	return err
 }
 
-// Serve runs the bootstrap HTTP server on an already-created listener. Taking
-// the listener as input keeps shutdown behavior deterministic in tests.
-func Serve(
-	ctx context.Context,
-	listener net.Listener,
-	shutdownTimeout time.Duration,
-	logger *slog.Logger,
-) error {
-	return ServeHandler(ctx, listener, shutdownTimeout, logger, NewHandler())
-}
-
-// ServeHandler runs a composed process handler and preserves Serve as the
-// small health-only harness used by bootstrap tests.
-func ServeHandler(
+// serveHandler runs the standby process handler until this Server takes the
+// Control Plane lease or shuts down.
+func serveHandler(
 	ctx context.Context,
 	listener net.Listener,
 	shutdownTimeout time.Duration,
@@ -322,12 +311,6 @@ func ServeHandler(
 	}
 	logger.Info("contractor server stopped")
 	return nil
-}
-
-// NewHandler composes unauthenticated process health routes with the optional
-// authenticated public API.
-func NewHandler(publicAPI ...http.Handler) http.Handler {
-	return newProcessHandler(http.HandlerFunc(writeHealthy), publicAPI...)
 }
 
 func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.Handler {

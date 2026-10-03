@@ -53,8 +53,8 @@ func TestCreateRunCommitsExactSkillSelectionBeforeDeferredInitialization(t *test
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)
-	if response.Code != http.StatusAccepted || fixture.runSkills.calls != 0 || fixture.notifier.calls != 1 {
-		t.Fatalf("create Skill Run = status %d, initializer %d, notifications %d, body %s", response.Code, fixture.runSkills.calls, fixture.notifier.calls, response.Body.String())
+	if response.Code != http.StatusAccepted || fixture.notifier.calls != 1 {
+		t.Fatalf("create Skill Run = status %d, notifications %d, body %s", response.Code, fixture.notifier.calls, response.Body.String())
 	}
 	run := fixture.runs.runs["run_fixed"]
 	if run.State != runstore.RunInitializing ||
@@ -77,9 +77,8 @@ func TestCreateRunCommitsExactSkillSelectionBeforeDeferredInitialization(t *test
 	replay := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	replayed := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(replayed, replay)
-	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" ||
-		fixture.runSkills.calls != 0 {
-		t.Fatalf("Skill Run replay = status %d, header %q, initializer %d, body %s", replayed.Code, replayed.Header().Get("Idempotency-Replayed"), fixture.runSkills.calls, replayed.Body.String())
+	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("Skill Run replay = status %d, header %q, body %s", replayed.Code, replayed.Header().Get("Idempotency-Replayed"), replayed.Body.String())
 	}
 	if got := fixture.runs.runs["run_fixed"].SkillSnapshot[0].Source; got == nil ||
 		*got.Revision != *selected.Ref.Revision {

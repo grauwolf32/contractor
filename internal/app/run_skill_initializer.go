@@ -15,9 +15,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// runSkillInitializer is shared by the public create path and Scheduler
-// recovery. It never resolves a logical owner binding: only the exact source
-// outcome already committed on WorkflowRun is accepted.
+// runSkillInitializer runs during Scheduler recovery. It never resolves a
+// logical owner binding: only the exact source outcome already committed on
+// WorkflowRun is accepted.
 type runSkillInitializer struct {
 	pool *pgxpool.Pool
 }

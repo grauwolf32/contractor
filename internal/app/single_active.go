@@ -157,7 +157,7 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 		_, _ = io.WriteString(w, "{\"status\":\"unavailable\"}\n")
 	}))
 	done := make(chan error, 1)
-	go func() { done <- ServeHandler(standbyCtx, listener, shutdownTimeout, logger, ready) }()
+	go func() { done <- serveHandler(standbyCtx, listener, shutdownTimeout, logger, ready) }()
 	stop := func() error {
 		stopStandby()
 		return <-done

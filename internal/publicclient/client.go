@@ -2,7 +2,6 @@ package publicclient
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -321,8 +320,4 @@ func validateToken(token string) error {
 		return errors.New("API token must contain 1 through 4096 bytes without NUL or newlines")
 	}
 	return nil
-}
-
-func ContextWithTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(parent, timeout)
 }

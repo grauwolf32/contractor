@@ -12,8 +12,8 @@ import (
 
 const SkillInitializationPendingReason = "skill_initialization_pending"
 
-// LockRunSkillInitialization serializes immediate initialization after
-// POST /runs with Scheduler recovery of the same durable pending Run.
+// LockRunSkillInitialization serializes concurrent Scheduler attempts to
+// initialize the same durable pending Run, including across Server replicas.
 func (s *PostgresStore) LockRunSkillInitialization(
 	ctx context.Context,
 	runID string,

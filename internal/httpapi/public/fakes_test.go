@@ -1251,24 +1251,6 @@ type fakeUnitOfWork struct {
 	calls     int
 }
 
-type fakeRunSkillInitializer struct {
-	runs  *fakeRunStore
-	calls int
-	err   error
-}
-
-func (f *fakeRunSkillInitializer) InitializeRunSkills(
-	ctx context.Context,
-	runID string,
-) (runstore.WorkflowRun, error) {
-	f.calls++
-	run, err := f.runs.GetRun(ctx, runID)
-	if err != nil {
-		return runstore.WorkflowRun{}, err
-	}
-	return run, f.err
-}
-
 func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
 	f.calls++
 	return fn(f.runs, f.artifacts)
