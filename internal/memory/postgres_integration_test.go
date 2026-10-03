@@ -12,6 +12,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -70,6 +71,70 @@ func TestPostgresPlannerMemoryRequiresRunningStage(t *testing.T) {
 				t.Fatalf("stored note after rejected write = (%+v, %v)", decoded, err)
 			}
 		})
+	}
+}
+
+func TestPostgresPlannerMemoryReadTransactionDoesNotLockLifecycleRows(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedMemoryPool(t, ctx)
+	runID, stageID := "run-memory-read-no-lock", "stage-memory-read-no-lock"
+	createRunningMemoryStage(t, ctx, pool, runID, stageID)
+	store, err := NewPostgresStore(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := Binding{RunID: runID, StageExecutionID: stageID, Namespace: "builder"}
+	if _, err := store.Write(ctx, binding, artifacts.ArtifactRef{
+		Namespace: binding.Namespace, Name: "memory.shared",
+	}, artifacts.Payload{MediaType: MediaType, Data: encodedTestNote(t, "shared", "body", 0)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	defer releaseOnce.Do(func() { close(release) })
+	done := make(chan error, 1)
+	go func() {
+		_, err := withActiveStage(ctx, pool, false, binding, nil, func(tx pgx.Tx) (artifacts.ReadResult, error) {
+			artifactStore, err := runArtifactStore(tx, runID)
+			if err != nil {
+				return artifacts.ReadResult{}, err
+			}
+			result, err := artifactStore.Read(ctx, artifacts.ArtifactRef{
+				Namespace: binding.Namespace, Name: "memory.shared",
+			})
+			close(entered)
+			<-release
+			return result, err
+		})
+		done <- err
+	}()
+	select {
+	case <-entered:
+	case err := <-done:
+		t.Fatalf("read ended before lock check: %v", err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	lockTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lockTx.Rollback(context.Background())
+	var state string
+	if err := lockTx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id=$1 FOR UPDATE NOWAIT`, runID).Scan(&state); err != nil {
+		t.Fatalf("read transaction locked WorkflowRun: %v", err)
+	}
+	if err := lockTx.QueryRow(ctx, `SELECT state FROM stage_executions WHERE stage_execution_id=$1 FOR UPDATE NOWAIT`, stageID).Scan(&state); err != nil {
+		t.Fatalf("read transaction locked StageExecution: %v", err)
+	}
+	if err := lockTx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	releaseOnce.Do(func() { close(release) })
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

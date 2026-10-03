@@ -88,6 +88,9 @@ type Binding struct {
 // transaction.
 type Store interface {
 	List(context.Context, Binding) ([]artifacts.ArtifactRef, error)
+	// LoadAll returns a bounded snapshot of current memory bindings with
+	// their payloads and metadata in one Store operation.
+	LoadAll(context.Context, Binding) ([]artifacts.ReadResult, error)
 	Read(context.Context, Binding, artifacts.ArtifactRef) (artifacts.ReadResult, error)
 	Write(
 		context.Context,
@@ -175,40 +178,42 @@ func (n *Namespace) WriteMemory(
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	existing, err := n.readOptional(ctx, bindingName)
+	snapshot, err := n.store.LoadAll(ctx, n.binding)
 	if err != nil {
-		return Note{}, err
+		return Note{}, mapStoreError(err)
+	}
+	var existing *loadedNote
+	for _, value := range snapshot {
+		if value.Ref.Name != bindingName {
+			continue
+		}
+		if existing != nil {
+			return Note{}, toolError(CodeUnavailable, true)
+		}
+		existing, err = decodeRead(n.binding.Namespace, bindingName, value)
+		if err != nil {
+			return Note{}, err
+		}
 	}
 	var ordinal uint64
 	var expectedRevision *string
 	if existing == nil {
-		current, err := n.loadAll(ctx)
+		current, err := n.decodeAll(snapshot)
 		if err != nil {
 			return Note{}, err
 		}
-		for index := range current {
-			if current[index].note.Name == name {
-				existing = &current[index]
-				break
+		if len(current) >= MaximumNotes {
+			return Note{}, toolError(CodeNamespaceFull, false)
+		}
+		var found bool
+		for _, item := range current {
+			if !found || item.note.Ordinal >= ordinal {
+				ordinal = item.note.Ordinal + 1
+				found = true
 			}
 		}
-		if existing == nil {
-			if len(current) >= MaximumNotes {
-				return Note{}, toolError(CodeNamespaceFull, false)
-			}
-			var found bool
-			for _, item := range current {
-				if !found || item.note.Ordinal >= ordinal {
-					ordinal = item.note.Ordinal + 1
-					found = true
-				}
-			}
-			if ordinal > MaximumExactOrdinal {
-				return Note{}, toolError(CodeNamespaceFull, false)
-			}
-		} else {
-			ordinal = existing.note.Ordinal
-			expectedRevision = stringPointer(existing.revision)
+		if ordinal > MaximumExactOrdinal {
+			return Note{}, toolError(CodeNamespaceFull, false)
 		}
 	} else {
 		ordinal = existing.note.Ordinal
@@ -330,41 +335,43 @@ type writeMetadata struct {
 }
 
 func (n *Namespace) loadAll(ctx context.Context) ([]loadedNote, error) {
-	refs, err := n.store.List(ctx, n.binding)
+	values, err := n.store.LoadAll(ctx, n.binding)
 	if err != nil {
 		return nil, mapStoreError(err)
 	}
-	memoryRefs := make([]artifacts.ArtifactRef, 0, len(refs))
-	for _, ref := range refs {
-		if strings.HasPrefix(ref.Name, ArtifactNamePrefix) {
-			memoryRefs = append(memoryRefs, ref)
+	return n.decodeAll(values)
+}
+
+func (n *Namespace) decodeAll(values []artifacts.ReadResult) ([]loadedNote, error) {
+	memoryValues := make([]artifacts.ReadResult, 0, len(values))
+	for _, value := range values {
+		if strings.HasPrefix(value.Ref.Name, ArtifactNamePrefix) {
+			memoryValues = append(memoryValues, value)
 		}
 	}
-	sort.Slice(memoryRefs, func(i, j int) bool {
-		if memoryRefs[i].Namespace == memoryRefs[j].Namespace {
-			return memoryRefs[i].Name < memoryRefs[j].Name
+	sort.Slice(memoryValues, func(i, j int) bool {
+		if memoryValues[i].Ref.Namespace == memoryValues[j].Ref.Namespace {
+			return memoryValues[i].Ref.Name < memoryValues[j].Ref.Name
 		}
-		return memoryRefs[i].Namespace < memoryRefs[j].Namespace
+		return memoryValues[i].Ref.Namespace < memoryValues[j].Ref.Namespace
 	})
-	if len(memoryRefs) > MaximumNotes {
+	if len(memoryValues) > MaximumNotes {
 		return nil, toolError(CodeUnavailable, true)
 	}
-	result := make([]loadedNote, 0, len(memoryRefs))
-	seen := make(map[string]struct{}, len(memoryRefs))
-	for _, ref := range memoryRefs {
-		if ref.Namespace != n.binding.Namespace || ref.Revision != nil {
+	result := make([]loadedNote, 0, len(memoryValues))
+	seen := make(map[string]struct{}, len(memoryValues))
+	for _, value := range memoryValues {
+		ref := value.Ref
+		if ref.Namespace != n.binding.Namespace || ref.Revision == nil {
 			return nil, toolError(CodeUnavailable, true)
 		}
 		if _, duplicate := seen[ref.Name]; duplicate {
 			return nil, toolError(CodeUnavailable, true)
 		}
 		seen[ref.Name] = struct{}{}
-		loaded, err := n.readOptional(ctx, ref.Name)
+		loaded, err := decodeRead(n.binding.Namespace, ref.Name, value)
 		if err != nil {
 			return nil, err
-		}
-		if loaded == nil {
-			return nil, toolError(CodeUnavailable, true)
 		}
 		result = append(result, *loaded)
 	}

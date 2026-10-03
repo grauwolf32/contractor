@@ -52,6 +52,22 @@ func (s *PostgresStore) List(
 	})
 }
 
+func (s *PostgresStore) LoadAll(
+	ctx context.Context,
+	binding Binding,
+) ([]artifacts.ReadResult, error) {
+	if !validBinding(binding) {
+		return nil, ErrAccessForbidden
+	}
+	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) ([]artifacts.ReadResult, error) {
+		store, err := runArtifactStore(tx, binding.RunID)
+		if err != nil {
+			return nil, err
+		}
+		return store.ReadPrefixBatch(ctx, binding.Namespace, ArtifactNamePrefix, MaximumNotes+1)
+	})
+}
+
 func (s *PostgresStore) Read(
 	ctx context.Context,
 	binding Binding,
@@ -123,8 +139,13 @@ func withActiveStage[T any](
 		return result, ErrAccessForbidden
 	}
 	// The commit-aware transaction lets Artifact writes remove an unused
-	// deduplication candidate after a definite commit.
-	tx, err := postgres.BeginTx(ctx, pool, pgx.TxOptions{})
+	// deduplication candidate after a definite commit. Read-only transactions
+	// cannot acquire row locks or mutate a tuple while checking authority.
+	options := pgx.TxOptions{}
+	if !mutation {
+		options.AccessMode = pgx.ReadOnly
+	}
+	tx, err := postgres.BeginTx(ctx, pool, options)
 	if err != nil {
 		if ctx.Err() != nil {
 			return result, ErrAccessForbidden
@@ -143,7 +164,11 @@ func withActiveStage[T any](
 	if mutation && boundary != nil && boundary.beforeLock != nil {
 		boundary.beforeLock(ctx)
 	}
-	if err := lockActiveStage(ctx, tx, binding); err != nil {
+	check := readActiveStage
+	if mutation {
+		check = lockActiveStage
+	}
+	if err := check(ctx, tx, binding); err != nil {
 		return result, err
 	}
 	result, err = operation(tx)
@@ -212,6 +237,28 @@ FOR UPDATE`, binding.StageExecutionID).Scan(&stageRunID, &stageState)
 			return ErrAccessForbidden
 		}
 		return fmt.Errorf("lock Planner Memory StageExecution: %w", err)
+	}
+	return nil
+}
+
+func readActiveStage(ctx context.Context, tx pgx.Tx, binding Binding) error {
+	var runState runstore.WorkflowRunState
+	var stageState runstore.StageExecutionState
+	err := tx.QueryRow(ctx, `
+SELECT run.state, stage.state
+FROM workflow_runs AS run
+JOIN stage_executions AS stage ON stage.run_id = run.run_id
+WHERE run.run_id = $1 AND stage.stage_execution_id = $2`, binding.RunID, binding.StageExecutionID).Scan(&runState, &stageState)
+	if errors.Is(err, pgx.ErrNoRows) || err == nil &&
+		((runState != runstore.RunRunning && runState != runstore.RunWaiting) ||
+			stageState != runstore.StageRunning) {
+		return ErrAccessForbidden
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return ErrAccessForbidden
+		}
+		return fmt.Errorf("check Planner Memory authority: %w", err)
 	}
 	return nil
 }
