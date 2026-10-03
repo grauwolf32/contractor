@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V152-001
+title: Bound login password work and prevent broad authentication lockout
+milestone: login-resource-limits-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep login memory bounded while preserving access after distributed failures.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/79
+  finding: Concurrent Argon2 checks can exhaust memory, IPv6 peers rotate per-address limits, and the global failure limit denies all logins for a full minute.
+scope:
+  in:
+    - Bound concurrent password checks with an immediate rate-limit response when busy.
+    - Group IPv6 peers by /64 for per-peer failure accounting.
+    - Admit attempts through a short global backoff after the failure threshold.
+  out:
+    - Public server and operations authorization hardening tracked by subsequent tasks.
+acceptance_criteria:
+  - {id: A1, text: Password verification has a small fixed concurrency bound and overload returns a retryable rate limit.}
+  - {id: A2, text: IPv6 addresses in one /64 share the per-peer limit while distinct prefixes do not.}
+  - {id: A3, text: Distributed failures trigger a short global backoff without a minute-long lockout.}
+tests:
+  - {command: go test ./internal/auth ./internal/httpapi/public -count=1, covers: [A1, A2, A3]}
+  - {command: go vet ./internal/auth ./internal/httpapi/public, covers: [A1, A2, A3]}
