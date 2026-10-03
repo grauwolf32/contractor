@@ -158,6 +158,10 @@ func newCompletionFixture(t *testing.T, pool *pgxpool.Pool) *completionFixture {
 }
 
 func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, acceptance string) *completionFixture {
+	return newCompletionFixtureWithInteraction(t, pool, acceptance, "disabled")
+}
+
+func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, acceptance, findingConfirmation string) *completionFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
@@ -212,6 +216,7 @@ func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, 
 		}
 		if strings.HasPrefix(name, "audit-profiles/") {
 			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))
+			data = bytes.ReplaceAll(data, []byte("findingConfirmation: disabled"), []byte("findingConfirmation: "+findingConfirmation))
 		}
 		mustCompletion(t, os.WriteFile(filepath.Join(catalogRoot, name), data, 0600))
 	}

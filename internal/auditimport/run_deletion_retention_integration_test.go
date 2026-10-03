@@ -3,10 +3,112 @@
 package auditimport
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
+
+func TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion(t *testing.T) {
+	f := newCompletionFixtureWithInteraction(t, completionPool(t), "automatic", "human-required")
+	proposal, err := auditdomain.EncodeFindingProposal(auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate",
+		Title: "Candidate", Description: "Check the source behavior",
+		Subject:        &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+		Preconditions:  []string{},
+		StandardRefs:   []auditdomain.StandardReference{},
+		EvidenceIDs:    []string{},
+		ProposedChecks: []auditdomain.ProposedCheck{},
+		Limitations:    []string{},
+	})
+	mustCompletion(t, err)
+	written, err := f.artifacts.WriteFindingProposal(f.ctx, f.run.RunID,
+		"candidate", artifacts.Payload{MediaType: "application/json", Data: proposal})
+	mustCompletion(t, err)
+	proposalRef, err := json.Marshal(written.Ref)
+	mustCompletion(t, err)
+	receiptID := f.id + "-finding-receipt"
+	_, err = f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id,
+    stage_execution_id, logical_agent_name, invocation_id, submission_id,
+    client_key, request_digest, run_id, owner_id, project_id,
+    audit_execution_id, audit_id, audit_role, workflow_name, workflow_version,
+    workflow_schema_version, workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence
+) VALUES (
+    $1, $2, $3, 'runtime', 'instance', 'stage', 'checker', $3, $3,
+    'candidate', $4, $5, 'owner', $6, $7, $6, 'check', $8, $9,
+    'contractor/v1alpha1', '{}', $10, $11::jsonb, $4, 'application/json', $12, '[]'
+)`, receiptID, f.id+"-proposal", f.id+"-submission", completionDigest(proposal),
+		f.run.RunID, f.id, f.execution.ExecutionID, f.run.WorkflowName,
+		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
+		string(proposalRef), len(proposal))
+	mustCompletion(t, err)
+	_, err = f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_retention (receipt_id, state)
+VALUES ($1, 'source-held')`, receiptID)
+	mustCompletion(t, err)
+
+	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
+	_, err = f.runs.TransitionRun(f.ctx, f.run.RunID, runstore.RunRunning,
+		runstore.RunFailed, runstore.Reason{Code: "fixture-terminal"})
+	mustCompletion(t, err)
+	cursor, err := f.runs.GetRunEventCursor(f.ctx, f.run.RunID)
+	mustCompletion(t, err)
+	execution, err := f.audits.ObserveTerminal(f.ctx, auditstore.ObserveTerminalParams{
+		Claim: f.claim, ExecutionID: f.execution.ExecutionID,
+		RunID: f.run.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence),
+	})
+	mustCompletion(t, err)
+	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
+	mustCompletion(t, err)
+	access, err := NewArtifactAccess(f.artifacts)
+	mustCompletion(t, err)
+	intake, err := findingintake.New(f.pool)
+	mustCompletion(t, err)
+	importer, err := New(f.audits, f.runs,
+		invalidTaskArtifactAccess{ArtifactAccess: access, task: f.tasks[0].Ref}, intake)
+	mustCompletion(t, err)
+	changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
+	if err != nil || !changed {
+		t.Fatalf("contract-invalid collection = (%t, %v)", changed, err)
+	}
+	var disposition string
+	mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT disposition FROM audit_collection_receipts WHERE execution_id = $1`,
+		execution.ExecutionID).Scan(&disposition))
+	if disposition != string(auditstore.CollectionContractInvalid) {
+		t.Fatalf("collection disposition = %q", disposition)
+	}
+	mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	var retention string
+	mustCompletion(t, f.pool.QueryRow(f.ctx, `
+SELECT state FROM finding_proposal_retention WHERE receipt_id = $1`, receiptID).Scan(&retention))
+	if retention != string(findingintake.RetentionAuditHeld) {
+		t.Fatalf("proposal retention after source Run deletion = %q", retention)
+	}
+}
+
+type invalidTaskArtifactAccess struct {
+	ArtifactAccess
+	task contracts.ArtifactRef
+}
+
+func (a invalidTaskArtifactAccess) ReadProjectExact(
+	ctx context.Context, projectID string, expected auditstore.ExactArtifact,
+) ([]byte, error) {
+	if expected.Ref.SameExact(a.task) {
+		return []byte("not an Audit task package"), nil
+	}
+	return a.ArtifactAccess.ReadProjectExact(ctx, projectID, expected)
+}
 
 func TestImporterRunDeletionInvalidatesNativeReceiptAuditOnce(t *testing.T) {
 	f, snapshot := newReportDeletionFixture(t, completionPool(t), "automatic")
