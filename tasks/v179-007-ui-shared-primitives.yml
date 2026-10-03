@@ -3,7 +3,8 @@ id: V179-007
 title: Move shared UI primitives into app and share API and pagination helpers
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: c3754ee6a6847067f2b3f057cad38a36a4d2f94b
 depends_on: []
 languages: [typescript]
 goal: Give the UI one home and one implementation for formatting, errors, pagination, query states and API response checks.
@@ -24,10 +25,16 @@ scope:
     - Export requireData, invalid response and page-shape helpers from api/error.ts and migrate api modules.
     - Add evals and catalog query-key factories.
     - Share confirm dialog headers, blob download, ID truncation and mutation idempotency helpers.
+    - Share JSON record and exact-key guards, Operations publication feedback and infinite-query load-more buttons.
   out:
     - Visual redesign or copy changes beyond removing accidental differences.
+    - Artifact detail, upload and binding views (V179-008).
+    - Loading chains driven by several queries or by EvalError/AuditQueueError; they keep their composed states.
+    - The invalid-route fallback, underscore humanizer, optionalNumber and performance seconds formatter; each copy is one to four lines.
+    - HTTP URL validators; their port, length and origin rules differ on purpose.
+    - api/audit-presets.ts, which V179-002 changes in parallel.
 acceptance_criteria:
-  - {id: A1, text: Nothing under app/ imports from routes/.}
+  - {id: A1, text: No app/ module other than the router imports from routes/.}
   - {id: A2, text: List views use the shared cursor helpers.}
   - {id: A3, text: Hand-written loading/error/empty chains are replaced by QueryView where data is a single query.}
   - {id: A4, text: api modules share requireData and response-shape helpers.}
