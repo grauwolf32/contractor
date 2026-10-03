@@ -86,6 +86,12 @@ func (s *PostgresStore) Write(
 	if _, err := NameFromArtifact(target.Name); err != nil {
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
+	// Preparation and transactional publication share one transfer slot.
+	ctx, releaseTransfer, err := artifacts.AcquireTransfer(ctx)
+	if err != nil {
+		return artifacts.WriteResult{}, err
+	}
+	defer releaseTransfer()
 	var prepareErr error
 	payload, prepareErr = artifacts.PreparePayload(ctx, payload)
 	if prepareErr != nil {

@@ -24,7 +24,8 @@ const (
 )
 
 type Service struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	afterPrepare func(context.Context) // deterministic transfer-boundary integration test seam
 }
 
 func New(pool *pgxpool.Pool) (*Service, error) {
@@ -74,9 +75,18 @@ func (s *Service) Submit(
 	if err != nil {
 		return Receipt{}, false, err
 	}
+	// Retain the slot while both the candidate blob and receipt are published.
+	ctx, releaseTransfer, err := artifacts.AcquireTransfer(ctx)
+	if err != nil {
+		return Receipt{}, false, err
+	}
+	defer releaseTransfer()
 	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
 		return Receipt{}, false, err
+	}
+	if s.afterPrepare != nil {
+		s.afterPrepare(ctx)
 	}
 	var result Receipt
 	var replayed bool

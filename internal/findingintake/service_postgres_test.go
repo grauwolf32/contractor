@@ -40,11 +40,13 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
+	var blobPath string
 	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") == "filesystem" {
 		if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
 			t.Fatal(err)
 		}
-		files, err := artifacts.OpenFilesystemBlobStore(ctx, t.TempDir())
+		blobPath = t.TempDir()
+		files, err := artifacts.OpenFilesystemBlobStore(ctx, blobPath)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,6 +159,32 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 	firstInput := testSubmission("worker-invocation-1", "candidate-1", []contracts.ArtifactRef{evidenceWrite.Ref})
+	if blobPath != "" {
+		var leases []func()
+		defer func() {
+			for _, release := range leases {
+				release()
+			}
+		}()
+		for range 4 {
+			_, release, err := artifacts.AcquireTransfer(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			leases = append(leases, release)
+		}
+		_, _, submitErr := service.Submit(ctx, grant, firstInput)
+		for _, release := range leases {
+			release()
+		}
+		if !errors.Is(submitErr, artifacts.ErrTransferCapacity) {
+			t.Fatalf("full-budget proposal submission = %v, want capacity error", submitErr)
+		}
+		report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, blobPath, false)
+		if err != nil || report.Orphans != 0 {
+			t.Fatalf("blob files after rejected proposal = %+v, %v", report, err)
+		}
+	}
 	type submitResult struct {
 		receipt  Receipt
 		replayed bool
@@ -211,7 +239,39 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}
 
 	secondInput := testSubmission("worker-invocation-3", "candidate-unimported", nil)
+	var competing []func()
+	defer func() {
+		for _, release := range competing {
+			release()
+		}
+	}()
+	if blobPath != "" {
+		service.afterPrepare = func(held context.Context) {
+			if _, nested, err := artifacts.AcquireTransfer(held); err != nil {
+				t.Fatalf("prepared proposal lost its outer lease: %v", err)
+			} else {
+				nested()
+			}
+			for {
+				_, release, err := artifacts.AcquireTransfer(ctx)
+				if errors.Is(err, artifacts.ErrTransferCapacity) {
+					break
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				competing = append(competing, release)
+			}
+			if len(competing) != 3 {
+				t.Fatalf("other transfers acquired %d slots, want 3", len(competing))
+			}
+		}
+	}
 	secondReceipt, replayed, err := service.Submit(ctx, grant, secondInput)
+	service.afterPrepare = nil
+	for _, release := range competing {
+		release()
+	}
 	if err != nil || replayed {
 		t.Fatalf("second receipt = (%+v, replay=%v, %v)", secondReceipt, replayed, err)
 	}
