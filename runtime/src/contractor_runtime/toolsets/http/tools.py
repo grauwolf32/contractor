@@ -9,6 +9,7 @@ import json
 import math
 import re
 import secrets
+import sys
 import time
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
@@ -74,6 +75,9 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
 BODY_SCHEMA_VERSION = "1.0"
+# A 16 MiB UTF-8 response can occupy almost 64 MiB as a Python str when a
+# single non-BMP character forces four-byte storage for all characters.
+MAX_DECODED_BODY_CACHE_BYTES = 4 * MAX_RESPONSE_BODY_BYTES + 128
 
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 _IDEMPOTENT_METHODS = frozenset({"GET", "PUT", "DELETE", "HEAD", "OPTIONS"})
@@ -240,6 +244,14 @@ class _StoredBody:
 
 
 @dataclass(frozen=True, slots=True)
+class _CachedBody:
+    request_id: int
+    artifact: ArtifactRef
+    kind: Literal["text", "binary"]
+    content: str | bytes
+
+
+@dataclass(frozen=True, slots=True)
 class _RequestRecord:
     request_id: int
     tag: str
@@ -314,6 +326,7 @@ class _HTTPSession:
         self._lock = asyncio.Lock()
         self._history: deque[_RequestRecord] = deque(maxlen=MAX_HISTORY)
         self._bodies: dict[int, _StoredBody] = {}
+        self._cached_body: _CachedBody | None = None
         self._exchanges = HTTPExchangeHistory()
         self._default_headers: dict[str, str] = {}
         self._cookies = httpx.Cookies()
@@ -690,24 +703,36 @@ class _HTTPSession:
             stored = self._bodies.get(request_id)
             if stored is None:
                 raise HTTPToolError("http_body_not_found")
-            try:
-                value = await self._artifact_client.read_artifact(stored.artifact)
-                if value.media_type != HTTP_BODY_MEDIA_TYPE:
-                    raise HTTPToolError("http_body_not_found")
-                kind, content = _decode_body_artifact(value.data)
-                if kind != stored.kind:
-                    raise HTTPToolError("http_body_not_found")
-            except HTTPToolError:
-                raise
-            except ArtifactResponseLimitError:
-                raise HTTPToolError("http_body_not_found") from None
-            except ArtifactAPIError as error:
-                code = "http_request_failed" if error.retryable else "http_body_not_found"
-                raise HTTPToolError(code) from None
-            except ArtifactTransportError:
-                raise HTTPToolError("http_request_failed") from None
-            except Exception:
-                raise HTTPToolError("http_body_not_found") from None
+            cached = self._cached_body
+            if (
+                cached is not None
+                and cached.request_id == request_id
+                and cached.artifact == stored.artifact
+                and cached.kind == stored.kind
+            ):
+                kind, content = cached.kind, cached.content
+            else:
+                self._cached_body = None
+                try:
+                    value = await self._artifact_client.read_artifact(stored.artifact)
+                    if value.media_type != HTTP_BODY_MEDIA_TYPE:
+                        raise HTTPToolError("http_body_not_found")
+                    kind, content = _decode_body_artifact(value.data)
+                    if kind != stored.kind:
+                        raise HTTPToolError("http_body_not_found")
+                except HTTPToolError:
+                    raise
+                except ArtifactResponseLimitError:
+                    raise HTTPToolError("http_body_not_found") from None
+                except ArtifactAPIError as error:
+                    code = "http_request_failed" if error.retryable else "http_body_not_found"
+                    raise HTTPToolError(code) from None
+                except ArtifactTransportError:
+                    raise HTTPToolError("http_request_failed") from None
+                except Exception:
+                    raise HTTPToolError("http_body_not_found") from None
+                if sys.getsizeof(content) <= MAX_DECODED_BODY_CACHE_BYTES:
+                    self._cached_body = _CachedBody(request_id, stored.artifact, kind, content)
             if kind == "text":
                 assert isinstance(content, str)
                 selected = content[offset : offset + limit]
@@ -810,6 +835,7 @@ class _HTTPSession:
             # clear the session-owned copy independently here.
             self._clear_local_session()
             self._bodies.clear()
+            self._cached_body = None
             self._nonce = ""
             self._secrets_for_metrics = ()
             self._target_origin = None
