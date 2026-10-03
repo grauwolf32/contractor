@@ -3,7 +3,8 @@ id: V174-001
 title: Classify Runtime label mutation misses by resource
 milestone: runtime-label-errors-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1b0ed196baf7bee413afb51b6b50f95330713847
 depends_on: []
 languages: [go]
 goal: Return HTTP errors for the resource actually missing in Runtime label mutations.
