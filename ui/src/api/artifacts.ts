@@ -10,10 +10,11 @@ export const ARTIFACT_PAGE_SIZE = 50;
 export const ARTIFACT_NAME_PATTERN =
   /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
 export const ARTIFACT_REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-// RFC 6838 restricted names in canonical lowercase; the shared cases in
+// RFC 6838 restricted names in canonical lowercase, at most 255 characters as
+// in the public MediaType schema; the shared cases in
 // api/testdata/v1alpha1/media-type-cases.json pin the grammar.
 export const MEDIA_TYPE_PATTERN =
-  /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
+  /^(?=.{3,255}$)[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
 
 const PREVIEW_MEDIA_TYPES = new Set([
   "application/json",

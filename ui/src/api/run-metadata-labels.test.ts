@@ -1,3 +1,4 @@
+import labelCases from "../../../api/testdata/v1alpha1/run-metadata-label-cases.json";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -57,4 +58,21 @@ describe("Run metadata labels", () => {
     expect(runMetadataLabelValueError("\0hidden")).toContain("U+0000");
     expect(runMetadataLabelValueError(" value ")).toBeUndefined();
   });
+});
+
+describe("shared run metadata label cases", () => {
+  it.each(labelCases.valid)("accepts $name like Go and Python", ({ value }) => {
+    expect(safeRunMetadataLabels(value)).toEqual(value);
+  });
+
+  it.each(labelCases.invalid)(
+    "rejects $name like Go and Python",
+    (labelCase) => {
+      expect(() =>
+        safeRunMetadataLabels(
+          "omit" in labelCase ? undefined : labelCase.value,
+        ),
+      ).toThrow(TypeError);
+    },
+  );
 });
