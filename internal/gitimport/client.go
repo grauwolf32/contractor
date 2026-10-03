@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing"
@@ -127,6 +128,7 @@ type Client struct {
 	config        Config
 	tlsConfig     *tls.Config
 	allowLoopback bool
+	sshWireBudget int64 // test seam; zero uses the production wire limit
 	logger        *slog.Logger
 }
 
@@ -205,18 +207,28 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	var adv *packp.AdvRefs
 	var exchange func([]byte) (io.ReadCloser, error)
 	var cleanup func()
+	var wire *wireBudgetConn
 	if remote.Scheme == "https" {
 		adv, exchange, cleanup, err = c.https(ctx, remote)
 	} else if remote.Scheme == "ssh" {
-		adv, exchange, cleanup, err = c.ssh(ctx, remote, signer)
+		adv, exchange, cleanup, wire, err = c.ssh(ctx, remote, signer)
 	} else {
 		err = ErrURL
+	}
+	safeError := func(cause error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if wire != nil && wire.exhausted.Load() {
+			return ErrBudget
+		}
+		return c.safeError(ctx, remote, cause)
 	}
 	if cleanup != nil {
 		defer cleanup()
 	}
 	if err != nil {
-		return Snapshot{}, c.safeError(ctx, remote, err)
+		return Snapshot{}, safeError(err)
 	}
 	oid, err := resolveRef(adv, ref)
 	if err != nil {
@@ -241,21 +253,27 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	body.WriteString("0009done\n")
 	response, err := exchange(body.Bytes())
 	if err != nil {
-		return Snapshot{}, c.safeError(ctx, remote, err)
+		return Snapshot{}, safeError(err)
 	}
 	defer response.Close()
 	upload := packp.NewUploadPackResponse(request)
 	// Limit ACK/shallow negotiation independently before pack streaming starts.
 	negotiation := &boundedReader{ctx: ctx, reader: response, remaining: maxAdvertisementBytes}
 	if err := upload.Decode(&countedBody{Reader: negotiation, close: response.Close}); err != nil {
-		return Snapshot{}, c.safeError(ctx, remote, err)
+		return Snapshot{}, safeError(err)
 	}
 	negotiation.remaining = MaxReceivedBytes
 	pack, err := readBounded(ctx, upload, MaxReceivedBytes)
 	if err != nil {
-		return Snapshot{}, c.safeError(ctx, remote, err)
+		return Snapshot{}, safeError(err)
+	}
+	if wire != nil && wire.exhausted.Load() {
+		return Snapshot{}, ErrBudget
 	}
 	objects, err := decodePack(ctx, pack)
+	if wire != nil && wire.exhausted.Load() {
+		return Snapshot{}, ErrBudget
+	}
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -475,28 +493,33 @@ func pinnedHostKeyAlgorithms(verifier ssh.HostKeyCallback, host string) ([]strin
 	return algorithms, nil
 }
 
-func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*packp.AdvRefs, func([]byte) (io.ReadCloser, error), func(), error) {
+func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*packp.AdvRefs, func([]byte) (io.ReadCloser, error), func(), *wireBudgetConn, error) {
 	if signer == nil {
-		return nil, nil, nil, ErrRemote
+		return nil, nil, nil, nil, ErrRemote
 	}
 	if c.config.KnownHostsFile == "" {
-		return nil, nil, nil, ErrTrust
+		return nil, nil, nil, nil, ErrTrust
 	}
 	verifier, err := knownhosts.New(c.config.KnownHostsFile)
 	if err != nil {
-		return nil, nil, nil, ErrTrust
+		return nil, nil, nil, nil, ErrTrust
 	}
 	hostKeyAlgorithms, err := pinnedHostKeyAlgorithms(verifier, remote.Address)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	conn, err := c.dial(ctx, "tcp", remote.Address)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	// Count the SSH wire stream as well as stdout, including a hostile stderr
 	// stream and handshake/channel traffic. Exhaustion closes all channels.
-	conn = &wireBudgetConn{Conn: conn, remaining: MaxReceivedBytes}
+	limit := int64(MaxReceivedBytes)
+	if c.sshWireBudget > 0 && c.sshWireBudget < limit {
+		limit = c.sshWireBudget
+	}
+	wire := &wireBudgetConn{Conn: conn, remaining: limit}
+	conn = wire
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	cleanup := func() { stop(); _ = conn.Close() }
 	if deadline, ok := ctx.Deadline(); ok {
@@ -510,25 +533,25 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	}}
 	sessionConn, channels, requests, err := ssh.NewClientConn(conn, remote.Address, cfg)
 	if err != nil {
-		return nil, nil, cleanup, err
+		return nil, nil, cleanup, wire, err
 	}
 	client := ssh.NewClient(sessionConn, channels, requests)
 	session, err := client.NewSession()
 	if err != nil {
-		return nil, nil, cleanup, err
+		return nil, nil, cleanup, wire, err
 	}
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		return nil, nil, cleanup, err
+		return nil, nil, cleanup, wire, err
 	}
 	stdin, err := session.StdinPipe()
 	if err != nil {
-		return nil, nil, cleanup, err
+		return nil, nil, cleanup, wire, err
 	}
 	// Remote upload-pack is the SSH Git protocol; no local process is started.
 	command := "git-upload-pack '" + strings.ReplaceAll(remote.Path, "'", "'\\''") + "'"
 	if err := session.Start(command); err != nil {
-		return nil, nil, cleanup, err
+		return nil, nil, cleanup, wire, err
 	}
 	reader := &boundedReader{ctx: ctx, reader: stdout, remaining: MaxReceivedBytes}
 	adv, err := decodeAdvertisement(ctx, reader)
@@ -538,16 +561,18 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 		}
 		return &countedBody{Reader: reader, close: session.Close}, nil
 	}
-	return adv, exchange, cleanup, err
+	return adv, exchange, cleanup, wire, err
 }
 
 type wireBudgetConn struct {
 	net.Conn
 	remaining int64
+	exhausted atomic.Bool
 }
 
 func (c *wireBudgetConn) Read(p []byte) (int, error) {
 	if c.remaining <= 0 {
+		c.exhausted.Store(true)
 		_ = c.Conn.Close()
 		return 0, ErrBudget
 	}
@@ -556,5 +581,8 @@ func (c *wireBudgetConn) Read(p []byte) (int, error) {
 	}
 	n, err := c.Conn.Read(p)
 	c.remaining -= int64(n)
+	if c.remaining == 0 {
+		c.exhausted.Store(true)
+	}
 	return n, err
 }
