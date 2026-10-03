@@ -3,8 +3,8 @@ id: V118-001
 title: Remove stale playground submodule metadata
 milestone: remove-stale-submodule-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 59bcc460ce03d3ca221617ca54fff7be02475a72
 depends_on: []
 languages: [git]
 goal: Remove a dead submodule declaration that has no matching gitlink.
