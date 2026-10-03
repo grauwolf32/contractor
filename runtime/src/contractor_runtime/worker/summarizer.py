@@ -32,6 +32,7 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
 )
+from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.llm.usage import project_token_usage
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
@@ -74,6 +75,7 @@ class _OneShotModel(BaseLlm):
     _delegate: BaseLlm = PrivateAttr()
     _calls: int = PrivateAttr(default=0)
     _usage: SummarizerUsage = PrivateAttr(default_factory=SummarizerUsage)
+    _output_limited: bool = PrivateAttr(default=False)
 
     def __init__(self, delegate: BaseLlm) -> None:
         super().__init__(model=delegate.model)
@@ -89,6 +91,10 @@ class _OneShotModel(BaseLlm):
             return SummarizerUsage(model_calls=1, token_usage_unavailable=1)
         return self._usage
 
+    @property
+    def output_limited(self) -> bool:
+        return self._output_limited
+
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
@@ -101,6 +107,10 @@ class _OneShotModel(BaseLlm):
                 if not bool(getattr(response, "partial", False)):
                     completed_usage = getattr(response, "usage_metadata", None)
                     self._usage = _usage_projection(completed_usage)
+                if output_limit_reached(response):
+                    self._output_limited = True
+                    # ADK must never parse or repair truncated structured text.
+                    return
                 yield response
         except Exception as error:
             # A received response rejected by the Gateway adapter spent tokens.
@@ -286,6 +296,8 @@ class TerminalSummarizer:
                     else "execution_failed"
                 )
                 raise SummarizerFailure(code, retryable=getattr(error, "retryable", True)) from None
+            if self._model.output_limited:
+                raise SummarizerFailure("output_limit_exceeded")
             usage = self.usage
             if (
                 self._policy.max_total_tokens is not None
