@@ -3,7 +3,8 @@ id: V229-001
 title: Prune historical Gateway routes from Run recovery
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 84f0b406829611357cad735a229fc2b27096a11b
 depends_on: []
 languages: [go]
 goal: Report and retry only the routes used by the Run's current Stage admission.
