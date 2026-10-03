@@ -51,6 +51,7 @@ type Collector struct {
 	running            atomic.Bool
 	sampleMu           sync.Mutex
 	last               time.Time // retains Go monotonic time; UTC conversion is only for wire fields
+	lastObserved       time.Time // scheduled end of the previous published coverage window
 	sampled            bool
 	previousProcess    Process
 	previousPool       Pool
@@ -84,13 +85,17 @@ func (c *Collector) Run(ctx context.Context) error {
 		return errors.New("performance collector already running")
 	}
 	defer c.running.Store(false)
+	var scheduled time.Time
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
-		c.collect(ctx)
+		c.collect(ctx, scheduled)
 		now := c.clock.Now()
 		next := now.Truncate(SampleInterval).Add(SampleInterval)
+		if !scheduled.IsZero() && !next.After(scheduled) {
+			next = scheduled.Add(SampleInterval)
+		}
 		timer := c.clock.NewTimer(next.Sub(now))
 		select {
 		case <-ctx.Done():
@@ -98,6 +103,7 @@ func (c *Collector) Run(ctx context.Context) error {
 			return nil
 		case <-timer.C():
 			timer.Stop()
+			scheduled = next
 		}
 	}
 }
@@ -127,9 +133,9 @@ func freshness(start, end time.Time, expected uint64, reason Reason, known bool)
 
 // Collect serializes reader access; it is also the deterministic sampling seam
 // used by tests. Reader failures cannot escape as scheduler/lifecycle failures.
-func (c *Collector) Collect() { c.collect(context.Background()) }
+func (c *Collector) Collect() { c.collect(context.Background(), time.Time{}) }
 
-func (c *Collector) collect(ctx context.Context) {
+func (c *Collector) collect(ctx context.Context, scheduled time.Time) {
 	c.sampleMu.Lock()
 	defer c.sampleMu.Unlock()
 	p, processReason := c.process()
@@ -148,6 +154,15 @@ func (c *Collector) collect(ctx context.Context) {
 		diagnostic = c.diagnostics.Snapshot()
 	}
 	at := c.clock.Now()
+	observedAt := at
+	// A normal timer tick belongs to its scheduled window even when reader work
+	// finishes a few milliseconds after the minute boundary. Long delays keep
+	// their actual timestamp so missed sampling remains visible.
+	if !scheduled.IsZero() && scheduled.After(c.lastObserved) &&
+		!at.Before(scheduled.Add(-SampleInterval/10)) &&
+		!at.After(scheduled.Add(SampleInterval/10)) {
+		observedAt = scheduled
+	}
 	start, expected := c.last, uint64(1)
 	if start.IsZero() {
 		start = at
@@ -160,6 +175,14 @@ func (c *Collector) collect(ctx context.Context) {
 	}
 	if elapsed >= SampleInterval.Seconds()*1.5 {
 		expected = uint64(elapsed/SampleInterval.Seconds() + .5)
+	}
+	coverageStart := c.lastObserved
+	if coverageStart.IsZero() {
+		coverageStart = start
+	}
+	if coverageStart.After(observedAt) {
+		coverageStart = observedAt
+		processReason = CounterReset
 	}
 	if processReason == "" && (p.CPUUserSeconds == nil || p.CPUSystemSeconds == nil || p.RSSBytes == nil) {
 		processReason = ReadFailed
@@ -188,31 +211,38 @@ func (c *Collector) collect(ctx context.Context) {
 	if decreasedFloat(pool.AcquireDurationSeconds, c.previousPool.AcquireDurationSeconds) || decreasedFloat(pool.EmptyAcquireWaitSeconds, c.previousPool.EmptyAcquireWaitSeconds) {
 		poolReason = CounterReset
 	}
-	p.Freshness = freshness(start, at, expected, processReason, p.CPUUserSeconds != nil || p.RSSBytes != nil || p.HeapLiveBytes != nil)
-	pool.Freshness = freshness(start, at, expected, poolReason, pool.TotalConnections != nil)
+	p.Freshness = freshness(coverageStart, observedAt, expected, processReason, p.CPUUserSeconds != nil || p.RSSBytes != nil || p.HeapLiveBytes != nil)
+	pool.Freshness = freshness(coverageStart, observedAt, expected, poolReason, pool.TotalConnections != nil)
 	// Reject faulty groups independently. A bad process reading must not discard
 	// valid HTTP counters, nor may an invalid pool statistic hide process data.
-	if (Sample{Version: 1, Generation: c.generation, ObservedAt: at.UTC(), Process: &p}).Validate() != nil {
-		p = Process{Freshness: freshness(start, at, expected, ReadFailed, false)}
+	if (Sample{Version: 1, Generation: c.generation, ObservedAt: observedAt.UTC(), Process: &p}).Validate() != nil {
+		p = Process{Freshness: freshness(coverageStart, observedAt, expected, ReadFailed, false)}
 	}
-	if (Sample{Version: 1, Generation: c.generation, ObservedAt: at.UTC(), Pool: &pool}).Validate() != nil {
-		pool = Pool{Freshness: freshness(start, at, expected, ReadFailed, false)}
+	if (Sample{Version: 1, Generation: c.generation, ObservedAt: observedAt.UTC(), Pool: &pool}).Validate() != nil {
+		pool = Pool{Freshness: freshness(coverageStart, observedAt, expected, ReadFailed, false)}
 	}
 	httpReason := Reason("")
 	if !c.sampled {
 		httpReason = MissingBaseline
 	}
-	h := HTTP{Freshness: freshness(start, at, expected, httpReason, true), Surfaces: c.http.drain()}
-	sample := Sample{Version: 1, Generation: c.generation, ObservedAt: at.UTC(), HTTP: &h, Process: &p, Pool: &pool}
-	sample.Database, sample.DatabaseSize = diagnostic.Database, diagnostic.DatabaseSize
+	h := HTTP{Freshness: freshness(coverageStart, observedAt, expected, httpReason, true), Surfaces: c.http.drain()}
+	sample := Sample{Version: 1, Generation: c.generation, ObservedAt: observedAt.UTC(), HTTP: &h, Process: &p, Pool: &pool}
+	// The independent diagnostic worker can finish just after this tick. Its
+	// newer gauge belongs to a later sample, not to this scheduled window.
+	if diagnostic.Database != nil && !diagnostic.Database.Freshness.LastAttemptAt.After(observedAt) {
+		sample.Database = diagnostic.Database
+	}
+	if diagnostic.DatabaseSize != nil && !diagnostic.DatabaseSize.Freshness.LastAttemptAt.After(observedAt) {
+		sample.DatabaseSize = diagnostic.DatabaseSize
+	}
 	if gpu != nil {
-		gpu.Freshness = freshness(start, at, expected, gpuReason, len(gpu.Devices) > 0)
+		gpu.Freshness = freshness(coverageStart, observedAt, expected, gpuReason, len(gpu.Devices) > 0)
 		if gpu.Validate() != nil {
-			gpu = &GPU{Freshness: freshness(start, at, expected, ReadFailed, false), Devices: []GPUDevice{}}
+			gpu = &GPU{Freshness: freshness(coverageStart, observedAt, expected, ReadFailed, false), Devices: []GPUDevice{}}
 		}
 		sample.GPU = gpu
 	}
-	c.last, c.previousProcess, c.previousPool = at, p, pool
+	c.last, c.lastObserved, c.previousProcess, c.previousPool = at, observedAt, p, pool
 	c.sampled = true
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -226,11 +256,11 @@ func (c *Collector) collect(ctx context.Context) {
 		c.rejected++
 		return
 	}
-	for c.count > 0 && (c.count == LiveFrames || c.bytes+len(raw) > MaxLiveBytes || !c.frames[c.head].at.After(at.Add(-time.Hour))) {
+	for c.count > 0 && (c.count == LiveFrames || c.bytes+len(raw) > MaxLiveBytes || !c.frames[c.head].at.After(observedAt.Add(-time.Hour))) {
 		c.evict()
 	}
 	index := (c.head + c.count) % LiveFrames
-	c.frames[index] = storedFrame{at: at.UTC(), data: raw}
+	c.frames[index] = storedFrame{at: observedAt.UTC(), data: raw}
 	c.count++
 	c.bytes += len(raw)
 	if c.diagnostics != nil {
