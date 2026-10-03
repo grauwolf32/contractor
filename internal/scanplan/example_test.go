@@ -7,12 +7,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
-func ExamplePrepare() {
+func ExamplePrepareOperation() {
 	// The caller reads this content through its authorized exact ArtifactRef.
 	source := []byte(`{"openapi":"3.0.4","servers":[{"url":"https://api.example.test"}],"paths":{"/pets/{id}":{"get":{"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"integer"},"example":7}]}}}}`)
 	revision := "openapi-1"
 	ref := contracts.ArtifactRef{Namespace: "inputs", Name: "openapi", Revision: &revision}
-	set, err := scanplan.Prepare(source, "application/json", ref, scanplan.Options{})
+	set, err := scanplan.PrepareOperation(source, "application/json", ref, scanplan.Options{}, "#/paths/~1pets~1{id}/get")
 	if err != nil {
 		panic(err)
 	}

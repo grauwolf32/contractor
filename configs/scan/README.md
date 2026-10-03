@@ -5,6 +5,8 @@ This standalone catalog contains `nuclei-target@1`, `naabu-host@1`,
 one `tool@1` Worker each.
 It also includes `request-set-scan@1` and `target-scan-plan@1` using the
 deterministic `scan-plan@1` Planner; see [scan plan configuration](SCAN_PLAN.md).
+The RequestSet workflow requires a separately supplied RequestSet Artifact;
+this catalog does not generate one from OpenAPI.
 Select `configs/scan` as the Server configuration directory, or copy the
 templates, workflows and
 `instructions/scan.md` into an existing operator catalog. The empty catalog

@@ -1,16 +1,17 @@
 # Deterministic scan request preparation
 
-The preparation library `internal/scanplan` prepares scan requests from ordinary
-Artifact inputs. It performs no network requests, scanner execution, credential
-lookup or model calls. The caller supplies bytes read from an authorized exact
-ArtifactRef; the library validates the ref and records a SHA-256 digest of the
-supplied bytes. The caller remains responsible for matching those bytes to the
-selected revision. Workflow dispatch and scanner selection belong to
+The preparation library `internal/scanplan` prepares one assigned OpenAPI
+operation from an exact Artifact input. It performs no network requests,
+scanner execution, credential lookup or model calls. The caller supplies bytes
+read from an authorized exact ArtifactRef; the library validates the ref and
+records a SHA-256 digest of the supplied bytes. The caller remains responsible
+for matching those bytes to the selected revision. The production caller is
+the [OpenAPI Audit scan adapter](openapi-audit-scans.md#operation-preparation),
+which uses `AuditScanSettings.PrepareOperation` for SQLMap requests or a fixed
+Nuclei target. There is no general OpenAPI-to-RequestSet Artifact exporter.
+The `request-set-scan@1` Workflow consumes a separately supplied valid
+RequestSet Artifact; scanner selection and dispatch belong to
 [scan planning](32-scan-planning.md).
-
-The opt-in `PrepareOperation` and `PrepareOperationTarget` helpers for one
-assigned operation are described in [OpenAPI Audit scans](openapi-audit-scans.md#operation-preparation).
-The whole-document policy and RequestSet v1 below are unaffected by them.
 
 ## RequestSet v1
 
@@ -26,8 +27,8 @@ lowercase names, sorted by name; duplicates are forbidden. An origin contains
 the operation's JSON Pointer, such as `#/paths/~1pets~1{id}/get`.
 The request digest is SHA-256 of RFC 8785 canonical JSON of the request alone,
 formatted `sha256:<64 lowercase hex digits>`. Its ID is `request-<same hex>`.
-Identical requests share one entry with all contributing origins. Entries sort
-by ID. Provenance and gaps do not change the identity of the HTTP request.
+Operation preparation returns at most one entry with the selected operation as
+its origin. Provenance and gaps do not change the identity of the HTTP request.
 
 These are neutral prepared HTTP inputs. They do not choose SQLMap test parameters
 or declare scanner eligibility. A later planner must select parameters explicitly
@@ -37,17 +38,18 @@ scanner-specific validation. Passing a RequestSet entry directly to SQLMap is
 not supported.
 
 The preparation digest binds policy version 2, the exact source ref and bytes,
-the input media type, and normalized preparation options. RequestSet artifacts
+the input media type, normalized preparation options, selected operation and
+`request` mode. RequestSet artifacts
 can contain credentials and private example data. Neither their canonical bytes
 nor option values belong in logs. Diagnostic codes contain no supplied values;
 JSON Pointers identify source locations, not resolved values.
 
-`coverage.operations` counts discovered path operations; `prepared` counts
-origins attached to retained requests, and `skipped` is their difference.
+`coverage.operations` counts the selected path operation; `prepared` is one
+when its request is retained, and `skipped` is their difference.
 `complete` requires zero skipped operations and zero gaps. It describes extraction
 of the documented one-sample policy. It does not certify schema validity, exhaustive
 API coverage or the security of a target. Gaps contain `pointer` and a fixed `code`,
-sorted by pointer then code and deduplicated. Invalid whole documents/options return
+sorted by pointer then code and deduplicated. Invalid source documents/options return
 a fixed preparation error; they never return a successful empty RequestSet.
 
 ## Input and selection policy
@@ -78,13 +80,14 @@ not traversed. Resolved reference siblings override referenced fields. Callbacks
 and unknown operation metadata other than `x-` extensions are reported as gaps;
 recognized fields can still produce a request.
 
-Operations are visited by path lexicographically, then by method lexicographically.
-Supported methods are DELETE, GET, HEAD, OPTIONS, PATCH, POST and PUT. TRACE is
-an explicit unsupported operation. There is at most one sample per operation.
+The caller selects one canonical operation pointer. Other operations do not
+consume its request or reference budget or contribute gaps. Supported methods
+are DELETE, GET, HEAD, OPTIONS, PATCH, POST and PUT. TRACE is an explicit
+unsupported operation. There is at most one sample for the selection.
 
 `Options` supplies a global `Server`, `ServerVariables`, `Authentication`,
-per-operation `Operations` and `MaxRequests`. Operation keys are the pointers
-above. An `OperationInput` supplies `Parameters` keyed by `location:name` and
+per-operation `Operations` and `MaxRequests`. The only allowed operation binding
+is the selected pointer. An `OperationInput` supplies `Parameters` keyed by `location:name` and
 an optional `Body` containing `MediaType` and a JSON-compatible `Value`.
 Unknown operation bindings fail validation. Bound values take precedence over
 document examples; no values are read from environment variables.
@@ -164,16 +167,16 @@ with ordinary parameters cannot silently create an unauthenticated request.
 ## Bounds
 
 Source bytes are limited to 2 MiB, options to 256 KiB, parsed document depth to
-64 and nodes to 100,000. There are at most 1,000 path operations and 4,096 local
-reference resolutions across preparation, with reference depth at most 32.
+64 and nodes to 100,000. Preparation permits at most 4,096 local reference
+resolutions for the selected operation, with reference depth at most 32.
 Concrete-hint extraction additionally shares a 100,000-node work budget and
 depth limit of 64 so repeated references cannot expand into an unbounded tree.
 Expanded concrete values are measured before JSON encoding to bound amplification
 from repeated references; serialized bodies must still fit the 64 KiB wire limit.
-`MaxRequests` defaults to 1,000 and can only lower that bound. Additional distinct
-requests receive a limit gap, while duplicates can still contribute provenance.
-The RequestSet is at most 4 MiB with at most 4,096 gaps. An entry has a URL of at
+`MaxRequests` must be between 1 and 1,000 after defaulting; an operation-scoped
+RequestSet contains at most one request. The RequestSet is at most 4 MiB with
+at most 4,096 gaps. An entry has a URL of at
 most 8,192 ASCII bytes, a body of at most 64 KiB, and at most 64 headers; names
 are at most 128 bytes, values 8,192 bytes and total header bytes 32 KiB.
-Whole-document, reference-work and serialized-output bounds fail explicitly
+Source-document, reference-work and serialized-output bounds fail explicitly
 rather than returning unaccounted partial data.

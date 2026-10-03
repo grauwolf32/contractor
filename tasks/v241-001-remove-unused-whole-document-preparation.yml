@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V241-001
+title: Remove unused whole-document scan preparation entry point
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: a6fe6e87e517ab41346bd367d7f651b555cb5d01
+depends_on: []
+languages: [go]
+goal: Keep scan request preparation aligned with the operation-scoped production Audit path.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/287
+  finding: The exported whole-document Prepare entry point has no production caller, while documentation presents it as an Artifact-to-Workflow path.
+scope:
+  in:
+    - Remove the unused whole-document exported entry point and nullable selection mode.
+    - Preserve operation and target preparation digests and RequestSet output.
+    - Move preparation coverage to the operation-scoped entry points.
+    - Document the actual Audit producer and external RequestSet workflow input.
+  out:
+    - Adding a new product Artifact-to-Workflow producer.
+acceptance_criteria:
+  - {id: A1, text: No exported whole-document Prepare function or nullable operation selection remains.}
+  - {id: A2, text: Operation and target preparation identities and output remain unchanged.}
+  - {id: A3, text: Tests cover preparation behavior through production entry points.}
+  - {id: A4, text: Scan documentation describes only available production paths.}
+tests:
+  - {command: go test ./internal/scanplan/... ./internal/contracts/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

@@ -1,12 +1,15 @@
 # Scan preparation and planning
 
-`Prepare(sourceBytes, mediaType, exactArtifactRef, options)` is a pure library
-entry point. Its caller obtains the source through the existing Artifact client,
-then persists `contracts.MarshalHTTPRequestSet(result)` as
-`contracts.HTTPRequestSetMediaType`. The package does not read files, resolve
-remote references, call scanners or dispatch Workflows. `BuildPlan` separately
-turns RequestSet or target-list bytes into bounded deterministic scan jobs.
-Execution belongs to `internal/planner/scan` and its `scan-plan@1` factory.
+`PrepareOperation(sourceBytes, mediaType, exactArtifactRef, options, pointer)`
+prepares one assigned operation without I/O. Production Audit scan inventory
+uses `AuditScanSettings.PrepareOperation` through `internal/auditdomain`, which
+reproduces the accepted task before scanner execution. There is no product
+OpenAPI-to-RequestSet Artifact export or automatic `request-set-scan@1` handoff.
+That Workflow accepts an independently supplied, valid RequestSet Artifact.
+The package does not read files, resolve remote references, call scanners or
+dispatch Workflows. `BuildPlan` separately turns RequestSet or target-list
+bytes into bounded deterministic scan jobs. Execution belongs to
+`internal/planner/scan` and its `scan-plan@1` factory.
 
 `PrepareOperation` prepares only one explicitly assigned OpenAPI operation while
 retaining the original full source identity. `PrepareOperationTarget` fixes a
@@ -31,7 +34,7 @@ schema types, constraints, formats or dialect metadata disagree. Source syntax,
 resource bounds, HTTP serialization and explicit authentication bindings retain
 their strict checks. The output remains RequestSet v1.
 
-See the runnable [example](example_test.go), the
+See the runnable operation-scoped [example](example_test.go), the
 [normative preparation policy](../../docs/spec/31-scan-request-preparation.md)
 and [RequestSet schema](../../api/scan/v1/http-request-set.schema.json).
 
@@ -47,14 +50,8 @@ options := scanplan.Options{
         "#/paths/~1pets~1{id}/get": {
             Parameters: map[string]any{"path:id": 7},
         },
-        "#/paths/~1pets/post": {
-            Body: &scanplan.BodyInput{
-                MediaType: "application/json",
-                Value: map[string]any{"name": "Milo"},
-            },
-        },
     },
-    MaxRequests: 100,
+    MaxRequests: 1,
 }
 ```
 
@@ -78,10 +75,10 @@ serialization supports scalars, and bodies support JSON or text for every
 supported method. An explicit body can override a missing
 or broken declaration, with a gap describing the deviation.
 
-Inspect `coverage` and `gaps` even when preparation returns no error. Whole-input
+Inspect `coverage` and `gaps` even when preparation returns no error. Source
 validation and resource failures return `*PreparationError`; a malformed input
 does not become an empty successful result. `coverage.complete` describes the
-bounded one-example-per-operation extraction policy. It does not certify schema
+bounded extraction of the selected operation. It does not certify schema
 validity, scan coverage or absence of vulnerabilities. Ignored schema validation
 keywords do not create gaps. `BuildPlan` accepts a `PlanInput`, explicit
 `contracts.ScanPlanPolicy`, fixed Worker bindings and exact wordlist refs. It

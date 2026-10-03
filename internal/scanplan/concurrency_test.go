@@ -18,7 +18,7 @@ func TestPrepareConcurrentCallsPreserveSharedInputs(t *testing.T) {
 	}}
 	before := encoded(t, options)
 	ref := sourceRef()
-	expected, err := scanplan.Prepare(data, "application/json", ref, options)
+	expected, err := scanplan.PrepareOperation(data, "application/json", ref, options, "#/paths/~1x/get")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestPrepareConcurrentCallsPreserveSharedInputs(t *testing.T) {
 	errors := make(chan error, 8)
 	for range 8 {
 		go func() {
-			result, err := scanplan.Prepare(data, "application/json", ref, options)
+			result, err := scanplan.PrepareOperation(data, "application/json", ref, options, "#/paths/~1x/get")
 			if err == nil {
 				var wire []byte
 				wire, err = contracts.MarshalHTTPRequestSet(result)

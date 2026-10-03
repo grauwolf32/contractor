@@ -6,6 +6,8 @@ This catalog also provides two model-free `scan-plan@1` workflows:
   `application/vnd.contractor.http-requests+json` and uses the existing SQLMap
   Worker. Its example policy selects only the `query` parameter; change that
   explicit selection to match the intended checks before using this workflow.
+  Supply a valid RequestSet Artifact independently: this catalog does not
+  export one from OpenAPI or chain an Audit scan into this Workflow.
 - `target-scan-plan@1` consumes a required `targets` artifact with media type
   `text/vnd.contractor.target-list` and uses the existing nuclei and naabu
   Workers. No string Run parameters or model credentials are required.

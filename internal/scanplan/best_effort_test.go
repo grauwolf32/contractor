@@ -160,34 +160,24 @@ func TestBestEffortMissingDataDoesNotDiscardOtherOperations(t *testing.T) {
 			"parameters": []any{map[string]any{"name": "q", "in": "query", "required": true, "example": "actual"}},
 		}},
 	})
-	view := mustDocument(t, doc, scanplan.Options{})
-	if len(view.Requests) != 2 || view.Coverage.Operations != 3 || view.Coverage.Prepared != 2 || view.Coverage.Skipped != 1 || view.Coverage.Complete {
-		t.Fatalf("missing data discarded useful operations or hid gaps: %+v", view)
+	data := encoded(t, doc)
+	optional, _ := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1optional/post")
+	if len(optional.Requests) != 1 || optional.Coverage.Prepared != 1 || optional.Coverage.Complete || len(optional.Gaps) == 0 {
+		t.Fatalf("optional input coverage was lost: %+v", optional)
 	}
-	foundOptionalGap := false
-	for _, gap := range view.Gaps {
-		foundOptionalGap = foundOptionalGap || strings.HasPrefix(gap.Pointer, "#/paths/~1optional/post")
+	optionalURL, err := url.Parse(optional.Requests[0].Request.URL)
+	if err != nil || optionalURL.Path != "/base/optional" || optionalURL.RawQuery != "" || optional.Requests[0].Request.Body != "" {
+		t.Fatal("invented optional input")
 	}
-	if !foundOptionalGap {
-		t.Fatal("omitted optional inputs were not reported")
+	required, _ := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1required/get")
+	requireSkipped(t, required)
+	ready, _ := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1ready/get")
+	if len(ready.Requests) != 1 || !ready.Coverage.Complete {
+		t.Fatalf("available input was discarded: %+v", ready)
 	}
-	for _, entry := range view.Requests {
-		parsed, err := url.Parse(entry.Request.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		switch parsed.Path {
-		case "/base/optional":
-			if parsed.RawQuery != "" || entry.Request.Body != "" {
-				t.Fatal("invented optional input")
-			}
-		case "/base/ready":
-			if parsed.Query().Get("q") != "actual" {
-				t.Fatal("changed available input")
-			}
-		default:
-			t.Fatal("prepared operation lacking required input")
-		}
+	readyURL, err := url.Parse(ready.Requests[0].Request.URL)
+	if err != nil || readyURL.Path != "/base/ready" || readyURL.Query().Get("q") != "actual" {
+		t.Fatal("changed available input")
 	}
 }
 
@@ -236,10 +226,10 @@ func TestBestEffortHintPreparationIsDeterministicAndBounded(t *testing.T) {
 		"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": schema}}},
 	}}})
 	data := encoded(t, doc)
-	view, baseline := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{})
+	view, baseline := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1x/post")
 	requireBestEffortRequest(t, view, "", `{"a":"actual","z":false}`)
 	for i := 0; i < 12; i++ {
-		_, current := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{})
+		_, current := mustPrepare(t, data, "application/json", sourceRef(), scanplan.Options{}, "#/paths/~1x/post")
 		if !bytes.Equal(baseline, current) {
 			t.Fatal("hint extraction changed canonical output")
 		}
