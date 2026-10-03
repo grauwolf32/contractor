@@ -77,6 +77,14 @@ func ServeSystem(
 	publicFinished, privateFinished, schedulerFinished := false, false, false
 	select {
 	case <-ctx.Done():
+		// A lost lease allows another Server to take ownership immediately.
+		// Stop accepting both APIs and cancel the Scheduler without waiting for
+		// the normal public-request drain before releasing process-local work.
+		if errors.Is(context.Cause(ctx), errControlPlaneLeaseLost) {
+			cancelScheduler()
+			_ = publicServer.Close()
+			_ = privateServer.Close()
+		}
 	case err := <-publicDone:
 		publicFinished = true
 		firstErr = componentError("public HTTP server", err)

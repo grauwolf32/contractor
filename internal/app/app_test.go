@@ -120,6 +120,72 @@ func TestServeSystemStopsPublicThenSchedulerThenPrivate(t *testing.T) {
 	}
 }
 
+func TestServeSystemStopsSchedulerImmediatelyWhenLeaseIsLost(t *testing.T) {
+	publicListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		_ = publicListener.Close()
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	stopped := make(chan struct{})
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	result := make(chan error, 1)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	go func() {
+		result <- ServeSystem(ctx, publicListener, privateListener, 2*time.Second, logger,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				close(started)
+				<-release
+				writeHealthy(w, r)
+			}), http.HandlerFunc(writeHealthy), &cancellationProbeRunner{stopped: stopped})
+	}()
+	client := &http.Client{Timeout: 3 * time.Second}
+	requestDone := make(chan struct{})
+	go func() {
+		response, _ := client.Get("http://" + publicListener.Addr().String() + "/hold")
+		if response != nil {
+			_ = response.Body.Close()
+		}
+		close(requestDone)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("public request did not start")
+	}
+	cancel(errControlPlaneLeaseLost)
+	select {
+	case <-stopped:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Scheduler kept running while a public request drained after lease loss")
+	}
+	select {
+	case <-result:
+	case <-time.After(time.Second):
+		t.Fatal("Server did not stop promptly after lease loss")
+	}
+	select {
+	case <-requestDone:
+	case <-time.After(time.Second):
+		t.Fatal("public request connection remained open after lease loss")
+	}
+}
+
+type cancellationProbeRunner struct{ stopped chan struct{} }
+
+func (r *cancellationProbeRunner) Run(ctx context.Context) error {
+	<-ctx.Done()
+	close(r.stopped)
+	return nil
+}
+
 type shutdownProbeRunner struct {
 	publicURL  string
 	privateURL string
