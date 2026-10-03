@@ -3,7 +3,8 @@ id: V150-001
 title: Prevent browser caching of raw Artifact downloads
 milestone: artifact-bytes-no-store-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 16f99cad9dc70318baee5f31bac025c329409a68
 depends_on: []
 languages: [go, yaml]
 goal: Return and document Cache-Control no-store on every public raw Artifact bytes route.
