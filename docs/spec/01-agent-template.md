@@ -407,7 +407,8 @@ model recovery classification ([04](04-execution-lifecycle-and-metrics.md)):
 
 Each `modelUnavailable` entry names one `status` from 400, 404, 409 or 422 and
 exactly one of `messageEquals` or `litellmWrapped`: trimmed UTF-8 of at most
-512 bytes without control characters, matched exactly against the provider's
+512 bytes without Unicode Cc (control), Cf (format), Co (private-use) or Cs
+(surrogate) characters; unassigned Cn is allowed. Text matches the provider's
 error message or bare error string. `permanentCodes` are snake_case provider
 error codes. Each list holds at most 32 distinct entries. When the block is
 omitted, the `openai-compatible@1` default (the LM Studio unload messages

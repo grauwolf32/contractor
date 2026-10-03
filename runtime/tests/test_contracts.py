@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
     ArtifactListResult,
     ArtifactReadResult,
     FinalizeAllocationRequest,
+    GatewayFailureSignature,
     HeartbeatResponse,
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
@@ -398,6 +399,27 @@ def test_declared_failure_signatures_join_the_gateway_digest() -> None:
         "budget_exceeded",
         "context_length_exceeded",
     ]
+
+
+@pytest.mark.parametrize(
+    "char,valid",
+    [
+        ("\x00", False),
+        ("\u200b", False),
+        ("\ufeff", False),
+        ("\u00ad", False),
+        ("\ue000", False),
+        ("\ud800", False),
+        ("\u0378", True),
+    ],
+)
+def test_gateway_failure_signature_unicode_categories(char: str, valid: bool) -> None:
+    data = {"status": 400, "messageEquals": "Model" + char + " unavailable"}
+    if valid:
+        assert GatewayFailureSignature.model_validate(data).message_equals == data["messageEquals"]
+    else:
+        with pytest.raises(ValidationError, match="text is invalid"):
+            GatewayFailureSignature.model_validate(data)
 
 
 def test_runtime_settings_failure_signatures_require_gateway_url() -> None:

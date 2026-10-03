@@ -166,9 +166,9 @@ class GatewayFailureSignature(WireModel):
         if (
             text is None
             or not text
+            or any(unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} for char in text)
             or len(text.encode("utf-8")) > MAX_GATEWAY_FAILURE_SIGNATURE_TEXT
             or text.strip() != text
-            or any(unicodedata.category(char).startswith("C") for char in text)
         ):
             raise ValueError("failureSignatures.modelUnavailable text is invalid")
         return self
