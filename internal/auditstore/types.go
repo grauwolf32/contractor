@@ -1,7 +1,6 @@
 package auditstore
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -857,46 +856,6 @@ type ReconcileSnapshot struct {
 	// OnlyAwaitingReview is counted over every non-settled item, independent
 	// of the bounded Items window.
 	OnlyAwaitingReview bool
-}
-
-// OwnerRepository never accepts an untrusted owner in stored payloads.
-type OwnerRepository interface {
-	LookupMutationReplay(context.Context, string, MutationOperation, string, string) (Audit, bool, error)
-	CreateDraft(context.Context, CreateDraftParams) (Audit, bool, error)
-	Get(context.Context, string, string) (Audit, error)
-	List(context.Context, ListParams) ([]Audit, error)
-	ListItemsPage(context.Context, ListItemsParams) ([]Item, error)
-	ListItemAttempts(context.Context, string, string, []string) (map[string][]ItemAttempt, error)
-	Transition(context.Context, TransitionParams) (Audit, bool, error)
-	RequestDelete(context.Context, DeleteParams) (Audit, bool, error)
-	MaterializeRound(context.Context, MaterializeRoundParams) (Audit, bool, error)
-}
-
-// ControllerRepository is a separate trusted surface. Every mutating call is
-// bound to one live claim epoch; owner labels or Run metadata never authorize it.
-type ControllerRepository interface {
-	Claim(context.Context, ClaimParams) ([]ControllerClaim, error)
-	RenewClaim(context.Context, ControllerClaim, time.Duration) (ControllerClaim, error)
-	ReleaseClaim(context.Context, ControllerClaim) error
-	ExpireReportReview(context.Context, ControllerClaim, uint64) (bool, error)
-	TransitionClaimed(context.Context, ClaimedTransitionParams) (Audit, error)
-	TransitionRound(context.Context, RoundTransitionParams) (Round, error)
-	AcceptNextRound(context.Context, AcceptRoundParams) (Round, bool, error)
-	CreateExecutionIntent(context.Context, CreateExecutionIntentParams) (Execution, bool, error)
-	NextItemAttempt(context.Context, ControllerClaim, string) (int, error)
-	ListExecutionItems(context.Context, string) ([]ExecutionItem, error)
-	GetRunCreationIntent(context.Context, ControllerClaim, string) (RunCreationIntent, error)
-	BindRun(context.Context, BindRunParams) (Execution, error)
-	ObserveTerminal(context.Context, ObserveTerminalParams) (Execution, error)
-	ObserveSubmissionFailure(context.Context, ObserveSubmissionFailureParams) (Execution, error)
-	Collect(context.Context, CollectParams) (CollectionReceipt, bool, error)
-	CommitReport(context.Context, CommitReportParams) (Audit, error)
-	SettleUndispatched(context.Context, ControllerClaim, int) (int, error)
-	ReleaseDispatchHold(context.Context, ControllerClaim) (Audit, bool, error)
-	NextLiveRunForDeletion(context.Context, ControllerClaim) (string, bool, error)
-	PurgeClaimed(context.Context, ControllerClaim, string) error
-	GetReconcileSnapshot(context.Context, ControllerClaim) (ReconcileSnapshot, error)
-	GetArtifactLink(context.Context, string, string) (ArtifactLink, error)
 }
 
 // RoleOutputLogicalKey is the stable Audit-owned address of one accepted

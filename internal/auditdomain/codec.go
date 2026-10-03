@@ -12,10 +12,6 @@ func EncodeWorklist(value WorklistManifest) ([]byte, error) {
 	return encodeDocument(value, validateWorklist)
 }
 
-func DecodeWorklist(data []byte) (WorklistManifest, error) {
-	return decodeDocument(data, validateWorklist)
-}
-
 func EncodeItemTask(value ItemTask) ([]byte, error) {
 	return encodeDocument(value, validateItemTask)
 }

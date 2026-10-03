@@ -42,7 +42,7 @@ WITH active_project_gate AS MATERIALIZED (
         ON review.request_id = candidate.request_id
        AND review.audit_id = candidate.audit_id
       JOIN active_project_gate AS gate ON gate.audit_id = candidate.audit_id
-     WHERE $5 IN ('cancelling', 'cancelled', 'deleting')
+     WHERE $5 IN ('cancelling', 'cancelled')
        AND review.state = 'pending'
      FOR UPDATE OF review
 ), report_review_count AS MATERIALIZED (
@@ -53,16 +53,12 @@ WITH active_project_gate AS MATERIALIZED (
            paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
            revision = audit.revision + 1 + report_review_count.expired,
            dispatch_state = CASE
-               WHEN $5 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')
+               WHEN $5 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed')
                    THEN 'closed'
                ELSE dispatch_state
            END,
            stop_reason_code = $6,
            stop_reason_message = $7,
-           deletion_requested_at = CASE WHEN $5 = 'deleting'
-               THEN COALESCE(deletion_requested_at, clock_timestamp())
-               ELSE deletion_requested_at
-           END,
            finished_at = CASE WHEN $5 IN ('completed', 'cancelled', 'failed')
                               THEN clock_timestamp() ELSE NULL END,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
