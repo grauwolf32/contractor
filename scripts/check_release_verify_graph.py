@@ -7,6 +7,8 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
+from release_integration_tests import BUILD_TAG, EXCEPTIONS, TEST, discover
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "github.com/grauwolf32/contractor/"
@@ -139,7 +141,67 @@ def check_family_entry_points() -> None:
             raise SystemExit(f"{target} lost its focused Go suite")
 
 
+def check_integration_graph() -> int:
+    selected = discover()
+    commands = [
+        shlex.split(command)
+        for command in dry_run("release-verify")
+        if "go test" in command and "-tags=integration" in command
+    ]
+    consolidated = [tokens for tokens in commands if "-v" in tokens and "-p" in tokens]
+    if len(commands) != 4 or len(consolidated) != 1:
+        raise SystemExit(
+            "release integration graph changed: "
+            f"{len(commands)} visible commands, {len(consolidated)} complete discovery gates"
+        )
+    tokens = consolidated[0]
+    if any(flag not in tokens for flag in ("-race", "-v", "-count=1", "-p", "1", "-run")):
+        raise SystemExit("release integration command lost race, verbose evidence, count, serial or selection")
+    packages = {token for token in tokens if token.startswith("./")}
+    if packages != selected.keys():
+        raise SystemExit(
+            "release integration packages changed: "
+            f"missing={sorted(selected.keys() - packages)}, "
+            f"added={sorted(packages - selected.keys())}"
+        )
+    pattern = tokens[tokens.index("-run") + 1]
+    regex = re.compile(pattern)
+    expected = {name for names in selected.values() for name in names}
+    named = set(re.findall(r"Test[A-Za-z0-9_]+", pattern))
+    if named != expected or any(regex.fullmatch(name) is None for name in expected):
+        raise SystemExit(
+            "release integration test selection changed: "
+            f"missing={sorted(expected - named)}, added={sorted(named - expected)}"
+        )
+    # A same-named untagged test in another selected package would also run in
+    # the broad regex, repeating work already covered by test-release-go-race.
+    for package in selected:
+        for source in (ROOT / package.removeprefix("./")).glob("*_test.go"):
+            data = source.read_text()
+            if BUILD_TAG.search(data.split("\npackage ", 1)[0]) is None:
+                repeated = expected.intersection(TEST.findall(data))
+                if repeated:
+                    raise SystemExit(f"integration regex also selects untagged tests in {source}: {sorted(repeated)}")
+    for (source, name), (target, reason) in EXCEPTIONS.items():
+        if not reason:
+            raise SystemExit(f"integration exception {name} has no reason")
+        package = "./" + str(Path(source).parent)
+        if not any(
+            "go test" in command
+            and "-tags=integration" in command
+            and package in shlex.split(command)
+            and (
+                "-run" not in shlex.split(command)
+                or re.compile(shlex.split(command)[shlex.split(command).index("-run") + 1]).fullmatch(name)
+            )
+            for command in dry_run(target)
+        ):
+            raise SystemExit(f"integration exception {name} lost its {target} gate")
+    return len(expected)
+
+
 if __name__ == "__main__":
     check_release_graph()
     check_family_entry_points()
-    print("release graph: 36 race packages and 16 process tests, each selected once")
+    count = check_integration_graph()
+    print(f"release graph: 36 race packages, 16 process tests and {count} integration tests covered")

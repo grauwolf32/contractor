@@ -1,9 +1,12 @@
 package e2e
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -37,6 +40,7 @@ type auditTestOwner struct {
 	Source string `yaml:"source"`
 	Kind   string `yaml:"kind"`
 	Name   string `yaml:"name"`
+	Gate   string `yaml:"gate"`
 }
 
 var (
@@ -65,6 +69,9 @@ func TestAuditsHardeningMatrixIsComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := validateAuditsMatrix(repositoryRoot, matrix); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateAuditsGateCoverage(repositoryRoot, matrix); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,6 +114,14 @@ func TestAuditsHardeningMatrixIsComplete(t *testing.T) {
 		broken := mustDecodeStrictMatrix[auditsMatrix](t, data, "Audits")
 		broken.Cases[0].Test.Name += "Renamed"
 		requireAuditsMatrixError(t, repositoryRoot, broken, "does not define")
+	})
+	t.Run("owner outside declared gate", func(t *testing.T) {
+		broken := mustDecodeStrictMatrix[auditsMatrix](t, data, "Audits")
+		broken.Cases[6].Test.Gate = "process"
+		err := validateAuditsGateCoverage(repositoryRoot, broken)
+		if err == nil || !strings.Contains(err.Error(), "does not select") {
+			t.Fatalf("gate error = %v, want selection failure", err)
+		}
 	})
 	t.Run("missing release gate", func(t *testing.T) {
 		broken := mustDecodeStrictMatrix[auditsMatrix](t, data, "Audits")
@@ -166,6 +181,9 @@ func validateAuditsMatrix(repositoryRoot string, matrix auditsMatrix) error {
 		if err := validateMatrixNamedOwner(repositoryRoot, item.Test.Source, item.Test.Kind, item.Test.Name); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
+		if !slices.Contains([]string{"browser", "hardening", "matrix", "process", "release"}, item.Test.Gate) {
+			return fmt.Errorf("case %q has invalid declared gate %q", item.ID, item.Test.Gate)
+		}
 	}
 	for _, acceptance := range auditsAcceptance {
 		if !seenAcceptance[acceptance] {
@@ -186,4 +204,83 @@ func validateAuditsMatrix(repositoryRoot string, matrix auditsMatrix) error {
 		"Audits", matrix.Gates,
 		[]string{"browser", "hardening", "matrix", "process", "release"}, true,
 	)
+}
+
+// The matrix names a concrete gate for every owner. Validate the expanded Make
+// recipe, including package, build tag and -run; a defined test alone is not
+// evidence that release-verify can execute it.
+func validateAuditsGateCoverage(repositoryRoot string, matrix auditsMatrix) error {
+	commandsByGate := make(map[string][]string, len(matrix.Gates))
+	stackSource, err := os.ReadFile(filepath.Join(repositoryRoot, "tests", "ui-stack", "stack_test.go"))
+	if err != nil {
+		return fmt.Errorf("read UI stack selection: %w", err)
+	}
+	for _, gate := range matrix.Gates {
+		args := append([]string{"-n"}, strings.Fields(strings.TrimPrefix(gate.Command, "make "))...)
+		command := exec.Command("make", args...)
+		command.Dir = repositoryRoot
+		output, err := command.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("expand gate %q: %w: %s", gate.ID, err, output)
+		}
+		commandsByGate[gate.ID] = strings.Split(string(output), "\n")
+	}
+	for _, item := range matrix.Cases {
+		owner := item.Test
+		commands, ok := commandsByGate[owner.Gate]
+		if !ok {
+			return fmt.Errorf("case %q declares unknown gate %q", item.ID, owner.Gate)
+		}
+		matched := false
+		for _, line := range commands {
+			if owner.Kind == "test_title" {
+				// The UI stack runs every spec; its report validator requires this
+				// spec file and the named title is checked by validateMatrixNamedOwner.
+				matched = strings.Contains(line, "go test -tags=e2e") && strings.Contains(line, "./tests/ui-stack") &&
+					bytes.Contains(stackSource, []byte("\""+strings.TrimPrefix(owner.Source, "ui/")+"\""))
+			} else if owner.Kind == "go_test" {
+				matched = goGateSelectsOwner(repositoryRoot, line, owner)
+			}
+			if matched {
+				break
+			}
+		}
+		if !matched {
+			return fmt.Errorf("case %q: gate %q does not select %s", item.ID, owner.Gate, owner.Name)
+		}
+	}
+	return nil
+}
+
+func goGateSelectsOwner(repositoryRoot, line string, owner auditTestOwner) bool {
+	if !strings.Contains(line, "go test ") {
+		return false
+	}
+	fields := strings.Fields(line)
+	packagePath := "./" + filepath.ToSlash(filepath.Dir(owner.Source))
+	if !slices.Contains(fields, packagePath) {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(owner.Source)))
+	if err != nil {
+		return false
+	}
+	if bytes.HasPrefix(data, []byte("//go:build integration")) && !slices.Contains(fields, "-tags=integration") {
+		return false
+	}
+	if bytes.HasPrefix(data, []byte("//go:build e2e")) && !slices.Contains(fields, "-tags=e2e") {
+		return false
+	}
+	for index, field := range fields {
+		if field != "-run" {
+			continue
+		}
+		if index+1 == len(fields) {
+			return false
+		}
+		pattern := strings.Trim(fields[index+1], "'\"")
+		re, err := regexp.Compile(pattern)
+		return err == nil && re.MatchString(owner.Name)
+	}
+	return true
 }
