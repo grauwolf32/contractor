@@ -3,8 +3,8 @@ id: V120-001
 title: Reconcile ambiguous LikeC4 and OpenAPI document writes
 milestone: document-write-reconciliation-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ef804f3fc00ab1b186ee4029e202715eec3e059f
 depends_on: []
 languages: [python]
 goal: Keep document sessions and Artifact bindings in sync after a committed PUT loses its response.
