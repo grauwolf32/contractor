@@ -144,7 +144,7 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 	if got := ProfileCompatibility(profile).Reasons; !reflect.DeepEqual(got, []CompatibilityReason{
 		ReasonFindingConfirmationUnsupported,
 	}) {
-		t.Fatalf("reserved proposal surface reasons = %v", got)
+		t.Fatalf("finding-confirmation compatibility reasons = %v", got)
 	}
 }
 

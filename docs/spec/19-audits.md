@@ -374,12 +374,14 @@ The stable start error is `audit_profile_unsupported`; its bounded reason codes
 describe missing Server capabilities rather than transient Worker availability.
 The Server emits `automatic_active_checks_unsupported`, `assessment_unsupported`
 for the unsupported finding-candidate inventory entry point, and
-`preparation_unsupported` (section 4.4). `batching_unsupported` and other older
-closed reason values remain reserved wire values for compatible clients; the
-Server does not produce them for bounded profile batch sizes, discovery, human
-finding confirmation, human review, report acceptance, or multiple-round
-execution. A successfully started Audit may still wait in the ordinary queue
-for a compatible Runtime Agent.
+`preparation_unsupported` (section 4.4). It also emits
+`finding_confirmation_unsupported` when `findingConfirmation: disabled` but a
+resolved Workflow has a `proposals` output or an AgentTemplate selects a
+finding-proposal tool. `batching_unsupported` and other older closed reason
+values remain reserved wire values for compatible clients; the Server does not
+produce them for bounded profile batch sizes, discovery, human review, report
+acceptance, or multiple-round execution. A successfully started Audit may
+still wait in the ordinary queue for a compatible Runtime Agent.
 
 ### 4.4 Preparation contract
 
