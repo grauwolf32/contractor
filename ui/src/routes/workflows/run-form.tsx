@@ -64,6 +64,7 @@ import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
 import "./run-drafts.css";
+import { nextPageCursor } from "../../app/pagination";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -72,10 +73,6 @@ const EVAL_METADATA_PRESET = [
   { key: "eval.id", value: "" },
   { key: "eval.leg", value: "" },
 ] as const;
-
-function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
-  return page.page.hasMore ? page.page.nextCursor : undefined;
-}
 
 function configurationSelector(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}`;
@@ -933,7 +930,7 @@ function WorkflowRunFormBody({
             projectId,
             ...(pageParam === null ? {} : { cursor: pageParam }),
           }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const modelPolicyInventory = useInfiniteQuery({
     queryKey: queryKeys.configurations.infinitePicker("model-policies"),
@@ -944,7 +941,7 @@ function WorkflowRunFormBody({
         "model-policies",
         pageParam === null ? {} : { cursor: pageParam },
       ),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const gatewayInventory = useInfiniteQuery({
@@ -956,7 +953,7 @@ function WorkflowRunFormBody({
         "llm-gateways",
         pageParam === null ? {} : { cursor: pageParam },
       ),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const credentialInventory = useInfiniteQuery({
@@ -964,7 +961,7 @@ function WorkflowRunFormBody({
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listCredentials(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const runtimeLabelInventory = useInfiniteQuery({
@@ -972,7 +969,7 @@ function WorkflowRunFormBody({
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: runtimeOptionsOpen,
   });
 

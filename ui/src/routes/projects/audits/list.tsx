@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import { auditPresetPath } from "../../../api/audit-presets";
@@ -26,6 +26,7 @@ import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
+import { nextPageCursor, useURLCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import { AuditControls } from "./controls";
@@ -43,10 +44,6 @@ const INITIAL_CURSOR = null;
 // many pages on its own and offers the rest on request instead of
 // downloading a large Project's whole inventory every time it opens.
 const ARTIFACT_AUTOLOAD_PAGES = 4;
-
-function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
-  return page.page.hasMore ? (page.page.nextCursor ?? undefined) : undefined;
-}
 
 function profileOption(profile: AuditProfile): string {
   return JSON.stringify([profile.ref.name, profile.ref.version]);
@@ -105,7 +102,7 @@ function AuditCreateForm({
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listAuditProfiles(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const artifacts = useInfiniteQuery({
     queryKey: queryKeys.projects.artifacts.picker(projectId),
@@ -115,7 +112,7 @@ function AuditCreateForm({
         projectId,
         ...(pageParam === null ? {} : { cursor: pageParam }),
       }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const {
     fetchNextPage: fetchNextArtifactPage,
@@ -578,16 +575,12 @@ export function ProjectAuditWorkspace({
 }) {
   const api = usePublicAPI();
   const [showCreate, setShowCreate] = useState(false);
-  const [params, setParams] = useSearchParams();
   const location = useLocation();
-  const cursors = params.getAll("auditCursor");
-  function setCursors(values: string[]) {
-    const next = new URLSearchParams(params);
-    next.delete("auditCursor");
-    for (const value of values) next.append("auditCursor", value);
-    setParams(next, { state: location.state });
-  }
-  const cursor = cursors.at(-1);
+  const pages = useURLCursorStack({
+    param: "auditCursor",
+    navigateOptions: { state: location.state },
+  });
+  const cursor = pages.cursor;
   const audits = useQuery({
     queryKey: queryKeys.projects.audits.list(projectId, cursor),
     queryFn: () =>
@@ -748,13 +741,7 @@ export function ProjectAuditWorkspace({
       )}
       <CursorControls
         label="Project Audit pages"
-        canGoBack={cursors.length > 0}
-        {...(audits.data?.page.hasMore === true &&
-        audits.data.page.nextCursor !== undefined
-          ? { nextCursor: audits.data.page.nextCursor }
-          : {})}
-        onBack={() => setCursors(cursors.slice(0, -1))}
-        onNext={(next) => setCursors([...cursors, next])}
+        {...pages.controls(audits.data?.page)}
       />
     </div>
   );

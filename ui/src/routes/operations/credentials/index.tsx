@@ -1,6 +1,5 @@
 import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
@@ -8,16 +7,15 @@ import { listCredentials } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 import { CredentialCreateForm } from "./form";
 import { RecordedTime } from "../../../app/recorded-time";
 
 export function CredentialListRoute() {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.credentials.list(cursor),
     queryFn: () => listCredentials(api, cursor === undefined ? {} : { cursor }),
@@ -104,17 +102,7 @@ export function CredentialListRoute() {
         )}
         <CursorControls
           label="Credential pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
       <details className="configuration-clone">

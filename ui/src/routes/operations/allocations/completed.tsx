@@ -6,6 +6,7 @@ import { listAllocationResourceHistory } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
 import { RUN_ID_PATTERN } from "../../../api/runs";
 import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
@@ -16,8 +17,8 @@ export function CompletedAllocationListRoute() {
   const [draftRunId, setDraftRunId] = useState("");
   const [runId, setRunId] = useState<string>();
   const [validationError, setValidationError] = useState<string>();
-  const [cursors, setCursors] = useState<string[]>([]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.operations.allocationHistory.list(runId, cursor),
     queryFn: ({ signal }) =>
@@ -39,7 +40,7 @@ export function CompletedAllocationListRoute() {
       return;
     }
     setRunId(value === "" ? undefined : value);
-    setCursors([]);
+    pages.reset();
     setValidationError(undefined);
   }
 
@@ -85,7 +86,7 @@ export function CompletedAllocationListRoute() {
               onClick={() => {
                 setDraftRunId("");
                 setRunId(undefined);
-                setCursors([]);
+                pages.reset();
                 setValidationError(undefined);
               }}
             >
@@ -118,16 +119,7 @@ export function CompletedAllocationListRoute() {
         {query.data === undefined ? null : (
           <CursorControls
             label="Completed allocation pages"
-            canGoBack={cursors.length > 0}
-            {...(query.data.page.nextCursor === undefined
-              ? {}
-              : { nextCursor: query.data.page.nextCursor })}
-            onBack={() =>
-              setCursors((current) =>
-                current.slice(0, Math.max(0, current.length - 1)),
-              )
-            }
-            onNext={(next) => setCursors((current) => [...current, next])}
+            {...pages.controls(query.data.page)}
           />
         )}
       </section>

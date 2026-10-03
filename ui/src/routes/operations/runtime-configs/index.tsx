@@ -31,6 +31,7 @@ import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
@@ -1520,10 +1521,8 @@ export function RuntimeConfigurationRoute() {
   const api = usePublicAPI();
   const [createDialog, setCreateDialog] = useState<"config" | "credential">();
   const [bindingTarget, setBindingTarget] = useState<RuntimeConfigResource>();
-  const [configCursors, setConfigCursors] = useState<Array<string | undefined>>(
-    [undefined],
-  );
-  const configCursor = configCursors.at(-1);
+  const configPages = useCursorStack();
+  const configCursor = configPages.cursor;
   const configs = useQuery({
     queryKey: queryKeys.operations.runtimeConfigs.list(configCursor),
     queryFn: () =>
@@ -1659,17 +1658,7 @@ export function RuntimeConfigurationRoute() {
         )}
         <CursorControls
           label="RuntimeConfig pages"
-          canGoBack={configCursors.length > 1}
-          {...(configs.data?.page.hasMore === true &&
-          configs.data.page.nextCursor !== undefined
-            ? { nextCursor: configs.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setConfigCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setConfigCursors((current) => [...current, next])}
+          {...configPages.controls(configs.data?.page)}
         />
       </div>
       <RuntimeCredentialList

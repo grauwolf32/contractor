@@ -17,6 +17,7 @@ import {
 import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
 import { CursorControls } from "../app/cursor-controls";
+import { useURLCursorStack } from "../app/pagination";
 import { ErrorNotice } from "../app/error-notice";
 import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
@@ -156,11 +157,8 @@ export function QueuePanel() {
   const membership = QUEUE_MEMBERSHIPS.find(
     (candidate) => candidate === requestedMembership,
   ) as QueueMembership | undefined;
-  // Page cursors live in the URL next to the filters they were issued for,
-  // so any navigation that changes the filters (tab links, history) drops
-  // them together.
-  const cursors = searchParams.getAll("cursor");
-  const cursor = cursors.at(-1);
+  const pages = useURLCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.queue.list(state, membership, cursor),
     queryFn: () =>
@@ -199,13 +197,6 @@ export function QueuePanel() {
       next.set(name, value);
     }
     setSearchParams(next, { replace: true });
-  }
-
-  function changePage(nextCursors: readonly string[]): void {
-    const next = new URLSearchParams(searchParams);
-    next.delete("cursor");
-    for (const value of nextCursors) next.append("cursor", value);
-    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -379,13 +370,7 @@ export function QueuePanel() {
 
       <CursorControls
         label="Queue pages"
-        canGoBack={cursors.length > 0}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() => changePage(cursors.slice(0, -1))}
-        onNext={(next) => changePage([...cursors, next])}
+        {...pages.controls(query.data?.page)}
       />
     </div>
   );

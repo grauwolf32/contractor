@@ -13,6 +13,7 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { ArtifactWriteForm } from "./common";
 import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { Dialog } from "../../app/dialog";
@@ -26,27 +27,12 @@ export function ArtifactListRoute() {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const namespace = filters.get("namespace") || undefined;
-  const cursors: Array<string | undefined> = [
-    undefined,
-    ...filters.getAll("cursor"),
-  ];
-  function setCursors(
-    update:
-      | Array<string | undefined>
-      | ((current: Array<string | undefined>) => Array<string | undefined>),
-  ) {
-    const nextCursors = typeof update === "function" ? update(cursors) : update;
-    const next = new URLSearchParams(filters);
-    next.delete("cursor");
-    for (const cursor of nextCursors)
-      if (cursor !== undefined) next.append("cursor", cursor);
-    setFilters(next, { preventScrollReset: true });
-  }
+  const pages = useURLCursorStack();
   const [filterError, setFilterError] = useState<string | null>(null);
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const uploadHeading = useId();
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.artifacts.list(
       namespace,
@@ -129,7 +115,7 @@ export function ArtifactListRoute() {
             onCancel={() => setUploadOpen(false)}
             onWritten={(result) => {
               setWritten(result);
-              setCursors([undefined]);
+              pages.reset();
               setUploadOpen(false);
             }}
           />
@@ -233,17 +219,7 @@ export function ArtifactListRoute() {
         )}
         <CursorControls
           label="Artifact binding pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </section>

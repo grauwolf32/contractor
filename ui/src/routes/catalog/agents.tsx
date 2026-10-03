@@ -162,14 +162,7 @@ export function AgentListRoute() {
       {query.data === undefined ? null : (
         <CursorControls
           label="Agent pages"
-          canGoBack={state.canGoBack}
-          {...(query.data.page.hasMore &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={state.previousPage}
-          onNext={state.nextPage}
-          {...(state.isFirstPage ? {} : { onFirst: state.firstPage })}
+          {...state.controls(query.data.page)}
         />
       )}
     </section>

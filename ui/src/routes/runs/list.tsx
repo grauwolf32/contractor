@@ -20,6 +20,7 @@ import {
   type RunSummary,
 } from "../../api/runs";
 import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "./components";
@@ -470,12 +471,9 @@ export function CompletedRunsPanel() {
   const state = TERMINAL_RUN_STATES.find(
     (candidate) => candidate === requestedState,
   ) as WorkflowRunState | undefined;
-  // Page cursors live in the URL next to the filters they were issued for,
-  // so any navigation that changes the filters (tab links, history) drops
-  // them together.
-  const cursors = searchParams.getAll("cursor");
+  const pages = useURLCursorStack();
   const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const encodedLabelSelectors = searchParams.getAll("label");
   const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors);
   const selectorTokens = decoded.selectors.map(selectorToken);
@@ -512,13 +510,6 @@ export function CompletedRunsPanel() {
       next.append("label", selectorToken(selector));
     }
     setSearchParams(next, { replace: true });
-  }
-
-  function changePage(nextCursors: readonly string[]): void {
-    const next = new URLSearchParams(searchParams);
-    next.delete("cursor");
-    for (const value of nextCursors) next.append("cursor", value);
-    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -610,16 +601,7 @@ export function CompletedRunsPanel() {
           </table>
         </div>
       )}
-      <CursorControls
-        label="Run pages"
-        canGoBack={cursors.length > 0}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() => changePage(cursors.slice(0, -1))}
-        onNext={(next) => changePage([...cursors, next])}
-      />
+      <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
         <DeleteRunDialog
           runId={deleteTarget}

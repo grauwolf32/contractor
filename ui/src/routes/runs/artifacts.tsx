@@ -29,6 +29,7 @@ import {
 } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
 import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
@@ -288,10 +289,8 @@ export function RunArtifactLibrary({
   const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
   const [filterError, setFilterError] = useState<string | undefined>();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.runs.artifacts(runId, namespace, cursor),
     queryFn: () =>
@@ -311,7 +310,7 @@ export function RunArtifactLibrary({
     }
     setFilterError(undefined);
     setNamespace(candidate === "" ? undefined : candidate);
-    setCursors([undefined]);
+    pages.reset();
   }
 
   const count =
@@ -401,17 +400,7 @@ export function RunArtifactLibrary({
         )}
         <CursorControls
           label="Run Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </details>

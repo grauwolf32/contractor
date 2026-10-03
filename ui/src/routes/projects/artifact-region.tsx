@@ -16,6 +16,7 @@ import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes, formatTimestamp } from "../../app/format";
 import {
@@ -43,23 +44,10 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     }
   }
   const namespace = filters.get("artifactsNamespace") || undefined;
-  const cursors: Array<string | undefined> = [
-    undefined,
-    ...filters.getAll("artifactsCursor"),
-  ];
-  function setCursors(
-    update:
-      | Array<string | undefined>
-      | ((current: Array<string | undefined>) => Array<string | undefined>),
-  ) {
-    const next = new URLSearchParams(filters);
-    next.delete("artifactsCursor");
-    for (const cursor of typeof update === "function"
-      ? update(cursors)
-      : update)
-      if (cursor !== undefined) next.append("artifactsCursor", cursor);
-    setFilters(next, { preventScrollReset: true, state: location.state });
-  }
+  const pages = useURLCursorStack({
+    param: "artifactsCursor",
+    navigateOptions: { preventScrollReset: true, state: location.state },
+  });
   function setNamespaceFilter(value: string) {
     const next = new URLSearchParams(filters);
     next.delete("artifactsCursor");
@@ -73,7 +61,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     ArtifactWriteResponse | GitImportResult | null
   >(null);
   const [filterError, setFilterError] = useState<string | null>(null);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.artifacts.list(projectId, namespace, cursor),
     queryFn: () =>
@@ -252,17 +240,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         )}
         <CursorControls
           label="Project Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
 

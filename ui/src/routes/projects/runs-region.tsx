@@ -1,13 +1,13 @@
 import { ProjectRunHistory } from "./run-history";
 import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
@@ -104,10 +104,8 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
 
 function EvaluationRunsRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.runs(projectId, cursor),
     queryFn: () =>
@@ -144,17 +142,7 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
       )}
       <CursorControls
         label="Project Run pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        {...pages.controls(query.data?.page)}
       />
     </ProjectRegion>
   );

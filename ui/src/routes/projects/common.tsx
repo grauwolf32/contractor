@@ -30,6 +30,7 @@ import {
 import { ArtifactMediaTypeField } from "../artifacts/media-type-field";
 import { ArtifactFileDrop } from "../artifacts/common";
 import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
@@ -483,10 +484,8 @@ export function ProjectArtifactBindings({
   detailRoot: "/projects" | "/evals";
 }) {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.artifacts.list(projectId, undefined, cursor),
     queryFn: () =>
@@ -551,17 +550,7 @@ export function ProjectArtifactBindings({
       )}
       <CursorControls
         label="Project Artifact pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        {...pages.controls(query.data?.page)}
       />
     </ProjectRegion>
   );

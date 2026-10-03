@@ -24,6 +24,7 @@ import {
   useCatalogCursorState,
   withoutCatalogPagination,
 } from "./cursor-state";
+import { nextPageCursor } from "../../app/pagination";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 const INITIAL_CURSOR = null;
@@ -45,8 +46,7 @@ function AgentVersionSelector({
         ...(pageParam === null ? {} : { cursor: pageParam }),
         signal,
       }),
-    getNextPageParam: (page) =>
-      page.page.hasMore ? page.page.nextCursor : undefined,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const versions = useMemo(() => {
     const byVersion = new Map([[resource.ref.version, resource]]);
@@ -292,14 +292,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
       {query.data === undefined ? null : (
         <CursorControls
           label="Agent usage pages"
-          canGoBack={pagination.canGoBack}
-          {...(query.data.page.hasMore &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={pagination.previousPage}
-          onNext={pagination.nextPage}
-          {...(pagination.isFirstPage ? {} : { onFirst: pagination.firstPage })}
+          {...pagination.controls(query.data.page)}
         />
       )}
     </section>

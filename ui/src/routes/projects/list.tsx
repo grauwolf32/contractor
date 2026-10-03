@@ -23,6 +23,7 @@ import { DeleteIcon } from "../../app/delete-icon";
 import { Dialog } from "../../app/dialog";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { DeleteProjectDialog } from "./deletion";
 import { RefreshButton } from "../../app/refresh-button";
@@ -48,15 +49,13 @@ function ProjectCollectionRoute({
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
   const createHeading = useId();
   const createNameField = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project>();
   const [validationError, setValidationError] = useState<string | null>(null);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const keyring = useMemo(
     () => new MutationDraftKeyring<CreateProjectRequest>("create-project"),
     [],
@@ -334,17 +333,7 @@ function ProjectCollectionRoute({
 
       <CursorControls
         label={`${presentation.heading} pages`}
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        {...pages.controls(query.data?.page)}
       />
       {deleteTarget === undefined ? null : (
         <DeleteProjectDialog

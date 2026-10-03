@@ -132,35 +132,6 @@ export function EvalField({
   );
 }
 
-export function EvalPages({
-  previous,
-  next,
-}: {
-  previous?: (() => void) | undefined;
-  next?: (() => void) | undefined;
-}) {
-  return (
-    <nav className="eval-actions" aria-label="Pagination">
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={!previous}
-        onClick={previous}
-      >
-        Previous page
-      </button>
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={!next}
-        onClick={next}
-      >
-        Next page
-      </button>
-    </nav>
-  );
-}
-
 type KeyValueRow = { id: number; name: string; value: string };
 
 function sameKeyValues(

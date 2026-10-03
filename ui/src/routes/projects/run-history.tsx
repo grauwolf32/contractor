@@ -12,6 +12,7 @@ import {
 import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
@@ -59,8 +60,14 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
         ),
   );
   const state = states.find((candidate) => candidate === filters.get("state"));
-  const cursors = filters.getAll("cursor");
-  const cursor = cursors.at(-1);
+  const pages = useURLCursorStack({
+    navigateOptions: { state: location.state },
+    onChange: () =>
+      document
+        .getElementById("project-runs")
+        ?.scrollIntoView?.({ block: "start" }),
+  });
+  const cursor = pages.cursor;
   const options = {
     limit: 25,
     ...(view === "all"
@@ -100,15 +107,6 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     if (value === "") next.delete("state");
     else next.set("state", value);
     setFilters(next, { state: location.state });
-  }
-  function changePage(nextCursors: string[]) {
-    const next = new URLSearchParams(filters);
-    next.delete("cursor");
-    for (const value of nextCursors) next.append("cursor", value);
-    setFilters(next, { state: location.state });
-    document
-      .getElementById("project-runs")
-      ?.scrollIntoView?.({ block: "start" });
   }
   return (
     <section className="project-run-history" id="project-runs">
@@ -232,12 +230,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
       )}
       <CursorControls
         label="Project Run pages"
-        canGoBack={cursors.length > 0}
-        {...(runs.data?.page.hasMore && runs.data.page.nextCursor
-          ? { nextCursor: runs.data.page.nextCursor }
-          : {})}
-        onBack={() => changePage(cursors.slice(0, -1))}
-        onNext={(next) => changePage([...cursors, next])}
+        {...pages.controls(runs.data?.page)}
       />
     </section>
   );

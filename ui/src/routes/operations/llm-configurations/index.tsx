@@ -11,6 +11,7 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 
 const kindLabels: Record<ConfigurationKind, string> = {
@@ -23,10 +24,8 @@ const kindLabels: Record<ConfigurationKind, string> = {
 export function ConfigurationListRoute() {
   const api = usePublicAPI();
   const [kind, setKind] = useState<ConfigurationKind>("model-policies");
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.configurations.list(kind, cursor),
     queryFn: () =>
@@ -50,7 +49,7 @@ export function ConfigurationListRoute() {
             value={kind}
             onChange={(event) => {
               setKind(event.target.value as ConfigurationKind);
-              setCursors([undefined]);
+              pages.reset();
             }}
           >
             {CONFIGURATION_KINDS.map((candidate) => (
@@ -125,17 +124,7 @@ export function ConfigurationListRoute() {
       )}
       <CursorControls
         label="Configuration pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        {...pages.controls(query.data?.page)}
       />
     </div>
   );

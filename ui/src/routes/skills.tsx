@@ -6,6 +6,7 @@ import { listArtifacts, type ArtifactWriteResponse } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { CursorControls } from "../app/cursor-controls";
+import { useCursorStack } from "../app/pagination";
 import { ErrorNotice } from "../app/error-notice";
 import { formatBytes } from "../app/format";
 import { SkillUploadDialog } from "./skill-upload-dialog";
@@ -19,12 +20,10 @@ const SKILL_NAMESPACE = "skills";
 
 export function SkillsRoute() {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  const pages = useCursorStack();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.artifacts.list(SKILL_NAMESPACE, cursor),
     queryFn: () =>
@@ -60,7 +59,7 @@ export function SkillsRoute() {
           onClose={() => setUploadOpen(false)}
           onWritten={(result) => {
             setWritten(result);
-            setCursors([undefined]);
+            pages.reset();
             setUploadOpen(false);
           }}
         />
@@ -149,17 +148,7 @@ export function SkillsRoute() {
         )}
         <CursorControls
           label="Skill package pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </section>
