@@ -320,7 +320,9 @@ class AnnotateTraceTool(_BaseAnnotationTool):
 
     Args:
         path: Project-relative source file path.
-        symbol: Function or qualified method name, such as "Handler.get".
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
         target: Assignment target identifier; defaults to "unknown".
         args: Comma-separated name:state pairs; states are tainted, validated,
             clean or derived. Empty omits argument states.
@@ -374,7 +376,9 @@ class AnnotateValidateTool(_BaseAnnotationTool):
 
     Args:
         path: Project-relative source file path.
-        symbol: Function or qualified method name.
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
         arg: Name of the validated argument.
         kind: Validation label, such as "regex", "schema", "length" or "allowlist".
         definition_line: 1-based definition line to disambiguate the symbol;
@@ -417,7 +421,9 @@ class AnnotateSinkTool(_BaseAnnotationTool):
 
     Args:
         path: Project-relative source file path.
-        symbol: Function or qualified method name.
+        symbol: Exact name in the definition: "get" for Python/Java methods,
+            "Handler::get" for an out-of-line C++ method, or "Handler.get"
+            for a Lua dotted function.
         kind: Sink category, such as "sql", "shell", "ssrf" or "deserialize".
         arg: Argument reaching the sink; defaults to "unknown".
         definition_line: 1-based definition line to disambiguate the symbol;
@@ -481,12 +487,7 @@ def _plan_mutation(
     if request.definition_line:
         matches = [target for target in matches if request.definition_line in target.selector_lines]
     if not matches:
-        code = (
-            "taint_annotation_unavailable"
-            if parsed.parse_error
-            else "taint_annotation_target_not_found"
-        )
-        raise TaintAnnotationError(code)
+        raise TaintAnnotationError("taint_annotation_target_not_found")
     if len(matches) != 1:
         raise TaintAnnotationError("taint_annotation_target_ambiguous")
     target = matches[0]

@@ -33,9 +33,11 @@ They insert these canonical forms directly above function definitions:
   @sink kind=<kind> arg=<arg_or_unknown>
 
 No other annotation forms are recognized. `path` is a normalized
-workspace-relative path and `symbol` is an exact, case-sensitive unqualified
-function-like name. If the same `(path, symbol)` identifies more than one
-declaration, inspect the current source and repeat with that declaration's
+workspace-relative path and `symbol` is the exact, case-sensitive name as
+written in the declaration. Use `get` for a Python/Java method, `Handler::get`
+for an out-of-line C++ definition, or `Handler.get` for a Lua dotted function.
+If the same `(path, symbol)` identifies more than one declaration, inspect the
+current source and repeat with that declaration's
 positive 1-based `definition_line`; never guess or accept the first match.
 
 `<state>` ∈ { tainted, validated, clean, derived } — see

@@ -90,9 +90,11 @@ does not accept or emit the graph Toolset's allocation-private `symbolId`.
 ## Model-visible operations
 
 All paths are normalized workspace-relative POSIX paths. `symbol` is the exact
-unqualified structural name of a function-like declaration. Matching is
-case-sensitive. Callers may omit `definition_line` by passing its default `0`
-when `(path, symbol)` identifies exactly one declaration. If more than one real
+case-sensitive structural name as written in a function-like declaration.
+Python and Java methods use the bare name (`get` in `Handler.get`); an out-of-line
+C++ definition uses `Handler::get`, and a Lua dotted function uses `Handler.get`.
+Callers may omit `definition_line` by passing its default `0` when
+`(path, symbol)` identifies exactly one declaration. If more than one real
 declaration matches, the operation fails with `taint_annotation_target_ambiguous`;
 the caller then supplies a positive 1-based `definition_line` observed in the
 current source or structural-search result. Wrapper rows belonging to the same
