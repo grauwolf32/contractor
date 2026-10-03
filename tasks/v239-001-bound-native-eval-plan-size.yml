@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V239-001
+title: Reject native Eval matrices that cannot fit a frozen plan
+milestone: runtime-maintenance-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, typescript]
+goal: Reject oversized native Eval drafts before persistence rather than failing Prepare with a plan document limit.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/222
+  specification: [docs/spec/26-portable-evaluation-format.md, docs/spec/30-managed-evals.md]
+  finding: A native draft may advertise 10,000 members while its single frozen 1 MiB plan overflows around 2,400 ordinary members.
+scope:
+  in:
+    - Apply a conservative native plan-size bound during Create and DraftUpdate validation.
+    - Align native setup defaults and validation with the effective matrix bound.
+    - Document the native effective limit without reducing the external portable format limit.
+    - Cover early rejection and a matrix at the accepted boundary.
+  out:
+    - Changing external registration limits or splitting the portable plan format.
+acceptance_criteria:
+  - {id: A1, text: Native Create and DraftUpdate reject oversized matrices with eval_limit_exceeded before persistence.}
+  - {id: A2, text: UI setup flags oversize matrices and its default allowance admits only a matrix that can freeze.}
+  - {id: A3, text: A native draft accepted at the chosen boundary builds and freezes a complete plan.}
+  - {id: A4, text: Specs distinguish the portable format's 10,000-member ceiling from the native plan's effective bound.}
+tests:
+  - {command: go test ./internal/evaldomain ./internal/evalservice -count=1, covers: [A1, A3]}
+  - {command: make ui-typecheck ui-test, covers: [A2]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
