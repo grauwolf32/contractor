@@ -3,8 +3,8 @@ id: V130-001
 title: Remove unbounded buffered proxy request helper
 milestone: proxy-stream-only-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 245bb6767f4d3e1fc09fbc904ea268d95f997410
 depends_on: []
 languages: [python]
 goal: Keep proxy HTTP handles on the streaming request path so callers must bound response reads.
