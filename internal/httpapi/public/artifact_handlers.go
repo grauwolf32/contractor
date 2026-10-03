@@ -419,6 +419,7 @@ func validateArtifactRouteNames(r *http.Request) error {
 // nor render the payload in the API origin.
 func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 	w.Header().Set("Content-Type", result.Payload.MediaType)
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("Content-Disposition", "attachment")
