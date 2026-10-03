@@ -6,7 +6,12 @@ import { PublicAPI } from "../../../api/client";
 import { Application } from "../../../app/application";
 import { applicationRoutes } from "../../../app/router";
 
-function setup(path: string, authorized = true, withRemovalFixtures = false) {
+function setup(
+  path: string,
+  authorized = true,
+  withRemovalFixtures = false,
+  workerSettings?: Record<string, unknown>,
+) {
   const requests: string[] = [];
   const deletes: Request[] = [];
   const runtimeResource = {
@@ -20,7 +25,7 @@ function setup(path: string, authorized = true, withRemovalFixtures = false) {
       kind: "RuntimeConfig",
       metadata: { name: "debug", version: "1" },
       spec: {
-        worker: {
+        worker: workerSettings ?? {
           caido: {
             adapter: "caido-graphql@1",
             endpoint: "https://caido.example/graphql",
@@ -123,6 +128,57 @@ function setup(path: string, authorized = true, withRemovalFixtures = false) {
 }
 
 describe("Runtime configuration hub navigation", () => {
+  it("shows nested RuntimeConfig export settings and explicit clears with labels", async () => {
+    setup("/operations/configuration/debug/1", true, false, {
+      llmGateway: {
+        gateway: {
+          gatewayId: "local-litellm",
+          version: "1",
+          digest: `sha256:${"2".repeat(64)}`,
+        },
+        credential: null,
+      },
+      telemetry: {
+        adapter: "otlp-http@1",
+        endpoint: "https://otel.example/v1/traces",
+        export: {
+          batchSizeBytes: 8388608,
+          maxAttempts: 2,
+          maxPendingBytes: 67108864,
+          maxPendingSpans: 2048,
+          retry: {
+            initialBackoffMilliseconds: 100,
+            maxBackoffMilliseconds: 1000,
+          },
+        },
+      },
+    });
+    const telemetry = (
+      await screen.findByRole("heading", { name: "Worker telemetry" })
+    ).closest("article");
+    expect(telemetry).not.toBeNull();
+    expect(within(telemetry!).getByText("Batch size")).toBeVisible();
+    expect(within(telemetry!).getByText("8.0 MiB")).toBeVisible();
+    expect(within(telemetry!).getByText("Maximum pending bytes")).toBeVisible();
+    expect(within(telemetry!).getByText("64.0 MiB")).toBeVisible();
+    expect(within(telemetry!).getByText("Maximum attempts")).toBeVisible();
+    expect(within(telemetry!).getByText("Maximum pending spans")).toBeVisible();
+    expect(within(telemetry!).getByText("Initial backoff")).toBeVisible();
+    expect(within(telemetry!).getByText("100 ms")).toBeVisible();
+    expect(within(telemetry!).getByText("Maximum backoff")).toBeVisible();
+    expect(within(telemetry!).getByText("1000 ms")).toBeVisible();
+    expect(telemetry).not.toHaveTextContent("[object Object]");
+    const gateway = screen
+      .getByRole("heading", { name: "Worker LLM Gateway" })
+      .closest("article");
+    expect(gateway).not.toBeNull();
+    expect(within(gateway!).getByText("Gateway ID")).toBeVisible();
+    expect(within(gateway!).getByText("local-litellm")).toBeVisible();
+    expect(within(gateway!).getByText("Credential")).toBeVisible();
+    expect(within(gateway!).getByText("Explicitly cleared")).toBeVisible();
+    expect(gateway).not.toHaveTextContent("null");
+  });
+
   it("confirms permanent Runtime credential deletion after safe dismissals", async () => {
     const { deletes } = setup("/operations/configuration", true, true);
     const user = userEvent.setup();

@@ -5,35 +5,74 @@ import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
-import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import {
+  ErrorNotice,
+  formatBytes,
+  formatTimestamp,
+} from "../../artifacts/common";
+
+const FIELD_LABELS: Record<string, string> = {
+  gatewayId: "Gateway ID",
+  batchSizeBytes: "Batch size",
+  maxPendingBytes: "Maximum pending bytes",
+  maxPendingSpans: "Maximum pending spans",
+  maxAttempts: "Maximum attempts",
+  initialBackoffMilliseconds: "Initial backoff",
+  maxBackoffMilliseconds: "Maximum backoff",
+};
+
+function fieldLabel(key: string): string {
+  return (
+    FIELD_LABELS[key] ??
+    key
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/^./, (first) => first.toUpperCase())
+  );
+}
+
+function ConfigValue({ name, value }: { name: string; value: unknown }) {
+  if (name === "caBundlePem") {
+    return <span>present · content hidden from this view</span>;
+  }
+  if (value === null) return <span>Explicitly cleared</span>;
+  if (Array.isArray(value))
+    return value.length === 0 ? "None" : value.join(", ");
+  if (typeof value === "object") {
+    return <ConfigFields record={value as Record<string, unknown>} />;
+  }
+  if (typeof value === "number") {
+    if (name === "batchSizeBytes" || name === "maxPendingBytes") {
+      return formatBytes(value);
+    }
+    if (name.endsWith("BackoffMilliseconds")) return `${value} ms`;
+  }
+  return String(value);
+}
+
+function ConfigFields({ record }: { record: Record<string, unknown> }) {
+  return (
+    <dl className="key-value-list">
+      {Object.entries(record).map(([key, value]) => (
+        <div key={key}>
+          <dt>{fieldLabel(key)}</dt>
+          <dd>
+            <ConfigValue name={key} value={value} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 function OptionalBlock({ title, value }: { title: string; value: unknown }) {
   if (value === undefined) return null;
-  const record = value as Record<string, unknown> | null;
   return (
     <article className="panel runtime-config-inspector">
       <h3>{title}</h3>
-      {record === null ? (
+      {value === null ? (
         <p>Explicitly clears the lower-precedence block.</p>
       ) : (
-        <dl className="key-value-list">
-          {Object.entries(record).map(([key, item]) => (
-            <div key={key}>
-              <dt>{key}</dt>
-              <dd>
-                {key === "caBundlePem" ? (
-                  <span>present · content hidden from this view</span>
-                ) : Array.isArray(item) ? (
-                  item.join(", ")
-                ) : typeof item === "object" && item !== null ? (
-                  <code>{Object.values(item).join(" · ")}</code>
-                ) : (
-                  String(item)
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <ConfigFields record={value as Record<string, unknown>} />
       )}
     </article>
   );
