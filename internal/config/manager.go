@@ -572,7 +572,9 @@ func requireStrictRoot(path string, create bool) (string, error) {
 		childInfo, childErr := os.Lstat(child)
 		if errors.Is(childErr, os.ErrNotExist) && create {
 			childErr = os.Mkdir(child, managedDirectoryMode)
-			if childErr == nil {
+			if childErr == nil || errors.Is(childErr, os.ErrExist) {
+				// Another initializer may have created this subtree after Lstat.
+				// Recheck it rather than trusting what now occupies the path.
 				childInfo, childErr = os.Lstat(child)
 			}
 		}
