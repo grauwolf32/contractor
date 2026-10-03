@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V181-001
+title: Avoid redundant finding collection document reads
+milestone: finding-collection-preparation-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Use authoritative create receipts and reconcile only ambiguous document writes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/115
+  specification: docs/spec/27-findings-tools-and-collections.md
+  finding: Every successful document create is followed by an unnecessary read.
+scope:
+  in:
+    - Return the exact create receipt for successful document writes.
+    - Read and compare existing bytes after conflicts or lost write responses.
+    - Retry one create when a lost response is followed by a confirmed 404.
+    - Cover request counts and reconciliation failures in reader tests.
+  out:
+    - Adding parallel document preparation.
+acceptance_criteria:
+  - {id: A1, text: A fresh collection requires one input GET and one PUT per document.}
+  - {id: A2, text: Conflicts and lost responses reuse only byte-identical documents.}
+  - {id: A3, text: A lost response without a committed write retries create once.}
+  - {id: A4, text: A mismatched exact-revision read and unrelated failures remain errors.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_findings_reader_toolset.py, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
