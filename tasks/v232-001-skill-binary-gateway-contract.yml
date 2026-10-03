@@ -3,7 +3,8 @@ id: V232-001
 title: Keep binary Agent Skill assets compatible with the text Gateway
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 67b52ad04c835e6831684be57758995a74544987
 depends_on: []
 languages: [python]
 goal: Let a Worker continue after requesting a binary Skill asset without sending unsupported media to the model adapter.
