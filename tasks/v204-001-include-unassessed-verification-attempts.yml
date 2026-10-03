@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V204-001
+title: Include unassessed verification attempts in finding provenance
+milestone: audit-provenance-truth-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Show every attempt of a proposal-derived verification item even when no result was accepted.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/268
+  finding: Finding provenance anchors check attempts only through accepted assessments, hiding failed or invalid verification work.
+scope:
+  in:
+    - Add the durable proposal-to-item relation to check-attempt anchors without duplicating assessed attempts.
+    - Retain discovery-item assessment anchors and existing keyset pagination.
+    - Verify failed, missing, invalid, and cancelled attempts in PostgreSQL tests.
+  out:
+    - Changing collection or finding assessment semantics.
+acceptance_criteria:
+  - {id: A1, text: Unassessed proposal-derived attempts appear with their terminal and collection outcomes and no assessment.}
+  - {id: A2, text: Assessed attempts remain unique and discovery assessments remain visible.}
+  - {id: A3, text: Keyset pagination and revision pins return every provenance record once.}
+tests:
+  - {command: go test ./internal/auditservice/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
