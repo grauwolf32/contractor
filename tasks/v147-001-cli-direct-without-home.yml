@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V147-001
+title: Let direct CLI API commands run without a user config directory
+milestone: cli-direct-without-home-2026-10
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Resolve context storage only when a CLI command actually uses contexts.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/160
+  finding: Direct --server commands fail before a request when HOME and XDG_CONFIG_HOME are unset.
+scope:
+  in:
+    - Defer default context-path resolution for direct API commands.
+    - Verify direct flags and environment routing with token and token-file authentication.
+    - Preserve clear failures for commands requiring a context file.
+  out:
+    - Change context file format or token precedence.
+acceptance_criteria:
+  - {id: A1, text: Direct commands reach the Server with no HOME, XDG_CONFIG_HOME or context config path.}
+  - {id: A2, text: Commands requiring contexts still fail clearly when no config directory exists.}
+tests:
+  - {command: go test ./internal/cli -count=1, covers: [A1, A2]}
