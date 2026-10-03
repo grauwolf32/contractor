@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     OverlayWorkspaceSession,
 )
+from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets.filesystem.tools import (
     FilesystemToolError,
@@ -272,6 +274,119 @@ def test_scoped_read_preserves_errors_and_does_not_snapshot_memory_views(
             await session.close()
 
     asyncio.run(scenario())
+
+
+def test_large_file_reads_and_grep_keep_event_loop_responsive(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        line = "x" * 79 + "\n"
+        text = line * (filesystem_module.MAX_READ_SCAN_BYTES // len(line)) + "x" * 16
+        assert len(text) == filesystem_module.MAX_READ_SCAN_BYTES
+        reader = _FixedReader(text)
+        tools = await create_tools(
+            FilesystemToolsetFactory(), reader, WorkerState(), tmp_path, ["read_file", "grep"]
+        )
+        try:
+            for start_line in (1, 100_000):
+                result, gap = await _call_with_loop_gap(
+                    tools["read_file"]("big.txt", start_line, 200)
+                )
+                assert result["startLine"] == start_line
+                assert result["totalLines"] == text.count("\n") + 1
+                assert gap < 0.12
+            for use_regex in (False, True):
+                result, gap = await _call_with_loop_gap(
+                    tools["grep"]("missing", "", "**/*", use_regex)
+                )
+                assert result["matches"] == []
+                assert gap < 0.12
+        finally:
+            await tools["read_file"].close()
+            await tools["grep"].close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "name,helper", [("read_file", "_read_file_window"), ("grep", "_scan_grep")]
+)
+def test_cancelled_filesystem_scan_waits_for_owned_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, helper: str
+) -> None:
+    async def scenario() -> None:
+        tools = await create_tools(
+            FilesystemToolsetFactory(), _FixedReader("one\ntwo\n"), WorkerState(), tmp_path, [name]
+        )
+        entered = threading.Event()
+        release = threading.Event()
+        original = getattr(filesystem_module, helper)
+
+        def delayed(*args: Any) -> Any:
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError("filesystem scan thread was not released")
+            return original(*args)
+
+        try:
+            with monkeypatch.context() as patch:
+                patch.setattr(filesystem_module, helper, delayed)
+                call = (
+                    tools["read_file"]("big.txt") if name == "read_file" else tools["grep"]("one")
+                )
+                task = asyncio.create_task(call)
+                assert await asyncio.to_thread(entered.wait, 2)
+                task.cancel()
+                task.cancel()
+                await asyncio.sleep(0.02)
+                assert not task.done()
+                release.set()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+        finally:
+            release.set()
+            await tools[name].close()
+
+    asyncio.run(scenario())
+
+
+class _FixedReader:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    async def read_text(self, path: str) -> str:
+        assert path == "big.txt"
+        return self._text
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return WorkspaceSnapshot(
+            directories=(),
+            files=(WorkspaceTextFile(path="big.txt", text=self._text, size=len(self._text)),),
+            binary_paths=(),
+            digest="fixed-snapshot",
+        )
+
+
+async def _call_with_loop_gap(operation: Any) -> tuple[dict[str, Any], float]:
+    loop = asyncio.get_running_loop()
+    gaps: list[float] = []
+    stopped = False
+
+    async def ticker() -> None:
+        previous = loop.time()
+        while not stopped:
+            await asyncio.sleep(0.005)
+            current = loop.time()
+            gaps.append(current - previous)
+            previous = current
+
+    ticking = asyncio.create_task(ticker())
+    await asyncio.sleep(0.01)
+    try:
+        result = await operation
+    finally:
+        stopped = True
+        await ticking
+    assert gaps
+    return result, max(gaps)
 
 
 async def workspace(mode: str, name: str) -> DirectWorkspaceSession:

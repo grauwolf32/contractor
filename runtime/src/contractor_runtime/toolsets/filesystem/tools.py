@@ -27,6 +27,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
     WorkspaceTextFile,
 )
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.cursors import (
     decode_cursor,
     encode_cursor,
@@ -114,6 +115,17 @@ class _Cursor:
     line: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class _GrepScanResult:
+    matches: list[dict[str, Any]]
+    file_index: int
+    line_index: int
+    scanned_paths: int
+    scanned_bytes: int
+    incomplete: bool
+    stopped: bool
+
+
 _CURSOR_FIELDS = {"snapshot": str, "query": str, "offset": int, "line": int}
 
 
@@ -194,24 +206,15 @@ class _FilesystemSession:
         if type(with_line_numbers) is not bool:
             raise FilesystemToolError("workspace_limit_exceeded")
         text = await self._read_text(normalized)
-        if len(text.encode("utf-8")) > MAX_READ_SCAN_BYTES:
-            raise FilesystemToolError("workspace_limit_exceeded")
-        selected, total_lines, used, line_truncated = _read_line_window(
-            text, start_line, max_lines, with_line_numbers=with_line_numbers
+        return await to_thread_until_done(
+            _read_file_window,
+            text,
+            normalized,
+            start_line,
+            max_lines,
+            with_line_numbers,
+            name="filesystem-read-cpu",
         )
-        if start_line > total_lines + 1:
-            raise FilesystemToolError("workspace_line_invalid")
-        next_line = start_line + len(selected)
-        truncated = next_line <= total_lines or line_truncated
-        return {
-            "path": normalized,
-            "startLine": start_line,
-            "lines": selected,
-            "totalLines": total_lines,
-            "nextLine": next_line if next_line <= total_lines else None,
-            "returnedBytes": used,
-            "truncated": truncated,
-        }
 
     async def grep(
         self,
@@ -256,79 +259,29 @@ class _FilesystemSession:
             if cursor
             else _Cursor(snapshot="", query="", offset=0)
         )
-        files = snapshot.files
-        file_index = position.offset
-        line_index = position.line
-        results: list[dict[str, Any]] = []
-        scanned_paths = 0
-        scanned_bytes = 0
-        incomplete = False
-        deadline = time.monotonic() + MAX_GREP_SECONDS
-        stopped = False
-        while file_index < len(files):
-            if time.monotonic() >= deadline or scanned_paths >= MAX_SCAN_PATHS:
-                stopped = True
-                break
-            file = files[file_index]
-            scanned_paths += 1
-            if _relative(file.path, root) is None or not project_glob_matches(
-                file.path, normalized_glob
-            ):
-                file_index += 1
-                line_index = 0
-                continue
-            visible_text = file.text
-            if file.size > MAX_GREP_BYTES:
-                visible_text = _utf8_prefix(
-                    file.text[: MAX_GREP_BYTES // 4].encode("utf-8"), MAX_GREP_BYTES
-                )
-                incomplete = True
-            lines = split_lines(visible_text)
-            while line_index < len(lines):
-                if time.monotonic() >= deadline or scanned_bytes >= MAX_GREP_BYTES:
-                    stopped = True
-                    break
-                raw_line = lines[line_index]
-                encoded = raw_line.encode("utf-8")
-                scanned_bytes += min(len(encoded), MAX_GREP_BYTES)
-                candidate = raw_line
-                if len(candidate) > MAX_GREP_LINE_CHARS:
-                    candidate = candidate[:MAX_GREP_LINE_CHARS]
-                    incomplete = True
-                matched = matcher(candidate)
-                if matched:
-                    excerpt = candidate[:MAX_EXCERPT_CHARS]
-                    results.append(
-                        {
-                            "path": file.path,
-                            "line": line_index + 1,
-                            "excerpt": excerpt,
-                            "excerptTruncated": len(candidate) > len(excerpt),
-                        }
-                    )
-                line_index += 1
-                if len(results) >= limit:
-                    stopped = True
-                    break
-            if stopped:
-                if line_index >= len(lines):
-                    file_index += 1
-                    line_index = 0
-                break
-            file_index += 1
-            line_index = 0
+        scan = await to_thread_until_done(
+            _scan_grep,
+            snapshot.files,
+            root,
+            normalized_glob,
+            matcher,
+            position.offset,
+            position.line,
+            limit,
+            name="filesystem-grep-cpu",
+        )
         next_cursor = (
-            self._encode_cursor(snapshot, query, file_index, line_index)
-            if stopped and file_index < len(files)
+            self._encode_cursor(snapshot, query, scan.file_index, scan.line_index)
+            if scan.stopped and scan.file_index < len(snapshot.files)
             else None
         )
         return {
-            "matches": results,
+            "matches": scan.matches,
             "nextCursor": next_cursor,
             "truncated": next_cursor is not None,
-            "incomplete": incomplete,
-            "scannedPaths": scanned_paths,
-            "scannedBytes": min(scanned_bytes, MAX_GREP_BYTES),
+            "incomplete": scan.incomplete,
+            "scannedPaths": scan.scanned_paths,
+            "scannedBytes": min(scan.scanned_bytes, MAX_GREP_BYTES),
         }
 
     async def _read_text(self, path: str) -> str:
@@ -610,6 +563,103 @@ def _require_grep_root(snapshot: WorkspaceSnapshot, path: str) -> None:
     if any(file.path == path for file in snapshot.files):
         return
     raise FilesystemToolError("workspace_not_found")
+
+
+def _read_file_window(
+    text: str,
+    path: str,
+    start_line: int,
+    max_lines: int,
+    with_line_numbers: bool,
+) -> dict[str, Any]:
+    if len(text.encode("utf-8")) > MAX_READ_SCAN_BYTES:
+        raise FilesystemToolError("workspace_limit_exceeded")
+    selected, total_lines, used, line_truncated = _read_line_window(
+        text, start_line, max_lines, with_line_numbers=with_line_numbers
+    )
+    if start_line > total_lines + 1:
+        raise FilesystemToolError("workspace_line_invalid")
+    next_line = start_line + len(selected)
+    truncated = next_line <= total_lines or line_truncated
+    return {
+        "path": path,
+        "startLine": start_line,
+        "lines": selected,
+        "totalLines": total_lines,
+        "nextLine": next_line if next_line <= total_lines else None,
+        "returnedBytes": used,
+        "truncated": truncated,
+    }
+
+
+def _scan_grep(
+    files: tuple[WorkspaceTextFile, ...],
+    root: str,
+    glob: str,
+    matcher: Callable[[str], bool],
+    file_index: int,
+    line_index: int,
+    limit: int,
+) -> _GrepScanResult:
+    results: list[dict[str, Any]] = []
+    scanned_paths = 0
+    scanned_bytes = 0
+    incomplete = False
+    deadline = time.monotonic() + MAX_GREP_SECONDS
+    stopped = False
+    while file_index < len(files):
+        if time.monotonic() >= deadline or scanned_paths >= MAX_SCAN_PATHS:
+            stopped = True
+            break
+        file = files[file_index]
+        scanned_paths += 1
+        if _relative(file.path, root) is None or not project_glob_matches(file.path, glob):
+            file_index += 1
+            line_index = 0
+            continue
+        visible_text = file.text
+        if file.size > MAX_GREP_BYTES:
+            visible_text = _utf8_prefix(
+                file.text[: MAX_GREP_BYTES // 4].encode("utf-8"), MAX_GREP_BYTES
+            )
+            incomplete = True
+        lines = split_lines(visible_text)
+        while line_index < len(lines):
+            if time.monotonic() >= deadline or scanned_bytes >= MAX_GREP_BYTES:
+                stopped = True
+                break
+            raw_line = lines[line_index]
+            encoded = raw_line.encode("utf-8")
+            scanned_bytes += min(len(encoded), MAX_GREP_BYTES)
+            candidate = raw_line
+            if len(candidate) > MAX_GREP_LINE_CHARS:
+                candidate = candidate[:MAX_GREP_LINE_CHARS]
+                incomplete = True
+            matched = matcher(candidate)
+            if matched:
+                excerpt = candidate[:MAX_EXCERPT_CHARS]
+                results.append(
+                    {
+                        "path": file.path,
+                        "line": line_index + 1,
+                        "excerpt": excerpt,
+                        "excerptTruncated": len(candidate) > len(excerpt),
+                    }
+                )
+            line_index += 1
+            if len(results) >= limit:
+                stopped = True
+                break
+        if stopped:
+            if line_index >= len(lines):
+                file_index += 1
+                line_index = 0
+            break
+        file_index += 1
+        line_index = 0
+    return _GrepScanResult(
+        results, file_index, line_index, scanned_paths, scanned_bytes, incomplete, stopped
+    )
 
 
 def _read_line_window(

@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V219-001, file: v219-001-offload-filesystem-scans.yml}
   - {id: V218-001, file: v218-001-cache-exact-artifact-pages.yml}
   - {id: V217-001, file: v217-001-cache-http-body-reads.yml}
   - {id: V216-001, file: v216-001-remove-test-only-security-exports.yml}
