@@ -3,8 +3,8 @@ id: V107-001
 title: Enforce one active Server per PostgreSQL database
 milestone: single-active-server-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3262cb829c470a4d416767d865403396c1bf2e2e
 depends_on: []
 languages: [go, yaml]
 goal: Prevent concurrent process-local Control Planes, Schedulers, and credential recovery against one database.
