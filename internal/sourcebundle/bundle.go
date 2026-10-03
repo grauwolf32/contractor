@@ -49,9 +49,9 @@ type Bundle struct {
 }
 
 type sourceFile struct {
-	hostPath string
-	path     string
-	info     fs.FileInfo
+	relativePath string
+	path         string
+	info         fs.FileInfo
 }
 
 func Build(source string, options Options) (Bundle, error) {
@@ -66,6 +66,15 @@ func Build(source string, options Options) (Bundle, error) {
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return Bundle{}, errors.New("source must be a regular directory, not a symlink")
 	}
+	sourceRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return Bundle{}, fmt.Errorf("open source directory: %w", err)
+	}
+	defer sourceRoot.Close()
+	openedRoot, err := sourceRoot.Stat(".")
+	if err != nil || !os.SameFile(info, openedRoot) {
+		return Bundle{}, errors.New("source directory changed while packaging")
+	}
 
 	paths, skipped, err := candidatePaths(root, options.IncludeIgnored)
 	if err != nil {
@@ -75,7 +84,7 @@ func Build(source string, options Options) (Bundle, error) {
 	if err != nil {
 		return Bundle{}, err
 	}
-	files, expanded, err := inspectFiles(root, paths)
+	files, expanded, err := inspectFiles(sourceRoot, paths)
 	if err != nil {
 		return Bundle{}, err
 	}
@@ -95,7 +104,7 @@ func Build(source string, options Options) (Bundle, error) {
 			_ = writer.Close()
 			return Bundle{}, archiveError(createErr)
 		}
-		if copyErr := copyRegularFile(entry, file); copyErr != nil {
+		if copyErr := copyRegularFile(entry, sourceRoot, file); copyErr != nil {
 			_ = writer.Close()
 			return Bundle{}, copyErr
 		}
@@ -302,7 +311,7 @@ func applyContractorIgnore(root string, paths []string) ([]string, error) {
 	return result, nil
 }
 
-func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
+func inspectFiles(root *os.Root, paths []string) ([]sourceFile, int64, error) {
 	seen := make(map[string]struct{}, len(paths))
 	files := make([]sourceFile, 0, len(paths))
 	var expanded int64
@@ -319,8 +328,31 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 			return nil, 0, fmt.Errorf("source paths collide after normalization: %s", portable)
 		}
 		seen[portable] = struct{}{}
-		hostPath := filepath.Join(root, filepath.FromSlash(candidate))
-		info, err := os.Lstat(hostPath)
+		parts := strings.Split(candidate, "/")
+		missingParent := false
+		parent := ""
+		for _, part := range parts[:len(parts)-1] {
+			parent = filepath.Join(parent, part)
+			parentInfo, parentErr := root.Lstat(parent)
+			if errors.Is(parentErr, os.ErrNotExist) {
+				missingParent = true
+				break
+			}
+			if parentErr != nil {
+				return nil, 0, fmt.Errorf("inspect source member %s: %w", filepath.ToSlash(parent), parentErr)
+			}
+			if parentInfo.Mode()&os.ModeSymlink != 0 {
+				return nil, 0, fmt.Errorf("source member %s is a symbolic link, which source push does not upload; exclude it with .contractorignore", filepath.ToSlash(parent))
+			}
+			if !parentInfo.IsDir() {
+				return nil, 0, fmt.Errorf("source member %s is not a directory; exclude it with .contractorignore", filepath.ToSlash(parent))
+			}
+		}
+		if missingParent {
+			continue
+		}
+		relativePath := filepath.FromSlash(candidate)
+		info, err := root.Lstat(relativePath)
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -343,7 +375,7 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 			return nil, 0, fmt.Errorf("source exceeds the %d MiB expanded size limit", MaxExpandedBytes>>20)
 		}
 		expanded += info.Size()
-		files = append(files, sourceFile{hostPath: hostPath, path: portable, info: info})
+		files = append(files, sourceFile{relativePath: relativePath, path: portable, info: info})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
 	return files, expanded, nil
@@ -385,8 +417,8 @@ func portablePath(value string) (string, error) {
 	return value, nil
 }
 
-func copyRegularFile(destination io.Writer, file sourceFile) error {
-	source, err := os.Open(file.hostPath)
+func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) error {
+	source, err := root.Open(file.relativePath)
 	if err != nil {
 		return fmt.Errorf("open source member %s: %w", file.path, err)
 	}
