@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V246-001
+title: Remove unused Go exports and test-only copies of production logic
+milestone: go-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep published code and regression tests focused on behavior the server actually uses.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/232
+  finding: Dead exported symbols, duplicated input validation and a test-only transaction wrapper obscure production behavior.
+scope:
+  in:
+    - Remove the issue's unused exports, constants, and test fixture helper while retaining any symbols now used by production.
+    - Test workflow input validation through the live handler or runservice path.
+    - Make the production run-creation transaction and recovery test use the same wrapper.
+    - Replace deprecated ECDSA coordinate comparison with the public-key equality method.
+  out:
+    - Remove intentional future Audit preparation contracts or other dead-code findings tracked by issue 87.
+acceptance_criteria:
+  - {id: A1, text: The identified unused symbols and duplicated validator are gone or used by production.}
+  - {id: A2, text: Run-creation recovery exercises the production transaction wrapper.}
+  - {id: A3, text: ECDSA validation uses a supported public-key comparison.}
+  - {id: A4, text: Affected package tests, build, vet, and staticcheck pass.}
+tests:
+  - {command: go test ./internal/app/... ./internal/httpapi/public/... ./internal/localpki/..., covers: [A2, A3, A4]}
+  - {command: go build ./... && go vet ./..., covers: [A1, A4]}
+  - {command: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks SA1019 ./internal/localpki/..., covers: [A3, A4]}
