@@ -683,6 +683,9 @@ Standard refs contain `scheme`, `version`, and `requirement_id`. Unknown IDs
 are rejected when a standards package is configured. Missing mapping is shown
 as unmapped, not interpreted as compliance. `client_key` is scoped to the
 trusted invocation and never becomes a global finding ID.
+`limitations` contains distinct, nonblank values of at most 512 UTF-8 bytes
+each, matching the coverage gaps retained for proposed checks. Intake rejects
+a proposal that exceeds this bound before publishing its receipt.
 
 `hypothesis` is optional for a finding discovered directly by a Workflow. The
 FindingProposal remains the candidate/evidence envelope; it does not imply a
@@ -1224,6 +1227,10 @@ One reconcile step:
 6. creates only the next bounded set of allowed submissions;
 7. creates at most one assessment execution after the barrier;
 8. accepts a next Round or commits exact final report/coverage.
+
+If a retained proposal or materialized item fails deterministic next-Round
+validation, the Controller closes dispatch and moves the Audit to `finalizing`
+with `next_round_invalid`. Transient failures remain retryable.
 
 A claim alone does not authorize stale commits. Every mutation checks epoch or
 revision plus uniqueness constraints. No network/model call occurs under a DB

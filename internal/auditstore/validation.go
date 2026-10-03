@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -390,7 +391,7 @@ func validateCoverage(value Coverage) error {
 	for _, values := range [][]string{value.Requested, value.Completed, value.Gaps} {
 		seen := make(map[string]struct{}, len(values))
 		for _, entry := range values {
-			if err := validateText("coverage value", entry, 512, true); err != nil {
+			if err := validateText("coverage value", entry, auditdomain.MaximumCoverageValueBytes, true); err != nil {
 				return err
 			}
 			if _, duplicate := seen[entry]; duplicate {

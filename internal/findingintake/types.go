@@ -154,6 +154,18 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		!validIdentity(input.SubmissionID) || len(input.EvidenceRefs) > MaxEvidenceRefs {
 		return canonicalSubmission{}, ErrInvalid
 	}
+	// Keep the v1 proposal codec able to read already retained documents while
+	// refusing new values that cannot become unique Audit coverage gaps.
+	seenLimitations := make(map[string]struct{}, len(input.Proposal.Limitations))
+	for _, limitation := range input.Proposal.Limitations {
+		if len(limitation) > auditdomain.MaximumCoverageValueBytes {
+			return canonicalSubmission{}, fmt.Errorf("%w: proposal limitation exceeds Audit coverage bound", ErrInvalid)
+		}
+		if _, duplicate := seenLimitations[limitation]; duplicate {
+			return canonicalSubmission{}, fmt.Errorf("%w: duplicate proposal limitation", ErrInvalid)
+		}
+		seenLimitations[limitation] = struct{}{}
+	}
 	proposalBytes, err := auditdomain.EncodeFindingProposal(input.Proposal)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("%w: proposal document", ErrInvalid)

@@ -4,8 +4,26 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
+
+func nextRoundValidationError(err error) bool {
+	var validation *auditdomain.ValidationError
+	return errors.As(err, &validation) || errors.Is(err, auditstore.ErrInvalid) ||
+		errors.Is(err, artifacts.ErrArtifactIntegrity)
+}
+
+func (c *Controller) closeInvalidNextRound(
+	ctx context.Context, claim auditstore.ControllerClaim, audit auditstore.Audit,
+) *reconcileResult {
+	reason := &auditstore.StopReason{
+		Code:    "next_round_invalid",
+		Message: "The next Audit Round failed deterministic proposal or item validation.",
+	}
+	return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+}
 
 func (c *Controller) progressRound(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) *reconcileResult {
 	audit := snapshot.Audit
@@ -72,12 +90,18 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				if c.roundBuilder != nil {
 					params, closureReason, buildErr := c.roundBuilder.PrepareNextRound(ctx, claim, snapshot)
 					if buildErr != nil {
+						if nextRoundValidationError(buildErr) {
+							return c.closeInvalidNextRound(ctx, claim, audit)
+						}
 						return reconciliationDone(false, buildErr)
 					}
 					if params.RoundID != "" {
 						_, _, acceptErr := c.store.AcceptNextRound(ctx, params)
 						if errors.Is(acceptErr, auditstore.ErrPrecondition) {
 							return reconciliationDone(false, nil)
+						}
+						if nextRoundValidationError(acceptErr) {
+							return c.closeInvalidNextRound(ctx, claim, audit)
 						}
 						return reconciliationDone(acceptErr == nil, acceptErr)
 					}
