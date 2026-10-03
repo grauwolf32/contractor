@@ -26,8 +26,6 @@ import (
 	"google.golang.org/genai"
 )
 
-const completionWriteTimeout = time.Second
-
 // The Planner prompt context is distinct from the Worker request/result contracts.
 const maxPlannerContextBytes = 256 * 1024
 
@@ -75,44 +73,23 @@ func (p *streamlinePlanner) Run(
 	}()
 
 	instrumentation := planner.InvocationInstrumentation(p.invocation)
-	sessionSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.begin"},
-	)
-	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
-	if err != nil {
-		sessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionFailure("start", err)
-	}
+	started, err := planner.StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
+	if err != nil {
+		return contracts.StageContentResult{}, err
+	}
 	if started.Completion != nil {
-		sessionSpan.End("recovered", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
-	if !started.Invoke {
-		sessionSpan.End("rejected", telemetry.PlannerSpanAttributes{
-			SessionID: identity.SessionID, ErrorCode: "planner_session_invalid",
-		})
-		return contracts.StageContentResult{}, planner.NewError(
-			"planner_session_invalid", "Planner session did not grant invocation ownership", false, nil,
-		)
-	}
-	sessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 	bindings := make([]string, 0, len(p.workers))
 	for _, worker := range p.workers {
 		bindings = append(bindings, worker.logicalName)
 	}
-	recordSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
-	)
-	if err := p.sessions.RecordRequest(
-		ctx, identity, planner.RequestFactsFor(bindings, p.request),
+	if err := planner.RecordSessionRequest(
+		ctx, p.sessions, instrumentation, identity, planner.RequestFactsFor(bindings, p.request),
 	); err != nil {
-		recordSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionFailure("record request", err)
+		return contracts.StageContentResult{}, err
 	}
-	recordSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
 	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {
@@ -131,7 +108,7 @@ func (p *streamlinePlanner) Run(
 		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: allowedNames,
 	})
 	if err != nil {
-		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("create ADK session", err))
+		return contracts.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("create ADK session", err))
 	}
 	adkSessionSpan := instrumentation.StartSpan(
 		telemetry.PlannerSpanSession,
@@ -142,7 +119,7 @@ func (p *streamlinePlanner) Run(
 		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
 	}); err != nil {
 		adkSessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, p.fail(ctx, identity, state, sessionFailure("initialize ADK session", err))
+		return contracts.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("initialize ADK session", err))
 	}
 	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
@@ -198,8 +175,8 @@ func (p *streamlinePlanner) Run(
 		}
 		if result, failure := state.terminal(); result != nil {
 			completion := planner.Completion{Result: result}
-			if err := p.recordCompletion(ctx, identity, completion); err != nil {
-				return contracts.StageContentResult{}, sessionFailure("record completion", err)
+			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
+				return contracts.StageContentResult{}, planner.SessionError("record completion", err)
 			}
 			return result.Clone(), nil
 		} else if failure != nil {
@@ -514,35 +491,10 @@ func (p *streamlinePlanner) fail(
 ) *planner.Error {
 	value = state.setExternalFailure(value)
 	failure := value.Failure
-	if err := p.recordCompletion(ctx, identity, planner.Completion{Failure: &failure}); err != nil {
-		return sessionFailure("record failure", errors.Join(value, err))
+	if err := planner.CompleteSession(ctx, p.sessions, identity, planner.Completion{Failure: &failure}); err != nil {
+		return planner.SessionError("record failure", errors.Join(value, err))
 	}
 	return value
-}
-
-func (p *streamlinePlanner) recordCompletion(
-	ctx context.Context, identity planner.SessionIdentity, completion planner.Completion,
-) error {
-	recordContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionWriteTimeout)
-	defer cancel()
-	return p.sessions.Complete(recordContext, identity, completion)
-}
-
-func sessionFailure(operation string, cause error) *planner.Error {
-	if errors.Is(cause, planner.ErrInvocationInProgress) {
-		return planner.NewError(
-			"planner_invocation_in_progress",
-			"Planner invocation is already in progress and cannot be resumed",
-			true,
-			cause,
-		)
-	}
-	return planner.NewError(
-		"planner_session_unavailable",
-		"Planner durable session is unavailable during "+operation,
-		true,
-		cause,
-	)
 }
 
 var _ planner.Planner = (*streamlinePlanner)(nil)

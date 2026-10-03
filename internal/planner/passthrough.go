@@ -84,40 +84,19 @@ func (p *passthroughPlanner) Run(
 	}()
 
 	instrumentation := InvocationInstrumentation(p.invocation)
-	sessionSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.begin"},
-	)
-	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
-	if err != nil {
-		sessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionError("start", err)
-	}
+	started, err := StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
+	if err != nil {
+		return contracts.StageContentResult{}, err
+	}
 	if started.Completion != nil {
-		sessionSpan.End("recovered", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
-	if !started.Invoke {
-		sessionSpan.End("rejected", telemetry.PlannerSpanAttributes{
-			SessionID: identity.SessionID, ErrorCode: "planner_session_invalid",
-		})
-		return contracts.StageContentResult{}, NewError(
-			"planner_session_invalid", "Planner session did not grant invocation ownership", false, nil,
-		)
-	}
-	sessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
-	recordSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
-	)
-	if err := p.sessions.RecordRequest(ctx, started.Identity, facts); err != nil {
-		recordSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionError("record request", err)
+	if err := RecordSessionRequest(ctx, p.sessions, instrumentation, started.Identity, facts); err != nil {
+		return contracts.StageContentResult{}, err
 	}
-	recordSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	deadline := p.invocation.Deadline
 	if !deadline.After(time.Now()) {
 		return contracts.StageContentResult{}, p.fail(
@@ -188,8 +167,8 @@ func (p *passthroughPlanner) Run(
 		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	}
 	completion := Completion{Result: pointerToResult(result.Clone())}
-	if err := p.recordCompletion(ctx, started.Identity, completion); err != nil {
-		return contracts.StageContentResult{}, sessionError("record completion", err)
+	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
+		return contracts.StageContentResult{}, SessionError("record completion", err)
 	}
 	return result.Clone(), nil
 }
@@ -287,39 +266,14 @@ func (p *passthroughPlanner) fail(
 	ctx context.Context, identity SessionIdentity, plannerError *Error,
 ) *Error {
 	failure := plannerError.Failure
-	if err := p.recordCompletion(ctx, identity, Completion{Failure: &failure}); err != nil {
-		return sessionError("record failure", errors.Join(plannerError, err))
+	if err := CompleteSession(ctx, p.sessions, identity, Completion{Failure: &failure}); err != nil {
+		return SessionError("record failure", errors.Join(plannerError, err))
 	}
 	return plannerError
 }
 
-func (p *passthroughPlanner) recordCompletion(
-	ctx context.Context, identity SessionIdentity, completion Completion,
-) error {
-	recordContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionWriteTimeout)
-	defer cancel()
-	return p.sessions.Complete(recordContext, identity, completion)
-}
-
 func NewErrorFromFailure(failure Failure, cause error) *Error {
 	return NewError(failure.Code, failure.Message, failure.Retryable, cause)
-}
-
-func sessionError(operation string, cause error) *Error {
-	if errors.Is(cause, ErrInvocationInProgress) {
-		return NewError(
-			"planner_invocation_in_progress",
-			"Planner invocation is already in progress and cannot be resumed",
-			true,
-			cause,
-		)
-	}
-	return NewError(
-		"planner_session_unavailable",
-		"Planner durable session is unavailable during "+operation,
-		true,
-		cause,
-	)
 }
 
 func validateCompletion(completion Completion) error {
