@@ -3,7 +3,8 @@ id: V211-001
 title: Accept OpenAPI 3.0 reference-only component aliases and sourced Path Items
 milestone: openapi-reliability-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 8f8337c1bd636d62d7320a8375ed03869e812709
 depends_on: []
 languages: [python]
 goal: Preserve valid OpenAPI 3.0 reference objects while checking source provenance where the format permits it.
