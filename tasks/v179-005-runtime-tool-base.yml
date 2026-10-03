@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V179-005
+title: Share Runtime toolset call instrumentation and factory helpers
+milestone: code-reuse-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Give built-in toolsets one tool-call metrics wrapper, artifact-observation mixin, factory checks and runtime secret source.
+context:
+  finding: >-
+    toolsets/common/metrics.py defines only the ToolMetrics Protocol, so about
+    18 toolsets re-implement timed call recording (_elapsed_ms is defined 16
+    times) with inconsistent cancellation handling; five tool bases repeat the
+    artifact-observation members; 15 factories repeat the selected-tool,
+    metrics and workspace checks; toolsets collect redaction secrets from
+    different subsets of the runtime settings.
+scope:
+  in:
+    - Add elapsed_ms and an instrumented call helper to toolsets/common/metrics.py with explicit cancellation recording; migrate every toolset.
+    - Add an artifact-observing tool mixin to toolsets/common/artifact_visibility.py and migrate the tool bases.
+    - Add shared factory checks for selected tools, metrics and workspace and migrate the factories.
+    - Collect runtime redaction secrets from one public function used by toolsets and allocation redaction.
+  out:
+    - Changing tool names, arguments, results or error codes seen by agents.
+acceptance_criteria:
+  - {id: A1, text: No toolset defines its own _elapsed_ms or timed record_tool_call wrapper.}
+  - {id: A2, text: Cancelled tool calls are recorded the same way by every toolset.}
+  - {id: A3, text: Artifact-observation members are defined once.}
+  - {id: A4, text: Toolset factories use the shared selection, metrics and workspace checks.}
+  - {id: A5, text: Every toolset redacts the same runtime secret set in metrics.}
+  - {id: A6, text: Runtime tests and lint pass.}
+tests:
+  - {command: cd runtime && uv run pytest, covers: [A1, A2, A3, A4, A5, A6]}
+  - {command: cd runtime && uv run ruff check . && uv run ruff format --check ., covers: [A6]}

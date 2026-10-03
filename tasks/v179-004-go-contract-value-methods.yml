@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V179-004
+title: Share Go contract value methods and persistence, planner and CLI helpers
+milestone: code-reuse-2026-10
+priority: P2
+status: in_progress
+depends_on: [V179-003]
+languages: [go]
+goal: Own clone, equality and key logic for shared contract types in internal/contracts and remove repeated store, planner and CLI boilerplate.
+context:
+  finding: >-
+    ArtifactRef equality is copied about 8 times and cloning about 9 times;
+    ModelPolicy, agent-template, artifact-slot, HTTP-origin and stage-result
+    clones are re-implemented although exported versions exist; pin digest
+    checks are identical in auditservice and runservice; SQLSTATE literals and
+    constraint classification repeat across stores; passthrough and streamline
+    planners repeat session lifecycle code; CLI commands repeat list printing,
+    atomic file writes and the contractor-pki flag parsing.
+scope:
+  in:
+    - Add Clone, exact/optional equality and key methods for contracts.ArtifactRef and Clone methods for shared contract and config value types; migrate callers.
+    - Share the pinned-selection digest check and its sentinel.
+    - Add SQLSTATE constants and constraint classification helpers to persistence/postgres and migrate stores.
+    - Share planner session begin/record/complete/recover helpers between passthrough, streamline and scan.
+    - Share CLI list printing and atomic writes; let cmd/contractor-pki reuse internal/cli PKI parsing.
+  out:
+    - Merging per-package sentinel errors or changing HTTP error mapping.
+acceptance_criteria:
+  - {id: A1, text: ArtifactRef clone, equality and key logic exist only as contracts methods.}
+  - {id: A2, text: No package re-implements an exported contract or config clone.}
+  - {id: A3, text: Stores classify constraint errors through persistence/postgres helpers.}
+  - {id: A4, text: Planner session lifecycle helpers have one implementation.}
+  - {id: A5, text: CLI list printing and atomic writes have one implementation and contractor-pki behavior is unchanged.}
+  - {id: A6, text: Go unit tests and lint pass.}
+tests:
+  - {command: go test ./internal/... ./cmd/..., covers: [A1, A2, A3, A4, A5, A6]}
+  - {command: make lint, covers: [A6]}

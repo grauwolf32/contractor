@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V179-006
+title: Consolidate duplicated Runtime digest, JSON, worker and document helpers
+milestone: code-reuse-2026-10
+priority: P2
+status: in_progress
+depends_on: [V179-005]
+languages: [python]
+goal: Replace copied Runtime helpers with public shared implementations.
+context:
+  finding: >-
+    digests.py keeps its sha256 and JCS helpers private so about 13 sites
+    re-implement them; strict JSON loading is copied about 9 times; finalizer,
+    summarizer and worker runtime copy one-shot agent scaffolding and
+    _candidate_text; the projectfs overlay re-implements storage tree helpers;
+    likec4 and openapi repeat the single-document CAS session and CLI
+    validator runner.
+scope:
+  in:
+    - Make sha256 and JCS digest helpers public in digests.py and migrate callers.
+    - Add one strict JSON loader with caller-selected error type and canonical check and migrate copies.
+    - Extract one-shot auxiliary-agent scaffolding into worker/one_shot.py.
+    - Reuse projectfs storage helpers in the overlay and remove redundant overrides.
+    - Share the single-document session and validator CLI runner between likec4 and openapi.
+  out:
+    - Changing digests, document bytes or tool results.
+acceptance_criteria:
+  - {id: A1, text: Runtime code builds sha256 and JCS digests only through digests.py.}
+  - {id: A2, text: Strict JSON loading has one implementation outside the sandboxed trailmark child.}
+  - {id: A3, text: _candidate_text and one-shot runner setup are defined once.}
+  - {id: A4, text: The overlay session no longer duplicates storage tree helpers.}
+  - {id: A5, text: likec4 and openapi share document session and validator runner code.}
+  - {id: A6, text: Runtime tests and lint pass with unchanged pinned digests.}
+tests:
+  - {command: cd runtime && uv run pytest, covers: [A1, A2, A3, A4, A5, A6]}
+  - {command: cd runtime && uv run ruff check . && uv run ruff format --check ., covers: [A6]}
