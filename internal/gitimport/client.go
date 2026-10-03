@@ -313,8 +313,18 @@ func (c *Client) safeError(ctx context.Context, remote Remote, err error) error 
 		}
 	}
 	if c.logger != nil {
+		// url.Error includes the request URL in Error(), including private
+		// repository paths. Keep only the underlying transport cause in logs.
+		logCause := err
+		for {
+			var requestErr *url.Error
+			if !errors.As(logCause, &requestErr) {
+				break
+			}
+			logCause = requestErr.Err
+		}
 		c.logger.WarnContext(ctx, "Git remote operation failed",
-			"scheme", remote.Scheme, "address", remote.Address, "error", err)
+			"scheme", remote.Scheme, "address", remote.Address, "error", logCause)
 	}
 	return ErrRemote
 }
