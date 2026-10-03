@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -88,6 +89,41 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	handler.ServeHTTP(invalid, verifiedRequest(http.MethodPost, "/private/v1/agents/register", invalidBody))
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("unknown field status = %d, body %s", invalid.Code, invalid.Body.String())
+	}
+}
+
+func TestPrivateRegistrationRejectsNonApplicableLabelsWithoutRetry(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{"bare", runtimeconfig.ErrAgentLabelNotApplicable},
+		{"wrapped", fmt.Errorf("register principal: %w", runtimeconfig.ErrAgentLabelNotApplicable)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			registry := newTestRegistry(t, newTestClock())
+			handler, err := NewHTTPHandler(registry, HTTPOptions{
+				Principals: failingPrincipalRegistrar{err: test.err},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			registration := testRegistration("agent-http")
+			registration.InitialLabels = []string{"planner-only"}
+			body, err := json.Marshal(registration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
+			var envelope privateErrorResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusBadRequest || envelope.Code != "invalid_runtime_labels" || envelope.Retryable {
+				t.Fatalf("registration = %d %+v", response.Code, envelope)
+			}
+		})
 	}
 }
 
@@ -174,6 +210,12 @@ func verifiedRequest(method, target string, body []byte) *http.Request {
 }
 
 type testPrincipalRegistrar struct{}
+
+type failingPrincipalRegistrar struct{ err error }
+
+func (f failingPrincipalRegistrar) Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error) {
+	return runtimeconfig.RuntimeAgentPrincipal{}, f.err
+}
 
 func (testPrincipalRegistrar) Register(
 	_ context.Context, runtimeAgentID string, labels []string,
