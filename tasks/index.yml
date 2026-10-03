@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V185-001, file: v185-001-telemetry-json-size-parity.yml}
   - {id: V184-001, file: v184-001-find-symbol-name-query.yml}
   - {id: V183-001, file: v183-001-projectfs-dead-state.yml}
   - {id: V182-001, file: v182-001-runtime-refactor-test-parity.yml}
