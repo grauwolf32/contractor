@@ -55,8 +55,16 @@ class FindingPublisher:
         started = time.perf_counter_ns()
         try:
             normalized = normalize_locations(locations)
-            refs = [ref.model_dump(exclude_none=True) for ref in evidence_refs or []]
-            standards = [ref.model_dump() for ref in standard_refs or []]
+            # ADK leaves the whole list as raw values if any model item fails
+            # conversion. The submission validator supplies bounded repair text.
+            refs = [
+                ref.model_dump(exclude_none=True) if isinstance(ref, ArtifactRef) else ref
+                for ref in evidence_refs or []
+            ]
+            standards = [
+                ref.model_dump() if isinstance(ref, StandardReference) else ref
+                for ref in standard_refs or []
+            ]
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)

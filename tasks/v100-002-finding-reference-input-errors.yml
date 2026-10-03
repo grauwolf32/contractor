@@ -24,5 +24,5 @@ acceptance_criteria:
   - {id: A4, text: Failure diagnostics and metrics do not reveal input values.}
   - {id: A5, text: Focused Runtime tests and lint pass.}
 tests:
-  - {command: cd runtime && .venv/bin/pytest tests/test_finding_facades.py, covers: [A1, A2, A3, A4, A5]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_finding_facades.py, covers: [A1, A2, A3, A4, A5]}
   - {command: cd runtime && .venv/bin/ruff check src/contractor_runtime/toolsets/security_findings/publisher.py tests/test_finding_facades.py, covers: [A5]}
