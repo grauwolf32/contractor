@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V117-001
+title: Correct list_symbols node-type guidance
+milestone: list-symbols-node-type-help-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Make the model-visible list_symbols filter guidance match exact parser node types.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/275
+  finding: The tool describes normalized kinds although filtering compares exact parser node types.
+scope:
+  in:
+    - Describe exact language-specific node_type values and how to discover them from rows.
+    - Validate examples against the parser's fixed node specification table.
+  out:
+    - Add normalized symbol-kind aliases or change filtering behavior.
+acceptance_criteria:
+  - {id: A1, text: Model-visible guidance names exact valid parser node types for common languages.}
+  - {id: A2, text: Guidance says each result row's nodeType can be reused as a filter.}
+  - {id: A3, text: Every documented example matches NODE_SPECS for its named language.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_code_analysis_shallow.py, covers: [A1, A2, A3]}
