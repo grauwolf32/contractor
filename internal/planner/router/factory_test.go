@@ -123,6 +123,40 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	}
 }
 
+func TestRouterFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
+	const revision = "report-r1"
+	llm := &scriptedModel{steps: []modelStep{
+		functionStep("add_subtask", map[string]any{
+			"objective": "Build the report", "instructions": "Produce the declared report",
+		}),
+		functionStep("execute_current_subtask", map[string]any{
+			"subtask_id": "0", "worker_name": "builder",
+		}),
+		func(*model.LLMRequest) (*model.LLMResponse, error) {
+			return &model.LLMResponse{
+				Content: genai.NewContentFromText("The report is ready.", genai.RoleModel),
+				UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+					PromptTokenCount: 10, CandidatesTokenCount: 10, TotalTokenCount: 20,
+				},
+			}, nil
+		},
+		functionStep("finish", map[string]any{
+			"outcome": "succeeded", "summary": "complete",
+			"artifacts": map[string]any{"report": artifactArgs("review", "report", revision)},
+		}),
+	}}
+	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+		"builder": successfulResult("report ready"),
+	}}
+	invocation := testInvocation()
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 1
+	instance := mustPlanner(t, llm, workers, invocation)
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 1 || llm.callCount() != 4 {
+		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), llm.callCount())
+	}
+}
+
 func routerTestTelemetry(
 	t *testing.T, invocation planner.Invocation,
 ) (telemetry.PlannerTelemetry, <-chan []byte) {

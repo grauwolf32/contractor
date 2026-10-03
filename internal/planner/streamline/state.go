@@ -215,11 +215,6 @@ func (s *executionState) exhaustedAfterTurn() *planner.Error {
 			"planner_token_limit", "Planner exhausted its cumulative token limit",
 		))
 	}
-	if s.workerCalls >= int64(s.limits.MaxWorkerCalls) {
-		return s.setFailureLocked(limitError(
-			"planner_worker_call_limit", "Planner exhausted its Worker-call limit",
-		))
-	}
 	return nil
 }
 
