@@ -3,8 +3,8 @@ id: V132-001
 title: Remove dead credential sets and private contract re-exports
 milestone: contracts-public-surface-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 0712ad41ed6ff52fc2d2070c7faa08987f444c2f
 depends_on: []
 languages: [python]
 goal: Keep the Runtime contracts package root limited to used public models and helpers.
