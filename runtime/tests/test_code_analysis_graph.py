@@ -22,6 +22,9 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
 )
+from contractor_runtime.toolsets.code_analysis.trailmark_child import (
+    _record_strongest_relationship,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 
@@ -113,6 +116,57 @@ def test_core_graph_tools_expose_duplicate_identity_and_exact_relationships(
         assert list(scratch.iterdir()) == []
 
     asyncio.run(scenario())
+
+
+def test_call_relationships_deduplicate_sites_before_pagination(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "def helper(x):\n    return x\n\n"
+            "def extra(x):\n    return x\n\n"
+            "def main():\n"
+            "    helper(1)\n    helper(2)\n    helper(3)\n"
+            "    extra(1)\n    extra(2)\n\n"
+            "def other():\n    helper(4)\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        summary = await tools["graph_summary"]()
+        assert summary["callEdgeCount"] == 6
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("helper", "main")
+        }
+
+        callees = await tools["find_callees"](symbols["main"], limit=2)
+        assert {item["name"] for item in callees["items"]} == {"helper", "extra"}
+        assert callees["observedTotal"] == 2
+        assert callees["truncated"] is False
+
+        callers = await tools["find_callers"](symbols["helper"], limit=2)
+        assert [item["name"] for item in callers["items"]] == ["main", "other"]
+        assert callers["observedTotal"] == 2
+        assert callers["truncated"] is False
+
+        paths = await tools["paths_between"](symbols["main"], symbols["helper"])
+        assert [[node["name"] for node in path] for path in paths["items"]] == [
+            ["main", "helper"]
+        ]
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_repeated_relationship_keeps_strongest_confidence_regardless_of_order() -> None:
+    for confidence_order in (
+        ("uncertain", "inferred", "certain"),
+        ("certain", "uncertain", "inferred"),
+    ):
+        index: dict[str, dict[str, str]] = {}
+        for confidence in confidence_order:
+            _record_strongest_relationship(index, "caller", "callee", confidence)
+        assert index == {"caller": {"callee": "certain"}}
 
 
 def test_callees_include_bounded_unresolved_proxy_projection(tmp_path: Path) -> None:

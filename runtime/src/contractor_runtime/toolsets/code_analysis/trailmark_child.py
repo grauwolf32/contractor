@@ -144,8 +144,8 @@ class _TrailmarkAdapter:
             )
         )
 
-        incoming: dict[str, list[tuple[str, str]]] = {}
-        outgoing: dict[str, list[tuple[str, str]]] = {}
+        incoming: dict[str, dict[str, str]] = {}
+        outgoing: dict[str, dict[str, str]] = {}
         adjacency: dict[str, set[str]] = {}
         for edge in graph.edges:
             if _enum_value(edge.kind) != "calls":
@@ -155,8 +155,8 @@ class _TrailmarkAdapter:
             if source not in nodes or target not in nodes:
                 raise _RequestError("code_analysis_engine_failed")
             confidence = _edge_confidence(edge.confidence)
-            outgoing.setdefault(source, []).append((target, confidence))
-            incoming.setdefault(target, []).append((source, confidence))
+            _record_strongest_relationship(outgoing, source, target, confidence)
+            _record_strongest_relationship(incoming, target, source, confidence)
             adjacency.setdefault(source, set()).add(target)
 
         entrypoint_pairs: list[tuple[str, dict[str, Any]]] = []
@@ -201,8 +201,8 @@ class _TrailmarkAdapter:
         self._incoming = {
             key: tuple(
                 sorted(
-                    values,
-                    key=lambda item: (*_node_sort_key(item[0], nodes), item[1]),
+                    values.items(),
+                    key=lambda item: _node_sort_key(item[0], nodes),
                 )
             )
             for key, values in incoming.items()
@@ -210,8 +210,8 @@ class _TrailmarkAdapter:
         self._outgoing = {
             key: tuple(
                 sorted(
-                    values,
-                    key=lambda item: (*_node_sort_key(item[0], nodes), item[1]),
+                    values.items(),
+                    key=lambda item: _node_sort_key(item[0], nodes),
                 )
             )
             for key, values in outgoing.items()
@@ -880,6 +880,18 @@ def _edge_confidence(value: object) -> str:
     if selected not in {"certain", "inferred", "uncertain"}:
         raise _RequestError("code_analysis_engine_failed")
     return selected
+
+
+_CONFIDENCE_STRENGTH = {"uncertain": 0, "inferred": 1, "certain": 2}
+
+
+def _record_strongest_relationship(
+    index: dict[str, dict[str, str]], node_id: str, related_id: str, confidence: str
+) -> None:
+    related = index.setdefault(node_id, {})
+    previous = related.get(related_id)
+    if previous is None or _CONFIDENCE_STRENGTH[confidence] > _CONFIDENCE_STRENGTH[previous]:
+        related[related_id] = confidence
 
 
 def _relative_path(value: object, mirror_root: Path) -> str:

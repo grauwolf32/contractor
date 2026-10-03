@@ -430,6 +430,12 @@ from an older digest fails with `code_analysis_stale_symbol`.
 pagination/traversal. A path is a list of slim symbol projections, not a list
 of raw Trailmark IDs.
 
+`find_callers` and `find_callees` return one row per distinct related symbol;
+their `observedTotal` counts those symbols, not call sites. When multiple call
+sites join the same pair, the row uses the strongest confidence (`certain` over
+`inferred` over `uncertain`). `graph_summary.callEdgeCount` still counts the
+underlying Trailmark call-site edges.
+
 Trailmark's public `paths_between` and `entrypoint_paths_to` implementations
 materialize all simple paths before the caller can slice them. Contractor must
 not invoke those unbounded operations. The child performs its own deterministic
