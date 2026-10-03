@@ -315,6 +315,53 @@ func TestImporterRecordsMissingNamedRoleOutputWithoutItems(t *testing.T) {
 }
 
 func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T) {
+	harness, findings := newFindingImportHarness(t)
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || len(findings.imports) != 1 ||
+		findings.imports[0].AuditID != harness.execution.AuditID ||
+		harness.store.collected.Disposition != auditstore.CollectionAccepted {
+		t.Fatalf("finding-aware collection = (%t, %v, imports=%+v, collection=%+v)",
+			worked, err, findings.imports, harness.store.collected)
+	}
+}
+
+func TestImporterRetainsProposalBeforeContractInvalidCollection(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		corrupt func(*importHarness)
+	}{
+		{name: "invalid task package", corrupt: func(h *importHarness) {
+			payload := []byte("not an Audit task package")
+			h.artifacts.project[refKey(h.store.members[0].Task.Ref)] = payload
+			digest := auditdomain.DigestBytes(payload)
+			h.store.members[0].Task.Digest = digest
+			h.snapshot.Items[0].Task.Digest = digest
+		}},
+		{name: "outside snapshot window", corrupt: func(h *importHarness) {
+			h.snapshot.Items = nil
+			h.snapshot.MoreItems = true
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness, findings := newFindingImportHarness(t)
+			test.corrupt(&harness)
+			worked, err := harness.importer.Collect(
+				context.Background(), harness.claim, harness.snapshot, harness.execution,
+			)
+			if err != nil || !worked || len(findings.imports) != 1 ||
+				findings.imports[0].RunID != *harness.execution.RunID ||
+				harness.store.collected.Disposition != auditstore.CollectionContractInvalid {
+				t.Fatalf("contract-invalid collection after retention = (%t, %v, imports=%+v, collection=%+v)",
+					worked, err, findings.imports, harness.store.collected)
+			}
+		})
+	}
+}
+
+func newFindingImportHarness(t *testing.T) (importHarness, *fakeFindingRetention) {
+	t.Helper()
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
 	profileSnapshot, err := json.Marshal(profile)
@@ -342,15 +389,7 @@ func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	worked, err := harness.importer.Collect(
-		context.Background(), harness.claim, harness.snapshot, harness.execution,
-	)
-	if err != nil || !worked || len(findings.imports) != 1 ||
-		findings.imports[0].AuditID != harness.execution.AuditID ||
-		harness.store.collected.Disposition != auditstore.CollectionAccepted {
-		t.Fatalf("finding-aware collection = (%t, %v, imports=%+v, collection=%+v)",
-			worked, err, findings.imports, harness.store.collected)
-	}
+	return harness, findings
 }
 
 func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) {

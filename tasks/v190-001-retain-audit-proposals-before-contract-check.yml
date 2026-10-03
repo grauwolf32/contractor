@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V190-001
+title: Retain Audit child findings before collection contract checks
+milestone: audit-finding-retention-2026-10
+priority: P1
+status: completed
+implementation_commit: 6121366546a29b3de5d7164798eeb0e24f8309da
+depends_on: []
+languages: [go]
+goal: Preserve every allowed child-Run finding proposal before a contract-invalid collection receipt permits Run deletion.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/201
+  specification: docs/spec/19-audits.md
+  finding: Check collection validates members before retaining proposals, then commits a permanent fallback receipt without a hold.
+scope:
+  in:
+    - Retain child-Run proposals before any check membership or task-package validation can commit a receipt.
+    - Verify permanent failures still retain allowed proposals and findings-disabled profiles do not retain them.
+    - Verify a retained proposal survives source Run deletion in PostgreSQL.
+  out:
+    - Changing collection membership lookup outside the bounded reconcile window (issue 195).
+acceptance_criteria:
+  - {id: A1, text: Corrupt task packages and missing snapshot members yield contract-invalid receipts after proposal retention.}
+  - {id: A2, text: Findings-disabled profiles still reject unexpected proposals without retention.}
+  - {id: A3, text: After source Run deletion, a proposal retained before a contract-invalid receipt remains audit-held.}
+tests:
+  - {command: go test ./internal/auditimport -run 'TestImporterRetainsProposalBeforeContractInvalidCollection|TestImporterRejectsUnexpectedProposalWhenFindingsAreDisabled', covers: [A1, A2]}
+  - {command: go test ./internal/auditimport, covers: [A1, A2]}
+  - {command: go test -tags=integration ./internal/auditimport -run '^TestPostgresContractInvalidCollectionRetainsProposalAfterRunDeletion$' -count=1, covers: [A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

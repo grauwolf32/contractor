@@ -77,25 +77,24 @@ func (i *Importer) collect(
 	if err != nil {
 		return false, err
 	}
+	// A contract-invalid receipt makes the terminal child Run deletable. Keep
+	// every allowed proposal before membership or task validation can produce
+	// that receipt, even when the result package cannot be collected.
+	if err := i.retainFindingProposals(ctx, snapshot, execution, loadStandards); err != nil {
+		return false, err
+	}
 	if len(members) > auditstore.MaxCollectionItems ||
 		(execution.Role == auditstore.ExecutionCheck && len(members) == 0) ||
 		(execution.Role != auditstore.ExecutionCheck && len(members) != 0) {
 		return false, fmt.Errorf("%w: collection membership is invalid", ErrPermanent)
 	}
 	if execution.Role != auditstore.ExecutionCheck {
-		if err := i.retainFindingProposals(ctx, snapshot, execution, loadStandards); err != nil {
-			return false, err
-		}
 		return i.collectRole(ctx, claim, snapshot, execution)
 	}
 	prepared, err := i.prepareMembers(ctx, snapshot, members)
 	if err != nil {
 		return false, err
 	}
-	if err := i.retainFindingProposals(ctx, snapshot, execution, loadStandards); err != nil {
-		return false, err
-	}
-
 	if isScanCheck(prepared) && execution.RunID != nil && *execution.TerminalOutcome != auditstore.TerminalSucceeded {
 		return i.collectScanRecovery(ctx, claim, snapshot, execution, prepared, "scan_execution_failed")
 	}
