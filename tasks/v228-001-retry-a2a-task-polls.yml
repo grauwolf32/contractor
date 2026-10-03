@@ -3,7 +3,8 @@ id: V228-001
 title: Retry A2A Task polls and cancel abandoned tasks
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3d3f4532d7351c016a74f09606375b19e7e787c2
 depends_on: []
 languages: [go]
 goal: Retain a running Worker's result across transient GetTask transport failures.
