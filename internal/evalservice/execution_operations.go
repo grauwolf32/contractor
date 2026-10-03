@@ -69,6 +69,9 @@ func resolveOperation[T any](ctx context.Context, d *executionOperations, e eval
 func (d *executionOperations) failDefinite(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, op evalstore.Suboperation, err error) error {
 	// Only local validation/fence failures establish non-acceptance. Timeouts and
 	// unknown database outcomes retain the original intent for idempotent replay.
+	if definiteConfigurationError(err) {
+		return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_not_ready"}, true, "")
+	}
 	for _, definite := range []error{
 		runservice.ErrInvalid, auditservice.ErrInvalid, contracts.ErrPinnedSelectionChanged,
 		auditservice.ErrProfileNotFound, auditservice.ErrUnsupported,

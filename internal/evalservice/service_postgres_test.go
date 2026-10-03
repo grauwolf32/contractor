@@ -893,6 +893,182 @@ func TestPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T) {
 	}
 }
 
+func (h *serviceHarness) preparedWithRuntimeLabel(t *testing.T, kind string) evalstore.Experiment {
+	t.Helper()
+	repository := runtimeconfig.NewRepository(h.pool)
+	if _, err := repository.CreateBinding(t.Context(), "gpu",
+		runtimeconfig.BuiltInRunSnapshot().Default.Config, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	draft, _ := h.dataset(t, kind)
+	for i := range draft.Variants {
+		draft.Variants[i].RuntimeLabels = []string{"gpu"}
+	}
+	doc := frozen(t, "CreateExperiment", evaldomain.CreateExperiment{
+		Name: "Members with removable Runtime label", ControlMode: "server", Draft: &draft,
+	})
+	receipt, err := h.service.Create(t.Context(), h.scope, doc, identity(t, "create", 0, doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := receipt.Experiment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := h.get(t, ref.ExperimentID)
+	h.command(t, e, "prepare")
+	tick(t, h.coordinator(t, "prepare"))
+	e = h.get(t, e.ID)
+	if e.State != evaldomain.StateReady || e.Expected != 8 {
+		t.Fatalf("labeled preparation = %s members=%d diagnostic=%s", e.State, e.Expected, e.Diagnostic)
+	}
+	return e
+}
+
+func (h *serviceHarness) purgeDeletingAuditDrafts(t *testing.T) {
+	t.Helper()
+	store := auditstore.NewPostgresStore(h.pool)
+	claims, err := store.Claim(t.Context(), auditstore.ClaimParams{
+		HolderID: "fixture-draft-purge", Lease: time.Minute, Limit: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, claim := range claims {
+		audit, err := h.audit.Get(t.Context(), h.scope.OwnerID, claim.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if audit.State == auditstore.AuditDeleting {
+			if err := store.PurgeClaimed(t.Context(), claim, auditdomain.ArtifactNamespace(claim.AuditID)); err != nil {
+				t.Fatal(err)
+			}
+		} else if err := store.ReleaseClaim(t.Context(), claim); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestPostgresDeletedRuntimeLabelRejectsEvalCreateAndDrains(t *testing.T) {
+	for _, kind := range []string{"workflow", "audit"} {
+		for _, cancel := range []bool{false, true} {
+			name := kind + "/finish"
+			if cancel {
+				name = kind + "/cancel"
+			}
+			t.Run(name, func(t *testing.T) {
+				h := newHarness(t)
+				e := h.preparedWithRuntimeLabel(t, kind)
+				h.command(t, e, "start")
+				coordinator := h.coordinator(t, "controller")
+				tick(t, coordinator) // Admit one member while its label is still bound.
+				e = h.get(t, e.ID)
+				if e.State != evaldomain.StateRunning || e.Outstanding != 1 {
+					t.Fatalf("initial admission = %s outstanding=%d", e.State, e.Outstanding)
+				}
+				if err := runtimeconfig.NewRepository(h.pool).DeleteBinding(t.Context(), "gpu", 1); err != nil {
+					t.Fatal(err)
+				}
+				opKind := "run-create"
+				if kind == "audit" {
+					opKind = "audit-start"
+				}
+				if cancel {
+					for n := 0; n < 10; n++ {
+						tick(t, coordinator)
+						if kind == "audit" {
+							h.purgeDeletingAuditDrafts(t)
+						}
+						var rejected int
+						if err := h.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM eval_suboperations WHERE kind = $1 AND state = 'rejected'`, opKind).Scan(&rejected); err != nil {
+							t.Fatal(err)
+						}
+						if rejected > 0 {
+							break
+						}
+					}
+					e = h.get(t, e.ID)
+					h.command(t, e, "cancel")
+				}
+				want := evaldomain.StateFinished
+				if cancel {
+					want = evaldomain.StateCancelled
+				}
+				for n := 0; n < 80; n++ {
+					tick(t, coordinator)
+					if kind == "audit" {
+						h.purgeDeletingAuditDrafts(t)
+					}
+					e = h.get(t, e.ID)
+					if e.State == want {
+						break
+					}
+				}
+				if e.State != want || e.Outstanding != 0 {
+					t.Fatalf("deleted-label experiment did not drain: state=%s outstanding=%d", e.State, e.Outstanding)
+				}
+				var rejected int
+				if err := h.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM eval_suboperations
+ WHERE kind = $1 AND state = 'rejected'
+   AND convert_from(response, 'UTF8') LIKE '%eval_not_ready%'`, opKind).Scan(&rejected); err != nil || rejected == 0 {
+					t.Fatalf("missing definite %s rejection: count=%d err=%v", opKind, rejected, err)
+				}
+				if !cancel && rejected != 8 {
+					t.Fatalf("later members were not all rejected: %d of 8", rejected)
+				}
+				if kind == "workflow" && count(t, h.pool, "workflow_runs") != 0 {
+					t.Fatal("deleted binding still created a Workflow Run")
+				}
+				if kind == "audit" && count(t, h.pool, "audits") != 0 {
+					t.Fatal("rejected Audit draft was not deleted")
+				}
+				if !cancel && count(t, h.pool, "eval_submissions") != 8 {
+					t.Fatal("later members were not admitted and rejected")
+				}
+			})
+		}
+	}
+}
+
+type failedRunCreate struct {
+	RunCreator
+	cause error
+}
+
+func (f failedRunCreate) CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error) {
+	return runservice.CreateResult{}, f.cause
+}
+
+func TestPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "deadline", cause: context.DeadlineExceeded},
+		{name: "database", cause: errors.New("untyped database failure")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := newHarness(t)
+			e := h.prepared(t, "workflow")
+			h.command(t, e, "start")
+			coordinator := h.coordinator(t, "controller")
+			tick(t, coordinator)
+			h.driver.Runs = failedRunCreate{RunCreator: h.run, cause: test.cause}
+			_, err := coordinator.RunOnce(t.Context())
+			if !errors.Is(err, test.cause) {
+				t.Fatalf("unknown creation error = %v", err)
+			}
+			var intents int
+			if err := h.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM eval_suboperations WHERE kind = 'run-create' AND state = 'intent'`).Scan(&intents); err != nil || intents != 1 {
+				t.Fatalf("uncertain creation intent = %d, %v", intents, err)
+			}
+		})
+	}
+}
+
 func serviceTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")

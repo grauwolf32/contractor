@@ -17,11 +17,11 @@ import (
 
 // Dependency errors retain their cause. Only documented validation/not-found
 // outcomes require editing the draft; unknown I/O and database failures retry.
-func preflightDependencyError(cause error) error {
+func definiteConfigurationError(cause error) bool {
 	var skill *agentskills.RunSkillError
 	var validation *agentskills.ValidationError
 	if errors.As(cause, &skill) && !skill.Retryable || errors.As(cause, &validation) {
-		return errors.Join(evaldomain.Failure("eval_not_ready"), cause)
+		return true
 	}
 	for _, known := range []error{
 		runtimeconfig.ErrInvalid, runtimeconfig.ErrNotFound, runtimeconfig.ErrConflict,
@@ -30,8 +30,15 @@ func preflightDependencyError(cause error) error {
 		auditstandards.ErrInvalid, auditstandards.ErrNotFound, auditstandards.ErrDrift,
 	} {
 		if errors.Is(cause, known) {
-			return errors.Join(evaldomain.Failure("eval_not_ready"), cause)
+			return true
 		}
+	}
+	return false
+}
+
+func preflightDependencyError(cause error) error {
+	if definiteConfigurationError(cause) {
+		return errors.Join(evaldomain.Failure("eval_not_ready"), cause)
 	}
 	if errors.Is(cause, artifacts.ErrArtifactNotFound) || errors.Is(cause, artifacts.ErrArtifactIntegrity) || errors.Is(cause, artifacts.ErrBlobMissing) {
 		return errors.Join(evaldomain.Failure("eval_evidence_unavailable"), cause)
