@@ -9,19 +9,13 @@ import jcs
 
 from contractor_runtime.contracts import (
     API_VERSION,
-    GatewayFailureSignatures,
     ResolvedAgentTemplate,
-    ResolvedLLMGatewayConfig,
     ResolvedModelPolicy,
 )
 
 
 class TemplateDigestMismatch(ValueError):
     """A trusted Control Plane sent an internally inconsistent template body."""
-
-
-class GatewayDigestMismatch(ValueError):
-    """A trusted Control Plane sent an inconsistent non-secret Gateway body."""
 
 
 def verify_template_digests(template: ResolvedAgentTemplate) -> None:
@@ -53,11 +47,6 @@ def verify_model_policy_digest(policy: ResolvedModelPolicy) -> None:
         raise TemplateDigestMismatch("resolved ModelPolicy digest does not match its body")
 
 
-def verify_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> None:
-    if _llm_gateway_config_digest(gateway) != gateway.ref.digest:
-        raise GatewayDigestMismatch("resolved LLMGatewayConfig digest does not match its body")
-
-
 def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
     spec: dict[str, Any] = {"model": policy.model}
     _add_policy_limits(spec, policy)
@@ -70,43 +59,6 @@ def _model_policy_digest(policy: ResolvedModelPolicy) -> str:
         "spec": spec,
     }
     return jcs_digest(manifest)
-
-
-def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
-    spec: dict[str, Any] = {"protocol": gateway.protocol, "url": gateway.url}
-    if gateway.credential_manager is not None:
-        spec["credentialManager"] = {
-            "implementation": gateway.credential_manager.implementation,
-            "managementUrl": gateway.credential_manager.management_url,
-        }
-    if gateway.failure_signatures is not None:
-        spec["failureSignatures"] = _failure_signatures_document(gateway.failure_signatures)
-    return jcs_digest(
-        {
-            "apiVersion": API_VERSION,
-            "kind": "LLMGatewayConfig",
-            "metadata": {"name": gateway.ref.gateway_id, "version": gateway.ref.version},
-            "spec": spec,
-        }
-    )
-
-
-def _failure_signatures_document(signatures: GatewayFailureSignatures) -> dict[str, Any]:
-    """Canonical shape shared with the Go digest; omitted fields never appear."""
-    document: dict[str, Any] = {}
-    if signatures.model_unavailable:
-        entries: list[dict[str, Any]] = []
-        for signature in signatures.model_unavailable:
-            entry: dict[str, Any] = {"status": signature.status}
-            if signature.message_equals is not None:
-                entry["messageEquals"] = signature.message_equals
-            if signature.litellm_wrapped is not None:
-                entry["litellmWrapped"] = signature.litellm_wrapped
-            entries.append(entry)
-        document["modelUnavailable"] = entries
-    if signatures.permanent_codes:
-        document["permanentCodes"] = list(signatures.permanent_codes)
-    return document
 
 
 def _agent_template_digest(template: ResolvedAgentTemplate) -> str:

@@ -75,17 +75,6 @@ CAIDO_TOOL_NAMES = frozenset(
         "caido_workflow_run",
     }
 )
-CAIDO_READ_TOOL_NAMES = frozenset(
-    {
-        "caido_automate_results",
-        "caido_history",
-        "caido_request_detail",
-        "caido_scope",
-        "caido_sitemap",
-        "caido_workflow_findings",
-        "caido_workflow_list",
-    }
-)
 _AUTOMATE_SORT_FIELDS = frozenset(
     {"RESP_STATUS_CODE", "RESP_LENGTH", "RESP_ROUNDTRIP_TIME", "POSITION", "PAYLOAD_0"}
 )

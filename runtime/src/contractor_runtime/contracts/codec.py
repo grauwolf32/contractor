@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-import jcs
 from pydantic import (
     ValidationError,
 )
@@ -20,13 +19,6 @@ class PrivateProtocolDecodeError(ValueError):
     def __init__(self, reason: Literal["version", "duplicate_key", "schema", "invariant"]):
         self.reason = reason
         super().__init__(f"private protocol {reason} error")
-
-
-def encode_private(value: WireModel) -> bytes:
-    """Return RFC 8785 canonical private JSON; callers must not log it."""
-
-    dumped = value.model_dump(mode="json", by_alias=True, exclude_none=True)
-    return jcs.canonicalize(dumped)
 
 
 def decode_private[PrivateModelT: WireModel](

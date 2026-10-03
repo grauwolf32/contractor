@@ -6,7 +6,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.private_codec import encode_private
 from fakes.spec import allocation_spec, runtime_provenance
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -29,7 +31,6 @@ from contractor_runtime.contracts import (
     ToolsetSelection,
     WorkerRuntimeRef,
     WorkerSessionMode,
-    encode_private,
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -39,8 +40,6 @@ from contractor_runtime.digests import (
 from contractor_runtime.factories import (
     FactoryRegistry,
     RunArtifactsToolsetFactory,
-    StubADKWorkerRuntimeFactory,
-    StubWorkerRuntime,
     WorkerBuildContext,
     built_in_factories,
 )

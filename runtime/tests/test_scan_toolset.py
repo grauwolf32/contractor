@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from google.adk.tools import FunctionTool
 from target_policy_fixtures import SCAN_TEST_POLICY
 
@@ -18,7 +19,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeSettings
-from contractor_runtime.factories import FactoryRegistry, StubADKWorkerRuntimeFactory
+from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.toolsets.common.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,

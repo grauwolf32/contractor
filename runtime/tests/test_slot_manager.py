@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from test_agent_skill_toolset import resolved_value, skill_package
 
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.factories import (
     FactoryRegistry,
-    StubADKWorkerRuntimeFactory,
     built_in_factories,
 )
 from contractor_runtime.state import ProcessState, RuntimeState

@@ -9,6 +9,7 @@ from typing import Literal
 
 import pytest
 import yaml
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.likec4.tools as likec4
@@ -21,7 +22,6 @@ from contractor_runtime.capabilities import (
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
-    StubADKWorkerRuntimeFactory,
     built_in_factories,
 )
 from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings

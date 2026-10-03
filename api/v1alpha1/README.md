@@ -3,9 +3,8 @@
 These JSON Schema documents describe Contractor-owned payloads exchanged
 between the Go Server and Python Runtime Agent. Every standalone request and
 response carries `"apiVersion": "contractor/v1alpha1"`, uses camelCase fields,
-and rejects unknown fields. Reusable resolved values such as
-`ResolvedLLMGatewayConfig` are embedded components rather than standalone
-messages, so their version is carried by their exact digest-bearing ref.
+and rejects unknown fields. Allocation messages carry an exact digest-bearing
+`LLMGatewayConfigRef`; the resolved Gateway body stays on the Go Server.
 
 A2A envelopes themselves are owned by the official A2A 1.0 SDKs. The deployed
 adapter receives `StageContentRequest` in an A2A DataPart with media type
@@ -21,13 +20,13 @@ number, alternate DTO family or conversion path. HTTP routes retain their
 `/private/v1` prefix. The schemas are review artifacts and wire definitions. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures
 under `api/testdata/v1alpha1`. Its `index.json` assigns each fixture a message
-type and schema; Go and Python both validate it against the schema, decode it
-strictly and through the private canonical codec, and expect the listed
-rejections and error classes. A new fixture needs an index entry.
-`digest-cases.json` holds resolved ModelPolicy, LLMGatewayConfig and
-AgentTemplate bodies whose embedded digests Go and Python must both reproduce
-from the canonical manifests, including non-ASCII text and floating-point
-temperatures and ratios.
+type and schema; each implementation validates the wire types it owns and
+checks the listed rejections. Gateway body fixtures remain in this shared
+catalog for Go Server schema and digest checks; Python Runtime validates the
+Gateway ref and effective runtime settings instead. A new fixture needs an
+index entry. `digest-cases.json` holds resolved ModelPolicy and AgentTemplate
+bodies checked by Go and Python, plus Server-only LLMGatewayConfig bodies,
+including non-ASCII text and floating-point temperatures and ratios.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required
@@ -74,7 +73,7 @@ contains a closed summarizer phase/usage record. The HTTP ETag's existing
 
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`
-describes its normalized, digest-bearing resolved value on private wires.
+describes its normalized, digest-bearing resolved value inside the Go Server.
 `execution-config-manifest.schema.json` describes immutable Stage-local
 escalation profiles, while `workflow-transition.schema.json` describes the
 strict `on` block including bounded retry and inline-or-ref escalation.

@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from fakes.spec import allocation_spec
+from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -22,8 +23,6 @@ from contractor_runtime.control_client import ControlClient
 from contractor_runtime.factories import (
     FactoryRegistry,
     RunArtifactsToolsetFactory,
-    StubADKWorkerRuntimeFactory,
-    StubWorkerRuntime,
     WorkerBuildContext,
 )
 from contractor_runtime.lease import LeaseWatchdog

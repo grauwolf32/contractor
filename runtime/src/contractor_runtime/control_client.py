@@ -30,8 +30,6 @@ from contractor_runtime.state import ProcessState, RuntimeState
 logger = logging.getLogger(__name__)
 
 MAX_CONTROL_RESPONSE_BYTES = 1 << 20
-MAX_CONTROL_HEADERS = _https.MAX_RESPONSE_HEADERS
-MAX_CONTROL_HEADER_BYTES = _https.MAX_RESPONSE_HEADER_BYTES
 CONTROL_RETRY_BACKOFF_CEILING_SECONDS = 5.0
 
 

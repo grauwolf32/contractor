@@ -7,11 +7,9 @@ import pytest
 
 from contractor_runtime.contracts import (
     ResolvedAgentTemplate,
-    ResolvedLLMGatewayConfig,
     ResolvedModelPolicy,
 )
 from contractor_runtime.digests import (
-    verify_gateway_config_digest,
     verify_model_policy_digest,
     verify_template_digests,
 )
@@ -28,13 +26,6 @@ CASES = json.loads(
 )
 def test_model_policy_digest_case(value: dict) -> None:
     verify_model_policy_digest(ResolvedModelPolicy.model_validate(value))
-
-
-@pytest.mark.parametrize(
-    "value", CASES["llmGatewayConfigs"], ids=lambda value: value["ref"]["gatewayId"]
-)
-def test_llm_gateway_config_digest_case(value: dict) -> None:
-    verify_gateway_config_digest(ResolvedLLMGatewayConfig.model_validate(value))
 
 
 @pytest.mark.parametrize(
