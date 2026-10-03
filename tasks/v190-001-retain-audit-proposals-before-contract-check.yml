@@ -3,7 +3,8 @@ id: V190-001
 title: Retain Audit child findings before collection contract checks
 milestone: audit-finding-retention-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6121366546a29b3de5d7164798eeb0e24f8309da
 depends_on: []
 languages: [go]
 goal: Preserve every allowed child-Run finding proposal before a contract-invalid collection receipt permits Run deletion.
