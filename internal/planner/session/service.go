@@ -504,8 +504,6 @@ type persistentState struct {
 	RequestRecorded          bool                           `json:"requestRecorded"`
 	RequestDigest            string                         `json:"requestDigest,omitempty"`
 	ADKEventCount            int64                          `json:"adkEventCount,omitempty"`
-	ADKInputTokens           int64                          `json:"adkInputTokens,omitempty"`
-	ADKOutputTokens          int64                          `json:"adkOutputTokens,omitempty"`
 	Plan                     *planner.PlannerPlanProjection `json:"plan,omitempty"`
 	LastPlanTransitionDigest string                         `json:"lastPlanTransitionDigest,omitempty"`
 	FactDigests              map[string]string              `json:"factDigests,omitempty"`
@@ -634,8 +632,8 @@ func encodeState(state persistentState) (json.RawMessage, error) {
 	if state.Status != statusRunning && state.Status != statusCompleted || state.NextSequence <= 0 {
 		return nil, fmt.Errorf("Planner state is invalid")
 	}
-	if state.ADKEventCount < 0 || state.ADKInputTokens < 0 || state.ADKOutputTokens < 0 {
-		return nil, fmt.Errorf("Planner ADK counters must be non-negative")
+	if state.ADKEventCount < 0 {
+		return nil, fmt.Errorf("Planner ADK event count must be non-negative")
 	}
 	if state.RequestRecorded != (state.RequestDigest != "") {
 		return nil, fmt.Errorf("Planner request state is inconsistent")
@@ -675,12 +673,23 @@ func decodeState(data json.RawMessage) (persistentState, error) {
 	if len(data) == 0 || len(data) > maxSessionJSONBytes {
 		return persistentState{}, fmt.Errorf("Planner state exceeds its bounded contract")
 	}
-	var state persistentState
-	if err := strictjson.Decode(data, &state); errors.Is(err, strictjson.ErrTrailingData) {
+	// Older sessions persisted these write-only cumulative counters. Accept
+	// exactly those legacy keys on read, but never copy them into active state
+	// or a later write. Strict decoding still rejects every other unknown key.
+	var stored struct {
+		persistentState
+		ADKInputTokens  int64 `json:"adkInputTokens"`
+		ADKOutputTokens int64 `json:"adkOutputTokens"`
+	}
+	if err := strictjson.Decode(data, &stored); errors.Is(err, strictjson.ErrTrailingData) {
 		return persistentState{}, fmt.Errorf("Planner state contains trailing JSON")
 	} else if err != nil {
 		return persistentState{}, fmt.Errorf("decode Planner state: %w", err)
 	}
+	if stored.ADKInputTokens < 0 || stored.ADKOutputTokens < 0 {
+		return persistentState{}, fmt.Errorf("legacy Planner ADK token counts must be non-negative")
+	}
+	state := stored.persistentState
 	if _, err := encodeState(state); err != nil {
 		return persistentState{}, err
 	}

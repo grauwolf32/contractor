@@ -175,8 +175,16 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 		t.Fatalf("unsafe or incomplete ADK facts: event=%s run=%s", persisted, runPersisted)
 	}
 	state, err := decodeState(store.session.State)
-	if err != nil || state.ADKEventCount != 1 || state.ADKInputTokens != 11 || state.ADKOutputTokens != 7 {
+	if err != nil || state.ADKEventCount != 1 {
 		t.Fatalf("state = (%+v, %v)", state, err)
+	}
+	if strings.Contains(string(store.session.State), "adkInputTokens") ||
+		strings.Contains(string(store.session.State), "adkOutputTokens") {
+		t.Fatalf("state retained unused token counters: %s", store.session.State)
+	}
+	if !strings.Contains(runPersisted, `"inputTokens":11`) ||
+		!strings.Contains(runPersisted, `"outputTokens":7`) {
+		t.Fatalf("run event lost per-event token counts: %s", runPersisted)
 	}
 }
 
