@@ -52,7 +52,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if resolveErr != nil {
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
 			}
-			if err := checkExpectedDigest(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
+			if err := contracts.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
 			}
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
@@ -112,7 +112,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if pinErr != nil {
 					return pinErr
 				}
-				if err := checkExpectedDigest(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+				if err := contracts.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 					return err
 				}
 				selectedSkills := []contracts.RunSkillSnapshot{}
@@ -127,7 +127,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return catalogErr
 					}
 				}
-				if err := checkExpectedDigest(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
+				if err := contracts.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
 					return err
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{

@@ -130,7 +130,7 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	if err := checkExpectedDigest(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
 	projectTarget := project.HTTPTarget.Clone()
@@ -172,7 +172,7 @@ func (s *Service) startInTransaction(
 	for _, standard := range pinnedStandards {
 		expectedStandards = append(expectedStandards, standard.Catalog)
 	}
-	if err := checkExpectedDigest(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
 		return StartedAudit{}, err
 	}
 	standardLinks, err := auditStandardLinks(pinnedStandards)
@@ -198,7 +198,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 
-	if err := checkExpectedDigest(params.ExpectedSkillsSHA256, skills); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedSkillsSHA256, skills); err != nil {
 		return StartedAudit{}, err
 	}
 	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)

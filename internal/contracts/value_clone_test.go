@@ -1,6 +1,10 @@
 package contracts
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestArtifactRefValueMethods(t *testing.T) {
 	one, two := "rev-1", "rev-2"
@@ -36,5 +40,18 @@ func TestResolvedAgentTemplateCloneCopiesSkillRevisions(t *testing.T) {
 	clone.Toolsets[0].Tools[0] = "corrupted"
 	if revision != "rev-1" || source.Toolsets[0].Tools[0] != "read" {
 		t.Fatalf("cloned AgentTemplate aliases its source: %+v", source)
+	}
+}
+
+func TestCheckPinnedSelection(t *testing.T) {
+	value := map[string]string{"workflow": "copy@1"}
+	if err := CheckPinnedSelection("", value); err != nil {
+		t.Fatalf("empty expectation error = %v", err)
+	}
+	if err := CheckPinnedSelection("sha256:"+strings.Repeat("0", 64), value); !errors.Is(err, ErrPinnedSelectionChanged) {
+		t.Fatalf("changed selection error = %v", err)
+	}
+	if err := CheckPinnedSelection("sha256:a4d3a5e1b3ae8e4e3b5a4d1c11b1ee4d8a8a0fd09e0c08cb8b8f6f0c7d3cd5f2", func() {}); err == nil {
+		t.Fatal("unencodable selection was accepted")
 	}
 }

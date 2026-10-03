@@ -1,4 +1,4 @@
-package runservice
+package contracts
 
 import (
 	"errors"
@@ -11,11 +11,13 @@ import (
 // optional expectations empty. An idempotent replay precedes these checks.
 var ErrPinnedSelectionChanged = errors.New("prepared execution selections changed")
 
-func checkExpectedDigest(expected string, value any) error {
+// CheckPinnedSelection returns ErrPinnedSelectionChanged unless expected is
+// empty or equals the contentdigest.JSON digest of the current selection.
+func CheckPinnedSelection(expected string, current any) error {
 	if expected == "" {
 		return nil
 	}
-	digest, err := contentdigest.JSON(value)
+	digest, err := contentdigest.JSON(current)
 	if err != nil {
 		return err
 	}
