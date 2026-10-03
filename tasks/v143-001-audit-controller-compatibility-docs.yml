@@ -3,8 +3,8 @@ id: V143-001
 title: Correct Audit controller surface and compatibility reason docs
 milestone: audit-controller-compatibility-docs-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 41ca820d39d94be8c586752882d36697cdbc1c48
 depends_on: []
 languages: [go, markdown]
 goal: Describe the Store interface and emitted Audit compatibility reasons accurately.
