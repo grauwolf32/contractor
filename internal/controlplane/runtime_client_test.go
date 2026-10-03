@@ -570,6 +570,49 @@ func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
 	}
 }
 
+func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
+	path := strings.Repeat("<>&\u2028\u2029", 300)
+	report := testExecutionReport("allocation_1")
+	report.Worker.ToolCalls = []contracts.ToolCallRecord{{
+		CallID: "call-1", Tool: "read_source_file",
+		Arguments: map[string]any{"path": path}, Outcome: contracts.ToolCallSucceeded,
+	}}
+	escaped, err := json.Marshal(report.Worker.ToolCalls[0].Arguments)
+	if err != nil || len(escaped) <= 4096 {
+		t.Fatalf("test case must exceed the HTML-escaped argument limit: %d, %v", len(escaped), err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(contracts.AllocationFinalResponse{
+			APIVersion: contracts.APIVersion, Report: report,
+		})
+	}))
+	defer server.Close()
+	client, _ := NewRuntimeControlClient(server.Client())
+	reservation := testReservation(
+		"allocation_1", "builder", server.URL, server.URL,
+		testTemplate(t), time.Now().Add(time.Minute).UTC(),
+	)
+	deadline := time.Now().Add(time.Minute)
+	finalized, err := client.Finalize(context.Background(), reservation, "finalization_1", deadline)
+	if err != nil {
+		t.Fatalf("valid Runtime finalize report was rejected: %v", err)
+	}
+	aborted, err := client.Abort(
+		context.Background(), reservation, "abort_1",
+		contracts.TerminationError{Code: "run_cancelled", Message: "cancelled"}, deadline,
+	)
+	if err != nil {
+		t.Fatalf("valid Runtime abort report was rejected: %v", err)
+	}
+	for _, received := range []contracts.AllocationFinalReport{finalized, aborted} {
+		if len(received.Worker.ToolCalls) != 1 ||
+			received.Worker.ToolCalls[0].Arguments["path"] != path {
+			t.Fatalf("Runtime report detail was lost: %+v", received.Worker.ToolCalls)
+		}
+	}
+}
+
 func testReservation(
 	allocationID, logicalName, controlURL, a2aURL string,
 	template contracts.ResolvedAgentTemplate,

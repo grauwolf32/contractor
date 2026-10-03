@@ -38,6 +38,43 @@ func TestNormalizeAllocationResourcesHonorsPinnedPolicy(t *testing.T) {
 	}
 }
 
+func TestMetricsPolicyKeepsCompactUTF8ArgumentsAndReports(t *testing.T) {
+	path := strings.Repeat("<>&\u2028\u2029", 300)
+	arguments := map[string]any{"path": path}
+	if size := encodedSize(arguments); size != 2711 {
+		t.Fatalf("compact argument size = %d, want 2711", size)
+	}
+	worker := contracts.ExecutionReport{
+		ReportID: "worker-size", Complete: true,
+		Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
+		ToolCalls: make([]contracts.ToolCallRecord, 0, 150), Errors: []contracts.ExecutionError{},
+	}
+	for index := range 150 {
+		worker.ToolCalls = append(worker.ToolCalls, contracts.ToolCallRecord{
+			CallID: fmt.Sprintf("call-%d", index), Tool: "read_source_file",
+			Arguments: arguments, Outcome: contracts.ToolCallSucceeded,
+		})
+	}
+	now := time.Now().UTC()
+	source := contracts.AllocationFinalReport{
+		ReportID: "allocation-size", AllocationID: "allocation-size",
+		StartedAt: now.Add(-time.Second), FinishedAt: now,
+		Worker: worker, Runtime: contracts.RuntimeReport{Complete: true},
+	}
+	normalized, err := NewPolicy().NormalizeAllocationReport(source)
+	if err != nil {
+		t.Fatalf("valid Runtime report was rejected by the persistence policy: %v", err)
+	}
+	if len(normalized.Worker.ToolCalls) != 150 || normalized.Worker.Truncated {
+		t.Fatalf("valid compact report was truncated: calls=%d truncated=%t", len(normalized.Worker.ToolCalls), normalized.Worker.Truncated)
+	}
+	for _, call := range normalized.Worker.ToolCalls {
+		if call.ArgumentsTruncated || call.Arguments["path"] != path {
+			t.Fatalf("valid compact arguments were changed: %+v", call)
+		}
+	}
+}
+
 func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testing.T) {
 	calls, succeeded, failed := int64(1005), int64(804), int64(201)
 	report := contracts.ExecutionReport{

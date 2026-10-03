@@ -1,7 +1,6 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -303,11 +302,11 @@ func cloneWorkerBudget(source *contracts.WorkerBudgetMetrics) *contracts.WorkerB
 }
 
 func encodedSize(value any) int {
-	encoded, err := json.Marshal(value)
+	size, err := contracts.ResultJSONSize(value)
 	if err != nil {
 		return MaxReportJSONBytes + 1
 	}
-	return len(encoded)
+	return size
 }
 
 func valueSize(value any) *int {
