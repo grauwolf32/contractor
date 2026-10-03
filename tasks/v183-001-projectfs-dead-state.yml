@@ -3,7 +3,8 @@ id: V183-001
 title: Remove unreachable project workspace writes and unused binary state
 milestone: projectfs-dead-state-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b314d7baa93d259347ca3f5f2da92316538b60b1
 depends_on: []
 languages: [python]
 goal: Make the project workspace storage paths reflect active behavior.
@@ -22,5 +23,5 @@ acceptance_criteria:
   - {id: A2, text: Candidate deltas always use the managed filesystem and local direct writes still pass their tests.}
   - {id: A3, text: Project workspace, filesystem toolset and lint tests pass.}
 tests:
-  - {command: cd runtime && uv run pytest tests/test_projectfs_storage.py tests/test_projectfs_local_direct.py tests/test_local_direct_faults.py tests/test_projectfs_overlay.py tests/test_workspace_state.py tests/test_workspace_auto_export.py tests/test_filesystem_toolset.py tests/test_workspace_changes_toolset.py tests/test_projectfs_edit_parity.py, covers: [A1, A2, A3]}
+  - {command: cd runtime && uv run pytest tests/test_projectfs_storage.py tests/test_projectfs_local_direct.py tests/test_local_direct_faults.py tests/test_projectfs_overlay.py tests/test_workspace_state.py tests/test_workspace_auto_export.py tests/test_filesystem_toolset.py tests/test_workspace_changes_toolset.py tests/test_projectfs_edit_parity.py tests/test_projectfs_security.py, covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A3]}
