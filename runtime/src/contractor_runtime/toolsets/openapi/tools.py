@@ -411,11 +411,15 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
             raise ToolInputError("component must be an object")
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(component)
-        candidate["x-component-files"] = validated_evidence
 
         def modify(document: dict[str, Any]) -> None:
+            update = copy.deepcopy(candidate)
+            # A 3.0 Reference Object cannot carry extension siblings. The
+            # evidence is checked above, but the alias must stay a pure $ref.
+            if not _reference_only_component(update, document["openapi"]):
+                update["x-component-files"] = validated_evidence
             values = document.setdefault("components", {}).setdefault(normalized, {})
-            values[name] = _deep_merge(values.get(name, {}), candidate)
+            values[name] = _deep_merge(values.get(name, {}), update)
             _validate_component(normalized, values[name])
 
         result = await self._mutate(modify, operation="upsert_component")
@@ -571,6 +575,8 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
             if section.startswith("x-"):
                 continue
             for component in values.values():
+                if _reference_only_component(component, document["openapi"]):
+                    continue
                 self._validate_evidence_from_paths(
                     component["x-component-files"], project_evidence_paths
                 )
@@ -1222,7 +1228,7 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
         _validate_api_path(path)
         _validate_path_item(path_item)
         if require_provenance:
-            _validate_provenance(path_item.get("x-path-files"), "path")
+            _validate_provenance(path_item.get("x-path-files"), f"path {path}")
     components = document.get("components", {})
     if not isinstance(components, dict):
         raise ToolInputError("OpenAPI components must be an object")
@@ -1241,14 +1247,16 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
         for name, component in values.items():
             _validate_component_name(name)
             _validate_component(section, component)
-            if require_provenance:
-                _validate_provenance(component.get("x-component-files"), "component")
+            if require_provenance and not _reference_only_component(component, version):
+                _validate_provenance(
+                    component.get("x-component-files"), f"component {section}.{name}"
+                )
     if "servers" in document:
         _validate_servers(document["servers"])
     if "tags" in document:
         _validate_tags(document["tags"])
     _validate_schema_shapes(document, version)
-    _validate_reference_siblings(document, version)
+    _validate_reference_siblings(document, version, root=True)
     _validate_local_refs(document)
 
 
@@ -1276,14 +1284,24 @@ def _validate_component(section: str, value: Any) -> None:
             raise ToolInputError(_validation_message(model.__name__, error)) from error
 
 
-def _validate_reference_siblings(value: Any, version: str) -> None:
-    """Reject Reference Object siblings which OpenAPI 3.0 ignores."""
+def _reference_only_component(value: Any, version: str) -> bool:
+    return version.startswith("3.0.") and isinstance(value, dict) and set(value) == {"$ref"}
+
+
+def _validate_reference_siblings(
+    value: Any, version: str, *, path_item: bool = False, root: bool = False
+) -> None:
+    """Reject 3.0 Reference Object siblings, except on Path Item Objects."""
 
     if isinstance(value, dict):
-        if version.startswith("3.0.") and "$ref" in value and len(value) != 1:
+        if version.startswith("3.0.") and "$ref" in value and len(value) != 1 and not path_item:
             raise ToolInputError("OpenAPI 3.0 $ref objects cannot contain sibling fields")
-        for child in value.values():
-            _validate_reference_siblings(child, version)
+        for key, child in value.items():
+            if root and key == "paths" and isinstance(child, dict):
+                for item in child.values():
+                    _validate_reference_siblings(item, version, path_item=True)
+            else:
+                _validate_reference_siblings(child, version)
     elif isinstance(value, list):
         for child in value:
             _validate_reference_siblings(child, version)

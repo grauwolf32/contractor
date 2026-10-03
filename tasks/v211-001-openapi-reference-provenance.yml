@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V211-001
+title: Accept OpenAPI 3.0 reference-only component aliases and sourced Path Items
+milestone: openapi-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 8f8337c1bd636d62d7320a8375ed03869e812709
+depends_on: []
+languages: [python]
+goal: Preserve valid OpenAPI 3.0 reference objects while checking source provenance where the format permits it.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/224
+  finding: Component provenance added beside a 3.0 $ref invalidates the reference, while the generic sibling check rejects sourced Path Item references.
+scope:
+  in:
+    - Store pure 3.0 component aliases without provenance siblings, while validating evidence supplied to mutation tools.
+    - Exempt only pure 3.0 component aliases from persisted provenance checks.
+    - Allow Path Item $ref with x-path-files and preserve sibling rejection for nested Reference Objects.
+    - Include path or component identity in missing-provenance errors.
+    - Cover mutation and seeded-document validation for schemas, responses, parameters and paths.
+  out:
+    - Redesigning provenance storage for all OpenAPI versions.
+acceptance_criteria:
+  - {id: A1, text: OpenAPI 3.0 component aliases upsert as pure references in schemas, responses and parameters.}
+  - {id: A2, text: Seeded aliases and sourced Path Item references validate cleanly; missing provenance identifies the path or component.}
+  - {id: A3, text: Nested OpenAPI 3.0 Reference Objects still reject sibling fields.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_openapi_toolset.py, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

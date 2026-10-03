@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import subprocess
 from dataclasses import dataclass, field
@@ -718,6 +719,110 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
         assert not unavailable["valid"]
         assert not unavailable["validatorAvailable"]
         assert unavailable["validatorExecutionError"]
+
+    asyncio.run(scenario())
+
+
+def test_openapi_30_component_aliases_and_path_refs_mutate_and_validate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
+        await tools["initialize_openapi"]("Aliases")
+
+        components = (
+            ("schemas", "User", {"type": "object"}),
+            ("responses", "User", {"description": "OK"}),
+            ("parameters", "User", {"name": "user", "in": "query", "schema": {"type": "string"}}),
+        )
+        for section, name, target in components:
+            await tools["upsert_openapi_component"](section, name, target, ["src/app.py"])
+            alias = {"$ref": f"#/components/{section}/{name}"}
+            await tools["upsert_openapi_component"](section, "Alias", alias, ["src/app.py"])
+            assert (await tools["get_openapi_component"](section, "Alias"))["component"] == alias
+
+        await tools["upsert_openapi_path"]("/health", valid_path_item(), ["src/app.py"])
+        await tools["upsert_openapi_path"]("/alias", {"$ref": "#/paths/~1health"}, ["src/app.py"])
+        assert (await tools["get_openapi_path"]("/alias"))["pathItem"] == {
+            "$ref": "#/paths/~1health",
+            "x-path-files": ["src/app.py"],
+        }
+        assert (await tools["validate_openapi"]())["valid"]
+
+        writes = client.write_count
+        invalid_path = valid_path_item("#/components/schemas/User")
+        invalid_path["get"]["responses"]["200"]["content"]["application/json"]["schema"][
+            "description"
+        ] = "Ignored sibling"
+        with pytest.raises(ValueError, match=r"\$ref objects cannot contain sibling"):
+            await tools["upsert_openapi_path"]("/bad", invalid_path, ["src/app.py"])
+        with pytest.raises(ValueError, match="does not exist"):
+            await tools["upsert_openapi_component"](
+                "schemas", "BadAlias", {"$ref": "#/components/schemas/User"}, ["src/missing.py"]
+            )
+        assert client.write_count == writes
+
+    asyncio.run(scenario())
+
+
+def test_seeded_openapi_30_aliases_validate_and_missing_provenance_names_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def validate_seed(document: dict[str, Any]) -> dict[str, Any]:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+        return await tools["validate_openapi"]()
+
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
+        document = minimal_document("Seeded aliases")
+        document["paths"]["/health"] = valid_path_item() | {"x-path-files": ["src/app.py"]}
+        document["paths"]["/alias"] = {
+            "$ref": "#/paths/~1health",
+            "x-path-files": ["src/app.py"],
+        }
+        document["components"] = {
+            "schemas": {
+                "User": {"type": "object", "x-component-files": ["src/app.py"]},
+                "Alias": {"$ref": "#/components/schemas/User"},
+            },
+            "responses": {
+                "User": {"description": "OK", "x-component-files": ["src/app.py"]},
+                "Alias": {"$ref": "#/components/responses/User"},
+            },
+            "parameters": {
+                "User": {
+                    "name": "user",
+                    "in": "query",
+                    "schema": {"type": "string"},
+                    "x-component-files": ["src/app.py"],
+                },
+                "Alias": {"$ref": "#/components/parameters/User"},
+            },
+        }
+        assert (await validate_seed(document))["valid"]
+
+        no_path_source = copy.deepcopy(document)
+        del no_path_source["paths"]["/alias"]["x-path-files"]
+        path_error = await validate_seed(no_path_source)
+        assert not path_error["valid"]
+        assert "path /alias" in path_error["structuralErrors"][0]
+
+        no_component_source = copy.deepcopy(document)
+        del no_component_source["components"]["responses"]["User"]["x-component-files"]
+        component_error = await validate_seed(no_component_source)
+        assert not component_error["valid"]
+        assert "component responses.User" in component_error["structuralErrors"][0]
 
     asyncio.run(scenario())
 
