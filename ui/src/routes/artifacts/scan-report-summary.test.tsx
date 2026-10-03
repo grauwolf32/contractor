@@ -13,10 +13,10 @@ const observation = {
   results: [],
 };
 
-function report(overrides: Record<string, unknown> = {}) {
+function report(overrides: Record<string, unknown> = {}, tool = "scan_ffuf") {
   return JSON.stringify({
     schemaVersion: 1,
-    tool: "scan_ffuf",
+    tool,
     inputDigest: `sha256:${"a".repeat(64)}`,
     inputArtifacts: {},
     observation: { ...observation, ...overrides },
@@ -24,6 +24,62 @@ function report(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Scan report preview", () => {
+  it.each([
+    [
+      "Completed (bounded discovery)",
+      {
+        discoveryComplete: false,
+        scanComplete: undefined,
+        coverage: { limitations: ["bounded_crawl", "exhaustion_unverified"] },
+      },
+    ],
+    [
+      "No targets discovered",
+      {
+        status: "failed",
+        errorCode: "no_discovered_targets",
+        discoveryComplete: false,
+        scanComplete: undefined,
+      },
+    ],
+    [
+      "Incomplete",
+      {
+        status: "failed",
+        errorCode: "invalid_scanner_output",
+        discoveryComplete: false,
+        scanComplete: undefined,
+      },
+    ],
+    [
+      "Incomplete",
+      {
+        status: "failed",
+        errorCode: "scan_request_failed",
+        discoveryComplete: false,
+        scanComplete: undefined,
+      },
+    ],
+    ["Unknown", { discoveryComplete: "false", scanComplete: undefined }],
+  ])("shows Katana technical outcome %s", async (outcome, overrides) => {
+    const source = report(overrides, "scan_katana");
+    const { container } = render(
+      <LoadedArtifactPreview mediaType="application/json" source={source} />,
+    );
+    const summary = await screen.findByRole("region", {
+      name: "Scanner execution",
+    });
+    expect(summary).toHaveTextContent("scan_katana");
+    expect(summary).toHaveTextContent(outcome);
+    if (outcome !== "Completed (bounded discovery)") {
+      expect(summary).not.toHaveTextContent("Completed (bounded discovery)");
+    }
+    expect(summary).toHaveTextContent(
+      "does not establish that every target was found",
+    );
+    expect(container.querySelector("pre")?.textContent).toBe(source);
+  });
+
   it.each([
     ["Completed", { scanComplete: true }],
     ["Incomplete", { scanComplete: false }],
