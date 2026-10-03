@@ -97,6 +97,76 @@ def test_every_fixed_language_parser_extracts_a_structural_definition(
     assert not parsed.parse_error
 
 
+@pytest.mark.parametrize("language", [Language.JAVASCRIPT, Language.TYPESCRIPT, Language.TSX])
+def test_arrow_callbacks_are_not_named_after_parameters_or_bodies(language: Language) -> None:
+    source = (
+        b"export const double = x => x * 2;\n"
+        b"const ids = items.map(item => item.id).filter(id => id > 0);\n"
+        b"const fallback = () => value;\n"
+        b"const cb = function(x) { return x; };\n"
+        b"const named = function helper(y) { return y; };\n"
+    )
+    parsed = parse_symbols(load_parser(language), source, "src/app.js", language, 100)
+    assert not parsed.parse_error
+    names = {symbol.name for symbol in parsed.symbols}
+    assert {"double", "ids", "fallback", "cb", "named", "helper"} <= names
+    assert not {"x", "y", "item", "id", "value"} & names
+    assert not any(symbol.node_type == "arrow_function" for symbol in parsed.symbols)
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "expected"),
+    [
+        (
+            Language.C,
+            'static int counter = 0;\nstatic const char *greeting = "hello";\n'
+            "int counts[3] = {1, 2, 3};\n",
+            {"counter", "greeting", "counts"},
+        ),
+        (
+            Language.CPP,
+            'std::string s = "x";\nauto lam = [](int q){ return q; };\nint &r = counter;\n',
+            {"s", "lam", "r"},
+        ),
+    ],
+)
+def test_initialized_c_family_declarations_use_identifier_names(
+    language: Language, source: str, expected: set[str]
+) -> None:
+    parsed = parse_symbols(load_parser(language), source.encode(), "src/sample.c", language, 100)
+    assert not parsed.parse_error
+    names = {symbol.name for symbol in parsed.symbols}
+    assert expected <= names
+    assert all("=" not in name for name in names)
+
+
+def test_search_def_uses_arrow_bindings_and_initialized_c_names(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    "src/app.js": (
+                        "export const double = x => x * 2;\n"
+                        "const ids = items.map(item => item.id).filter(id => id > 0);\n"
+                        "const fallback = () => value;\n"
+                    ),
+                    "src/state.c": (
+                        'static int counter = 0;\nstatic const char *greeting = "hello";\n'
+                    ),
+                }
+            ),
+            tmp_path,
+        )
+        assert (await tools["search_def"]("double"))["items"]
+        assert (await tools["search_def"]("counter"))["items"]
+        for callback_name in ("x", "item", "id", "value"):
+            assert not (await tools["search_def"](callback_name))["items"]
+        listed = await tools["list_symbols"](limit=100)
+        assert all("=" not in item["name"] for item in listed["items"])
+
+    asyncio.run(scenario())
+
+
 def test_extension_registry_retains_the_v1_surface() -> None:
     expected = {
         ".bash",
