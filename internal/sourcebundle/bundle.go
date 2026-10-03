@@ -129,7 +129,19 @@ func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 			command := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".")
 			output, commandErr := command.Output()
 			if commandErr == nil {
-				paths, skipped := skipNestedRepositories(root, splitNUL(output))
+				// An unmerged index emits the same raw path once per stage. Package
+				// the working-tree file once; distinct names still reach the NFC
+				// collision check in inspectFiles.
+				seen := make(map[string]struct{})
+				unique := make([]string, 0)
+				for _, path := range splitNUL(output) {
+					if _, duplicate := seen[path]; duplicate {
+						continue
+					}
+					seen[path] = struct{}{}
+					unique = append(unique, path)
+				}
+				paths, skipped := skipNestedRepositories(root, unique)
 				return paths, skipped, nil
 			}
 			var exit *exec.ExitError
