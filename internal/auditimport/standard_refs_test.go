@@ -102,8 +102,17 @@ func TestBundledCWEClassificationMatchesRuntime(t *testing.T) {
 	if err := validateProposalStandardRefs(proposal, nil); err != nil {
 		t.Fatalf("Runtime-produced CWE reference rejected: %v", err)
 	}
+	for _, valid := range []string{"CWE-532", "CWE-639"} {
+		proposal.StandardRefs[0].RequirementID = valid
+		if err := validateProposalStandardRefs(proposal, nil); err != nil {
+			t.Fatalf("valid CWE %s rejected: %v", valid, err)
+		}
+	}
 	for _, invalid := range []auditdomain.StandardReference{
 		{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-999999"},
+		{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-596"},
+		{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-534"},
+		{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-1324"},
 		{Scheme: "CWE", Version: "4.19", RequirementID: "CWE-89"},
 	} {
 		proposal.StandardRefs = []auditdomain.StandardReference{invalid}

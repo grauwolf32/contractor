@@ -21,11 +21,45 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 
 def test_cwe_reference_uses_the_bundled_classification() -> None:
-    assert cwe_reference("CWE-89") == [
-        {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-89"}
-    ]
+    for cwe in ("CWE-89", "CWE-639", "CWE-532"):
+        assert cwe_reference(cwe) == [{"scheme": "CWE", "version": "4.20", "requirement_id": cwe}]
     with pytest.raises(ToolInputError, match="pinned CWE catalog"):
         cwe_reference("CWE-999999")
+
+
+@pytest.mark.parametrize(
+    "cwe",
+    [
+        "CWE-71",
+        "CWE-92",
+        "CWE-132",
+        "CWE-216",
+        "CWE-217",
+        "CWE-218",
+        "CWE-225",
+        "CWE-247",
+        "CWE-249",
+        "CWE-292",
+        "CWE-365",
+        "CWE-373",
+        "CWE-423",
+        "CWE-443",
+        "CWE-458",
+        "CWE-516",
+        "CWE-533",
+        "CWE-534",
+        "CWE-542",
+        "CWE-545",
+        "CWE-592",
+        "CWE-596",
+        "CWE-769",
+        "CWE-1187",
+        "CWE-1324",
+    ],
+)
+def test_cwe_reference_rejects_deprecated_v420_weaknesses(cwe: str) -> None:
+    with pytest.raises(ToolInputError, match="pinned CWE catalog"):
+        cwe_reference(cwe)
 
 
 def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
