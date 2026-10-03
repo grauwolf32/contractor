@@ -78,7 +78,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         directories: set[str],
         text_files: dict[str, str],
         binary_paths: set[str],
-        stored_binary_paths: set[str],
     ) -> None:
         super().__init__(
             mode="overlay",
@@ -88,7 +87,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             directories=directories,
             text_files=text_files,
             binary_paths=binary_paths,
-            stored_binary_paths=stored_binary_paths,
         )
         self._source = self._tree.clone()
         self._checkpoint = self._tree.clone()
@@ -279,7 +277,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
                 tree.directories.clear()
                 tree.text_files.clear()
                 tree.binary_paths.clear()
-                tree.stored_binary_paths.clear()
 
 
 def encode_workspace_state(
@@ -486,14 +483,12 @@ def _remove_subtree(tree: ManagedWorkspaceTree, path: str) -> None:
         # Only a directory has descendants; avoid scanning the whole tree.
         tree.text_files.pop(path, None)
         tree.binary_paths.discard(path)
-        tree.stored_binary_paths.discard(path)
         return
     selected = {candidate for candidate in tree.paths() if _within(candidate, path)}
     tree.directories.difference_update(selected)
     for candidate in selected:
         tree.text_files.pop(candidate, None)
     tree.binary_paths.difference_update(selected)
-    tree.stored_binary_paths.difference_update(selected)
 
 
 def _copy_subtree(
@@ -507,9 +502,6 @@ def _copy_subtree(
             destination.text_files[candidate] = text
     destination.binary_paths.update(
         candidate for candidate in source.binary_paths if _within(candidate, path)
-    )
-    destination.stored_binary_paths.update(
-        candidate for candidate in source.stored_binary_paths if _within(candidate, path)
     )
 
 

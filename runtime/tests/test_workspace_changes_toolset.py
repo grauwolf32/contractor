@@ -135,7 +135,6 @@ def test_factory_rejects_absent_and_direct_views_and_cursors_track_content(
             directories=set(),
             text_files={"file.txt": "one\n"},
             binary_paths=set(),
-            stored_binary_paths=set(),
         )
         # A writer-only handle deliberately lacks the changes interface, which
         # is the same shape a direct session would provide to a factory.
@@ -187,7 +186,6 @@ async def overlay(name: str) -> OverlayWorkspaceSession:
         directories=source.directories,
         text_files=source.text_files,
         binary_paths=source.binary_paths,
-        stored_binary_paths=source.stored_binary_paths,
     )
 
 

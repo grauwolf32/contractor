@@ -292,7 +292,6 @@ async def workspace(mode: str, name: str) -> DirectWorkspaceSession:
             "long.txt": "x" * (filesystem_module.MAX_READ_BYTES + 100),
         },
         binary_paths={"image.bin"},
-        stored_binary_paths=set(),
     )
     if mode == "overlay":
         return OverlayWorkspaceSession(**arguments)

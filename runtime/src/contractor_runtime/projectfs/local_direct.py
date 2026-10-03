@@ -235,7 +235,6 @@ def _managed(tree: LocalTree) -> ManagedWorkspaceTree:
         directories={path for path, item in tree.entries.items() if item.directory},
         text_files=dict(tree.texts),
         binary_paths=set(binary_paths),
-        stored_binary_paths=set(binary_paths),
     )
 
 

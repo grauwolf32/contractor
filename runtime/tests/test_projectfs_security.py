@@ -18,7 +18,7 @@ from contractor_runtime.projectfs import (
     WorkspaceStorageError,
     hydrate_workspace,
 )
-from contractor_runtime.projectfs import storage as storage_module
+from contractor_runtime.projectfs import local_io as local_io_module
 from contractor_runtime.projectfs.paths import (
     MAX_PROJECT_PATH_BYTES,
     ProjectPathError,
@@ -170,7 +170,7 @@ def test_direct_local_failed_atomic_replace_removes_temporary_files(
         def reject_replace(*_args: object, **_kwargs: object) -> None:
             raise OSError("seeded detail that must not escape")
 
-        monkeypatch.setattr(storage_module.os, "replace", reject_replace)
+        monkeypatch.setattr(local_io_module.os, "replace", reject_replace)
         with pytest.raises(WorkspaceStorageError, match="workspace_unavailable") as failure:
             await session.write_text("lf.txt", "uncommitted secret\n")
 

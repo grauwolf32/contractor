@@ -34,7 +34,6 @@ async def main():
         directories=set(),
         text_files={},
         binary_paths=set(),
-        stored_binary_paths=set(),
     )
     allocation = lifecycle.allocate("crash-test", session)
     try:

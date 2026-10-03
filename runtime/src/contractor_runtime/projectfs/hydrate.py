@@ -84,7 +84,6 @@ class _TreeAccumulator:
     directories: set[str] = field(default_factory=set)
     text_files: dict[str, str] = field(default_factory=dict, repr=False)
     binary_paths: set[str] = field(default_factory=set)
-    stored_binary_paths: set[str] = field(default_factory=set)
     path_types: dict[str, str] = field(default_factory=dict)
     files: int = 0
     entries: int = 0
@@ -149,7 +148,6 @@ async def hydrate_workspace(
             directories=accumulator.directories,
             text_files=accumulator.text_files,
             binary_paths=accumulator.binary_paths,
-            stored_binary_paths=accumulator.stored_binary_paths,
         )
         if spec.mode == "overlay":
             overlay = OverlayWorkspaceSession(**arguments)
@@ -178,7 +176,6 @@ async def hydrate_workspace(
                 directories=set(accumulator.directories),
                 text_files=dict(accumulator.text_files),
                 binary_paths=set(accumulator.binary_paths),
-                stored_binary_paths=set(accumulator.stored_binary_paths),
             )
             try:
                 result_tree = await to_thread_until_done(
@@ -429,8 +426,6 @@ def _extract_file(
                     destination.write(text.encode("utf-8"))
         else:
             tree.binary_paths.add(path)
-            if local_output is not None:
-                tree.stored_binary_paths.add(path)
     finally:
         if local_output is not None:
             local_output.close()
