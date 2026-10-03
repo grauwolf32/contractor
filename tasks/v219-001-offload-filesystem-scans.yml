@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V219-001
+title: Keep filesystem read and grep scans off the asyncio loop
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Prevent large read_file and grep CPU scans from stalling the Runtime Agent event loop.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/176
+  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  finding: Line windowing and grep scan work over 16 MiB files currently runs inline in async methods.
+scope:
+  in:
+    - Offload read_file byte checking, line windowing and result construction to an owned worker thread.
+    - Offload grep snapshot scanning, matching and result collection to an owned worker thread.
+    - Preserve line, cursor, budget, timeout and error behavior.
+  out:
+    - Changing workspace storage or file size limits.
+acceptance_criteria:
+  - {id: A1, text: A 16 MiB read_file operation leaves the asyncio loop responsive at early and late line windows.}
+  - {id: A2, text: Literal and regex grep over a 16 MiB snapshot leave the loop responsive.}
+  - {id: A3, text: Existing read_file and grep projections and bounds remain unchanged.}
+  - {id: A4, text: Cancellation waits for offloaded work to finish before propagating.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_filesystem_toolset.py tests/test_numbered_file_reads.py, covers: [A1, A2, A3, A4]}
+  - {command: make test-runtime, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
