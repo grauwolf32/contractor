@@ -40,6 +40,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _unconfigured_client,
     gateway_secrets,
 )
+from contractor_runtime.toolsets.common.document_write import write_document_exact
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
@@ -559,11 +560,15 @@ class _OpenAPISession:
         _validate_document(document, require_provenance=False)
         require_model_visible_binding(self._namespace, target_name)
         data = _dump_document(document)
-        return await self._client.write_artifact(
+        return await write_document_exact(
+            self._client,
             ArtifactRef(namespace=self._namespace, name=target_name),
             data=data,
             media_type=TARGET_MEDIA_TYPE,
             expected_revision=expected_revision,
+            max_bytes=MAX_DOCUMENT_BYTES,
+            reload_tool="load_openapi",
+            read_tool="read_openapi_document",
         )
 
     def _require_document(self) -> tuple[dict[str, Any], ArtifactRef]:

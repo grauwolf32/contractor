@@ -33,6 +33,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _unconfigured_client,
     gateway_secrets,
 )
+from contractor_runtime.toolsets.common.document_write import write_document_exact
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.lines import split_lines
@@ -365,11 +366,15 @@ class _LikeC4Session:
     ) -> Any:
         data = _validate_document(content)
         require_model_visible_binding(self._namespace, target_name)
-        return await self._client.write_artifact(
+        return await write_document_exact(
+            self._client,
             ArtifactRef(namespace=self._namespace, name=target_name),
             data=data,
             media_type=TARGET_MEDIA_TYPE,
             expected_revision=expected_revision,
+            max_bytes=MAX_DOCUMENT_UTF8_BYTES,
+            reload_tool="load_likec4",
+            read_tool="read_likec4",
         )
 
     def _require_document(self) -> tuple[str, ArtifactRef]:
