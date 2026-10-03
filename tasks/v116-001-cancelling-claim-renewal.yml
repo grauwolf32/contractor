@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V116-001
+title: Preserve cancellation cleanup after claim renewal
+milestone: cancelling-claim-renewal-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Let an already-cancelling Run finish its bounded Runtime abort or finalization while its claim renews.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/278
+  finding: Claim renewal cancels the execution context even when the Run was cancelling when claimed.
+scope:
+  in:
+    - Distinguish cancellation discovered after a claim from an already-cancelling claim.
+    - Cover abort and finalization that outlast a claim-renewal tick.
+    - Preserve interruption for later cancellation and claim loss.
+  out:
+    - Change durable cancellation or terminal report contracts.
+acceptance_criteria:
+  - {id: A1, text: A claimed cancelling Run completes AbortAll across a renewal tick and persists its complete report.}
+  - {id: A2, text: A claimed cancelling Finalizing Stage completes FinalizeAll across a renewal tick and persists its complete report.}
+  - {id: A3, text: Cancellation requested after a running claim still interrupts work.}
+  - {id: A4, text: Claim loss still cancels cleanup.}
+tests:
+  - {command: go test ./internal/scheduler -run 'TestClaimedCancelling|TestClaimRenewal', covers: [A1, A2, A4]}
+  - {command: go test ./internal/scheduler -run TestPostgresCancellationCleanupRetainsRunClaim, covers: [A3]}
+  - {command: go test ./internal/scheduler, covers: [A1, A2, A3, A4]}
