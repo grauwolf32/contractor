@@ -3,7 +3,8 @@ id: V237-001
 title: Bound proposal limitations before Audit Round materialization
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 2a06d6a049f21cb35a0d740d0a14689bbacf5f6d
 depends_on: []
 languages: [go, yaml]
 goal: Prevent accepted finding proposals from wedging later Audit Round construction.
@@ -24,5 +25,6 @@ acceptance_criteria:
   - {id: A3, text: A deterministic next-Round validation error closes Audit dispatch with next_round_invalid rather than repeating forever.}
   - {id: A4, text: Retryable next-Round errors and stale acceptance preconditions retain their retry behavior.}
 tests:
-  - {command: go test ./internal/auditdomain ./internal/findingintake ./internal/auditcontroller -count=1, covers: [A1, A2, A3, A4]}
+  - {command: go test -tags=integration ./internal/auditdomain ./internal/findingintake ./internal/auditstore ./internal/auditcontroller -count=1, covers: [A1, A3, A4]}
+  - {command: make verify-public-api, covers: [A2]}
   - {command: make lint, covers: [A1, A2, A3, A4]}
