@@ -3,7 +3,8 @@ id: V177-001
 title: Negotiate SSH host key types pinned for Git import
 milestone: git-host-key-trust-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: cbbb351b6fd84fca38187aa3707d9a2dbc16bb16
 depends_on: []
 languages: [go]
 goal: Import from multi-key SSH servers when a genuine single-type host key is pinned.
