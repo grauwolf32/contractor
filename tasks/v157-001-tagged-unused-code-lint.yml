@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V157-001
+title: Remove dead test helpers and lint tagged Go source
+milestone: tagged-unused-code-lint-2026-10
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, make]
+goal: Keep unused helpers from accumulating behind e2e and integration build tags.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/298
+  finding: Four e2e-tagged and three untagged test helpers have no callers; existing vet and untagged lint do not catch them.
+scope:
+  in:
+    - Remove seven unused test helpers while retaining live dependent helpers.
+    - Pin staticcheck U1000 in lint with e2e and integration tags enabled.
+  out:
+    - Change test behavior or production code.
+acceptance_criteria:
+  - {id: A1, text: Tagged staticcheck U1000 reports no unused symbols.}
+  - {id: A2, text: Tagged Go test packages still compile and vet.}
+  - {id: A3, text: make lint checks tagged unused code.}
+tests:
+  - {command: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./..., covers: [A1, A3]}
+  - {command: go vet -tags=e2e ./tests/e2e/... ./tests/ui-stack/..., covers: [A2]}
+  - {command: go test -tags=e2e -count=1 -run '^$' ./tests/e2e ./tests/ui-stack, covers: [A2]}
