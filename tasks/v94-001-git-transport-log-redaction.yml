@@ -3,8 +3,8 @@ id: V94-001
 title: Remove private Git repository paths from transport failure logs
 milestone: local-secret-log-and-process-boundaries-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2a331265c0e600f25aeecabf8846dd7d140062f8
 depends_on: []
 languages: [go]
 goal: Keep private repository paths out of global logs while retaining safe transport causes.
