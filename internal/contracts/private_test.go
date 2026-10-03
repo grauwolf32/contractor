@@ -249,6 +249,34 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	}
 }
 
+func TestHTTPOriginTargetRejectsUnusableBrowserURLs(t *testing.T) {
+	t.Parallel()
+	for _, targetURL := range []string{
+		"http://target:70000/",
+		"http://target:0/",
+		"https://[fe80::1%25en0]/",
+		"http://10.0.0.256/",
+		"https://host/#",
+		"http://exa<mple/",
+	} {
+		t.Run(targetURL, func(t *testing.T) {
+			t.Parallel()
+			if err := (HTTPOriginTargetRef{URL: targetURL}).Validate(); err == nil {
+				t.Fatalf("unusable Project target %q was accepted", targetURL)
+			}
+		})
+	}
+	for _, targetURL := range []string{
+		"https://app.example.test/api",
+		"http://127.0.0.1:8080/",
+		"https://[2001:db8::1]:443/",
+	} {
+		if err := (HTTPOriginTargetRef{URL: targetURL}).Validate(); err != nil {
+			t.Fatalf("valid Project target %q was rejected: %v", targetURL, err)
+		}
+	}
+}
+
 func privateRoundTrip[T Validatable](data []byte) ([]byte, error) {
 	value, err := DecodePrivateStrict[T](data)
 	if err != nil {

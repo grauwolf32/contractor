@@ -13,8 +13,11 @@ package contracts
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/grauwolf32/contractor/internal/cabundle"
 )
@@ -119,11 +122,44 @@ func validateRuntimeEndpoint(field, value string) error {
 	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil ||
-		parsed.Fragment != "" || parsed.RawQuery != "" || parsed.ForceQuery ||
+		strings.Contains(value, "#") || parsed.RawQuery != "" || parsed.ForceQuery ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return invalidf("%s must be an absolute HTTP(S) URL without userinfo, query, or fragment", field)
 	}
+	host := parsed.Hostname()
+	if strings.Contains(host, "%") || strings.ContainsAny(host, "<>\\^|`{}") ||
+		strings.IndexFunc(host, unicode.IsSpace) >= 0 || strings.HasSuffix(parsed.Host, ":") {
+		return invalidf("%s host is invalid", field)
+	}
+	if port := parsed.Port(); port != "" {
+		portNumber, err := strconv.ParseUint(port, 10, 16)
+		if err != nil || portNumber == 0 {
+			return invalidf("%s port is invalid", field)
+		}
+	}
+	if net.ParseIP(host) == nil {
+		if strings.Contains(host, ":") {
+			return invalidf("%s host is invalid", field)
+		}
+		labels := strings.Split(strings.TrimSuffix(host, "."), ".")
+		last := labels[len(labels)-1]
+		if last == "" || allDecimalDigits(last) {
+			return invalidf("%s host is invalid", field)
+		}
+	}
 	return nil
+}
+
+func allDecimalDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, digit := range value {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func validateCABundle(owner, value string) error {

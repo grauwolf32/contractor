@@ -8,6 +8,7 @@ import {
   getProject,
   listProjectRuns,
   listProjects,
+  normalizeProjectHTTPTarget,
   updateProject,
   type Project,
 } from "./projects";
@@ -37,6 +38,38 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 }
 
 describe("Project API", () => {
+  it("keeps legacy unparseable target URLs readable in list and detail responses", async () => {
+    const legacy = {
+      ...project,
+      httpTarget: { url: "http://target:70000/" },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const path = new URL(
+          (input instanceof Request ? input : new Request(input)).url,
+        ).pathname;
+        return path === "/v1/projects"
+          ? response({ items: [project, legacy], page: { hasMore: false } })
+          : response(legacy, { headers: { ETag: '"1"' } });
+      }),
+    );
+
+    await expect(listProjects(api)).resolves.toMatchObject({
+      items: [project, legacy],
+    });
+    await expect(getProject(api, project.projectId)).resolves.toEqual(legacy);
+  });
+
+  it.each(["https://host/?", "https://host/#", "http://target:0/"])(
+    "rejects authoring an unusable target URL %s",
+    (url) => {
+      expect(() => normalizeProjectHTTPTarget({ url })).toThrow(
+        "target URL is invalid",
+      );
+    },
+  );
+
   it("lists only the requested kind and validates a Project detail ETag", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(
