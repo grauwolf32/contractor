@@ -38,6 +38,7 @@ import "./styles.css";
 import { RefreshButton } from "../../../app/refresh-button";
 import { ProjectSectionActions } from "../navigation";
 import { QueryView } from "../../../app/query-view";
+import { LoadMoreButton } from "../../../app/load-more";
 
 const INITIAL_CURSOR = null;
 // The Project Artifact API filters by exact namespace only, not by media
@@ -325,16 +326,11 @@ function AuditCreateForm({
             )
           }
         </QueryView>
-        {profiles.hasNextPage ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={profiles.isFetchingNextPage}
-            onClick={() => void profiles.fetchNextPage()}
-          >
-            {profiles.isFetchingNextPage ? "Loading…" : "Load more profiles"}
-          </button>
-        ) : null}
+        <LoadMoreButton
+          query={profiles}
+          label="Load more profiles"
+          pendingLabel="Loading…"
+        />
         {profile.isPending && selectedSummary !== undefined ? (
           <p className="loading-copy">Loading profile contract…</p>
         ) : profile.error !== null ? (

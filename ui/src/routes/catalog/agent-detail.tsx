@@ -26,6 +26,7 @@ import {
 } from "./cursor-state";
 import { nextPageCursor } from "../../app/pagination";
 import { QueryView } from "../../app/query-view";
+import { LoadMoreButton } from "../../app/load-more";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 const INITIAL_CURSOR = null;
@@ -89,18 +90,11 @@ function AgentVersionSelector({
         <span className="muted-copy">
           {versions.length} version{versions.length === 1 ? "" : "s"} loaded
         </span>
-        {query.hasNextPage ? (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage
-              ? "Loading versions…"
-              : "Load more versions"}
-          </button>
-        ) : null}
+        <LoadMoreButton
+          query={query}
+          label="Load more versions"
+          pendingLabel="Loading versions…"
+        />
       </div>
       {query.isPending ? (
         <p role="status">Loading published versions…</p>

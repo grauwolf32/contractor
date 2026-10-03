@@ -65,6 +65,7 @@ import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
 import "./run-drafts.css";
 import { nextPageCursor } from "../../app/pagination";
+import { LoadMoreButton } from "../../app/load-more";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -1732,18 +1733,11 @@ function WorkflowRunFormBody({
               })}
           </div>
         )}
-        {artifactInventory.hasNextPage ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={artifactInventory.isFetchingNextPage}
-            onClick={() => void artifactInventory.fetchNextPage()}
-          >
-            {artifactInventory.isFetchingNextPage
-              ? "Loading Artifacts…"
-              : "Load more Artifacts"}
-          </button>
-        ) : null}
+        <LoadMoreButton
+          query={artifactInventory}
+          label="Load more Artifacts"
+          pendingLabel="Loading Artifacts…"
+        />
       </fieldset>
       {presentation === "drawer" ? (
         <>
@@ -1883,18 +1877,11 @@ function WorkflowRunFormBody({
               {validationErrors.runtimeLabels}
             </p>
           )}
-          {runtimeLabelInventory.hasNextPage ? (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={runtimeLabelInventory.isFetchingNextPage}
-              onClick={() => void runtimeLabelInventory.fetchNextPage()}
-            >
-              {runtimeLabelInventory.isFetchingNextPage
-                ? "Loading Runtime labels…"
-                : "Load more Runtime labels"}
-            </button>
-          ) : null}
+          <LoadMoreButton
+            query={runtimeLabelInventory}
+            label="Load more Runtime labels"
+            pendingLabel="Loading Runtime labels…"
+          />
         </fieldset>
       </details>
 
@@ -2026,36 +2013,18 @@ function WorkflowRunFormBody({
             </section>
           )}
           <div className="load-more-row">
-            {modelPolicyInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={modelPolicyInventory.isFetchingNextPage}
-                onClick={() => void modelPolicyInventory.fetchNextPage()}
-              >
-                Load more ModelPolicies
-              </button>
-            ) : null}
-            {gatewayInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={gatewayInventory.isFetchingNextPage}
-                onClick={() => void gatewayInventory.fetchNextPage()}
-              >
-                Load more Gateways
-              </button>
-            ) : null}
-            {credentialInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={credentialInventory.isFetchingNextPage}
-                onClick={() => void credentialInventory.fetchNextPage()}
-              >
-                Load more credentials
-              </button>
-            ) : null}
+            <LoadMoreButton
+              query={modelPolicyInventory}
+              label="Load more ModelPolicies"
+            />
+            <LoadMoreButton
+              query={gatewayInventory}
+              label="Load more Gateways"
+            />
+            <LoadMoreButton
+              query={credentialInventory}
+              label="Load more credentials"
+            />
           </div>
         </div>
       </details>

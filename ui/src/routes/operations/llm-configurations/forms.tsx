@@ -13,7 +13,6 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { CONFIG_VERSION_PATTERN } from "../../../api/workflows";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { ErrorNotice } from "../../../app/error-notice";
 import {
   llmGatewayBody,
   modelPolicyBody,
@@ -21,6 +20,7 @@ import {
   validateModelPolicy,
   type ModelPolicyConsumer,
 } from "./model";
+import { PublicationFeedback } from "../common";
 
 interface PublicationFormProps {
   source: ConfigurationResource;
@@ -30,6 +30,42 @@ interface PublicationFormProps {
 interface IdentityDraft {
   name: string;
   version: string;
+}
+
+/**
+ * Publishes one configuration version, reusing the idempotency key while the
+ * request is unchanged, and refreshes the catalog and Operations snapshot.
+ */
+function usePublishConfiguration(
+  kind: "model-policies" | "llm-gateways",
+  onPublished: (resource: ConfigurationResource) => void,
+) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const [keyring] = useState(
+    () =>
+      new MutationDraftKeyring<PublishConfigurationRequest>("publish-config"),
+  );
+  return useMutation({
+    mutationFn: (request: PublishConfigurationRequest) =>
+      publishConfiguration(api, kind, request, keyring.keyFor(request)),
+    onSuccess: async (resource) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.configurations.all,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.snapshot,
+        }),
+      ]);
+      onPublished(resource);
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.configurations.all,
+      });
+    },
+  });
 }
 
 function IdentityFields({
@@ -64,30 +100,6 @@ function IdentityFields({
           }
         />
       </label>
-    </>
-  );
-}
-
-function PublicationFeedback({
-  errors,
-  mutationError,
-}: {
-  errors: string[];
-  mutationError: unknown;
-}) {
-  return (
-    <>
-      {errors.length === 0 ? null : (
-        <div className="notice notice-error" role="alert">
-          <strong>Draft is not publishable</strong>
-          <ul>
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {mutationError === null ? null : <ErrorNotice error={mutationError} />}
     </>
   );
 }
@@ -207,12 +219,6 @@ export function ModelPolicyPublicationForm({
   source,
   onPublished,
 }: PublicationFormProps) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [keyring] = useState(
-    () =>
-      new MutationDraftKeyring<PublishConfigurationRequest>("publish-config"),
-  );
   const [identity, setIdentity] = useState<IdentityDraft>({
     name: source.ref.name,
     version: "",
@@ -220,31 +226,7 @@ export function ModelPolicyPublicationForm({
   const [consumer, setConsumer] = useState<ModelPolicyConsumer>("worker");
   const [draft, setDraft] = useState(() => modelDraft(modelPolicyBody(source)));
   const [errors, setErrors] = useState<string[]>([]);
-  const mutation = useMutation({
-    mutationFn: (request: PublishConfigurationRequest) =>
-      publishConfiguration(
-        api,
-        "model-policies",
-        request,
-        keyring.keyFor(request),
-      ),
-    onSuccess: async (resource) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.configurations.all,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.snapshot,
-        }),
-      ]);
-      onPublished(resource);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.configurations.all,
-      });
-    },
-  });
+  const mutation = usePublishConfiguration("model-policies", onPublished);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -364,7 +346,11 @@ export function ModelPolicyPublicationForm({
           onChange={change}
         />
       </div>
-      <PublicationFeedback errors={errors} mutationError={mutation.error} />
+      <PublicationFeedback
+        title="Draft is not publishable"
+        errors={errors}
+        mutationError={mutation.error}
+      />
       <div className="run-submit-row">
         <button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Publishing…" : "Publish version"}
@@ -379,13 +365,7 @@ export function LLMGatewayPublicationForm({
   source,
   onPublished,
 }: PublicationFormProps) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
   const sourceBody = llmGatewayBody(source);
-  const [keyring] = useState(
-    () =>
-      new MutationDraftKeyring<PublishConfigurationRequest>("publish-config"),
-  );
   const [identity, setIdentity] = useState<IdentityDraft>({
     name: source.ref.name,
     version: "",
@@ -398,31 +378,7 @@ export function LLMGatewayPublicationForm({
     sourceBody.credentialManager?.managementUrl ?? "",
   );
   const [errors, setErrors] = useState<string[]>([]);
-  const mutation = useMutation({
-    mutationFn: (request: PublishConfigurationRequest) =>
-      publishConfiguration(
-        api,
-        "llm-gateways",
-        request,
-        keyring.keyFor(request),
-      ),
-    onSuccess: async (resource) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.configurations.all,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.snapshot,
-        }),
-      ]);
-      onPublished(resource);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.configurations.all,
-      });
-    },
-  });
+  const mutation = usePublishConfiguration("llm-gateways", onPublished);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -526,7 +482,11 @@ export function LLMGatewayPublicationForm({
         Gateway URLs never contain credentials. HTTP management is accepted only
         for an IP-literal loopback origin; production management uses HTTPS.
       </p>
-      <PublicationFeedback errors={errors} mutationError={mutation.error} />
+      <PublicationFeedback
+        title="Draft is not publishable"
+        errors={errors}
+        mutationError={mutation.error}
+      />
       <div className="run-submit-row">
         <button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Publishing…" : "Publish version"}

@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
+import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import type { ExactConfigurationRef } from "./references";
@@ -81,5 +82,32 @@ export function MetricsSummary({
         <dd>{metrics.truncated ? "yes" : "no"}</dd>
       </div>
     </dl>
+  );
+}
+
+/** Draft validation errors followed by the failed publish request, if any. */
+export function PublicationFeedback({
+  title,
+  errors,
+  mutationError,
+}: {
+  title: string;
+  errors: readonly string[];
+  mutationError: unknown;
+}) {
+  return (
+    <>
+      {errors.length === 0 ? null : (
+        <div className="notice notice-error" role="alert">
+          <strong>{title}</strong>
+          <ul>
+            {errors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {mutationError === null ? null : <ErrorNotice error={mutationError} />}
+    </>
   );
 }

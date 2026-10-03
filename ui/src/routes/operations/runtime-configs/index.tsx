@@ -39,6 +39,7 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
 import { compactDigest } from "../../../app/format";
+import { PublicationFeedback } from "../common";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -661,19 +662,11 @@ function RuntimeConfigPublishForm({
           </div>
         </details>
 
-        {errors.length === 0 ? null : (
-          <div className="notice notice-error" role="alert">
-            <strong>RuntimeConfig draft is not publishable</strong>
-            <ul>
-              {errors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {mutation.error === null ? null : (
-          <ErrorNotice error={mutation.error} />
-        )}
+        <PublicationFeedback
+          title="RuntimeConfig draft is not publishable"
+          errors={errors}
+          mutationError={mutation.error}
+        />
         {published === undefined ? null : (
           <div className="notice notice-success" role="status">
             Published {published.ref.name}@{published.ref.version}. Bind a label
