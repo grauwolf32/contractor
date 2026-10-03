@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V201-001, file: v201-001-a2a-task-span-counts.yml}
   - {id: V200-001, file: v200-001-run-recovery-refresh.yml}
   - {id: V199-001, file: v199-001-sourcebundle-conflicted-git-index.yml}
   - {id: V198-001, file: v198-001-sourcebundle-runtime-compatible-paths.yml}
