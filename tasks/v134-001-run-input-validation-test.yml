@@ -3,8 +3,8 @@ id: V134-001
 title: Test production Run input validation and remove dead handler copy
 milestone: run-input-validation-test-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a56bcf32d80ba3d60e31e753d4a73ee35c5fcf99
 depends_on: []
 languages: [go]
 goal: Make analysis workflow strict-input tests exercise the validator used by Run creation.
