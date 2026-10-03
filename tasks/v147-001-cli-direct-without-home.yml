@@ -3,7 +3,8 @@ id: V147-001
 title: Let direct CLI API commands run without a user config directory
 milestone: cli-direct-without-home-2026-10
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: a416ac1ffb6ec6017682ecc23a08fc9a77862336
 depends_on: []
 languages: [go]
 goal: Resolve context storage only when a CLI command actually uses contexts.
