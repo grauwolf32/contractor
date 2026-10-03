@@ -943,7 +943,13 @@ describe("Operations routes", () => {
     expect(offline).not.toHaveAttribute("open");
     expect(within(offline).getByText("aaaaaa…aaaa")).toBeInTheDocument();
     expect(within(offline).getByText("1 label")).toBeInTheDocument();
-    expect(within(offline).getByText(/Last seen/)).toBeInTheDocument();
+    expect(within(offline).getByText(/Labels updated/)).toBeInTheDocument();
+    expect(
+      within(offline)
+        .getByText(/Labels updated/)
+        .querySelector("time"),
+    ).toHaveAttribute("dateTime", "2026-08-31T12:01:00Z");
+    expect(within(offline).queryByText(/Last seen/)).toBeNull();
     expect(
       within(offline).getByRole("button", { name: "Forget debug" }),
     ).toBeDisabled();
@@ -1001,6 +1007,7 @@ describe("Operations routes", () => {
         runtimeAgentId: "d".repeat(64),
         labels: [],
         availability: "offline",
+        updatedAt: base.createdAt,
       },
     ];
     const deletes: Request[] = [];
@@ -1036,6 +1043,13 @@ describe("Operations routes", () => {
     });
     expect(within(offline).getByText("Agent dddddd…dddd")).toBeInTheDocument();
     expect(within(offline).getByText("0 labels")).toBeInTheDocument();
+    expect(within(offline).getByText(/Registered/)).toBeInTheDocument();
+    expect(
+      within(offline)
+        .getByText(/Registered/)
+        .querySelector("time"),
+    ).toHaveAttribute("dateTime", "2026-08-31T12:00:00Z");
+    expect(within(offline).queryByText(/Last seen/)).toBeNull();
     const user = userEvent.setup();
     await user.click(
       within(offline).getByRole("button", { name: "Forget Agent dddddd…dddd" }),

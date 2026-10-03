@@ -91,6 +91,10 @@ function OfflineIdentityRow({
   const [copyStatus, setCopyStatus] = useState<string>();
   const name = agentDisplayName(principal);
   const hasLabels = principal.labels.length > 0;
+  const labelsWereUpdated = principal.updatedAt !== principal.createdAt;
+  const factTimestamp = labelsWereUpdated
+    ? principal.updatedAt
+    : principal.createdAt;
   const deletion = useMutation({
     mutationFn: () =>
       deleteRuntimeAgentPrincipal(
@@ -150,12 +154,9 @@ function OfflineIdentityRow({
         )}
       </div>
       <span className="runtime-offline-identity-fact">
-        Last seen{" "}
-        <time
-          dateTime={principal.updatedAt}
-          title={formatTimestamp(principal.updatedAt)}
-        >
-          {relativeAge(principal.updatedAt, now)}
+        {labelsWereUpdated ? "Labels updated" : "Registered"}{" "}
+        <time dateTime={factTimestamp} title={formatTimestamp(factTimestamp)}>
+          {relativeAge(factTimestamp, now)}
         </time>
       </span>
       <span className="runtime-offline-identity-fact">
