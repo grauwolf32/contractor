@@ -3,7 +3,8 @@ id: V201-001
 title: Report invocation-local counts on A2A task spans
 milestone: runtime-telemetry-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d2ff37bf2429e8a8227e19198abbaf3522c31380
 depends_on: []
 languages: [python]
 goal: Make model and tool count attributes on each A2A task span describe that task only.
