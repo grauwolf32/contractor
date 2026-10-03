@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V113-001
+title: Record enforced single-active Server topology in the specifications
+milestone: single-active-topology-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: [V107-001]
+languages: [markdown, yaml]
+goal: Make the chosen active-passive topology explicit in the scheduler and Runtime specifications and example manifest.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/107
+  decision: PR 372 added a PostgreSQL session advisory lease; active-active Server replicas remain unsupported.
+scope:
+  in:
+    - State the one-active-per-database rule and standby readiness behavior in specs 02 and 20.
+    - Explain that the example runs one replica with Recreate and is not active-active.
+    - Reconcile the multi-replica tracking issue with its resolved or inapplicable children.
+  out:
+    - Add distributed Schedulers or a shared Control Plane Registry.
+acceptance_criteria:
+  - {id: A1, text: Spec 20 and spec 02 describe the enforced PostgreSQL lease and active-passive failover.}
+  - {id: A2, text: Deployment guide and example manifest state the same topology.}
+  - {id: A3, text: The existing PostgreSQL lease integration test covers contention and takeover.}
+tests:
+  - {command: kubectl kustomize deploy/artifact-blobs/postgresql, covers: [A2]}
+  - {command: git diff --check, covers: [A1, A2]}
