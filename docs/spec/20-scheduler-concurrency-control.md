@@ -162,7 +162,10 @@ different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry. The claim ordering continues to prioritize cancellation
 and rotate capacity-deferred work. A paused or capacity-ineligible Run releases
 its lane after a bounded admission/placement attempt so it cannot indefinitely
-occupy all execution capacity.
+occupy all execution capacity. A deferred Run ranks behind pending work for 30
+seconds after it defers; it then competes in its own state's tier again, so a
+Run that stays blocked takes at most one claim per window and newer Runs cannot
+starve it.
 
 `RunOnce` remains a deterministic single-claim compatibility primitive for
 focused tests and recovery tools and may perform one maintenance tick before
