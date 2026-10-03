@@ -3,7 +3,8 @@ id: V101-001
 title: Classify non-applicable Agent labels as invalid registration input
 milestone: private-agent-label-registration-error-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 9c4feccac87767ecb56c5dd2af2f6645da8c904c
 depends_on: []
 languages: [go]
 goal: Stop retrying Agent registration when a selected Runtime label lacks Worker settings.
