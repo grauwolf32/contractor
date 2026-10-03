@@ -26,8 +26,10 @@ under `api/testdata/v1alpha1`.
 default covered by the AgentTemplate digest. The separate required
 `AllocationSpec.modelPolicy` is the effective Worker policy pinned by the Run;
 Runtime validates its own digest and uses it without mutating or re-signing the
-AgentTemplate. `RuntimeSettings.llmGatewayToken` is omitted for an
-unauthenticated Gateway; a supplied token must be nonempty.
+AgentTemplate. `RuntimeSettings.llmGatewayToken` is normally omitted for an
+unauthenticated Gateway. The private wire validators also accept an explicit
+empty string, which Runtime treats like an omitted token. The Server does not
+emit empty resolved credentials.
 
 Every `AllocationSpec` also carries a required `runMetadataLabels` object. An
 unlabeled Run sends `{}`. Server and Runtime validate the shared 32-entry,
