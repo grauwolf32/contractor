@@ -20,9 +20,6 @@ type ExecutionObservation struct {
 	Reason                                                                                     *string
 }
 
-func (s *Store) ExecutionObservations(ctx context.Context, owner, id string) ([]ExecutionObservation, error) {
-	return s.executionObservations(ctx, owner, id, "")
-}
 func (s *Store) ExecutionObservation(ctx context.Context, owner, id, member string) (ExecutionObservation, error) {
 	rows, err := s.executionObservations(ctx, owner, id, member)
 	if err != nil {

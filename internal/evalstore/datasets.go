@@ -43,39 +43,3 @@ func (s *Store) Dataset(ctx context.Context, scope Scope, id, revision string) (
 	out.Document, err = evaldomain.Freeze("DatasetInput", document)
 	return out, err
 }
-
-// Lists project only the already-safe metadata column; private case documents
-// are never loaded while serving collection pages.
-func (s *Store) ListDatasets(ctx context.Context, scope Scope, afterID, afterRevision string, limit int) ([]evaldomain.Dataset, error) {
-	if limit < 1 || limit > evaldomain.MaxPageSize {
-		return nil, evaldomain.Failure("eval_invalid")
-	}
-	if _, err := s.project(ctx, scope, false); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT metadata
-FROM eval_dataset_revisions
-WHERE owner_id=$1
-    AND project_id=$2
-    AND (dataset_id, revision)>($3, $4)
-ORDER BY dataset_id, revision LIMIT $5
-`, scope.OwnerID, scope.ProjectID, afterID, afterRevision, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]evaldomain.Dataset, 0)
-	for rows.Next() {
-		var b []byte
-		var d evaldomain.Dataset
-		if err = rows.Scan(&b); err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(b, &d); err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
-}

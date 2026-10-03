@@ -241,12 +241,16 @@ func TestPostgresEvalCompleteViewPublicationAndInterruptedProjection(t *testing.
 	if err != nil || latest.Snapshot == first.Snapshot || latest.Freshness != "current" {
 		t.Fatal("replacement view", latest, err)
 	}
-	oldRows, err := reader.ViewMembers(ctx, e.OwnerID, e.ID, first.Snapshot)
-	if err != nil || len(oldRows) != 8 {
-		t.Fatal("old report disappeared", len(oldRows), err)
+	oldRows, err := reader.SelectedMemberPage(ctx, SelectedPageParams{
+		OwnerID: e.OwnerID, ExperimentID: e.ID, Generation: first.Generation, AfterOrdinal: -1, Limit: 100,
+	})
+	if err != nil || len(oldRows.Items) != 8 {
+		t.Fatal("old report disappeared", len(oldRows.Items), err)
 	}
-	foreign, err := reader.ViewMembers(ctx, "foreign", e.ID, first.Snapshot)
-	if err != nil || len(foreign) != 0 {
+	foreign, err := reader.SelectedMemberPage(ctx, SelectedPageParams{
+		OwnerID: "foreign", ExperimentID: e.ID, Generation: first.Generation, AfterOrdinal: -1, Limit: 100,
+	})
+	if err != nil || len(foreign.Items) != 0 {
 		t.Fatal("foreign view exposed", err)
 	}
 	// Evidence recovery may restore the same selected documents, but its new
