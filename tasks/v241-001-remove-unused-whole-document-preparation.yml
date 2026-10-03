@@ -3,8 +3,8 @@ id: V241-001
 title: Remove unused whole-document scan preparation entry point
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a6fe6e87e517ab41346bd367d7f651b555cb5d01
 depends_on: []
 languages: [go]
 goal: Keep scan request preparation aligned with the operation-scoped production Audit path.
