@@ -40,17 +40,25 @@ function needsCurrentRevision(kind: EvalCommand["kind"]): boolean {
   return kind === "pause" || kind === "resume" || kind === "cancel";
 }
 
-function ensureCurrentStopIntent(
+// The current experiment rules the stop intent out, so no replay or new
+// revision can apply it. Callers drop the pending command instead of retrying.
+class StopIntentUnavailableError extends Error {
+  constructor(kind: EvalCommand["kind"]) {
+    super(
+      `The experiment changed and ${LABELS[kind]} is no longer available, so it was not applied. Choose an action for its current state.`,
+    );
+    this.name = "StopIntentUnavailableError";
+  }
+}
+
+function stopIntentAvailable(
   latest: EvalExperiment,
   command: PendingCommand,
-) {
-  if (
-    latest.planSha256 !== (command.body.planSha256 ?? null) ||
-    !latest.allowedCommands.includes(command.body.kind)
-  )
-    throw new Error(
-      "The experiment changed and this action is no longer available. Reload its current state before trying again.",
-    );
+): boolean {
+  return (
+    latest.planSha256 === (command.body.planSha256 ?? null) &&
+    latest.allowedCommands.includes(command.body.kind)
+  );
 }
 
 export function EvalControls({
@@ -123,13 +131,18 @@ export function EvalControls({
           throw error;
         // A rejected CAS has not applied the command. Recheck intent and
         // persist a new correlation before one retry; a lost response still
-        // replays the exact key, body and revision that were sent.
+        // replays the exact key, body and revision that were sent. An intent
+        // the latest state rules out is dropped so it is never replayed.
         const latest = await getEvalExperiment(api, experiment.experimentId);
         cache.setQueryData(
           ["evals", "experiment", experiment.experimentId],
           latest,
         );
-        ensureCurrentStopIntent(latest, current);
+        if (!stopIntentAvailable(latest, current)) {
+          writeCommand(owner, experiment.experimentId, null);
+          setPending(null);
+          throw new StopIntentUnavailableError(current.body.kind);
+        }
         const retry = {
           ...current,
           key: createMutationIdempotencyKey("eval"),
@@ -197,8 +210,11 @@ export function EvalControls({
             : {}),
         },
       };
-      if (needsCurrentRevision(kind))
-        ensureCurrentStopIntent(currentRevision, next);
+      if (
+        needsCurrentRevision(kind) &&
+        !stopIntentAvailable(currentRevision, next)
+      )
+        throw new StopIntentUnavailableError(kind);
       try {
         writeCommand(owner, experiment.experimentId, next);
       } catch {
@@ -218,7 +234,9 @@ export function EvalControls({
     }
   }
   async function recover() {
-    if (
+    // The ruled-out intent was already dropped; there is nothing to replay.
+    if (send.error instanceof StopIntentUnavailableError) send.reset();
+    else if (
       error instanceof PublicAPIError &&
       error.status >= 400 &&
       error.status < 500
@@ -283,16 +301,18 @@ export function EvalControls({
       <EvalError
         error={storageError ?? error}
         reload={
-          storageError && storageError.message !== RECOVERY_STORAGE_MESSAGE
-            ? () => {
-                setStorageError(null);
-                void cache.invalidateQueries({
-                  queryKey: ["evals", "experiment", experiment.experimentId],
-                });
-              }
-            : error
-              ? () => void recover()
-              : undefined
+          (storageError ?? error) instanceof StopIntentUnavailableError
+            ? undefined
+            : storageError && storageError.message !== RECOVERY_STORAGE_MESSAGE
+              ? () => {
+                  setStorageError(null);
+                  void cache.invalidateQueries({
+                    queryKey: ["evals", "experiment", experiment.experimentId],
+                  });
+                }
+              : error
+                ? () => void recover()
+                : undefined
         }
       />
       {confirm ? (

@@ -256,6 +256,69 @@ describe("Managed Evals setup", () => {
     });
   });
 
+  it("drops a Pause the coordinator ruled out instead of replaying it", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.commandSettleOnce = true;
+    const user = userEvent.setup();
+    const view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    await screen.findByText(/no longer available/);
+    expect(storedValues(localStorage)).not.toContain("eval-recovery");
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Pause" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+    view.unmount();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    expect(
+      await screen.findByRole("button", { name: "Duplicate" }),
+    ).toBeEnabled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/commands"),
+      ),
+    ).toHaveLength(1);
+    expect(fixture.state.experiment.state).toBe("finished");
+  });
+
+  it("keeps a Pause that met a server outage for resume after reload", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.commandUnavailableOnce = true;
+    const user = userEvent.setup();
+    const view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(
+      await screen.findByRole("button", { name: "Try again" }),
+    ).toBeVisible();
+    expect(storedValues(localStorage)).toContain("eval-recovery");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    const first = fixture.state.requests.find((request) =>
+      request.path.endsWith("/commands"),
+    )!;
+    view.unmount();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await screen.findByText("Pause: completed.");
+    expect(fixture.state.experiment.state).toBe("paused");
+    const commands = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/commands"),
+    );
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toMatchObject({
+      key: first.key,
+      etag: first.etag,
+      body: first.body,
+    });
+  });
+
   it("blocks Prepare for unsaved changes and restores focus after dismissing cancellation", async () => {
     const fixture = createEvalFixture(),
       user = userEvent.setup();

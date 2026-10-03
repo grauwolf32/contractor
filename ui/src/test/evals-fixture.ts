@@ -79,6 +79,8 @@ export function createEvalFixture(
     }[],
     lostCommand: false,
     commandRaceOnce: false,
+    commandSettleOnce: false,
+    commandUnavailableOnce: false,
     lostAssessment: false,
     staleSelection: false,
     stalePairs: false,
@@ -294,6 +296,16 @@ export function createEvalFixture(
       if (fixture.commandRaceOnce) {
         fixture.commandRaceOnce = false;
         e.revision++;
+      }
+      if (fixture.commandSettleOnce) {
+        fixture.commandSettleOnce = false;
+        e.revision++;
+        e.state = "finished";
+        e.allowedCommands = ["duplicate"];
+      }
+      if (fixture.commandUnavailableOnce) {
+        fixture.commandUnavailableOnce = false;
+        return error("eval_unavailable", 503);
       }
       if (etag !== `"${e.revision}"`)
         return error("eval_revision_mismatch", 412);
