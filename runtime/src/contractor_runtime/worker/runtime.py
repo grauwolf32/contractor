@@ -249,7 +249,7 @@ class AdkWorkerRuntime:
             {"operation.kind": "a2a_task"},
         )
         try:
-            result = await self._invoke(request)
+            result, attributes = await self._invoke(request)
         except asyncio.CancelledError:
             _end_span(span, outcome="cancelled")
             raise
@@ -262,7 +262,6 @@ class AdkWorkerRuntime:
             )
             _record_worker_error(self._instrumentation, error_type)
             raise
-        attributes = _aggregate_count_attributes(self._metrics.counters)
         if result.failure is not None:
             attributes["error.type"] = result.failure.code
             _record_worker_error(self._instrumentation, result.failure.code)
@@ -280,32 +279,47 @@ class AdkWorkerRuntime:
 
         return await self._untracked_failure_completion(code, message, retryable)
 
-    async def _invoke(self, request: StageContentRequest) -> WorkerCompletion:
+    async def _invoke(
+        self, request: StageContentRequest
+    ) -> tuple[WorkerCompletion, dict[str, int]]:
         if self._worker_state.execution.failure is not None:
             self._accepting = False
-            return await self._untracked_failure_completion(
-                self._worker_state.execution.failure.value, "Sandbox execution failed", False
+            return (
+                await self._untracked_failure_completion(
+                    self._worker_state.execution.failure.value, "Sandbox execution failed", False
+                ),
+                {},
             )
         if not self._accepting:
-            return await self._untracked_failure_completion(
-                "worker_draining", "Worker is no longer accepting A2A work", True
+            return (
+                await self._untracked_failure_completion(
+                    "worker_draining", "Worker is no longer accepting A2A work", True
+                ),
+                {},
             )
         if self._invoke_lock.locked():
-            return await self._untracked_failure_completion(
-                "worker_busy", "Worker already has an active A2A invocation", True
+            return (
+                await self._untracked_failure_completion(
+                    "worker_busy", "Worker already has an active A2A invocation", True
+                ),
+                {},
             )
         encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
         if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
-            return await self._untracked_failure_completion(
-                "stage_content_too_large",
-                "StageContentRequest exceeds the Worker limit",
-                False,
+            return (
+                await self._untracked_failure_completion(
+                    "stage_content_too_large",
+                    "StageContentRequest exceeds the Worker limit",
+                    False,
+                ),
+                {},
             )
         completion: WorkerCompletion | None = None
+        attributes: dict[str, int] = {}
         try:
             async with self._invocation_ownership() as (session_id, budget):
-                completion = await self._execute_invocation(request, session_id, budget)
-            return completion
+                completion, attributes = await self._execute_invocation(request, session_id, budget)
+            return completion, attributes
         except WorkerSessionLifecycleError as error:
             self._accepting = False
             if completion is not None:
@@ -321,17 +335,23 @@ class AdkWorkerRuntime:
                 if self._completion is not None:
                     await self._completion.record_phase("failed", failure.code)
                     revision = (await self._worker_state.snapshot())["stateRevision"]
-                return completion.model_copy(
-                    update={
-                        "result": None,
-                        "failure": failure,
-                        "state_revision": revision,
-                    }
+                return (
+                    completion.model_copy(
+                        update={
+                            "result": None,
+                            "failure": failure,
+                            "state_revision": revision,
+                        }
+                    ),
+                    attributes,
                 )
-            return await self._untracked_failure_completion(
-                "worker_session_lifecycle_failed",
-                f"Worker session lifecycle failed ({error.code})",
-                True,
+            return (
+                await self._untracked_failure_completion(
+                    "worker_session_lifecycle_failed",
+                    f"Worker session lifecycle failed ({error.code})",
+                    True,
+                ),
+                {},
             )
 
     @contextlib.asynccontextmanager
@@ -430,7 +450,7 @@ class AdkWorkerRuntime:
 
     async def _execute_invocation(
         self, request: StageContentRequest, session_id: str, budget: _InvocationBudget
-    ) -> WorkerCompletion:
+    ) -> tuple[WorkerCompletion, dict[str, int]]:
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
         invocation_id = f"worker-{uuid.uuid4().hex}"
         invocation_phase: InvocationPhase = "failed"
@@ -547,13 +567,14 @@ class AdkWorkerRuntime:
                     )
                 }
             )
-        return WorkerCompletion(
+        completion = WorkerCompletion(
             apiVersion=API_VERSION,
             result=outcome if isinstance(outcome, WorkerResult) else None,
             failure=outcome if isinstance(outcome, WorkerFailure) else None,
             invocationId=invocation_id,
             stateRevision=state_snapshot["stateRevision"],
         )
+        return completion, _invocation_count_attributes(state_snapshot, invocation_id)
 
     def cancel_active(self, owner: asyncio.Task[Any]) -> None:
         task = self._active_task
@@ -1402,14 +1423,22 @@ def _record_worker_error(
     _end_span(span, outcome="failed")
 
 
-def _aggregate_count_attributes(counters: Mapping[str, int]) -> dict[str, int]:
+def _invocation_count_attributes(snapshot: Mapping[str, Any], invocation_id: str) -> dict[str, int]:
+    invocation = snapshot.get("currentInvocation")
+    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
+        invocation = snapshot.get("lastCompletedInvocation")
+    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
+        return {}
+    metrics = invocation.get("metrics")
+    if not isinstance(metrics, Mapping):
+        return {}
     result: dict[str, int] = {}
     for source, target in (
-        ("llm_calls", "counts.model_calls"),
-        ("tool_calls", "counts.tool_calls"),
+        ("modelCalls", "counts.model_calls"),
+        ("toolCalls", "counts.tool_calls"),
     ):
-        value = counters.get(source)
-        if isinstance(value, int) and value >= 0:
+        value = metrics.get(source)
+        if type(value) is int and value >= 0:
             result[target] = value
     return result
 

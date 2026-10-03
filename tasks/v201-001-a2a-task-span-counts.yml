@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V201-001
+title: Report invocation-local counts on A2A task spans
+milestone: runtime-telemetry-2026-10
+priority: P2
+status: completed
+implementation_commit: d2ff37bf2429e8a8227e19198abbaf3522c31380
+depends_on: []
+languages: [python]
+goal: Make model and tool count attributes on each A2A task span describe that task only.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/260
+  finding: The task span copies allocation-wide counters after every invocation and rejection.
+scope:
+  in:
+    - Project count attributes from the completed invocation's correlated Worker State snapshot.
+    - Omit count attributes on untracked rejection spans.
+    - Cover sequential tasks and a later rejection on one allocation.
+  out:
+    - Changing durable allocation metrics or OTLP attribute names.
+acceptance_criteria:
+  - {id: A1, text: Sequential A2A task spans show each invocation's own model and tool counts.}
+  - {id: A2, text: Rejected tasks do not inherit counts from earlier or concurrent invocations.}
+  - {id: A3, text: Tracked span counts equal the completed invocation metrics in Worker State.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_adk_runtime.py, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
