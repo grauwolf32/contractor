@@ -680,10 +680,20 @@ function RunRuntimeConfiguration({
 function LiveAttempts({
   run,
   focusStageExecutionId,
+  attemptDisclosure,
+  instructionDisclosure,
   ...disclosure
 }: {
   run: RunStatus;
   focusStageExecutionId: string | undefined;
+  attemptDisclosure: (
+    stageExecutionId: string,
+    defaultOpen: boolean,
+  ) => RunDisclosureProps;
+  instructionDisclosure: (
+    stageExecutionId: string,
+    subtaskId: string,
+  ) => RunDisclosureProps;
 } & RunDisclosureProps) {
   const live = useLiveRunProjection(run);
   return (
@@ -723,12 +733,19 @@ function LiveAttempts({
                 runId={run.runId}
                 attempt={attempt}
                 active={run.activeStageExecutionId === attempt.stageExecutionId}
-                focused={focusStageExecutionId === attempt.stageExecutionId}
                 projection={live.planners[attempt.stageExecutionId] ?? {}}
                 transitions={run.transitions.filter(
                   (transition) =>
                     transition.sourceExecutionId === attempt.stageExecutionId,
                 )}
+                disclosure={attemptDisclosure(
+                  attempt.stageExecutionId,
+                  run.activeStageExecutionId === attempt.stageExecutionId ||
+                    focusStageExecutionId === attempt.stageExecutionId,
+                )}
+                instructionDisclosure={(subtaskId) =>
+                  instructionDisclosure(attempt.stageExecutionId, subtaskId)
+                }
               />
             ))
           )}
@@ -777,6 +794,12 @@ function LoadedRunDetail({
     const open = !isTerminalRunState(run.state) || run.state === "failed";
     return { attempts: open, runtime: false, artifacts: open };
   });
+  const [attemptOverrides, setAttemptOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  const [instructionOverrides, setInstructionOverrides] = useState<
+    Record<string, boolean>
+  >({});
   function disclosure(key: keyof typeof disclosures): RunDisclosureProps {
     return {
       open: disclosures[key],
@@ -785,6 +808,40 @@ function LoadedRunDetail({
         setDisclosures((current) =>
           current[key] === next ? current : { ...current, [key]: next },
         );
+      },
+    };
+  }
+  function attemptDisclosure(
+    stageExecutionId: string,
+    defaultOpen: boolean,
+  ): RunDisclosureProps {
+    const open = attemptOverrides[stageExecutionId] ?? defaultOpen;
+    return {
+      open,
+      onToggle: (event) => {
+        const next = event.currentTarget.open;
+        if (next !== open) {
+          setAttemptOverrides((current) => ({
+            ...current,
+            [stageExecutionId]: next,
+          }));
+        }
+      },
+    };
+  }
+  function instructionDisclosure(
+    stageExecutionId: string,
+    subtaskId: string,
+  ): RunDisclosureProps {
+    const key = JSON.stringify([stageExecutionId, subtaskId]);
+    const open = instructionOverrides[key] ?? false;
+    return {
+      open,
+      onToggle: (event) => {
+        const next = event.currentTarget.open;
+        if (next !== open) {
+          setInstructionOverrides((current) => ({ ...current, [key]: next }));
+        }
       },
     };
   }
@@ -817,6 +874,8 @@ function LoadedRunDetail({
         key={`${liveKey}:${snapshotVersion}`}
         run={run}
         focusStageExecutionId={triage.stageExecutionId}
+        attemptDisclosure={attemptDisclosure}
+        instructionDisclosure={instructionDisclosure}
         {...disclosure("attempts")}
       />
 

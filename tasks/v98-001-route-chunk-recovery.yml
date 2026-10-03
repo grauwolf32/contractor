@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V98-001
+title: Recover visibly from failed lazy route chunks
+milestone: ui-navigation-and-run-disclosure-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 43715178df4987797d70563c4f9a8831937d7010
+depends_on: []
+languages: [typescript]
+goal: Keep navigation usable and offer a full reload when a lazy route chunk fails to load.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/281
+  finding: React Router can swallow a rejected lazy component import and leave the authenticated shell with empty main content.
+scope:
+  in:
+    - Make lazy route import failures reach a route error boundary.
+    - Render child route errors inside the application shell with a reload action.
+    - Cover import and render failures with router tests.
+  out:
+    - Automatically reload the tab or preserve unsaved in-memory draft state across reload.
+acceptance_criteria:
+  - {id: A1, text: Failed lazy import shows an in-shell recovery panel instead of blank main content.}
+  - {id: A2, text: The recovery action retries the application from a fresh page load.}
+  - {id: A3, text: A throwing child route keeps the shell visible.}
+  - {id: A4, text: UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/app/application.test.tsx, covers: [A1, A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V98-002
+title: Preserve Run attempt disclosures through snapshot refreshes
+milestone: ui-navigation-and-run-disclosure-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 1b0ce3c23c069a96af2e2b08c005e7f13fb30309
+depends_on: []
+languages: [typescript]
+goal: Keep user-chosen attempt and Planner instructions disclosures during Run refetches and live events.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/290
+  finding: LiveAttempts remounts on each successful refetch and resets uncontrolled details elements.
+scope:
+  in:
+    - Store attempt and subtask disclosure overrides in LoadedRunDetail, keyed by stable IDs.
+    - Keep active or focused defaults for disclosures the user has never toggled.
+    - Cover unchanged Refresh and lifecycle event refetches.
+  out:
+    - Change the live Planner projection resync policy or Server event contract.
+acceptance_criteria:
+  - {id: A1, text: Opened previous and collapsed active attempts keep their user choices across refetches.}
+  - {id: A2, text: Planner instructions stay expanded across refetches.}
+  - {id: A3, text: Untoggled attempts still follow active and focused defaults.}
+  - {id: A4, text: Runs UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/runs/runs.test.tsx, covers: [A1, A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

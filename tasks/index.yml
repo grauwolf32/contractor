@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: ui-navigation-and-run-disclosure-reliability-2026-10
+    exit_task: V98-002
+    outcome: >-
+      Failed lazy route chunks offer an in-shell reload path and Run attempt
+      disclosure choices survive live snapshot refreshes.
   - id: api-url-boundary-clarity-2026-10
     exit_task: V97-002
     outcome: >-
@@ -2771,6 +2776,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V98-001, file: v98-001-route-chunk-recovery.yml}
+  - {id: V98-002, file: v98-002-run-attempt-disclosure-state.yml}
   - {id: V97-001, file: v97-001-project-http-target-url-boundary.yml}
   - {id: V97-002, file: v97-002-publicclient-intermediary-status.yml}
   - {id: V96-001, file: v96-001-runtime-config-detail-values.yml}
