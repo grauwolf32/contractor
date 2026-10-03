@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +16,11 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.artifacts import (
+    ArtifactAPIError,
+    ArtifactResponseLimitError,
+    ArtifactTransportError,
+)
 from contractor_runtime.contracts import (
     ArtifactRef,
     HTTPOriginTargetSettings,
@@ -153,6 +159,105 @@ def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path)
         ]
         assert state.metrics.counters["tool_calls"] == 4
         assert SECRET not in repr(state.metrics)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ArtifactTransportError("temporary transport failure"),
+        ArtifactAPIError(503, "unavailable", True),
+    ],
+)
+def test_http_body_read_retries_transient_artifact_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(
+                200, content=b"stored body", headers={"content-type": "text/plain"}, request=request
+            )
+
+        artifacts = FakeArtifactClient()
+        tools, _ = await create_tools(tmp_path, handler, artifacts=artifacts)
+        try:
+            result = await tools["http_request"]("https://target.example/body")
+
+            async def fail_read(_ref: ArtifactRef) -> Any:
+                raise error
+
+            with monkeypatch.context() as patch:
+                patch.setattr(artifacts, "read_artifact", fail_read)
+                with pytest.raises(HTTPToolError) as failure:
+                    await tools["http_read_body"](result["request_id"])
+                assert failure.value.code == "http_request_failed"
+                assert failure.value.retryable is True
+
+            recovered = await tools["http_read_body"](result["request_id"])
+            assert recovered["data"] == "stored body"
+            assert calls == 1
+        finally:
+            await close_tools(tools)
+
+    asyncio.run(scenario())
+
+
+def test_http_body_read_keeps_invalid_artifacts_nonretryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, content=b"stored body", headers={"content-type": "text/plain"}, request=request
+            )
+
+        artifacts = FakeArtifactClient()
+        tools, _ = await create_tools(tmp_path, handler, artifacts=artifacts)
+        try:
+            result = await tools["http_request"]("https://target.example/body")
+            request_id = result["request_id"]
+
+            async def assert_not_found(selected_id: int = request_id) -> None:
+                with pytest.raises(HTTPToolError) as failure:
+                    await tools["http_read_body"](selected_id)
+                assert failure.value.code == "http_body_not_found"
+                assert failure.value.retryable is False
+
+            await assert_not_found(request_id + 1)
+            for error in (
+                ArtifactAPIError(404, "artifact_not_found", False),
+                ArtifactResponseLimitError("oversized artifact response"),
+            ):
+
+                async def fail_read(_ref: ArtifactRef, selected_error: Exception = error) -> Any:
+                    raise selected_error
+
+                with monkeypatch.context() as patch:
+                    patch.setattr(artifacts, "read_artifact", fail_read)
+                    await assert_not_found()
+
+            exact = ArtifactRef.model_validate(result["body_artifact"]).require_exact()
+            key = (exact.namespace, exact.name, exact.revision)
+            media_type = artifacts.media_types[key]
+            payload = artifacts.payloads[key]
+            artifacts.media_types[key] = "application/octet-stream"
+            await assert_not_found()
+            artifacts.media_types[key] = media_type
+            artifacts.payloads[key] = b"invalid envelope"
+            await assert_not_found()
+            value = json.loads(payload)
+            value["kind"] = "binary"
+            value["dataBase64"] = base64.b64encode(b"stored body").decode()
+            del value["text"]
+            artifacts.payloads[key] = json.dumps(value).encode()
+            await assert_not_found()
+        finally:
+            await close_tools(tools)
 
     asyncio.run(scenario())
 
