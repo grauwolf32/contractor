@@ -3,8 +3,8 @@ id: V109-001
 title: Bound migration leader wait separately from DDL lock timeouts
 milestone: migration-lock-wait-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3c469d64f73660e042421dea16feb8e9fb8d0cc5
 depends_on: []
 languages: [go]
 goal: Let concurrent migrators serialize without the short DDL relation-lock budget aborting followers.
