@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import shutil
@@ -16,24 +15,24 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.artifact_visibility import (
-    require_model_visible_binding,
-)
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
     runtime_secrets,
 )
-from contractor_runtime.toolsets.common.document_write import write_document_exact
+from contractor_runtime.toolsets.common.document_session import (
+    DocumentSession,
+    validate_target_name,
+)
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.lines import split_lines
-from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
+from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_tool_command
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -113,7 +112,18 @@ class LikeC4ToolsetFactory:
         return {name: builders[name]() for name in selected}
 
 
-class _LikeC4Session:
+class _LikeC4Session(DocumentSession[str]):
+    media_type = TARGET_MEDIA_TYPE
+    seed_media_types = frozenset({TARGET_MEDIA_TYPE, "text/plain"})
+    max_bytes = MAX_DOCUMENT_UTF8_BYTES
+    reload_tool = "load_likec4"
+    read_tool = "read_likec4"
+    seed_revision_message = "a LikeC4 seed outside the Worker namespace requires an exact revision"
+    seed_too_large_message = "LikeC4 document exceeds the 1 MiB tool limit"
+    seed_media_type_message = f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE} or text/plain"
+    not_loaded_message = "load_likec4 or write_likec4 must be called first"
+    not_loaded_code = "document_not_loaded"
+
     def __init__(
         self,
         client: ArtifactClient,
@@ -121,74 +131,20 @@ class _LikeC4Session:
         workspace: Path,
         launcher: ProxySubprocessLauncher | None,
     ) -> None:
-        self._client = client
-        self._namespace = namespace
+        super().__init__(client, namespace)
         self._workspace = workspace
         self._launcher = launcher
-        self._lock = asyncio.Lock()
-        self._validation_task: asyncio.Task | None = None
-        self._content: str | None = None
-        self._target_name: str | None = None
-        self._revision: str | None = None
 
-    async def load(
-        self,
-        *,
-        namespace: str,
-        name: str,
-        revision: str | None,
-        target_name: str,
-        expected_revision: str | None,
+    def _decode_seed(self, data: bytes) -> str:
+        return _decode_document(data)
+
+    def _serialize(self, document: str) -> bytes:
+        return _validate_document(document)
+
+    def _document_state(
+        self, artifact: ArtifactRef, target_name: str, document: str, *, changed: bool, copied: bool
     ) -> dict[str, Any]:
-        _validate_target_name(target_name)
-        require_model_visible_binding(namespace, name)
-        require_model_visible_binding(self._namespace, target_name)
-        if namespace != self._namespace and revision is None:
-            raise ToolInputError(
-                "a LikeC4 seed outside the Worker namespace requires an exact revision"
-            )
-        source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
-        async with self._lock:
-            try:
-                value = await self._client.read_artifact(
-                    source_ref, max_bytes=MAX_DOCUMENT_UTF8_BYTES
-                )
-            except ArtifactResponseLimitError:
-                raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit") from None
-            if revision is not None and value.artifact.revision != revision:
-                raise ValueError("Artifact API did not preserve the requested exact revision")
-            if value.media_type not in {TARGET_MEDIA_TYPE, "text/plain"}:
-                raise ToolInputError(
-                    f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE} or text/plain"
-                )
-            content = _decode_document(value.data)
-            same_binding = namespace == self._namespace and name == target_name
-            if same_binding and value.media_type == TARGET_MEDIA_TYPE:
-                self._content = content
-                self._target_name = target_name
-                self._revision = value.artifact.require_exact().revision
-                return _document_state(
-                    value.artifact,
-                    target_name,
-                    content,
-                    changed=False,
-                    copied=False,
-                )
-            written = await self._write_content(
-                content,
-                target_name=target_name,
-                expected_revision=(value.artifact.revision if same_binding else expected_revision),
-            )
-            self._content = content
-            self._target_name = target_name
-            self._revision = written.artifact.require_exact().revision
-            return _document_state(
-                written.artifact,
-                target_name,
-                content,
-                changed=True,
-                copied=True,
-            )
+        return _document_state(artifact, target_name, document, changed=changed, copied=copied)
 
     async def write(
         self,
@@ -197,7 +153,7 @@ class _LikeC4Session:
         target_name: str,
         expected_revision: str | None,
     ) -> dict[str, Any]:
-        _validate_target_name(target_name)
+        validate_target_name(target_name)
         _validate_document(content)
         async with self._lock:
             effective_revision = expected_revision
@@ -207,14 +163,12 @@ class _LikeC4Session:
                 and self._revision is not None
             ):
                 effective_revision = self._revision
-            written = await self._write_content(
+            written = await self._write(
                 content,
                 target_name=target_name,
                 expected_revision=effective_revision,
             )
-            self._content = content
-            self._target_name = target_name
-            self._revision = written.artifact.require_exact().revision
+            self._remember(content, target_name, written.artifact)
             return _document_state(
                 written.artifact,
                 target_name,
@@ -306,11 +260,9 @@ class _LikeC4Session:
     async def validate(self) -> dict[str, Any]:
         async with self._lock:
             content, artifact = self._require_document()
-            self._validation_task = asyncio.current_task()
-            try:
-                validation = await _run_likec4(content, self._workspace, self._launcher)
-            finally:
-                self._validation_task = None
+            validation = await self._validating(
+                _run_likec4(content, self._workspace, self._launcher)
+            )
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "valid": validation["valid"],
@@ -322,62 +274,17 @@ class _LikeC4Session:
                 "stats": validation["stats"],
             }
 
-    async def close(self) -> None:
-        task = self._validation_task
-        if task is not None and task is not asyncio.current_task():
-            task.cancel()
-        async with self._lock:
-            self._content = None
-            self._target_name = None
-            self._revision = None
-
     async def _commit_current(self, candidate: str) -> dict[str, Any]:
         _validate_document(candidate)
-        assert self._target_name is not None and self._revision is not None
-        written = await self._write_content(
-            candidate,
-            target_name=self._target_name,
-            expected_revision=self._revision,
-        )
-        self._content = candidate
-        self._revision = written.artifact.require_exact().revision
+        target_name, revision = self._require_target()
+        written = await self._write(candidate, target_name=target_name, expected_revision=revision)
+        self._remember(candidate, target_name, written.artifact)
         return _document_state(
             written.artifact,
-            self._target_name,
+            target_name,
             candidate,
             changed=True,
             copied=False,
-        )
-
-    async def _write_content(
-        self,
-        content: str,
-        *,
-        target_name: str,
-        expected_revision: str | None,
-    ) -> Any:
-        data = _validate_document(content)
-        require_model_visible_binding(self._namespace, target_name)
-        return await write_document_exact(
-            self._client,
-            ArtifactRef(namespace=self._namespace, name=target_name),
-            data=data,
-            media_type=TARGET_MEDIA_TYPE,
-            expected_revision=expected_revision,
-            max_bytes=MAX_DOCUMENT_UTF8_BYTES,
-            reload_tool="load_likec4",
-            read_tool="read_likec4",
-        )
-
-    def _require_document(self) -> tuple[str, ArtifactRef]:
-        if self._content is None or self._target_name is None or self._revision is None:
-            raise ToolInputError(
-                "load_likec4 or write_likec4 must be called first", code="document_not_loaded"
-            )
-        return self._content, ArtifactRef(
-            namespace=self._namespace,
-            name=self._target_name,
-            revision=self._revision,
         )
 
 
@@ -633,22 +540,14 @@ async def _run_likec4(
                 "NO_COLOR": "1",
                 "NO_UPDATE_NOTIFIER": "1",
             }
-            if launcher is None:
-                process = await run_command(
-                    command,
-                    cwd=project,
-                    env=environment,
-                    timeout=VALIDATE_TIMEOUT_SECONDS,
-                    max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
-                )
-            else:
-                process = await launcher.run_async(
-                    command,
-                    cwd=project,
-                    env=environment,
-                    timeout=VALIDATE_TIMEOUT_SECONDS,
-                    max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
-                )
+            process = await run_tool_command(
+                command,
+                launcher=launcher,
+                cwd=project,
+                env=environment,
+                timeout=VALIDATE_TIMEOUT_SECONDS,
+                max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
+            )
         finally:
             if temporary is not None:
                 await to_thread_until_done(temporary.cleanup, name="likec4-filesystem")
@@ -826,10 +725,6 @@ def _validate_document(content: Any) -> bytes:
     if len(data) > MAX_DOCUMENT_UTF8_BYTES:
         raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit")
     return data
-
-
-def _validate_target_name(value: str) -> None:
-    ArtifactRef(namespace="likec4", name=value)
 
 
 def _validate_line_window(start_line: int, max_lines: int) -> None:

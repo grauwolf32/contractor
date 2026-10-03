@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import json
 import math
@@ -20,25 +19,25 @@ from pydantic import ValidationError
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.projectfs.storage import (
     WorkspaceReader,
     WorkspaceStorageError,
 )
-from contractor_runtime.toolsets.common.artifact_visibility import (
-    require_model_visible_binding,
-)
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
     runtime_secrets,
 )
-from contractor_runtime.toolsets.common.document_write import write_document_exact
+from contractor_runtime.toolsets.common.document_session import (
+    DocumentSession,
+    validate_target_name,
+)
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
+from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_tool_command
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.toolsets.openapi.models import (
     PathItem,
@@ -185,7 +184,19 @@ class OpenAPIToolsetFactory:
         return {name: builders[name]() for name in selected}
 
 
-class _OpenAPISession:
+class _OpenAPISession(DocumentSession[dict[str, Any]]):
+    media_type = TARGET_MEDIA_TYPE
+    seed_media_types = frozenset({"application/yaml", "application/json"})
+    max_bytes = MAX_DOCUMENT_BYTES
+    reload_tool = "load_openapi"
+    read_tool = "read_openapi_document"
+    seed_revision_message = (
+        "an OpenAPI seed outside the Worker namespace requires an exact revision"
+    )
+    seed_too_large_message = "OpenAPI document exceeds the 4 MiB domain limit"
+    seed_media_type_message = "OpenAPI seed media type must be application/yaml or application/json"
+    not_loaded_message = "load_openapi or initialize_openapi must be called first"
+
     def __init__(
         self,
         client: ArtifactClient,
@@ -195,62 +206,30 @@ class _OpenAPISession:
         *,
         project_workspace: WorkspaceReader | None = None,
     ) -> None:
-        self._client = client
-        self._namespace = namespace
+        super().__init__(client, namespace)
         self._source_root = workspace.path / "source"
         self._project_workspace = project_workspace
         self._launcher = launcher
-        self._lock = asyncio.Lock()
-        self._validation_task: asyncio.Task | None = None
-        self._document: dict[str, Any] | None = None
-        self._target_name: str | None = None
-        self._revision: str | None = None
 
-    async def load(
+    def _decode_seed(self, data: bytes) -> dict[str, Any]:
+        document = _parse_document(data)
+        _validate_document(document, require_provenance=False)
+        return document
+
+    def _serialize(self, document: dict[str, Any]) -> bytes:
+        _validate_document(document, require_provenance=False)
+        return _dump_document(document)
+
+    def _document_state(
         self,
-        *,
-        namespace: str,
-        name: str,
-        revision: str | None,
+        artifact: ArtifactRef,
         target_name: str,
-        expected_revision: str | None,
+        document: dict[str, Any],
+        *,
+        changed: bool,
+        copied: bool,
     ) -> dict[str, Any]:
-        _validate_target_name(target_name)
-        require_model_visible_binding(namespace, name)
-        require_model_visible_binding(self._namespace, target_name)
-        if namespace != self._namespace and revision is None:
-            raise ToolInputError(
-                "an OpenAPI seed outside the Worker namespace requires an exact revision"
-            )
-        source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
-        async with self._lock:
-            try:
-                value = await self._client.read_artifact(source_ref, max_bytes=MAX_DOCUMENT_BYTES)
-            except ArtifactResponseLimitError:
-                raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit") from None
-            if revision is not None and value.artifact.revision != revision:
-                raise ValueError("Artifact API did not preserve the requested exact revision")
-            if value.media_type not in {"application/yaml", "application/json"}:
-                raise ToolInputError(
-                    "OpenAPI seed media type must be application/yaml or application/json"
-                )
-            document = _parse_document(value.data)
-            _validate_document(document, require_provenance=False)
-            same_binding = namespace == self._namespace and name == target_name
-            if same_binding and value.media_type == TARGET_MEDIA_TYPE:
-                self._document = document
-                self._target_name = target_name
-                self._revision = value.artifact.require_exact().revision
-                return _document_state(value.artifact, target_name, changed=False, copied=False)
-            written = await self._write_document(
-                document,
-                target_name=target_name,
-                expected_revision=(value.artifact.revision if same_binding else expected_revision),
-            )
-            self._document = document
-            self._target_name = target_name
-            self._revision = written.artifact.require_exact().revision
-            return _document_state(written.artifact, target_name, changed=True, copied=True)
+        return _document_state(artifact, target_name, changed=changed, copied=copied)
 
     async def initialize(
         self,
@@ -263,16 +242,14 @@ class _OpenAPISession:
     ) -> dict[str, Any]:
         _require_nonempty("title", title)
         _require_nonempty("version", version)
-        _validate_target_name(target_name)
+        validate_target_name(target_name)
         document = copy.deepcopy(BASE_DOCUMENT)
         document["info"] = {"title": title, "description": description, "version": version}
         async with self._lock:
-            written = await self._write_document(
+            written = await self._write(
                 document, target_name=target_name, expected_revision=expected_revision
             )
-            self._document = document
-            self._target_name = target_name
-            self._revision = written.artifact.require_exact().revision
+            self._remember(document, target_name, written.artifact)
             return _document_state(written.artifact, target_name, changed=True, copied=False)
 
     async def get_info(self) -> dict[str, Any]:
@@ -484,14 +461,11 @@ class _OpenAPISession:
                 self._validate_current_provenance(document, project_evidence_paths)
             except ValueError as error:
                 structural_errors.append(str(error))
-            self._validation_task = asyncio.current_task()
-            try:
-                if self._launcher is None:
-                    vacuum = await _run_vacuum(rendered)
-                else:
-                    vacuum = await _run_vacuum(rendered, self._launcher)
-            finally:
-                self._validation_task = None
+            vacuum = await self._validating(
+                _run_vacuum(rendered)
+                if self._launcher is None
+                else _run_vacuum(rendered, self._launcher)
+            )
             valid = (
                 not structural_errors
                 and vacuum["available"]
@@ -509,15 +483,6 @@ class _OpenAPISession:
                 "issuesTruncated": vacuum["truncated"],
             }
 
-    async def close(self) -> None:
-        task = self._validation_task
-        if task is not None and task is not asyncio.current_task():
-            task.cancel()
-        async with self._lock:
-            self._document = None
-            self._target_name = None
-            self._revision = None
-
     async def _mutate(
         self, modifier: Callable[[dict[str, Any]], None], *, operation: str
     ) -> dict[str, Any]:
@@ -530,47 +495,14 @@ class _OpenAPISession:
                 return _document_state(
                     artifact, self._target_name or DEFAULT_TARGET_NAME, changed=False, copied=False
                 ) | {"operation": operation}
-            assert self._target_name is not None and self._revision is not None
-            written = await self._write_document(
-                working,
-                target_name=self._target_name,
-                expected_revision=self._revision,
+            target_name, revision = self._require_target()
+            written = await self._write(
+                working, target_name=target_name, expected_revision=revision
             )
-            self._document = working
-            self._revision = written.artifact.require_exact().revision
-            return _document_state(
-                written.artifact, self._target_name, changed=True, copied=False
-            ) | {"operation": operation}
-
-    async def _write_document(
-        self,
-        document: dict[str, Any],
-        *,
-        target_name: str,
-        expected_revision: str | None,
-    ) -> Any:
-        _validate_document(document, require_provenance=False)
-        require_model_visible_binding(self._namespace, target_name)
-        data = _dump_document(document)
-        return await write_document_exact(
-            self._client,
-            ArtifactRef(namespace=self._namespace, name=target_name),
-            data=data,
-            media_type=TARGET_MEDIA_TYPE,
-            expected_revision=expected_revision,
-            max_bytes=MAX_DOCUMENT_BYTES,
-            reload_tool="load_openapi",
-            read_tool="read_openapi_document",
-        )
-
-    def _require_document(self) -> tuple[dict[str, Any], ArtifactRef]:
-        if self._document is None or self._target_name is None or self._revision is None:
-            raise ToolInputError("load_openapi or initialize_openapi must be called first")
-        return self._document, ArtifactRef(
-            namespace=self._namespace,
-            name=self._target_name,
-            revision=self._revision,
-        )
+            self._remember(working, target_name, written.artifact)
+            return _document_state(written.artifact, target_name, changed=True, copied=False) | {
+                "operation": operation
+            }
 
     async def _validate_evidence(self, evidence_files: list[str]) -> list[str]:
         return self._validate_evidence_from_paths(
@@ -1595,10 +1527,6 @@ def _validate_component_name(value: Any) -> None:
         )
 
 
-def _validate_target_name(value: str) -> None:
-    ArtifactRef(namespace="openapi", name=value)
-
-
 def _validate_relative_source_path(raw: Any) -> str:
     if not isinstance(raw, str) or not raw or "\\" in raw or "\x00" in raw:
         raise ToolInputError("source evidence path must be a non-empty relative string using /")
@@ -1669,22 +1597,14 @@ async def _run_vacuum(
         }
     try:
         command = [executable, "spectral-report", "-i", "-o"]
-        if launcher is None:
-            process = await run_command(
-                command,
-                input=source_text.encode("utf-8"),
-                env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
-                timeout=VACUUM_TIMEOUT_SECONDS,
-                max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
-            )
-        else:
-            process = await launcher.run_async(
-                command,
-                input=source_text.encode("utf-8"),
-                env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
-                timeout=VACUUM_TIMEOUT_SECONDS,
-                max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
-            )
+        process = await run_tool_command(
+            command,
+            launcher=launcher,
+            input=source_text.encode("utf-8"),
+            env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
+            timeout=VACUUM_TIMEOUT_SECONDS,
+            max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
+        )
     except subprocess.TimeoutExpired:
         return {
             "available": True,
