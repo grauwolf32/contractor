@@ -58,6 +58,7 @@ MAX_RESULTS = 100
 MAX_RESULTS_BYTES = 128 * 1024
 PrepareInvocation = Callable[[Path], Awaitable[list[str]]]
 Destination = tuple[str, tuple[int, ...]]
+FinalizeInvocation = Callable[[dict, float], Awaitable[dict]]
 
 
 class ScanInputError(ToolInputError):
@@ -104,9 +105,12 @@ class _ScanSession:
         destination: Destination | None = None,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
-        finalize: Callable[[dict], Awaitable[dict]] | None = None,
+        finalize: FinalizeInvocation | None = None,
     ) -> dict:
         async def invocation():
+            # The scan lock serializes calls; waiting for it is outside this
+            # invocation's preparation, process and publication budget.
+            deadline = time.monotonic() + timeout
             if self._closed:
                 result = ProcessResult(None, error_code="scan_closed")
             elif self.proxy_configured:
@@ -116,9 +120,9 @@ class _ScanSession:
             elif not self.executables[tool.name]:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
-                result = await self._execute(tool, arguments, timeout, destination, prepare)
+                result = await self._execute(tool, arguments, deadline, destination, prepare)
             value = (observation or tool.observation)(result)
-            return await finalize(value) if finalize is not None else value
+            return await finalize(value, deadline) if finalize is not None else value
 
         async with self._lock:
             # Artifact publication is part of the invocation: keep it serialized
@@ -133,18 +137,17 @@ class _ScanSession:
         self,
         tool: ScanTool,
         arguments: list[str],
-        timeout: int,
+        deadline: float,
         destination: Destination | None,
         prepare: PrepareInvocation | None,
     ) -> ProcessResult:
-        started = time.monotonic()
         with tempfile.TemporaryDirectory(prefix=f"{tool.name}-", dir=self.workspace) as root:
             directory = Path(root)
             try:
                 prepared = tool.prepare(directory, self.templates)
                 # Destination checks, artifact retrieval and materialization
                 # share the scan deadline.
-                async with asyncio.timeout(timeout):
+                async with asyncio.timeout_at(deadline):
                     if destination is not None:
                         await self.require_destination(*destination)
                     if prepare is not None:
@@ -153,7 +156,7 @@ class _ScanSession:
                 return ProcessResult(None, error_code="scan_timeout")
             except (ScannerUnavailable, ScanTargetRefused) as error:
                 return ProcessResult(None, error_code=str(error))
-            remaining = timeout - (time.monotonic() - started)
+            remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return ProcessResult(None, error_code="scan_timeout")
             command = [self.executables[tool.name], *arguments, *prepared]
@@ -222,7 +225,7 @@ class ScanTool:
         destination: Callable[[], Destination] | None = None,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
-        finalize: Callable[[dict], Awaitable[dict]] | None = None,
+        finalize: FinalizeInvocation | None = None,
     ) -> dict:
         started = time.perf_counter_ns()
         result = None
@@ -742,9 +745,10 @@ class KatanaTool(ScanTool):
         max_depth: Maximum crawl depth, 1 through 5; defaults to 2.
         max_pages: Katana per-domain page budget, 1 through 1000; defaults to 100.
         rate_limit: Maximum configured requests per second, 1 through 1000; default 10.
-        timeout_seconds: Total deadline including artifact access, 1 through 3600;
-            defaults to 60. Individual request and queue idle timeouts are at
-            most 10 seconds and shorten with the total deadline.
+        timeout_seconds: Deadline after this allocation's scan lock is acquired,
+            including artifact access, 1 through 3600; defaults to 60. Individual
+            request and queue idle timeouts are at most 10 seconds and shorten
+            with the total deadline.
 
     Returns:
         Process status, exact targetsArtifact, targetsDigest, source, limits and
@@ -763,7 +767,6 @@ class KatanaTool(ScanTool):
     ) -> dict:
         seed = ""
         data = b""
-        started = time.monotonic()
         target = ArtifactRef(namespace=self._session.namespace, name="targets")
 
         def arguments():
@@ -839,10 +842,10 @@ class KatanaTool(ScanTool):
             )
             return value
 
-        async def finalize(value: dict) -> dict:
+        async def finalize(value: dict, deadline: float) -> dict:
             if data:
                 try:
-                    remaining = timeout_seconds - (time.monotonic() - started)
+                    remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise TimeoutError
                     async with asyncio.timeout(remaining):
