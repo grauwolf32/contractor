@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,6 +53,174 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 	if allocations[0].RuntimeConfiguration.Provenance.AgentLabels == nil ||
 		allocations[0].RuntimeConfiguration.Provenance.RunLabels[0].Label != "debug" {
 		t.Fatalf("durable provenance = %+v", allocations[0].RuntimeConfiguration)
+	}
+}
+
+func TestPlacementOptimisticCatalogReadsDoNotGrowWithSharedCandidates(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := publisher.Publish(ctx, []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"shared-agent-telemetry","version":"1"},
+  "spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","credential":"shared-telemetry"}}}
+}`), "publish-shared-agent-telemetry", "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeconfig.NewRepository(pool).CreateBinding(ctx, "shared", published.Version.Ref, "operator", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	trace := &placementQueryCounter{}
+	configuration := pool.Config().Copy()
+	configuration.ConnConfig.Tracer = trace
+	countedPool, err := pgxpool.NewWithConfig(ctx, configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer countedPool.Close()
+	fixture.allocator.pool = countedPool
+	llm := &placementCountingLLMLookup{base: fixture.allocator.llmCredentials}
+	runtime := &placementCountingRuntimeLookup{}
+	fixture.allocator.llmCredentials = llm
+	fixture.allocator.runtimeCredentials = runtime
+	denied := errors.New("stop after optimistic resolution")
+	request := fixture.request()
+	request.Admit = func(_ context.Context, candidates []Reservation) error {
+		if len(candidates) != 1 || candidates[0].ResolvedRuntimeConfig == nil {
+			t.Errorf("optimistic candidates = %+v", candidates)
+		}
+		return denied
+	}
+	register := func(index int) {
+		fixture.registerCandidateWithLabels(t, ctx, fmt.Sprintf("runtime-shared-%d", index), fmt.Sprintf("%x", index),
+			[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+	}
+	register(1)
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("one-candidate placement = %v", err)
+	}
+	oneQueries, oneLLM, oneRuntime := trace.queries.Load(), llm.count, runtime.count
+	if oneQueries == 0 || oneLLM != 1 || oneRuntime != 1 {
+		t.Fatalf("one-candidate catalog reads = SQL %d, LLM %d, Runtime %d", oneQueries, oneLLM, oneRuntime)
+	}
+	for index := 2; index <= 12; index++ {
+		register(index)
+	}
+	trace.queries.Store(0)
+	llm.count, runtime.count = 0, 0
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("twelve-candidate placement = %v", err)
+	}
+	if trace.queries.Load() != oneQueries || llm.count != oneLLM || runtime.count != oneRuntime {
+		t.Fatalf("shared-candidate catalog reads grew: SQL %d -> %d, LLM %d -> %d, Runtime %d -> %d",
+			oneQueries, trace.queries.Load(), oneLLM, llm.count, oneRuntime, runtime.count)
+	}
+	t.Logf("optimistic reads for 1 and 12 candidates: SQL %d, LLM %d, Runtime %d", oneQueries, oneLLM, oneRuntime)
+}
+
+type placementQueryCounter struct{ queries atomic.Int64 }
+
+func (trace *placementQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	trace.queries.Add(1)
+	return ctx
+}
+
+func (*placementQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+type placementCountingLLMLookup struct {
+	base  workflowconfig.CredentialLookup
+	count int
+	err   error
+}
+
+func (lookup *placementCountingLLMLookup) LookupLLMCredential(ctx context.Context, id string) (workflowconfig.CredentialMetadata, error) {
+	lookup.count++
+	if lookup.err != nil {
+		return workflowconfig.CredentialMetadata{}, lookup.err
+	}
+	return lookup.base.LookupLLMCredential(ctx, id)
+}
+
+type placementCountingRuntimeLookup struct{ count int }
+
+func (lookup *placementCountingRuntimeLookup) Get(_ context.Context, id string) (credentials.RuntimeCredentialMetadata, error) {
+	lookup.count++
+	return credentials.RuntimeCredentialMetadata{CredentialID: id, Kind: credentials.RuntimeCredentialOTLPHeaders}, nil
+}
+
+func TestPlacementOptimisticCachePreservesCandidateErrorClassification(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	for index := 1; index <= 2; index++ {
+		fixture.registerCandidateWithLabels(t, ctx, fmt.Sprintf("runtime-missing-%d", index), fmt.Sprintf("%x", index),
+			nil, []string{"missing-binding"})
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, fixture.request()); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("all candidates with unavailable labels = %v, want capacity", err)
+	}
+	opaque := errors.New("credential repository unavailable")
+	fixture.allocator.llmCredentials = &placementCountingLLMLookup{
+		base: fixture.allocator.llmCredentials, err: opaque,
+	}
+	fixture.registerCandidate(t, ctx, "runtime-opaque-error", "3", nil)
+	if _, err := fixture.allocator.ReserveAllContext(ctx, fixture.request()); !errors.Is(err, opaque) {
+		t.Fatalf("opaque credential error = %v, want original error", err)
+	}
+}
+
+func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(name, endpoint string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",` +
+			`"metadata":{"name":"` + name + `","version":"1"},"spec":{"worker":{"telemetry":` +
+			`{"adapter":"otlp-http@1","endpoint":"` + endpoint + `"}}}}`)
+		result, err := publisher.Publish(ctx, document, "publish-"+name, "operator")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.Version.Ref
+	}
+	oldRef := publish("placement-old", "https://old-otel.example/v1/traces")
+	newRef := publish("placement-new", "https://new-otel.example/v1/traces")
+	binding, err := runtimeconfig.NewRepository(pool).CreateBinding(ctx, "shared", oldRef, "operator", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.registerCandidateWithLabels(t, ctx, "runtime-rebound", "4",
+		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"shared"})
+	request := fixture.request()
+	request.Admit = func(context.Context, []Reservation) error {
+		_, err := runtimeconfig.NewRepository(pool).Rebind(ctx, "shared", binding.Revision, newRef, "operator", time.Now().UTC())
+		return err
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("changed binding after optimistic resolution = %v, want capacity", err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("changed binding created durable allocations: (%+v, %v)", allocations, err)
 	}
 }
 

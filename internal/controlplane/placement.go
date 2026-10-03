@@ -58,6 +58,21 @@ type PlacementAllocator struct {
 	performanceMetrics        bool
 }
 
+type placementCachedValue[T any] struct {
+	value T
+	err   error
+}
+
+// One optimistic pass shares immutable catalog observations. Selected edges
+// are still re-read through pinReservations' transaction and drift-checked.
+type placementReadCache struct {
+	requestLoaded bool
+	defaultConfig runtimeconfig.PinnedRuntimeConfig
+	runConfigs    []runtimeconfig.PinnedRuntimeConfig
+	requestErr    error
+	agentLabels   map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig]
+}
+
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
 	if options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
 		options.LLMCredentials == nil || options.TransactionLLMCredentials == nil ||
@@ -144,6 +159,12 @@ func (a *PlacementAllocator) reserveAllContext(
 	}
 
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
+	cache := &placementReadCache{agentLabels: make(map[string]placementCachedValue[runtimeconfig.PinnedRuntimeConfig])}
+	lookups := placementCredentialLookups{
+		llm: a.llmCredentials, runtime: a.runtimeCredentials,
+		llmCache:     make(map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]),
+		runtimeCache: make(map[string]placementCachedValue[contracts.RuntimeCredentialKind]),
+	}
 	edges := make([]CandidateEdge, 0, len(request.Bindings)*len(candidates))
 	for _, binding := range request.Bindings {
 		toolAdapters, err := workflowconfig.RequiredRuntimeAdaptersForTemplate(binding.AgentTemplate)
@@ -154,8 +175,7 @@ func (a *PlacementAllocator) reserveAllContext(
 			if !isBindingCompatible(candidate.Registration, binding) {
 				continue
 			}
-			resolved, err := a.resolveCandidate(ctx, a.pool, request, binding, candidate.Principal,
-				placementCredentialLookups{llm: a.llmCredentials, runtime: a.runtimeCredentials})
+			resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, candidate.Principal, lookups, cache)
 			if err != nil {
 				if contextError := ctx.Err(); contextError != nil {
 					return nil, contextError
@@ -388,35 +408,45 @@ func (a *PlacementAllocator) resolveCandidate(
 	principal AuthenticatedPrincipal,
 	lookups placementCredentialLookups,
 ) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	return a.resolveCandidateWithCache(ctx, db, request, binding, principal, lookups, nil)
+}
+
+func (a *PlacementAllocator) resolveCandidateWithCache(
+	ctx context.Context,
+	db persistencepostgres.DBTX,
+	request ReservationRequest,
+	binding BindingRequirement,
+	principal AuthenticatedPrincipal,
+	lookups placementCredentialLookups,
+	cache *placementReadCache,
+) (runtimeconfig.ResolvedRuntimeConfig, error) {
 	if request.RuntimeConfig == nil || binding.RuntimeSelection == nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, runtimeconfig.ErrInvalid
 	}
 	repository := runtimeconfig.NewRepository(db)
-	defaultConfig, err := loadPinnedRuntimeConfig(ctx, repository, request.RuntimeConfig.Default)
+	var defaultConfig runtimeconfig.PinnedRuntimeConfig
+	var runConfigs []runtimeconfig.PinnedRuntimeConfig
+	var err error
+	if cache == nil {
+		defaultConfig, runConfigs, err = loadRequestPinnedRuntimeConfigs(ctx, repository, request.RuntimeConfig)
+	} else {
+		defaultConfig, runConfigs, err = cache.requestConfigs(ctx, repository, request.RuntimeConfig)
+	}
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
-	runConfigs := make([]runtimeconfig.PinnedRuntimeConfig, 0, len(request.RuntimeConfig.Labels))
-	for _, pin := range request.RuntimeConfig.Labels {
-		loaded, err := loadPinnedRuntimeConfig(ctx, repository, pin)
-		if err != nil {
-			return runtimeconfig.ResolvedRuntimeConfig{}, err
-		}
-		runConfigs = append(runConfigs, loaded)
-	}
 	agentConfigs := make([]runtimeconfig.PinnedRuntimeConfig, 0, len(principal.Labels))
 	for _, label := range principal.Labels {
-		binding, err := repository.GetBinding(ctx, label)
+		var loaded runtimeconfig.PinnedRuntimeConfig
+		if cache == nil {
+			loaded, err = loadAgentPinnedRuntimeConfig(ctx, repository, label)
+		} else {
+			loaded, err = cache.agentConfig(ctx, repository, label)
+		}
 		if err != nil {
 			return runtimeconfig.ResolvedRuntimeConfig{}, err
 		}
-		version, err := repository.GetVersionByRef(ctx, binding.Ref)
-		if err != nil {
-			return runtimeconfig.ResolvedRuntimeConfig{}, err
-		}
-		agentConfigs = append(agentConfigs, runtimeconfig.PinnedRuntimeConfig{
-			Label: label, BindingRevision: binding.Revision, Config: binding.Ref, Spec: version.Spec,
-		})
+		agentConfigs = append(agentConfigs, loaded)
 	}
 	workflowPatch, runPatch, escalationPatch, err := runtimeRoutePatches(*binding.RuntimeSelection)
 	if err != nil {
@@ -454,6 +484,71 @@ func (a *PlacementAllocator) resolveCandidate(
 		Escalation: escalationPatch, AgentLabels: agentConfigs,
 		Gateways: gateways, LLMCredentials: llmCredentials, RuntimeCredentials: runtimeCredentials,
 	})
+}
+
+func loadRequestPinnedRuntimeConfigs(
+	ctx context.Context,
+	repository *runtimeconfig.Repository,
+	snapshot *runtimeconfig.RunSnapshot,
+) (runtimeconfig.PinnedRuntimeConfig, []runtimeconfig.PinnedRuntimeConfig, error) {
+	defaultConfig, err := loadPinnedRuntimeConfig(ctx, repository, snapshot.Default)
+	if err != nil {
+		return runtimeconfig.PinnedRuntimeConfig{}, nil, err
+	}
+	runConfigs := make([]runtimeconfig.PinnedRuntimeConfig, 0, len(snapshot.Labels))
+	for _, pin := range snapshot.Labels {
+		loaded, err := loadPinnedRuntimeConfig(ctx, repository, pin)
+		if err != nil {
+			return runtimeconfig.PinnedRuntimeConfig{}, nil, err
+		}
+		runConfigs = append(runConfigs, loaded)
+	}
+	return defaultConfig, runConfigs, nil
+}
+
+func (cache *placementReadCache) requestConfigs(
+	ctx context.Context,
+	repository *runtimeconfig.Repository,
+	snapshot *runtimeconfig.RunSnapshot,
+) (runtimeconfig.PinnedRuntimeConfig, []runtimeconfig.PinnedRuntimeConfig, error) {
+	if !cache.requestLoaded {
+		cache.requestLoaded = true
+		cache.defaultConfig, cache.runConfigs, cache.requestErr = loadRequestPinnedRuntimeConfigs(ctx, repository, snapshot)
+	}
+	// Model-free projection changes slice entries, so each candidate owns its
+	// own shallow slice while the cached pinned specs remain read-only.
+	return cache.defaultConfig, append([]runtimeconfig.PinnedRuntimeConfig(nil), cache.runConfigs...), cache.requestErr
+}
+
+func loadAgentPinnedRuntimeConfig(
+	ctx context.Context,
+	repository *runtimeconfig.Repository,
+	label string,
+) (runtimeconfig.PinnedRuntimeConfig, error) {
+	binding, err := repository.GetBinding(ctx, label)
+	if err != nil {
+		return runtimeconfig.PinnedRuntimeConfig{}, err
+	}
+	version, err := repository.GetVersionByRef(ctx, binding.Ref)
+	if err != nil {
+		return runtimeconfig.PinnedRuntimeConfig{}, err
+	}
+	return runtimeconfig.PinnedRuntimeConfig{
+		Label: label, BindingRevision: binding.Revision, Config: binding.Ref, Spec: version.Spec,
+	}, nil
+}
+
+func (cache *placementReadCache) agentConfig(
+	ctx context.Context,
+	repository *runtimeconfig.Repository,
+	label string,
+) (runtimeconfig.PinnedRuntimeConfig, error) {
+	if cached, ok := cache.agentLabels[label]; ok {
+		return cached.value, cached.err
+	}
+	loaded, err := loadAgentPinnedRuntimeConfig(ctx, repository, label)
+	cache.agentLabels[label] = placementCachedValue[runtimeconfig.PinnedRuntimeConfig]{value: loaded, err: err}
+	return loaded, err
 }
 
 func loadPinnedRuntimeConfig(
@@ -497,8 +592,10 @@ func (a *PlacementAllocator) gatewayCatalog(
 // Keep SQL-backed lookup ownership explicit. Optimistic resolution uses pool
 // readers; the recheck under the lifecycle barrier uses transaction readers.
 type placementCredentialLookups struct {
-	llm     workflowconfig.CredentialLookup
-	runtime PlacementRuntimeCredentialLookup
+	llm          workflowconfig.CredentialLookup
+	runtime      PlacementRuntimeCredentialLookup
+	llmCache     map[string]placementCachedValue[runtimeconfig.LLMCredentialAuthorization]
+	runtimeCache map[string]placementCachedValue[contracts.RuntimeCredentialKind]
 }
 
 func (lookups placementCredentialLookups) catalogs(
@@ -520,25 +617,58 @@ func (lookups placementCredentialLookups) catalogs(
 	}
 	llmResult := make(map[string]runtimeconfig.LLMCredentialAuthorization, len(llmIDs))
 	for id := range llmIDs {
-		metadata, err := lookups.llm.LookupLLMCredential(ctx, id)
+		authorization, err := lookups.llmAuthorization(ctx, id)
 		if err != nil {
 			return nil, nil, err
 		}
-		llmResult[id] = runtimeconfig.LLMCredentialAuthorization{
+		llmResult[id] = authorization
+	}
+	runtimeResult := make(map[string]contracts.RuntimeCredentialKind, len(runtimeIDs))
+	for id := range runtimeIDs {
+		kind, err := lookups.runtimeKind(ctx, id)
+		if err != nil {
+			return nil, nil, err
+		}
+		runtimeResult[id] = kind
+	}
+	return llmResult, runtimeResult, nil
+}
+
+func (lookups placementCredentialLookups) llmAuthorization(
+	ctx context.Context,
+	id string,
+) (runtimeconfig.LLMCredentialAuthorization, error) {
+	if cached, ok := lookups.llmCache[id]; ok {
+		return cached.value, cached.err
+	}
+	metadata, err := lookups.llm.LookupLLMCredential(ctx, id)
+	var authorization runtimeconfig.LLMCredentialAuthorization
+	if err == nil {
+		authorization = runtimeconfig.LLMCredentialAuthorization{
 			Ref: metadata.Ref, LLMGateway: metadata.LLMGateway,
 			ModelPolicies: append([]contracts.ModelPolicyRef{}, metadata.ModelPolicies...),
 			Models:        append([]string{}, metadata.Models...), Unrestricted: metadata.Unrestricted,
 		}
 	}
-	runtimeResult := make(map[string]contracts.RuntimeCredentialKind, len(runtimeIDs))
-	for id := range runtimeIDs {
-		metadata, err := lookups.runtime.Get(ctx, id)
-		if err != nil {
-			return nil, nil, err
-		}
-		runtimeResult[id] = contracts.RuntimeCredentialKind(metadata.Kind)
+	if lookups.llmCache != nil {
+		lookups.llmCache[id] = placementCachedValue[runtimeconfig.LLMCredentialAuthorization]{value: authorization, err: err}
 	}
-	return llmResult, runtimeResult, nil
+	return authorization, err
+}
+
+func (lookups placementCredentialLookups) runtimeKind(
+	ctx context.Context,
+	id string,
+) (contracts.RuntimeCredentialKind, error) {
+	if cached, ok := lookups.runtimeCache[id]; ok {
+		return cached.value, cached.err
+	}
+	metadata, err := lookups.runtime.Get(ctx, id)
+	kind := contracts.RuntimeCredentialKind(metadata.Kind)
+	if lookups.runtimeCache != nil {
+		lookups.runtimeCache[id] = placementCachedValue[contracts.RuntimeCredentialKind]{value: kind, err: err}
+	}
+	return kind, err
 }
 
 func collectSpecCredentialIDs(
