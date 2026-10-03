@@ -3,7 +3,8 @@ id: V148-001
 title: Accept digit-leading portable Agent Skill path components
 milestone: digit-leading-skill-paths-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 87a48a32420081389451ef9c226ee2fbf95e78e4
 depends_on: []
 languages: [go, python]
 goal: Match the documented portable path contract in both Server and Runtime validators.
