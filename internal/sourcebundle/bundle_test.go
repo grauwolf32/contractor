@@ -3,6 +3,7 @@ package sourcebundle
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +53,59 @@ func TestBuildIsDeterministicAndUsesDirectoryContentsAsRoot(t *testing.T) {
 	sort.Strings(paths)
 	if expected := []string{"nested/a.txt", "z.txt"}; !reflect.DeepEqual(paths, expected) {
 		t.Fatalf("paths = %v, want %v", paths, expected)
+	}
+}
+
+func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
+	encoded, err := os.ReadFile(filepath.Join("..", "..", "testdata", "source_member_paths.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths struct {
+		Valid   []string `json:"valid"`
+		Invalid []string `json:"invalid"`
+	}
+	if err := json.Unmarshal(encoded, &paths); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths.Valid {
+		if _, err := portablePath(path); err != nil {
+			t.Errorf("valid runtime path %q: %v", path, err)
+		}
+	}
+	for _, path := range paths.Invalid {
+		if _, err := portablePath(path); err == nil {
+			t.Errorf("runtime rejects path %q but sourcebundle accepts it", path)
+		}
+	}
+}
+
+func TestBuildRejectsColonInAnyPathComponent(t *testing.T) {
+	for _, path := range []string{"logs/2024-01-01T10:00.txt", "a:b/c.txt"} {
+		t.Run(path, func(t *testing.T) {
+			root := t.TempDir()
+			writeTestFile(t, filepath.Join(root, filepath.FromSlash(path)), "source")
+			_, err := Build(root, Options{IncludeIgnored: true})
+			if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), ".contractorignore") {
+				t.Fatalf("Build error = %v, want path and exclusion remedy", err)
+			}
+		})
+	}
+}
+
+func TestBuildRejectsEmptyAfterIgnoreFiltering(t *testing.T) {
+	for _, ignored := range []bool{false, true} {
+		t.Run(map[bool]string{false: "empty", true: "fully ignored"}[ignored], func(t *testing.T) {
+			root := t.TempDir()
+			if ignored {
+				writeTestFile(t, filepath.Join(root, ".contractorignore"), "*\n")
+				writeTestFile(t, filepath.Join(root, "main.go"), "package main")
+			}
+			if _, err := Build(root, Options{IncludeIgnored: true}); err == nil ||
+				!strings.Contains(err.Error(), "no files to package") {
+				t.Fatalf("Build error = %v, want empty source rejection", err)
+			}
+		})
 	}
 }
 
