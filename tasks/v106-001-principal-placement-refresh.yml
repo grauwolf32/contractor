@@ -3,8 +3,8 @@ id: V106-001
 title: Refresh stale Runtime Agent principals during placement
 milestone: placement-principal-refresh-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 90299d22284ed1a385a43fbb71bad675661132bf
 depends_on: []
 languages: [go]
 goal: Let placement recover from principal label changes or deletions that leave the process-local Registry stale.
