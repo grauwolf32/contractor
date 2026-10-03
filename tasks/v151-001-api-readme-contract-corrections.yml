@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V151-001
+title: Align API READMEs with Eval routes and empty Gateway-token behavior
+milestone: api-readme-contract-corrections-2026-10
+priority: P3
+status: in_progress
+depends_on: []
+languages: [markdown]
+goal: Describe the implemented Eval routes and tolerated empty private Gateway token accurately.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/132
+  finding: API READMEs claim Eval has no HTTP routes and private tokens cannot be empty.
+scope:
+  in:
+    - Point the API catalog README to implemented Eval OpenAPI operations.
+    - Explain that an empty private Gateway token is accepted and treated as omitted.
+  out:
+    - Change wire validation or Server credential production.
+acceptance_criteria:
+  - {id: A1, text: README describes registered Eval routes.}
+  - {id: A2, text: README matches Go, Python and schema behavior for an empty Gateway token.}
+tests:
+  - {command: git diff --check, covers: [A1, A2]}
