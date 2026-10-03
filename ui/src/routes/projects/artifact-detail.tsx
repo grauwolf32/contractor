@@ -2,6 +2,7 @@ import {
   ArtifactMetadataSummary,
   ArtifactHistoryDisclosure,
   ArtifactHistoryButton,
+  ArtifactRevisionLede,
 } from "../artifacts/metadata-summary";
 import { ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -57,6 +58,7 @@ function ProjectArtifactActions({
   metadata: ArtifactMetadata;
 }) {
   const api = usePublicAPI();
+  const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const download = useMutation({
     mutationFn: () => downloadProjectArtifact(api, projectId, metadata),
@@ -98,7 +100,10 @@ function ProjectArtifactActions({
             initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
-              setSearchParams({ revision: result.artifact.revision })
+              setSearchParams(
+                { revision: result.artifact.revision },
+                { state: location.state },
+              )
             }
           />
         </details>
@@ -328,11 +333,9 @@ function ProjectArtifactDetailRouteView({
           <h2>
             {namespace}/{name}
           </h2>
-          <p className="lede">
-            {revision === undefined
-              ? "Project artifact"
-              : "Historical revision"}
-          </p>
+          <ArtifactRevisionLede
+            metadata={query.isSuccess ? query.data : undefined}
+          />
         </div>
         <RefreshButton
           isFetching={query.isFetching}

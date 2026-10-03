@@ -2,6 +2,7 @@ import {
   ArtifactMetadataSummary,
   ArtifactHistoryDisclosure,
   ArtifactHistoryButton,
+  ArtifactRevisionLede,
 } from "./metadata-summary";
 import { useDocumentTitle } from "../../app/document-title";
 import { ReturnLink } from "../../app/context-navigation";
@@ -54,6 +55,7 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
 
 function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
+  const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const skillSettings =
     metadata.artifact.namespace === "skills"
@@ -103,7 +105,10 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
             initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
-              setSearchParams({ revision: result.artifact.revision })
+              setSearchParams(
+                { revision: result.artifact.revision },
+                { state: location.state },
+              )
             }
           />
         </details>
@@ -315,11 +320,9 @@ export function ArtifactDetailRoute() {
           <h2>
             {namespace}/{name}
           </h2>
-          <p className="lede">
-            {revision === undefined
-              ? "Current revision"
-              : "Historical revision"}
-          </p>
+          <ArtifactRevisionLede
+            metadata={query.isSuccess ? query.data : undefined}
+          />
         </div>
         <RefreshButton
           isFetching={query.isFetching}

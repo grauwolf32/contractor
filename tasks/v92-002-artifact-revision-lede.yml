@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V92-002
+title: Derive Artifact detail revision labels from loaded metadata
+milestone: artifact-feedback-corrections-2026-10
+priority: P2
+status: completed
+implementation_commit: 25825a0c1c736da3b50f53f3eacb6ac7879087b5
+depends_on: []
+languages: [typescript]
+goal: Keep the header revision label consistent with the loaded Artifact revision and metadata summary.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/297
+  finding: Three detail routes infer historical status from the presence of a revision query parameter.
+scope:
+  in:
+    - Derive the lede from metadata.current in user, Project/Eval and Run Artifact routes.
+    - Use neutral copy while metadata is unavailable.
+    - Cover current, historical and post-upload detail states.
+  out:
+    - Change Server artifact revision resolution.
+acceptance_criteria:
+  - {id: A1, text: Explicit current revisions show Current revision and historical revisions show Historical revision.}
+  - {id: A2, text: Loading and failed metadata do not claim Current revision.}
+  - {id: A3, text: User, Project/Eval and Run route tests and UI checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/artifacts/artifacts.test.tsx src/routes/projects/projects.test.tsx src/routes/runs/runs.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}

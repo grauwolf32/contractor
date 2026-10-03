@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V92-003
+title: Preserve Artifact return navigation after version uploads
+milestone: artifact-feedback-corrections-2026-10
+priority: P2
+status: completed
+implementation_commit: 45dfa5160a29638eada6971735a37af481db4dc0
+depends_on: []
+languages: [typescript]
+goal: Keep contextual return links through an Artifact upload and revision navigation.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/277
+  finding: setSearchParams after uploading a version drops React Router location state.
+scope:
+  in:
+    - Preserve location state on successful user and Project/Eval Artifact version uploads.
+    - Test original return labels, destinations and nested state after upload.
+  out:
+    - Change Artifact write APIs or browser history behavior beyond the upload transition.
+acceptance_criteria:
+  - {id: A1, text: Uploading a user, Project or Eval Artifact retains the contextual return link.}
+  - {id: A2, text: Nested return state survives, and revision links still keep context.}
+  - {id: A3, text: UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/artifacts/artifacts.test.tsx src/routes/projects/projects.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}

@@ -51,7 +51,10 @@ function bytesResponse(body: BodyInit, options: ResponseInit = {}): Response {
   return new Response(body, { ...options, headers });
 }
 
-function renderProjectApplication(api: PublicAPI, path: string) {
+function renderProjectApplication(
+  api: PublicAPI,
+  path: string | { pathname: string; search: string; state: unknown },
+) {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
   });
@@ -947,6 +950,9 @@ describe("Project routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Versions" }));
@@ -961,6 +967,90 @@ describe("Project routes", () => {
       screen.getByRole("button", { name: "Upload new version" }),
     ).toBeEnabled();
   });
+
+  it.each(["projects", "evals"])(
+    "keeps contextual return navigation after a %s Artifact version upload",
+    async (scope) => {
+      const original = {
+        artifact: { namespace: "docs", name: "readme", revision: "revision-1" },
+        mediaType: "text/plain",
+        size: 4,
+        current: true,
+        frozen: false,
+        createdAt: "2026-09-01T10:10:00Z",
+      };
+      const latest = {
+        ...original,
+        artifact: { ...original.artifact, revision: "revision-2" },
+      };
+      const returnState = {
+        returnTo: "/projects/project_example/audits/audit-example#finding-1",
+        returnLabel: "Audit",
+        returnState: {
+          returnTo: "/projects/project_example",
+          returnLabel: "Project Overview",
+        },
+      };
+      let written = false;
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+          if (
+            request.method === "PUT" &&
+            url.pathname ===
+              "/v1/projects/project_example/artifacts/docs/readme"
+          ) {
+            expect(request.headers.get("If-Match")).toBe('"revision-1"');
+            written = true;
+            return jsonResponse(
+              { artifact: latest.artifact, mediaType: "text/plain", size: 4 },
+              { status: 201, headers: { ETag: '"revision-2"' } },
+            );
+          }
+          if (url.pathname.endsWith("/metadata"))
+            return jsonResponse(
+              url.searchParams.get("revision") === "revision-2"
+                ? latest
+                : { ...original, current: !written },
+            );
+          throw new Error(`unexpected ${request.method} ${url}`);
+        }),
+      );
+      const { router } = renderProjectApplication(api, {
+        pathname: `/${scope}/project_example/artifacts/docs/readme`,
+        search: "?revision=revision-1",
+        state: returnState,
+      });
+      expect(
+        await screen.findByText("Current revision", { selector: ".lede" }),
+      ).toBeVisible();
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByText("Upload a new version", { selector: "summary" }),
+      );
+      await user.upload(
+        screen.getByLabelText("Drop a file here"),
+        new File(["new!"], "readme.txt", { type: "text/plain" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Upload new version" }),
+      );
+      await waitFor(() =>
+        expect(router.state.location.search).toBe("?revision=revision-2"),
+      );
+      expect(router.state.location.state).toEqual(returnState);
+      expect(
+        await screen.findByText("Current revision", { selector: ".lede" }),
+      ).toBeVisible();
+      expect(screen.getByRole("link", { name: "← Audit" })).toHaveAttribute(
+        "href",
+        returnState.returnTo,
+      );
+    },
+  );
 
   it("recommends compatible Workflows and launches through the Project endpoint", async () => {
     const requests: Request[] = [];

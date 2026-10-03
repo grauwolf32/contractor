@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -41,7 +41,10 @@ function jsonResponse(value: unknown, options: ResponseInit = {}): Response {
   });
 }
 
-function renderArtifactApplication(api: PublicAPI, path: string) {
+function renderArtifactApplication(
+  api: PublicAPI,
+  path: string | { pathname: string; search: string; state: unknown },
+) {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
   });
@@ -52,6 +55,50 @@ function renderArtifactApplication(api: PublicAPI, path: string) {
 }
 
 describe("Artifact routes", () => {
+  it("keeps the revision lede neutral while metadata is loading or unavailable", async () => {
+    let respond!: (response: Response) => void;
+    const metadata = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path.endsWith("/metadata")) return metadata;
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderArtifactApplication(api, "/artifacts/projects/source");
+    expect(await screen.findByText("Loading Artifact metadata…")).toBeVisible();
+    expect(
+      screen.getByText("Artifact revision", { selector: ".lede" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Current revision", { selector: ".lede" }),
+    ).toBeNull();
+    await act(async () => {
+      respond(
+        jsonResponse(
+          {
+            code: "unavailable",
+            message: "Metadata unavailable",
+            retryable: false,
+          },
+          { status: 503 },
+        ),
+      );
+      await metadata;
+    });
+    expect(
+      await screen.findByText("Could not load this Artifact"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Artifact revision", { selector: ".lede" }),
+    ).toBeVisible();
+  });
+
   it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
     let reads = 0;
     const requests: Request[] = [];
@@ -389,6 +436,9 @@ describe("Artifact routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Historical revision", { selector: ".lede" }),
+    ).toBeVisible();
     expect(screen.queryByText("input fork")).not.toBeInTheDocument();
     await userEvent
       .setup()
@@ -403,6 +453,111 @@ describe("Artifact routes", () => {
     expect(
       screen.getByText("Historical revisions are read-only."),
     ).toBeInTheDocument();
+  });
+
+  it("keeps contextual return navigation and current status after a user Artifact version upload", async () => {
+    const original = {
+      artifact: {
+        namespace: "projects",
+        name: "source",
+        revision: "revision-1",
+      },
+      mediaType: "text/plain",
+      size: 4,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:00:00Z",
+    };
+    const latest = {
+      ...original,
+      artifact: { ...original.artifact, revision: "revision-2" },
+    };
+    const returnState = {
+      returnTo: "/artifacts?namespace=projects&cursor=page-two",
+      returnLabel: "Filtered Artifacts",
+      returnState: { returnTo: "/catalog/skills", returnLabel: "Skills" },
+    };
+    let written = false;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (
+          request.method === "PUT" &&
+          url.pathname === "/v1/artifacts/projects/source"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"revision-1"');
+          written = true;
+          return jsonResponse(
+            { artifact: latest.artifact, mediaType: "text/plain", size: 4 },
+            { status: 201, headers: { ETag: '"revision-2"' } },
+          );
+        }
+        if (url.pathname.endsWith("/metadata")) {
+          return jsonResponse(
+            url.searchParams.get("revision") === "revision-2"
+              ? latest
+              : { ...original, current: !written },
+          );
+        }
+        if (url.pathname.endsWith("/versions"))
+          return jsonResponse({
+            items: [latest, { ...original, current: false }],
+            page: { hasMore: false },
+          });
+        if (url.pathname.endsWith("/lineage"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        if (url.pathname === "/v1/artifacts")
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderArtifactApplication(api, {
+      pathname: "/artifacts/projects/source",
+      search: "?revision=revision-1",
+      state: returnState,
+    });
+    expect(
+      await screen.findByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByText("Upload a new version", { selector: "summary" }),
+    );
+    await user.upload(
+      screen.getByLabelText("Drop a file here"),
+      new File(["new!"], "source.txt", { type: "text/plain" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload new version" }),
+    );
+    await vi.waitFor(() =>
+      expect(router.state.location.search).toBe("?revision=revision-2"),
+    );
+    expect(router.state.location.state).toEqual(returnState);
+    expect(
+      await screen.findByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
+    const back = screen.getByRole("link", { name: "← Filtered Artifacts" });
+    expect(back).toHaveAttribute("href", returnState.returnTo);
+    await user.click(screen.getByRole("button", { name: "Versions" }));
+    await user.click(await screen.findByRole("link", { name: /revision-1/ }));
+    await vi.waitFor(() =>
+      expect(router.state.location.search).toBe("?revision=revision-1"),
+    );
+    expect(router.state.location.state).toEqual(returnState);
+    expect(
+      await screen.findByText("Historical revision", { selector: ".lede" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("link", { name: "← Filtered Artifacts" }),
+    );
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe("/artifacts"),
+    );
+    expect(router.state.location.state).toEqual(returnState.returnState);
   });
 
   it("does not offer inline preview for binary content", async () => {
@@ -438,10 +593,16 @@ describe("Artifact routes", () => {
         throw new Error("binary preview must not fetch Artifact bytes");
       }),
     );
-    renderArtifactApplication(api, "/artifacts/projects/source");
+    renderArtifactApplication(
+      api,
+      "/artifacts/projects/source?revision=revision-1",
+    );
     const previewButton = await screen.findByRole("button", {
       name: "Load preview",
     });
+    expect(
+      screen.getByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
     expect(previewButton).toBeDisabled();
     expect(
       screen.getByText(/Inline preview is unavailable/),

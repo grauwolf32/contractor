@@ -3,6 +3,7 @@ const SCAN_TOOLS = new Set([
   "scan_naabu",
   "scan_sqlmap",
   "scan_ffuf",
+  "scan_katana",
 ]);
 
 const INCOMPLETE_CODES = new Set([
@@ -35,9 +36,12 @@ function executionStatus(
       ([name, value]) =>
         (name.endsWith("Truncated") ||
           name === "scanComplete" ||
+          name === "discoveryComplete" ||
           name === "outputLimitExceeded") &&
         typeof value !== "boolean",
     ) ||
+    (tool === "scan_katana" &&
+      typeof observation.discoveryComplete !== "boolean") ||
     (observation.invalidResultLines !== undefined &&
       !isCount(observation.invalidResultLines)) ||
     (observation.requestErrors !== undefined &&
@@ -52,6 +56,9 @@ function executionStatus(
     errorCode === "scan_proxy_unsupported"
   ) {
     return "Unavailable";
+  }
+  if (tool === "scan_katana" && errorCode === "no_discovered_targets") {
+    return "No targets discovered";
   }
   if (
     (typeof errorCode === "string" && INCOMPLETE_CODES.has(errorCode)) ||
@@ -85,7 +92,9 @@ function executionStatus(
     (observation.scanComplete === undefined ||
       observation.scanComplete === true)
   ) {
-    return "Completed";
+    return tool === "scan_katana" && observation.discoveryComplete === false
+      ? "Completed (bounded discovery)"
+      : "Completed";
   }
   return "Unknown";
 }
@@ -134,10 +143,24 @@ export function ScanReportSummary({ source }: { source: string }) {
             <dd>{observation.results.length}</dd>
           </div>
         ) : null}
+        {report.tool === "scan_katana" &&
+        isRecord(observation.coverage) &&
+        Array.isArray(observation.coverage.limitations) &&
+        observation.coverage.limitations.every(
+          (reason) => typeof reason === "string",
+        ) ? (
+          <div>
+            <dt>Discovery limitations</dt>
+            <dd>{observation.coverage.limitations.join(", ")}</dd>
+          </div>
+        ) : null}
       </dl>
       <p className="muted-copy">
         This describes scanner execution. A completed scan or an empty report
         does not establish that the target is free of vulnerabilities.
+        {report.tool === "scan_katana"
+          ? " Katana discovery is bounded and does not establish that every target was found."
+          : null}
       </p>
     </section>
   );
