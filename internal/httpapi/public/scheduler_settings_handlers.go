@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -101,21 +100,6 @@ func schedulerSettingsPrecondition(r *http.Request) (uint64, error) {
 		return 0, fmt.Errorf("%w: Scheduler settings replacement requires one If-Match", errInvalidRequest)
 	}
 	return parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
-}
-
-func (h *handler) requireOperationsCapability(w http.ResponseWriter, r *http.Request) bool {
-	principal, ok := auth.PrincipalFromContext(r.Context())
-	if !ok {
-		h.writeBearerUnauthorized(w)
-		return false
-	}
-	for _, capability := range principal.Capabilities {
-		if capability == auth.CapabilityOperations {
-			return true
-		}
-	}
-	h.writeError(w, http.StatusForbidden, "forbidden", "Operations capability is required", false)
-	return false
 }
 
 func (h *handler) auditSchedulerSettingsMutation(
