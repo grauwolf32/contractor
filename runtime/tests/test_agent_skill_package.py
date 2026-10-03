@@ -24,9 +24,31 @@ from contractor_runtime.agent_skills.package import (
     MAXIMUM_METADATA_VALUE_BYTES,
     MAXIMUM_PATH_BYTES,
     MAXIMUM_RESOURCE_BYTES,
+    _validate_member_path,
 )
 
 FIXTURES = Path(__file__).parents[2] / "testdata" / "agent-skills" / "cases.json"
+PORTABLE_PATHS = Path(__file__).parents[2] / "testdata" / "agent-skills" / "portable-paths.json"
+
+
+def test_portable_paths_match_server_fixture() -> None:
+    for case in json.loads(PORTABLE_PATHS.read_text())["cases"]:
+        if case["valid"]:
+            assert _validate_member_path(case["path"]) == (case["path"], False)
+        else:
+            with pytest.raises(SkillPackageError) as captured:
+                _validate_member_path(case["path"])
+            assert captured.value.code == CODE_PATH_INVALID
+
+
+def test_digit_leading_resource_validates_from_zip() -> None:
+    resource_path = "references/01-intro.md"
+    payload = _make_zip(
+        [("SKILL.md", _skill_document("demo", "Demo.")), (resource_path, b"Introduction.\n")],
+        zipfile.ZIP_STORED,
+    )
+    package = validate_package(payload, "demo")
+    assert [resource.path for resource in package.resources] == [resource_path]
 
 
 def test_shared_package_corpus() -> None:

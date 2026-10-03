@@ -30,7 +30,11 @@ func validateMemberPath(raw string) (string, bool, error) {
 }
 
 func portableComponent(value string) bool {
-	if len(value) == 0 || len(value) > 128 || value[0] < 'a' || value[0] > 'z' && (value[0] < '0' || value[0] > '9') {
+	if len(value) == 0 || len(value) > 128 {
+		return false
+	}
+	first := value[0]
+	if !(first >= 'a' && first <= 'z' || first >= '0' && first <= '9') {
 		return false
 	}
 	for _, char := range []byte(value[1:]) {
