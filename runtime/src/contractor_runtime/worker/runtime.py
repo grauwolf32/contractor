@@ -84,6 +84,7 @@ from contractor_runtime.worker.instrumentation import (
     WorkerSummarizationRequested,
 )
 from contractor_runtime.worker.observations import lean_workspace_summary
+from contractor_runtime.worker.one_shot import candidate_text, generation_config
 from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
@@ -167,9 +168,7 @@ class AdkWorkerRuntime:
         self._worker_state = context.state
 
         policy = context.model_policy
-        generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
-        if policy.temperature is not None:
-            generation.temperature = policy.temperature
+        generation = generation_config(policy)
         adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
         if self._agent_skills is not None:
             adk_tools.append(
@@ -636,7 +635,7 @@ class AdkWorkerRuntime:
                                         "Worker model returned an error",
                                         True,
                                     ), False
-                                text = _candidate_text(event)
+                                text = candidate_text(event)
                                 if text is not None:
                                     candidate = text
                     except Exception as error:
@@ -1218,20 +1217,6 @@ def _validate_result_fields(
             True,
         )
     return fields
-
-
-def _candidate_text(event: Event) -> str | None:
-    content = event.content
-    if content is None or content.role != "model" or event.partial:
-        return None
-    text: list[str] = []
-    for part in content.parts or []:
-        if getattr(part, "thought", False):
-            continue
-        if part.text is None:
-            return None
-        text.append(part.text)
-    return "".join(text) if text else None
 
 
 def _latest_observed_exact_refs(refs: tuple[ArtifactRef, ...]) -> list[ArtifactRef]:
