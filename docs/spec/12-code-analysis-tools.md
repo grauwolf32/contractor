@@ -337,7 +337,8 @@ This returns structural definition rows with the same location fields but no
 source preview. `language` and `path` have the same meaning as `search_def`.
 `node_type` is empty or an exact parser node type; it is deliberately
 language-specific rather than pretending v1 has a lossless common symbol-kind
-taxonomy. Rows are sorted by path, start line, column, name and node type.
+taxonomy. A returned row's `nodeType` is a valid exact filter value for a
+subsequent call. Rows are sorted by path, start line, column, name and node type.
 
 Both tools perform CPU parsing outside the asyncio event-loop thread. The
 10-second budget is cooperative between files because a Tree-sitter C parse

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -64,6 +65,26 @@ LANGUAGE_SAMPLES = {
     Language.HASKELL: ("sample.hs", "target x = x\n", "target"),
     Language.BASH: ("sample.sh", "target() { :; }\n", "target"),
 }
+
+
+def test_list_symbols_description_uses_valid_exact_node_types() -> None:
+    description = code_analysis.ListSymbolsTool.description
+    languages = {
+        "Python/C/C++": (Language.PYTHON, Language.C, Language.CPP),
+        "Go/JavaScript/TypeScript": (Language.GO, Language.JAVASCRIPT, Language.TYPESCRIPT),
+        "Java": (Language.JAVA,),
+        "Rust": (Language.RUST,),
+    }
+    examples = re.findall(r'"([a-z_]+)" \(([^)]+)\)', description)
+    assert {label for _, label in examples} == set(languages)
+    for node_type, label in examples:
+        for language in languages[label]:
+            assert node_type in {
+                spec.node_type for spec in code_analysis_languages.NODE_SPECS[language]
+            }
+    assert "exact, language-specific parser node type" in description.lower()
+    assert "row's nodeType is a valid filter value" in description
+    assert '"function" or "class"' not in description
 
 
 @pytest.mark.parametrize("language", list(Language))

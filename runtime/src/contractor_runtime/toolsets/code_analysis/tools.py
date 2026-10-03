@@ -1181,7 +1181,11 @@ class ListSymbolsTool(_BaseCodeAnalysisTool):
     Args:
         path: Project-relative file or subtree; empty scans the whole workspace.
         language: Supported language name, such as "python"; empty includes all.
-        node_type: Symbol kind, such as "function" or "class"; empty includes all.
+        node_type: Exact, language-specific parser node type; examples are
+            "function_definition" (Python/C/C++),
+            "function_declaration" (Go/JavaScript/TypeScript),
+            "method_declaration" (Java), and "function_item" (Rust).
+            Empty includes all. A returned row's nodeType is a valid filter value.
         cursor: Opaque nextCursor from the same query; empty starts a new listing.
             Restart after workspace changes invalidate the cursor.
         limit: Maximum symbols per page, from 1 to 200; defaults to 100.
