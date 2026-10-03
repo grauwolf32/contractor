@@ -3,8 +3,8 @@ id: V136-001
 title: Align Audit public API route table with Server and OpenAPI
 milestone: audit-api-route-table-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b3a09975f826d2ff7871b68feaf2487c7ad298fe
 depends_on: []
 languages: [markdown]
 goal: Make the owning Audit spec list the implemented public routes and methods.
