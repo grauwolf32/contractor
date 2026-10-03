@@ -2163,6 +2163,57 @@ def test_terminal_summarizer_accounts_usage_of_a_rejected_gateway_response(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("thought_only", [False, True])
+def test_terminal_summarizer_rejects_output_limited_response_and_keeps_usage(
+    tmp_path: Path, thought_only: bool
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        summary_response = (
+            thought_result("unfinished")
+            if thought_only
+            else structured_result("Valid-looking but truncated")
+        )
+        summary_response.finish_reason = types.FinishReason.MAX_TOKENS
+        summary_response.error_code = "MAX_TOKENS"
+        summary_model = scripted_model([summary_response], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            scripted_model([tool_call("probe", {}, call_id="summary-limit-probe")]),
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None and completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable
+        assert "output_limit_exceeded" in completion.failure.message
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["failureCode"] == (
+            "output_limit_exceeded"
+        )
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.input_tokens == 7
+        assert summary.output_tokens == 3
+        assert summary.total_tokens == 10
+        assert summary.failure_codes == {"output_limit_exceeded": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_terminal_summarizer_enforces_its_independent_total_budget(
     tmp_path: Path,
 ) -> None:

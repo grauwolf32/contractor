@@ -623,16 +623,16 @@ class AdkWorkerRuntime:
                                 transcript.record(event)
                                 if completion is not None:
                                     self._check_active()
-                                if completion is not None and getattr(event, "error_code", None):
-                                    return _failure(
-                                        "worker_execution_failed",
-                                        "Worker model returned an error",
-                                        True,
-                                    ), False
                                 if output_limit_reached(event):
                                     return _failure(
                                         "worker_output_limit_exceeded",
                                         "Worker model response reached its output token limit",
+                                        True,
+                                    ), False
+                                if completion is not None and getattr(event, "error_code", None):
+                                    return _failure(
+                                        "worker_execution_failed",
+                                        "Worker model returned an error",
                                         True,
                                     ), False
                                 text = _candidate_text(event)

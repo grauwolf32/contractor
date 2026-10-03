@@ -9,7 +9,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
-from fakes.model import scripted_model, text_result, tool_call
+from fakes.model import scripted_model, text_result, thought_result, tool_call
+from google.genai import types
 from test_adk_runtime import build_context, stage_request
 from test_audit_completion_continuation import CountedState
 from test_audit_result_collector import arguments
@@ -320,6 +321,34 @@ def test_hard_failures_win_even_after_full_collection(tmp_path, mode):
             "worker_execution_failed" if mode == "main-error" else "worker_budget_exhausted"
         )
         assert len(model.requests) <= (3 if mode == "tool" else 2)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("after_submission", [False, True])
+@pytest.mark.parametrize("thought_only", [False, True])
+def test_audit_completion_reports_output_limit_and_discards_collection(
+    tmp_path, after_submission, thought_only
+):
+    async def scenario():
+        expected, _ = assigned()
+        limited = thought_result("unfinished") if thought_only else text_result("Done")
+        limited.finish_reason = types.FinishReason.MAX_TOKENS
+        limited.error_code = "MAX_TOKENS"
+        responses = [submit(expected.items[0].value), limited] if after_submission else [limited]
+        runtime, model, client, state, _ = await runtime_for(tmp_path, responses)
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.result is None and result.failure is not None
+        assert result.failure.code == "worker_output_limit_exceeded"
+        assert result.failure.retryable
+        assert not client.writes
+        assert len(model.requests) == len(responses)
+        assert state.begins == state.completions == 1
+        with pytest.raises(AuditCollectionError):
+            runtime._completion.current()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
