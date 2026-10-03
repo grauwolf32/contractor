@@ -55,9 +55,17 @@ func (r *PostgresRepository) Write(
 	if err != nil {
 		return WriteResult{}, err
 	}
+	discardFreshCandidate := func() {
+		// A preprepared file may have been published by an earlier use of the
+		// same Payload; only this Write's fresh candidate is ours to remove.
+		if payload.prepared == nil {
+			discardUnpublishedBlob(ctx, blob)
+		}
+	}
 	digest := blob.Digest
 	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
 	if err != nil {
+		discardFreshCandidate()
 		return WriteResult{}, err
 	}
 	// Scope creation is intentionally a separate statement. Under READ COMMITTED, a
@@ -68,6 +76,7 @@ func (r *PostgresRepository) Write(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
+		discardFreshCandidate()
 		if persistencepostgres.SQLState(err) == "55000" {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
 		}
@@ -137,15 +146,19 @@ FROM inserted_revision, claimed_binding`,
 		versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key), reusableKey,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
+		discardFreshCandidate()
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
 	if err != nil {
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
+			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
 		case persistencepostgres.SQLStateForeignKeyViolation:
+			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
 		case persistencepostgres.SQLStateUniqueViolation:
+			discardFreshCandidate()
 			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}
 		return WriteResult{}, fmt.Errorf("write artifact %s/%s: %w", target.Namespace, target.Name, err)

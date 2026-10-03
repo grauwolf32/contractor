@@ -137,9 +137,72 @@ type failedUnlinkStore struct{ BlobStore }
 
 func (failedUnlinkStore) Delete(context.Context, BlobObject) error { return os.ErrPermission }
 
+func TestFilesystemCreateOnlyConflictDiscardsCandidate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	ctx = WithBlobRuntime(ctx, NewBlobRuntime(files, nil))
+	store, _ := NewService(NewPostgresRepository(pool)).User("user-1")
+	target := ArtifactRef{Namespace: "docs", Name: "immutable"}
+	first := Payload{MediaType: "text/plain", Data: []byte("first bytes")}
+	if _, err := store.Write(ctx, target, first, nil); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < 3; attempt++ {
+		if _, err := store.Write(ctx, target, Payload{MediaType: "text/plain", Data: []byte("other bytes")}, nil); !errors.Is(err, ErrArtifactConflict) {
+			t.Fatalf("create-only conflict %d = %v", attempt, err)
+		}
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	txStore, _ := NewService(NewPostgresRepository(tx)).User("user-1")
+	if _, err := txStore.Write(ctx, target, first, nil); !errors.Is(err, ErrArtifactConflict) {
+		t.Fatalf("transactional create-only conflict = %v", err)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := PreparePayload(ctx, Payload{MediaType: "text/plain", Data: []byte("shared prepared bytes")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preparedTarget := ArtifactRef{Namespace: "docs", Name: "prepared"}
+	if _, err := store.Write(ctx, preparedTarget, prepared, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Write(ctx, preparedTarget, prepared, nil); !errors.Is(err, ErrArtifactConflict) {
+		t.Fatalf("preprepared create-only conflict = %v", err)
+	}
+	report, err := CleanupFilesystemBlobs(ctx, pool, path, false)
+	if err != nil || report.Referenced != 2 || report.Orphans != 0 || report.Missing != 0 {
+		t.Fatalf("create-only conflict blob cleanup = (%+v, %v)", report, err)
+	}
+	for _, check := range []struct {
+		ref  ArtifactRef
+		want string
+	}{{target, "first bytes"}, {preparedTarget, "shared prepared bytes"}} {
+		read, err := store.Read(ctx, check.ref)
+		if err != nil || string(read.Payload.Data) != check.want {
+			t.Fatalf("retained conflict winner = (%+v, %v)", read, err)
+		}
+	}
+}
+
 // Inject response loss after PostgreSQL actually completed the write. The
 // caller sees an ambiguous error; eagerly unlinking its candidate would lose
-// referenced content. A CAS retry remains a conflict with one durable revision.
+// referenced content. A CAS retry remains a conflict with one durable revision
+// and discards only its own unpublished candidate.
 func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -173,7 +236,7 @@ func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
 		t.Fatalf("revisions=%d err=%v", revisions, err)
 	}
 	report, err := CleanupFilesystemBlobs(ctx, pool, path, true)
-	if err != nil || report.Referenced != 1 || report.Missing != 0 || report.Orphans != 1 {
+	if err != nil || report.Referenced != 1 || report.Missing != 0 || report.Orphans != 0 {
 		t.Fatalf("ambiguous write cleanup: %+v %v", report, err)
 	}
 	if _, err := normal.Read(ctx, read.Ref); err != nil {

@@ -309,6 +309,120 @@ SELECT count(*) FROM audit_events
 	}
 }
 
+func TestPostgresControllerFullWindowSkipsPreparationUntilSettingsIncrease(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 2)
+	controller := harness.controller(t)
+	builder := &countingSubmissionBuilder{delegate: harness.builder(t)}
+	controller.builder = builder
+	for step := 0; step < 2; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("initial step %d = (%t, %v)", step, worked, err)
+		}
+	}
+	if got := builder.calls.Load(); got != 1 {
+		t.Fatalf("initial PrepareBatch calls = %d, want 1", got)
+	}
+	for step := 0; step < 3; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || worked {
+			t.Fatalf("full-window step %d = (%t, %v)", step, worked, err)
+		}
+	}
+	if got := builder.calls.Load(); got != 1 {
+		t.Fatalf("full-window PrepareBatch calls = %d, want 1", got)
+	}
+	settings := settingsstore.NewPostgresStore(harness.pool)
+	if _, err := settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 2, ExpectedRevision: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch after window opens = (%t, %v)", worked, err)
+	}
+	if got := builder.calls.Load(); got != 2 {
+		t.Fatalf("open-window PrepareBatch calls = %d, want 2", got)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("open-window executions = (%+v, %v)", executions, err)
+	}
+}
+
+func TestPostgresImmutableProjectArtifactReuseLeavesNoFilesystemOrphans(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	pool := isolatedControllerPool(t, ctx, databaseURL)
+	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-immutable-audit", OwnerID: "owner-immutable-audit",
+		Kind: projectstore.KindProject, Name: "Immutable Audit artifact test",
+		IdempotencyKey: "create-immutable-project", RequestDigest: postgresDigest("immutable-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := artifacts.NewPostgresRepository(pool)
+	counting := &countingProjectArtifactRepository{Repository: base, QueryRepository: base}
+	access, err := NewProjectArtifactAccess(artifacts.NewService(counting))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := contracts.ArtifactRef{Namespace: "audit-test", Name: "content-derived"}
+	payload := artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":true}`)}
+	var first auditstore.ExactArtifact
+	for attempt := 0; attempt < 4; attempt++ {
+		got, err := access.PutImmutableProject(ctx, project.ProjectID, target, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if attempt == 0 {
+			first = got
+		} else if !got.Ref.SameExact(first.Ref) || got.Digest != first.Digest {
+			t.Fatalf("immutable replay descriptor = %+v, first = %+v", got, first)
+		}
+	}
+	if _, err := access.PutImmutableProject(ctx, project.ProjectID, target,
+		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"stable":false}`)}); !errors.Is(err, ErrInvalidSubmission) {
+		t.Fatalf("content-derived binding collision = %v", err)
+	}
+	if counting.writes != 1 {
+		t.Fatalf("immutable Project Write calls = %d, want 1", counting.writes)
+	}
+	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	if err != nil || report.Referenced != 1 || report.Orphans != 0 || report.Missing != 0 {
+		t.Fatalf("immutable Project blob cleanup = (%+v, %v)", report, err)
+	}
+}
+
+type countingProjectArtifactRepository struct {
+	artifacts.Repository
+	artifacts.QueryRepository
+	writes int
+}
+
+func (r *countingProjectArtifactRepository) Write(
+	ctx context.Context, scope artifacts.Scope, target artifacts.ArtifactRef,
+	payload artifacts.Payload, expectedRevision *string,
+) (artifacts.WriteResult, error) {
+	r.writes++
+	return r.Repository.Write(ctx, scope, target, payload, expectedRevision)
+}
+
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

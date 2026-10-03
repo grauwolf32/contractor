@@ -106,6 +106,40 @@ func TestControllerDispatchesThroughWindowAndOnlyObservesTerminal(t *testing.T) 
 	}
 }
 
+func TestControllerFullWindowSkipsSubmissionPreparation(t *testing.T) {
+	harness := newControllerHarness(t, 2, 1)
+	builder := &countingSubmissionBuilder{}
+	harness.controller.builder = builder
+	for step := 0; step < 2; step++ {
+		if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+			t.Fatalf("initial step %d = (%t, %v)", step, worked, err)
+		}
+	}
+	prepared := builder.calls.Load()
+	attempts := harness.store.nextItemAttemptCount()
+	for step := 0; step < 5; step++ {
+		if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || worked {
+			t.Fatalf("full-window step %d = (%t, %v)", step, worked, err)
+		}
+	}
+	if got := builder.calls.Load(); got != prepared {
+		t.Fatalf("full-window PrepareBatch calls = %d, want %d", got, prepared)
+	}
+	if got := harness.store.nextItemAttemptCount(); got != attempts {
+		t.Fatalf("full-window NextItemAttempt calls = %d, want %d", got, attempts)
+	}
+	harness.finishOldest(t, runstore.RunSucceeded)
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("observe terminal = (%t, %v)", worked, err)
+	}
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("refill window = (%t, %v)", worked, err)
+	}
+	if got := builder.calls.Load(); got != prepared+1 {
+		t.Fatalf("refill PrepareBatch calls = %d, want %d", got, prepared+1)
+	}
+}
+
 func TestControllerBatchGroupsOnlyCompatibleItemEnvelopes(t *testing.T) {
 	harness := newControllerHarness(t, 4, 2)
 	harness.store.mu.Lock()
@@ -443,6 +477,30 @@ func (h *controllerHarness) finishOldest(t *testing.T, state runstore.WorkflowRu
 
 type fakeSubmissionBuilder struct{}
 
+type countingSubmissionBuilder struct {
+	calls    atomic.Int64
+	delegate SubmissionBuilder
+}
+
+func (b *countingSubmissionBuilder) PrepareBatch(
+	ctx context.Context, snapshot auditstore.ReconcileSnapshot, selected []CheckExecutionMember,
+) (PreparedSubmission, error) {
+	b.calls.Add(1)
+	if b.delegate != nil {
+		return b.delegate.PrepareBatch(ctx, snapshot, selected)
+	}
+	return (fakeSubmissionBuilder{}).PrepareBatch(ctx, snapshot, selected)
+}
+
+func (b *countingSubmissionBuilder) PrepareRole(
+	ctx context.Context, snapshot auditstore.ReconcileSnapshot, workflowRole string, attempt int,
+) (PreparedSubmission, error) {
+	if b.delegate != nil {
+		return b.delegate.PrepareRole(ctx, snapshot, workflowRole, attempt)
+	}
+	return (fakeSubmissionBuilder{}).PrepareRole(ctx, snapshot, workflowRole, attempt)
+}
+
 type prefixSubmissionBuilder struct{ maximum int }
 
 type fakeRoundBuilder struct{ calls atomic.Int64 }
@@ -547,6 +605,7 @@ type fakeControllerStore struct {
 	epoch               uint64
 	window              int
 	maxOutstanding      int
+	nextAttemptReads    int
 	expiredReportReview bool
 }
 
@@ -670,7 +729,7 @@ func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim audi
 		}
 	}
 	return auditstore.ReconcileSnapshot{
-		Audit: s.audit, Round: &round,
+		Audit: s.audit, MaxConcurrentRuns: s.window, Round: &round,
 		Items:              append([]auditstore.Item(nil), s.items...),
 		Executions:         append([]auditstore.Execution(nil), s.executions...),
 		ReadyItems:         ready,
@@ -758,6 +817,7 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 func (s *fakeControllerStore) NextItemAttempt(_ context.Context, claim auditstore.ControllerClaim, itemID string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.nextAttemptReads++
 	if claim.Epoch != s.epoch {
 		return 0, auditstore.ErrClaimLost
 	}
@@ -770,6 +830,12 @@ func (s *fakeControllerStore) NextItemAttempt(_ context.Context, claim auditstor
 		}
 	}
 	return maximum + 1, nil
+}
+
+func (s *fakeControllerStore) nextItemAttemptCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nextAttemptReads
 }
 
 func (s *fakeControllerStore) ListExecutionItems(_ context.Context, executionID string) ([]auditstore.ExecutionItem, error) {
