@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V139-001
+title: Correct AgentTemplate Toolset examples
+milestone: agent-template-tool-examples-2026-10
+priority: P3
+status: completed
+implementation_commit: 0e269376adb82da9c33d0da2bf12df9c954a36ba
+depends_on: []
+languages: [markdown]
+goal: Make AgentTemplate examples select exported tools and existing catalog resources.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/202
+  finding: Spec 01 shows nonexistent OpenAPI and source-analysis operations in YAML examples.
+scope:
+  in:
+    - Replace nonexistent tool names with exported operations in both examples.
+    - Use existing model policy and instruction selectors in the complete example.
+    - Verify the complete example loads through AgentTemplateCatalog.
+  out:
+    - Change Toolset descriptors or Runtime operations.
+acceptance_criteria:
+  - {id: A1, text: Every selected example tool belongs to its exact Toolset descriptor.}
+  - {id: A2, text: Complete example loads with existing catalog resources.}
+tests:
+  - {command: load extracted example through config.Load and compare tool selections to DefaultDescriptors, covers: [A1, A2]}
