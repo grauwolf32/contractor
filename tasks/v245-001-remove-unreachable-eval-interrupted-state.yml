@@ -3,7 +3,8 @@ id: V245-001
 title: Remove unreachable managed Eval interrupted state
 milestone: eval-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5e5bf0e3c1174b7bd63e0f02e45af99d1256e8e7
 depends_on: []
 languages: [go, sql, json, yaml, typescript]
 goal: Keep managed Eval lifecycle, persistence, API, UI, and specification aligned with states the coordinator can actually enter.
@@ -22,5 +23,6 @@ acceptance_criteria:
   - {id: A2, text: The database rejects an experiment state of interrupted after migration.}
   - {id: A3, text: Eval API and UI generation and focused tests pass.}
 tests:
-  - {command: go test ./internal/evaldomain/... ./internal/evalstore/... ./internal/httpapi/public/..., covers: [A1, A2]}
-  - {command: pnpm --dir ui test --run, covers: [A3]}
+  - {command: go test -race -count=1 ./internal/evaldomain/... ./internal/evalstore/... ./internal/evalservice/... ./internal/evalcoordinator/... ./internal/httpapi/public/..., covers: [A1, A3]}
+  - {command: go test -race -count=1 ./internal/persistence/postgres/..., covers: [A2]}
+  - {command: corepack pnpm --dir ui generate:check && corepack pnpm --dir ui typecheck && corepack pnpm --dir ui test --run, covers: [A3]}
