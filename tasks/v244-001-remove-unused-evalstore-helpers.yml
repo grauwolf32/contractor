@@ -3,8 +3,8 @@ id: V244-001
 title: Remove unused Eval Store and domain helper APIs
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8c7a64c59e9f27087d09641e696644d5a0e8ba71
 depends_on: []
 languages: [go]
 goal: Keep Eval tests on the SQL paging and lifecycle paths used by the public API.
