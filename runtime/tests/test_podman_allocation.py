@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fakes.podman_lifecycle import owner
 from fakes.spec import allocation_spec
+from test_lease_watchdog import FakeMonotonic, ScriptedTransport, make_settings
 from test_projectfs_storage import local_settings
 from test_projectfs_zip import archive, workspace_inputs
 
@@ -20,6 +22,7 @@ from contractor_runtime.contracts import (
     SandboxProfileRef,
     TerminationError,
 )
+from contractor_runtime.control_client import ControlClient
 from contractor_runtime.digests import _agent_template_digest
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -28,6 +31,7 @@ from contractor_runtime.factories import (
     StubADKWorkerRuntimeFactory,
     StubWorkerRuntime,
 )
+from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.projectfs import LocalWorkspaceProvider
 from contractor_runtime.sandbox.contracts import SandboxContractError
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -85,7 +89,7 @@ async def service_for(tmp_path, fixture, *, fail_worker=False, runtime_factory=N
         sandbox_profiles=factories.sandbox_profiles,
         workspace=provider.capability,
     )
-    state = RuntimeState(instance_id="podman-test")
+    state = RuntimeState(instance_id="podman-test", capabilities=capabilities)
     await state.mark_registered()
     exits = []
     service = AllocationService(
@@ -139,6 +143,61 @@ def test_hydration_one_container_idempotency_finalize_and_authoritative_release(
             assert (await state.snapshot()).process_state is not ProcessState.IDLE
             await service.confirm_release(spec.allocation_id)
             assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert not exits
+
+    asyncio.run(scenario())
+
+
+def test_rearmed_lease_allows_podman_prepare_after_local_expiry(tmp_path):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            service, state, spec, _, exits = await service_for(tmp_path, fixture)
+            clock = FakeMonotonic()
+            clock.value = time.monotonic()
+            watchdog = LeaseWatchdog(lambda: service.expire_control_lease(1), monotonic=clock)
+            fixture.lifecycle.bind_health(lambda: watchdog.confirmed_deadline, lambda: None)
+            await watchdog.arm(60)
+            await service.prepare(spec)
+            clock.advance(60)
+            assert await watchdog.expire_if_due()
+            assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+            client = ControlClient(
+                make_settings(tmp_path),
+                state,
+                ScriptedTransport(
+                    [
+                        {
+                            "apiVersion": API_VERSION,
+                            "ackSeq": 1,
+                            "action": "release",
+                            "allocationId": spec.allocation_id,
+                        },
+                        {
+                            "apiVersion": API_VERSION,
+                            "runtimeAgentId": "a" * 64,
+                            "labels": [],
+                            "labelRevision": 1,
+                            "heartbeatIntervalSeconds": 10,
+                            "confirmedLeaseSeconds": 60,
+                        },
+                    ]
+                ),
+                watchdog=watchdog,
+                reconciliation=service,
+            )
+            await client.heartbeat_once()
+            await client.wait_for_reconciliation()
+            assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert watchdog.confirmed_deadline is not None
+
+            next_spec = spec.model_copy(deep=True)
+            next_spec.allocation_id = "allocation-after-rearm"
+            await service.prepare(next_spec)
+            assert fixture.cli.containers
+            await service.expire_control_lease(1)
+            await service.release(release(next_spec))
+            await service.confirm_release(next_spec.allocation_id)
             assert not exits
 
     asyncio.run(scenario())

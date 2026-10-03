@@ -344,6 +344,12 @@ authoritative slot is unallocated. A lost release response is safe: the agent
 continues reporting the old allocation as fenced and Control Plane repeats the
 idempotent release action.
 
+After local watchdog expiry, a `release` action clears the old allocation but
+keeps the slot fenced. The agent re-registers, and only a successful response
+that re-arms the watchdog permits `idle`. An allocation-free re-registration
+starts a fresh Control Plane claim deadline so the Runtime's new local deadline
+cannot outlive Server authority.
+
 ### Observed/authoritative reconciliation
 
 - matching live allocation IDs and a confirmed lease allow `continue`;

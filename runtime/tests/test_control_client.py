@@ -250,6 +250,64 @@ def test_reregister_action_starts_a_new_confirmed_lease_generation(
     asyncio.run(scenario())
 
 
+def test_local_lease_loss_stays_fenced_until_release_registration_succeeds(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        now = 0.0
+        state = RuntimeState(
+            instance_id="runtime-local-lease-loss", capabilities=runtime_capabilities
+        )
+        watchdog = LeaseWatchdog(state.fence_control_lease, monotonic=lambda: now)
+        transport = FakeTransport(
+            [
+                registration_response(),
+                heartbeat_response(1, action="release"),
+                TimeoutError("registration unavailable"),
+                heartbeat_response(2, action="release"),
+                registration_response(),
+            ]
+        )
+
+        class StateReconciliation:
+            async def reconcile_drain(self, _allocation_id: str, _grace: float) -> None:
+                raise AssertionError("idle slot cannot drain")
+
+            async def confirm_release(
+                self, allocation_id: str | None, *, keep_fenced: bool = False
+            ) -> None:
+                await state.confirm_release(allocation_id, keep_fenced=keep_fenced)
+
+        client = ControlClient(
+            make_settings(),
+            state,
+            transport,
+            watchdog=watchdog,
+            reconciliation=StateReconciliation(),
+        )
+        await client.register()
+        now = 60.0
+        assert await watchdog.expire_if_due()
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+        await client.heartbeat_once()
+        await client.wait_for_reconciliation()
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert watchdog.expired and watchdog.confirmed_deadline is None
+
+        await client.heartbeat_once()
+        await client.wait_for_reconciliation()
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert not watchdog.expired and watchdog.confirmed_deadline == 120.0
+        assert [path for path, _ in transport.requests].count("/private/v1/agents/register") == 3
+
+        now = 121.0
+        assert await watchdog.expire_if_due()
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+    asyncio.run(scenario())
+
+
 def test_retry_backoff_is_jittered_but_bounded() -> None:
     low = ControlClient(make_settings(), RuntimeState(), FakeTransport([]), jitter=lambda: 0.0)
     high = ControlClient(make_settings(), RuntimeState(), FakeTransport([]), jitter=lambda: 1.0)
@@ -496,7 +554,9 @@ class RecordingReconciliation:
     async def reconcile_drain(self, allocation_id: str, grace: float) -> None:
         self.drains.append((allocation_id, grace))
 
-    async def confirm_release(self, allocation_id: str | None) -> None:
+    async def confirm_release(
+        self, allocation_id: str | None, *, keep_fenced: bool = False
+    ) -> None:
         self.releases.append(allocation_id)
 
 

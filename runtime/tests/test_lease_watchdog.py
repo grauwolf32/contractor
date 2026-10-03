@@ -111,6 +111,87 @@ def test_idle_lease_loss_fences_until_new_registration_generation() -> None:
     asyncio.run(scenario())
 
 
+def test_released_allocation_stays_fenced_until_watchdog_is_rearmed(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(
+            instance_id="runtime-active-lease-loss", capabilities=runtime_capabilities
+        )
+        await state.mark_registered()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={"run-artifacts@1": RunArtifactsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            force_exit=lambda _: None,
+        )
+        spec = allocation_spec()
+        await service.prepare(spec)
+        clock = FakeMonotonic()
+        watchdog = LeaseWatchdog(lambda: service.expire_control_lease(1), monotonic=clock)
+        await watchdog.arm(60)
+        clock.advance(60)
+        assert await watchdog.expire_if_due()
+
+        registration_started = asyncio.Event()
+        allow_registration = asyncio.Event()
+
+        class PausingRegistration(ScriptedTransport):
+            async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+                if path.endswith("/register"):
+                    registration_started.set()
+                    await allow_registration.wait()
+                return await super().post_json(path, payload)
+
+        transport = PausingRegistration(
+            [
+                {
+                    "apiVersion": API_VERSION,
+                    "ackSeq": 1,
+                    "action": "release",
+                    "allocationId": spec.allocation_id,
+                },
+                {
+                    "apiVersion": API_VERSION,
+                    "runtimeAgentId": "a" * 64,
+                    "labels": [],
+                    "labelRevision": 1,
+                    "heartbeatIntervalSeconds": 10,
+                    "confirmedLeaseSeconds": 60,
+                },
+            ]
+        )
+        client = ControlClient(
+            make_settings(tmp_path),
+            state,
+            transport,
+            watchdog=watchdog,
+            reconciliation=service,
+        )
+        await client.heartbeat_once()
+        await asyncio.wait_for(registration_started.wait(), 1)
+        snapshot = await state.snapshot()
+        assert snapshot.process_state is ProcessState.FENCED
+        assert snapshot.allocation_id is None
+        assert await service.snapshot() is None
+        assert watchdog.expired and watchdog.confirmed_deadline is None
+
+        allow_registration.set()
+        await client.wait_for_reconciliation()
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert watchdog.confirmed_deadline == 120.0
+        await service.prepare(allocation_spec(allocation_id="allocation-after-rearm"))
+
+    asyncio.run(scenario())
+
+
 def test_lost_release_response_keeps_slot_fenced_until_repeated_action(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,

@@ -215,11 +215,12 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		existing.registration.ObservedState = normalized.ObservedState
 		existing.registration.AllocationID = cloneString(normalized.AllocationID)
 		existing.lastSeenAt = now
-		if existing.leaseExpired && existing.authoritativeAllocationID == nil {
+		if existing.authoritativeAllocationID == nil {
+			// A Runtime can self-fence before our confirmed lease expires.
+			// Re-registration must start a fresh claim so its re-armed local
+			// watchdog cannot outlive our own deadline.
 			r.resetExpiredLease(existing)
-		}
-		if existing.confirmedLeaseDeadline == 0 {
-			existing.principalClaimDeadline = r.monotonicNow() + r.confirmedLease
+			existing.principalClaimDeadline = monotonicNow + r.confirmedLease
 		}
 		r.detectObservedLoss(existing, LossRuntimeMismatch)
 		existing.reconciliationRequired = r.entryNeedsReconciliationLocked(existing)

@@ -186,10 +186,14 @@ class RuntimeState:
                 raise RuntimeError("cannot fence the current process state")
             self._process_state = ProcessState.FENCED
 
-    async def confirm_release(self, allocation_id: str | None) -> None:
+    async def confirm_release(
+        self, allocation_id: str | None, *, keep_fenced: bool = False
+    ) -> None:
         async with self._lock:
             if self._process_state is ProcessState.IDLE and self._allocation_id is None:
                 if allocation_id is None:
+                    if keep_fenced:
+                        self._process_state = ProcessState.FENCED
                     return
                 raise RuntimeError("released allocation identity no longer matches")
             if (
@@ -198,7 +202,7 @@ class RuntimeState:
             ):
                 raise RuntimeError("release confirmation requires the matching fenced slot")
             self._allocation_id = None
-            self._process_state = ProcessState.IDLE
+            self._process_state = ProcessState.FENCED if keep_fenced else ProcessState.IDLE
 
     async def record_route_dispatch(self) -> None:
         async with self._lock:

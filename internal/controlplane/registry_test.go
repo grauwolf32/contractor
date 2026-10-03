@@ -1136,6 +1136,42 @@ func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T
 	}
 }
 
+func TestAllocationFreeReregistrationStartsFreshServerLeaseClaim(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registration := testRegistration("rearm-local-lease")
+	registerReadyWith(t, registry, registration)
+	previousDeadline := registry.agents[registration.InstanceID].confirmedLeaseDeadline
+	clock.Advance(20 * time.Second)
+	registrationSentAt := clock.MonotonicNow()
+	clock.Advance(2 * time.Second) // response latency cannot extend the Runtime's deadline
+	if _, err := registry.Register(registration); err != nil {
+		t.Fatal(err)
+	}
+	entry := registry.agents[registration.InstanceID]
+	want := clock.MonotonicNow() + registry.confirmedLease
+	if entry.confirmedLeaseDeadline != 0 || entry.principalClaimDeadline != want ||
+		registrationSentAt+registry.confirmedLease > entry.principalClaimDeadline ||
+		entry.principalClaimDeadline <= previousDeadline {
+		t.Fatalf("re-registration did not renew Server lease claim: confirmed=%s claim=%s previous=%s want=%s",
+			entry.confirmedLeaseDeadline, entry.principalClaimDeadline, previousDeadline, want)
+	}
+	if _, err := registry.Heartbeat(heartbeat(registration.InstanceID, 3, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if entry.confirmedLeaseDeadline != 0 || entry.principalClaimDeadline != want {
+		t.Fatalf("old acknowledgement renewed re-registration claim: confirmed=%s claim=%s",
+			entry.confirmedLeaseDeadline, entry.principalClaimDeadline)
+	}
+	if _, err := registry.Heartbeat(heartbeat(registration.InstanceID, 4, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if entry.confirmedLeaseDeadline != want || entry.principalClaimDeadline != 0 {
+		t.Fatalf("new acknowledgement did not establish confirmed lease: confirmed=%s claim=%s want=%s",
+			entry.confirmedLeaseDeadline, entry.principalClaimDeadline, want)
+	}
+}
+
 func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)
