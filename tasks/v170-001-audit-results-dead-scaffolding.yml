@@ -3,7 +3,8 @@ id: V170-001
 title: Remove dead Audit results scaffolding
 milestone: audit-results-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d0640cf4f99e793098187d64ba80c2e5d1860177
 depends_on: []
 languages: [python]
 goal: Keep only the authoritative Audit results value contracts and package builder behavior.
