@@ -3,7 +3,8 @@ id: V199-001
 title: Package conflicted Git working-tree paths once
 milestone: sourcebundle-validation-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 9d28bce2fb0fe338fd797ff42dc2e396bcbb60ac
 depends_on: []
 languages: [go]
 goal: Treat duplicate Git index stages as one working-tree path while retaining Unicode collision detection.

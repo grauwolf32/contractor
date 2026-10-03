@@ -3,7 +3,8 @@ id: V198-001
 title: Reject source bundles that the runtime cannot open
 milestone: sourcebundle-validation-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 48c00037b5079d5f647ab9a7cc3d25a888931e60
 depends_on: []
 languages: [go, python]
 goal: Refuse unsafe source paths and empty source bundles before source push sends an Artifact request.
