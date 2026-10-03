@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -17,6 +18,21 @@ import (
 	adksession "google.golang.org/adk/session"
 	"google.golang.org/genai"
 )
+
+func TestCompletionWriteTimeoutOptions(t *testing.T) {
+	store := &memoryStore{}
+	service, err := New(store, Options{})
+	if err != nil || service.CompletionWriteTimeout() != planner.DefaultCompletionWriteTimeout {
+		t.Fatalf("default completion timeout = (%v, %v)", service, err)
+	}
+	service, err = New(store, Options{CompletionWriteTimeout: 7 * time.Second})
+	if err != nil || service.CompletionWriteTimeout() != 7*time.Second {
+		t.Fatalf("configured completion timeout = (%v, %v)", service, err)
+	}
+	if _, err := New(store, Options{CompletionWriteTimeout: -time.Second}); err == nil {
+		t.Fatal("negative completion timeout was accepted")
+	}
+}
 
 func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 	store := &memoryStore{execution: runstore.StageExecution{

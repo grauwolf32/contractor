@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -37,13 +38,15 @@ type Store interface {
 }
 
 type Options struct {
-	NewID func(string) (string, error)
+	NewID                  func(string) (string, error)
+	CompletionWriteTimeout time.Duration
 }
 
 type Service struct {
-	store Store
-	newID func(string) (string, error)
-	idMu  sync.Mutex
+	store                  Store
+	newID                  func(string) (string, error)
+	completionWriteTimeout time.Duration
+	idMu                   sync.Mutex
 }
 
 func New(store Store, options Options) (*Service, error) {
@@ -53,8 +56,18 @@ func New(store Store, options Options) (*Service, error) {
 	if options.NewID == nil {
 		options.NewID = randomid.New
 	}
-	return &Service{store: store, newID: options.NewID}, nil
+	if options.CompletionWriteTimeout < 0 {
+		return nil, fmt.Errorf("Planner completion write timeout must not be negative")
+	}
+	if options.CompletionWriteTimeout == 0 {
+		options.CompletionWriteTimeout = planner.DefaultCompletionWriteTimeout
+	}
+	return &Service{
+		store: store, newID: options.NewID, completionWriteTimeout: options.CompletionWriteTimeout,
+	}, nil
 }
+
+func (s *Service) CompletionWriteTimeout() time.Duration { return s.completionWriteTimeout }
 
 func (s *Service) Begin(
 	ctx context.Context, stageExecutionID string,

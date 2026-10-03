@@ -3,9 +3,19 @@ package planner
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// DefaultCompletionWriteTimeout covers the default two-second database acquire
+// and lock waits plus a margin when no application settings are supplied.
+const DefaultCompletionWriteTimeout = 5 * time.Second
+
+const maxCompletionWriteAttempts = 3
 
 // StartSession begins or resumes the durable Planner session for one Stage
 // execution inside a session.begin span. A recorded completion is returned in
@@ -68,9 +78,63 @@ func RecordSessionRequest(
 func CompleteSession(
 	ctx context.Context, sessions SessionService, identity SessionIdentity, completion Completion,
 ) error {
-	recordContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionWriteTimeout)
+	budget := DefaultCompletionWriteTimeout
+	if configured, ok := sessions.(interface{ CompletionWriteTimeout() time.Duration }); ok {
+		if timeout := configured.CompletionWriteTimeout(); timeout > 0 {
+			budget = timeout
+		}
+	}
+	recordContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
-	return sessions.Complete(recordContext, identity, completion)
+	var lastError error
+	for attempt := range maxCompletionWriteAttempts {
+		err := sessions.Complete(recordContext, identity, completion)
+		if err == nil {
+			return nil
+		}
+		lastError = err
+		if attempt == maxCompletionWriteAttempts-1 || !transientCompletionWriteError(err) || recordContext.Err() != nil {
+			return err
+		}
+		timer := time.NewTimer(time.Duration(attempt+1) * 50 * time.Millisecond)
+		select {
+		case <-recordContext.Done():
+			timer.Stop()
+			return err
+		case <-timer.C:
+		}
+	}
+	return lastError
+}
+
+func transientCompletionWriteError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	var networkError net.Error
+	if errors.As(err, &networkError) && (networkError.Timeout() || networkError.Temporary()) {
+		return true
+	}
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) {
+		switch databaseError.Code {
+		case "40001", "40P01", "55P03", "57014", "53300":
+			return true
+		}
+	}
+	return false
+}
+
+// CompletionWriteError reports an unwritten failure without changing the
+// original Planner failure's retry policy.
+func CompletionWriteError(original *Error, cause error) *Error {
+	return NewError(
+		"planner_session_unavailable",
+		"Planner durable session is unavailable during record failure",
+		original.Retryable,
+		errors.Join(original, cause),
+	)
 }
 
 // SessionError classifies a durable session failure during operation.

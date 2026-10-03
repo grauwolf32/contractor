@@ -492,7 +492,7 @@ func (p *streamlinePlanner) fail(
 	value = state.setExternalFailure(value)
 	failure := value.Failure
 	if err := planner.CompleteSession(ctx, p.sessions, identity, planner.Completion{Failure: &failure}); err != nil {
-		return planner.SessionError("record failure", errors.Join(value, err))
+		return planner.CompletionWriteError(value, err)
 	}
 	return value
 }
