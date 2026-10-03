@@ -3,8 +3,8 @@ id: V97-001
 title: Keep Project target URL validation and readback usable
 milestone: api-url-boundary-clarity-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 59596c3a69918712ac5dea89f0a0c4b2868f380f
 depends_on: []
 languages: [go, typescript]
 goal: Reject unusable new HTTP target URLs while keeping legacy Project records editable in the UI.
@@ -25,7 +25,7 @@ acceptance_criteria:
   - {id: A4, text: Go contracts and relevant UI checks pass.}
 tests:
   - {command: go test ./internal/contracts, covers: [A1, A4]}
-  - {command: cd ui && ./node_modules/.bin/vitest run src/api/projects.test.ts src/routes/projects/http-target-editor.test.tsx, covers: [A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/vitest run src/api/projects.test.ts src/routes/projects/projects.test.tsx, covers: [A2, A3, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

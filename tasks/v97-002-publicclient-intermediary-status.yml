@@ -3,8 +3,8 @@ id: V97-002
 title: Preserve proxy error status in public CLI client
 milestone: api-url-boundary-clarity-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b1840fc6faa2f6c454d55eb8e57d414eb15cbed3
 depends_on: []
 languages: [go]
 goal: Show a useful HTTP status when an intermediary responds without the Contractor API version header.
