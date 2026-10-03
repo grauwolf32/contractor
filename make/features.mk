@@ -16,7 +16,7 @@ test-audits-hardening: test-audits-matrix require-database
 	cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts src/routes/projects/audits/audits.test.tsx
 
 test-audits-process: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestAuditProgramsAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestSchedulerConcurrencyAcrossProductionProcesses)$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestAuditProgramsAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestSchedulerConcurrencyAcrossProductionProcesses)$$')
 
 test-top10-audit-e2e: require-database runtime-venv
 	go test -count=1 ./tests/eval/audit_programs -run '^TestTop10'

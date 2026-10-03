@@ -31,7 +31,7 @@ test-runtime-label-placement: require-database
 test-runtime-configuration-matrix: test-hardening-matrices
 
 test-runtime-configuration-hardening: require-database test-runtime-configuration-matrix
-	go test -race -count=1 ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease
+	$(call run-family-test,go test -race -count=1 ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease)
 	cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_http_proxy_adapter.py tests/test_lease_watchdog.py tests/test_otlp_adapter.py
 
 test-runtime-configuration-e2e: require-database test-runtime-configuration-hardening test-runtime-labels-e2e test-ui-stack
@@ -39,15 +39,15 @@ test-runtime-configuration-e2e: require-database test-runtime-configuration-hard
 test-run-metadata-labels-matrix: test-hardening-matrices
 
 test-run-metadata-labels-hardening: require-database test-run-metadata-labels-matrix
-	go test -race -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/httpapi/public ./internal/persistence/postgres ./internal/runstore ./internal/scheduler/... ./internal/telemetry/...
+	$(call run-family-test,go test -race -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/httpapi/public ./internal/persistence/postgres ./internal/runstore ./internal/scheduler/... ./internal/telemetry/...)
 	cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_app.py tests/test_allocation.py tests/test_adapter_host.py tests/test_otlp_adapter.py
 	cd ui && corepack pnpm test --run src/api/run-metadata-labels.test.ts src/api/workflows.test.ts src/run-drafts/idempotency.test.ts src/routes/workflows/workflows.test.tsx src/routes/runs/runs.test.tsx
 
 test-run-metadata-labels-e2e: require-database test-run-metadata-labels-hardening runtime-venv
-	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$$')
 
 test-runtime-labels-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$')
 
 test-project-workspaces-matrix: test-hardening-matrices
 
@@ -56,12 +56,12 @@ test-local-direct-workspace:
 	cd runtime && uv run pytest -W error tests/test_projectfs_local_io.py tests/test_projectfs_operation_guard.py tests/test_projectfs_local_direct.py tests/test_local_direct_tool_consumers.py tests/test_local_direct_faults.py tests/test_projectfs_security.py tests/test_projectfs_concurrency.py tests/test_projectfs_storage.py tests/test_projectfs_zip.py tests/test_workspace_provider.py tests/test_workspace_state.py tests/test_projectfs_overlay.py tests/test_projectfs_edit_parity.py tests/test_projectfs_legacy_parity.py tests/test_workspace_auto_export.py tests/test_workspace_process_e2e.py tests/test_allocation.py tests/test_lease_watchdog.py tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py tests/test_filesystem_observations.py tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_openapi_toolset.py
 
 test-project-workspaces-hardening: test-project-workspaces-matrix require-database
-	go test -race -count=1 ./internal/projectstore/... ./internal/artifacts/... ./internal/runstore/... ./internal/scheduler/... ./internal/httpapi/public
+	$(call run-family-test,go test -race -count=1 ./internal/projectstore/... ./internal/artifacts/... ./internal/runstore/... ./internal/scheduler/... ./internal/httpapi/public)
 	cd runtime && uv run pytest -W error tests/test_http_toolset.py -k project_authorization_is_exact_origin_hidden_and_erased
 	cd ui && corepack pnpm test --run src/api/projects.test.ts src/api/project-artifacts.test.ts src/api/queue.test.ts src/routes/projects/projects.test.tsx src/routes/projects/recommendations.test.ts src/routes/queue.test.tsx
 
 test-project-workspaces-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$$')
 	cd runtime && uv run pytest -W error tests/test_workspace_process_e2e.py
 
 test-project-workspaces-release: test-project-workspaces-hardening test-project-workspaces-e2e test-ui-stack
@@ -69,11 +69,11 @@ test-project-workspaces-release: test-project-workspaces-hardening test-project-
 test-lifecycle-controls-matrix: test-hardening-matrices
 
 test-lifecycle-controls-hardening: test-lifecycle-controls-matrix require-database
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/scheduler ./internal/artifacts ./internal/projectlifecycle ./internal/httpapi/public -run '^(TestTerminalRunPurgeMigrationTracksPinOwnershipAndKeepsBypassScoped|TestProjectDeletionMigrationIsDurableClaimedAndFenced|TestOwnerQueueControlMigrationIsDurableAndRevisionProtected|TestPostgresOwnerQueueControlSerializesWithStageAdmission|TestPostgresQueuePauseAllowsTerminalResultCommit|TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume|TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext|TestSchedulerOwnerQueuePauseDoesNotBlockCancellation|TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts|TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestProjectDeleteIsCASDurableIdempotentAndFencesMutations|TestDeleteRunRequiresOwnedReleasedTerminalRun|TestUserArtifactNamespaceExclusionPrecedesPagination)$$'
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/persistence/postgres ./internal/runstore ./internal/scheduler ./internal/artifacts ./internal/projectlifecycle ./internal/httpapi/public -run '^(TestTerminalRunPurgeMigrationTracksPinOwnershipAndKeepsBypassScoped|TestProjectDeletionMigrationIsDurableClaimedAndFenced|TestOwnerQueueControlMigrationIsDurableAndRevisionProtected|TestPostgresOwnerQueueControlSerializesWithStageAdmission|TestPostgresQueuePauseAllowsTerminalResultCommit|TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume|TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext|TestSchedulerOwnerQueuePauseDoesNotBlockCancellation|TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts|TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestProjectDeleteIsCASDurableIdempotentAndFencesMutations|TestDeleteRunRequiresOwnedReleasedTerminalRun|TestUserArtifactNamespaceExclusionPrecedesPagination)$$')
 	cd ui && corepack pnpm test --run src/api/projects.test.ts src/api/project-artifacts.test.ts src/api/queue.test.ts src/routes/projects/projects.test.tsx src/routes/queue.test.tsx src/routes/runs/runs.test.tsx
 
 test-lifecycle-controls-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestProjectWorkspaceLifecycleAcrossProductionProcesses)$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestProjectWorkspaceLifecycleAcrossProductionProcesses)$$')
 
 # test-ui-stack serves the built Node UI independently from the Go API and
 # includes ui/e2e/lifecycle-controls.spec.ts in the production browser suite.
@@ -87,7 +87,7 @@ test-scheduler-concurrency-hardening: test-scheduler-concurrency-matrix require-
 	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/persistence/postgres ./internal/settingsstore ./internal/runstore ./internal/scheduler ./internal/projectlifecycle -run '^(TestSchedulerSettingsMigrationIsNarrowSeededAndProtected|TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed|TestPostgresSchedulerSupervisorBoundsRealRunClaims|TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes|TestPostgresClaimRunnableRunRotatesAfterDeferredRelease|TestPostgresQueuePauseAllowsTerminalResultCommit|TestPostgresCancelAndSuccessRaceSerializesOnRunRow|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort|TestTerminalReleaseFailureDoesNotBlockClaimPath|TestSchedulerSupervisorFailsClosedAndShutdownReleasesClaim)$$'
 
 test-scheduler-concurrency-process: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=4m ./tests/e2e -run '^TestSchedulerConcurrencyAcrossProductionProcesses$$'
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=4m ./tests/e2e -run '^TestSchedulerConcurrencyAcrossProductionProcesses$$')
 
 # The browser process builds and serves the Node UI independently from the Go API.
 test-scheduler-concurrency-browser: test-ui-stack
@@ -98,14 +98,14 @@ test-performance-matrix:
 	go test -count=1 ./tests/e2e -run '^(TestPerformanceMetricsMatrixIsComplete|TestPerformanceReleaseEvidenceIsComplete)$$'
 
 test-performance-go: test-performance-matrix
-	go test -race -count=1 ./internal/performance ./internal/profiling ./internal/app ./internal/controlplane ./internal/httpapi/public ./tools/performancebench -run '^(Test.*Performance.*|Test.*Profiling.*|TestHTTP.*|TestDiagnostics.*|TestDatabaseRates.*|TestDiagnostic.*|TestMinuteValidation.*|TestObserveOwnsFrames|TestRecordBoundsAndHTTPDimensions|TestSampleRejectsUnsafeOrUnboundedRecords|TestHandler.*|TestTimedAndSnapshotCapacityDoesNotQueue|TestCPUAndTraceOutputIsReadableByGoTools|TestListenRejectsUnsafeAddressesAndOccupiedPort|TestServerServesLoopbackAndStopsWithItsContext|TestServerShutdownCancelsAnActiveCapture|TestNewWithListenerRejectsNonLoopbackSocket|TestRuntimeResourcesAreIsolatedFromLifecycleTruth|TestBenchmarkOptionsAndSummaryAreBounded|TestCollectionMeasurementReportsFixedStateAndLogicalIO)$$'
+	$(call run-family-test,go test -race -count=1 ./internal/performance ./internal/profiling ./internal/app ./internal/controlplane ./internal/httpapi/public ./tools/performancebench -run '^(Test.*Performance.*|Test.*Profiling.*|TestHTTP.*|TestDiagnostics.*|TestDatabaseRates.*|TestDiagnostic.*|TestMinuteValidation.*|TestObserveOwnsFrames|TestRecordBoundsAndHTTPDimensions|TestSampleRejectsUnsafeOrUnboundedRecords|TestHandler.*|TestTimedAndSnapshotCapacityDoesNotQueue|TestCPUAndTraceOutputIsReadableByGoTools|TestListenRejectsUnsafeAddressesAndOccupiedPort|TestServerServesLoopbackAndStopsWithItsContext|TestServerShutdownCancelsAnActiveCapture|TestNewWithListenerRejectsNonLoopbackSocket|TestRuntimeResourcesAreIsolatedFromLifecycleTruth|TestBenchmarkOptionsAndSummaryAreBounded|TestCollectionMeasurementReportsFixedStateAndLogicalIO)$$')
 
 test-performance-runtime: runtime-venv
 	cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py tests/test_allocation.py -k 'resource or performance'
 	go test -tags=integration -count=1 ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycle$$'
 
 test-performance-postgres: require-database
-	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/performance ./internal/telemetry ./internal/controlplane -run '^(TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges|TestPostgresDiagnosticBudgetsAndRecovery|TestPostgresDisabledStatisticsAndIndependentSizeFailure|TestPostgresHistoryIdempotencyTTLBoundsAndPlans|TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy|TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates)$$'
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/performance ./internal/telemetry ./internal/controlplane -run '^(TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges|TestPostgresDiagnosticBudgetsAndRecovery|TestPostgresDisabledStatisticsAndIndependentSizeFailure|TestPostgresHistoryIdempotencyTTLBoundsAndPlans|TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy|TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates)$$')
 
 # The production browser process proves the current metrics page and the same
 # terminal Runtime observation in Run detail and durable post-release history.

@@ -299,8 +299,7 @@ def test_failed_create_with_verified_absence_releases_pin_and_owner(tmp_path: Pa
         pin_fd = record.content._fd
         assert not record.attempted and fake.sequence == 1
         assert any(
-            call[0] == "ps" and any("creation=" in arg for arg in call)
-            for call in fake.calls
+            call[0] == "ps" and any("creation=" in arg for arg in call) for call in fake.calls
         )
         if release == "confirm":
             await engine.confirm_removed("allocation", deadline=deadline())
