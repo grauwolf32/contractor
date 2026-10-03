@@ -76,6 +76,7 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"llm-gateway-config-secret-field.json":                reject[ResolvedLLMGatewayConfig],
 		"llm-gateway-config-signature-two-matchers.json":      reject[ResolvedLLMGatewayConfig],
 		"llm-gateway-config-signature-retryable-status.json":  reject[ResolvedLLMGatewayConfig],
+		"llm-gateway-config-permanent-code-newline.json":      reject[ResolvedLLMGatewayConfig],
 		"allocation-spec-bad-api-version.json":                reject[AllocationSpec],
 		"allocation-spec-resolved-skill-versionless.json":     reject[AllocationSpec],
 		"stage-content-request-unknown-field.json":            reject[StageContentRequest],
