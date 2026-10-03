@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V124-001
+title: Return distinct symbols in call relationship queries
+milestone: distinct-call-relationships-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Keep repeated call sites from duplicating caller and callee rows or displacing distinct relationships on a page.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/262
+  finding: Trailmark emits one calls edge per site, while relationship rows have no call-site location.
+scope:
+  in:
+    - Deduplicate incoming and outgoing relationship indexes by related symbol.
+    - Retain the strongest confidence for repeated edges and keep path adjacency unchanged.
+    - Document distinct relationship counts alongside call-site edge counts.
+  out:
+    - Change Trailmark graph parsing or path search behavior.
+acceptance_criteria:
+  - {id: A1, text: Repeated call sites return one row per distinct caller or callee and correct observedTotal pagination.}
+  - {id: A2, text: The strongest confidence wins deterministically for repeated edges.}
+  - {id: A3, text: Path queries remain unchanged and spec 12 distinguishes relationship counts from callEdgeCount.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_code_analysis_graph.py, covers: [A1, A2, A3]}
