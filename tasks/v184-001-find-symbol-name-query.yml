@@ -3,7 +3,8 @@ id: V184-001
 title: Clarify find_symbol name-query guidance
 milestone: code-analysis-tool-guidance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 438ea1167071bdc3fd733dfb9f9786159652145f
 depends_on: []
 languages: [python]
 goal: Tell Workers that find_symbol resolves names rather than opaque symbol IDs.
