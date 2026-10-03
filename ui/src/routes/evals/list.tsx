@@ -8,6 +8,7 @@ import { useEvalProjects } from "./queries";
 import { RecordedTime } from "../../app/recorded-time";
 import { StateBadge } from "../runs/components";
 import { evalListPollInterval } from "./polling";
+import { queryKeys } from "../../api/query-keys";
 
 const EVAL_STATES = [
   "draft",
@@ -43,7 +44,7 @@ export function EvalListRoute() {
     ...(datasetId ? { datasetId } : {}),
   };
   const list = useQuery({
-    queryKey: ["evals", "list", query],
+    queryKey: queryKeys.evals.list(query),
     queryFn: ({ signal }) => listEvalExperiments(api, query, signal),
     refetchInterval: (loaded) =>
       evalListPollInterval(loaded.state.data?.items, !!cursor),

@@ -39,7 +39,7 @@ function AgentVersionSelector({
   const navigate = useNavigate();
   const location = useLocation();
   const query = useInfiniteQuery({
-    queryKey: ["catalog", "agent-versions", resource.ref.name],
+    queryKey: queryKeys.catalog.agentVersions(resource.ref.name),
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam, signal }) =>
       listConfigurations(api, "agent-templates", {
@@ -115,13 +115,7 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
   const [view, setView] = useState<"preview" | "source">("preview");
   const [copyStatus, setCopyStatus] = useState("");
   const query = useQuery({
-    queryKey: [
-      "catalog",
-      "agent-instructions",
-      resource.ref.name,
-      resource.ref.version,
-      resource.ref.digest,
-    ],
+    queryKey: queryKeys.catalog.agentInstructions(resource.ref),
     queryFn: async ({ signal }) => {
       const result = await getAgentInstructions(
         api,
@@ -231,14 +225,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   const pagination = useCatalogCursorState("usageCursor", "usagePage");
   const { cursor, page } = pagination;
   const query = useQuery({
-    queryKey: [
-      "catalog",
-      "agent-usage",
-      resource.ref.name,
-      resource.ref.version,
-      resource.ref.digest,
-      cursor ?? null,
-    ],
+    queryKey: queryKeys.catalog.agentUsage(resource.ref, cursor),
     queryFn: ({ signal }) =>
       listAgentTemplateWorkflowBindings(
         api,

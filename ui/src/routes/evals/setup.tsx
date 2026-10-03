@@ -31,6 +31,7 @@ import { DatasetAuthor } from "./datasets";
 import { AssessmentSetup } from "./assessment-setup";
 import { EvalReadiness } from "./readiness";
 import { recoverableMutation } from "./recovery";
+import { queryKeys } from "../../api/query-keys";
 
 const STEPS = [
   "Variants",
@@ -92,7 +93,7 @@ export function EvalSetupForm({
       );
     },
     onSuccess: async (result) => {
-      await cache.invalidateQueries({ queryKey: ["evals", "projects"] });
+      await cache.invalidateQueries({ queryKey: queryKeys.evals.projects });
       setProjectId(result.projectId);
       setWorkspaceName("");
     },
@@ -118,7 +119,7 @@ export function EvalSetupForm({
     onSuccess: async (result) => {
       setDirty(false);
       onDirtyChange?.(false);
-      await cache.invalidateQueries({ queryKey: ["evals"] });
+      await cache.invalidateQueries({ queryKey: queryKeys.evals.all });
       void navigate(
         `/evals/experiments/${encodeURIComponent(result.experimentId)}/setup`,
       );
@@ -474,7 +475,9 @@ export function EvalSetupForm({
             save.error
               ? () => {
                   void cache.invalidateQueries({
-                    queryKey: ["evals", "experiment", experiment?.experimentId],
+                    queryKey: queryKeys.evals.experiment(
+                      experiment?.experimentId,
+                    ),
                   });
                 }
               : undefined

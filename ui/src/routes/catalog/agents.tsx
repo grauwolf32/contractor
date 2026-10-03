@@ -13,18 +13,17 @@ import { CursorControls } from "../../app/cursor-controls";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
 import { QueryView } from "../../app/query-view";
+import { queryKeys } from "../../api/query-keys";
 
 export function AgentListRoute() {
   const api = usePublicAPI();
   const location = useLocation();
   const state = useCatalogQueryState();
   const query = useQuery({
-    queryKey: [
-      "catalog",
-      "agent-templates",
+    queryKey: queryKeys.catalog.agentTemplates(
       state.committedSearch,
-      state.cursor ?? null,
-    ],
+      state.cursor,
+    ),
     queryFn: ({ signal }) =>
       listConfigurations(api, "agent-templates", {
         ...(state.committedSearch === "" ? {} : { q: state.committedSearch }),

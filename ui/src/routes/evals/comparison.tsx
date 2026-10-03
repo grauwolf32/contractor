@@ -13,6 +13,7 @@ import { EvalChartPanel } from "./charts";
 import { EvalError, EvalField } from "./common";
 import { MemberSummary } from "./member";
 import { useEvalViewRefresh } from "./view-refresh";
+import { queryKeys } from "../../api/query-keys";
 
 export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   const api = usePublicAPI();
@@ -37,7 +38,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
     ...(binFilter ? { binFilter } : {}),
   };
   const pairs = useQuery({
-    queryKey: ["evals", "pairs", experiment.experimentId, query],
+    queryKey: queryKeys.evals.pairs(experiment.experimentId, query),
     enabled: !!snapshot,
     queryFn: ({ signal }) =>
       listEvalPairs(api, experiment.experimentId, query, signal),

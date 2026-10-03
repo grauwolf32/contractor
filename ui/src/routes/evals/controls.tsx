@@ -25,6 +25,7 @@ import {
   writeCommand,
   type PendingCommand,
 } from "./recovery";
+import { queryKeys } from "../../api/query-keys";
 
 const LABELS: Record<EvalCommand["kind"], string> = {
   prepare: "Prepare",
@@ -105,9 +106,9 @@ export function EvalControls({
         );
     }
     await cache.invalidateQueries({
-      queryKey: ["evals", "experiment", experiment.experimentId],
+      queryKey: queryKeys.evals.experiment(experiment.experimentId),
     });
-    await cache.invalidateQueries({ queryKey: ["evals", "list"] });
+    await cache.invalidateQueries({ queryKey: queryKeys.evals.lists });
   }
   const send = useMutation({
     mutationFn: async (current: PendingCommand) => {
@@ -135,7 +136,7 @@ export function EvalControls({
         // the latest state rules out is dropped so it is never replayed.
         const latest = await getEvalExperiment(api, experiment.experimentId);
         cache.setQueryData(
-          ["evals", "experiment", experiment.experimentId],
+          queryKeys.evals.experiment(experiment.experimentId),
           latest,
         );
         if (!stopIntentAvailable(latest, current)) {
@@ -158,7 +159,7 @@ export function EvalControls({
   });
   const commandId = pending?.commandId;
   const command = useQuery({
-    queryKey: ["evals", "command", experiment.experimentId, commandId],
+    queryKey: queryKeys.evals.command(experiment.experimentId, commandId),
     enabled: native && !!pending && !!commandId,
     queryFn: async () => {
       const result = await getEvalCommand(
@@ -197,7 +198,7 @@ export function EvalControls({
         : reviewed;
       if (needsCurrentRevision(kind))
         cache.setQueryData(
-          ["evals", "experiment", experiment.experimentId],
+          queryKeys.evals.experiment(experiment.experimentId),
           currentRevision,
         );
       const next: PendingCommand = {
@@ -245,7 +246,7 @@ export function EvalControls({
       setPending(null);
       send.reset();
       await cache.invalidateQueries({
-        queryKey: ["evals", "experiment", experiment.experimentId],
+        queryKey: queryKeys.evals.experiment(experiment.experimentId),
       });
     } else if (send.error && pending) mutate(pending);
     else await command.refetch();
@@ -307,7 +308,9 @@ export function EvalControls({
               ? () => {
                   setStorageError(null);
                   void cache.invalidateQueries({
-                    queryKey: ["evals", "experiment", experiment.experimentId],
+                    queryKey: queryKeys.evals.experiment(
+                      experiment.experimentId,
+                    ),
                   });
                 }
               : error

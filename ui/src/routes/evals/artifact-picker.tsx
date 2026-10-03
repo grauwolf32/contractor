@@ -13,6 +13,7 @@ import { useCursorStack } from "../../app/pagination";
 import { useSession } from "../../auth/session";
 import { ProjectArtifactWriteForm } from "../projects/common";
 import { EvalError, EvalField } from "./common";
+import { queryKeys } from "../../api/query-keys";
 
 export function EvalArtifactPicker({
   projectId,
@@ -28,7 +29,7 @@ export function EvalArtifactPicker({
   const [upload, setUpload] = useState(false);
   const cursor = pages.cursor;
   const inventory = useQuery({
-    queryKey: ["evals", "input-artifacts", scope, projectId, cursor],
+    queryKey: queryKeys.evals.inputArtifacts(scope, projectId, cursor),
     queryFn: () =>
       scope === "project"
         ? listProjectArtifacts(api, {

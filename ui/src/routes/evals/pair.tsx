@@ -10,6 +10,7 @@ import { MemberExecutions, MemberSummary } from "./member";
 import { useEvalExperiment } from "./queries";
 import { EvalHumanReview } from "./review";
 import { RefreshButton } from "../../app/refresh-button";
+import { queryKeys } from "../../api/query-keys";
 
 export function EvalPairRoute() {
   const { experimentId = "", pairId = "" } = useParams();
@@ -20,7 +21,7 @@ export function EvalPairRoute() {
     experiment = useEvalExperiment(experimentId);
   const cache = useQueryClient();
   const pair = useQuery({
-    queryKey: ["evals", "pair", experimentId, pairId, snapshot],
+    queryKey: queryKeys.evals.pair(experimentId, pairId, snapshot),
     queryFn: () => getEvalPair(api, experimentId, pairId, snapshot),
   });
   const [review, setReview] = useState<EvalMember | null>(null);
@@ -30,7 +31,7 @@ export function EvalPairRoute() {
     void experiment.refetch();
     void pair.refetch();
     void cache.invalidateQueries({
-      queryKey: ["evals", "inventory", experimentId],
+      queryKey: queryKeys.evals.inventories(experimentId),
     });
   }
   const canReview =
