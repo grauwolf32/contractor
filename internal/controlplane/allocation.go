@@ -117,4 +117,7 @@ type Reservation struct {
 	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
 	PerformanceMetrics          *contracts.PerformanceMetricsRequest
 	LeaseExpiresAt              time.Time
+	// initialLeaseExpiresAt bounds the lease on a WorkerHandle returned by an
+	// idempotent prepare that succeeded before a later replay refreshed the lease.
+	initialLeaseExpiresAt time.Time
 }

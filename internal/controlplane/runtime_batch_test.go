@@ -12,6 +12,58 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
+func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+	template := testTemplate(t)
+	request := ReservationRequest{
+		RunID: "run-deferred", StageExecutionID: "stage-deferred",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	}
+	reservations, err := registry.ReserveAll(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalLease := reservations[0].LeaseExpiresAt
+	for sequence := uint64(3); sequence <= 10; sequence++ {
+		clock.Advance(10 * time.Second)
+		if _, err := registry.Heartbeat(heartbeat("agent-1", sequence, sequence-1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !clock.Now().After(originalLease) {
+		t.Fatalf("original lease %s has not passed at %s", originalLease, clock.Now())
+	}
+	replayed, err := registry.ReserveAll(request)
+	if err != nil || !replayed[0].LeaseExpiresAt.Equal(originalLease) {
+		t.Fatalf("replayed pinned reservation = (%+v, %v)", replayed, err)
+	}
+	runtime := &recordingRuntime{}
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.PrepareAll(context.Background(), replayed,
+		testWorkerExecutionSettings(template, testRuntimeSettings(), "builder")); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := registry.GetAgent("agent-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.preparedReservations) != 1 ||
+		!runtime.preparedReservations[0].LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) ||
+		!replayed[0].LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) {
+		t.Fatalf("prepare lease = %+v; confirmed lease = %s", runtime.preparedReservations, agent.ConfirmedLeaseExpiresAt)
+	}
+	stored, err := registry.GetReservation(replayed[0].Grant.AllocationID)
+	if err != nil || !stored.LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) ||
+		!stored.initialLeaseExpiresAt.Equal(originalLease) {
+		t.Fatalf("stored prepare lease = (%+v, %v)", stored, err)
+	}
+}
+
 func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 	runtime := &recordingRuntime{prepareFailure: map[string]error{"allocation_2": errors.New("synthetic failure")}}
 	registry := &recordingAllocationRegistry{}
@@ -220,16 +272,17 @@ func TestFailedPrepareCleanupDoesNotHideHealthySibling(t *testing.T) {
 }
 
 type recordingRuntime struct {
-	mu             sync.Mutex
-	prepared       []string
-	finalized      []string
-	aborted        []string
-	released       []string
-	prepareFailure map[string]error
-	releaseFailure map[string]error
-	blockFinalize  map[string]bool
-	blockAbort     map[string]bool
-	blockRelease   map[string]bool
+	mu                   sync.Mutex
+	prepared             []string
+	preparedReservations []Reservation
+	finalized            []string
+	aborted              []string
+	released             []string
+	prepareFailure       map[string]error
+	releaseFailure       map[string]error
+	blockFinalize        map[string]bool
+	blockAbort           map[string]bool
+	blockRelease         map[string]bool
 }
 
 func (r *recordingRuntime) Prepare(
@@ -239,6 +292,7 @@ func (r *recordingRuntime) Prepare(
 	defer r.mu.Unlock()
 	allocationID := reservation.Grant.AllocationID
 	r.prepared = append(r.prepared, allocationID)
+	r.preparedReservations = append(r.preparedReservations, reservation)
 	if err := r.prepareFailure[allocationID]; err != nil {
 		return contracts.WorkerHandle{}, err
 	}
@@ -308,6 +362,10 @@ type recordingAllocationRegistry struct {
 	released []string
 	phases   []allocationPhaseRecord
 	reports  []string
+}
+
+func (r *recordingAllocationRegistry) PrepareReservation(reservation Reservation) (Reservation, error) {
+	return reservation, nil
 }
 
 type allocationPhaseRecord struct {

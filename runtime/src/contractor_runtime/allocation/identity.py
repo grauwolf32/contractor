@@ -11,5 +11,9 @@ from contractor_runtime.contracts import (
 
 
 def _spec_fingerprint(spec: AllocationSpec, key: bytes) -> str:
-    encoded = spec.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
+    # The confirmed control lease can advance while durable placement stays
+    # pinned. A replay must still identify the already-prepared allocation.
+    encoded = spec.model_dump_json(
+        by_alias=True, exclude_none=True, exclude={"lease_expires_at"}
+    ).encode("utf-8")
     return hmac.new(key, encoded, hashlib.sha256).hexdigest()

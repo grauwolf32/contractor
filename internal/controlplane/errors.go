@@ -10,6 +10,7 @@ var (
 	ErrReservationConflict  = errors.New("Stage reservation conflicts with its original request")
 	ErrReservationReleased  = errors.New("Stage reservation has already been released")
 	ErrAllocationNotFound   = errors.New("active allocation not found")
+	ErrAllocationLost       = errors.New("Runtime Agent allocation control lease was lost")
 	ErrAgentNotFound        = errors.New("Runtime Agent not found")
 	ErrOperationsGeneration = errors.New("Operations cursor generation changed")
 	ErrOperationsCursor     = errors.New("Operations cursor is unavailable")

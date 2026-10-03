@@ -194,7 +194,12 @@ class AllocationService:
                     context.allocation_id == spec.allocation_id
                     and context.stage_execution_id == spec.stage_execution_id
                 ):
-                    if context.fingerprint != fingerprint or context.prepare_response is None:
+                    if (
+                        context.fingerprint != fingerprint
+                        or context.prepare_response is None
+                        or spec.lease_expires_at
+                        < context.prepare_response.worker_handle.lease_expires_at
+                    ):
                         raise _conflict("prepare request differs from the active allocation")
                     return context.prepare_response
                 raise _conflict("Runtime Agent already owns another allocation")
