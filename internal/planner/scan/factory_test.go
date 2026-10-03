@@ -20,6 +20,47 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
+type scanMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
+
+func (f scanMetadataReader) Metadata(ctx context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+	return f(ctx, ref)
+}
+
+func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
+	h := newFactoryHarness(t, 2)
+	ctx := artifacts.WithBlobRuntime(t.Context(), artifacts.NewBlobRuntime(artifacts.PostgresBlobStore{}, nil))
+	for range 4 {
+		_, release, err := artifacts.AcquireTransfer(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(release)
+	}
+	if _, _, err := artifacts.AcquireTransfer(ctx); !errors.Is(err, artifacts.ErrTransferCapacity) {
+		t.Fatalf("transfer gate was not saturated: %v", err)
+	}
+	queries := 0
+	inspector, err := planner.NewRunArtifactInspector("run-scan", scanMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+		queries++
+		payload, exists := h.artifacts.values[factoryRefKey(ref)]
+		if !exists || ref.ValidateExact() != nil {
+			return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+		}
+		return artifacts.Metadata{Ref: planner.CloneArtifactRef(ref), MediaType: payload.MediaType}, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.factory, err = NewFactory(h.sessions, h.invoker, h.artifacts, inspector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := h.instance(t).Run(ctx)
+	if err != nil || result.Outcome != contracts.StageSucceeded || queries == 0 || len(h.invoker.calls) != 2 {
+		t.Fatalf("scan with saturated transfer gate = (%+v, %v), metadata queries=%d, calls=%d", result, err, queries, len(h.invoker.calls))
+	}
+}
+
 func TestFactoryFreezesAllInputsBeforeDispatchAndProducesDeterministicReport(t *testing.T) {
 	first := newFactoryHarness(t, 3)
 	result := first.run(t)

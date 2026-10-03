@@ -24,3 +24,4 @@ acceptance_criteria:
   - {id: A4, text: Streamline dispatch does not read Stage input payloads for metadata.}
 tests:
   - {command: go test ./internal/planner/..., covers: [A1, A2, A3, A4]}
+  - {command: go test ./internal/scheduler -run '^TestPostgresPlannerMetadataInspectionWithTransferSlotsSaturated$', covers: [A1, A2]}
