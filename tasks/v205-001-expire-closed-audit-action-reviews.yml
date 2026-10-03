@@ -3,7 +3,8 @@ id: V205-001
 title: Expire undecidable Audit action reviews when work closes
 milestone: audit-review-lifecycle-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1b9c3ef9418241a809ef0930e87aa85b71314ceb
 depends_on: []
 languages: [go, sql]
 goal: Prevent item and report review requests from remaining pending after their Audit work closes.
