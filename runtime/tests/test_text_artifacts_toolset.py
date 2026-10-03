@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.factories import built_in_factories
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
     MAX_VISIBLE_TEXT_BYTES,
@@ -130,6 +131,7 @@ def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> N
         assert last["text"] == "tail\n"
         assert last["truncated"] is False
         assert (last["nextStartLine"], last["nextLineOffset"]) == (None, None)
+        assert client.read_calls == 1
 
         with pytest.raises(ValueError, match="line_offset"):
             await read("inputs", "log", source.revision, start_line=1, line_offset=5)
@@ -137,6 +139,66 @@ def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> N
             await read("inputs", "log", source.revision, start_line=1, line_offset=-1)
         with pytest.raises(ValueError, match="UTF-8 character"):
             await read("inputs", "log", source.revision, start_line=2, line_offset=1)
+
+    asyncio.run(scenario())
+
+
+def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        run_client = MemoryArtifactClient()
+        text_client = MemoryArtifactClient()
+        source = run_client.seed("inputs", "report", "text/plain", b"one\ntwo\n")
+        assert text_client.seed("inputs", "report", "text/plain", b"one\ntwo\n") == source
+        state = WorkerState()
+        text_tools = await make_tools(tmp_path, text_client, state)
+        run_factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: run_client)
+        run_tools = await run_factory.create_selected(
+            selected=["read_artifact"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="worker-space",
+            runtime_settings=runtime_settings(),
+            workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+            state=state,
+        )
+        read_bytes = run_tools["read_artifact"]
+        read_text = text_tools["read_text_artifact"]
+        cache = state._artifact_read_cache
+        try:
+            first = await read_bytes("inputs", "report", source.revision, length=4)
+            assert first["size"] == 8 and first["nextOffset"] == 4
+            cursor = text_client.observation_cursor
+            assert (await read_text("inputs", "report", source.revision, start_line=2))[
+                "text"
+            ] == "two\n"
+            assert run_client.read_calls == 1 and text_client.read_calls == 0
+            assert text_client.observed_exact_refs_since(cursor) == (source,)
+            assert cache._value is not None and len(cache._value.data) == 8
+
+            updated = text_client.seed("inputs", "report", "text/plain", b"new\n")
+            current = await read_text("inputs", "report")
+            assert current["artifact"]["revision"] == updated.revision
+            assert current["text"] == "new\n"
+            assert text_client.read_calls == 1
+            assert cache._value is not None and cache._value.artifact == updated
+
+            await read_bytes.close()
+            assert cache._value is None
+            assert (await read_text("inputs", "report", updated.revision))["text"] == "new\n"
+            assert text_client.read_calls == 2
+            monkeypatch.setattr(
+                "contractor_runtime.toolsets.common.artifact_read_cache.MAX_CACHED_ARTIFACT_BYTES",
+                3,
+            )
+            await read_text("inputs", "report", source.revision)
+            assert cache._value is None
+            await read_text("inputs", "report", source.revision)
+            assert text_client.read_calls == 4
+        finally:
+            await read_text.close()
+        assert cache._value is None
 
     asyncio.run(scenario())
 
@@ -313,6 +375,9 @@ class MemoryArtifactClient:
 
     def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
         return tuple(self._observed[cursor:])
+
+    def observe_cached_read(self, ref: ArtifactRef) -> None:
+        self._remember(ref.require_exact())
 
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)

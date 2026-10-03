@@ -24,6 +24,6 @@ acceptance_criteria:
   - {id: A3, text: The cache holds at most one payload within a 64 MiB bound and releases it on close.}
   - {id: A4, text: Revisionless reads observe binding updates and paging results stay unchanged.}
 tests:
-  - {command: cd runtime && uv run pytest -W error tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py, covers: [A1, A2, A3, A4]}
+  - {command: cd runtime && uv run pytest -W error tests/test_artifacts.py tests/test_run_artifacts_toolset.py tests/test_text_artifacts_toolset.py, covers: [A1, A2, A3, A4]}
   - {command: make test-runtime, covers: [A1, A2, A3, A4]}
   - {command: make lint, covers: [A1, A2, A3, A4]}

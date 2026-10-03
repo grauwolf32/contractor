@@ -212,6 +212,9 @@ def test_exact_read_and_cas_update_use_unambiguous_revision_channels() -> None:
         assert client.observation_cursor == 0
         assert client.observed_exact_refs_since(0) == ()
         assert client.known_exact_refs == (result.artifact,)
+        client.observe_cached_read(result.artifact)
+        assert client.observed_exact_refs_since(0) == (result.artifact,)
+        assert len(transport.requests) == 2
         assert transport.requests[0].path.endswith("?revision=revision-old")
         assert transport.requests[1].headers["If-Match"] == '"revision-old"'
         assert "If-None-Match" not in transport.requests[1].headers
