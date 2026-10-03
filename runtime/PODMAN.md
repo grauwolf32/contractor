@@ -108,8 +108,8 @@ Image repository names use the conservative grammar
 URLs, host paths, whitespace and credentials are rejected. Supplied policy is
 validated even when disabled. Enabled policy also requires
 `--workspace-storage local`; the existing workspace root settings still apply.
-Parsing verifies syntax only: image availability and service-owner locking must
-be verified by the later engine/probe implementation before advertisement.
+Parsing verifies syntax only; the engine and startup probe verify image
+availability and service-owner locking before capability advertisement.
 
 There are no image/resource/environment fields in Workflow or model tool input.
 Network is fixed to `none`, engine access is local rootless Podman, shell is
@@ -122,18 +122,19 @@ per-allocation hard disk quota; API acquisition limits do not enforce disk quota
 
 `ExecutionRequest(command, cwd="", timeout_seconds=60)` bounds UTF-8 shell text
 to 64 KiB and canonicalizes cwd using the existing workspace path grammar.
-The future executor must also validate the on-disk directory under the shared
+The executor also validates the on-disk directory under the shared
 workspace guard: lexical validation alone does not exclude symlink races.
-Its effective deadline must include lock wait and cleanup and be bounded by
+Its effective deadline includes lock wait and cleanup and is bounded by
 request, operator and invocation deadlines. The confirmed lease is enforced
 continuously rather than as a launch-time deadline: its loss revokes a running
 command (see lease renewal below).
 
 The `sandbox-execution` channel is distinct from `runtime-subprocess-launcher`.
-The selected tool receives only `SandboxExecutor`; lifecycle code retains
-`AllocationSandbox` with full ownership identity, lease renewal, stop and removal.
+The selected tool receives only `SandboxExecutor`; allocation lifecycle code
+retains `PreparedExecution` for preparation, rejection, stop and removal. The
+independent Podman owner and guardian retain container identity and lease control.
 No lifecycle/engine handle is added to ordinary tools or the ADK Worker context.
-These are private contracts, not active execution implementations.
+`PodmanExecutor` and `LifecycleBackend` implement this active execution boundary.
 
 The structured result has `status`, nullable `exitCode`, `stdout`, `stderr`,
 `stdoutTruncated`, `stderrTruncated`, `durationMs` and nullable stable `errorCode`.
@@ -141,7 +142,14 @@ Nonzero program exit is still `completed`; infrastructure failures have no
 trusted program exit code. Request/output and ownership fields are excluded
 from diagnostic reprs. Preview limits count captured bytes before UTF-8
 replacement; the private result ceiling allows the worst-case 3× replacement
-expansion. The executor must enforce the configured capture limits.
+expansion. The executor enforces the configured capture limits.
+
+Tool execution reports `sandbox_invalid_command`, `sandbox_invalid_cwd`,
+`sandbox_unavailable`, `sandbox_timeout`, `sandbox_output_limit`,
+`sandbox_cleanup_failed` or `sandbox_outcome_unknown`. Sandbox selection can
+also report `sandbox_incompatible`. A confirmed local create failure produces
+`sandbox_preparation_failed` inside the engine; allocation preparation exposes
+it as `allocation_preparation_failed` after cleanup.
 
 Verification:
 

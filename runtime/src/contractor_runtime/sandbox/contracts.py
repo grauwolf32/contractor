@@ -1,8 +1,8 @@
-"""Private execution contracts; no engine, factory registration or host fallback.
+"""Private execution contracts and selection checks; no host fallback.
 
-Only allocation lifecycle code will own AllocationSandbox. Selected execution
-tools receive SandboxExecutor, never lifecycle/engine or host adapter authority.
-The implementation must hold the workspace guard until all writers are stopped.
+The allocation lifecycle owns PreparedExecution. Selected execution tools receive
+only SandboxExecutor, never lifecycle, engine or host adapter authority. The
+executor holds the workspace guard until all writers are stopped.
 """
 
 from __future__ import annotations
@@ -43,7 +43,6 @@ class SandboxErrorCode(StrEnum):
     PREPARATION_FAILED = "sandbox_preparation_failed"
     TIMEOUT = "sandbox_timeout"
     OUTPUT_LIMIT = "sandbox_output_limit"
-    BACKGROUND_EXECUTION = "sandbox_background_execution"
     CLEANUP_FAILED = "sandbox_cleanup_failed"
     OUTCOME_UNKNOWN = "sandbox_outcome_unknown"
     INCOMPATIBLE = "sandbox_incompatible"
@@ -187,31 +186,13 @@ class SandboxExecutor(Protocol):
         ...
 
 
-class AllocationSandbox(Protocol):
-    @property
-    def identity(self) -> SandboxIdentity: ...
-
-    @property
-    def executor(self) -> SandboxExecutor: ...
-
-    async def renew(self, *, deadline: datetime) -> None:
-        """Renew only up to the confirmed control lease; workload has no access."""
-        ...
-
-    async def stop(self, *, deadline: datetime) -> None: ...
-
-    async def remove(self, *, deadline: datetime) -> None:
-        """Return only after verified removal; uncertainty retains ownership."""
-        ...
-
-
 def selected_executor(
     toolset_ref: str,
     tools: tuple[str, ...],
     channels: Mapping[str, frozenset[str]],
     executor: SandboxExecutor | None,
 ) -> SandboxExecutor:
-    """Narrow factory handoff, to be wired by the allocation lifecycle task."""
+    """Give the selected tool only the allocation's sandbox executor."""
     if toolset_ref != EXECUTION_TOOLSET or not tools or not set(tools) <= EXECUTION_TOOLS:
         raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
     if any(channels.get(tool) != EXECUTION_CHANNELS[tool] for tool in tools):

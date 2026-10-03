@@ -1,4 +1,4 @@
-"""Private guardian attachment primitive; allocation wiring is deliberately absent."""
+"""Guardian attachment and completion proof for the Podman allocation lifecycle."""
 
 from __future__ import annotations
 
@@ -224,7 +224,7 @@ class GuardianClient:
 class CompletionGate:
     """Promote a private transport result only with independent cleanup proof.
 
-    The future executor supplies the trusted program status (not parsed command
+    The lifecycle backend supplies trusted program status (not parsed command
     stdout), owns the workspace guard and fences/reaps every launch before this
     call. This primitive neither launches commands nor exposes engine authority
     to model tools. Any exception makes the allocation permanently unusable;

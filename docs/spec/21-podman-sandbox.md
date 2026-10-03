@@ -291,11 +291,12 @@ Version 1 has no background-command API. The managed execution supervisor
 must account for command descendants, including reparented/detached children,
 and confirm their termination before reporting completion. A process-group kill
 alone is insufficient if children can detach into another group/session. A
-workload that leaves live descendants is terminated as unsupported background
-execution. If descendant cleanup cannot be confirmed, Runtime stops the entire
-container and makes the allocation unusable rather than releasing workspace
-ownership and continuing. The supervisor protocol and this guarantee must be
-tested with adversarial fork/detach cases on the supported Podman environment.
+workload that leaves live descendants is terminated and reported as
+`sandbox_cleanup_failed`. If descendant cleanup cannot be confirmed, Runtime
+stops the entire container and makes the allocation unusable rather than
+releasing workspace ownership and continuing. The supervisor protocol and this
+guarantee must be tested with adversarial fork/detach cases on the supported
+Podman environment.
 
 On timeout, cancellation, hard output-limit violation or uncertain engine
 communication after launch, the first version conservatively stops the whole
@@ -386,11 +387,13 @@ Podman, host execution, memory storage or overlay. If probe cleanup cannot be
 confirmed, Runtime remains fenced/unready. Existing usable profiles can remain
 available when the failed probe left no resources behind.
 
-Stable failure classes include invalid command/cwd, preparation failure,
-sandbox unavailable, timeout, output limit, unsupported background execution
-and cleanup failure. Launch/outcome uncertainty is never an automatic command
-retry. Allocation preparation errors retain existing retryable/nonretryable
-classification and shutdown/cleanup uses existing lifecycle reporting.
+Stable tool failure classes include invalid command/cwd, sandbox unavailable,
+timeout, output limit, cleanup failure and uncertain outcome. Sandbox selection
+can fail as incompatible. A confirmed local engine preparation failure is an
+internal signal; allocation preparation reports `allocation_preparation_failed`
+through its existing retry classification. Launch/outcome uncertainty is never
+an automatic command retry, and shutdown/cleanup uses existing lifecycle
+reporting.
 
 Metrics record command count, elapsed time, exit/failure category, captured-byte
 counts, truncation and sandbox prepare/stop/cleanup outcomes. Aggregate logs
