@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V148-001, file: v148-001-digit-leading-skill-paths.yml}
   - {id: V147-001, file: v147-001-cli-direct-without-home.yml}
   - {id: V146-001, file: v146-001-exact-eval-quality-drop.yml}
   - {id: V145-001, file: v145-001-audit-result-summary-nul.yml}

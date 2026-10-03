@@ -80,6 +80,59 @@ func TestSkillNameAcceptsDigitsAfterTheFirstCharacter(t *testing.T) {
 	}
 }
 
+func TestPortablePathsMatchRuntimeFixture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "agent-skills", "portable-paths.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Cases []struct {
+			Path  string `json:"path"`
+			Valid bool   `json:"valid"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Path, func(t *testing.T) {
+			path, directory, err := validateMemberPath(test.Path)
+			if (err == nil) != test.Valid || err == nil && (path != test.Path || directory) {
+				t.Fatalf("path %q = (%q, %t, %v), want valid=%t", test.Path, path, directory, err, test.Valid)
+			}
+		})
+	}
+}
+
+func TestDigitLeadingResourceValidatesFromZIPAndDirectory(t *testing.T) {
+	manifest := skillDocument("demo", "Demo.", "")
+	resourcePath := "references/01-intro.md"
+	resource := []byte("Introduction.\n")
+	archive := makeTestZIP(t, zip.Store, []testEntry{
+		{"SKILL.md", manifest, 0}, {resourcePath, resource, 0},
+	})
+	validated, err := Validate(archive, "demo")
+	if err != nil || len(validated.Resources) != 1 || validated.Resources[0].Path != resourcePath {
+		t.Fatalf("ZIP resource = (%+v, %v)", validated, err)
+	}
+	source := filepath.Join(t.TempDir(), "demo")
+	if err := os.MkdirAll(filepath.Join(source, "references"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for path, payload := range map[string][]byte{"SKILL.md": manifest, resourcePath: resource} {
+		if err := os.WriteFile(filepath.Join(source, path), payload, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	packaged, fromDirectory, err := PackageDirectory(source)
+	if err != nil || len(fromDirectory.Resources) != 1 || fromDirectory.Resources[0].Path != resourcePath {
+		t.Fatalf("directory resource = (%+v, %v)", fromDirectory, err)
+	}
+	if _, err := Validate(packaged, "demo"); err != nil {
+		t.Fatalf("packaged directory ZIP is invalid: %v", err)
+	}
+}
+
 func TestPackageLimitsAreStreamedAndExact(t *testing.T) {
 	manifest := []byte("---\nname: limits\ndescription: Limits.\n---\n# Limits\n")
 	tests := []struct {
