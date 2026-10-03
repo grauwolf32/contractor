@@ -63,10 +63,7 @@ def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
         assert all(isinstance(session, OverlayWorkspaceSession) for session in sessions)
 
         for session in sessions:
-            assert (
-                session.storage.filesystem.cat(f"{session.storage.root}/run_workdir/README.md")
-                == b"before\n"
-            )
+            assert not session.storage.filesystem.exists(f"{session.storage.root}/run_workdir")
             await session.write_text("README.md", "after\n")
             await session.delete_path("old.txt")
             await session.make_directory("new/deep", parents=True)
@@ -90,11 +87,7 @@ def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
             source = session._source  # type: ignore[attr-defined]
             reconstructed = decode_workspace_state(states[0], source, session.limits)
             assert reconstructed.snapshot() == snapshots[0]
-            assert (
-                session.storage.filesystem.cat(f"{session.storage.root}/run_workdir/README.md")
-                == b"before\n"
-            )
-            assert session.storage.filesystem.exists(f"{session.storage.root}/run_workdir/old.txt")
+            assert not session.storage.filesystem.exists(f"{session.storage.root}/run_workdir")
 
         await local_provider.cleanup(sessions[0].storage)
         await memory_provider.cleanup(sessions[1].storage)

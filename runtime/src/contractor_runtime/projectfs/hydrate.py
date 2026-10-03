@@ -77,6 +77,7 @@ class WorkspacePreparationError(RuntimeError):
 class _TreeAccumulator:
     storage: ProjectWorkspaceStorage = field(repr=False)
     content_root: str = field(repr=False)
+    materialize: bool
     max_files: int
     max_expanded_bytes: int
     max_managed_text_bytes: int
@@ -117,6 +118,7 @@ async def hydrate_workspace(
     accumulator = _TreeAccumulator(
         storage=storage,
         content_root=content_root,
+        materialize=spec.mode == "direct" and storage.storage == "local",
         max_files=limits.max_files,
         max_expanded_bytes=limits.max_expanded_bytes,
         max_managed_text_bytes=limits.max_managed_text_bytes,
@@ -125,10 +127,11 @@ async def hydrate_workspace(
     deadline = time.monotonic() + timeout_seconds
     session: DirectWorkspaceSession | None = None
     try:
-        await to_thread_until_done(
-            lambda: storage.filesystem.makedirs(content_root, exist_ok=False),
-            name="workspace-zip-hydration",
-        )
+        if accumulator.materialize:
+            await to_thread_until_done(
+                lambda: storage.filesystem.makedirs(content_root, exist_ok=False),
+                name="workspace-zip-hydration",
+            )
         for source in spec.sources:
             if time.monotonic() >= deadline:
                 raise _capacity()
@@ -185,13 +188,16 @@ async def hydrate_workspace(
                     limits,
                     name="workspace-state-import",
                 )
-                try:
-                    await to_thread_until_done(
-                        lambda: _materialize_state(storage, content_root, source_tree, result_tree),
-                        name="workspace-zip-hydration",
-                    )
-                except OSError:
-                    raise _capacity() from None
+                if accumulator.materialize:
+                    try:
+                        await to_thread_until_done(
+                            lambda: _materialize_state(
+                                storage, content_root, source_tree, result_tree
+                            ),
+                            name="workspace-zip-hydration",
+                        )
+                    except OSError:
+                        raise _capacity() from None
             except (WorkspaceStateError, WorkspaceStorageError):
                 raise _invalid_state() from None
             if storage.storage != "local":
@@ -358,7 +364,8 @@ def _make_directory(path: str, tree: _TreeAccumulator) -> None:
     tree.path_types[path] = "directory"
     if len(tree.path_types) > tree.max_files:
         raise _capacity()
-    tree.storage.filesystem.makedirs(_backend_path(tree.content_root, path), exist_ok=True)
+    if tree.materialize:
+        tree.storage.filesystem.makedirs(_backend_path(tree.content_root, path), exist_ok=True)
 
 
 def _extract_file(
@@ -370,10 +377,11 @@ def _extract_file(
 ) -> None:
     for parent in parent_paths(path):
         _make_directory(parent, tree)
-    local_output = None
-    backend_path = _backend_path(tree.content_root, path)
-    if tree.storage.storage == "local":
-        local_output = tree.storage.filesystem.open(backend_path, mode="wb")
+    local_output = (
+        tree.storage.filesystem.open(_backend_path(tree.content_root, path), mode="wb")
+        if tree.materialize
+        else None
+    )
     decoder = codecs.getincrementaldecoder("utf-8")("strict")
     text_parts: list[str] = []
     text_candidate = True
@@ -421,9 +429,6 @@ def _extract_file(
             if tree.managed_text_bytes > tree.max_managed_text_bytes:
                 raise _capacity()
             tree.text_files[path] = text
-            if local_output is None:
-                with tree.storage.filesystem.open(backend_path, mode="wb") as destination:
-                    destination.write(text.encode("utf-8"))
         else:
             tree.binary_paths.add(path)
     finally:

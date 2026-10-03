@@ -310,9 +310,9 @@ Podman. Executable acceptance coverage lives in
 | Mode | Storage | Authoritative effective state |
 |---|---|---|
 | `direct` | `local` | Current files and directories on disk in the allocation's `run_workdir` |
-| `direct` | `memory` | Allocation-private managed tree with its memory backend |
-| `overlay` | `local` | Managed overlay view over the hydrated local base |
-| `overlay` | `memory` | Managed overlay view over the hydrated memory base |
+| `direct` | `memory` | Allocation-private managed tree in Runtime memory; no extracted copy |
+| `overlay` | `local` | Managed overlay view over the hydrated source tree; no extracted copy |
+| `overlay` | `memory` | Managed overlay view over the hydrated source tree; no extracted copy |
 
 For `direct + local`, hydration and optional state import initialize disk.
 After prepare, the original archive, imported state and retained memory cannot

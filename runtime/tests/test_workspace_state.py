@@ -171,11 +171,7 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
         )
         assert await imported.read_text("src/a.py") == "imported\n"
         assert await imported.changed_paths() == ()  # type: ignore[attr-defined]
-        assert (
-            imported.storage.filesystem.cat(f"{imported.storage.root}/run_workdir/src/a.py")
-            == b"source\n"
-        )
-        assert imported.storage.filesystem.exists(f"{imported.storage.root}/run_workdir/remove.txt")
+        assert not imported.storage.filesystem.exists(f"{imported.storage.root}/run_workdir")
 
         direct_spec = spec.model_copy(deep=True, update={"mode": "direct"})
         direct_provider = LocalWorkspaceProvider(settings("local", tmp_path / "direct"))
@@ -197,8 +193,21 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
         assert await direct.read_text("src/a.py") == "external\n"
         assert not direct._tree.paths()
 
+        memory_provider = MemoryWorkspaceProvider(settings("memory"))
+        memory = await hydrate_workspace(
+            provider=memory_provider,
+            spec=direct_spec,
+            artifact_reader=reader,
+            allocation_id="memory-direct",
+            timeout_seconds=5,
+        )
+        assert await memory.read_text("src/a.py") == "imported\n"
+        assert all(file.path != "remove.txt" for file in (await memory.snapshot()).files)
+        assert not memory.storage.filesystem.exists(f"{memory.storage.root}/run_workdir")
+
         await overlay_provider.cleanup(imported.storage)
         await direct_provider.cleanup(direct.storage)
+        await memory_provider.cleanup(memory.storage)
 
     asyncio.run(scenario())
 

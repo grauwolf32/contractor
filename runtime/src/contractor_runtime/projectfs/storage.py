@@ -213,7 +213,6 @@ class DirectWorkspaceSession:
     ) -> None:
         self._mode = mode
         self._storage = storage
-        self._content_root = content_root
         self._limits = limits
         # Local imports keep the private disk implementation behind the narrow
         # interfaces declared in this module, without a module import cycle.
@@ -434,46 +433,7 @@ class DirectWorkspaceSession:
 
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
         _validate_managed_tree(candidate, self._limits)
-        current = self._tree
-        try:
-            self._apply_direct_delta(current, candidate)
-        except Exception:
-            try:
-                self._apply_direct_delta(candidate, current)
-            except Exception:
-                # The caller still sees a stable failure and the allocation
-                # retains its authoritative in-memory snapshot. Hardening owns
-                # process fencing when physical rollback cannot be confirmed.
-                return _raise_workspace_unavailable()
-            raise WorkspaceStorageError("workspace_unavailable") from None
         self._tree = candidate
-
-    def _apply_direct_delta(
-        self, current: ManagedWorkspaceTree, candidate: ManagedWorkspaceTree
-    ) -> None:
-        filesystem = self._storage.filesystem
-        removed = {
-            path
-            for path in current.paths()
-            if candidate.kind(path) is None or candidate.kind(path) != current.kind(path)
-        }
-        roots: list[str] = []
-        for path in sorted(removed, key=lambda value: (value.count("/"), value)):
-            if not any(path == root or path.startswith(f"{root}/") for root in roots):
-                roots.append(path)
-        for path in roots:
-            backend = self._backend_path(path)
-            if filesystem.exists(backend):
-                filesystem.rm(backend, recursive=True)
-        for path in sorted(candidate.directories, key=lambda value: (value.count("/"), value)):
-            if current.kind(path) != "directory":
-                filesystem.makedirs(self._backend_path(path), exist_ok=True)
-        for path, text in sorted(candidate.text_files.items()):
-            if current.text_files.get(path) != text or current.kind(path) != "text":
-                filesystem.pipe(self._backend_path(path), text.encode("utf-8"))
-
-    def _backend_path(self, path: str) -> str:
-        return f"{self._content_root.rstrip('/')}/{path}"
 
     def _require_open(self) -> None:
         if self._closed:
@@ -601,7 +561,3 @@ def _copy_tree(
             tree.directories.add(target)
         elif path in tree.text_files:
             tree.text_files[target] = tree.text_files[path]
-
-
-def _raise_workspace_unavailable() -> None:
-    raise WorkspaceStorageError("workspace_unavailable")

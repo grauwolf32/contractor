@@ -89,9 +89,7 @@ def test_safe_multi_source_archives_have_equal_local_and_memory_text_views(
             )
             == b"\x00\xffbinary"
         )
-        assert not memory.storage.filesystem.exists(
-            f"{memory.storage.root}/run_workdir/backend/assets/logo.bin"
-        )
+        assert not memory.storage.filesystem.exists(f"{memory.storage.root}/run_workdir")
 
         await local_provider.cleanup(local.storage)
         await memory_provider.cleanup(memory.storage)
