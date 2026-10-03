@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -64,8 +65,20 @@ func TestFindingProvenanceConsistentReadsWithSingleConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	findingID := seedAuditFinding(t, ctx, pool, projectID, owner, auditID, "provenance")
+	findingID := seedAuditFinding(t, ctx, pool, projectID, owner, auditID, "provenance",
+		auditdomain.ProposedCheck{Objective: "Verify the candidate", Method: "run-check"})
 	seedAuditFindingAttemptHistory(t, ctx, pool, auditID, findingID, "receipt-provenance")
+	if _, err := pool.Exec(ctx, `
+INSERT INTO audit_proposal_items (
+    audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
+    proposal_ref, proposal_digest
+)
+SELECT audit_id, receipt_id, 0, 'round-finding-attempts', 'item-finding-attempts',
+       proposal_ref->'ref', proposal_ref->>'digest'
+  FROM finding_proposal_audit_holds
+ WHERE audit_id = $1 AND receipt_id = 'receipt-provenance'`, auditID); err != nil {
+		t.Fatal(err)
+	}
 	setCurrent := func(assessment string) {
 		_, err := pool.Exec(ctx, `WITH changed AS (
    UPDATE audit_findings SET current_assessment_id=$3, revision=revision+1
