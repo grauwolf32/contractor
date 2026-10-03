@@ -56,7 +56,10 @@ func ServeSystem(
 		return fmt.Errorf("shutdown timeout must be positive")
 	}
 	baseContext := func(net.Listener) context.Context { return context.WithoutCancel(ctx) }
-	publicServer := &http.Server{Handler: publicHandler, ReadHeaderTimeout: 5 * time.Second, BaseContext: baseContext}
+	publicServer := &http.Server{
+		Handler: publicHandler, ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout: time.Minute, BaseContext: baseContext,
+	}
 	privateServer := &http.Server{Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second, BaseContext: baseContext}
 	schedulerContext, cancelScheduler := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelScheduler()
@@ -96,9 +99,8 @@ func ServeSystem(
 		firstErr = componentError("Workflow Scheduler", err)
 	}
 
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancelShutdown()
-	if err := publicServer.Shutdown(shutdownContext); err != nil {
+	publicShutdownContext, cancelPublicShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
+	if err := publicServer.Shutdown(publicShutdownContext); err != nil {
 		_ = publicServer.Close()
 		firstErr = errors.Join(firstErr, fmt.Errorf("shutdown public HTTP server: %w", err))
 	}
@@ -106,22 +108,29 @@ func ServeSystem(
 		select {
 		case err := <-publicDone:
 			firstErr = errors.Join(firstErr, componentError("public HTTP server", err))
-		case <-shutdownContext.Done():
-			firstErr = errors.Join(firstErr, fmt.Errorf("public HTTP server did not stop: %w", shutdownContext.Err()))
+		case <-publicShutdownContext.Done():
+			firstErr = errors.Join(firstErr, fmt.Errorf("public HTTP server did not stop: %w", publicShutdownContext.Err()))
 		}
 	}
+	cancelPublicShutdown()
 
 	cancelScheduler()
+	schedulerShutdownContext, cancelSchedulerShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
 	if !schedulerFinished {
 		select {
 		case err := <-schedulerDone:
 			firstErr = errors.Join(firstErr, componentError("Workflow Scheduler", err))
-		case <-shutdownContext.Done():
-			firstErr = errors.Join(firstErr, fmt.Errorf("Workflow Scheduler did not stop: %w", shutdownContext.Err()))
+		case <-schedulerShutdownContext.Done():
+			firstErr = errors.Join(firstErr, fmt.Errorf("Workflow Scheduler exceeded shutdown timeout: %w", schedulerShutdownContext.Err()))
+			// The Scheduler owns the database pool and blob store while its lanes
+			// drain. The caller must not close those resources before Run returns.
+			firstErr = errors.Join(firstErr, componentError("Workflow Scheduler", <-schedulerDone))
 		}
 	}
+	cancelSchedulerShutdown()
 
-	if err := privateServer.Shutdown(shutdownContext); err != nil {
+	privateShutdownContext, cancelPrivateShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
+	if err := privateServer.Shutdown(privateShutdownContext); err != nil {
 		_ = privateServer.Close()
 		firstErr = errors.Join(firstErr, fmt.Errorf("shutdown private HTTP server: %w", err))
 	}
@@ -129,10 +138,11 @@ func ServeSystem(
 		select {
 		case err := <-privateDone:
 			firstErr = errors.Join(firstErr, componentError("private HTTP server", err))
-		case <-shutdownContext.Done():
-			firstErr = errors.Join(firstErr, fmt.Errorf("private HTTP server did not stop: %w", shutdownContext.Err()))
+		case <-privateShutdownContext.Done():
+			firstErr = errors.Join(firstErr, fmt.Errorf("private HTTP server did not stop: %w", privateShutdownContext.Err()))
 		}
 	}
+	cancelPrivateShutdown()
 	logger.Info("contractor server stopped")
 	return firstErr
 }

@@ -291,6 +291,7 @@ func ServeHandler(
 	server := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       time.Minute,
 	}
 
 	errCh := make(chan error, 1)

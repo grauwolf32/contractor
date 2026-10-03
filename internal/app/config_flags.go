@@ -46,7 +46,7 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 		&c.shutdownTimeout,
 		"shutdown-timeout",
 		c.shutdownTimeout,
-		"graceful shutdown timeout",
+		"graceful shutdown timeout per public, Scheduler and private phase",
 	)
 	flags.DurationVar(
 		&c.runtimeRequestTimeout,

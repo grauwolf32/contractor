@@ -178,6 +178,145 @@ func TestServeSystemStopsSchedulerImmediatelyWhenLeaseIsLost(t *testing.T) {
 	}
 }
 
+func TestServeSystemGivesSchedulerItsOwnShutdownBudget(t *testing.T) {
+	publicListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		_ = publicListener.Close()
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	stopped := make(chan struct{})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	result := make(chan error, 1)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	go func() {
+		result <- ServeSystem(ctx, publicListener, privateListener, 150*time.Millisecond, logger,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				close(started)
+				<-release
+				writeHealthy(w, r)
+			}), http.HandlerFunc(writeHealthy),
+			&delayedShutdownRunner{delay: 75 * time.Millisecond, stopped: stopped})
+	}()
+	requestDone := make(chan struct{})
+	go func() {
+		client := &http.Client{Timeout: time.Second}
+		response, _ := client.Get("http://" + publicListener.Addr().String() + "/hold")
+		if response != nil {
+			_ = response.Body.Close()
+		}
+		close(requestDone)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("public request did not start")
+	}
+	cancel()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Scheduler was not given time to drain")
+	}
+	select {
+	case err := <-result:
+		if err == nil || !strings.Contains(err.Error(), "shutdown public HTTP server") ||
+			strings.Contains(err.Error(), "Workflow Scheduler") {
+			t.Fatalf("shutdown result = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ServeSystem did not complete after Scheduler drain")
+	}
+	<-requestDone
+}
+
+func TestServeSystemWaitsForSchedulerAfterBudgetExpires(t *testing.T) {
+	publicListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		_ = publicListener.Close()
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	canceled := make(chan struct{})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	result := make(chan error, 1)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	go func() {
+		result <- ServeSystem(ctx, publicListener, privateListener, 75*time.Millisecond, logger,
+			http.HandlerFunc(writeHealthy), http.HandlerFunc(writeHealthy),
+			&gatedShutdownRunner{canceled: canceled, release: release})
+	}()
+	cancel()
+	select {
+	case <-canceled:
+	case <-time.After(time.Second):
+		t.Fatal("Scheduler was not canceled")
+	}
+	select {
+	case err := <-result:
+		t.Fatalf("ServeSystem returned before Scheduler stopped: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case err := <-result:
+		if err == nil || !strings.Contains(err.Error(), "Workflow Scheduler exceeded shutdown timeout") {
+			t.Fatalf("shutdown result = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ServeSystem did not finish after Scheduler stopped")
+	}
+}
+
+func TestDefaultShutdownBudgetCoversRuntimeCleanup(t *testing.T) {
+	if defaultShutdownTimeout <= defaultOperationalSettings().RuntimeLifecycle.CleanupTimeout {
+		t.Fatal("default shutdown phase budget is shorter than Runtime cleanup")
+	}
+}
+
+type delayedShutdownRunner struct {
+	delay   time.Duration
+	stopped chan struct{}
+}
+
+func (r *delayedShutdownRunner) Run(ctx context.Context) error {
+	<-ctx.Done()
+	time.Sleep(r.delay)
+	close(r.stopped)
+	return nil
+}
+
+type gatedShutdownRunner struct {
+	canceled chan struct{}
+	release  <-chan struct{}
+}
+
+func (r *gatedShutdownRunner) Run(ctx context.Context) error {
+	<-ctx.Done()
+	close(r.canceled)
+	<-r.release
+	return nil
+}
+
 type cancellationProbeRunner struct{ stopped chan struct{} }
 
 func (r *cancellationProbeRunner) Run(ctx context.Context) error {

@@ -1,16 +1,47 @@
 package public
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auth"
 )
+
+func TestLoginStalledBodyHasReadDeadline(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	server := httptest.NewServer(fixture.handler)
+	defer server.Close()
+	connection, err := net.DialTimeout("tcp", server.Listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	if err := connection.SetReadDeadline(time.Now().Add(loginBodyReadTimeout + 3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	request := fmt.Sprintf("POST /v1/auth/login HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nOrigin: %s\r\nContent-Length: 100\r\nConnection: close\r\n\r\n%s",
+		server.Listener.Addr().String(), testBrowserOrigin, `{"username":"admin","password":"`)
+	if _, err := io.WriteString(connection, request); err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.ReadResponse(bufio.NewReader(connection), nil)
+	if err != nil {
+		t.Fatalf("stalled login did not produce a bounded response: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("stalled login status = %d", response.StatusCode)
+	}
+}
 
 func TestLoginAcceptsMaximumEscapedPasswords(t *testing.T) {
 	username := strings.Repeat("a", 64)

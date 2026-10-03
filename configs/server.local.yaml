@@ -11,7 +11,7 @@ spec:
   operatorConfigRoot: .
   managedConfigRoot: ../.local/managed-configs
 
-  shutdownTimeout: 5s
+  shutdownTimeout: 40s
   # Individual private Runtime/A2A HTTP requests only. See docs/operations/timeout-configuration.md.
   runtimeRequestTimeout: 30s
   workerRequestTimeout: 15m
