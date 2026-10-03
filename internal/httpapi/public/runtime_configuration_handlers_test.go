@@ -10,9 +10,90 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+func TestRuntimeMutationErrorsIdentifyTheMissingResource(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	ref := fixture.runtimeConfigs.bindings[runtimeconfig.DefaultLabel].Ref
+	body, err := json.Marshal(runtimeLabelMutationRequest{Config: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, method, path, body, match string
+		status                          int
+		code                            string
+	}{
+		{"missing label rebind", http.MethodPut, "/v1/operations/runtime-labels/missing", string(body), `"1"`, http.StatusNotFound, "not_found"},
+		{"missing label delete", http.MethodDelete, "/v1/operations/runtime-labels/missing", "", `"1"`, http.StatusNotFound, "not_found"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, runtimeMutationRequest(
+				t, test.method, test.path, test.body, "missing-label-"+strings.ReplaceAll(test.name, " ", "-"), test.match, "",
+			))
+			if response.Code != test.status {
+				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, test.code)
+		})
+	}
+
+	missingVersion := runtimeconfig.Ref{
+		Name: "missing", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+	}
+	versionBody, err := json.Marshal(runtimeLabelMutationRequest{Config: missingVersion})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.runtimeConfigs.bindings["present"] = runtimeconfig.Binding{Label: "present", Ref: ref, Revision: 1}
+	for _, test := range []struct {
+		name, label, match, none string
+	}{
+		{"create", "new-label", "", "*"},
+		{"rebind", "present", `"1"`, ""},
+	} {
+		t.Run("missing config version "+test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, runtimeMutationRequest(
+				t, http.MethodPut, "/v1/operations/runtime-labels/"+test.label,
+				string(versionBody), "missing-version-"+test.name, test.match, test.none,
+			))
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "RuntimeConfig version") {
+				t.Fatalf("missing config version = %d: %s", response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, "runtime_config_invalid")
+		})
+	}
+
+	principalID := strings.Repeat("a", 64)
+	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
+		Principal: runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: principalID, LabelRevision: 1},
+	}
+	fixture.runtimePrincipals.replaceErr = runtimeconfig.ErrUnknownLabel
+	for _, test := range []struct {
+		name, id, code string
+		status         int
+	}{
+		{"unknown body label", principalID, "runtime_label_unknown", http.StatusBadRequest},
+		{"missing principal", strings.Repeat("b", 64), "not_found", http.StatusNotFound},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, runtimeMutationRequest(
+				t, http.MethodPut, "/v1/operations/runtime-agent-principals/"+test.id+"/labels",
+				`{"labels":["missing"]}`, "principal-"+strings.ReplaceAll(test.name, " ", "-"), `"1"`, "",
+			))
+			if response.Code != test.status {
+				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, test.code)
+		})
+	}
+}
 
 func TestRuntimeOperationsCreateBindAndKeepCredentialMaterialWriteOnly(t *testing.T) {
 	fixture := newHandlerFixture(t)

@@ -14,6 +14,7 @@ import (
 type fakeRuntimeAgentPrincipalManagement struct {
 	mu         sync.Mutex
 	principals map[string]controlplane.RuntimeAgentPrincipalProjection
+	replaceErr error
 }
 
 func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManagement {
@@ -64,6 +65,9 @@ func (f *fakeRuntimeAgentPrincipalManagement) ReplaceLabels(
 	value, ok := f.principals[id]
 	if !ok {
 		return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrNotFound
+	}
+	if f.replaceErr != nil {
+		return controlplane.RuntimeAgentPrincipalProjection{}, false, f.replaceErr
 	}
 	if value.Principal.LabelRevision != expected {
 		return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrPrecondition
@@ -253,7 +257,7 @@ func (f *fakeRuntimeConfigManagement) CreateBinding(
 		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrPrecondition
 	}
 	if version, ok := f.versions[runtimeConfigKey(ref.Name, ref.Version)]; !ok || version.Ref != ref {
-		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrVersionNotFound
 	}
 	binding := runtimeconfig.Binding{
 		Label: label, Ref: ref, Revision: 1, CreatedBy: actor, CreatedAt: at, UpdatedBy: actor, UpdatedAt: at,
@@ -278,13 +282,13 @@ func (f *fakeRuntimeConfigManagement) Rebind(
 	}
 	binding, ok := f.bindings[label]
 	if !ok {
-		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrLabelNotFound
 	}
 	if binding.Revision != expected {
 		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrPrecondition
 	}
 	if version, ok := f.versions[runtimeConfigKey(ref.Name, ref.Version)]; !ok || version.Ref != ref {
-		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrVersionNotFound
 	}
 	if binding.Ref != ref {
 		binding.Ref = ref
@@ -314,7 +318,7 @@ func (f *fakeRuntimeConfigManagement) DeleteBinding(
 	}
 	binding, ok := f.bindings[label]
 	if !ok {
-		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrLabelNotFound
 	}
 	if binding.Revision != expected {
 		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrPrecondition

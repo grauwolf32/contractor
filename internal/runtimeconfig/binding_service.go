@@ -133,6 +133,9 @@ func (s *BindingService) validateTargetInTransaction(ctx context.Context, tx pgx
 	}
 	version, err := NewRepository(tx).GetVersionByRef(ctx, ref)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrVersionNotFound
+		}
 		return err
 	}
 	if err := validateSpecRuntimeCredentials(ctx, version.Spec, validator); err != nil {

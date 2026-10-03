@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V174-001
+title: Classify Runtime label mutation misses by resource
+milestone: runtime-label-errors-2026-10
+priority: P2
+status: completed
+implementation_commit: 1b0ed196baf7bee413afb51b6b50f95330713847
+depends_on: []
+languages: [go]
+goal: Return HTTP errors for the resource actually missing in Runtime label mutations.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/245
+  finding: One ErrNotFound sentinel covers path labels, body labels and RuntimeConfig versions.
+scope:
+  in:
+    - Distinguish path label, selected label and config-version misses while preserving ErrNotFound matching.
+    - Map path label misses to 404 and selected-label/version misses to specific 400 responses.
+    - Cover handler and PostgreSQL mutation paths.
+  out:
+    - Change successful idempotency or CAS semantics.
+acceptance_criteria:
+  - {id: A1, text: Missing path label on CAS PUT or DELETE returns 404 not_found.}
+  - {id: A2, text: Unknown body label on an existing principal returns 400 runtime_label_unknown; missing principal remains 404.}
+  - {id: A3, text: Missing RuntimeConfig version is reported as a RuntimeConfig error.}
+  - {id: A4, text: Existing ErrNotFound callers and successful mutations remain compatible.}
+tests:
+  - {command: go test ./internal/httpapi/public ./internal/runtimeconfig, covers: [A1, A2, A3, A4]}

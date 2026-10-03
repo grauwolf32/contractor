@@ -178,6 +178,13 @@ func (s *ManagementService) Rebind(
 			}
 			repository := NewRepository(tx)
 			if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
+				if errors.Is(err, ErrNotFound) {
+					if _, pathErr := repository.GetBinding(ctx, label); errors.Is(pathErr, ErrNotFound) {
+						return ErrLabelNotFound
+					} else if pathErr != nil {
+						return pathErr
+					}
+				}
 				return err
 			}
 			principalRepository := NewPrincipalRepository(tx)
@@ -204,6 +211,9 @@ func (s *ManagementService) Rebind(
 			}
 			binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
 			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					return ErrLabelNotFound
+				}
 				return err
 			}
 			for _, principal := range locked {
@@ -249,6 +259,9 @@ func (s *ManagementService) DeleteBinding(
 			}
 			repository := NewRepository(tx)
 			if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
+				if errors.Is(err, ErrNotFound) {
+					return ErrLabelNotFound
+				}
 				return err
 			}
 			principals, err := NewPrincipalRepository(tx).ListByLabel(ctx, label)
@@ -259,6 +272,9 @@ func (s *ManagementService) DeleteBinding(
 				return labelInUseError(principals)
 			}
 			if err := repository.DeleteBinding(ctx, label, expectedRevision); err != nil {
+				if errors.Is(err, ErrNotFound) {
+					return ErrLabelNotFound
+				}
 				return err
 			}
 			result = BindingMutationResult{Deleted: true}

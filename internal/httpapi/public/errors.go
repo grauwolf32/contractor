@@ -65,6 +65,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		})
 	case errors.Is(err, runtimeconfig.ErrReserved):
 		h.writeError(w, http.StatusConflict, "runtime_label_in_use", "reserved Runtime label cannot be removed", false)
+	case errors.Is(err, runtimeconfig.ErrLabelNotFound):
+		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+	case errors.Is(err, runtimeconfig.ErrVersionNotFound):
+		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "selected RuntimeConfig version is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrNotFound):
 		h.writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrConflict):

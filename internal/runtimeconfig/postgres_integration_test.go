@@ -279,6 +279,28 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	); !errors.Is(err, ErrConflict) {
 		t.Fatalf("changed create replay error = %v", err)
 	}
+	if _, err := management.Rebind(
+		ctx, "missing", 1, refs[0], "binding-missing-rebind", "operator", now,
+	); !errors.Is(err, ErrLabelNotFound) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing path label rebind error = %v", err)
+	}
+	if _, err := management.DeleteBinding(
+		ctx, "missing", 1, "binding-missing-delete", "operator", now,
+	); !errors.Is(err, ErrLabelNotFound) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing path label delete error = %v", err)
+	}
+	missingVersion := refs[0]
+	missingVersion.Version = "absent"
+	if _, err := management.CreateBinding(
+		ctx, "missing-version", missingVersion, "binding-missing-version-create", "operator", now,
+	); !errors.Is(err, ErrVersionNotFound) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing config version create error = %v", err)
+	}
+	if _, err := management.Rebind(
+		ctx, "managed", 1, missingVersion, "binding-missing-version-rebind", "operator", now,
+	); !errors.Is(err, ErrVersionNotFound) || !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing config version rebind error = %v", err)
+	}
 
 	results := make([]BindingMutationResult, 2)
 	errorsFound := make([]error, 2)
