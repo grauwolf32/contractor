@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V92-001
+title: Summarize Katana discovery reports in Artifact previews
+milestone: artifact-feedback-corrections-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Show Katana technical outcomes and bounded-discovery limitations alongside raw report JSON.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/293
+  finding: Scanner execution summary excludes scan_katana and has no discovery completeness handling.
+scope:
+  in:
+    - Recognize scan_katana reports and validate discoveryComplete.
+    - Distinguish bounded discovery and no targets from complete scanning.
+    - Surface Katana error codes and retain the raw report.
+  out:
+    - Change Katana execution or report contracts.
+acceptance_criteria:
+  - {id: A1, text: Valid Katana reports render a Scanner execution summary and raw JSON.}
+  - {id: A2, text: Bounded discovery is never reported as plain Completed; no targets and scanner errors are non-success outcomes.}
+  - {id: A3, text: Invalid discoveryComplete yields Unknown; UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/artifacts/scan-report-summary.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}
