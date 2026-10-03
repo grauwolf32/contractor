@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlsplit
 
 import httpx
 from google.adk.tools.tool_context import ToolContext
+from pydantic import ValidationError
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
@@ -62,6 +63,8 @@ from contractor_runtime.toolsets.http.limits import (
     header_block_bytes,
 )
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
+from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
+from contractor_runtime.toolsets.security_findings.locations import validate_web_url
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
@@ -113,6 +116,7 @@ _ERROR_RETRYABILITY = MappingProxyType(
         "http_request_invalid": False,
         "http_target_denied": False,
         "http_request_failed": True,
+        "http_response_invalid": False,
         "http_response_too_large": False,
         "http_body_not_found": False,
     }
@@ -608,6 +612,10 @@ class _HTTPSession:
 
         def observe(request: httpx.Request) -> None:
             nonlocal attempt
+            try:
+                validate_web_url(str(request.url))
+            except ValueError:
+                raise HTTPToolError("http_request_invalid") from None
             captured = CapturedAttempt.from_request(request, target_credential=target_credential)
             if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
                 # Session cookies or auth grew the block past what finding
@@ -634,6 +642,11 @@ class _HTTPSession:
                 response = await client.send(request, stream=True, follow_redirects=False)
             assert attempt is not None
             attempt.receive(response)
+            try:
+                HTTPAttempt.model_validate(attempt.snapshot())
+            except ValidationError:
+                await response.aclose()
+                raise HTTPToolError("http_response_invalid") from None
             return response
         except asyncio.CancelledError:
             if attempt is not None:
