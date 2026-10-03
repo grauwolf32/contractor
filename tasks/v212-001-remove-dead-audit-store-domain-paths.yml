@@ -3,7 +3,8 @@ id: V212-001
 title: Remove dead Audit store and domain paths
 milestone: audit-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e7dd4839caadba09ae9a21c31aa02ad3fb707bfe
 depends_on: []
 languages: [go]
 goal: Keep the Audit store and domain API limited to active production behavior.
