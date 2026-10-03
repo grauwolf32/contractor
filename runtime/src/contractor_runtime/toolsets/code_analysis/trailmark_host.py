@@ -935,8 +935,17 @@ def _admit_snapshot(
     unsupported = 0
     oversized = 0
     excluded = 0
+    header_parser_active = any(
+        PurePosixPath(item.path).suffix.lower() in {".c", ".m", ".mm"}
+        and not language_support.graph_walk_excluded(item.path)
+        and item.size <= MAX_GRAPH_FILE_BYTES
+        for item in snapshot.files
+    )
     for item in sorted(snapshot.files, key=lambda candidate: candidate.path):
-        graph_source = PurePosixPath(item.path).suffix in language_support.GRAPH_EXTENSION_LANGUAGES
+        suffix = PurePosixPath(item.path).suffix.lower()
+        graph_source = suffix in language_support.GRAPH_EXTENSION_LANGUAGES and (
+            suffix != ".h" or header_parser_active
+        )
         if not graph_source and language_support.detect_language(item.path) is None:
             continue
         # Trailmark would never parse these, so they must not consume the
