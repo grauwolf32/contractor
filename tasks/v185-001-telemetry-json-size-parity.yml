@@ -3,12 +3,14 @@ id: V185-001
 title: Align telemetry JSON size limits across Runtime and Server
 milestone: telemetry-json-size-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c1336ef0d9a53d31f72a81f9bac2a3004d650e29
 depends_on: []
 languages: [go, python]
 goal: Accept Runtime reports whose compact UTF-8 JSON fits the published limits.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/203
+  specification: docs/spec/04-execution-lifecycle-and-metrics.md
   finding: Go's default JSON marshaler inflates HTML characters and line separators.
 scope:
   in:
