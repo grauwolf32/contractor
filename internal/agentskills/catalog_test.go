@@ -124,6 +124,34 @@ func TestCatalogCrashRecoveryCreatesOnlyMissingBindings(t *testing.T) {
 	}
 }
 
+func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.T) {
+	plan := bundledPlan(t, map[string]string{"alpha": "Alpha.", "beta": "Beta."})
+	repository := newMemoryArtifactRepository()
+	service := artifacts.NewService(repository)
+	catalog, _ := NewCatalog(service)
+	if _, err := catalog.Initialize(t.Context(), "owner", plan); err != nil {
+		t.Fatal(err)
+	}
+	repository.readExistingErr = artifacts.ErrBlobMissing
+	outcomes, err := catalog.Initialize(t.Context(), "owner", plan)
+	if err != nil || !reflect.DeepEqual(outcomeStatuses(outcomes), []string{"alpha:content_missing", "beta:content_missing"}) {
+		t.Fatalf("missing blob outcomes = %v, %v", outcomes, err)
+	}
+	if repository.successfulWrites != 2 || repository.revisions != 2 {
+		t.Fatalf("missing blob was rewritten: writes=%d revisions=%d", repository.successfulWrites, repository.revisions)
+	}
+	owner, _ := service.User("owner")
+	if _, err := owner.Read(t.Context(), artifacts.ArtifactRef{Namespace: SkillNamespace, Name: "alpha"}); !errors.Is(err, artifacts.ErrBlobMissing) {
+		t.Fatalf("missing seeded Skill read = %v", err)
+	}
+	for _, failure := range []error{context.Canceled, errors.New("storage unavailable")} {
+		repository.readExistingErr = failure
+		if _, err := catalog.Initialize(t.Context(), "owner", plan); !errors.Is(err, failure) {
+			t.Fatalf("non-blob read failure %v became %v", failure, err)
+		}
+	}
+}
+
 func TestCatalogConcurrentCreateCASReconcilesLoser(t *testing.T) {
 	plan := bundledPlan(t, map[string]string{"alpha": "Alpha."})
 	repository := newMemoryArtifactRepository()
@@ -305,6 +333,7 @@ type memoryArtifactRepository struct {
 	successfulWrites          int
 	failAfterSuccessfulWrites int
 	missingBarrier            *missingReadBarrier
+	readExistingErr           error
 }
 
 func newMemoryArtifactRepository() *memoryArtifactRepository {
@@ -326,6 +355,7 @@ func (r *memoryArtifactRepository) Read(_ context.Context, scope artifacts.Scope
 		stored, exists = r.history[key][*ref.Revision]
 	}
 	barrier := r.missingBarrier
+	readExistingErr := r.readExistingErr
 	r.mu.Unlock()
 	if !exists {
 		if barrier != nil {
@@ -333,6 +363,9 @@ func (r *memoryArtifactRepository) Read(_ context.Context, scope artifacts.Scope
 			<-barrier.release
 		}
 		return artifacts.ReadResult{}, artifacts.ErrArtifactNotFound
+	}
+	if readExistingErr != nil {
+		return artifacts.ReadResult{}, readExistingErr
 	}
 	result := stored.result
 	result.Payload.Data = append([]byte(nil), stored.result.Payload.Data...)

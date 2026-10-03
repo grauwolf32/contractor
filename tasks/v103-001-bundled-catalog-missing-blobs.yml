@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V103-001
+title: Keep Server ready when bundled catalog blob content is missing
+milestone: bundled-catalog-missing-blob-recovery-2026-10
+priority: P1
+status: completed
+implementation_commit: bf62105f61c5c7b6d40b619dc20758b45994903c
+depends_on: []
+languages: [go]
+goal: Avoid a startup crash loop after a filesystem blob root is replaced while preserving missing-content errors.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/124
+  finding: Seed reads and AuditProfile standard validation treat an existing binding's missing blob as a fatal startup error.
+scope:
+  in:
+    - Report bounded content_missing seed outcomes for existing Skill and Audit standard bindings without replacing them.
+    - Allow startup validation to defer AuditProfile standard content reads that fail with ErrBlobMissing.
+    - Stage bundled catalog fixtures in the filesystem blob restart e2e gate and assert 503 content_missing after restart.
+    - Keep standard drift, cancellation and other read failures fatal.
+  out:
+    - Repair or rewrite missing blob bytes and change the artifact read contract.
+acceptance_criteria:
+  - {id: A1, text: Filesystem backend restart with missing seeded blobs reaches readyz and logs one content_missing outcome per affected seed.}
+  - {id: A2, text: Reading a missing seeded Skill or standard-backed API returns 503 artifact_content_missing.}
+  - {id: A3, text: Standard drift and non-missing failures still stop initialization.}
+  - {id: A4, text: Unit and container e2e tests pass.}
+tests:
+  - {command: go test ./internal/agentskills ./internal/auditstandards ./internal/app ./internal/httpapi/public, covers: [A1, A2, A3, A4]}
+  - {command: go test -tags=e2e ./tests/e2e -run TestArtifactBlobBackendsContainers -count=1, covers: [A1, A2, A4]}

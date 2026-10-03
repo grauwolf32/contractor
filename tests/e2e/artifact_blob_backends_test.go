@@ -70,6 +70,7 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			gateway := newFakeGateway(llmGatewayToken)
 			t.Cleanup(gateway.close)
 			configs := stageE2EConfiguration(t, filepath.Join(repositoryRoot, "configs", "e2e"), filepath.Join(root, "configs"), gateway.URL())
+			stageBlobCatalogFixtures(t, repositoryRoot, configs)
 			publicAddress, privateAddress := freeAddress(t), freeAddress(t)
 			publicURL, privateURL := "http://"+publicAddress, "https://"+privateAddress
 			userID := "blob-gate-" + randomHex(t, 8)
@@ -105,6 +106,12 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 				waitForHTTP(t, ctx, server, client, publicURL+"/readyz", http.StatusOK)
 			}
 			start()
+			for _, path := range []string{
+				"/v1/artifacts/skills/trace",
+				"/v1/audit-standards/owasp-web-top10/versions/2025",
+			} {
+				blobGateCatalogRead(t, client, publicURL+path, http.StatusOK)
+			}
 			// Same authenticated public and allocation-scoped mTLS APIs as normal runs.
 			python := filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python")
 			runtimeAddress := freeAddress(t)
@@ -142,6 +149,27 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 			if backend == "postgresql" {
 				blobGateVerify(t, client, exact, payload)
 			} else {
+				for _, path := range []string{
+					"/v1/artifacts/skills/trace",
+					"/v1/audit-standards/owasp-web-top10/versions/2025",
+				} {
+					blobGateCatalogRead(t, client, publicURL+path, http.StatusServiceUnavailable)
+				}
+				logs := server.logs.redacted()
+				for _, seed := range []struct{ message, identity string }{
+					{"bundled skill initialization", "trace"},
+					{"bundled Audit standard initialization", "owasp-web-top10"},
+				} {
+					count := 0
+					for _, line := range strings.Split(logs, "\n") {
+						if strings.Contains(line, seed.message) && strings.Contains(line, seed.identity) && strings.Contains(line, "content_missing") {
+							count++
+						}
+					}
+					if count != 1 {
+						t.Fatalf("startup logged %d missing-content outcomes for %s, want one", count, seed.identity)
+					}
+				}
 				request, _ := http.NewRequest(http.MethodGet, exact, nil)
 				request.Header.Set("Authorization", "Bearer "+publicToken)
 				response := do(t, client, request, http.StatusServiceUnavailable)
@@ -157,6 +185,55 @@ func TestArtifactBlobBackendsContainers(t *testing.T) {
 				blobGateRunMetadata(t, client, publicURL, runID)
 			}
 		})
+	}
+}
+
+func stageBlobCatalogFixtures(t *testing.T, repositoryRoot, target string) {
+	t.Helper()
+	source := filepath.Join(repositoryRoot, "configs")
+	for _, relative := range []string{
+		"skills/trace",
+		"audit-standards/owasp-web-top10-2025",
+	} {
+		destination := filepath.Join(target, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.CopyFS(destination, os.DirFS(filepath.Join(source, filepath.FromSlash(relative)))); err != nil {
+			t.Fatalf("stage bundled catalog %s: %v", relative, err)
+		}
+	}
+	for destination, relative := range map[string]string{
+		"audit-profiles/owasp_top10_2025_source_risk.yaml": "audit-profiles/owasp_top10_2025_source_risk.yaml",
+		"workflows/audit_top10_source_risk.yaml":           "workflows/audit_top10_source_risk.yaml",
+		"agent-templates/audit_risk_source_checker.yaml":   "agent-templates/audit_risk_source_checker.yaml",
+		"instructions/audit-risk-source-checker-worker.md": "instructions/audit-risk-source-checker-worker.md",
+		"model-policies/worker_v2.yaml":                    "model-policies/worker.yaml",
+	} {
+		data, err := os.ReadFile(filepath.Join(source, filepath.FromSlash(relative)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(target, filepath.FromSlash(destination)), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func blobGateCatalogRead(t *testing.T, client *http.Client, target string, status int) {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	response := do(t, client, request, status)
+	defer response.Body.Close()
+	if status == http.StatusServiceUnavailable {
+		body := copyBounded(response.Body)
+		if !strings.Contains(body, "artifact_content_missing") {
+			t.Fatalf("catalog read did not report missing content: %s", body)
+		}
 	}
 }
 

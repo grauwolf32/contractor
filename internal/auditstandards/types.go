@@ -186,8 +186,9 @@ type PackageProjection struct {
 type SeedStatus string
 
 const (
-	SeedCreated SeedStatus = "created"
-	SeedInSync  SeedStatus = "in_sync"
+	SeedCreated        SeedStatus = "created"
+	SeedInSync         SeedStatus = "in_sync"
+	SeedContentMissing SeedStatus = "content_missing"
 )
 
 type SeedMetadata struct {

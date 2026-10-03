@@ -199,6 +199,38 @@ func TestCatalogRejectsDriftWithoutAdvancingBinding(t *testing.T) {
 	}
 }
 
+func TestCatalogMissingBlobReportsSeedOutcomeWithoutRewritingBinding(t *testing.T) {
+	root := t.TempDir()
+	writePackageSource(t, root, "example-v1", validDocument("example", "1"))
+	plan, err := DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := newMemoryRepository()
+	service := artifacts.NewService(repository)
+	catalog, _ := NewCatalog(service)
+	if _, err := catalog.Initialize(t.Context(), "owner", plan); err != nil {
+		t.Fatal(err)
+	}
+	repository.readExistingErr = artifacts.ErrBlobMissing
+	outcomes, err := catalog.Initialize(t.Context(), "owner", plan)
+	if err != nil || len(outcomes) != 1 || outcomes[0].Status != SeedContentMissing {
+		t.Fatalf("missing blob outcome = %v, %v", outcomes, err)
+	}
+	if repository.writes != 1 {
+		t.Fatalf("missing blob was rewritten: %d writes", repository.writes)
+	}
+	if _, err := catalog.Resolve(t.Context(), "owner", Reference{Scheme: "example", Version: "1"}); !errors.Is(err, artifacts.ErrBlobMissing) {
+		t.Fatalf("missing standard resolution = %v", err)
+	}
+	for _, failure := range []error{context.Canceled, errors.New("storage unavailable")} {
+		repository.readExistingErr = failure
+		if _, err := catalog.Initialize(t.Context(), "owner", plan); !errors.Is(err, failure) {
+			t.Fatalf("non-blob read failure %v became %v", failure, err)
+		}
+	}
+}
+
 func validDocument(scheme, version string) Document {
 	contract := EvidenceContractRef{ID: "source-evidence", Version: "1"}
 	return Document{
@@ -287,9 +319,10 @@ func rawArchive(t *testing.T, name string, data []byte) []byte {
 }
 
 type memoryRepository struct {
-	mu       sync.Mutex
-	bindings map[string]artifacts.ReadResult
-	writes   int
+	mu              sync.Mutex
+	bindings        map[string]artifacts.ReadResult
+	writes          int
+	readExistingErr error
 }
 
 func newMemoryRepository() *memoryRepository {
@@ -328,6 +361,9 @@ func (r *memoryRepository) Read(_ context.Context, scope artifacts.Scope, ref ar
 	result, exists := r.bindings[artifactKey(scope, ref)]
 	if !exists || ref.Revision != nil && (result.Ref.Revision == nil || *ref.Revision != *result.Ref.Revision) {
 		return artifacts.ReadResult{}, artifacts.ErrArtifactNotFound
+	}
+	if r.readExistingErr != nil {
+		return artifacts.ReadResult{}, r.readExistingErr
 	}
 	result.Payload.Data = append([]byte(nil), result.Payload.Data...)
 	return result, nil

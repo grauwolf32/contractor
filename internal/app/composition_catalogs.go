@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -76,18 +77,25 @@ func configureCatalogs(
 			"digest", outcome.Digest,
 		)
 	}
-	if err := validateCatalogStandards(ctx, configurationManager, standardCatalog, ownerID); err != nil {
+	if err := validateCatalogStandards(ctx, configurationManager, standardCatalog, ownerID, logger); err != nil {
 		return catalogServices{}, err
 	}
 	return catalogServices{artifacts: artifactService, findings: findingService}, nil
 }
 
-func validateCatalogStandards(ctx context.Context, configurationManager *workflowconfig.Manager, standardCatalog *auditstandards.Catalog, ownerID string) error {
+func validateCatalogStandards(ctx context.Context, configurationManager *workflowconfig.Manager, standardCatalog *auditstandards.Catalog, ownerID string, logger *slog.Logger) error {
 	for _, profile := range configurationManager.AuditProfiles() {
 		for _, standard := range profile.Standards {
 			resolved, err := standardCatalog.Resolve(ctx, ownerID, auditstandards.Reference{
 				Scheme: standard.Scheme, Version: standard.Version,
 			})
+			if errors.Is(err, artifacts.ErrBlobMissing) {
+				logger.Warn("AuditProfile standard content missing",
+					"profile", profile.Ref.Name, "version", profile.Ref.Version,
+					"scheme", standard.Scheme, "standard_version", standard.Version,
+				)
+				continue
+			}
 			if err != nil {
 				return fmt.Errorf(
 					"resolve AuditProfile %s@%s standard %s@%s: %w",
