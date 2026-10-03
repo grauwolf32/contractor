@@ -49,13 +49,18 @@ if [ "$database_ready" != true ]; then
   exit 1
 fi
 
+# Podman reads these from its environment; secret values must not appear in
+# its long-lived command line while the foreground proxy is running.
+export LITELLM_MASTER_KEY="$master_key"
+export LITELLM_SALT_KEY="$salt_key"
+export CONTRACTOR_LM_STUDIO_TOKEN="$upstream_token"
 exec podman run --rm --name "$proxy_name" --network "$network_name" \
   -p 127.0.0.1:4000:4000 \
-  -e LITELLM_MASTER_KEY="$master_key" \
-  -e LITELLM_SALT_KEY="$salt_key" \
+  -e LITELLM_MASTER_KEY \
+  -e LITELLM_SALT_KEY \
   -e DATABASE_URL="postgresql://postgres:contractor-litellm-local@$database_name:5432/litellm" \
   -e CONTRACTOR_LM_STUDIO_URL="$upstream_url" \
-  -e CONTRACTOR_LM_STUDIO_TOKEN="$upstream_token" \
+  -e CONTRACTOR_LM_STUDIO_TOKEN \
   -v "$script_dir/litellm_config.yaml:/app/config.yaml:ro,Z" \
   "$litellm_image" \
   --config /app/config.yaml --host 0.0.0.0 --port 4000
