@@ -3,7 +3,8 @@ id: V173-001
 title: Analyze C-family headers in shallow and graph views
 milestone: code-analysis-headers-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 470e0bc008f5e68fe2ae0844c49afeb3b28d8a2b
 depends_on: []
 languages: [python]
 goal: Preserve C and C++ header symbols and graph calls with truthful coverage.
