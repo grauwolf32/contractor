@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V221-001
+title: Fit code analysis pages without repeatedly canonicalizing full results
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Keep large code analysis result fitting efficient and off the Runtime Agent event loop.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/170
+  finding: Page fitting drops one result at a time and canonicalizes the entire remaining page on the event loop.
+scope:
+  in:
+    - Measure each row once and select the largest fitting prefix using bounded metadata checks.
+    - Reuse the fitting logic for shallow, graph and path result pages.
+    - Run page fitting off the event loop while preserving the session lock and cancellation ownership.
+  out:
+    - Changing row construction, cursor encoding or result byte limits.
+acceptance_criteria:
+  - {id: A1, text: A 200-row shrinking page canonicalizes each row at most once plus a small number of envelope checks.}
+  - {id: A2, text: Shallow, graph and path results preserve their projections and stay within the encoded byte bound.}
+  - {id: A3, text: Page fitting does not stall the event loop while a 200-definition search runs.}
+  - {id: A4, text: An empty result that cannot fit still raises code_analysis_capacity_exceeded.}
+tests:
+  - {command: cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_code_analysis_concurrency.py, covers: [A1, A2, A3, A4]}
+  - {command: make test-runtime, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
