@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V128-001
+title: Classify malformed HTTP URLs as invalid input before dispatch
+milestone: invalid-http-urls-2026-10
+priority: P2
+status: completed
+implementation_commit: d261c2d1c8a2a6373439d55ae0dd13cd0b1b026e
+depends_on: []
+languages: [python]
+goal: Prevent malformed model URLs from triggering retryable transport failures or proxy backoff.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/218
+  finding: httpx.InvalidURL from request building falls into retryable request failure on direct and proxy routes.
+scope:
+  in:
+    - Validate raw and httpx-parsed URLs before every request dispatch.
+    - Preserve InvalidURL through the proxy builder and classify it as http_request_invalid.
+    - Verify direct and proxy routes do not send or retry malformed URLs.
+  out:
+    - Change genuine transport-error retry policy.
+acceptance_criteria:
+  - {id: A1, text: Control characters and invalid IDNA hosts fail as non-retryable http_request_invalid on both routes.}
+  - {id: A2, text: Malformed URLs reach neither transport nor retry sleep; genuine proxy transport failures still retry.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_http_toolset.py runtime/tests/test_tool_input_errors.py, covers: [A1, A2]}

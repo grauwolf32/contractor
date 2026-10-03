@@ -131,6 +131,8 @@ one implementation-defined static operation, never arbitrary model GraphQL.
   send, including redirects and retries. A URL that grows past 8192 UTF-8
   bytes after encoding, contains a backslash or has an invalid percent escape
   fails `http_request_invalid` before that hop is sent.
+  Raw control characters and invalid IDNA hosts are also invalid input;
+  neither direct nor proxy routes retry them as transport failures.
 
 A response with a status outside 100..599 or headers that the finding-evidence
 contract cannot retain (including a block over 64 KiB) fails

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ipaddress
 import json
 import math
 import re
@@ -17,6 +18,7 @@ from typing import Any, Literal
 from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlsplit
 
 import httpx
+import idna
 from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
@@ -654,6 +656,8 @@ class _HTTPSession:
             raise
         except HTTPToolError:
             raise
+        except (httpx.InvalidURL, idna.IDNAError):
+            raise HTTPToolError("http_request_invalid") from None
         except (TargetDenied, ProxyTargetDenied):
             # Connect-time and proxy-route denials share the pre-send code.
             if attempt is not None:
@@ -1400,6 +1404,7 @@ def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> floa
 
 def _validate_target(url: str, policy: TargetPolicy) -> None:
     try:
+        validate_web_url(url)
         parsed = urlsplit(url)
         if (
             parsed.scheme not in {"http", "https"}
@@ -1409,10 +1414,17 @@ def _validate_target(url: str, policy: TargetPolicy) -> None:
             or parsed.fragment
         ):
             raise HTTPToolError("http_request_invalid")
+        host = parsed.hostname
+        assert host is not None
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            # httpx validates even ASCII A-labels when building the request.
+            idna.encode(host.lower().rstrip("."))
         _origin(url)
     except HTTPToolError:
         raise
-    except (UnicodeError, ValueError):
+    except (httpx.InvalidURL, UnicodeError, ValueError):
         raise HTTPToolError("http_request_invalid") from None
     # Literal and name checks run before every hop in both routes. A direct
     # client repeats the address check on the resolved peer at connect time.
