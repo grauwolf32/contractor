@@ -22,7 +22,11 @@ require-database:
 runtime-venv:
 	cd runtime && uv sync --locked
 
-include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk
+# Family targets retain their focused Go suites when invoked directly. The
+# release gate runs their union once through dedicated aggregate targets.
+run-family-test = $(if $(filter 1,$(RELEASE_CONSOLIDATED)),:,$(1))
+
+include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk make/release.mk
 
 test: test-go test-runtime
 

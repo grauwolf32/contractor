@@ -11,6 +11,7 @@ fmt:
 lint:
 	test -z "$$(gofmt -l cmd internal tests)"
 	go vet ./...
+	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 
@@ -24,7 +25,7 @@ verify-public-api:
 	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestPublicRequestAndHistoryContracts)$$'
 
 verify-public-api-postgres: require-database
-	go test -race -count=1 ./internal/httpapi/public -run '^TestPublicAuditPaginationBoundary$$'
+	$(call run-family-test,go test -race -count=1 ./internal/httpapi/public -run '^TestPublicAuditPaginationBoundary$$')
 
 run-local:
 	go run ./cmd/contractor-server migrate
