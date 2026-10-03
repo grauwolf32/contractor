@@ -3,7 +3,8 @@ id: V235-001
 title: Keep Eval authority revisions stable across coordinator observations
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 776ffb2ab780bb93e4d71ac3cd696c43bb0c49d5
 depends_on: []
 languages: [go, sql]
 goal: Let an owner pause or cancel an Eval using the last authority revision even while coordinator observations continue.
