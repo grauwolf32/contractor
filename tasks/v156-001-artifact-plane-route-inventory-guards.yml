@@ -3,7 +3,8 @@ id: V156-001
 title: Scan all public route sources for Skill and Memory endpoints
 milestone: artifact-plane-route-inventory-guards-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ffb0ea446385941c3269f89c2e42acefc4966586
 depends_on: []
 languages: [go]
 goal: Keep Skill and Memory inventory guards effective as public routes move between source files.
