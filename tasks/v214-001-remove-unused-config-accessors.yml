@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V214-001
+title: Remove unused configuration accessors
+milestone: configuration-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: cf4424662285a62a87b624db16ec6fe723c7acb7
+depends_on: []
+languages: [go]
+goal: Remove unused exported configuration accessors while retaining typed loader coverage.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/167
+  finding: Four Snapshot and Manager accessors have no production callers; one listing has no callers at all.
+scope:
+  in:
+    - Remove Snapshot ExecutionConfig, ExecutionConfigs and LLMGateways and Manager Counts.
+    - Keep typed execution-profile assertions in config tests using package-private state.
+    - Keep gateway deep-copy coverage on its production single-item accessor.
+    - Route manager count tests through Snapshot Counts.
+  out:
+    - Changing configuration loading, publication or public projections.
+acceptance_criteria:
+  - {id: A1, text: The four unused exported accessors are gone with no remaining callers.}
+  - {id: A2, text: Typed execution-profile and gateway credential-manager resolution remains tested.}
+  - {id: A3, text: Configuration tests and project build pass.}
+tests:
+  - {command: go test ./internal/config/..., covers: [A1, A2, A3]}
+  - {command: go build ./..., covers: [A1, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

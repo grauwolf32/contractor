@@ -19,7 +19,7 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 	operator := copyConfigTree(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager := newTestManager(t, operator, managed, ManagerOptions{})
-	before := manager.Counts().ModelPolicies
+	before := manager.Snapshot().Counts().ModelPolicies
 
 	request := validPolicyPublication("publish-policy")
 	result, err := manager.Publish(t.Context(), request)
@@ -30,7 +30,7 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 		t.Fatalf("publication result = %+v", result)
 	}
 	assertDigest(t, result.Resource.Ref.Digest)
-	if got := manager.Counts().ModelPolicies; got != before+1 {
+	if got := manager.Snapshot().Counts().ModelPolicies; got != before+1 {
 		t.Fatalf("current ModelPolicy count = %d, want baseline+1 (%d)", got, before+1)
 	}
 
@@ -268,7 +268,7 @@ func TestManagerConcurrentDurablePublicationsHaveOneWinner(t *testing.T) {
 
 func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
 	manager := newTestManager(t, copyConfigTree(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
-	before := manager.Counts().ModelPolicies
+	before := manager.Snapshot().Counts().ModelPolicies
 	start := make(chan struct{})
 	var wait sync.WaitGroup
 	for range 16 {

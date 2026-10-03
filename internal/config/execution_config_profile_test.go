@@ -18,14 +18,20 @@ const openAPIValidationEscalationYAML = `        failed:
               fail: {}
 `
 
+func resolvedExecutionConfigForTest(t *testing.T, snapshot *Snapshot, ref string) ResolvedExecutionConfigProfile {
+	t.Helper()
+	profile, ok := snapshot.executionConfigs[ref]
+	if !ok {
+		t.Fatalf("resolved ExecutionConfig %q is absent", ref)
+	}
+	return profile
+}
+
 func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, copyEscalationConfigTree(t), MVPDescriptors())
-	profile, err := snapshot.ExecutionConfig("strong-oas-review@1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	profile := resolvedExecutionConfigForTest(t, snapshot, "strong-oas-review@1")
 	assertDigest(t, profile.Ref.Digest)
 	validatorOverride, ok := profile.Override.Agents["validator"]
 	if !ok || validatorOverride.ModelPolicy == nil ||
@@ -61,13 +67,6 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	}
 	if got := stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"].Origins.ModelPolicy; got != "executionConfig.strong-oas-review@1.agents.validator" {
 		t.Fatalf("Run escalation origin = %q", got)
-	}
-
-	// Accessors return deep copies, including dependency bodies.
-	profile.Override.Agents["validator"] = ResolvedExecutionSelectionOverride{}
-	again, err := snapshot.ExecutionConfig("strong-oas-review@1")
-	if err != nil || again.Override.Agents["validator"].ModelPolicy == nil {
-		t.Fatalf("profile accessor leaked caller mutation: (%+v, %v)", again, err)
 	}
 }
 
@@ -113,7 +112,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 func TestExecutionConfigDigestNormalizesPresentation(t *testing.T) {
 	baselineRoot := copyEscalationConfigTree(t)
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
-	baselineProfile, _ := baseline.ExecutionConfig("strong-oas-review@1")
+	baselineProfile := resolvedExecutionConfigForTest(t, baseline, "strong-oas-review@1")
 
 	variantRoot := copyEscalationConfigTree(t)
 	writeFile(t, filepath.Join(variantRoot, "execution-configs/strong_oas_review.yaml"), []byte(`kind: ExecutionConfig
@@ -124,7 +123,7 @@ spec:
     validator: {modelPolicy: 'test-strong-worker@1'}
 `))
 	variant := mustLoad(t, variantRoot, MVPDescriptors())
-	variantProfile, _ := variant.ExecutionConfig("strong-oas-review@1")
+	variantProfile := resolvedExecutionConfigForTest(t, variant, "strong-oas-review@1")
 	if baselineProfile.Ref.Digest != variantProfile.Ref.Digest {
 		t.Fatalf("presentation changed digest: %s != %s", baselineProfile.Ref.Digest, variantProfile.Ref.Digest)
 	}
@@ -139,7 +138,7 @@ func TestExecutionConfigProfileSupportsCredentialClear(t *testing.T) {
 		"      modelPolicy: test-strong-worker@1\n      credential: null",
 	)
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	profile, _ := snapshot.ExecutionConfig("strong-oas-review@1")
+	profile := resolvedExecutionConfigForTest(t, snapshot, "strong-oas-review@1")
 	credential := profile.Override.Agents["validator"].Credential
 	if credential == nil || !credential.Clear || credential.Ref != nil {
 		t.Fatalf("credential clear override = %+v", credential)

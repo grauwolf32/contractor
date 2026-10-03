@@ -106,34 +106,6 @@ func (s *Snapshot) AuditProfiles() []ResolvedAuditProfile {
 	return result
 }
 
-// ExecutionConfig resolves one exact id@version and returns a caller-owned,
-// non-secret escalation profile.
-func (s *Snapshot) ExecutionConfig(raw string) (ResolvedExecutionConfigProfile, error) {
-	selector, err := ParseSelector(raw)
-	if err != nil {
-		return ResolvedExecutionConfigProfile{}, err
-	}
-	profile, ok := s.executionConfigs[selector.String()]
-	if !ok {
-		return ResolvedExecutionConfigProfile{}, fmt.Errorf("unknown ExecutionConfig %q", selector)
-	}
-	return cloneExecutionConfigProfile(profile), nil
-}
-
-// ExecutionConfigs returns every published profile sorted by exact ref.
-func (s *Snapshot) ExecutionConfigs() []ResolvedExecutionConfigProfile {
-	keys := make([]string, 0, len(s.executionConfigs))
-	for key := range s.executionConfigs {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([]ResolvedExecutionConfigProfile, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, cloneExecutionConfigProfile(s.executionConfigs[key]))
-	}
-	return result
-}
-
 // LLMGateway resolves one exact id@version and returns a caller-owned non-secret copy.
 func (s *Snapshot) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
 	selector, err := ParseSelector(raw)
@@ -145,20 +117,6 @@ func (s *Snapshot) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, e
 		return contracts.ResolvedLLMGatewayConfig{}, fmt.Errorf("unknown LLMGatewayConfig %q", selector)
 	}
 	return cloneLLMGatewayConfig(gateway), nil
-}
-
-// LLMGateways returns every published non-secret Gateway body sorted by exact ref.
-func (s *Snapshot) LLMGateways() []contracts.ResolvedLLMGatewayConfig {
-	keys := make([]string, 0, len(s.gateways))
-	for key := range s.gateways {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([]contracts.ResolvedLLMGatewayConfig, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, cloneLLMGatewayConfig(s.gateways[key]))
-	}
-	return result
 }
 
 // Workflow resolves one exact name@version and returns a caller-owned copy.
@@ -191,6 +149,8 @@ func (s *Snapshot) Workflows() []ResolvedWorkflow {
 }
 
 // AgentTemplate resolves one exact id@version and returns a caller-owned copy.
+// Cross-package conformance tests use it to inspect pinned template bodies;
+// production execution reads templates through resolved Workflows.
 func (s *Snapshot) AgentTemplate(raw string) (contracts.ResolvedAgentTemplate, error) {
 	selector, err := ParseSelector(raw)
 	if err != nil {
@@ -217,6 +177,8 @@ func (s *Snapshot) ModelPolicy(raw string) (contracts.ResolvedModelPolicy, error
 }
 
 // Instructions returns the exact text dependency pinned by a normalized ref.
+// Repository conformance tests use it to verify packaged instruction sources;
+// production execution reads the text pinned into resolved Workflows.
 func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, error) {
 	normalized, err := validateInstructionRef(raw)
 	if err != nil {
