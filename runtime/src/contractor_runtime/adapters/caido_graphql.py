@@ -22,6 +22,7 @@ from contractor_runtime.adapters.host import (
 )
 from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.strict_json import strict_json_loads
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
 MAX_CAIDO_VARIABLE_BYTES = 4 * 1024 * 1024
@@ -524,11 +525,7 @@ async def _read_bounded_response(response: httpx.Response) -> bytes:
 
 def _decode_response(raw: bytes) -> dict[str, Any]:
     try:
-        decoded = json.loads(
-            raw,
-            object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=_reject_constant,
-        )
+        decoded = strict_json_loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
         # Nesting beyond the parser's recursion limit is malformed, not transient.
         raise CaidoClientError("caido_response_invalid", retryable=False) from None
@@ -576,16 +573,3 @@ def _validate_response_shape(value: object) -> None:
         raise CaidoClientError("caido_response_invalid", retryable=False)
     if "errors" in value and not isinstance(value["errors"], list):
         raise CaidoClientError("caido_response_invalid", retryable=False)
-
-
-def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate key")
-        result[key] = value
-    return result
-
-
-def _reject_constant(_value: str) -> None:
-    raise ValueError("non-finite number")

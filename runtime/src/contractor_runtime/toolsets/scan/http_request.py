@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import ipaddress
-import json
 import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from contractor_runtime.strict_json import (
+    DuplicateJSONKey,
+    NonStandardJSONConstant,
+    strict_json_loads,
+)
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 MAX_REQUEST_ARTIFACT_BYTES = 256 * 1024
@@ -50,19 +54,6 @@ class PreparedHTTPRequest:
     method: str
     test_parameters: tuple[str, ...]
     url: str
-
-
-def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise HTTPRequestInputError("request JSON contains duplicate object fields")
-        result[key] = value
-    return result
-
-
-def _constant(_: str) -> None:
-    raise HTTPRequestInputError("request JSON contains an unsupported constant")
 
 
 def _ascii(value: object, limit: int, diagnostic: str, *, empty: bool = False) -> str:
@@ -199,11 +190,11 @@ def parse_http_request(data: bytes) -> PreparedHTTPRequest:
     if not isinstance(data, bytes) or len(data) > MAX_REQUEST_ARTIFACT_BYTES:
         raise HTTPRequestInputError("request artifact exceeds its size limit or is not bytes")
     try:
-        request = json.loads(
-            data.decode("utf-8"), object_pairs_hook=_object, parse_constant=_constant
-        )
-    except HTTPRequestInputError:
-        raise
+        request = strict_json_loads(data.decode("utf-8"))
+    except DuplicateJSONKey:
+        raise HTTPRequestInputError("request JSON contains duplicate object fields") from None
+    except NonStandardJSONConstant:
+        raise HTTPRequestInputError("request JSON contains an unsupported constant") from None
     except (ValueError, UnicodeError, RecursionError):
         raise HTTPRequestInputError("request artifact must contain valid UTF-8 JSON") from None
     if not isinstance(request, dict) or set(request) != _FIELDS:

@@ -8,6 +8,7 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.process import ProcessResult
 
@@ -75,19 +76,6 @@ def scope_regex(url: str) -> str:
     return f"(?i)^{parsed.scheme}://{authority}(?:/|\\?|$)"
 
 
-def _object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError
-        result[key] = value
-    return result
-
-
-def _reject_constant(_value):
-    raise ValueError
-
-
 def katana_observation(
     result: ProcessResult,
     *,
@@ -142,7 +130,7 @@ def katana_observation(
             continue
         counts["observations"] += 1
         try:
-            value = json.loads(line, object_pairs_hook=_object, parse_constant=_reject_constant)
+            value = strict_json_loads(line)
             if not isinstance(value, dict) or not isinstance(value.get("request"), dict):
                 raise ValueError
             request = value["request"]

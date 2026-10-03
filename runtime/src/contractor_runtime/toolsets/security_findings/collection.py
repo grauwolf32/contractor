@@ -16,6 +16,7 @@ import jcs
 
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.strict_json import unique_json_object
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
@@ -60,15 +61,8 @@ def array(value: Any, maximum: int, minimum: int = 0) -> list[Any]:
 
 
 def strict_json(data: bytes, *, canonical_required: bool = True) -> Any:
-    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in items:
-            require(key not in result)
-            result[key] = value
-        return result
-
     try:
-        value = json.loads(data.decode("utf-8"), object_pairs_hook=pairs)
+        value = json.loads(data.decode("utf-8"), object_pairs_hook=unique_json_object)
         pending = [(value, 1)]
         nodes = 0
         while pending:

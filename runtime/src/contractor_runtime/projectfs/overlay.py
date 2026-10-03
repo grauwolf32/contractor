@@ -26,6 +26,7 @@ from contractor_runtime.projectfs.storage import (
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.lines import split_patch_lines
 
@@ -425,23 +426,8 @@ def canonical_overlay_operations(
 
 
 def _strict_json_document(payload: bytes) -> dict[str, Any]:
-    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in items:
-            if key in result:
-                raise WorkspaceStateError("workspace_state_invalid")
-            result[key] = value
-        return result
-
-    def reject_constant(_: str) -> None:
-        raise WorkspaceStateError("workspace_state_invalid")
-
     try:
-        document = json.loads(
-            payload.decode("utf-8"),
-            object_pairs_hook=pairs,
-            parse_constant=reject_constant,
-        )
+        document = strict_json_loads(payload.decode("utf-8"))
         if not isinstance(document, dict) or jcs.canonicalize(document) != payload:
             raise WorkspaceStateError("workspace_state_invalid")
         return document
