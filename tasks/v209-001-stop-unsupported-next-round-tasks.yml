@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V209-001
+title: Stop unsupported finding-verification tasks before next-Round admission
+milestone: audit-round-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 5922f168984a2d8ca1cbb3d80332a977b57a40f3
+depends_on: []
+languages: [go]
+goal: Prevent later Audit Rounds from admitting tasks that their Workflow executor cannot run.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/149
+  finding: PrepareNextRound skips the inventory-to-executor check used by Start and preview.
+scope:
+  in:
+    - Validate finding-verification task contracts before writing next-Round task packages.
+    - Return a stable StopReason for unsupported tasks so the controller finalizes the Audit.
+    - Cover scan-executor rejection and ordinary finding-verification acceptance.
+  out:
+    - Redesigning scan task routing or changing the original Round inventory contract.
+acceptance_criteria:
+  - {id: A1, text: Scan-executor profiles return no next Round or task packages and a stable StopReason for finding checks.}
+  - {id: A2, text: The controller advances the Audit to finalizing with that reason.}
+  - {id: A3, text: Profiles with an ordinary check role still admit finding-verification items.}
+tests:
+  - {command: go test ./internal/auditservice/... ./internal/auditcontroller/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

@@ -140,6 +140,15 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
+	if err := validateInventoryTaskExecution(profile, inventory); err != nil {
+		if errors.Is(err, ErrInvalid) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
+				Code:    "next_round_task_unsupported",
+				Message: "The next Round contains tasks that the configured Workflow cannot execute.",
+			}, nil
+		}
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
 	taskArtifacts, manifest, err := writeTaskPackages(
 		ctx, projectArtifacts, namespace, profile, selection, inventory,
 	)

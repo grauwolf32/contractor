@@ -75,3 +75,64 @@ func TestInventoryConstructionDoesNotChooseScanExecutor(t *testing.T) {
 		})
 	}
 }
+
+func TestFindingInventoryRejectsScanExecutorAndAcceptsOrdinaryCheckRole(t *testing.T) {
+	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate", Title: "Check access",
+		Description:   "Verify the reported access condition.",
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "service"},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{}, EvidenceIDs: []string{},
+		ProposedChecks: []auditdomain.ProposedCheck{{Objective: "Trace access control.", Method: "static-trace"}},
+		Limitations:    []string{},
+	}
+	encodedProposal, err := auditdomain.EncodeFindingProposal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := "exact-revision"
+	source, err := auditdomain.EncodeFindingInventory(auditdomain.FindingInventoryDocument{
+		Schema: auditdomain.FindingInventorySchema,
+		Proposals: []auditdomain.FindingInventoryProposal{{
+			ReceiptID: "receipt", Document: proposal, SelectedCheckOrdinals: []int{0},
+			Proposal: auditdomain.FindingInventoryArtifact{
+				Ref:    contracts.ArtifactRef{Namespace: "finding", Name: "proposal", Revision: &revision},
+				Digest: auditdomain.DigestBytes(encodedProposal), MediaType: auditdomain.JSONMediaType,
+				SizeBytes: int64(len(encodedProposal)),
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		profile string
+		invalid bool
+	}{
+		{profile: "openapi-sqlmap-scan@1", invalid: true},
+		{profile: "owasp-wstg-4-2-active-http@1"},
+	} {
+		t.Run(test.profile, func(t *testing.T) {
+			profile, err := snapshot.AuditProfile(test.profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inventory, err := auditdomain.BuildFindingInventory(source, auditdomain.InventoryOptions{
+				Round: 2, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
+				SourceInputName: "proposal_inventory",
+				SourceRef:       contracts.ArtifactRef{Namespace: "finding", Name: "inventory", Revision: &revision},
+				Scope:           map[string]string{}, ApprovalRequirement: auditdomain.ApprovalNone,
+			})
+			if err != nil || len(inventory.Tasks) != 1 {
+				t.Fatalf("finding inventory = (%+v, %v)", inventory, err)
+			}
+			validation := validateInventoryTaskExecution(profile, inventory)
+			if test.invalid && !errors.Is(validation, ErrInvalid) || !test.invalid && validation != nil {
+				t.Fatalf("executor validation = %v, invalid wanted: %t", validation, test.invalid)
+			}
+		})
+	}
+}

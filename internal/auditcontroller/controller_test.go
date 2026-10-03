@@ -412,6 +412,29 @@ func TestControllerAcceptsPreparedNextRoundInsteadOfFinalizing(t *testing.T) {
 	}
 }
 
+func TestControllerFinalizesUnsupportedNextRound(t *testing.T) {
+	harness := newControllerHarness(t, 1, 1)
+	harness.store.mu.Lock()
+	harness.store.round.State = auditstore.RoundClosed
+	harness.store.items = nil
+	harness.store.executions = nil
+	harness.store.audit.Limits.MaxRounds = 2
+	harness.store.mu.Unlock()
+	reason := &auditstore.StopReason{
+		Code: "next_round_task_unsupported", Message: "The next Round contains tasks that the configured Workflow cannot execute.",
+	}
+	builder := &fakeRoundBuilder{reason: reason}
+	harness.controller.roundBuilder = builder
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("finalize unsupported next Round = (%t, %v)", worked, err)
+	}
+	audit := harness.store.auditSnapshot()
+	if builder.calls.Load() != 1 || audit.State != auditstore.AuditFinalizing ||
+		audit.StopReason == nil || *audit.StopReason != *reason {
+		t.Fatalf("unsupported next Round state = %+v, builder calls=%d", audit, builder.calls.Load())
+	}
+}
+
 func TestRoleDispositionRetryabilityIsExplicit(t *testing.T) {
 	evidenceBudget := "evidence-budget-exhausted"
 	for _, test := range []struct {
@@ -503,7 +526,10 @@ func (b *countingSubmissionBuilder) PrepareRole(
 
 type prefixSubmissionBuilder struct{ maximum int }
 
-type fakeRoundBuilder struct{ calls atomic.Int64 }
+type fakeRoundBuilder struct {
+	calls  atomic.Int64
+	reason *auditstore.StopReason
+}
 
 func (b *fakeRoundBuilder) PrepareNextRound(
 	_ context.Context,
@@ -511,6 +537,9 @@ func (b *fakeRoundBuilder) PrepareNextRound(
 	snapshot auditstore.ReconcileSnapshot,
 ) (auditstore.AcceptRoundParams, *auditstore.StopReason, error) {
 	b.calls.Add(1)
+	if b.reason != nil {
+		return auditstore.AcceptRoundParams{}, b.reason, nil
+	}
 	manifest := builderExact("round-two", "round-two-r1")
 	task := builderExact("task-two", "task-two-r1")
 	return auditstore.AcceptRoundParams{
