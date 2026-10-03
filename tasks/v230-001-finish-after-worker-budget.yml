@@ -3,7 +3,8 @@ id: V230-001
 title: Allow Planner finish after the Worker-call budget is spent
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 4cbf33ad03058ae6d12b39db4986afe071ead42f
 depends_on: []
 languages: [go]
 goal: Let Streamline and Router finish a Stage after their final permitted Worker call.
