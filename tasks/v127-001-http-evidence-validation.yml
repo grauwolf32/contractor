@@ -3,8 +3,8 @@ id: V127-001
 title: Reject HTTP exchanges that finding evidence cannot retain
 milestone: http-evidence-validation-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: f9c94bffe876ef2db04be11bbad303fd516c807d
 depends_on: []
 languages: [python, go]
 goal: Keep every successfully completed http_request exchange selectable as finding evidence.
