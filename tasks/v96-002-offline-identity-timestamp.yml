@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V96-002
+title: Label offline identity timestamps by what they record
+milestone: operations-detail-fact-clarity-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Stop presenting an offline principal's creation or label-edit time as its last sighting.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/271
+  finding: RuntimeAgentPrincipal.updatedAt is a label revision timestamp, not last-seen state.
+scope:
+  in:
+    - Show first registration age when timestamps match and label-update age otherwise.
+    - Test distinct creation and label-update times in the offline identity list.
+  out:
+    - Add persisted last-seen storage or change Runtime Agent registration semantics.
+acceptance_criteria:
+  - {id: A1, text: No Last seen label derives from createdAt or updatedAt.}
+  - {id: A2, text: A label edit is described as a label update, and an unedited identity as registered.}
+  - {id: A3, text: Operations UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/operations.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}

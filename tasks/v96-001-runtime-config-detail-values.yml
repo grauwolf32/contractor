@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V96-001
+title: Render nested RuntimeConfig settings with labels and units
+milestone: operations-detail-fact-clarity-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Make immutable RuntimeConfig export, retry and explicit-clear settings readable to operators.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/265
+  finding: OptionalBlock flattens nested objects to unlabeled values and renders null as the string null.
+scope:
+  in:
+    - Render nested configuration objects as labeled key/value lists.
+    - Format export byte sizes and retry backoffs with units.
+    - Show explicit null leaves as cleared and cover the detail route.
+  out:
+    - Change RuntimeConfig publication or storage semantics.
+acceptance_criteria:
+  - {id: A1, text: Export and retry fields have labels and useful units without object stringification.}
+  - {id: A2, text: Null credential leaves display explicitly cleared instead of null.}
+  - {id: A3, text: RuntimeConfig detail route tests and UI checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/runtime-configs/configuration.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}

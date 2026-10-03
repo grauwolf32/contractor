@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: operations-detail-fact-clarity-2026-10
+    exit_task: V96-002
+    outcome: >-
+      RuntimeConfig nested settings render with meaningful labels and offline
+      Runtime Agent timestamps describe identity changes instead of false sightings.
   - id: sourcebundle-symlink-boundary-2026-10
     exit_task: V95-001
     outcome: >-
@@ -2761,6 +2766,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V96-001, file: v96-001-runtime-config-detail-values.yml}
+  - {id: V96-002, file: v96-002-offline-identity-timestamp.yml}
   - {id: V95-001, file: v95-001-sourcebundle-symlink-parents.yml}
   - {id: V94-001, file: v94-001-git-transport-log-redaction.yml}
   - {id: V94-002, file: v94-002-litellm-secret-argv.yml}
