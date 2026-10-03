@@ -206,8 +206,61 @@ func TestFailureLimiterBoundsInflightAndRollingAttempts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := global.begin("198.51.100.1", now); !errors.Is(err, ErrRateLimited) {
-		t.Fatal("process-wide inflight limit was not enforced")
+	if _, err := global.begin("198.51.100.1", now); err != nil {
+		t.Fatalf("global threshold locked out the next peer: %v", err)
+	}
+	if _, err := global.begin("198.51.100.2", now); !errors.Is(err, ErrRateLimited) {
+		t.Fatal("global backoff was not enforced")
+	} else if limited, ok := IsRateLimited(err); !ok || limited.RetryAfter != time.Second {
+		t.Fatalf("global backoff retry = %v", err)
+	}
+	if _, err := global.begin("198.51.100.2", now.Add(time.Second)); err != nil {
+		t.Fatalf("global backoff did not admit another attempt: %v", err)
+	}
+	if _, err := global.begin("198.51.100.3", now.Add(time.Minute)); err != nil {
+		t.Fatalf("global rolling window did not reset: %v", err)
+	}
+}
+
+func TestFailureLimiterGroupsIPv6PeersBy64BitPrefix(t *testing.T) {
+	limiter, err := newFailureLimiter(time.Minute, 2, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 31, 10, 0, 0, 0, time.UTC)
+	for _, ip := range []string{"2001:db8:abcd:42::1", "2001:db8:abcd:42::2"} {
+		if _, err := limiter.begin(ip, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := limiter.begin("2001:db8:abcd:42::ffff", now); !errors.Is(err, ErrRateLimited) {
+		t.Fatal("addresses in one IPv6 /64 evaded the per-peer limit")
+	}
+	if _, err := limiter.begin("2001:db8:abcd:43::1", now); err != nil {
+		t.Fatalf("another IPv6 /64 was limited: %v", err)
+	}
+	if _, err := limiter.begin("192.0.2.1", now); err != nil {
+		t.Fatalf("IPv4 peer was limited by IPv6 attempts: %v", err)
+	}
+}
+
+func TestLoginPasswordChecksAreBounded(t *testing.T) {
+	service, err := NewService(testBootstrap(t), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range maxConcurrentPasswordChecks {
+		service.passwordChecks <- struct{}{}
+	}
+	if _, err := service.Login("admin", []byte(testPassword), "192.0.2.1"); !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("saturated password checks = %v", err)
+	}
+	if len(service.limiter.attempts) != 0 {
+		t.Fatal("saturated password check consumed a failure reservation")
+	}
+	<-service.passwordChecks
+	if _, err := service.Login("admin", []byte(testPassword), "192.0.2.1"); err != nil {
+		t.Fatalf("login did not recover when a password slot freed: %v", err)
 	}
 }
 

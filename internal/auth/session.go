@@ -20,12 +20,13 @@ const (
 	SessionTokenBytes  = 32
 	CSRFTokenBytes     = 32
 
-	defaultIdleLimit      = 8 * time.Hour
-	defaultAbsoluteLimit  = 24 * time.Hour
-	defaultMaxSessions    = 8
-	defaultFailureWindow  = time.Minute
-	defaultPerIPFailures  = 5
-	defaultGlobalFailures = 30
+	defaultIdleLimit            = 8 * time.Hour
+	defaultAbsoluteLimit        = 24 * time.Hour
+	defaultMaxSessions          = 8
+	defaultFailureWindow        = time.Minute
+	defaultPerIPFailures        = 5
+	defaultGlobalFailures       = 30
+	maxConcurrentPasswordChecks = 4
 )
 
 type Options struct {
@@ -51,6 +52,7 @@ type Service struct {
 	nextSequence             uint64
 	sessions                 map[[sha256.Size]byte]storedSession
 	limiter                  *failureLimiter
+	passwordChecks           chan struct{}
 	nextRevocationSubscriber uint64
 	revocationSubscribers    map[uint64]chan SessionHandle
 }
@@ -147,7 +149,8 @@ func NewService(bootstrap Bootstrap, options Options) (*Service, error) {
 		now: options.Now, random: options.Random,
 		idleLimit: options.IdleLimit, absoluteLimit: options.AbsoluteLimit,
 		maxSessions: options.MaxSessions, sessions: make(map[[sha256.Size]byte]storedSession),
-		limiter: limiter, revocationSubscribers: make(map[uint64]chan SessionHandle),
+		limiter: limiter, passwordChecks: make(chan struct{}, maxConcurrentPasswordChecks),
+		revocationSubscribers: make(map[uint64]chan SessionHandle),
 	}, nil
 }
 
@@ -156,6 +159,12 @@ func (s *Service) Principal() Principal { return clonePrincipal(s.principal) }
 func (s *Service) Login(username string, password []byte, peerIP string) (Login, error) {
 	if !usernamePattern.MatchString(username) || ValidatePassword(password) != nil || net.ParseIP(peerIP) == nil {
 		return Login{}, ErrInvalidCredentials
+	}
+	select {
+	case s.passwordChecks <- struct{}{}:
+		defer func() { <-s.passwordChecks }()
+	default:
+		return Login{}, &RateLimitError{RetryAfter: time.Second}
 	}
 	now := s.now().UTC()
 	ticket, err := s.limiter.begin(peerIP, now)
