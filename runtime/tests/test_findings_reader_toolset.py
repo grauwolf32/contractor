@@ -147,6 +147,7 @@ class Transport:
         }
         self.puts = 0
         self.lose_response = False
+        self.lost_uncommitted_writes = 0
         self.fail_at = None
         self.deny_get = False
         self.wrong_etag = False
@@ -167,7 +168,18 @@ class Transport:
                 else self.versions.get((*target, revision))
             )
             if record is None:
-                return ArtifactHTTPResponse(404, {}, b"")
+                return ArtifactHTTPResponse(
+                    404,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "code": "artifact_not_found",
+                            "message": "artifact unavailable",
+                            "retryable": False,
+                            "requestId": "reader-test-1",
+                        }
+                    ),
+                )
             revision, media_type, data = record
             if self.wrong_etag and namespace != "inputs":
                 revision = "wrong-exact-revision"
@@ -184,6 +196,9 @@ class Transport:
         assert headers["If-None-Match"] == "*" and "If-Match" not in headers
         assert not parsed.query
         self.puts += 1
+        if self.lost_uncommitted_writes:
+            self.lost_uncommitted_writes -= 1
+            raise ArtifactTransportError("response lost before commit")
         if self.puts == self.fail_at:
             return ArtifactHTTPResponse(503, {}, b"")
         if target in self.bindings:
@@ -249,6 +264,10 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
         assert decoded.metadata == collection and decoded.contents == contents
         transport = Transport(payload)
         tools, client, state = await _tools(transport)
+        preparation = transport.requests[:]
+        assert len(preparation) == len(collection["documents"]) + 1
+        assert [method for method, *_ in preparation].count("GET") == 1
+        assert [method for method, *_ in preparation].count("PUT") == len(collection["documents"])
         result = await tools["list_findings"]()
         assert len(result["items"]) == 2 and result["next_cursor"] is None
         reader = ReadArtifactTool(client, state.metrics, ())
@@ -412,9 +431,59 @@ def test_replay_loss_interruption_conflict_and_access_errors():
         with pytest.raises(FindingsError, match="collection_unavailable"):
             await _tools(transport)
         wrong = Transport(_package(*_fixture()))
+        await _tools(wrong)
         wrong.wrong_etag = True
         with pytest.raises(FindingsError, match="document_unavailable"):
             await _tools(wrong)
+        assert "?revision=wrong-exact-revision" in wrong.requests[-1][1]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mismatch", ["media_type", "size"])
+def test_replay_conflict_rejects_mismatched_document_metadata(mismatch):
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        await _tools(transport)
+        target = next(key for key in transport.bindings if key[0] != "inputs")
+        revision, media_type, data = transport.bindings[target]
+        changed = (
+            (revision, "application/x-test-mismatch", data)
+            if mismatch == "media_type"
+            else (revision, media_type, data + b"x")
+        )
+        transport.bindings[target] = changed
+        with pytest.raises(FindingsError, match="document_conflict"):
+            await _tools(transport)
+        assert transport.bindings[target] == changed
+
+    asyncio.run(scenario())
+
+
+def test_lost_uncommitted_document_write_retries_create_once():
+    async def scenario():
+        collection, contents = _fixture()
+        transport = Transport(_package(collection, contents))
+        transport.lost_uncommitted_writes = 1
+        tools, _, _ = await _tools(transport)
+        assert len((await tools["list_findings"]())["items"]) == len(collection["entries"])
+        assert transport.puts == len(collection["documents"]) + 1
+        assert [method for method, *_ in transport.requests].count("GET") == 2
+        assert sorted(
+            record[2] for key, record in transport.bindings.items() if key[0] != "inputs"
+        ) == sorted(contents.values())
+
+    asyncio.run(scenario())
+
+
+def test_second_lost_uncommitted_document_write_fails_without_overwrite():
+    async def scenario():
+        transport = Transport(_package(*_fixture()))
+        transport.lost_uncommitted_writes = 2
+        with pytest.raises(FindingsError, match="document_unavailable"):
+            await _tools(transport)
+        assert transport.puts == 2
+        assert len(transport.bindings) == 1
 
     asyncio.run(scenario())
 

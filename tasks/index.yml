@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V181-001, file: v181-001-finding-collection-readback.yml}
   - {id: V180-001, file: v180-001-cwe-deprecated-weaknesses.yml}
   - {id: V179-009, file: v179-009-cross-language-conformance.yml}
   - {id: V179-008, file: v179-008-ui-artifact-scope-views.yml}
