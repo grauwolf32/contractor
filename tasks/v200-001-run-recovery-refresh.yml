@@ -3,7 +3,8 @@ id: V200-001
 title: Continue Run recovery refreshes through unchanged snapshots
 milestone: run-recovery-ui-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: bceb239fa18b51674734e63323f7855530ec402c
 depends_on: []
 languages: [typescript]
 goal: Keep the Run detail query refreshing until automatic recovery ends even if its status remains unchanged.
