@@ -3,7 +3,8 @@ id: V149-001
 title: Include prepare maxRunAttempts in AuditProfile identity
 milestone: audit-preparation-attempt-digest-2026-10
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: ab799945aca045955254b9d88d2ededa9e283fae
 depends_on: []
 languages: [go, markdown]
 goal: Make AuditProfile digests and persisted snapshot integrity cover prepare attempt budgets.
