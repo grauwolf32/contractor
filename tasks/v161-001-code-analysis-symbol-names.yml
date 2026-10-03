@@ -3,7 +3,8 @@ id: V161-001
 title: Name shallow JavaScript and C-family declarations correctly
 milestone: code-analysis-symbol-names-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 486a06f1754b7113998d9407aa04784d506eacf5
 depends_on: []
 languages: [python]
 goal: Keep anonymous arrow callbacks out of definition search and resolve initialized C/C++ declarations by identifier.
