@@ -1950,6 +1950,9 @@ describe("Run routes", () => {
       await screen.findByRole("heading", { name: "outputs/report" }),
     ).toBeInTheDocument();
     expect((await screen.findAllByText("output-r2")).length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
     expect(screen.getByText("yes")).toBeInTheDocument();
     await userEvent
       .setup()

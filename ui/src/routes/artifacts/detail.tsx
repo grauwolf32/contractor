@@ -2,6 +2,7 @@ import {
   ArtifactMetadataSummary,
   ArtifactHistoryDisclosure,
   ArtifactHistoryButton,
+  ArtifactRevisionLede,
 } from "./metadata-summary";
 import { useDocumentTitle } from "../../app/document-title";
 import { ReturnLink } from "../../app/context-navigation";
@@ -315,11 +316,9 @@ export function ArtifactDetailRoute() {
           <h2>
             {namespace}/{name}
           </h2>
-          <p className="lede">
-            {revision === undefined
-              ? "Current revision"
-              : "Historical revision"}
-          </p>
+          <ArtifactRevisionLede
+            metadata={query.isSuccess ? query.data : undefined}
+          />
         </div>
         <RefreshButton
           isFetching={query.isFetching}

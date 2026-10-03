@@ -5,6 +5,22 @@ import { formatBytes, formatTimestamp } from "./common";
 import { GitSourceDetails } from "./git-import-dialog";
 import "./reader.css";
 
+export function ArtifactRevisionLede({
+  metadata,
+}: {
+  metadata: ArtifactMetadata | undefined;
+}) {
+  return (
+    <p className="lede">
+      {metadata === undefined
+        ? "Artifact revision"
+        : metadata.current
+          ? "Current revision"
+          : "Historical revision"}
+    </p>
+  );
+}
+
 export function ArtifactMetadataSummary({
   metadata,
 }: {

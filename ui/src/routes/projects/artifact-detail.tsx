@@ -2,6 +2,7 @@ import {
   ArtifactMetadataSummary,
   ArtifactHistoryDisclosure,
   ArtifactHistoryButton,
+  ArtifactRevisionLede,
 } from "../artifacts/metadata-summary";
 import { ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -328,11 +329,9 @@ function ProjectArtifactDetailRouteView({
           <h2>
             {namespace}/{name}
           </h2>
-          <p className="lede">
-            {revision === undefined
-              ? "Project artifact"
-              : "Historical revision"}
-          </p>
+          <ArtifactRevisionLede
+            metadata={query.isSuccess ? query.data : undefined}
+          />
         </div>
         <RefreshButton
           isFetching={query.isFetching}

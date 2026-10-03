@@ -947,6 +947,9 @@ describe("Project routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Versions" }));

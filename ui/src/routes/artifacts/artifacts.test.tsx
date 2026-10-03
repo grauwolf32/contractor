@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -52,6 +52,50 @@ function renderArtifactApplication(api: PublicAPI, path: string) {
 }
 
 describe("Artifact routes", () => {
+  it("keeps the revision lede neutral while metadata is loading or unavailable", async () => {
+    let respond!: (response: Response) => void;
+    const metadata = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path.endsWith("/metadata")) return metadata;
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderArtifactApplication(api, "/artifacts/projects/source");
+    expect(await screen.findByText("Loading Artifact metadata…")).toBeVisible();
+    expect(
+      screen.getByText("Artifact revision", { selector: ".lede" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Current revision", { selector: ".lede" }),
+    ).toBeNull();
+    await act(async () => {
+      respond(
+        jsonResponse(
+          {
+            code: "unavailable",
+            message: "Metadata unavailable",
+            retryable: false,
+          },
+          { status: 503 },
+        ),
+      );
+      await metadata;
+    });
+    expect(
+      await screen.findByText("Could not load this Artifact"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Artifact revision", { selector: ".lede" }),
+    ).toBeVisible();
+  });
+
   it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
     let reads = 0;
     const requests: Request[] = [];
@@ -389,6 +433,9 @@ describe("Artifact routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("Historical revision", { selector: ".lede" }),
+    ).toBeVisible();
     expect(screen.queryByText("input fork")).not.toBeInTheDocument();
     await userEvent
       .setup()
@@ -438,10 +485,16 @@ describe("Artifact routes", () => {
         throw new Error("binary preview must not fetch Artifact bytes");
       }),
     );
-    renderArtifactApplication(api, "/artifacts/projects/source");
+    renderArtifactApplication(
+      api,
+      "/artifacts/projects/source?revision=revision-1",
+    );
     const previewButton = await screen.findByRole("button", {
       name: "Load preview",
     });
+    expect(
+      screen.getByText("Current revision", { selector: ".lede" }),
+    ).toBeVisible();
     expect(previewButton).toBeDisabled();
     expect(
       screen.getByText(/Inline preview is unavailable/),
