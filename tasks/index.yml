@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V125-001, file: v125-001-memory-dead-fields.yml}
   - {id: V124-001, file: v124-001-distinct-call-relationships.yml}
   - {id: V123-001, file: v123-001-read-file-past-eof.yml}
   - {id: V122-001, file: v122-001-normalize-edit-observation-paths.yml}

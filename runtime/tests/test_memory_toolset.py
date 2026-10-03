@@ -195,7 +195,7 @@ def test_shared_memory_projection_json() -> None:
             tags=tuple(raw["tags"]),
             ordinal=raw["ordinal"],
         )
-        loaded = _LoadedNote(note, EPOCH, EPOCH + timedelta(seconds=1), "hidden", encode_note(note))
+        loaded = _LoadedNote(note, EPOCH, EPOCH + timedelta(seconds=1), "hidden")
         assert _full(loaded) == fixture["full"]
         assert _preview(loaded) == fixture["preview"]
 
@@ -610,7 +610,7 @@ def test_memory_order_is_updated_desc_ordinal_desc_name_asc() -> None:
 
     def loaded(name: str, ordinal: int, updated_at: datetime) -> _LoadedNote:
         note = StoredMemoryNote(SCHEMA_VERSION, name, "body", "", (), ordinal)
-        return _LoadedNote(note, EPOCH, updated_at, "revision", encode_note(note))
+        return _LoadedNote(note, EPOCH, updated_at, "revision")
 
     notes = [
         loaded("zeta", 1, timestamp),
@@ -631,23 +631,29 @@ def test_memory_model_timestamps_are_normalized_to_utc_z() -> None:
     created = datetime(2026, 9, 1, 10, 11, 12, tzinfo=local)
     updated = created + timedelta(seconds=1)
     note = StoredMemoryNote(SCHEMA_VERSION, "note", "body", "", (), 0)
-    loaded = _LoadedNote(note, created, updated, "revision", encode_note(note))
+    loaded = _LoadedNote(note, created, updated, "revision")
 
     assert _full(loaded)["created_at"] == "2026-09-01T07:11:12Z"
     assert _preview(loaded)["updated_at"] == "2026-09-01T07:11:13Z"
 
 
 def test_memory_errors_use_the_closed_code_and_retryability_table() -> None:
-    for code, supplied_retryable, expected_code, expected_retryable in (
-        ("memory_invalid", True, "memory_invalid", False),
-        ("memory_changed", False, "memory_changed", True),
-        ("memory_forbidden", True, "memory_forbidden", False),
-        ("internal_arbitrary", False, "memory_unavailable", True),
+    for code, expected_code, expected_retryable in (
+        ("memory_invalid", "memory_invalid", False),
+        ("memory_not_found", "memory_not_found", False),
+        ("memory_too_large", "memory_too_large", False),
+        ("memory_namespace_full", "memory_namespace_full", False),
+        ("memory_changed", "memory_changed", True),
+        ("memory_forbidden", "memory_forbidden", False),
+        ("memory_unavailable", "memory_unavailable", True),
+        ("internal_arbitrary", "memory_unavailable", True),
     ):
-        error = MemoryToolError(code, retryable=supplied_retryable)
+        error = MemoryToolError(code)
         assert error.code == expected_code
         assert error.retryable is expected_retryable
         assert code not in str(error) or code == expected_code
+    with pytest.raises(TypeError):
+        MemoryToolError("memory_changed", retryable=False)
 
 
 def test_not_found_invalid_search_and_corrupt_payload_errors_are_bounded() -> None:
