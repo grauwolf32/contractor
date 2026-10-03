@@ -550,7 +550,7 @@ func validateWorkerHandle(
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
 	handleStrings := workerHandleStringValues(handle)
-	for _, secret := range runtimeSettingSecrets(settings) {
+	for _, secret := range settings.SecretValues() {
 		_, exact := handleStrings[secret]
 		if secret != "" && (exact || (len([]byte(secret)) >= 16 && bytes.Contains(encoded, []byte(secret)))) {
 			return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
@@ -587,44 +587,6 @@ func collectStringValues(result map[string]struct{}, value any) {
 			collectStringValues(result, item)
 		}
 	}
-}
-
-func runtimeSettingSecrets(settings contracts.RuntimeSettings) []string {
-	result := make([]string, 0, 36)
-	if settings.LLMGatewayToken != nil {
-		result = append(result, settings.LLMGatewayToken.Reveal())
-	}
-	if settings.Telemetry != nil {
-		for _, value := range settings.Telemetry.Headers {
-			result = append(result, value.Reveal())
-		}
-	}
-	if settings.HTTPProxy != nil {
-		if settings.HTTPProxy.BasicAuth != nil {
-			result = append(result,
-				settings.HTTPProxy.BasicAuth.Username.Reveal(),
-				settings.HTTPProxy.BasicAuth.Password.Reveal(),
-			)
-		}
-		if settings.HTTPProxy.BearerToken != nil {
-			result = append(result, settings.HTTPProxy.BearerToken.Reveal())
-		}
-	}
-	if settings.Caido != nil && settings.Caido.BearerToken != nil {
-		result = append(result, settings.Caido.BearerToken.Reveal())
-	}
-	if settings.HTTPOriginTarget != nil {
-		if settings.HTTPOriginTarget.BasicAuth != nil {
-			result = append(result,
-				settings.HTTPOriginTarget.BasicAuth.Username.Reveal(),
-				settings.HTTPOriginTarget.BasicAuth.Password.Reveal(),
-			)
-		}
-		if settings.HTTPOriginTarget.BearerToken != nil {
-			result = append(result, settings.HTTPOriginTarget.BearerToken.Reveal())
-		}
-	}
-	return result
 }
 
 const (

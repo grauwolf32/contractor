@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
@@ -129,7 +128,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	runtimeSettings := contracts.RuntimeSettings{
+	runtimeTransport := scheduler.RuntimeTransportSettings{
 		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
@@ -147,7 +146,7 @@ func configureWorkflows(
 			FinalizationTimeout: cfg.Operations.Scheduler.FinalizationTimeout,
 			AbortTimeout:        cfg.Operations.Scheduler.AbortTimeout,
 			PlannerTimeout:      cfg.PlannerTimeout,
-			RuntimeSettings:     runtimeSettings,
+			RuntimeTransport:    runtimeTransport,
 			Credentials:         credentialSet.provider,
 			RuntimeCredentials:  credentialSet.runtime,
 			PlannerTelemetry:    plannerTelemetryRegistry,

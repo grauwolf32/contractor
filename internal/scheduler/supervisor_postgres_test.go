@@ -55,7 +55,7 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
-			RuntimeSettings: contracts.RuntimeSettings{
+			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
 			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -133,7 +133,7 @@ func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
 			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
-			RuntimeSettings: contracts.RuntimeSettings{
+			RuntimeTransport: RuntimeTransportSettings{
 				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
 			},
 			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),

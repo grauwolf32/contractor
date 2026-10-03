@@ -239,7 +239,7 @@ type Options struct {
 	FinalizationTimeout    time.Duration
 	AbortTimeout           time.Duration
 	LeaseScanInterval      time.Duration
-	RuntimeSettings        contracts.RuntimeSettings
+	RuntimeTransport       RuntimeTransportSettings
 	Credentials            CredentialResolver
 	RuntimeCredentials     RuntimeCredentialResolver
 	PlannerTelemetry       PlannerTelemetryRegistry
@@ -251,4 +251,11 @@ type Options struct {
 	Clock                  Clock
 	NewID                  func(string) (string, error)
 	Logger                 *slog.Logger
+}
+
+// RuntimeTransportSettings holds the static endpoints needed when materializing
+// per-allocation Runtime settings; credentials are resolved from pinned config.
+type RuntimeTransportSettings struct {
+	ArtifactAPIURL        string
+	RequestTimeoutSeconds int
 }

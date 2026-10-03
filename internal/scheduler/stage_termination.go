@@ -167,7 +167,7 @@ func (s *Scheduler) resumeAborting(
 			s.options.Logger.Warn("bounded allocation abort was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
 	}
-	s.persistReports(ctx, execution, reservations, reports)
+	s.persistReports(ctx, run, workflow, execution, reservations, reports)
 	commitContext, cancelCommit := s.terminalOperationContext(ctx)
 	current, err := s.store.GetRun(commitContext, run.RunID)
 	if err != nil {

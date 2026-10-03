@@ -142,8 +142,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 	result := contracts.RuntimeSettings{
 		LLMRecovery:           s.options.GatewayRecovery != nil,
 		LLMGatewayURL:         resolved.LLMGateway.URL,
-		ArtifactAPIURL:        s.options.RuntimeSettings.ArtifactAPIURL,
-		RequestTimeoutSeconds: s.options.RuntimeSettings.RequestTimeoutSeconds,
+		ArtifactAPIURL:        s.options.RuntimeTransport.ArtifactAPIURL,
+		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
 	}
 	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
 		copied := contracts.GatewayFailureSignatures{

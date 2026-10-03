@@ -121,7 +121,7 @@ func testPostgresSchedulerPublication(t *testing.T, resume bool) {
 	scheduler, err := New(store, transactions, resolver, allocator, workers, planners, Options{
 		PollInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
-		RuntimeSettings: testSchedulerRuntimeSettings(), Credentials: credentialProvider, Clock: clock,
+		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
 		Settings: settingsstore.NewPostgresStore(pool),
 		NewID: func(prefix string) (string, error) {
 			sequence++
@@ -1173,11 +1173,8 @@ func (i *postgresTestWorkerInvoker) Invoke(
 	}, nil
 }
 
-func testSchedulerRuntimeSettings() contracts.RuntimeSettings {
-	token := contracts.NewSecretString("test-token")
-	return contracts.RuntimeSettings{
-		LLMGatewayURL:         "https://gateway.test/v1",
-		LLMGatewayToken:       &token,
+func testSchedulerRuntimeTransport() RuntimeTransportSettings {
+	return RuntimeTransportSettings{
 		ArtifactAPIURL:        "https://control.test/private/v1",
 		RequestTimeoutSeconds: 5,
 	}

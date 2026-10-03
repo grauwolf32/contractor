@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -18,7 +17,7 @@ func TestToolWorkerMaterializesSettingsWithoutGatewayOrCredentialServices(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	scheduler := &Scheduler{options: Options{RuntimeSettings: contracts.RuntimeSettings{
+	scheduler := &Scheduler{options: Options{RuntimeTransport: RuntimeTransportSettings{
 		ArtifactAPIURL: "https://artifacts.example", RequestTimeoutSeconds: 30,
 	}}}
 	stage := workflow.Stages["scan"]

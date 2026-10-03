@@ -1894,14 +1894,11 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		persistence.stageStates = append(persistence.stageStates, runstore.StageRunning)
 	}
 	idSequence := 0
-	token := contracts.NewSecretString("test-token")
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
 		PollInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
-		RuntimeSettings: contracts.RuntimeSettings{
-			LLMGatewayURL:   "https://gateway.test/v1",
-			LLMGatewayToken: &token,
-			ArtifactAPIURL:  "https://control.test/private/v1", RequestTimeoutSeconds: 5,
+		RuntimeTransport: RuntimeTransportSettings{
+			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
 		},
 		Credentials: credentialResolverFunc(func(
 			_ context.Context,

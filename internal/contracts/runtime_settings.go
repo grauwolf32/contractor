@@ -182,6 +182,46 @@ type RuntimeSettings struct {
 	RequestTimeoutSeconds       int                       `json:"requestTimeoutSeconds"`
 }
 
+// SecretValues returns the credential values materialized for one allocation.
+// Callers use them only at boundaries that must reject or redact plaintext.
+func (s RuntimeSettings) SecretValues() []string {
+	result := make([]string, 0, 36)
+	if s.LLMGatewayToken != nil {
+		result = append(result, s.LLMGatewayToken.Reveal())
+	}
+	if s.Telemetry != nil {
+		for _, value := range s.Telemetry.Headers {
+			result = append(result, value.Reveal())
+		}
+	}
+	if s.HTTPProxy != nil {
+		if s.HTTPProxy.BasicAuth != nil {
+			result = append(result,
+				s.HTTPProxy.BasicAuth.Username.Reveal(),
+				s.HTTPProxy.BasicAuth.Password.Reveal(),
+			)
+		}
+		if s.HTTPProxy.BearerToken != nil {
+			result = append(result, s.HTTPProxy.BearerToken.Reveal())
+		}
+	}
+	if s.Caido != nil && s.Caido.BearerToken != nil {
+		result = append(result, s.Caido.BearerToken.Reveal())
+	}
+	if s.HTTPOriginTarget != nil {
+		if s.HTTPOriginTarget.BasicAuth != nil {
+			result = append(result,
+				s.HTTPOriginTarget.BasicAuth.Username.Reveal(),
+				s.HTTPOriginTarget.BasicAuth.Password.Reveal(),
+			)
+		}
+		if s.HTTPOriginTarget.BearerToken != nil {
+			result = append(result, s.HTTPOriginTarget.BearerToken.Reveal())
+		}
+	}
+	return result
+}
+
 func (s RuntimeSettings) Validate() error {
 	if s.LLMGatewayURL != "" {
 		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {

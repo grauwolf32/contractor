@@ -11,8 +11,6 @@ import (
 	"net/url"
 	"sync"
 	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
@@ -67,7 +65,7 @@ func New(
 		options.MetricsCleanupBatch <= 0 || options.MetricsCleanupBatch > 10_000 {
 		return nil, fmt.Errorf("Scheduler durations must be positive and cleanup batch must be at most 10000")
 	}
-	if err := validateRuntimeSettings(options.RuntimeSettings); err != nil {
+	if err := validateRuntimeTransport(options.RuntimeTransport); err != nil {
 		return nil, err
 	}
 	return &Scheduler{
@@ -118,14 +116,14 @@ func applyOptionDefaults(options *Options) {
 	options.TelemetrySecrets = append([]string(nil), options.TelemetrySecrets...)
 }
 
-func validateRuntimeSettings(settings contracts.RuntimeSettings) error {
+func validateRuntimeTransport(settings RuntimeTransportSettings) error {
 	parsed, err := url.Parse(settings.ArtifactAPIURL)
 	if err != nil || parsed.Host == "" || parsed.User != nil ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return fmt.Errorf("Scheduler Artifact API URL is invalid")
 	}
 	if settings.RequestTimeoutSeconds <= 0 {
-		return fmt.Errorf("Scheduler RuntimeSettings require a positive timeout")
+		return fmt.Errorf("Scheduler Runtime transport requires a positive timeout")
 	}
 	return nil
 }
