@@ -10,12 +10,13 @@ languages: [go, yaml]
 goal: Ensure local builds and CI use a patched Go 1.26 release and block reachable Go vulnerabilities.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/231
+  related_issue: https://github.com/grauwolf32/contractor/issues/191
   finding: The module and CI currently select Go 1.26.0, which has reachable standard library vulnerabilities.
 scope:
   in:
     - Select Go 1.26.8 via the module toolchain directive.
     - Have CI install the selected toolchain and run govulncheck on production commands.
-    - Correct the documented Go prerequisite.
+    - Correct the documented Go prerequisites and architecture decision.
   out:
     - Upgrade the Go language baseline to 1.27.
 acceptance_criteria:
@@ -23,7 +24,9 @@ acceptance_criteria:
   - {id: A2, text: CI installs the toolchain directive version and fails on reachable findings.}
   - {id: A3, text: govulncheck reports no reachable findings for production commands.}
   - {id: A4, text: Development documentation names the selected Go version.}
+  - {id: A5, text: The eval release gate and server language decision no longer say Go 1.25.}
 tests:
   - {command: go version, covers: [A1]}
   - {command: govulncheck ./cmd/..., covers: [A3]}
   - {command: go test ./cmd/... ./internal/..., covers: [A1]}
+  - {command: "! rg 'Go 1[.]25' docs/development.md docs/testing tasks/index.yml", covers: [A5]}

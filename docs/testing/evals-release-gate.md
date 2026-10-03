@@ -7,7 +7,7 @@ loopback model Gateway. It does not call a paid model or a live target.
 
 ## Reproduce
 
-Use Go 1.25, Python 3.13/uv, Node 24.20.x, Corepack/pnpm 11.24.0,
+Use Go 1.26.8, Python 3.13/uv, Node 24.20.x, Corepack/pnpm 11.24.0,
 PostgreSQL 17 and Chromium's host libraries. The database principal must be
 able to create/drop schemas. Keep this database separate from application data.
 
