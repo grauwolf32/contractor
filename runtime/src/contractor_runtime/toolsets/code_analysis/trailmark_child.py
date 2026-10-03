@@ -116,7 +116,11 @@ class _TrailmarkAdapter:
         mirror_root = Path.cwd().resolve()
         if any(not isinstance(node_id, str) for node_id in graph.nodes):
             raise _RequestError("code_analysis_engine_failed")
-        raw_ids = tuple(sorted(graph.nodes))
+        canonical_ids, root_module_id = _canonical_graph_ids(graph, mirror_root)
+        upstream_ids = {canonical: upstream for upstream, canonical in canonical_ids.items()}
+        if len(upstream_ids) != len(graph.nodes):
+            raise _RequestError("code_analysis_engine_failed")
+        raw_ids = tuple(sorted(upstream_ids))
         if len(raw_ids) > MAX_SYMBOL_INDEX + 1:
             raise _RequestError("code_analysis_capacity_exceeded")
         symbols: list[dict[str, Any]] = []
@@ -124,12 +128,15 @@ class _TrailmarkAdapter:
         name_index: dict[str, set[str]] = {}
         symbol_ids: set[str] = set()
         for index, raw_id in enumerate(raw_ids):
-            node = graph.nodes[raw_id]
+            upstream_id = upstream_ids[raw_id]
+            node = graph.nodes[upstream_id]
             symbol_id = encode_symbol_id(symbol_key, digest, index, raw_id)
             if symbol_id in symbol_ids:
                 raise _RequestError("code_analysis_engine_failed")
             symbol_ids.add(symbol_id)
             projection = _project_node(node, mirror_root, symbol_id)
+            if upstream_id == root_module_id:
+                projection["name"] = raw_id
             nodes[raw_id] = projection
             symbols.append(projection)
             for key in _index_name_keys(raw_id, projection["name"]):
@@ -150,8 +157,8 @@ class _TrailmarkAdapter:
         for edge in graph.edges:
             if _enum_value(edge.kind) != "calls":
                 continue
-            source = str(edge.source_id)
-            target = str(edge.target_id)
+            source = canonical_ids.get(str(edge.source_id))
+            target = canonical_ids.get(str(edge.target_id))
             if source not in nodes or target not in nodes:
                 raise _RequestError("code_analysis_engine_failed")
             confidence = _edge_confidence(edge.confidence)
@@ -160,7 +167,8 @@ class _TrailmarkAdapter:
             adjacency.setdefault(source, set()).add(target)
 
         entrypoint_pairs: list[tuple[str, dict[str, Any]]] = []
-        for raw_id, tag in graph.entrypoints.items():
+        for upstream_id, tag in graph.entrypoints.items():
+            raw_id = canonical_ids.get(upstream_id)
             if raw_id not in nodes:
                 raise _RequestError("code_analysis_engine_failed")
             row = dict(nodes[raw_id])
@@ -171,7 +179,7 @@ class _TrailmarkAdapter:
         complexities: list[tuple[str, dict[str, Any]]] = []
         exceptions: dict[str, list[str]] = {}
         for raw_id in raw_ids:
-            node = graph.nodes[raw_id]
+            node = graph.nodes[upstream_ids[raw_id]]
             complexity = getattr(node, "cyclomatic_complexity", None)
             if complexity is not None:
                 if (
@@ -603,6 +611,36 @@ def _object(value: object, keys: set[str]) -> dict[str, Any]:
     ):
         raise _RequestError("invalid_request")
     return value
+
+
+def _canonical_graph_ids(graph: Any, mirror_root: Path) -> tuple[dict[str, str], str | None]:
+    """Remove Trailmark's random parse-root prefix from root-package IDs."""
+    root_modules = [
+        raw_id
+        for raw_id, node in graph.nodes.items()
+        if _enum_value(getattr(node, "kind", "")) == "module"
+        and _relative_path(getattr(getattr(node, "location", None), "file_path", None), mirror_root)
+        == "__init__.py"
+    ]
+    if len(root_modules) > 1:
+        raise _RequestError("code_analysis_engine_failed")
+    if not root_modules:
+        return {raw_id: raw_id for raw_id in graph.nodes}, None
+
+    root_id = root_modules[0]
+    rooted = {
+        raw_id for raw_id in graph.nodes if raw_id == root_id or raw_id.startswith(root_id + ":")
+    }
+    unrelated = set(graph.nodes) - rooted
+    prefix = "__init__"
+    suffix = 0
+    while any(prefix + raw_id[len(root_id) :] in unrelated for raw_id in rooted):
+        suffix += 1
+        prefix = f"__init__#{suffix}"
+    return {
+        raw_id: prefix + raw_id[len(root_id) :] if raw_id in rooted else raw_id
+        for raw_id in graph.nodes
+    }, root_id
 
 
 def _project_node(node: object, mirror_root: Path, symbol_id: str) -> dict[str, Any]:

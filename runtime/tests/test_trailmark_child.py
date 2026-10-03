@@ -13,7 +13,10 @@ import contractor_runtime.toolsets.code_analysis.trailmark_child as child_module
 import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.projectfs import LocalWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets.code_analysis.trailmark_host import TrailmarkChildHost
+from contractor_runtime.toolsets.code_analysis.trailmark_host import (
+    TrailmarkChildHost,
+    TrailmarkHostError,
+)
 
 
 @pytest.mark.parametrize(
@@ -84,6 +87,103 @@ def test_child_graph_uses_exact_effective_snapshot_not_local_underlay(
             await session.close()
             await provider.cleanup(session.storage)
         assert list(scratch.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_root_init_symbols_survive_same_digest_rebuilds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshot = WorkspaceSnapshot(
+        directories=(),
+        files=(
+            _file(
+                "__init__.py", "def helper():\n    return 1\n\ndef main():\n    return helper()\n"
+            ),
+            _file("pkg/mod.py", "def leaf():\n    return 2\n"),
+        ),
+        binary_paths=(),
+        digest="sha256:" + "a" * 64,
+    )
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path / "scratch")
+        try:
+            await host.build(snapshot)
+            first_mirror = host._mirror
+            assert first_mirror is not None
+            original = await host.symbols()
+            by_name = {item.name: item for item in original.items}
+            assert {"__init__", "helper", "main", "leaf"} <= by_name.keys()
+            assert all("code-analysis-mirror-" not in item.name for item in original.items)
+            assert [
+                item.name
+                for item in (await host.find_symbols("__init__.helper", offset=0, limit=10)).items
+            ] == ["helper"]
+            assert (
+                await host.find_symbols(first_mirror.path.name + ".helper", offset=0, limit=10)
+            ).items == ()
+
+            helper_id = by_name["helper"].symbol_id
+            main_id = by_name["main"].symbol_id
+            leaf_id = by_name["leaf"].symbol_id
+
+            async def assert_old_ids_work() -> None:
+                callers = await host.relationships("find_callers", helper_id, offset=0, limit=10)
+                assert [item.symbol.name for item in callers.items] == ["main"]
+                callees = await host.relationships("find_callees", main_id, offset=0, limit=10)
+                assert [item.symbol.name for item in callees.items] == ["helper"]
+                paths = await host.paths_between(main_id, helper_id, max_depth=3, limit=10)
+                assert [[item.name for item in path] for path in paths.items] == [
+                    ["main", "helper"]
+                ]
+                entrypoint_paths = await host.entrypoint_paths_to(helper_id, max_depth=3, limit=10)
+                assert [[item.name for item in path] for path in entrypoint_paths.items] == [
+                    ["main", "helper"]
+                ]
+                surface = await host.attack_surface(offset=0, limit=10)
+                assert [item.symbol.name for item in surface.items] == ["main"]
+                assert all(
+                    "code-analysis-mirror-" not in (item.description or "")
+                    for item in surface.items
+                )
+                assert [
+                    item.name
+                    for item in (await host.find_symbols("pkg.mod.leaf", offset=0, limit=10)).items
+                ] == ["leaf"]
+                assert (await host.find_symbols("leaf", offset=0, limit=10)).items[
+                    0
+                ].symbol_id == leaf_id
+
+            await assert_old_ids_work()
+            await host.invalidate()
+            assert not first_mirror.path.exists()
+            await host.build(snapshot)
+            assert host._mirror is not None and host._mirror.path != first_mirror.path
+            assert (await host.symbols()).items == original.items
+            await assert_old_ids_work()
+
+            original_request = host._request_once_locked
+
+            async def time_out_query(
+                operation: str, arguments: object, *, timeout: float
+            ) -> object:
+                if operation == "find_symbol":
+                    raise TimeoutError
+                return await original_request(operation, arguments, timeout=timeout)
+
+            monkeypatch.setattr(host, "_request_once_locked", time_out_query)
+            with pytest.raises(TrailmarkHostError) as timed_out:
+                await host.find_symbols("helper", offset=0, limit=10)
+            assert timed_out.value.code == "code_analysis_query_timeout"
+            assert host.mirror_exists is False
+            monkeypatch.setattr(host, "_request_once_locked", original_request)
+            await host.build(snapshot)
+            assert (await host.symbols()).items == original.items
+            await assert_old_ids_work()
+        finally:
+            await host.close()
+        assert list((tmp_path / "scratch").iterdir()) == []
 
     asyncio.run(scenario())
 
