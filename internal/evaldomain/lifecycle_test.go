@@ -38,7 +38,7 @@ func TestLifecycleCommandsFollowControlAndState(t *testing.T) {
 }
 
 func TestLifecycleBudgetStopsAllAcceptedWork(t *testing.T) {
-	for _, state := range []State{StateRunning, StatePausing, StatePaused, StateSettling, StateInterrupted} {
+	for _, state := range []State{StateRunning, StatePausing, StatePaused, StateSettling} {
 		l := Lifecycle{State: state, ControlMode: ControlServer, Outstanding: 8, HasPlan: true}
 		target, stop := l.BudgetStop(true)
 		if !stop || target != StateCancelling || l.ValidateObservation(target) != nil {
@@ -82,7 +82,7 @@ func TestLifecycleRecoversCommandsFromCommittedFacts(t *testing.T) {
 }
 
 func TestLifecycleAdmissionKeepsClosedStatesAndBudgetsFenced(t *testing.T) {
-	for _, state := range []State{StatePausing, StatePaused, StateSettling, StateCancelling, StateCancelled, StateFinished, StateInterrupted} {
+	for _, state := range []State{StatePausing, StatePaused, StateSettling, StateCancelling, StateCancelled, StateFinished} {
 		l := Lifecycle{State: state, ControlMode: ControlServer}
 		if l.ValidateAdmission(false, 8) == nil {
 			t.Fatalf("admission reopened %s", state)

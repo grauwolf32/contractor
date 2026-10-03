@@ -6,7 +6,7 @@
       "name": "Trace instructions",
       "controlMode": "server",
       "executionKind": "workflow",
-      "state": "interrupted",
+      "state": "paused",
       "revision": 7,
       "expectedMembers": 8,
       "updatedAt": "2026-09-19T10:00:02Z",

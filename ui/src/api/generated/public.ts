@@ -2583,7 +2583,7 @@ export interface components {
             /** @enum {string} */
             executionKind: "workflow" | "audit";
             /** @enum {string} */
-            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
             revision: number;
             planSha256: components["schemas"]["EvalDigest"] | null;
             viewSnapshot: components["schemas"]["EvalOpaque"] | null;
@@ -2825,7 +2825,7 @@ export interface components {
             /** @enum {string} */
             executionKind: "workflow" | "audit";
             /** @enum {string} */
-            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
             revision: number;
             expectedMembers: number;
             updatedAt: components["schemas"]["EvalTimestamp"];
@@ -2844,7 +2844,7 @@ export interface components {
             experimentId: components["schemas"]["EvalOpaque"];
             revision: number;
             /** @enum {string} */
-            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
         };
         EvalBindingCapability: {
             /** @enum {string} */
@@ -3722,6 +3722,7 @@ export interface components {
             proposed_checks: components["schemas"]["FindingProposedCheck"][];
             /** @enum {unknown} */
             severity_suggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
+            /** @description Each value is limited to 512 UTF-8 bytes by the Server. */
             limitations: string[];
             /** @description Optional; source and web coordinates are producer claims. */
             locations?: components["schemas"]["FindingLocation"][];
@@ -5866,6 +5867,16 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key */
+        RunCreationUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         InternalError: {
             headers: {
                 [name: string]: unknown;
@@ -6361,7 +6372,7 @@ export interface operations {
                 limit?: number;
                 cursor?: string;
                 projectId?: string;
-                state?: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+                state?: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled";
                 datasetId?: string;
                 controlMode?: "server" | "external";
             };
@@ -8375,7 +8386,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["CredentialRecoveryRequired"];
+            503: components["responses"]["RunCreationUnavailable"];
         };
     };
     listAuditProfiles: {
@@ -9465,7 +9476,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["CredentialRecoveryRequired"];
+            503: components["responses"]["RunCreationUnavailable"];
         };
     };
     getRun: {

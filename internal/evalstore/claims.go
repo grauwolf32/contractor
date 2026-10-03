@@ -25,7 +25,7 @@ WITH candidates AS (
     FROM eval_controller_claims c
     JOIN eval_experiments e USING (experiment_id)
     WHERE (
-        e.state IN ('preparing', 'running', 'settling', 'pausing', 'paused', 'cancelling', 'interrupted')
+        e.state IN ('preparing', 'running', 'settling', 'pausing', 'paused', 'cancelling')
         OR EXISTS (SELECT 1 FROM eval_commands cmd
             WHERE cmd.experiment_id = e.experiment_id AND cmd.state IN ('accepted', 'running'))
         OR EXISTS (SELECT 1 FROM eval_projection_queue q

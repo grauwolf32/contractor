@@ -5,7 +5,7 @@
   "name": "Trace instructions",
   "controlMode": "server",
   "executionKind": "workflow",
-  "state": "interrupted",
+  "state": "paused",
   "revision": 7,
   "planSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
   "viewSnapshot": "view-7",

@@ -6,7 +6,7 @@ unfinished V38-006; it does not mark result collection/comparison complete.
 
 ## Fixed behavior
 
-- Deadline and token checks remain active in settling and interrupted recovery
+- Deadline and token checks remain active in settling and after process recovery
   until accepted work drains. Four PostgreSQL regressions cover Workflow/Audit ×
   deadline/tokens, each with eight active accepted executions. Every execution
   receives an ordinary cancellation request before the fixture completes drain.

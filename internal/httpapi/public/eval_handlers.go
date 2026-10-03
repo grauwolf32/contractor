@@ -246,7 +246,7 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	if (q.Has("state") && !evalStringIn(q.Get("state"), "draft", "preparing", "ready", "running", "settling", "finished", "pausing", "paused", "cancelling", "cancelled", "interrupted")) || (q.Has("controlMode") && !evalStringIn(q.Get("controlMode"), "server", "external")) || q.Has("projectId") && q.Get("projectId") == "" || q.Has("datasetId") && q.Get("datasetId") == "" {
+	if (q.Has("state") && !evalStringIn(q.Get("state"), "draft", "preparing", "ready", "running", "settling", "finished", "pausing", "paused", "cancelling", "cancelled")) || (q.Has("controlMode") && !evalStringIn(q.Get("controlMode"), "server", "external")) || q.Has("projectId") && q.Get("projectId") == "" || q.Has("datasetId") && q.Get("datasetId") == "" {
 		h.evalError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}

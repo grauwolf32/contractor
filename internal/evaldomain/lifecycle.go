@@ -7,17 +7,16 @@ import "errors"
 type State string
 
 const (
-	StateDraft       State = "draft"
-	StatePreparing   State = "preparing"
-	StateReady       State = "ready"
-	StateRunning     State = "running"
-	StatePausing     State = "pausing"
-	StatePaused      State = "paused"
-	StateSettling    State = "settling"
-	StateFinished    State = "finished"
-	StateCancelling  State = "cancelling"
-	StateCancelled   State = "cancelled"
-	StateInterrupted State = "interrupted"
+	StateDraft      State = "draft"
+	StatePreparing  State = "preparing"
+	StateReady      State = "ready"
+	StateRunning    State = "running"
+	StatePausing    State = "pausing"
+	StatePaused     State = "paused"
+	StateSettling   State = "settling"
+	StateFinished   State = "finished"
+	StateCancelling State = "cancelling"
+	StateCancelled  State = "cancelled"
 )
 
 type ControlMode string
@@ -92,7 +91,7 @@ func (l Lifecycle) CommandTarget(kind CommandKind) (State, error) {
 			return StatePausing, nil
 		}
 	case CommandResume:
-		if l.State == StatePaused || l.State == StateInterrupted {
+		if l.State == StatePaused {
 			return StateRunning, nil
 		}
 	case CommandCancel:
@@ -120,8 +119,8 @@ func (l Lifecycle) AllowedCommands() []CommandKind {
 	return commands
 }
 
-// BudgetStop applies until accepted executions drain, including settling and
-// recovery after an interruption. Cancelling already carries the stop fence.
+// BudgetStop applies until accepted executions drain, including settling.
+// Cancelling already carries the stop fence.
 func (l Lifecycle) BudgetStop(exhausted bool) (State, bool) {
 	if !exhausted || l.State.Terminal() || l.State == StateCancelling {
 		return "", false
@@ -132,8 +131,6 @@ func (l Lifecycle) BudgetStop(exhausted bool) (State, bool) {
 	switch l.State {
 	case StateRunning, StatePaused, StatePausing:
 		return StateSettling, true
-	case StateInterrupted:
-		return StateCancelling, true
 	default:
 		return "", false
 	}
@@ -144,7 +141,7 @@ func (l Lifecycle) BudgetStop(exhausted bool) (State, bool) {
 var ErrOutstandingExecutions = errors.New("accepted evaluation executions have not drained")
 
 func (l Lifecycle) ValidateObservation(target State) error {
-	if l.DeletionRequested && target != StateCancelled && target != StateCancelling && target != StateInterrupted {
+	if l.DeletionRequested && target != StateCancelled && target != StateCancelling {
 		return Failure("eval_project_deleting")
 	}
 	if (target.Terminal() || target == StatePaused) && l.Outstanding != 0 {
@@ -159,19 +156,17 @@ func (l Lifecycle) ValidateObservation(target State) error {
 func (l Lifecycle) allowsObservation(target State) bool {
 	switch l.State {
 	case StatePreparing:
-		return target == StatePreparing || target == StateDraft || target == StateInterrupted
+		return target == StatePreparing || target == StateDraft
 	case StateRunning:
-		return target == StateRunning || target == StateSettling || target == StateCancelling || target == StateInterrupted
+		return target == StateRunning || target == StateSettling || target == StateCancelling
 	case StatePausing:
-		return target == StatePaused || target == StateSettling || target == StateCancelling || target == StateInterrupted
+		return target == StatePaused || target == StateSettling || target == StateCancelling
 	case StatePaused:
 		return target == StateCancelling || target == StateSettling
 	case StateSettling:
-		return target == StateFinished || target == StateCancelling || target == StateInterrupted
+		return target == StateFinished || target == StateCancelling
 	case StateCancelling:
-		return target == StateCancelled || target == StateInterrupted
-	case StateInterrupted:
-		return target == StateCancelling
+		return target == StateCancelled
 	default:
 		return false
 	}

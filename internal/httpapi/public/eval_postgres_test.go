@@ -533,7 +533,7 @@ func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T
 	h.request(t, "GET", "/v1/eval-experiments?projectId=foreign&limit=1&cursor="+url.QueryEscape(*page.Page.NextCursor), nil, "", "", 422)
 	h.request(t, "PATCH", "/v1/eval-experiments/"+first.ID, evaldomain.DraftUpdate{Name: "Changed", Draft: draft}, "edit", `"2"`, 200)
 	h.request(t, "GET", nextPath, nil, "", "", 409)
-	for _, query := range []string{"limit=101", "limit=0", "limit=-1", "limit=1&limit=2", "unknown=x", "state=garbage", "cursor=untrusted"} {
+	for _, query := range []string{"limit=101", "limit=0", "limit=-1", "limit=1&limit=2", "unknown=x", "state=garbage", "state=interrupted", "cursor=untrusted"} {
 		h.request(t, "GET", "/v1/eval-experiments?"+query, nil, "", "", 422)
 	}
 	h.request(t, "POST", "/v1/projects/evaluation/eval-datasets", data, "second-import", "", 201)
