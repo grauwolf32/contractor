@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V251-001
+title: Reuse request-wide placement catalogs within one optimistic pass
+milestone: placement-query-cost-2026-10
+priority: P2
+status: completed
+implementation_commit: 42973d0d10293427b0f556010bffcff32e51d1da
+depends_on: []
+languages: [go]
+goal: Keep optimistic placement query cost bounded by distinct pins, labels, and credentials instead of candidate count.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/151
+  finding: Every compatible idle candidate currently reloads the same RuntimeConfig and credential metadata.
+scope:
+  in:
+    - Cache request pins, agent-label bindings, and credential metadata for one optimistic pass.
+    - Preserve transaction-bound selected-edge re-resolution and drift checks.
+    - Measure query counts with multiple candidates sharing labels.
+  out:
+    - Persist catalogs across placement attempts or Scheduler polls.
+acceptance_criteria:
+  - {id: A1, text: Shared pin, label, and credential reads do not scale with idle candidate count.}
+  - {id: A2, text: Selected edges re-resolve inside the transaction and reject drift.}
+  - {id: A3, text: Candidate-local failures remain insufficient capacity and opaque repository failures propagate.}
+  - {id: A4, text: Placement and controlplane tests plus lint pass.}
+tests:
+  - {command: "go test -race -count=1 ./internal/controlplane -run '^TestPlacement'", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A4]}
