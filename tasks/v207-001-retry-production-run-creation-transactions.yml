@@ -3,7 +3,8 @@ id: V207-001
 title: Retry production public Run creation after definite PostgreSQL aborts
 milestone: run-creation-reliability-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 6a529332c03550db722086fbbd040505d82d3edb
 depends_on: []
 languages: [go]
 goal: Let public Run creation recover from definite serialization and deadlock aborts with fresh pins.
