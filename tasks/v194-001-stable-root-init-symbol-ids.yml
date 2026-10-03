@@ -3,7 +3,8 @@ id: V194-001
 title: Keep root __init__.py symbol IDs stable across Trailmark rebuilds
 milestone: code-analysis-identity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 93cd9b428dc75d4f620d7ee35597b1f702145cc5
 depends_on: []
 languages: [python]
 goal: Prevent temporary mirror names from changing root-package symbol identities and projections.
