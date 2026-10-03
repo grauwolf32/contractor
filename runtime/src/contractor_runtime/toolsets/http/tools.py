@@ -32,7 +32,9 @@ from contractor_runtime.adapters.http_proxy import (
 from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
+    ArtifactAPIError,
     ArtifactClient,
+    ArtifactResponseLimitError,
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -700,6 +702,13 @@ class _HTTPSession:
                     raise HTTPToolError("http_body_not_found")
             except HTTPToolError:
                 raise
+            except ArtifactResponseLimitError:
+                raise HTTPToolError("http_body_not_found") from None
+            except ArtifactAPIError as error:
+                code = "http_request_failed" if error.retryable else "http_body_not_found"
+                raise HTTPToolError(code) from None
+            except ArtifactTransportError:
+                raise HTTPToolError("http_request_failed") from None
             except Exception:
                 raise HTTPToolError("http_body_not_found") from None
             if kind == "text":

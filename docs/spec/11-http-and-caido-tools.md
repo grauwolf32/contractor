@@ -104,6 +104,10 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 | `http_session_get` | Return the redacted session view. |
 | `http_session_clear` | Erase cookies/headers/auth/history; retained response artifacts remain immutable. |
 
+`http_read_body` reports transient Artifact API or transport failures as the
+retryable `http_request_failed`; the same request ID can be read again. Missing,
+invalid or oversized stored bodies fail with non-retryable `http_body_not_found`.
+
 ### Request contract
 
 `http_request` accepts:

@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V131-001, file: v131-001-http-body-read-retry.yml}
   - {id: V130-001, file: v130-001-proxy-stream-only.yml}
   - {id: V129-001, file: v129-001-http-denied-attempt-state.yml}
   - {id: V128-001, file: v128-001-invalid-http-urls.yml}
