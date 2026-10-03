@@ -273,6 +273,35 @@ func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) 
 	}
 }
 
+func TestProjectHTTPTargetRejectsUnusableURLs(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	fixture.projects.projects["project-target"] = projectstore.Project{
+		ProjectID: "project-target", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Lifecycle: projectstore.LifecycleActive,
+		Name:      "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	for _, targetURL := range []string{
+		"http://target:70000/", "http://target:0/", "https://[fe80::1%25en0]/",
+		"http://10.0.0.256/", "https://host/#",
+	} {
+		t.Run(targetURL, func(t *testing.T) {
+			body, err := json.Marshal(map[string]any{"httpTarget": map[string]string{"url": targetURL}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := authenticatedRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader(body))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("If-Match", `"1"`)
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"invalid_request"`) {
+				t.Fatalf("target %q = %d %s", targetURL, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
 func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	userOnly := auth.Principal{UserID: "user-2", Username: "user", Capabilities: []string{auth.CapabilityUser}}

@@ -137,12 +137,22 @@ function safeProject(value: Project, status: number): Project {
   ) {
     throw invalidProjectResponse(status);
   }
-  return {
-    ...value,
-    ...(value.httpTarget === undefined
-      ? {}
-      : { httpTarget: normalizeProjectHTTPTarget(value.httpTarget) }),
-  };
+  // Readback must preserve a legacy target whose URL the browser cannot parse,
+  // so its Project still loads and the owner can replace or remove the target.
+  const target = value.httpTarget;
+  if (
+    target !== undefined &&
+    (typeof target.url !== "string" ||
+      new TextEncoder().encode(target.url).length >
+        MAXIMUM_PROJECT_TARGET_URL_BYTES ||
+      (target.credential !== undefined &&
+        (!RUNTIME_CREDENTIAL_ID_PATTERN.test(target.credential.credentialId) ||
+          (target.credential.kind !== "http-origin-basic@1" &&
+            target.credential.kind !== "http-origin-bearer@1"))))
+  ) {
+    throw invalidProjectResponse(status);
+  }
+  return value;
 }
 
 export function normalizeProjectHTTPTarget(
@@ -160,8 +170,11 @@ export function normalizeProjectHTTPTarget(
     (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
     parsed.username !== "" ||
     parsed.password !== "" ||
+    parsed.port === "0" ||
     parsed.search !== "" ||
-    parsed.hash !== ""
+    parsed.hash !== "" ||
+    url.includes("?") ||
+    url.includes("#")
   ) {
     throw new TypeError("Project HTTP target URL is invalid");
   }

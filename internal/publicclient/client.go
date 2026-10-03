@@ -162,8 +162,18 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 		return nil, err
 	}
 	versions := response.Header.Values(APIVersionHeader)
+	if len(versions) == 0 && response.StatusCode >= http.StatusBadRequest {
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
+		return nil, &IntermediaryError{
+			Status: response.StatusCode, RequestID: response.Header.Get("X-Request-ID"),
+		}
+	}
 	if len(versions) != 1 || strings.TrimSpace(versions[0]) != APIVersion {
-		_ = response.Body.Close()
+		if response.Body != nil {
+			_ = response.Body.Close()
+		}
 		actual := "missing"
 		if len(versions) != 0 {
 			actual = strings.Join(versions, ",")
@@ -195,6 +205,24 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 type CompatibilityError struct {
 	Expected string
 	Actual   string
+}
+
+// IntermediaryError preserves the status of a proxy response that did not
+// carry the version header every Contractor Server response provides.
+type IntermediaryError struct {
+	Status    int
+	RequestID string
+}
+
+func (e *IntermediaryError) Error() string {
+	message := fmt.Sprintf("Server or proxy returned HTTP %d %s without a Contractor API version header", e.Status, http.StatusText(e.Status))
+	switch e.Status {
+	case http.StatusRequestEntityTooLarge:
+		message += "; check the proxy request-body size limit"
+	case http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		message += "; try again"
+	}
+	return message
 }
 
 func (e *CompatibilityError) Error() string {

@@ -36,19 +36,67 @@ func TestClientAuthenticatesAndChecksAPIVersion(t *testing.T) {
 	}
 }
 
-func TestClientRejectsMissingAPIVersion(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	defer server.Close()
-	client, err := New(Options{Server: server.URL, Token: "secret", Timeout: time.Second})
-	if err != nil {
-		t.Fatal(err)
+func TestClientPreservesHeaderlessIntermediaryStatus(t *testing.T) {
+	for _, status := range []int{
+		http.StatusUnauthorized, http.StatusRequestEntityTooLarge,
+		http.StatusTooManyRequests, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("X-Request-ID", "proxy-request")
+				w.WriteHeader(status)
+			}))
+			defer server.Close()
+			client, err := New(Options{Server: server.URL, Token: "secret", Timeout: time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.API.ListWorkflowsWithResponse(t.Context(), nil)
+			var intermediary *IntermediaryError
+			if !errors.As(err, &intermediary) || intermediary.Status != status || intermediary.RequestID != "proxy-request" {
+				t.Fatalf("status %d error = %v", status, err)
+			}
+			if !strings.Contains(err.Error(), http.StatusText(status)) || strings.Contains(err.Error(), "incompatible Contractor API version") {
+				t.Fatalf("status %d error message = %v", status, err)
+			}
+			if status == http.StatusRequestEntityTooLarge && !strings.Contains(err.Error(), "request-body size limit") {
+				t.Fatalf("413 error message = %v", err)
+			}
+		})
 	}
-	_, err = client.API.ListWorkflowsWithResponse(t.Context(), nil)
-	var compatibility *CompatibilityError
-	if !errors.As(err, &compatibility) {
-		t.Fatalf("error = %v", err)
+}
+
+func TestClientStillRejectsMissingOrMismatchedSuccessVersion(t *testing.T) {
+	for _, test := range []struct {
+		name, version string
+		status        int
+	}{
+		{name: "headerless success", status: http.StatusOK},
+		{name: "mismatched success", status: http.StatusOK, version: "contractor.public.v2"},
+		{name: "mismatched error", status: http.StatusBadGateway, version: "contractor.public.v2"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if test.version != "" {
+					w.Header().Set(APIVersionHeader, test.version)
+				}
+				w.WriteHeader(test.status)
+			}))
+			defer server.Close()
+			client, err := New(Options{Server: server.URL, Token: "secret", Timeout: time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.API.ListWorkflowsWithResponse(t.Context(), nil)
+			var compatibility *CompatibilityError
+			if !errors.As(err, &compatibility) {
+				t.Fatalf("error = %v, want compatibility error", err)
+			}
+			if test.version != "" && compatibility.Actual != test.version {
+				t.Fatalf("actual API version = %q, want %q", compatibility.Actual, test.version)
+			}
+		})
 	}
 }
 

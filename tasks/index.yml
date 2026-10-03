@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: api-url-boundary-clarity-2026-10
+    exit_task: V97-002
+    outcome: >-
+      Project target URL validation stays compatible with the UI and legacy
+      invalid targets remain editable, while proxy HTTP errors retain status.
   - id: operations-detail-fact-clarity-2026-10
     exit_task: V96-002
     outcome: >-
@@ -2766,6 +2771,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V97-001, file: v97-001-project-http-target-url-boundary.yml}
+  - {id: V97-002, file: v97-002-publicclient-intermediary-status.yml}
   - {id: V96-001, file: v96-001-runtime-config-detail-values.yml}
   - {id: V96-002, file: v96-002-offline-identity-timestamp.yml}
   - {id: V95-001, file: v95-001-sourcebundle-symlink-parents.yml}
