@@ -102,32 +102,62 @@ class AgentTemplate(BaseModel):
     sandbox_profile: SandboxProfileRef
 ```
 
-The complete first-slice AgentTemplate YAML is:
+A complete AgentTemplate YAML from the current catalog is
+[`openapi_builder@3`](../../configs/agent-templates/openapi_builder_v3_memory.yaml):
 
 ```yaml
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 
 metadata:
-  name: oas_builder
-  version: "2"
+  name: openapi_builder
+  version: "3"
 
 spec:
-  description: Builds and updates an OpenAPI description
+  description: Incrementally builds one evidence-linked OpenAPI document from project source
   runtime: adk@1
   instructions:
-    ref: instructions/oas-worker.md
-  modelPolicy: code-analysis@1
+    ref: instructions/openapi-builder-worker-memory.md
+  modelPolicy: worker@2
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    modelPolicy: summarizer@1
+    contextWindowRatio: 0.8
   toolsets:
-    - ref: run-artifacts@1
+    - ref: memory-tools@1
       tools:
-        - list_artifacts
-        - read_artifact
-        - write_artifact
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: source-analysis@1
+      tools:
+        - open_source_archive
+        - list_source_files
+        - search_source
+        - read_source
+    - ref: text-artifacts@1
+      tools:
+        - read_text_artifact
     - ref: openapi@1
       tools:
-        - read_operation
-        - update_schema
+        - load_openapi
+        - initialize_openapi
+        - get_openapi_info
+        - set_openapi_info
+        - list_openapi_servers
+        - set_openapi_servers
+        - list_openapi_tags
+        - set_openapi_tags
+        - list_openapi_paths
+        - get_openapi_path
+        - upsert_openapi_path
+        - list_openapi_components
+        - get_openapi_component
+        - upsert_openapi_component
         - validate_openapi
   sandboxProfile: local-workdir@1
 ```
@@ -154,7 +184,7 @@ instructions:
 ```yaml
 spec:
   instructions:
-    ref: instructions/oas-worker.md
+    ref: instructions/openapi-builder-worker-memory.md
 ```
 
 AgentTemplateCatalog resolves the UTF-8 text at load time. The normalized ref,
@@ -190,7 +220,7 @@ shared `<id>@<version>` grammar:
 
 ```yaml
 spec:
-  modelPolicy: code-analysis@1
+  modelPolicy: worker@2
 ```
 
 ModelPolicyCatalog resolves it before the AgentTemplate is accepted. The
@@ -418,11 +448,11 @@ spec:
     - ref: source-analysis@1
       tools:
         - read_source
-        - search_symbols
+        - search_source
     - ref: openapi@1
       tools:
-        - read_operation
-        - update_schema
+        - load_openapi
+        - upsert_openapi_path
         - validate_openapi
 ```
 
@@ -814,10 +844,10 @@ binding:
 ```yaml
 agents:
   oas_builder:
-    template: oas_builder@2
+    template: openapi_builder@3
     namespace: oas
   reviewer:
-    template: oas_reviewer@1
+    template: openapi_validator@3
 ```
 
 The authoring schema has no list or scalar shorthand. The YAML mapping key
