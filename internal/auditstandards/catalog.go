@@ -166,6 +166,12 @@ func (c *Catalog) Initialize(ctx context.Context, ownerID string, plan *SeedPlan
 			}
 			current, readErr = store.Read(ctx, ref)
 		}
+		if errors.Is(readErr, artifacts.ErrBlobMissing) {
+			outcomes = append(outcomes, SeedOutcome{
+				Reference: bundled.metadata.Reference, Status: SeedContentMissing, Digest: bundled.metadata.Digest,
+			})
+			continue
+		}
 		if readErr != nil {
 			return nil, fmt.Errorf("read Audit standard %s@%s: %w",
 				bundled.metadata.Reference.Scheme, bundled.metadata.Reference.Version, readErr)

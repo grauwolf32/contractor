@@ -18,9 +18,10 @@ const (
 	MaximumBundledSkills       = 128
 	MaximumBundledPackageBytes = 256 << 20
 
-	SeedCreated SeedStatus = "created"
-	SeedInSync  SeedStatus = "in_sync"
-	SeedDrift   SeedStatus = "seed_drift"
+	SeedCreated        SeedStatus = "created"
+	SeedInSync         SeedStatus = "in_sync"
+	SeedDrift          SeedStatus = "seed_drift"
+	SeedContentMissing SeedStatus = "content_missing"
 )
 
 type SeedStatus string
@@ -174,6 +175,9 @@ func initializeSeed(
 	if err == nil {
 		return classifySeed(pkg, current), nil
 	}
+	if errors.Is(err, artifacts.ErrBlobMissing) {
+		return missingSeed(pkg), nil
+	}
 	if !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		return SeedOutcome{}, err
 	}
@@ -188,10 +192,20 @@ func initializeSeed(
 		return SeedOutcome{}, err
 	}
 	current, err = store.Read(ctx, ref)
+	if errors.Is(err, artifacts.ErrBlobMissing) {
+		return missingSeed(pkg), nil
+	}
 	if err != nil {
 		return SeedOutcome{}, err
 	}
 	return classifySeed(pkg, current), nil
+}
+
+func missingSeed(pkg seedPackage) SeedOutcome {
+	return SeedOutcome{
+		Name: pkg.metadata.Name, Status: SeedContentMissing,
+		BundledDigest: pkg.metadata.Digest,
+	}
 }
 
 func classifySeed(pkg seedPackage, current artifacts.ReadResult) SeedOutcome {
