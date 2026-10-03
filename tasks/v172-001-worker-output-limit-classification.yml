@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V172-001
+title: Classify completion and summarizer output limits
+milestone: worker-output-limit-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Report output-token limits consistently and never accept truncated terminal summaries.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/254
+  finding: Completion Workers classify MAX_TOKENS as a generic model error; summarizer forwards truncated text.
+scope:
+  in:
+    - Prioritize output-limit classification for completion Worker events.
+    - Stop the one-shot summarizer before yielding an output-limited response to ADK.
+    - Preserve summarizer token usage and expose an output-limit failure cause.
+  out:
+    - Change unrelated model-error or result-finalizer classifications.
+acceptance_criteria:
+  - {id: A1, text: Completion Worker MAX_TOKENS fails retryably with worker_output_limit_exceeded before and after submissions.}
+  - {id: A2, text: Other completion model errors retain worker_execution_failed.}
+  - {id: A3, text: Output-limited terminal summaries fail with cause output_limit_exceeded even when text is valid JSON.}
+  - {id: A4, text: Summarizer usage and existing ordinary Worker/finalizer behavior remain correct.}
+tests:
+  - {command: cd runtime && .venv/bin/python -m pytest tests/test_audit_completion_runtime.py tests/test_adk_runtime.py tests/test_worker_summarizer.py, covers: [A1, A2, A3, A4]}

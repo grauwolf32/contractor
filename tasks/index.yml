@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V172-001, file: v172-001-worker-output-limit-classification.yml}
   - {id: V171-001, file: v171-001-worker-budget-instrumentation.yml}
   - {id: V170-001, file: v170-001-audit-results-dead-scaffolding.yml}
   - {id: V169-001, file: v169-001-planner-artifact-metadata.yml}
