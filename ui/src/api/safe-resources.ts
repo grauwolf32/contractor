@@ -143,19 +143,6 @@ function executionSelection(value: ExecutionSelection): ExecutionSelection {
   };
 }
 
-function referenceSummary(value: ConfigurationResource["body"]) {
-  const summary = value as {
-    description?: string;
-    refs?: string[];
-  };
-  return {
-    ...(summary.description === undefined
-      ? {}
-      : { description: summary.description }),
-    ...(summary.refs === undefined ? {} : { refs: [...summary.refs] }),
-  };
-}
-
 export function safeConfigurationResource(
   value: ConfigurationResource,
 ): ConfigurationResource {
@@ -179,13 +166,6 @@ export function safeConfigurationResource(
       };
     case "agent-templates": {
       const body = value.body as components["schemas"]["AgentTemplateBody"];
-      if (body.runtime === undefined) {
-        return {
-          ref,
-          source: value.source,
-          body: referenceSummary(value.body),
-        };
-      }
       const skills = agentSkillRefs(body.skills);
       return {
         ref,
@@ -253,13 +233,6 @@ export function safeConfigurationResource(
     }
     case "execution-configs": {
       const body = value.body as components["schemas"]["ExecutionConfigBody"];
-      if ("description" in value.body || "refs" in value.body) {
-        return {
-          ref,
-          source: value.source,
-          body: referenceSummary(value.body),
-        };
-      }
       const agents = Object.fromEntries(
         Object.entries(body.agents ?? {}).map(([name, selection]) => [
           name,

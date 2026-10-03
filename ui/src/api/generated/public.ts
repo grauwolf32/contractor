@@ -5084,10 +5084,7 @@ export interface components {
         };
         ConfigurationResource: {
             ref: components["schemas"]["ConfigurationRef"];
-            body: components["schemas"]["ModelPolicyBody"] | components["schemas"]["LLMGatewayBody"] | components["schemas"]["AgentTemplateBody"] | components["schemas"]["ExecutionConfigBody"] | {
-                description?: string;
-                refs?: components["schemas"]["Selector"][];
-            };
+            body: components["schemas"]["ModelPolicyBody"] | components["schemas"]["LLMGatewayBody"] | components["schemas"]["AgentTemplateBody"] | components["schemas"]["ExecutionConfigBody"];
             /** @enum {unknown} */
             source: "operator" | "managed";
         };
