@@ -3,7 +3,8 @@ id: V188-001
 title: Retire write-only Planner session token counters
 milestone: planner-session-state-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 4632a9ad53336ccbaf9549eb785f251de871c58f
 depends_on: []
 languages: [go]
 goal: Stop persisting unused cumulative token counts without losing old Planner sessions.
