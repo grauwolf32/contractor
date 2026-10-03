@@ -1,7 +1,6 @@
 package auditdomain
 
 import (
-	"encoding/json"
 	"slices"
 	"sort"
 )
@@ -86,26 +85,4 @@ func normalizeChecklist(document ChecklistDocument) ([]ChecklistEntry, error) {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Key < result[j].Key })
 	return result, nil
-}
-
-// DecodeChecklist is exposed for profile input validation without inventory
-// construction. It returns a detached, normalized checklist.
-func DecodeChecklist(source []byte, mediaType string) (ChecklistDocument, error) {
-	root, err := parseJSONOrYAML(source, mediaType)
-	if err != nil {
-		return ChecklistDocument{}, err
-	}
-	encoded, err := json.Marshal(root)
-	if err != nil {
-		return ChecklistDocument{}, invalid(CodeInventoryInvalid, "checklist")
-	}
-	var document ChecklistDocument
-	if _, err := decodeStrictJSON(encoded, &document); err != nil {
-		return ChecklistDocument{}, invalid(CodeInventoryInvalid, "checklist")
-	}
-	document.Items, err = normalizeChecklist(document)
-	if err != nil {
-		return ChecklistDocument{}, err
-	}
-	return document, nil
 }

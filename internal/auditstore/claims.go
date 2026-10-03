@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // Claim leases a bounded set of Audits with reconcilable work. A paused Audit
@@ -91,35 +88,6 @@ SELECT audit_id, holder_id, epoch, claimed_at, expires_at
 		return nil, fmt.Errorf("iterate Audit claims: %w", err)
 	}
 	return result, nil
-}
-
-func (s *PostgresStore) RenewClaim(
-	ctx context.Context,
-	claim ControllerClaim,
-	lease time.Duration,
-) (ControllerClaim, error) {
-	if err := validateClaimIdentity(claim); err != nil {
-		return ControllerClaim{}, err
-	}
-	if lease < time.Second || lease > 5*time.Minute {
-		return ControllerClaim{}, invalidf("claim lease is invalid")
-	}
-	renewed, err := scanClaim(s.db.QueryRow(ctx, `
-UPDATE audit_controller_claims
-   SET claimed_at = clock_timestamp(),
-       expires_at = clock_timestamp() + $4::bigint * interval '1 millisecond'
- WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3
-   AND expires_at > clock_timestamp()
-RETURNING audit_id, holder_id, epoch, claimed_at, expires_at`,
-		claim.AuditID, claim.HolderID, claim.Epoch, lease.Milliseconds(),
-	))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ControllerClaim{}, ErrClaimLost
-	}
-	if err != nil {
-		return ControllerClaim{}, fmt.Errorf("renew Audit claim: %w", err)
-	}
-	return renewed, nil
 }
 
 func (s *PostgresStore) ReleaseClaim(ctx context.Context, claim ControllerClaim) error {

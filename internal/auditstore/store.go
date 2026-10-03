@@ -12,9 +12,6 @@ import (
 
 type PostgresStore struct{ db persistencepostgres.DBTX }
 
-var _ OwnerRepository = (*PostgresStore)(nil)
-var _ ControllerRepository = (*PostgresStore)(nil)
-
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }

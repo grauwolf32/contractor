@@ -39,6 +39,10 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	if err := validateTransition(base); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("plain paused-to-active transition error = %v, want Resume only", err)
 	}
+	base.ExpectedState, base.TargetState = AuditDraft, AuditDeleting
+	if err := validateTransition(base); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("owner draft-to-deleting transition error = %v, want RequestDelete only", err)
+	}
 	if err := validateResume(ResumeParams{
 		OwnerID: "owner", AuditID: "audit", ExpectedRevision: 2,
 		IdempotencyKey: "resume-1", RequestDigest: testDigest("2"),

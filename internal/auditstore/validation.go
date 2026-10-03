@@ -283,10 +283,6 @@ func ownerTransitionAllowed(from, to AuditState) bool {
 		return from == AuditActive || from == AuditWaitingReview ||
 			from == AuditPaused || from == AuditFinalizing
 	}
-	if to == AuditDeleting {
-		return from == AuditDraft || from == AuditCompleted || from == AuditCancelled ||
-			from == AuditFailed || from == AuditCancelling
-	}
 	return false
 }
 
