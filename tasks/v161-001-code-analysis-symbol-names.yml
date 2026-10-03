@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V161-001
+title: Name shallow JavaScript and C-family declarations correctly
+milestone: code-analysis-symbol-names-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Keep anonymous arrow callbacks out of definition search and resolve initialized C/C++ declarations by identifier.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/269
+  finding: Arrow fallback names child parameters/bodies; init_declarator fallback includes initializer text.
+scope:
+  in:
+    - Exclude anonymous JS/TS arrow callbacks from named symbols while preserving their bindings.
+    - Unwrap initialized C/C++ declarators through the actual declared identifier.
+    - Add shallow surface and search_def regressions.
+  out:
+    - Change graph engine symbol identity or unrelated language parsing.
+acceptance_criteria:
+  - {id: A1, text: Arrow callback parameters and identifier bodies are not reported as named symbols.}
+  - {id: A2, text: An arrow assigned to double remains searchable by its binding.}
+  - {id: A3, text: Initialized C/C++ declarations yield exact identifier names without initializer text.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest -q runtime/tests/test_code_analysis_shallow.py, covers: [A1, A2, A3]}
