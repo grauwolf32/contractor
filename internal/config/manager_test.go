@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -390,8 +391,51 @@ func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: other, Descriptors: MVPDescriptors()}); err == nil {
-		t.Fatal("symlink managed subtree was accepted")
+	if _, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: other, Descriptors: MVPDescriptors()}); err == nil || !strings.Contains(err.Error(), "configuration subtree model-policies must be a real directory") {
+		t.Fatalf("symlink managed subtree was accepted or misreported: %v", err)
+	}
+}
+
+func TestRequireStrictRootConcurrentCreation(t *testing.T) {
+	parent := t.TempDir()
+	for attempt := range 100 {
+		root := filepath.Join(parent, fmt.Sprintf("managed-%d", attempt))
+		start := make(chan struct{})
+		var wait sync.WaitGroup
+		errorsFound := make(chan error, 8)
+		for range 8 {
+			wait.Add(1)
+			go func() {
+				defer wait.Done()
+				<-start
+				got, err := requireStrictRoot(root, true)
+				if err == nil && got != root {
+					err = fmt.Errorf("root = %q, want %q", got, root)
+				}
+				errorsFound <- err
+			}()
+		}
+		close(start)
+		wait.Wait()
+		close(errorsFound)
+		for err := range errorsFound {
+			if err != nil {
+				t.Fatalf("concurrent root creation attempt %d: %v", attempt, err)
+			}
+		}
+	}
+}
+
+func TestRequireStrictRootRejectsExistingRegularFileSubtree(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "managed")
+	if err := os.Mkdir(root, managedDirectoryMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "workflows"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := requireStrictRoot(root, true); err == nil || !strings.Contains(err.Error(), "configuration subtree workflows must be a real directory") {
+		t.Fatalf("regular file managed subtree was accepted or misreported: %v", err)
 	}
 }
 
