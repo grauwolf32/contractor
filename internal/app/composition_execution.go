@@ -54,7 +54,13 @@ func configurePlanners(
 	if err != nil {
 		return plannerServices{}, fmt.Errorf("configure Planner Memory store: %w", err)
 	}
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{})
+	completionWriteTimeout := max(
+		planner.DefaultCompletionWriteTimeout,
+		cfg.Operations.Database.AcquireTimeout+cfg.Operations.Database.LockTimeout+time.Second,
+	)
+	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{
+		CompletionWriteTimeout: completionWriteTimeout,
+	})
 	if err != nil {
 		return plannerServices{}, fmt.Errorf("configure Planner sessions: %w", err)
 	}

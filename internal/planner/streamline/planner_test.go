@@ -300,6 +300,54 @@ func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 	}
 }
 
+func TestStreamlineCompletionWriteSurvivesTransientErrorAndDatabaseWait(t *testing.T) {
+	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
+		"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+		"artifacts": map[string]any{},
+		"error": map[string]any{
+			"code": "insufficient_evidence", "message": "required evidence was unavailable", "retryable": false,
+		},
+	})}}
+	sessions := newFakeSessions()
+	sessions.completeHook = func(ctx context.Context, _ planner.Completion) error {
+		if sessions.completeCalls == 1 {
+			return context.DeadlineExceeded
+		}
+		select {
+		case <-time.After(1500 * time.Millisecond):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	instance, err := mustFactory(
+		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+	).Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageFailed || sessions.completeCalls != 2 ||
+		sessions.completion == nil || sessions.completion.Result == nil {
+		t.Fatalf("Run = (%+v, %v), completion calls = %d", result, err, sessions.completeCalls)
+	}
+}
+
+func TestStreamlineFailedCompletionWriteKeepsFailureRetryability(t *testing.T) {
+	sessions := newFakeSessions()
+	sessions.completeHook = func(context.Context, planner.Completion) error {
+		return errors.New("database write failed")
+	}
+	instance := &streamlinePlanner{sessions: sessions}
+	failure := instance.fail(
+		t.Context(), sessions.identity, newExecutionState(DefaultLimits()),
+		planner.NewError("invalid_worker_result", "Worker result invalid", false, nil),
+	)
+	if failure.Code != "planner_session_unavailable" || failure.Retryable || sessions.completeCalls != 1 {
+		t.Fatalf("unwritten non-retryable completion = %+v, calls = %d", failure, sessions.completeCalls)
+	}
+}
+
 func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testing.T) {
 	model := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Analyze the source", "Return the bounded finding"),
@@ -1009,14 +1057,16 @@ func textStep(value string) modelStep {
 }
 
 type fakeSessions struct {
-	identity    planner.SessionIdentity
-	recovered   *planner.Completion
-	completion  *planner.Completion
-	request     planner.RequestFacts
-	plan        *planner.PlannerPlanProjection
-	transitions []planner.PlannerPlanTransition
-	facts       []planner.PlannerFact
-	adkCalls    int
+	identity      planner.SessionIdentity
+	recovered     *planner.Completion
+	completion    *planner.Completion
+	request       planner.RequestFacts
+	plan          *planner.PlannerPlanProjection
+	transitions   []planner.PlannerPlanTransition
+	facts         []planner.PlannerFact
+	adkCalls      int
+	completeCalls int
+	completeHook  func(context.Context, planner.Completion) error
 }
 
 func newFakeSessions() *fakeSessions {
@@ -1040,8 +1090,14 @@ func (s *fakeSessions) RecordRequest(
 }
 
 func (s *fakeSessions) Complete(
-	_ context.Context, _ planner.SessionIdentity, completion planner.Completion,
+	ctx context.Context, _ planner.SessionIdentity, completion planner.Completion,
 ) error {
+	s.completeCalls++
+	if s.completeHook != nil {
+		if err := s.completeHook(ctx, completion); err != nil {
+			return err
+		}
+	}
 	copy := completion
 	s.completion = &copy
 	return nil

@@ -14,6 +14,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
@@ -122,6 +123,92 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	}
 	if worker.calls != 1 || sessions.beginCalls != 2 || sessions.completeCalls != 1 {
 		t.Fatalf("recovery invoked work twice: worker=%d sessions=%+v", worker.calls, sessions)
+	}
+}
+
+func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		complete func(context.Context, int) error
+		attempts int
+	}{
+		{
+			name: "database wait exceeds one second",
+			complete: func(ctx context.Context, _ int) error {
+				select {
+				case <-time.After(1500 * time.Millisecond):
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+			attempts: 1,
+		},
+		{
+			name: "transient first write",
+			complete: func(_ context.Context, attempt int) error {
+				if attempt == 1 {
+					return &pgconn.PgError{Code: "55P03"}
+				}
+				return nil
+			},
+			attempts: 2,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			revision := "result-r1"
+			candidate := contracts.StageContentResult{
+				APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "report created",
+				Artifacts: map[string]contracts.ArtifactRef{
+					"report": {Namespace: "builder", Name: "report", Revision: &revision},
+				},
+			}
+			sessions := &memorySessions{}
+			sessions.completeHook = func(ctx context.Context, _ Completion) error {
+				return test.complete(ctx, sessions.completeCalls)
+			}
+			factory, err := NewPassthroughFactory(
+				sessions,
+				&recordingWorker{result: workerCompletionFromCandidate(candidate)},
+				&fakeInspector{mediaTypes: map[string]string{"builder/report/result-r1": "application/json"}},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instance, err := factory.Create(testInvocation())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := instance.Run(t.Context())
+			if err != nil || !reflect.DeepEqual(result, candidate) || sessions.completeCalls != test.attempts ||
+				sessions.completion == nil {
+				t.Fatalf("Run = (%+v, %v), completion calls = %d", result, err, sessions.completeCalls)
+			}
+		})
+	}
+}
+
+func TestPassthroughFailedCompletionWriteKeepsFailureRetryability(t *testing.T) {
+	sessions := &memorySessions{completeHook: func(context.Context, Completion) error {
+		return errors.New("database write failed")
+	}}
+	factory, err := NewPassthroughFactory(
+		sessions,
+		&recordingWorker{err: NewError("worker_input_required", "Worker requires input", false, nil)},
+		&fakeInspector{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = instance.Run(t.Context())
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Code != "planner_session_unavailable" || failure.Retryable ||
+		sessions.completeCalls != 1 {
+		t.Fatalf("unwritten non-retryable completion = %v, calls = %d", err, sessions.completeCalls)
 	}
 }
 
@@ -389,6 +476,7 @@ type memorySessions struct {
 	beginCalls    int
 	requestCalls  int
 	completeCalls int
+	completeHook  func(context.Context, Completion) error
 	facts         RequestFacts
 	completion    *Completion
 }
@@ -413,9 +501,14 @@ func (s *memorySessions) RecordRequest(
 }
 
 func (s *memorySessions) Complete(
-	_ context.Context, _ SessionIdentity, completion Completion,
+	ctx context.Context, _ SessionIdentity, completion Completion,
 ) error {
 	s.completeCalls++
+	if s.completeHook != nil {
+		if err := s.completeHook(ctx, completion); err != nil {
+			return err
+		}
+	}
 	s.completion = &completion
 	return nil
 }

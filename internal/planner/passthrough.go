@@ -3,7 +3,6 @@ package planner
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,10 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-)
-
-const (
-	completionWriteTimeout = time.Second
 )
 
 type PassthroughFactory struct {
@@ -267,7 +262,7 @@ func (p *passthroughPlanner) fail(
 ) *Error {
 	failure := plannerError.Failure
 	if err := CompleteSession(ctx, p.sessions, identity, Completion{Failure: &failure}); err != nil {
-		return SessionError("record failure", errors.Join(plannerError, err))
+		return CompletionWriteError(plannerError, err)
 	}
 	return plannerError
 }
