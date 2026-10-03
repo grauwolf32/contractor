@@ -3,7 +3,8 @@ id: V157-001
 title: Remove dead test helpers and lint tagged Go source
 milestone: tagged-unused-code-lint-2026-10
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 8f3bdec94310b7aeb75bde88f95c5ec442236ae3
 depends_on: []
 languages: [go, make]
 goal: Keep unused helpers from accumulating behind e2e and integration build tags.
