@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V107-001
+title: Enforce one active Server per PostgreSQL database
+milestone: single-active-server-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, yaml]
+goal: Prevent concurrent process-local Control Planes, Schedulers, and credential recovery against one database.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/109
+  finding: A second active Server can drain a peer's Stages and race credential recovery because ownership is only process-local.
+scope:
+  in:
+    - Hold a session-level PostgreSQL advisory lease before credential recovery or private listener startup.
+    - Serve unready public health while standing by and take over after the active holder exits.
+    - Stop the Scheduler and private listener on lease-session loss.
+    - Configure example Kubernetes deployment for single-active rollout and document the limit.
+  out:
+    - Make the Runtime Agent Registry and managed credentials safely shared across active replicas.
+acceptance_criteria:
+  - {id: A1, text: Only one Server per database can run credential recovery, Scheduler, and private API at once.}
+  - {id: A2, text: Standby reports 503 readiness and takes over after the holder releases the lease.}
+  - {id: A3, text: Holder shuts down within a bounded interval after its lock session is lost.}
+  - {id: A4, text: Deployment and operations docs state the single-active topology.}
+tests:
+  - {command: go test ./internal/app -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./..., covers: [A1, A2, A3, A4]}
