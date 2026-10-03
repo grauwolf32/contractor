@@ -76,9 +76,13 @@ its abort and release steps, and a failed release retains the allocation grant.
 Transport timeouts can end individual requests earlier without releasing
 ownership or extending an enclosing operation.
 
-The existing `plannerTimeout`, `workerRequestTimeout` and `shutdownTimeout` keep
-their separate meanings. This change does not alter domain payload limits,
-heartbeat leases, model policies or inference retry rules.
+`plannerTimeout`, `workerRequestTimeout` and `shutdownTimeout` have separate
+meanings. The shutdown timeout applies independently to public request drain,
+Scheduler drain and private API drain. Its default is 40s so Runtime cleanup
+has time to use its default 30s budget. If Scheduler drain exceeds that timeout,
+the Server reports the overrun but waits for its lanes to stop before closing
+shared storage. These settings do not alter domain payload limits, heartbeat
+leases, model policies or inference retry rules.
 
 ## CLI and local Runtime workspace
 

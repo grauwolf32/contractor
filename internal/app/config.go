@@ -30,7 +30,7 @@ const (
 	defaultListenAddress         = "127.0.0.1:8080"
 	defaultPrivateListenAddress  = "127.0.0.1:8443"
 	defaultPrivateURL            = "https://127.0.0.1:8443"
-	defaultShutdownTimeout       = 5 * time.Second
+	defaultShutdownTimeout       = 40 * time.Second
 	defaultRuntimeRequestTimeout = 30 * time.Second
 	minimumWorkerRequestTimeout  = 120 * time.Second
 	defaultWorkerRequestTimeout  = 180 * time.Second

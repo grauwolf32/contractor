@@ -20,6 +20,7 @@ import (
 // 64-byte username and compact JSON framing, the request needs at most 6237
 // bytes. Keep raw-body admission separate from decoded password validation.
 const maximumLoginBodyBytes int64 = 8 * 1024
+const loginBodyReadTimeout = 5 * time.Second
 
 var (
 	corsMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
@@ -41,9 +42,13 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
+	controller := http.NewResponseController(w)
+	_ = controller.SetReadDeadline(time.Now().Add(loginBodyReadTimeout))
 	var request loginRequest
-	if err := decodeJSONBounded(w, r, &request, maximumLoginBodyBytes); err != nil {
-		h.handleError(w, err)
+	decodeErr := decodeJSONBounded(w, r, &request, maximumLoginBodyBytes)
+	_ = controller.SetReadDeadline(time.Time{})
+	if decodeErr != nil {
+		h.handleError(w, decodeErr)
 		return
 	}
 	peerIP, err := h.dependencies.TrustedPeers.ClientIP(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
