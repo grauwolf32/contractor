@@ -15,37 +15,64 @@ func (s *Service) selectNextProposalChecks(
 	audit auditstore.Audit,
 	capacity int,
 ) (proposalCheckSelection, error) {
+	return selectNextProposalChecksFromInbox(
+		ctx, audit, capacity, s.findings.ListAuditHeldInbox, s.scheduledProposalChecks,
+	)
+}
+
+func selectNextProposalChecksFromInbox(
+	ctx context.Context,
+	audit auditstore.Audit,
+	capacity int,
+	list func(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error),
+	scheduled func(context.Context, string, []string) (map[string]bool, error),
+) (proposalCheckSelection, error) {
 	selection := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal)}
-	query := findingintake.ListQuery{Limit: nextRoundInboxPage}
+	query := findingintake.ListQuery{}
 	for selection.scanned < maxNextRoundInboxScan {
-		receipts, err := s.findings.ListAuditHeldInbox(ctx, audit.OwnerID, audit.AuditID, query)
+		query.Limit = min(nextRoundInboxPage, maxNextRoundInboxScan-selection.scanned)
+		receipts, err := list(ctx, audit.OwnerID, audit.AuditID, query)
 		if err != nil {
 			return proposalCheckSelection{}, err
+		}
+		if len(receipts) == 0 {
+			break
 		}
 		ids := make([]string, len(receipts))
 		for index := range receipts {
 			ids[index] = receipts[index].ReceiptID
 		}
-		used, err := s.scheduledProposalChecks(ctx, audit.AuditID, ids)
+		used, err := scheduled(ctx, audit.AuditID, ids)
 		if err != nil {
 			return proposalCheckSelection{}, err
 		}
 		if err := selection.addPage(audit, receipts, used, capacity); err != nil {
 			return proposalCheckSelection{}, err
 		}
+		last := receipts[len(receipts)-1]
+		query.AfterCreatedAt, query.AfterReceiptID = &last.CreatedAt, last.ReceiptID
 		if len(receipts) < query.Limit || (selection.selectedCount >= capacity && capacity > 0) ||
 			(selection.eligible && capacity <= 0) {
 			break
 		}
-		last := receipts[len(receipts)-1]
-		query.AfterCreatedAt, query.AfterReceiptID = &last.CreatedAt, last.ReceiptID
+	}
+	scanExhausted := false
+	if selection.scanned >= maxNextRoundInboxScan && len(selection.selected) == 0 && !selection.eligible {
+		// A full 10,000-receipt scan is complete when no later receipt exists.
+		// Only an additional receipt proves that the scan budget hid work.
+		query.Limit = 1
+		more, err := list(ctx, audit.OwnerID, audit.AuditID, query)
+		if err != nil {
+			return proposalCheckSelection{}, err
+		}
+		scanExhausted = len(more) != 0
 	}
 	result := make([]auditdomain.FindingInventoryProposal, 0, len(selection.selected))
 	for _, proposal := range selection.selected {
 		result = append(result, proposal)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ReceiptID < result[j].ReceiptID })
-	return proposalCheckSelection{Proposals: result, Eligible: selection.eligible, ScanExhausted: selection.scanned >= maxNextRoundInboxScan}, nil
+	return proposalCheckSelection{Proposals: result, Eligible: selection.eligible, ScanExhausted: scanExhausted}, nil
 }
 
 type proposalCheckSelection struct {

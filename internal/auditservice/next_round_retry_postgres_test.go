@@ -3,6 +3,7 @@ package auditservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -24,12 +25,15 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
-	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
+	snapshot := loadAuditServiceProfilesWithEdits(t, func(profile string) string {
 		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 3", 1)
-		return strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
+		profile = strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
+		return strings.Replace(profile, "activeChecks: prohibited", "activeChecks: approval-required", 1)
+	}, func(worker string) string {
+		return strings.Replace(worker, "  sandboxProfile: local-workdir@1", "    - ref: http-tools@1\n      tools: [http_request]\n  sandboxProfile: local-workdir@1", 1)
 	})
 	profiles := &switchableProfileCatalog{snapshot: snapshot, available: true}
 	gateway, err := snapshot.LLMGateway("test-gateway@1")
@@ -149,8 +153,79 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 	if err != nil || !inserted || accepted.ExpectedItemCount != 2 || !accepted.Manifest.Ref.SameExact(second.Manifest.Ref) {
 		t.Fatalf("expanded next-Round acceptance = (%+v, %t, %v)", accepted, inserted, err)
 	}
-	var consumed int
+	seenSources := make(map[string]bool, len(second.Items))
+	for _, item := range second.Items {
+		if len(item.ProposalSources) != 1 || item.ProposalSources[0].ProposedCheckOrdinal != 0 ||
+			item.Origin.SourceRef == nil || item.Origin.SourceRef.ValidateExact() != nil ||
+			item.ProposalSources[0].Proposal.Ref.ValidateExact() != nil ||
+			item.InitialState != auditstore.ItemAwaitingReview ||
+			item.ApprovalKind != auditstore.ItemApprovalActiveCheck || item.ApprovalDigest == "" {
+			t.Fatalf("next-Round item lost exact proposal origin: %+v", item)
+		}
+		seenSources[item.ProposalSources[0].ReceiptID] = true
+	}
+	if !seenSources["receipt-first"] || !seenSources["receipt-second"] {
+		t.Fatalf("next-Round proposal sources = %+v", seenSources)
+	}
+	var consumed, pendingApprovals int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_proposal_items WHERE audit_id=$1`, auditID).Scan(&consumed); err != nil || consumed != 2 {
 		t.Fatalf("accepted proposal checks = (%d, %v)", consumed, err)
+	}
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_items AS item
+JOIN audit_review_requests AS review
+  ON review.audit_id=item.audit_id AND review.subject_id=item.item_id
+ WHERE item.audit_id=$1 AND item.round_id=$2
+   AND item.state='awaiting_review' AND review.state='pending'
+   AND review.subject_kind='audit-item-action'
+   AND review.subject_digest=item.approval_subject_digest`, auditID, accepted.RoundID).
+		Scan(&pendingApprovals); err != nil || pendingApprovals != 2 {
+		t.Fatalf("durable later-Round action approvals = (%d, %v)", pendingApprovals, err)
+	}
+	// Empty proposals occupy the first held-inbox page; the only new check
+	// must be found on the next page after the already consumed checks.
+	for index := range nextRoundInboxPage {
+		seedAuditFinding(t, ctx, pool, projectID, ownerID, auditID, fmt.Sprintf("empty-%03d", index))
+	}
+	seedAuditFinding(t, ctx, pool, projectID, ownerID, auditID, "third",
+		auditdomain.ProposedCheck{Objective: "Check the third proposal.", Method: "static-trace"})
+	for _, target := range []auditstore.RoundState{auditstore.RoundExecuting, auditstore.RoundAssessing, auditstore.RoundClosed} {
+		accepted, err = store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+			Claim: claim, RoundID: accepted.RoundID, ExpectedRevision: accepted.Revision,
+			ExpectedState: accepted.State, TargetState: target,
+		})
+		if err != nil {
+			t.Fatalf("close second Round as %s: %v", target, err)
+		}
+	}
+	live, err = store.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, reason, err := service.PrepareNextRound(ctx, claim, auditstore.ReconcileSnapshot{Audit: live, Round: &accepted})
+	if err != nil || reason != nil || len(third.Items) != 1 ||
+		len(third.Items[0].ProposalSources) != 1 || third.Items[0].ProposalSources[0].ReceiptID != "receipt-third" {
+		t.Fatalf("paged Round 3 selected consumed or empty checks = (%+v, %+v, %v)", third, reason, err)
+	}
+	accepted, inserted, err = store.AcceptNextRound(ctx, third)
+	if err != nil || !inserted || accepted.ExpectedItemCount != 1 {
+		t.Fatalf("accept paged third Round = (%+v, %t, %v)", accepted, inserted, err)
+	}
+	for _, target := range []auditstore.RoundState{auditstore.RoundExecuting, auditstore.RoundAssessing, auditstore.RoundClosed} {
+		accepted, err = store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+			Claim: claim, RoundID: accepted.RoundID, ExpectedRevision: accepted.Revision,
+			ExpectedState: accepted.State, TargetState: target,
+		})
+		if err != nil {
+			t.Fatalf("close third Round as %s: %v", target, err)
+		}
+	}
+	live, err = store.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fourth, reason, err := service.PrepareNextRound(ctx, claim, auditstore.ReconcileSnapshot{Audit: live, Round: &accepted})
+	if err != nil || fourth.RoundID != "" || reason != nil {
+		t.Fatalf("consumed checks were selected after Round 3 = (%+v, %+v, %v)", fourth, reason, err)
 	}
 }

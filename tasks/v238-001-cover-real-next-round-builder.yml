@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V238-001
+title: Verify real multi-Round Audit preparation and its stop boundaries
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: 1a4d63f1d4cba8a577c2c714cc4360eb40c9291f
+depends_on: []
+languages: [go]
+goal: Make later Audit Round preparation and its retry and budget behavior verifiable against real inputs.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/299
+  finding: Existing PostgreSQL tests cover preparation and inbox-change retry, but not consumed-check exclusion in Round 3, every stop code, the exact scan boundary, or later-Round approval.
+scope:
+  in:
+    - Verify that a real prepared and accepted Round consumes exact proposal checks across later Rounds.
+    - Exercise budget stop reasons, including a fully scanned 10,000-receipt inbox.
+    - Verify later-Round active-check approval and paged held-inbox selection.
+    - Preserve and extend existing retry and Controller stop/error coverage.
+  out:
+    - Replacing the Audit Round builder or its durable acceptance protocol.
+acceptance_criteria:
+  - {id: A1, text: Real prepared Round 2 items retain proposal sources and consumed checks are excluded from Round 3.}
+  - {id: A2, text: Every next-Round budget stop and round_complete is covered, including exactly 10,000 fully scanned receipts.}
+  - {id: A3, text: Later-Round active checks require item approval and exact proposal receipts are selected across inbox pages.}
+  - {id: A4, text: A failed acceptance followed by inbox growth either recovers or closes explicitly, while Controller stop and retry behavior stays covered.}
+tests:
+  - {command: go test -tags=integration ./internal/auditservice ./internal/auditcontroller -count=1, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

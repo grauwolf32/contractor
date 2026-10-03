@@ -1228,6 +1228,10 @@ One reconcile step:
 7. creates at most one assessment execution after the barrier;
 8. accepts a next Round or commits exact final report/coverage.
 
+The next-Round builder scans at most 10,000 held finding receipts per pass.
+Reaching that count is a scan-budget stop only when another receipt exists;
+a fully scanned inbox with no unscheduled checks completes the Round.
+
 If a retained proposal or materialized item fails deterministic next-Round
 validation, the Controller closes dispatch and moves the Audit to `finalizing`
 with `next_round_invalid`. Transient failures remain retryable.

@@ -64,38 +64,12 @@ func (s *Service) PrepareNextRound(
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	selected := proposalSelection.Proposals
+	if reason := nextRoundStopReason(proposalSelection, snapshot.Round.Ordinal,
+		snapshot.Audit.Limits.MaxRounds, capacity); reason != nil {
+		return auditstore.AcceptRoundParams{}, reason, nil
+	}
 	if len(selected) == 0 {
-		switch {
-		case proposalSelection.Eligible && snapshot.Round.Ordinal >= snapshot.Audit.Limits.MaxRounds:
-			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
-				Code:    "round_budget_exhausted",
-				Message: "Unscheduled finding checks remain after the configured Round budget was exhausted.",
-			}, nil
-		case proposalSelection.Eligible && capacity <= 0:
-			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
-				Code:    "item_budget_exhausted",
-				Message: "Unscheduled finding checks remain after the configured Audit item budget was exhausted.",
-			}, nil
-		case proposalSelection.ScanExhausted:
-			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
-				Code:    "proposal_scan_budget_exhausted",
-				Message: "The bounded finding inbox scan ended before more schedulable work could be established.",
-			}, nil
-		default:
-			return auditstore.AcceptRoundParams{}, nil, nil
-		}
-	}
-	if snapshot.Round.Ordinal >= snapshot.Audit.Limits.MaxRounds {
-		return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
-			Code:    "round_budget_exhausted",
-			Message: "Unscheduled finding checks remain after the configured Round budget was exhausted.",
-		}, nil
-	}
-	if capacity <= 0 {
-		return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
-			Code:    "item_budget_exhausted",
-			Message: "Unscheduled finding checks remain after the configured Audit item budget was exhausted.",
-		}, nil
+		return auditstore.AcceptRoundParams{}, nil, nil
 	}
 
 	source := auditdomain.FindingInventoryDocument{
@@ -218,4 +192,27 @@ func (s *Service) PrepareNextRound(
 		PreviousRoundID: snapshot.Round.RoundID, RoundID: roundID,
 		RoundOrdinal: roundOrdinal, Manifest: worklist, Items: items,
 	}, nil, nil
+}
+
+func nextRoundStopReason(selection proposalCheckSelection, roundOrdinal, maxRounds, capacity int) *auditstore.StopReason {
+	hasWork := len(selection.Proposals) != 0 || selection.Eligible
+	if hasWork && roundOrdinal >= maxRounds {
+		return &auditstore.StopReason{
+			Code:    "round_budget_exhausted",
+			Message: "Unscheduled finding checks remain after the configured Round budget was exhausted.",
+		}
+	}
+	if hasWork && capacity <= 0 {
+		return &auditstore.StopReason{
+			Code:    "item_budget_exhausted",
+			Message: "Unscheduled finding checks remain after the configured Audit item budget was exhausted.",
+		}
+	}
+	if len(selection.Proposals) == 0 && selection.ScanExhausted {
+		return &auditstore.StopReason{
+			Code:    "proposal_scan_budget_exhausted",
+			Message: "The bounded finding inbox scan ended before more schedulable work could be established.",
+		}
+	}
+	return nil
 }
