@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -163,6 +164,103 @@ def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path)
     asyncio.run(scenario())
 
 
+def test_http_body_reads_cache_pages_and_evict_between_requests(tmp_path: Path) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/text":
+            return httpx.Response(
+                200,
+                content="a😀éz".encode(),
+                headers={"content-type": "text/plain"},
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            content=b"\x00\xffpayload",
+            headers={"content-type": "application/octet-stream"},
+            request=request,
+        )
+
+    async def scenario() -> None:
+        artifacts = FakeArtifactClient()
+        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        read = tools["http_read_body"]
+        try:
+            text = await tools["http_request"]("https://target.example/text")
+            binary = await tools["http_request"]("https://target.example/binary")
+            text_id, binary_id = text["request_id"], binary["request_id"]
+
+            assert await read(text_id, offset=1, length=2) == {
+                "request_id": text_id,
+                "kind": "text",
+                "unit": "characters",
+                "offset": 1,
+                "length": 2,
+                "total": 4,
+                "eof": False,
+                "data": "😀é",
+            }
+            assert (await read(text_id, offset=3, length=2))["data"] == "z"
+            assert artifacts.reads == 1
+
+            binary_page = await read(binary_id, offset=1, length=3)
+            assert binary_page == {
+                "request_id": binary_id,
+                "kind": "binary",
+                "unit": "bytes",
+                "offset": 1,
+                "length": 3,
+                "total": 9,
+                "eof": False,
+                "data_b64": base64.b64encode(b"\xffpa").decode(),
+            }
+            assert base64.b64decode((await read(binary_id, offset=4))["data_b64"]) == b"yload"
+            assert artifacts.reads == 2
+            assert state.http_session._cached_body.request_id == binary_id
+            assert sys.getsizeof(state.http_session._cached_body.content) <= (
+                http_tools.MAX_DECODED_BODY_CACHE_BYTES
+            )
+
+            assert (await read(text_id, offset=4))["eof"] is True
+            assert artifacts.reads == 3
+            assert state.http_session._cached_body.request_id == text_id
+        finally:
+            await close_tools(tools)
+
+        assert state.http_session._cached_body is None
+        with pytest.raises(HTTPToolError) as failure:
+            await read(text_id)
+        assert failure.value.code == "http_request_failed"
+        assert artifacts.reads == 3
+
+    asyncio.run(scenario())
+
+
+def test_http_body_read_skips_content_above_cache_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=b"body", headers={"content-type": "text/plain"}, request=request
+        )
+
+    async def scenario() -> None:
+        artifacts = FakeArtifactClient()
+        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        try:
+            result = await tools["http_request"]("https://target.example/body")
+            monkeypatch.setattr(
+                http_tools, "MAX_DECODED_BODY_CACHE_BYTES", sys.getsizeof("body") - 1
+            )
+            assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
+            assert state.http_session._cached_body is None
+            assert (await tools["http_read_body"](result["request_id"]))["data"] == "body"
+            assert artifacts.reads == 2
+        finally:
+            await close_tools(tools)
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "error",
     [
@@ -217,7 +315,7 @@ def test_http_body_read_keeps_invalid_artifacts_nonretryable(
             )
 
         artifacts = FakeArtifactClient()
-        tools, _ = await create_tools(tmp_path, handler, artifacts=artifacts)
+        tools, state = await create_tools(tmp_path, handler, artifacts=artifacts)
         try:
             result = await tools["http_request"]("https://target.example/body")
             request_id = result["request_id"]
@@ -247,15 +345,22 @@ def test_http_body_read_keeps_invalid_artifacts_nonretryable(
             payload = artifacts.payloads[key]
             artifacts.media_types[key] = "application/octet-stream"
             await assert_not_found()
+            await assert_not_found()
+            assert state.http_session._cached_body is None
             artifacts.media_types[key] = media_type
             artifacts.payloads[key] = b"invalid envelope"
             await assert_not_found()
+            assert state.http_session._cached_body is None
             value = json.loads(payload)
             value["kind"] = "binary"
             value["dataBase64"] = base64.b64encode(b"stored body").decode()
             del value["text"]
             artifacts.payloads[key] = json.dumps(value).encode()
             await assert_not_found()
+            await assert_not_found()
+            assert state.http_session._cached_body is None
+            artifacts.payloads[key] = payload
+            assert (await tools["http_read_body"](request_id))["data"] == "stored body"
         finally:
             await close_tools(tools)
 
@@ -733,6 +838,7 @@ class FakeArtifactClient:
         self.payloads: dict[tuple[str, str, str], bytes] = {}
         self.media_types: dict[tuple[str, str, str], str] = {}
         self.writes = 0
+        self.reads = 0
 
     async def write_artifact(
         self,
@@ -751,6 +857,7 @@ class FakeArtifactClient:
         return SimpleNamespace(artifact=exact)
 
     async def read_artifact(self, ref: ArtifactRef) -> Any:
+        self.reads += 1
         exact = ref.require_exact()
         key = (exact.namespace, exact.name, exact.revision)
         if key not in self.payloads:
