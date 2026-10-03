@@ -107,9 +107,11 @@ func (m MigrationBudgets) Validate() error {
 	return err
 }
 
-// WithMigrationBudget bounds the entire migrator (including advisory-lock
-// acquisition) to 15 minutes. InTx installs these server settings with SET
-// LOCAL, so commit/rollback cannot leak maintenance settings into the pool.
+// WithMigrationBudget bounds the entire migrator, including the advisory-lock
+// polling wait, to at least 15 minutes. Statement and lock timeouts govern
+// DDL after leadership is acquired, not the overall advisory-lock wait. InTx
+// installs these server settings with SET LOCAL, so commit/rollback cannot
+// leak maintenance settings into the pool.
 func WithMigrationBudget(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel, err := WithMigrationBudgets(ctx, MigrationBudgets{})
 	if err != nil {

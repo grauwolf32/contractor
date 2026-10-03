@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V109-001
+title: Bound migration leader wait separately from DDL lock timeouts
+milestone: migration-lock-wait-2026-10
+priority: P3
+status: completed
+implementation_commit: 3c469d64f73660e042421dea16feb8e9fb8d0cc5
+depends_on: []
+languages: [go]
+goal: Let concurrent migrators serialize without the short DDL relation-lock budget aborting followers.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/108
+  finding: The migration transaction applies lock_timeout before waiting on its advisory lock.
+scope:
+  in:
+    - Poll for the transaction advisory lock within the migrator's overall context deadline.
+    - Preserve the configured statement and lock timeouts for migration DDL.
+    - Document the separate advisory wait and DDL budgets.
+  out:
+    - Change migration ordering or checksums.
+acceptance_criteria:
+  - {id: A1, text: A follower waits beyond the DDL lock timeout and then succeeds after the leader releases its advisory lock.}
+  - {id: A2, text: Cancelling the follower stops its wait and leaves pool capacity reusable.}
+  - {id: A3, text: DDL statements after lock acquisition retain configured PostgreSQL timeouts.}
+tests:
+  - {command: go test ./internal/persistence/postgres -run TestPostgresMigration -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./..., covers: [A1, A2, A3]}
