@@ -3678,7 +3678,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
-        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
+        '503': {$ref: '#/components/responses/RunCreationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
       operationId: listProjectRuns
@@ -4556,7 +4556,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
-        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
+        '503': {$ref: '#/components/responses/RunCreationUnavailable'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
       operationId: listRuns
@@ -6450,6 +6450,13 @@ components:
           schema: {$ref: '#/components/schemas/Error'}
     CredentialRecoveryRequired:
       description: Credential lifecycle recovery has not completed; retry after it settles
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    RunCreationUnavailable:
+      description: Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
       content:

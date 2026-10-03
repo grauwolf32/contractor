@@ -43,7 +43,10 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit service: %w", err)
 	}
-	runCreationService, err := configureRunCreation(pool, configurationManager, credentialSet)
+	runCreationService, err := configureRunCreation(pool, configurationManager, runCreationCredentials{
+		provider: credentialSet.provider, guard: credentialSet.lifecycle,
+		runtime: credentialSet.runtime, transactionLookup: credentialSet.transactionLookup,
+	})
 	if err != nil {
 		return auditServices{}, err
 	}
@@ -86,32 +89,22 @@ func configureAudits(
 	return auditServices{service: auditService, runs: runCreationService, controller: auditController}, nil
 }
 
-func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconfig.Manager, credentialSet credentialServices) (*runservice.Service, error) {
+type runCreationCredentials struct {
+	provider          workflowconfig.CredentialLookup
+	guard             runservice.CredentialGuard
+	runtime           runservice.RuntimeCredentialValidator
+	transactionLookup runtimeconfig.TransactionLLMCredentialLookupFactory
+}
+
+func configureRunCreation(pool *pgxpool.Pool, configurationManager *workflowconfig.Manager, credentialSet runCreationCredentials) (*runservice.Service, error) {
 	runCreationService, err := runservice.New(runservice.Options{
 		Runs: runstore.NewPostgresStore(pool), Workflows: configurationManager,
-		LLMCredentials: credentialSet.provider, CredentialGuard: credentialSet.lifecycle,
+		LLMCredentials: credentialSet.provider, CredentialGuard: credentialSet.guard,
 		RuntimeCredentials: credentialSet.runtime, Projects: projectstore.NewPostgresStore(pool),
 		SkillInitializationAvailable: true,
-		PublicTransaction: func(
-			transactionContext context.Context,
-			fn func(runservice.PublicRunWriter, *artifacts.Service) error,
-		) error {
-			return persistencepostgres.InTx(
-				transactionContext, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead},
-				func(tx pgx.Tx) error {
-					txLookup, bindErr := runtimeconfig.BindTransactionLLMCredentialLookup(
-						tx, credentialSet.transactionLookup,
-					)
-					if bindErr != nil {
-						return bindErr
-					}
-					return fn(
-						runstore.NewRunCreationPostgresStore(tx, txLookup),
-						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					)
-				},
-			)
-		},
+		PublicTransaction: postgresPublicUnitOfWork{
+			pool: pool, transactionLLMCredentials: credentialSet.transactionLookup,
+		}.Do,
 		AuditTransaction: func(
 			transactionContext context.Context,
 			fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error,

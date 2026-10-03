@@ -38,6 +38,12 @@ func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *t
 		{"storage-unknown-code", "storage_failed", "internal_error", &pgconn.PgError{
 			Code: secret, Message: secret,
 		}, http.StatusInternalServerError},
+		{"storage-serialization", "storage_serialization_conflict", "storage_transaction_conflict", &pgconn.PgError{
+			Code: "40001", Message: secret,
+		}, http.StatusServiceUnavailable},
+		{"storage-deadlock", "storage_deadlock", "storage_transaction_conflict", &pgconn.PgError{
+			Code: "40P01", Message: secret,
+		}, http.StatusServiceUnavailable},
 		{"downstream", "downstream_unavailable", "gateway_unavailable", credentials.ErrGatewayUnavailable, http.StatusBadGateway},
 		{"credential-recovery", "unknown", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
 		{"cancelled", "cancelled", "internal_error", context.Canceled, http.StatusInternalServerError},

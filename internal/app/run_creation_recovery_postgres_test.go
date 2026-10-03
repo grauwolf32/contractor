@@ -16,9 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
-	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -26,11 +24,7 @@ import (
 )
 
 func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testing.T) {
-	for _, afterCreate := range []bool{false, true} {
-		name := "concurrent-binding-rebind"
-		if afterCreate {
-			name = "rollback-after-create"
-		}
+	for _, name := range []string{"concurrent-binding-rebind", "rollback-after-create", "exhausted-deadlock"} {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
@@ -52,10 +46,13 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				t.Fatal(err)
 			}
 			attempts := 0
-			uow := postgresPublicUnitOfWork{pool: pool, transactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			transactionLookup := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
 				func(tx pgx.Tx) (config.CredentialLookup, error) {
 					attempts++
-					if !afterCreate && attempts == 1 {
+					if name == "exhausted-deadlock" {
+						return nil, &pgconn.PgError{Code: "40P01", Message: "injected deadlock"}
+					}
+					if name == "concurrent-binding-rebind" && attempts == 1 {
 						// Establish REPEATABLE READ, then commit a rebind on a
 						// different connection before the first pin attempts SHARE.
 						if _, err := runtimeconfig.NewRepository(tx).GetBinding(ctx, runtimeconfig.DefaultLabel); err != nil {
@@ -66,8 +63,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 						}
 					}
 					return provider, nil
-				}),
-			}
+				})
 			manager, err := config.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: t.TempDir(), Descriptors: config.MVPDescriptors()})
 			if err != nil {
 				t.Fatal(err)
@@ -78,20 +74,11 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err := runservice.New(runservice.Options{
-				Runs: runstore.NewPostgresStore(pool), Workflows: manager, LLMCredentials: provider,
-				CredentialGuard: guard, RuntimeCredentials: guard, Projects: projectstore.NewPostgresStore(pool),
-				PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
-					return uow.Do(ctx, func(writer runservice.PublicRunWriter, artifactService *artifacts.Service) error {
-						if err := fn(writer, artifactService); err != nil {
-							return err
-						}
-						if afterCreate && attempts == 1 {
-							return &pgconn.PgError{Code: "40001", Message: "injected definite abort after durable writes"}
-						}
-						return nil
-					})
-				},
+			if name == "rollback-after-create" {
+				installRunCreationAbortAfterRepeatRequest(t, ctx, pool)
+			}
+			service, err := configureRunCreation(pool, manager, runCreationCredentials{
+				provider: provider, guard: guard, runtime: guard, transactionLookup: transactionLookup,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -103,10 +90,20 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				NewRunID: func() (string, error) { generated++; return "run-retry", nil },
 			}
 			result, err := service.CreatePublic(ctx, params)
+			if name == "exhausted-deadlock" {
+				if !persistencepostgres.IsTransactionConflict(err) || attempts != persistencepostgres.MaxTransactionAttempts || generated != 1 {
+					t.Fatalf("exhausted creation=%+v attempts=%d ids=%d error=%v", result, attempts, generated, err)
+				}
+				var runs, refs int
+				if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM workflow_runs), count(*) FROM artifact_binding_revisions WHERE scope_kind='run'`).Scan(&runs, &refs); err != nil || runs != 0 || refs != 0 {
+					t.Fatalf("exhausted resources: runs=%d revisions=%d error=%v", runs, refs, err)
+				}
+				return
+			}
 			if err != nil || !result.Created || result.Replayed || result.Run.RunID != "run-retry" || attempts != 2 || generated != 1 {
 				t.Fatalf("creation=%+v attempts=%d ids=%d error=%v", result, attempts, generated, err)
 			}
-			if !afterCreate && (result.Run.RuntimeConfig.Default.Config != published.Version.Ref || result.Run.RuntimeConfig.Default.BindingRevision != 2) {
+			if name == "concurrent-binding-rebind" && (result.Run.RuntimeConfig.Default.Config != published.Version.Ref || result.Run.RuntimeConfig.Default.BindingRevision != 2) {
 				t.Fatalf("retry persisted stale pin: %+v", result.Run.RuntimeConfig.Default)
 			}
 			replay, err := service.CreatePublic(ctx, params)
@@ -127,6 +124,30 @@ FROM artifact_binding_revisions WHERE scope_kind='run'`,
 				t.Fatalf("retry resource counts: runs=%d revisions=%d inputs=%d repeatRequests=%d error=%v", runs, refs, inputs, repeatRequests, err)
 			}
 		})
+	}
+}
+
+func installRunCreationAbortAfterRepeatRequest(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+	t.Helper()
+	// A sequence survives transaction rollback, so only the first attempt aborts
+	// after Run and artifact writes through the production transaction callback.
+	for _, statement := range []string{
+		`CREATE SEQUENCE abort_after_repeat_request_sequence`,
+		`CREATE FUNCTION abort_after_repeat_request_once() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.scope_kind='run' AND NEW.namespace='contractor-system' AND NEW.name='repeat-request' THEN
+    IF nextval('abort_after_repeat_request_sequence')=1 THEN
+      RAISE EXCEPTION 'injected definite abort after writes' USING ERRCODE='40001';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$`,
+		`CREATE TRIGGER abort_after_repeat_request_once AFTER INSERT ON artifact_binding_revisions
+FOR EACH ROW EXECUTE FUNCTION abort_after_repeat_request_once()`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

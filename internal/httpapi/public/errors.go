@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -164,6 +165,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, config.ErrInvalidConfigurationKind),
 		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)
+	case persistencepostgres.IsTransactionConflict(err):
+		h.writeError(w, http.StatusServiceUnavailable, "storage_transaction_conflict", "database transaction conflicted; retry the request", true)
 	default:
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "request could not be processed", true)
 	}
