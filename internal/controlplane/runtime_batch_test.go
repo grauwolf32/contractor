@@ -164,6 +164,111 @@ func TestFinalizeAllFencesBeforeRuntimeAndReleaseRetainsFailedGrant(t *testing.T
 	}
 }
 
+func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	principal := testPrincipal("d")
+	registration := testRegistration("lost-runtime")
+	registerReadyAs(t, registry, principal, registration)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-lost", StageExecutionID: "stage-lost",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	runtime := &recordingRuntime{releaseFailure: map[string]error{allocationID: errors.New("Runtime unreachable")}}
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.ReleaseAll(context.Background(), reservations); err == nil {
+		t.Fatal("live Runtime release failure was suppressed")
+	}
+	if _, err := registry.GetGrant(allocationID); err != nil {
+		t.Fatalf("live Runtime grant was released: %v", err)
+	}
+	if _, err := registry.BeginPrincipalDeletion(principal.RuntimeAgentID); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("live Runtime principal deletion = %v", err)
+	}
+
+	clock.Advance(61 * time.Second)
+	if err := controller.ReleaseAll(context.Background(), reservations); err != nil {
+		t.Fatalf("lost Runtime release did not converge: %v", err)
+	}
+	if _, err := registry.GetGrant(allocationID); !errors.Is(err, ErrAllocationNotFound) {
+		t.Fatalf("expired Runtime grant = %v", err)
+	}
+	losses := registry.PollAllocationLosses()
+	if len(losses) != 1 || losses[0].AllocationID != allocationID || losses[0].Reason != LossControlLeaseExpired {
+		t.Fatalf("expired Runtime losses = %+v", losses)
+	}
+	releaseDeletion, err := registry.BeginPrincipalDeletion(principal.RuntimeAgentID)
+	if err != nil {
+		t.Fatalf("expired Runtime principal deletion = %v", err)
+	}
+	releaseDeletion()
+
+	registration.ObservedState = contracts.AgentFenced
+	registration.AllocationID = &allocationID
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatalf("returning fenced Runtime registration = %v", err)
+	}
+	fenced := contracts.AgentHeartbeat{
+		APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
+		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: contracts.AgentFenced,
+		AllocationID: &allocationID,
+	}
+	response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, fenced)
+	if err != nil || response.Action != contracts.ActionRelease {
+		t.Fatalf("returning fenced Runtime heartbeat = (%+v, %v)", response, err)
+	}
+	request := ReservationRequest{
+		RunID: "run-next", StageExecutionID: "stage-next",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	}
+	if _, err := registry.ReserveAll(request); !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("fenced Runtime was offered for placement: %v", err)
+	}
+	idle := heartbeat(registration.InstanceID, 2, 1)
+	if response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, idle); err != nil ||
+		response.Action != contracts.ActionContinue {
+		t.Fatalf("idle lease confirmation = (%+v, %v)", response, err)
+	}
+	if next, err := registry.ReserveAll(request); err != nil || len(next) != 1 {
+		t.Fatalf("confirmed idle Runtime was not offered = (%+v, %v)", next, err)
+	}
+}
+
+func TestFailedPrepareCleanupReleasesExpiredGrantAfterRuntimeFailure(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "lost-prepare-runtime")
+	template := testTemplate(t)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-lost-prepare", StageExecutionID: "stage-lost-prepare",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", template)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	clock.Advance(61 * time.Second)
+	runtime := &recordingRuntime{releaseFailure: map[string]error{allocationID: errors.New("Runtime unreachable")}}
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.PrepareAll(context.Background(), reservations,
+		testWorkerExecutionSettings(template, testRuntimeSettings(), "builder")); !errors.Is(err, ErrAllocationLost) {
+		t.Fatalf("expired prepare error = %v", err)
+	}
+	if _, err := registry.GetGrant(allocationID); !errors.Is(err, ErrAllocationNotFound) {
+		t.Fatalf("failed-prepare cleanup kept expired grant: %v", err)
+	}
+}
+
 func TestRuntimeBatchTerminalCallsFanOutWithoutSiblingDeadlineStarvation(t *testing.T) {
 	template := testTemplate(t)
 	lease := time.Now().Add(time.Minute)
@@ -407,6 +512,8 @@ func (r *recordingAllocationRegistry) Release(allocationID string) error {
 	r.released = append(r.released, allocationID)
 	return nil
 }
+
+func (*recordingAllocationRegistry) ReleaseLost(string) (bool, error) { return false, nil }
 
 func (r *recordingRuntime) String() string {
 	return fmt.Sprintf("prepared=%v aborted=%v released=%v", r.prepared, r.aborted, r.released)

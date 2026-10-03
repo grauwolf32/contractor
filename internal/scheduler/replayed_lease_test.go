@@ -34,7 +34,8 @@ func (*deferredLeaseRegistry) SetAllocationPhase(string, controlplane.Allocation
 func (*deferredLeaseRegistry) RecordAllocationReport(string, contracts.AllocationFinalReport) error {
 	return nil
 }
-func (*deferredLeaseRegistry) Release(string) error { return nil }
+func (*deferredLeaseRegistry) Release(string) error             { return nil }
+func (*deferredLeaseRegistry) ReleaseLost(string) (bool, error) { return false, nil }
 
 type deferredLeaseRuntime struct {
 	now     func() time.Time
