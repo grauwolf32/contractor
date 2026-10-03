@@ -229,6 +229,32 @@ func TestConnectionReuseExperimentCounts(t *testing.T) {
 	}
 }
 
+func TestNewMTLSRejectsWrongRuntimePrincipal(t *testing.T) {
+	var requests atomic.Int64
+	f := newConnectionExperiment(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		http.Error(w, "unexpected protected request", http.StatusForbidden)
+	}))
+	invoker, err := NewMTLS(f.files, 2*time.Second, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invoker.build != nil {
+		t.Fatal("NewMTLS retained an unbound client builder")
+	}
+	handle := f.handle()
+	handle.RuntimeAgentID = strings.Repeat("0", 64)
+	if handle.RuntimeAgentID == f.principal {
+		t.Fatal("test principal unexpectedly matches Runtime certificate")
+	}
+	_, err = invoker.Invoke(context.Background(), "worker", handle, stageRequest())
+	assertPlannerCode(t, err, "worker_unavailable")
+	experimentAwaitClosed(t, f)
+	if requests.Load() != 0 {
+		t.Fatalf("wrong principal received %d protected HTTP requests", requests.Load())
+	}
+}
+
 func TestConnectionReuseExperimentFixedTaskDuration(t *testing.T) {
 	// A second workload makes progress depend on elapsed server time instead
 	// of number of polls. Slow clients may observe fewer intermediate states.
