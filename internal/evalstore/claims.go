@@ -77,24 +77,6 @@ FOR UPDATE
 	return err
 }
 
-func (s *Store) RenewClaim(ctx context.Context, c Claim, lease time.Duration) (Claim, error) {
-	if lease < time.Second || lease > 5*time.Minute {
-		return Claim{}, evaldomain.Failure("eval_invalid")
-	}
-	err := s.db.QueryRow(ctx, `
-UPDATE eval_controller_claims
-SET expires_at = clock_timestamp() + $4::bigint * interval '1 millisecond'
-WHERE experiment_id = $1
-    AND holder_id = $2
-    AND epoch = $3
-    AND expires_at > clock_timestamp() RETURNING expires_at
-`, c.ExperimentID, c.HolderID, c.Epoch, lease.Milliseconds()).Scan(&c.ExpiresAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		err = ErrClaimLost
-	}
-	return c, err
-}
-
 func (s *Store) ReleaseClaim(ctx context.Context, c Claim) error {
 	tag, err := s.db.Exec(ctx, `
 UPDATE eval_controller_claims

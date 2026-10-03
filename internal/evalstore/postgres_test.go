@@ -140,11 +140,35 @@ func createExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, id, portabl
 }
 func members(t *testing.T, pool *pgxpool.Pool, e Experiment) []Member {
 	t.Helper()
-	m, err := NewPostgresStore(pool).Members(context.Background(), e.OwnerID, e.ID, -1, 100)
+	ctx := context.Background()
+	rows, err := pool.Query(ctx, `SELECT member_id FROM eval_members WHERE experiment_id=$1 ORDER BY ordinal`, e.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return m
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		t.Fatal(err)
+	}
+	rows.Close()
+	reader := NewPostgresStore(pool)
+	result := make([]Member, 0, len(ids))
+	for _, id := range ids {
+		member, err := reader.Member(ctx, e.OwnerID, e.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result = append(result, member)
+	}
+	return result
 }
 func oneClaim(t *testing.T, pool *pgxpool.Pool) Claim {
 	t.Helper()
@@ -208,8 +232,8 @@ func TestPostgresEvalDraftCASOwnerReplayAndPrivateDatasets(t *testing.T) {
 	if _, err = reader.Dataset(ctx, Scope{b.OwnerID, a.ProjectID}, "trace-small", "r1"); !code(err, "eval_not_found") {
 		t.Fatalf("foreign dataset: %v", err)
 	}
-	list, err := reader.ListDatasets(ctx, a, "", "", 1)
-	if err != nil || len(list) != 1 {
+	list, err := reader.DatasetPage(ctx, a, "", "", 1, nil)
+	if err != nil || len(list.Items) != 1 {
 		t.Fatal(list, err)
 	}
 	if strings.Contains(string(bytesOf(list)), "PRIVATE_") {
@@ -473,21 +497,29 @@ func TestPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing.T) {
 		createExperiment(t, pool, scope, fmt.Sprintf("exp-%02d", i), fmt.Sprintf("portable-%02d", i), "create-workflow")
 	}
 	reader := NewPostgresStore(pool)
-	page, err := reader.List(ctx, ListParams{OwnerID: scope.OwnerID, ProjectID: scope.ProjectID, Limit: 5})
+	page, err := reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{
+		OwnerID: scope.OwnerID, ProjectID: scope.ProjectID, Limit: 5,
+	}})
 	if err != nil || len(page.Items) != 5 {
 		t.Fatal(page, err)
 	}
-	page2, err := reader.List(ctx, ListParams{OwnerID: scope.OwnerID, ProjectID: scope.ProjectID, AfterID: page.Items[4].ID, Limit: 5, Revision: &page.Revision})
+	page2, err := reader.SummaryPage(ctx, SummaryPageParams{
+		ListParams: ListParams{OwnerID: scope.OwnerID, ProjectID: scope.ProjectID,
+			AfterID: page.Items[4].ID, Limit: 5, Revision: &page.Revision},
+		AfterCreatedAt: &page.LastCreatedAt,
+	})
 	if err != nil || len(page2.Items) != 5 || page2.Items[0].ID == page.Items[4].ID {
 		t.Fatal(page2, err)
 	}
-	if _, err = reader.List(ctx, ListParams{OwnerID: scope.OwnerID, Limit: 101}); !code(err, "eval_invalid") {
+	if _, err = reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{OwnerID: scope.OwnerID, Limit: 101}}); !code(err, "eval_invalid") {
 		t.Fatal(err)
 	}
 	del := fixture(t, "delete", "Delete")
 	m := mutation(t, "delete", 1, del)
 	mustTx(t, pool, func(s *Store) error { _, err := s.BeginDeletion(ctx, scope, "exp-00", m); return err })
-	if _, err = reader.List(ctx, ListParams{OwnerID: scope.OwnerID, Limit: 5, ProjectID: scope.ProjectID, Revision: &page.Revision}); !code(err, "eval_view_changed") {
+	if _, err = reader.SummaryPage(ctx, SummaryPageParams{ListParams: ListParams{
+		OwnerID: scope.OwnerID, Limit: 5, ProjectID: scope.ProjectID, Revision: &page.Revision,
+	}}); !code(err, "eval_view_changed") {
 		t.Fatal(err)
 	}
 	mustTx(t, pool, func(s *Store) error { return s.Purge(ctx, scope, "exp-00") })

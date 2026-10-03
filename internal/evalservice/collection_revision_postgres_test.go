@@ -40,11 +40,15 @@ func liveMember(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.
 func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	h, e, claim, member := liveMember(t)
 	store := evalstore.NewPostgresStore(h.pool)
-	page, err := store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1})
+	page, err := store.SummaryPage(t.Context(), evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
+		OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1,
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	owned, err := store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, Limit: 1})
+	owned, err := store.SummaryPage(t.Context(), evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
+		OwnerID: h.scope.OwnerID, Limit: 1,
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,10 +64,14 @@ func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	if after.Revision != before.Revision || after.ObservedTokens != 20 || !after.UpdatedAt.After(before.UpdatedAt) {
 		t.Fatalf("usage tick changed authority CAS or lost progress: before=%+v after=%+v", before, after)
 	}
-	if _, err = store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1, Revision: &page.Revision}); err != nil {
+	if _, err = store.SummaryPage(t.Context(), evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
+		OwnerID: h.scope.OwnerID, ProjectID: h.scope.ProjectID, Limit: 1, Revision: &page.Revision,
+	}}); err != nil {
 		t.Fatal("usage tick invalidated list cursor", err)
 	}
-	if _, err = store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, Limit: 1, Revision: &owned.Revision}); err != nil {
+	if _, err = store.SummaryPage(t.Context(), evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
+		OwnerID: h.scope.OwnerID, Limit: 1, Revision: &owned.Revision,
+	}}); err != nil {
 		t.Fatal("usage tick invalidated owner list cursor", err)
 	}
 }

@@ -69,10 +69,3 @@ func CheckMutation(incoming MutationIdentity, stored *MutationIdentity, currentR
 	}
 	return false, nil
 }
-
-func CheckControlMode(mode ControlMode, command CommandKind) error {
-	if mode.Allows(command) {
-		return nil
-	}
-	return Failure("eval_external_control")
-}

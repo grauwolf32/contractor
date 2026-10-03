@@ -298,39 +298,3 @@ WHERE experiment_id = $1
 	}
 	return s.LatestView(ctx, e.OwnerID, id)
 }
-
-// ViewMembers reads a single already-published complete generation. Public
-// pages filter in SQL; whole-view consumers are bounded by the format maximum.
-func (s *Store) ViewMembers(ctx context.Context, owner, id, snapshot string) ([]evaldomain.SelectedMember, error) {
-	rows, err := s.db.Query(ctx, `
-SELECT m.pair_id,m.document,m.collection_complete
-FROM eval_view_members m
-JOIN eval_view_generations v USING(experiment_id,generation)
-JOIN eval_experiments e USING(experiment_id)
-WHERE e.owner_id = $1
-    AND e.experiment_id = $2
-    AND v.snapshot_id = $3
-ORDER BY m.ordinal
-LIMIT $4
-`, owner, id, snapshot, evaldomain.MaxMembers+1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []evaldomain.SelectedMember{}
-	for rows.Next() {
-		var m evaldomain.SelectedMember
-		var doc []byte
-		if err = rows.Scan(&m.PairID, &doc, &m.CollectionComplete); err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(doc, &m.View); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	if len(out) > evaldomain.MaxMembers {
-		return nil, evaldomain.Failure("eval_limit_exceeded")
-	}
-	return out, rows.Err()
-}

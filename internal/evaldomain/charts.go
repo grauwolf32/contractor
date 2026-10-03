@@ -57,9 +57,6 @@ func distribution(values []float64) Distribution {
 	d.Total, d.P50, d.P90 = &total, &p50, &p90
 	return d
 }
-func InBin(value float64, b Bin) bool {
-	return value >= b.Lower && (value < b.Upper || b.UpperInclusive && value == b.Upper)
-}
 
 // MeasurementCohort retains raw samples for exact nearest-rank percentiles.
 // Filter tokens are assigned by the authenticated HTTP adapter, not this reducer.
@@ -127,11 +124,6 @@ func MeasurementCohort(pairs []Pair, suite, metric, scope string, pinsVerified b
 		}
 	}
 	return c
-}
-func SortDeltas(d []Delta, absolute bool) {
-	if absolute {
-		sort.SliceStable(d, func(i, j int) bool { return math.Abs(d[i].Difference) > math.Abs(d[j].Difference) })
-	}
 }
 
 type ProgressObservation struct {

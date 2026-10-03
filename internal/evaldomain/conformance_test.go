@@ -265,7 +265,7 @@ func TestEvalHTTPMutationsAndReplay(t *testing.T) {
 			}
 		})
 	}
-	if CheckControlMode("server", "finalize") == nil || CheckControlMode("external", "start") == nil || CheckControlMode("external", "duplicate") == nil {
+	if ControlMode("server").Allows("finalize") || ControlMode("external").Allows("start") || ControlMode("external").Allows("duplicate") {
 		t.Fatal("two drivers allowed to control the same experiment")
 	}
 }

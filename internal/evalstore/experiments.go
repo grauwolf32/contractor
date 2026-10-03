@@ -311,37 +311,3 @@ VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	}
 	return nil
 }
-
-// Member pages use frozen order and a hard SQL LIMIT before recipe decoding.
-func (s *Store) Members(ctx context.Context, owner, id string, afterOrdinal, limit int) ([]Member, error) {
-	if limit < 1 || limit > evaldomain.MaxPageSize || afterOrdinal < -1 {
-		return nil, evaldomain.Failure("eval_invalid")
-	}
-	if _, err := s.Get(ctx, owner, id); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256
-FROM eval_members m
-WHERE m.experiment_id=$1
-    AND m.ordinal>$2
-ORDER BY m.ordinal LIMIT $3
-`, id, afterOrdinal, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]Member, 0)
-	for rows.Next() {
-		var m Member
-		var recipe []byte
-		if err = rows.Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &recipe, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256); err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(recipe, &m.Recipe); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
-}
