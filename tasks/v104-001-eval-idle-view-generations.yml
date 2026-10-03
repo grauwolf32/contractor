@@ -3,8 +3,8 @@ id: V104-001
 title: Stop idle evaluation ticks from publishing duplicate views
 milestone: eval-idle-view-generations-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 5517ee449ccb886317407819d9ce650ba9b1af6e
 depends_on: []
 languages: [go, sql]
 goal: Keep selected evaluation views stable when coordinator ticks only update observed usage and polling order.
