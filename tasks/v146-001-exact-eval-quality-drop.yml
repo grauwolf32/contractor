@@ -3,7 +3,8 @@ id: V146-001
 title: Compare eval quality drops at exact decimal gate boundaries
 milestone: exact-eval-quality-drop-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: effdcd427e00a0e92097f3cbfd794cf4bdc20595
 depends_on: []
 languages: [go]
 goal: Keep equal quality drops within the configured gate for experiment and suite conclusions.
