@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V213-001
+title: Remove stale public client and Server test-only helpers
+milestone: server-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Make server tests exercise production composition and remove misleading unused helpers.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/138
+  finding: The old health-only server wrapper and disconnected Skill initializer fake make tests describe behavior production does not run.
+  current_behavior: The standby listener now uses ServeHandler in production, so that helper must remain internal rather than be deleted.
+scope:
+  in:
+    - Remove unused public client timeout wrapper and health-only Server wrappers.
+    - Cover shutdown through ServeSystem and routing through NewReadyHandler.
+    - Make the standby listener's server helper private to app.
+    - Correct Scheduler-only Skill initialization comments and remove an unwired public-test fake.
+  out:
+    - Changing production Run Skill initialization timing.
+acceptance_criteria:
+  - {id: A1, text: No unused exported server helper or public client timeout wrapper remains.}
+  - {id: A2, text: Server tests exercise production shutdown and readiness/routing constructors.}
+  - {id: A3, text: Run Skill comments and public tests reflect Scheduler-only initialization.}
+tests:
+  - {command: go test ./internal/app/... ./internal/publicclient/... ./internal/httpapi/public/... ./internal/runstore/..., covers: [A1, A2, A3]}
+  - {command: go build ./..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
