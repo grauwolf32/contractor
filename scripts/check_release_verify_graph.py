@@ -26,6 +26,7 @@ EXPECTED_RACE_PACKAGES = {
         "internal/credentials",
         "internal/credentials/litellm",
         "internal/httpapi",
+        "internal/httpapi/artifacttransfer",
         "internal/httpapi/httpx",
         "internal/httpapi/privateartifacts",
         "internal/httpapi/public",
@@ -141,4 +142,4 @@ def check_family_entry_points() -> None:
 if __name__ == "__main__":
     check_release_graph()
     check_family_entry_points()
-    print("release graph: 35 race packages and 16 process tests, each selected once")
+    print("release graph: 36 race packages and 16 process tests, each selected once")

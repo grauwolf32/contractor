@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
@@ -437,6 +438,8 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	defer releaseTransfer()
 	r = r.WithContext(ctx)
+	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
+	defer deadline.Close()
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -512,7 +515,7 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	h.writeArtifactRead(w, r, store, ref)
 }
 
-// writeArtifactRead holds one of the few global transfer slots only while the
+// writeArtifactRead holds one of the four per-process transfer slots only while the
 // payload is read and written, after method, ownership and route checks have
 // passed, so rejected requests cannot exhaust transfer capacity.
 func (h *handler) writeArtifactRead(
@@ -524,11 +527,14 @@ func (h *handler) writeArtifactRead(
 		return
 	}
 	defer releaseTransfer()
-	result, err := store.Read(ctx, ref)
+	r, deadline := artifacttransfer.Bound(w, r.WithContext(ctx), artifacts.MaxPayloadSize)
+	defer deadline.Close()
+	result, err := store.Read(r.Context(), ref)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	deadline.LimitWrite(int64(len(result.Payload.Data)))
 	writeArtifactBytes(w, result)
 }
 

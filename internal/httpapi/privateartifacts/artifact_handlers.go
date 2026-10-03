@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
@@ -81,6 +82,8 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	defer releaseTransfer()
 	r = r.WithContext(ctx)
+	r, deadline := artifacttransfer.Bound(w, r, artifacts.MaxPayloadSize)
+	defer deadline.Close()
 	query, err := exactQuery(r.URL.RawQuery, "revision")
 	if err != nil {
 		h.handleError(w, err)
@@ -108,6 +111,7 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	deadline.LimitWrite(int64(len(result.Payload.Data)))
 	w.Header().Set("Content-Type", result.Payload.MediaType)
 	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
@@ -125,6 +129,8 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	defer releaseTransfer()
 	r = r.WithContext(ctx)
+	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
+	defer deadline.Close()
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
