@@ -130,8 +130,14 @@ func discardUnusedBlob(ctx context.Context, db postgres.DBTX, object BlobObject)
 		deletePhysicalAfterCommit(ctx, tx, object)
 		return
 	}
+	discardUnpublishedBlob(ctx, object)
+}
+
+// A definitely rejected write never published its fresh candidate, even if
+// the caller-owned transaction later rolls back. Remove it immediately.
+func discardUnpublishedBlob(ctx context.Context, object BlobObject) {
 	r := blobRuntime(ctx)
-	if r == nil {
+	if r == nil || object.Backend != BlobFilesystem {
 		return
 	}
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

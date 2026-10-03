@@ -838,13 +838,16 @@ type CoverageEvidence struct {
 }
 
 type ReconcileSnapshot struct {
-	Audit          Audit
-	Round          *Round
-	Items          []Item
-	Executions     []Execution
-	RoleExecutions []Execution
-	Receipts       []CollectionReceiptSummary
-	RoleReceipts   []CollectionReceiptSummary
+	Audit Audit
+	// MaxConcurrentRuns is a preflight hint from Scheduler settings. The
+	// CreateExecutionIntent SQL gate remains authoritative under races.
+	MaxConcurrentRuns int
+	Round             *Round
+	Items             []Item
+	Executions        []Execution
+	RoleExecutions    []Execution
+	Receipts          []CollectionReceiptSummary
+	RoleReceipts      []CollectionReceiptSummary
 	// ReadyItems are the current Round's dispatchable items, read directly so
 	// that items awaiting review ahead of them cannot starve dispatch.
 	ReadyItems     []Item

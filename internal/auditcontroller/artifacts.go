@@ -73,6 +73,25 @@ func (a *ProjectArtifactAccess) PutImmutableProject(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
+	if target.Revision != nil {
+		return auditstore.ExactArtifact{}, artifacts.ErrVersionedWriteTarget
+	}
+	// Content-derived names are immutable. A successful prior attempt already
+	// has the exact descriptor, so avoid staging another filesystem blob.
+	metadata, err := store.Metadata(ctx, target)
+	if err == nil {
+		if metadata.Digest != auditdomain.DigestBytes(payload.Data) ||
+			metadata.MediaType != payload.MediaType || metadata.Size != int64(len(payload.Data)) {
+			return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision", ErrInvalidSubmission)
+		}
+		return auditstore.ExactArtifact{
+			Ref: metadata.Ref, Digest: metadata.Digest,
+			MediaType: metadata.MediaType, SizeBytes: metadata.Size,
+		}, nil
+	}
+	if !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return auditstore.ExactArtifact{}, err
+	}
 	// The target name is content-derived. A crash after this write but before
 	// intent creation is recovered by accepting only byte-identical content.
 	return auditstore.WriteImmutableArtifact(

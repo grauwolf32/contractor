@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V195-001
+title: Stop blocked Audit dispatch from rebuilding artifacts and leaking blobs
+milestone: audit-dispatch-correctness-2026-10
+priority: P1
+status: completed
+implementation_commit: 63fd01a8a487e94ba3704da98ab2a7052132b4a1
+depends_on: []
+languages: [go]
+goal: Avoid repeated submission work under a full Run window and remove definitely unpublished blob candidates.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/190
+  finding: A full Audit dispatch window still runs PrepareBatch every poll; create-only artifact write conflicts leave candidate filesystem files.
+scope:
+  in:
+    - Read the Scheduler concurrency limit in the reconcile snapshot and skip dispatch selection when full.
+    - Reuse metadata for an already-matching immutable Project artifact.
+    - Delete filesystem candidates after definite binding conflicts while preserving ambiguous-write safety.
+    - Add controller and PostgreSQL filesystem regression coverage.
+  out:
+    - Changing the authoritative SQL reservation gate or introducing an artifact cache.
+acceptance_criteria:
+  - {id: A1, text: Repeated full-window polls call neither NextItemAttempt nor PrepareBatch or artifact access.}
+  - {id: A2, text: Repeated identical immutable Project writes create no orphan filesystem blob.}
+  - {id: A3, text: Create-only binding conflicts leave no orphan candidate; ambiguous writes retain referenced bytes.}
+  - {id: A4, text: Dispatch resumes after the window opens and concurrent settings changes remain fenced by SQL.}
+tests:
+  - {command: go test ./internal/auditcontroller/... ./internal/auditstore/... ./internal/artifacts/..., covers: [A1, A2, A3, A4]}
+  - {command: go test -tags=integration ./internal/auditcontroller/ -run 'TestPostgresDispatchReservationOrdersWithSettingsDecrease|TestPostgresControllerFullWindow', covers: [A1, A4]}
+  - {command: go test ./internal/artifacts/ -run 'TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes|TestFilesystemCreateOnlyConflict', covers: [A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

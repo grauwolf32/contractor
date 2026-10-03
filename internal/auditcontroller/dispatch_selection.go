@@ -14,6 +14,12 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 		snapshot.Round.State != auditstore.RoundExecuting {
 		return false, nil
 	}
+	if snapshot.MaxConcurrentRuns < 1 {
+		return false, errors.New("Audit dispatch window is invalid")
+	}
+	if audit.OutstandingRunCount >= snapshot.MaxConcurrentRuns {
+		return false, nil
+	}
 
 	selected := make([]CheckExecutionMember, 0, min(audit.Limits.BatchSize, auditstore.MaxCollectionItems))
 	var binding config.ResolvedAuditWorkflowBinding
