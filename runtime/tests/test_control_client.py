@@ -13,7 +13,12 @@ from typing import Any
 import pytest
 
 from contractor_runtime.capabilities import CapabilitySnapshot
-from contractor_runtime.control_client import ControlClient, ControlClientError, MTLSJSONTransport
+from contractor_runtime.control_client import (
+    ControlClient,
+    ControlClientError,
+    ControlHTTPError,
+    MTLSJSONTransport,
+)
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import runtime_agent_client_context
 from contractor_runtime.settings import Settings
@@ -246,6 +251,45 @@ def test_reregister_action_starts_a_new_confirmed_lease_generation(
 
         assert [path for path, _ in transport.requests].count("/private/v1/agents/register") == 2
         assert not watchdog.expired
+        assert watchdog.last_ack == 0
+
+    asyncio.run(scenario())
+
+
+def test_failed_reregistrations_do_not_extend_the_local_lease(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        now = 1000.0
+        state = RuntimeState(instance_id="runtime-lost-server", capabilities=runtime_capabilities)
+        watchdog = LeaseWatchdog(state.fence_control_lease, monotonic=lambda: now)
+        responses: list[Mapping[str, Any] | BaseException] = [registration_response()]
+        statuses = [500, 409, 400, 500, 409, 400]
+        for sequence, status in enumerate(statuses, start=1):
+            responses.extend(
+                [
+                    heartbeat_response(sequence, action="reregister"),
+                    ControlHTTPError(status),
+                ]
+            )
+        transport = FakeTransport(responses)
+        client = ControlClient(make_settings(), state, transport, watchdog=watchdog)
+        await client.register()
+        deadline = watchdog.confirmed_deadline
+        assert deadline == 1060.0
+
+        for sequence, status in enumerate(statuses, start=1):
+            now += 10.0
+            with pytest.raises(ControlHTTPError) as caught:
+                await client.heartbeat_once()
+            assert caught.value.status_code == status
+            assert client.echoed_ack == sequence
+            assert watchdog.last_ack == 0
+            assert watchdog.confirmed_deadline == (deadline if now < deadline else None)
+
+        assert await watchdog.expire_if_due()
+        assert watchdog.expired
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 

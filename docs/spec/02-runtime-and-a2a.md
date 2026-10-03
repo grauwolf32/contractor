@@ -396,6 +396,8 @@ After Registry loss, an echoed ack from the former Control Plane process is not
 recognized because the new in-memory entry did not issue it. After
 re-registration, Control Plane acknowledges the next heartbeat; only echoing
 that new response establishes the fresh confirmed control lease. The
+`reregister` heartbeat response itself never renews the Runtime watchdog: if
+registration keeps failing, the old local deadline still expires. The
 process-monotonic heartbeat sequence avoids collision with a delayed response
 without introducing a durable Server epoch or registration generation.
 
