@@ -3,7 +3,8 @@ id: V193-001
 title: Read Audit execution members outside the reconcile item window
 milestone: audit-collection-correctness-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 43ec5757470cd25f4356c056c3ac0067b6c9625c
 depends_on: []
 languages: [go]
 goal: Keep valid high-ordinal Audit checks collectable and resumable when more than 200 items remain unsettled.
