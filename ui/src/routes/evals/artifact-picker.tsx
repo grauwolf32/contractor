@@ -8,9 +8,13 @@ import {
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { usePublicAPI } from "../../api/context";
 import type { EvalArtifact } from "../../api/evals";
+import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
 import { useSession } from "../../auth/session";
 import { ProjectArtifactWriteForm } from "../projects/common";
-import { EvalError, EvalField, EvalPages } from "./common";
+import { EvalError, EvalField } from "./common";
+import { queryKeys } from "../../api/query-keys";
+import { sha256Hex } from "../../app/digest";
 
 export function EvalArtifactPicker({
   projectId,
@@ -22,11 +26,11 @@ export function EvalArtifactPicker({
   const api = usePublicAPI();
   const { session } = useSession();
   const [scope, setScope] = useState<"project" | "user">("project");
-  const [cursors, setCursors] = useState<string[]>([]);
+  const pages = useCursorStack();
   const [upload, setUpload] = useState(false);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const inventory = useQuery({
-    queryKey: ["evals", "input-artifacts", scope, projectId, cursor],
+    queryKey: queryKeys.evals.inputArtifacts(scope, projectId, cursor),
     queryFn: () =>
       scope === "project"
         ? listProjectArtifacts(api, {
@@ -46,15 +50,7 @@ export function EvalArtifactPicker({
       const artifact = metadata.artifact;
       const path = `${prefix}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
       const { blob } = await downloadExactArtifact(api, metadata, path);
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        await blob.arrayBuffer(),
-      );
-      const sha256 =
-        "sha256:" +
-        Array.from(new Uint8Array(hash), (x) =>
-          x.toString(16).padStart(2, "0"),
-        ).join("");
+      const sha256 = `sha256:${await sha256Hex(await blob.arrayBuffer())}`;
       return {
         scope,
         scopeId,
@@ -73,7 +69,7 @@ export function EvalArtifactPicker({
           value={scope}
           onChange={(e) => {
             setScope(e.target.value as typeof scope);
-            setCursors([]);
+            pages.reset();
             setUpload(false);
           }}
         >
@@ -104,15 +100,9 @@ export function EvalArtifactPicker({
           </li>
         ))}
       </ul>
-      <EvalPages
-        previous={
-          cursors.length ? () => setCursors((c) => c.slice(0, -1)) : undefined
-        }
-        next={
-          inventory.data?.page.hasMore && inventory.data.page.nextCursor
-            ? () => setCursors((c) => [...c, inventory.data!.page.nextCursor!])
-            : undefined
-        }
+      <CursorControls
+        label="Input artifact pages"
+        {...pages.controls(inventory.data?.page)}
       />
       {scope === "project" ? (
         <>

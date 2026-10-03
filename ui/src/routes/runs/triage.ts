@@ -1,5 +1,9 @@
 import type { components } from "../../api/generated/public";
-import type { RunStatus, StageAttempt } from "../../api/runs";
+import {
+  isTerminalRunState,
+  type RunStatus,
+  type StageAttempt,
+} from "../../api/runs";
 
 type AttemptDiagnostic = components["schemas"]["AttemptDiagnostic"];
 
@@ -232,7 +236,7 @@ function guidance(
     };
   }
   if (
-    !isTerminalState(run.state) &&
+    !isTerminalRunState(run.state) &&
     (attempt === undefined || attempt.state === "preparing")
   ) {
     return {
@@ -252,7 +256,7 @@ function guidance(
       operationsPath: "/operations/configurations",
     };
   }
-  if (isTerminalState(run.state) && run.state === "failed") {
+  if (isTerminalRunState(run.state) && run.state === "failed") {
     return {
       kind: "manual-repeat",
       title: "A new Run is a separate decision",
@@ -268,10 +272,6 @@ function guidance(
     message:
       "Inspect the focused attempt and recorded diagnostics. Contractor does not infer an operator action from an unknown or incomplete cause.",
   };
-}
-
-function isTerminalState(state: RunStatus["state"]): boolean {
-  return state === "succeeded" || state === "failed" || state === "cancelled";
 }
 
 export function deriveRunTriage(run: RunStatus): RunTriage {

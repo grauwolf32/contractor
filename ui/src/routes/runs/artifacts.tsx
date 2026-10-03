@@ -13,7 +13,6 @@ import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
   type ArtifactMetadata,
-  type DownloadedArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -28,7 +27,10 @@ import {
   type RunStatus,
 } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
-import { CursorControls, ErrorNotice, formatBytes } from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useCursorStack } from "../../app/pagination";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { type RunDisclosureProps, RunDisclosureSummary } from "./components";
 import {
@@ -43,21 +45,7 @@ import "./outputs.css";
 import { RefreshButton } from "../../app/refresh-button";
 import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
-
-function triggerDownload(downloaded: DownloadedArtifact): void {
-  const objectURL = URL.createObjectURL(downloaded.blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectURL;
-  anchor.download = downloaded.filename;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(objectURL);
-  }
-}
+import { saveBlob } from "../../app/download";
 
 function RunOutputPreview({
   runId,
@@ -286,10 +274,8 @@ export function RunArtifactLibrary({
   const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
   const [filterError, setFilterError] = useState<string | undefined>();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
+  const pages = useCursorStack();
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.runs.artifacts(runId, namespace, cursor),
     queryFn: () =>
@@ -309,7 +295,7 @@ export function RunArtifactLibrary({
     }
     setFilterError(undefined);
     setNamespace(candidate === "" ? undefined : candidate);
-    setCursors([undefined]);
+    pages.reset();
   }
 
   const count =
@@ -399,17 +385,7 @@ export function RunArtifactLibrary({
         )}
         <CursorControls
           label="Run Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
     </details>
@@ -426,7 +402,7 @@ function RunArtifactActions({
   const api = usePublicAPI();
   const download = useMutation({
     mutationFn: () => downloadRunArtifact(api, runId, metadata),
-    onSuccess: triggerDownload,
+    onSuccess: (downloaded) => saveBlob(downloaded.blob, downloaded.filename),
   });
   return (
     <div className="artifact-actions-grid run-artifact-actions">

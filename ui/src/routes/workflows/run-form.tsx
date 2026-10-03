@@ -40,7 +40,7 @@ import {
   type CreateRunRequest,
   type WorkflowResource,
 } from "../../api/workflows";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import {
   initialRunDraftState,
   type RunDraftEntry,
@@ -58,11 +58,14 @@ import {
   type ConsumerOverrideDraft,
   type ExecutionOverrideDraft,
 } from "../../run-drafts/validation";
-import { ErrorNotice, formatBytes, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
 import "./run-drafts.css";
+import { nextPageCursor } from "../../app/pagination";
+import { LoadMoreButton } from "../../app/load-more";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -71,10 +74,6 @@ const EVAL_METADATA_PRESET = [
   { key: "eval.id", value: "" },
   { key: "eval.leg", value: "" },
 ] as const;
-
-function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
-  return page.page.hasMore ? page.page.nextCursor : undefined;
-}
 
 function configurationSelector(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}`;
@@ -102,7 +101,7 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
       </code>
       <span>binding revision {binding.revision}</span>
       <code title={binding.config.digest}>
-        {binding.config.digest.slice(0, 18)}…
+        {compactDigest(binding.config.digest)}
       </code>
     </small>
   );
@@ -696,20 +695,12 @@ function DiscardRunDraftDialog({
       onRequestClose={onClose}
       role="alertdialog"
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Unsaved Run setup</p>
-          <h2 id={heading}>Discard this Run draft?</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close discard confirmation"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow="Unsaved Run setup"
+        title="Discard this Run draft?"
+        close={{ label: "Close discard confirmation", onClose: onClose }}
+      />
       <p>
         Parameters, Artifact selections, labels, overrides and any ambiguous
         submission identity in this tab will be removed.
@@ -932,7 +923,7 @@ function WorkflowRunFormBody({
             projectId,
             ...(pageParam === null ? {} : { cursor: pageParam }),
           }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const modelPolicyInventory = useInfiniteQuery({
     queryKey: queryKeys.configurations.infinitePicker("model-policies"),
@@ -943,7 +934,7 @@ function WorkflowRunFormBody({
         "model-policies",
         pageParam === null ? {} : { cursor: pageParam },
       ),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const gatewayInventory = useInfiniteQuery({
@@ -955,7 +946,7 @@ function WorkflowRunFormBody({
         "llm-gateways",
         pageParam === null ? {} : { cursor: pageParam },
       ),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const credentialInventory = useInfiniteQuery({
@@ -963,7 +954,7 @@ function WorkflowRunFormBody({
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listCredentials(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: executionOptionsOpen,
   });
   const runtimeLabelInventory = useInfiniteQuery({
@@ -971,7 +962,7 @@ function WorkflowRunFormBody({
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
+    getNextPageParam: (page) => nextPageCursor(page.page),
     enabled: runtimeOptionsOpen,
   });
 
@@ -1742,18 +1733,11 @@ function WorkflowRunFormBody({
               })}
           </div>
         )}
-        {artifactInventory.hasNextPage ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={artifactInventory.isFetchingNextPage}
-            onClick={() => void artifactInventory.fetchNextPage()}
-          >
-            {artifactInventory.isFetchingNextPage
-              ? "Loading Artifacts…"
-              : "Load more Artifacts"}
-          </button>
-        ) : null}
+        <LoadMoreButton
+          query={artifactInventory}
+          label="Load more Artifacts"
+          pendingLabel="Loading Artifacts…"
+        />
       </fieldset>
       {presentation === "drawer" ? (
         <>
@@ -1893,18 +1877,11 @@ function WorkflowRunFormBody({
               {validationErrors.runtimeLabels}
             </p>
           )}
-          {runtimeLabelInventory.hasNextPage ? (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={runtimeLabelInventory.isFetchingNextPage}
-              onClick={() => void runtimeLabelInventory.fetchNextPage()}
-            >
-              {runtimeLabelInventory.isFetchingNextPage
-                ? "Loading Runtime labels…"
-                : "Load more Runtime labels"}
-            </button>
-          ) : null}
+          <LoadMoreButton
+            query={runtimeLabelInventory}
+            label="Load more Runtime labels"
+            pendingLabel="Loading Runtime labels…"
+          />
         </fieldset>
       </details>
 
@@ -2036,36 +2013,18 @@ function WorkflowRunFormBody({
             </section>
           )}
           <div className="load-more-row">
-            {modelPolicyInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={modelPolicyInventory.isFetchingNextPage}
-                onClick={() => void modelPolicyInventory.fetchNextPage()}
-              >
-                Load more ModelPolicies
-              </button>
-            ) : null}
-            {gatewayInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={gatewayInventory.isFetchingNextPage}
-                onClick={() => void gatewayInventory.fetchNextPage()}
-              >
-                Load more Gateways
-              </button>
-            ) : null}
-            {credentialInventory.hasNextPage ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={credentialInventory.isFetchingNextPage}
-                onClick={() => void credentialInventory.fetchNextPage()}
-              >
-                Load more credentials
-              </button>
-            ) : null}
+            <LoadMoreButton
+              query={modelPolicyInventory}
+              label="Load more ModelPolicies"
+            />
+            <LoadMoreButton
+              query={gatewayInventory}
+              label="Load more Gateways"
+            />
+            <LoadMoreButton
+              query={credentialInventory}
+              label="Load more credentials"
+            />
           </div>
         </div>
       </details>

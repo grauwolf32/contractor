@@ -5,7 +5,7 @@ import {
   type ArtifactArchiveScope,
 } from "../../api/artifact-archive";
 import { ArchivePreviewPanel } from "./archive-preview";
-import { ErrorNotice } from "./common";
+import { ErrorNotice } from "../../app/error-notice";
 import { LoadedArtifactPreview } from "./loaded-preview";
 
 export function ArtifactPreviewPanel({

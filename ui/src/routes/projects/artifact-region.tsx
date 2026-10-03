@@ -1,4 +1,4 @@
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ContextLink } from "../../app/context-navigation";
 import {
   GitImportDialog,
@@ -15,12 +15,9 @@ import {
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls } from "../../app/cursor-controls";
+import { useURLCursorStack } from "../../app/pagination";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import {
   ProjectArtifactDialog,
   ProjectArtifactShortcutGrid,
@@ -28,6 +25,7 @@ import {
 } from "./common";
 import type { ShortcutDefinition } from "./shortcuts";
 import { RefreshButton } from "../../app/refresh-button";
+import { QueryView } from "../../app/query-view";
 
 export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
@@ -46,23 +44,10 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     }
   }
   const namespace = filters.get("artifactsNamespace") || undefined;
-  const cursors: Array<string | undefined> = [
-    undefined,
-    ...filters.getAll("artifactsCursor"),
-  ];
-  function setCursors(
-    update:
-      | Array<string | undefined>
-      | ((current: Array<string | undefined>) => Array<string | undefined>),
-  ) {
-    const next = new URLSearchParams(filters);
-    next.delete("artifactsCursor");
-    for (const cursor of typeof update === "function"
-      ? update(cursors)
-      : update)
-      if (cursor !== undefined) next.append("artifactsCursor", cursor);
-    setFilters(next, { preventScrollReset: true, state: location.state });
-  }
+  const pages = useURLCursorStack({
+    param: "artifactsCursor",
+    navigateOptions: { preventScrollReset: true, state: location.state },
+  });
   function setNamespaceFilter(value: string) {
     const next = new URLSearchParams(filters);
     next.delete("artifactsCursor");
@@ -76,7 +61,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     ArtifactWriteResponse | GitImportResult | null
   >(null);
   const [filterError, setFilterError] = useState<string | null>(null);
-  const cursor = cursors.at(-1);
+  const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.artifacts.list(projectId, namespace, cursor),
     queryFn: () =>
@@ -136,20 +121,12 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           labelledBy={addHeading}
           onRequestClose={closeAdd}
         >
-          <div className="project-dialog-heading">
-            <div>
-              <p className="eyebrow">Project materials</p>
-              <h2 id={addHeading}>Add artifact</h2>
-            </div>
-            <button
-              className="project-dialog-close"
-              type="button"
-              aria-label="Close artifact choices"
-              onClick={closeAdd}
-            >
-              ×
-            </button>
-          </div>
+          <DialogHeader
+            id={addHeading}
+            eyebrow="Project materials"
+            title="Add artifact"
+            close={{ label: "Close artifact choices", onClose: closeAdd }}
+          />
           <p className="muted-copy">
             Upload a file or import a Git repository into this project.
           </p>
@@ -205,67 +182,67 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             {filterError}
           </p>
         )}
-        {query.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading Project Artifacts…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Artifact bindings in this view.</strong>
-            <p>Add an artifact to prepare the inputs for your next analysis.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td data-label="Binding">
-                      <ContextLink
-                        returnLabel="Project Artifacts"
-                        to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
-                      >
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </ContextLink>
-                    </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
-                    </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
-                    </td>
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Project Artifacts…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <div className="compact-empty">
+              <strong>No Artifact bindings in this view.</strong>
+              <p>
+                Add an artifact to prepare the inputs for your next analysis.
+              </p>
+            </div>
+          }
+        >
+          {(queryData) => (
+            <div className="table-scroll">
+              <table className="responsive-table">
+                <thead>
+                  <tr>
+                    <th>Binding</th>
+                    <th>Current revision</th>
+                    <th>Media type</th>
+                    <th>Size</th>
+                    <th>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {queryData.items.map((item) => (
+                    <tr
+                      key={`${item.artifact.namespace}/${item.artifact.name}`}
+                    >
+                      <td data-label="Binding">
+                        <ContextLink
+                          returnLabel="Project Artifacts"
+                          to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
+                        >
+                          {item.artifact.namespace}/{item.artifact.name}
+                        </ContextLink>
+                      </td>
+                      <td data-label="Current revision">
+                        <code>{item.artifact.revision}</code>
+                      </td>
+                      <td data-label="Media type">{item.mediaType}</td>
+                      <td data-label="Size">{formatBytes(item.size)}</td>
+                      <td data-label="Created">
+                        {formatTimestamp(item.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
         <CursorControls
           label="Project Artifact pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
+          {...pages.controls(query.data?.page)}
         />
       </div>
 

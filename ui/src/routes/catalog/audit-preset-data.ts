@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listAuditPresets } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
 
 export const auditModeLabels: Record<AuditProfile["mode"], string> = {
   "risk-assessment": "Risk assessment",
@@ -37,7 +38,7 @@ export function presetScope(profile: AuditProfile): string {
 export function useAuditPresets() {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["catalog", "audit-presets"],
+    queryKey: queryKeys.catalog.auditPresets,
     queryFn: ({ signal }) => listAuditPresets(api, signal),
   });
 }

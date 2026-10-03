@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { publicAPIError } from "./error";
+import { requireData } from "./error";
 import type { components, operations } from "./generated/public";
 
 type Schema = components["schemas"];
@@ -23,16 +23,6 @@ export type EvalReview = Schema["EvalReview"];
 export type EvalAssessment = Schema["EvalAssessmentInput"];
 export const EVAL_PAGE_SIZE = 50;
 export const EVAL_POLL_MS = 2000;
-
-export function evalData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined)
-    throw publicAPIError(result.response.status, result.error);
-  return result.data;
-}
 
 export function evalNextPage(page: {
   hasMore: boolean;
@@ -96,7 +86,7 @@ export async function getEvalCapabilities(
   cursor?: string,
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-capabilities", {
         params: {
@@ -114,7 +104,7 @@ export async function listEvalDatasets(
   cursor?: string,
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/projects/{projectId}/eval-datasets", {
         params: {
@@ -135,7 +125,7 @@ export async function listEvalCases(
   cursor?: string,
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET(
         "/v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases",
@@ -157,7 +147,7 @@ export async function importEvalDataset(
   body: EvalDatasetInput,
   key: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.POST("/v1/projects/{projectId}/eval-datasets", {
         params: {
@@ -178,7 +168,7 @@ export async function listEvalExperiments(
   query: EvalListQuery = {},
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments", {
         params: { query: { limit: EVAL_PAGE_SIZE, ...query } },
@@ -193,7 +183,7 @@ export async function getEvalExperiment(
   id: string,
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}", {
         params: { path: { id } },
@@ -211,7 +201,7 @@ export async function saveEvalDraft(
   current?: { id: string; revision: number },
 ) {
   if (current)
-    return evalData(
+    return requireData(
       await api.request((client) =>
         client.PATCH("/v1/eval-experiments/{id}", {
           params: {
@@ -222,7 +212,7 @@ export async function saveEvalDraft(
         }),
       ),
     );
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.POST("/v1/projects/{projectId}/eval-experiments", {
         params: {
@@ -242,7 +232,7 @@ export async function commandEvalExperiment(
   key: string,
   revision: number,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.POST("/v1/eval-experiments/{id}/commands", {
         params: { path: { id }, header: mutationHeaders(api, key, revision) },
@@ -257,7 +247,7 @@ export async function getEvalCommand(
   id: string,
   commandId: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/commands/{commandId}", {
         params: { path: { id, commandId } },
@@ -275,7 +265,7 @@ export async function listEvalMembers(
   query: EvalMemberQuery = {},
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/members", {
         params: { path: { id }, query: { limit: EVAL_PAGE_SIZE, ...query } },
@@ -294,7 +284,7 @@ export async function listEvalPairs(
   query: EvalPairQuery = {},
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/pairs", {
         params: { path: { id }, query: { limit: EVAL_PAGE_SIZE, ...query } },
@@ -310,7 +300,7 @@ export async function getEvalPair(
   pairId: string,
   viewSnapshot?: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/pairs/{pairId}", {
         params: {
@@ -332,7 +322,7 @@ export async function getEvalChart(
   query: EvalChartQuery = {},
   signal?: AbortSignal,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/charts/{chart}", {
         params: { path: { id, chart }, query },
@@ -347,7 +337,7 @@ export async function getEvalReview(
   id: string,
   memberId: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/members/{memberId}/review", {
         params: { path: { id, memberId } },
@@ -363,7 +353,7 @@ export async function submitEvalAssessment(
   body: EvalAssessment,
   key: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.POST("/v1/eval-experiments/{id}/members/{memberId}/assessments", {
         params: {
@@ -383,7 +373,7 @@ export async function selectEvalAssessment(
   key: string,
   revision: number,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.POST("/v1/eval-experiments/{id}/selections", {
         params: { path: { id }, header: mutationHeaders(api, key, revision) },
@@ -398,7 +388,7 @@ export async function getEvalReport(
   id: string,
   viewSnapshot: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/report", {
         params: { path: { id }, query: { viewSnapshot } },
@@ -413,7 +403,7 @@ export async function listEvalExecutions(
   memberId: string,
   cursor?: string,
 ) {
-  return evalData(
+  return requireData(
     await api.request((client) =>
       client.GET("/v1/eval-experiments/{id}/members/{memberId}/executions", {
         params: {

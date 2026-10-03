@@ -7,8 +7,10 @@ import {
   removeGitKey,
   replaceGitKey,
 } from "../../api/git-artifacts";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { QueryView } from "../../app/query-view";
 
 export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
   const api = usePublicAPI();
@@ -134,42 +136,48 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
             </span>
           </div>
 
-          {query.isPending ? (
-            <p className="loading-copy" role="status">
-              Loading Git key settings…
-            </p>
-          ) : query.error ? (
-            <ErrorNotice error={query.error} />
-          ) : query.data?.configured ? (
-            <dl className="settings-fact-grid settings-key-facts">
-              <div>
-                <dt>Fingerprint</dt>
-                <dd>
-                  <code>{query.data.fingerprint}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Key type</dt>
-                <dd>{query.data.keyType}</dd>
-              </div>
-              <div>
-                <dt>Last updated</dt>
-                <dd>
-                  {query.data.updatedAt
-                    ? formatTimestamp(query.data.updatedAt)
-                    : "Unknown"}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <div className="settings-empty-state">
-              <span aria-hidden="true">+</span>
-              <div>
-                <strong>No Git SSH key configured.</strong>
-                <p>Add one below when a private SSH import requires it.</p>
-              </div>
-            </div>
-          )}
+          <QueryView
+            query={query}
+            loading={
+              <p className="loading-copy" role="status">
+                Loading Git key settings…
+              </p>
+            }
+            onRetry={() => void query.refetch()}
+          >
+            {(data) =>
+              data.configured ? (
+                <dl className="settings-fact-grid settings-key-facts">
+                  <div>
+                    <dt>Fingerprint</dt>
+                    <dd>
+                      <code>{data.fingerprint}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Key type</dt>
+                    <dd>{data.keyType}</dd>
+                  </div>
+                  <div>
+                    <dt>Last updated</dt>
+                    <dd>
+                      {data.updatedAt
+                        ? formatTimestamp(data.updatedAt)
+                        : "Unknown"}
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <div className="settings-empty-state">
+                  <span aria-hidden="true">+</span>
+                  <div>
+                    <strong>No Git SSH key configured.</strong>
+                    <p>Add one below when a private SSH import requires it.</p>
+                  </div>
+                </div>
+              )
+            }
+          </QueryView>
 
           <form className="settings-form" onSubmit={submit}>
             <label className="settings-primary-field">

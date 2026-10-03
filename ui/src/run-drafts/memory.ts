@@ -1,5 +1,6 @@
 import type { ArtifactMetadata } from "../api/artifacts";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
+import { canonicalMutationRequest } from "../mutations/idempotency";
 import { RunDraftKeyring } from "./idempotency";
 import {
   artifactOptionKey,
@@ -77,25 +78,14 @@ function identityKey(identity: RunDraftIdentity): string {
   ]);
 }
 
-function canonicalValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (typeof value !== "object" || value === null) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, child]) => child !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, canonicalValue(child)]),
-  );
-}
-
 function meaningfulState(state: RunDraftState): RunDraftState {
   return { ...state, knownArtifacts: [] };
 }
 
 function sameState(left: RunDraftState, right: RunDraftState): boolean {
   return (
-    JSON.stringify(canonicalValue(meaningfulState(left))) ===
-    JSON.stringify(canonicalValue(meaningfulState(right)))
+    canonicalMutationRequest(meaningfulState(left)) ===
+    canonicalMutationRequest(meaningfulState(right))
   );
 }
 

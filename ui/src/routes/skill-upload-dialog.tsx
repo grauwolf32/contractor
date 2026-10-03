@@ -8,13 +8,14 @@ import {
 } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
-import { Dialog } from "../app/dialog";
+import { Dialog, DialogHeader } from "../app/dialog";
 import {
   artifactFileStem,
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
 } from "./artifacts/artifact-file";
-import { ArtifactFileDrop, ErrorNotice } from "./artifacts/common";
+import { ArtifactFileDrop } from "./artifacts/common";
+import { ErrorNotice } from "../app/error-notice";
 
 export function SkillUploadDialog({
   onClose,
@@ -91,18 +92,15 @@ export function SkillUploadDialog({
         if (!mutation.isPending) onClose();
       }}
     >
-      <div className="project-dialog-heading">
-        <h2 id={heading}>Upload Skills</h2>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close upload dialog"
-          disabled={mutation.isPending}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        title="Upload Skills"
+        close={{
+          label: "Close upload dialog",
+          disabled: mutation.isPending,
+          onClose: onClose,
+        }}
+      />
       <p id={description} className="muted-copy">
         Upload one reviewed ZIP package with a root <code>SKILL.md</code>. It
         will be available across your Projects.

@@ -15,7 +15,7 @@ import {
   type DownloadedArtifact,
 } from "./artifacts";
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import { requireProjectID } from "./projects";
 
 export interface ProjectArtifactPageRequest extends ArtifactPageRequest {
@@ -31,23 +31,11 @@ export interface ProjectArtifactWriteRequest extends ArtifactWriteRequest {
   projectId: string;
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function invalidProjectArtifactResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Project Artifact response",
-  });
+    "Server returned an invalid Project Artifact response",
+  );
 }
 
 function requireArtifactIdentity(namespace: string, name: string): void {

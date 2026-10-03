@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { CreateRunRequest } from "../api/workflows";
-import { canonicalRunRequest, RunDraftKeyring } from "./idempotency";
+import { canonicalMutationRequest } from "../mutations/idempotency";
+import { RunDraftKeyring } from "./idempotency";
 
 describe("Run draft idempotency", () => {
   it("canonicalizes object key order without coercing values", () => {
@@ -21,8 +22,10 @@ describe("Run draft idempotency", () => {
       labels: { "eval.id": "eval-01", purpose: "eval" },
       workflow: "workflow@1",
     };
-    expect(canonicalRunRequest(first)).toBe(canonicalRunRequest(second));
-    expect(canonicalRunRequest(first)).toContain('"z":""');
+    expect(canonicalMutationRequest(first)).toBe(
+      canonicalMutationRequest(second),
+    );
+    expect(canonicalMutationRequest(first)).toContain('"z":""');
   });
 
   it("reuses a key only for the exact canonical request", () => {

@@ -25,14 +25,21 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
-import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import {
+  createMutationIdempotencyKey,
+  MutationDraftKeyring,
+} from "../../../mutations/idempotency";
+import { CursorControls } from "../../../app/cursor-controls";
+import { useCursorStack } from "../../../app/pagination";
+import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
+import { compactDigest } from "../../../app/format";
+import { PublicationFeedback } from "../common";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -52,7 +59,7 @@ function RuntimeRef({ resource }: { resource: RuntimeConfigResource }) {
         {resource.ref.name}@{resource.ref.version}
       </Link>
       <code title={resource.ref.digest}>
-        {resource.ref.digest.slice(0, 18)}…
+        {compactDigest(resource.ref.digest)}
       </code>
     </span>
   );
@@ -655,19 +662,11 @@ function RuntimeConfigPublishForm({
           </div>
         </details>
 
-        {errors.length === 0 ? null : (
-          <div className="notice notice-error" role="alert">
-            <strong>RuntimeConfig draft is not publishable</strong>
-            <ul>
-              {errors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {mutation.error === null ? null : (
-          <ErrorNotice error={mutation.error} />
-        )}
+        <PublicationFeedback
+          title="RuntimeConfig draft is not publishable"
+          errors={errors}
+          mutationError={mutation.error}
+        />
         {published === undefined ? null : (
           <div className="notice notice-success" role="status">
             Published {published.ref.name}@{published.ref.version}. Bind a label
@@ -765,7 +764,7 @@ function BindingEditor({
         api,
         binding.label,
         binding.revision,
-        `delete-runtime-label-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("delete-runtime-label"),
       ),
     onSuccess: async () => {
       setConfirmRemoval(false);
@@ -833,7 +832,7 @@ function BindingEditor({
         {configs.map((resource) => (
           <option key={exactKey(resource)} value={exactKey(resource)}>
             {resource.ref.name}@{resource.ref.version} ·{" "}
-            {resource.ref.digest.slice(0, 18)}…
+            {compactDigest(resource.ref.digest)}
           </option>
         ))}
       </select>
@@ -1143,7 +1142,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       const result = await createRuntimeCredential(
         api,
         request,
-        `create-runtime-credential-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("create-runtime-credential"),
       );
       setCreated(result);
       setCredentialId("");
@@ -1172,21 +1171,16 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
         noValidate
         autoComplete="off"
       >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Secret</p>
-            <h2 id={heading}>Create Runtime credential</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close Runtime credential form"
-            disabled={pending}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
+        <DialogHeader
+          id={heading}
+          eyebrow="Secret"
+          title="Create Runtime credential"
+          close={{
+            label: "Close Runtime credential form",
+            disabled: pending,
+            onClose: onClose,
+          }}
+        />
         <p className="muted-copy">
           Secret values are erased from the form immediately on submit and are
           never readable through the API. A failed request requires re-entry.
@@ -1369,7 +1363,7 @@ function RuntimeCredentialList({
       deleteRuntimeCredential(
         api,
         credentialId,
-        `delete-runtime-credential-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("delete-runtime-credential"),
       ),
     onSuccess: async () => {
       setConfirmRemoval(null);
@@ -1494,22 +1488,16 @@ function RuntimeBindingsDialog({
       labelledBy={heading}
       onRequestClose={onClose}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">
+      <DialogHeader
+        id={heading}
+        eyebrow={
+          <>
             {target.ref.name}@{target.ref.version}
-          </p>
-          <h2 id={heading}>Runtime label bindings</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Runtime bindings"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+          </>
+        }
+        title="Runtime label bindings"
+        close={{ label: "Close Runtime bindings", onClose: onClose }}
+      />
       <RuntimeBindings target={target} configs={configs} bindings={bindings} />
     </Dialog>
   );
@@ -1519,10 +1507,8 @@ export function RuntimeConfigurationRoute() {
   const api = usePublicAPI();
   const [createDialog, setCreateDialog] = useState<"config" | "credential">();
   const [bindingTarget, setBindingTarget] = useState<RuntimeConfigResource>();
-  const [configCursors, setConfigCursors] = useState<Array<string | undefined>>(
-    [undefined],
-  );
-  const configCursor = configCursors.at(-1);
+  const configPages = useCursorStack();
+  const configCursor = configPages.cursor;
   const configs = useQuery({
     queryKey: queryKeys.operations.runtimeConfigs.list(configCursor),
     queryFn: () =>
@@ -1658,17 +1644,7 @@ export function RuntimeConfigurationRoute() {
         )}
         <CursorControls
           label="RuntimeConfig pages"
-          canGoBack={configCursors.length > 1}
-          {...(configs.data?.page.hasMore === true &&
-          configs.data.page.nextCursor !== undefined
-            ? { nextCursor: configs.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setConfigCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setConfigCursors((current) => [...current, next])}
+          {...configPages.controls(configs.data?.page)}
         />
       </div>
       <RuntimeCredentialList

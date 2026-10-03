@@ -3,7 +3,6 @@ import { useState } from "react";
 import { auditPresetPath } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
-import { ErrorNotice } from "../artifacts/common";
 import { auditPresetLabel } from "../projects/audits/labels";
 import { compareWorkflowVersions } from "../workflows/families";
 import { useCatalogQueryState } from "./query-state";
@@ -12,6 +11,7 @@ import {
   presetScope,
   useAuditPresets,
 } from "./audit-preset-data";
+import { QueryView } from "../../app/query-view";
 
 export function AuditPresetListRoute() {
   const query = useAuditPresets();
@@ -58,94 +58,103 @@ export function AuditPresetListRoute() {
           />
         </label>
       </header>
-      {query.isPending ? (
-        <p role="status">Loading audit presets…</p>
-      ) : query.error ? (
-        <ErrorNotice error={query.error} />
-      ) : families.size === 0 ? (
-        <div className="panel compact-empty">
-          <strong>
-            {search
-              ? "No audit presets match this search."
-              : "No audit presets published."}
-          </strong>
-        </div>
-      ) : (
-        <>
-          <div className="catalog-result-summary" aria-live="polite">
-            <span>
-              {families.size} {families.size === 1 ? "preset" : "presets"}
-            </span>
-          </div>
-          <div className="catalog-audit-preset-grid">
-            {[...families]
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([name, versions]) => {
-                versions.sort((a, b) =>
-                  compareWorkflowVersions(b.ref.version, a.ref.version),
-                );
-                const profile =
-                  versions.find((item) => item.ref.version === choices[name]) ??
-                  versions[0]!;
-                return (
-                  <article
-                    className="panel catalog-audit-preset-card"
-                    key={name}
-                  >
-                    <p className="eyebrow">{auditModeLabels[profile.mode]}</p>
-                    <h3>
-                      <ContextLink
-                        to={auditPresetPath(name, profile.ref.version)}
-                        returnLabel="Audit presets"
+      <QueryView
+        query={query}
+        loading={<p role="status">Loading audit presets…</p>}
+        onRetry={() => void query.refetch()}
+      >
+        {() =>
+          families.size === 0 ? (
+            <div className="panel compact-empty">
+              <strong>
+                {search
+                  ? "No audit presets match this search."
+                  : "No audit presets published."}
+              </strong>
+            </div>
+          ) : (
+            <>
+              <div className="catalog-result-summary" aria-live="polite">
+                <span>
+                  {families.size} {families.size === 1 ? "preset" : "presets"}
+                </span>
+              </div>
+              <div className="catalog-audit-preset-grid">
+                {[...families]
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([name, versions]) => {
+                    versions.sort((a, b) =>
+                      compareWorkflowVersions(b.ref.version, a.ref.version),
+                    );
+                    const profile =
+                      versions.find(
+                        (item) => item.ref.version === choices[name],
+                      ) ?? versions[0]!;
+                    return (
+                      <article
+                        className="panel catalog-audit-preset-card"
+                        key={name}
                       >
-                        {auditPresetLabel(name)}
-                      </ContextLink>
-                    </h3>
-                    <p>{presetScope(profile)}</p>
-                    <div className="catalog-agent-version">
-                      <label htmlFor={`preset-version-${name}`}>Version</label>
-                      <select
-                        id={`preset-version-${name}`}
-                        aria-label={`Version of ${name}`}
-                        value={profile.ref.version}
-                        onChange={(event) =>
-                          setChoices((previous) => ({
-                            ...previous,
-                            [name]: event.target.value,
-                          }))
-                        }
-                      >
-                        {versions.map((item) => (
-                          <option
-                            key={item.ref.version}
-                            value={item.ref.version}
+                        <p className="eyebrow">
+                          {auditModeLabels[profile.mode]}
+                        </p>
+                        <h3>
+                          <ContextLink
+                            to={auditPresetPath(name, profile.ref.version)}
+                            returnLabel="Audit presets"
                           >
-                            {item.ref.version}
-                          </option>
-                        ))}
-                      </select>
-                      <span>
-                        {profile.serverCompatible
-                          ? "Available"
-                          : "Unavailable on this server"}
-                      </span>
-                    </div>
-                    <code className="catalog-exact-selector">
-                      {name}@{profile.ref.version}
-                    </code>
-                    <ContextLink
-                      className="catalog-agent-open"
-                      to={auditPresetPath(name, profile.ref.version)}
-                      returnLabel="Audit presets"
-                    >
-                      View checks →
-                    </ContextLink>
-                  </article>
-                );
-              })}
-          </div>
-        </>
-      )}
+                            {auditPresetLabel(name)}
+                          </ContextLink>
+                        </h3>
+                        <p>{presetScope(profile)}</p>
+                        <div className="catalog-agent-version">
+                          <label htmlFor={`preset-version-${name}`}>
+                            Version
+                          </label>
+                          <select
+                            id={`preset-version-${name}`}
+                            aria-label={`Version of ${name}`}
+                            value={profile.ref.version}
+                            onChange={(event) =>
+                              setChoices((previous) => ({
+                                ...previous,
+                                [name]: event.target.value,
+                              }))
+                            }
+                          >
+                            {versions.map((item) => (
+                              <option
+                                key={item.ref.version}
+                                value={item.ref.version}
+                              >
+                                {item.ref.version}
+                              </option>
+                            ))}
+                          </select>
+                          <span>
+                            {profile.serverCompatible
+                              ? "Available"
+                              : "Unavailable on this server"}
+                          </span>
+                        </div>
+                        <code className="catalog-exact-selector">
+                          {name}@{profile.ref.version}
+                        </code>
+                        <ContextLink
+                          className="catalog-agent-open"
+                          to={auditPresetPath(name, profile.ref.version)}
+                          returnLabel="Audit presets"
+                        >
+                          View checks →
+                        </ContextLink>
+                      </article>
+                    );
+                  })}
+              </div>
+            </>
+          )
+        }
+      </QueryView>
     </section>
   );
 }

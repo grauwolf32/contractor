@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { publicAPIError } from "./error";
+import { requireData } from "./error";
 import type { components } from "./generated/public";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
@@ -34,10 +34,7 @@ export async function getAgentInstructions(
       },
     ),
   );
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  const value = result.data;
+  const value = requireData(result);
   if (
     value.template?.templateId !== name ||
     value.template.version !== version ||
@@ -76,10 +73,7 @@ export async function listAgentTemplateWorkflowBindings(
       },
     ),
   );
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  const value = result.data;
+  const value = requireData(result);
   if (
     !Array.isArray(value.items) ||
     typeof value.page?.hasMore !== "boolean" ||

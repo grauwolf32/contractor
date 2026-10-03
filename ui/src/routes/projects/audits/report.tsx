@@ -15,6 +15,7 @@ import { useAuditProjectionRefresh } from "./projection-refresh";
 import { AuditQueueError } from "./queue";
 import { ActionReviewControls } from "./reviews";
 import { ExactArtifactLink } from "./shared";
+import { saveBlob } from "../../../app/download";
 
 const MarkdownArtifactPreview = lazy(
   () => import("../../artifacts/previews/markdown"),
@@ -52,12 +53,7 @@ export function AuditReportView({
     mediaType: string,
     content: string,
   ): void {
-    const url = URL.createObjectURL(new Blob([content], { type: mediaType }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = name;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveBlob(new Blob([content], { type: mediaType }), name);
   }
   return (
     <section className="panel audit-section-panel audit-report-view">

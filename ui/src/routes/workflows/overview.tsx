@@ -4,7 +4,7 @@ import type { WorkflowResource } from "../../api/workflows";
 import { ActionMenu } from "../../app/action-menu";
 import { WorkflowRunDrawer } from "./run-drawer";
 import { Icon } from "../../app/icon";
-import { ErrorNotice } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
 import { catalogReturnState } from "../catalog/navigation";
 import { groupWorkflowVersions } from "./families";
 import { workflowFormats } from "./formats";

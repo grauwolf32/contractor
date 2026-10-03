@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { listEvalMembers, type EvalExperiment } from "../../api/evals";
 import { EvalError } from "./common";
+import { queryKeys } from "../../api/query-keys";
 
 export function EvalExecutionStatus({
   experiment,
@@ -105,7 +106,7 @@ function ExecutionReasons({
       : {}),
   };
   const members = useQuery({
-    queryKey: ["evals", "status-reasons", experiment.experimentId, query],
+    queryKey: queryKeys.evals.statusReasons(experiment.experimentId, query),
     queryFn: ({ signal }) =>
       listEvalMembers(api, experiment.experimentId, query, signal),
   });

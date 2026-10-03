@@ -1,4 +1,5 @@
 import type { components } from "./generated/public";
+import { isRecord } from "./json-guards";
 
 type Location = components["schemas"]["FindingLocation"];
 
@@ -10,10 +11,6 @@ const MAX_METHOD_BYTES = 64;
 const HTTP_TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 const CONTROL = /\p{Cc}/u;
 const bytes = (value: string) => new TextEncoder().encode(value).length;
-
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
 
 function line(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
@@ -47,7 +44,7 @@ function webURL(value: unknown): value is string {
 }
 
 export function isFindingLocation(value: unknown): value is Location {
-  if (!object(value)) return false;
+  if (!isRecord(value)) return false;
   if ("file" in value) {
     if (
       Object.keys(value).some(
@@ -66,7 +63,7 @@ export function isFindingLocation(value: unknown): value is Location {
     if ("range" in value) {
       const range = value.range;
       if (
-        !object(range) ||
+        !isRecord(range) ||
         Object.keys(range).length !== 2 ||
         !line(range.start_line) ||
         !line(range.end_line) ||
@@ -88,7 +85,7 @@ export function isFindingLocation(value: unknown): value is Location {
 
 export function validFindingCoordinates(document: unknown): boolean {
   if (
-    !object(document) ||
+    !isRecord(document) ||
     document.schema !== "contractor.audit.finding-proposal.v1"
   )
     return false;

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { ArtifactWriteResponse } from "../../api/artifacts";
-import { Dialog } from "../../app/dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ArtifactWriteForm } from "../artifacts/common";
 import { ProjectArtifactWriteForm } from "../projects/common";
 
@@ -81,22 +81,12 @@ export function RunInputUploadDialog({
       describedBy={description}
       onRequestClose={close}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">
-            {projectId === undefined ? "Library" : "Project"} input
-          </p>
-          <h2 id={heading}>Upload local file for {slotName}</h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close local file upload"
-          onClick={close}
-        >
-          ×
-        </button>
-      </div>
+      <DialogHeader
+        id={heading}
+        eyebrow={<>{projectId === undefined ? "Library" : "Project"} input</>}
+        title={<>Upload local file for {slotName}</>}
+        close={{ label: "Close local file upload", onClose: close }}
+      />
       <p id={description} className="muted-copy">
         A confirmed upload selects the returned revision in this input slot; if
         you close{pending ? " now" : ""} before it completes, refresh the

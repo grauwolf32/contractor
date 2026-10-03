@@ -8,7 +8,8 @@ import {
   type Project,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatTimestamp } from "../../app/format";
 
 export function ProjectMetadataEditor({ project }: { project: Project }) {
   const api = usePublicAPI();

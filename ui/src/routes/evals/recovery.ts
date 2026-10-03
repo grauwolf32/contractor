@@ -4,6 +4,7 @@ import {
 } from "../../mutations/idempotency";
 import type { EvalCommand, EvalCommandReceipt } from "../../api/evals";
 import { PublicAPIError } from "../../api/error";
+import { sha256Hex } from "../../app/digest";
 
 const STORAGE_PREFIX = "contractor.eval-recovery.v1:";
 export const RECOVERY_STORAGE_MESSAGE =
@@ -24,12 +25,8 @@ function storageKey(owner: string, resource: string): string {
   );
 }
 
-async function digest(value: unknown): Promise<string> {
-  const data = new TextEncoder().encode(canonicalMutationRequest(value));
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash), (x) =>
-    x.toString(16).padStart(2, "0"),
-  ).join("");
+function digest(value: unknown): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(canonicalMutationRequest(value)));
 }
 
 // Persist only correlation, never request bodies containing cases, rubrics,

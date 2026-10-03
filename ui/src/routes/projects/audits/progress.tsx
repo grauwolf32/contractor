@@ -7,7 +7,8 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
-import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatTimestamp } from "../../../app/format";
 import { describeStopReason } from "./stop-reason";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 

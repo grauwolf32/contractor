@@ -1,5 +1,6 @@
 import type { PlannerPlan } from "../api/runs";
 import { EVENT_PROTOCOL, EventsSocket, type EventCursor } from "./socket";
+import { hasExactKeys, isRecord } from "../api/json-guards";
 
 const MAXIMUM_SERVER_FRAME_BYTES = 64 * 1024;
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -214,20 +215,12 @@ type ServerFrame =
   | ResyncFrame
   | ErrorFrame;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function exactKeys(
   value: Record<string, unknown>,
   required: readonly string[],
   optional: readonly string[] = [],
 ): void {
-  const allowed = new Set([...required, ...optional]);
-  if (
-    required.some((key) => !(key in value)) ||
-    Object.keys(value).some((key) => !allowed.has(key))
-  ) {
+  if (!hasExactKeys(value, required, optional)) {
     throw new Error("Event frame has an invalid closed shape");
   }
 }

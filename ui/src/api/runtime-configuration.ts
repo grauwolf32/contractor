@@ -1,4 +1,5 @@
 import type { components } from "./generated/public";
+import { hasExactKeys, isRecord } from "./json-guards";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -9,20 +10,12 @@ const ADAPTER = /^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$/;
 
 type RunRuntimeConfiguration = components["schemas"]["RunRuntimeConfiguration"];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function exactKeys(
   value: Record<string, unknown>,
   required: readonly string[],
   optional: readonly string[] = [],
 ): void {
-  const allowed = new Set([...required, ...optional]);
-  if (
-    required.some((key) => !(key in value)) ||
-    Object.keys(value).some((key) => !allowed.has(key))
-  ) {
+  if (!hasExactKeys(value, required, optional)) {
     throw new TypeError("Runtime configuration response shape is invalid");
   }
 }

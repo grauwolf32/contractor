@@ -12,7 +12,8 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { useSession } from "../../../auth/session";
-import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatTimestamp } from "../../../app/format";
 import { GitKeySettings } from "../../settings/git-key";
 import "./settings.css";
 

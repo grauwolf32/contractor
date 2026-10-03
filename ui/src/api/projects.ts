@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { safeRunMetadataLabels } from "./run-metadata-labels";
 import {
@@ -59,23 +59,11 @@ export interface ProjectRunPageRequest {
   lifecycle?: WorkflowRunLifecycle;
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function invalidProjectResponse(status: number): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Project response",
-  });
+    "Server returned an invalid Project response",
+  );
 }
 
 export function requireProjectID(projectId: string): void {

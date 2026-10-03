@@ -63,4 +63,9 @@ export class MutationDraftKeyring<T> {
   matches(request: T): boolean {
     return canonicalMutationRequest(request) === this.#canonical;
   }
+
+  /** Whether a key has been allocated for some request. */
+  hasSubmission(): boolean {
+    return this.#canonical !== undefined && this.#key !== undefined;
+  }
 }

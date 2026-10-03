@@ -4614,13 +4614,6 @@ code {
   line-height: 1.65;
 }
 
-.run-delete-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.7rem;
-  margin-top: 1.25rem;
-}
-
 .run-delete-dialog .danger-button:not(:disabled):hover {
   background: #d65b62;
 }

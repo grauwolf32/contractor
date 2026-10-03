@@ -1,5 +1,5 @@
 import type { PublicAPI } from "./client";
-import { PublicAPIError, publicAPIError } from "./error";
+import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
 export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
@@ -116,23 +116,11 @@ function requireRevision(value: string): void {
   }
 }
 
-function requireData<T>(result: {
-  data?: T;
-  error?: unknown;
-  response: Response;
-}): T {
-  if (result.data === undefined) {
-    throw publicAPIError(result.response.status, result.error);
-  }
-  return result.data;
-}
-
 function invalidWriteResponse(status = 0): PublicAPIError {
-  return new PublicAPIError({
+  return invalidAPIResponse(
     status,
-    code: "invalid_api_response",
-    message: "Server returned an invalid Artifact write response",
-  });
+    "Server returned an invalid Artifact write response",
+  );
 }
 
 function parseWriteResponse(value: unknown): ArtifactWriteResponse {

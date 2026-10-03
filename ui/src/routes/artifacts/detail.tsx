@@ -19,16 +19,13 @@ import {
   listArtifactVersions,
   previewArtifact,
   type ArtifactMetadata,
-  type DownloadedArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import {
-  ArtifactWriteForm,
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-} from "./common";
+import { ArtifactWriteForm } from "./common";
+import { CursorControls } from "../../app/cursor-controls";
+import { ErrorNotice } from "../../app/error-notice";
+import { formatBytes } from "../../app/format";
 import { ArtifactPreviewPanel } from "./preview";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
@@ -37,21 +34,7 @@ import {
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
-
-function triggerDownload(downloaded: DownloadedArtifact): void {
-  const objectURL = URL.createObjectURL(downloaded.blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectURL;
-  anchor.download = downloaded.filename;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(objectURL);
-  }
-}
+import { saveBlob } from "../../app/download";
 
 function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
@@ -66,7 +49,7 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
       : {};
   const download = useMutation({
     mutationFn: () => downloadArtifact(api, metadata),
-    onSuccess: triggerDownload,
+    onSuccess: (downloaded) => saveBlob(downloaded.blob, downloaded.filename),
   });
 
   return (

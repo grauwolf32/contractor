@@ -3,6 +3,7 @@ import {
   SUPPORTED_API_VERSIONS,
   UI_VERSION,
 } from "../build";
+import { isRecord } from "../api/json-guards";
 
 const MAXIMUM_RUNTIME_CONFIG_BYTES = 8192;
 
@@ -17,10 +18,6 @@ export class RuntimeConfigError extends Error {
     super(message);
     this.name = "RuntimeConfigError";
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isLoopbackIPLiteral(hostname: string): boolean {

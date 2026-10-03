@@ -15,7 +15,7 @@ import {
   CONFIG_VERSION_PATTERN,
 } from "../../../api/workflows";
 import { QueryView } from "../../../app/query-view";
-import { ErrorNotice } from "../../artifacts/common";
+import { ErrorNotice } from "../../../app/error-notice";
 import { ConfigurationBodyView } from "./body";
 import { LLMGatewayPublicationForm, ModelPolicyPublicationForm } from "./forms";
 

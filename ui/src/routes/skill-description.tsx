@@ -7,6 +7,7 @@ import {
 } from "../api/artifact-archive";
 import { usePublicAPI } from "../api/context";
 import { splitFrontmatter } from "./artifacts/previews/frontmatter";
+import { queryKeys } from "../api/query-keys";
 
 export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
@@ -25,12 +26,7 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
     return () => observer.disconnect();
   }, []);
   const query = useQuery({
-    queryKey: [
-      "skill-description",
-      metadata.artifact.namespace,
-      metadata.artifact.name,
-      metadata.artifact.revision,
-    ],
+    queryKey: queryKeys.catalog.skillDescription(metadata.artifact),
     enabled: visible && metadata.size <= 128 * 1024,
     retry: false,
     staleTime: Infinity,

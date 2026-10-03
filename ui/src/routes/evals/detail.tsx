@@ -20,6 +20,7 @@ import { EvalDiagnostics } from "./diagnostics";
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
 import { StateBadge } from "../runs/components";
 import { useEvalViewRefresh } from "./view-refresh";
+import { queryKeys } from "../../api/query-keys";
 
 function Attempts({ experiment }: { experiment: EvalExperiment }) {
   const api = usePublicAPI();
@@ -43,7 +44,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
     ...(cursor ? { cursor } : {}),
   };
   const members = useQuery({
-    queryKey: ["evals", "members", experiment.experimentId, query],
+    queryKey: queryKeys.evals.members(experiment.experimentId, query),
     enabled: !!snapshot,
     queryFn: ({ signal }) =>
       listEvalMembers(api, experiment.experimentId, query, signal),

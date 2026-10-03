@@ -23,6 +23,7 @@ import { EvalArtifactPicker } from "./artifact-picker";
 import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
 import { recoverableMutation } from "./recovery";
 import { MAX_EVAL_CASES, MAX_EVAL_DOCUMENT_BYTES } from "./setup-model";
+import { queryKeys } from "../../api/query-keys";
 
 const MAX_EVAL_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
 const DATASET_SIZE_ERROR =
@@ -298,7 +299,7 @@ export function DatasetAuthor({
     },
     onSuccess: async (result) => {
       await cache.invalidateQueries({
-        queryKey: ["evals", "datasets", projectId],
+        queryKey: queryKeys.evals.datasets(projectId),
       });
       onSaved(result);
     },

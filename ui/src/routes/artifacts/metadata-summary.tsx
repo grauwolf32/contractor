@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { workflowFormats } from "../workflows/formats";
-import { formatBytes, formatTimestamp } from "./common";
+import { formatBytes, formatTimestamp } from "../../app/format";
 import { GitSourceDetails } from "./git-import-dialog";
 import "./reader.css";
 

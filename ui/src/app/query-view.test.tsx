@@ -43,4 +43,20 @@ describe("QueryView", () => {
       .click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
+
+  it("renders the empty state for loaded data selected as empty", () => {
+    render(
+      <QueryView
+        query={{ data: [] as string[], error: null, isFetching: false }}
+        loading={<p>Loading…</p>}
+        onRetry={vi.fn()}
+        isEmpty={(items) => items.length === 0}
+        empty={<p>Nothing yet</p>}
+      >
+        {(items) => <p>Loaded {items.length}</p>}
+      </QueryView>,
+    );
+    expect(screen.getByText("Nothing yet")).toBeInTheDocument();
+    expect(screen.queryByText(/Loaded/)).not.toBeInTheDocument();
+  });
 });

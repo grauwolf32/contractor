@@ -1,4 +1,4 @@
-import { formatTimestamp } from "../routes/artifacts/common";
+import { formatTimestamp } from "./format";
 import { useEffect, useState } from "react";
 
 /**
