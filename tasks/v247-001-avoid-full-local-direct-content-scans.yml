@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V247-001
+title: Avoid whole-workspace reads for local direct edits
+milestone: runtime-projectfs-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Keep local direct mutations bounded by metadata and changed paths when workspace limits permit.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/169
+  finding: Every local direct edit currently reads and decodes the entire workspace before mutating one path.
+scope:
+  in:
+    - Use a metadata scan for mutation preflight and read only paths required by the operation.
+    - Preserve managed-text and expanded-byte limits with a full-scan fallback when needed.
+    - Stop classifying obvious binary files after their first invalid chunk.
+    - Add focused read-count and quota regressions.
+  out:
+    - Use stat timestamps as a freshness cache or change overlay workspace behavior.
+acceptance_criteria:
+  - {id: A1, text: Mutations avoid unrelated content reads when the metadata upper bound fits the managed-text limit.}
+  - {id: A2, text: A binary file with an invalid first chunk is not read in full.}
+  - {id: A3, text: Managed-text and expanded-byte limits still reject oversized workspaces.}
+  - {id: A4, text: Existing local direct freshness and transition tests pass.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_projectfs_local_direct.py, covers: [A1, A2, A3, A4]}
