@@ -50,7 +50,6 @@ type handlerFixture struct {
 	runs                *fakeRunStore
 	unit                *fakeUnitOfWork
 	notifier            *recordingRunNotifier
-	runSkills           *fakeRunSkillInitializer
 	metrics             *fakeMetricsReader
 	plans               *fakePlannerPlanReader
 	allocationResources *fakeAllocationResourceReader
@@ -711,7 +710,6 @@ func newHandlerFixtureWithAuth(
 	runs := newFakeRunStore()
 	unit := &fakeUnitOfWork{runs: runs, artifacts: service}
 	notifier := &recordingRunNotifier{}
-	runSkills := &fakeRunSkillInitializer{runs: runs, err: errors.New("injected transient Skill initialization failure")}
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	allocationResources := &fakeAllocationResourceReader{byStage: map[string][]telemetry.AllocationResourceSummary{}}
@@ -781,7 +779,7 @@ func newHandlerFixtureWithAuth(
 	}
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
-		runs: runs, unit: unit, notifier: notifier, runSkills: runSkills, metrics: metrics, plans: plans,
+		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 		allocationResources: allocationResources,
 		credentials:         managedCredentials,
 		runtimeConfigs:      runtimeConfigs, runtimeCredentials: runtimeCredentials,

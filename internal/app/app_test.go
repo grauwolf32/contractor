@@ -24,15 +24,28 @@ import (
 func TestHealthHandler(t *testing.T) {
 	t.Parallel()
 
+	checks := 0
+	handler := NewReadyHandler(func(context.Context) error {
+		checks++
+		return nil
+	}, nil)
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	response := httptest.NewRecorder()
-	NewHandler().ServeHTTP(response, request)
+	handler.ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
 	}
 	if got, want := response.Body.String(), "{\"status\":\"ok\"}\n"; got != want {
 		t.Fatalf("body = %q, want %q", got, want)
+	}
+	if checks != 0 {
+		t.Fatalf("health route called readiness check %d times", checks)
+	}
+	readiness := httptest.NewRecorder()
+	handler.ServeHTTP(readiness, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if readiness.Code != http.StatusOK || checks != 1 {
+		t.Fatalf("readiness = status %d, checks %d", readiness.Code, checks)
 	}
 }
 
@@ -43,11 +56,22 @@ func TestServeStopsAfterContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	privateListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		_ = listener.Close()
+		t.Fatalf("listen privately: %v", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	result := make(chan error, 1)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	stopped := make(chan struct{})
 	go func() {
-		result <- Serve(ctx, listener, time.Second, logger)
+		result <- ServeSystem(
+			ctx, listener, privateListener, time.Second, logger,
+			NewReadyHandler(func(context.Context) error { return nil }, nil),
+			http.HandlerFunc(writeHealthy), &cancellationProbeRunner{stopped: stopped},
+		)
 	}()
 
 	client := &http.Client{Timeout: time.Second}
@@ -66,11 +90,12 @@ func TestServeStopsAfterContextCancellation(t *testing.T) {
 	select {
 	case err := <-result:
 		if err != nil {
-			t.Fatalf("Serve returned error: %v", err)
+			t.Fatalf("ServeSystem returned error: %v", err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Serve did not stop after context cancellation")
+		t.Fatal("ServeSystem did not stop after context cancellation")
 	}
+	<-stopped
 }
 
 func TestServeSystemStopsPublicThenSchedulerThenPrivate(t *testing.T) {
@@ -599,12 +624,17 @@ func TestProcessHandlerKeepsHealthPublicAndMountsAPI(t *testing.T) {
 	api := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	})
-	handler := NewHandler(api)
+	handler := NewReadyHandler(func(context.Context) error { return nil }, api)
 
 	health := httptest.NewRecorder()
 	handler.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if health.Code != http.StatusOK {
 		t.Fatalf("health status = %d", health.Code)
+	}
+	ready := httptest.NewRecorder()
+	handler.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if ready.Code != http.StatusOK {
+		t.Fatalf("readiness status = %d", ready.Code)
 	}
 	public := httptest.NewRecorder()
 	handler.ServeHTTP(public, httptest.NewRequest(http.MethodPost, "/v1/runs", nil))
