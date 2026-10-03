@@ -3,7 +3,8 @@ id: V203-001
 title: Preserve attempted-item coverage when Audit dispatch closes
 milestone: audit-coverage-truth-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f0e2e4776ec6bf22869df4cbf5b982b7e975d8ce
 depends_on: []
 languages: [go, sql]
 goal: Keep the last collected attempt's coverage when an Audit settles an undispatched retry.
