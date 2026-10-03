@@ -3,8 +3,8 @@ id: V112-001
 title: Disclose ephemeral managed configurations in the no-PVC deployment
 milestone: managed-config-deployment-docs-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 607f683035ea3ac742119d3cab0efa1ffdbf59a1
 depends_on: []
 languages: [markdown, yaml]
 goal: Make the published-configuration data-loss boundary explicit in the no-PVC Kubernetes example.
