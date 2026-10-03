@@ -1609,6 +1609,9 @@ Deleting one destination does not release another destination's retained
 evidence or change its finding decisions. A receipt read through one Audit
 lists only that Audit's own hold and, after source Run deletion, reads the
 proposal from that Audit's retained copy, never from another destination's.
+After source Run deletion, the Audit inbox omits a native child receipt the
+Audit never retained, such as a proposal collection rejected, because no
+readable copy remains for it.
 
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks
