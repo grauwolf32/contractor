@@ -254,7 +254,11 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	bindings, err := runtimeconfig.NewBindingService(pool, service)
+	bindings, err := runtimeconfig.NewBindingService(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,20 +306,24 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 
 	createCredential("active-debug")
 	activeRef := publishConfig("active-debug", "active-debug")
-	activeBinding, err := bindings.Create(ctx, "debug", activeRef, "operator", now)
-	if err != nil {
-		t.Fatal(err)
+	activeCreated, err := management.CreateBinding(ctx, "debug", activeRef, "create-active-debug", "operator", now)
+	if err != nil || activeCreated.Binding == nil {
+		t.Fatalf("create active binding = (%+v, %v)", activeCreated, err)
 	}
 	if _, err := service.Delete(ctx, "active-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
 		t.Fatalf("delete active binding error = %v", err)
 	}
-	if err := bindings.Delete(ctx, activeBinding.Label, activeBinding.Revision); err != nil {
+	if _, err := management.DeleteBinding(
+		ctx, activeCreated.Binding.Label, activeCreated.Binding.Revision, "delete-active-debug", "operator", now.Add(time.Second),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Delete(ctx, "active-debug", "operator"); err != nil {
 		t.Fatalf("delete after unbind: %v", err)
 	}
-	if _, err := bindings.Create(ctx, "stale-debug", activeRef, "operator", now.Add(time.Second)); !errors.Is(err, runtimeconfig.ErrInvalid) {
+	if _, err := management.CreateBinding(
+		ctx, "stale-debug", activeRef, "create-stale-debug", "operator", now.Add(time.Second),
+	); !errors.Is(err, runtimeconfig.ErrInvalid) {
 		t.Fatalf("binding a config with a deleted credential error = %v", err)
 	}
 
@@ -325,20 +333,23 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	defaultBinding, err = bindings.Rebind(
-		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, defaultRef, "operator", now.Add(2*time.Second),
+	defaultRebound, err := management.Rebind(
+		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, defaultRef,
+		"rebind-default-debug", "operator", now.Add(2*time.Second),
 	)
-	if err != nil {
-		t.Fatalf("bind default RuntimeConfig: %v", err)
+	if err != nil || defaultRebound.Binding == nil {
+		t.Fatalf("bind default RuntimeConfig: (%+v, %v)", defaultRebound, err)
 	}
+	defaultBinding = *defaultRebound.Binding
 	if _, err := service.Delete(ctx, "default-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
 		t.Fatalf("delete credential referenced by default binding error = %v", err)
 	}
 	builtInRef := runtimeconfig.Ref{
 		Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest,
 	}
-	if _, err := bindings.Rebind(
-		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, builtInRef, "operator", now.Add(3*time.Second),
+	if _, err := management.Rebind(
+		ctx, runtimeconfig.DefaultLabel, defaultBinding.Revision, builtInRef,
+		"restore-default-debug", "operator", now.Add(3*time.Second),
 	); err != nil {
 		t.Fatalf("restore default RuntimeConfig: %v", err)
 	}
@@ -348,9 +359,11 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 
 	createCredential("run-debug")
 	runRef := publishConfig("run-debug", "run-debug")
-	runBinding, err := bindings.Create(ctx, "run-debug", runRef, "operator", now.Add(4*time.Second))
-	if err != nil {
-		t.Fatal(err)
+	runCreated, err := management.CreateBinding(
+		ctx, "run-debug", runRef, "create-run-debug", "operator", now.Add(4*time.Second),
+	)
+	if err != nil || runCreated.Binding == nil {
+		t.Fatalf("create run binding = (%+v, %v)", runCreated, err)
 	}
 	if err := service.WithCredentialReferences(ctx, func() error {
 		tx, txErr := pool.Begin(ctx)
@@ -386,7 +399,9 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := bindings.Delete(ctx, runBinding.Label, runBinding.Revision); err != nil {
+	if _, err := management.DeleteBinding(
+		ctx, runCreated.Binding.Label, runCreated.Binding.Revision, "delete-run-debug", "operator", now.Add(5*time.Second),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Delete(ctx, "run-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
@@ -513,7 +528,13 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	go func() {
 		defer wait.Done()
 		<-start
-		binding, bindingErr = bindings.Create(ctx, "race", raceRef, "operator", now.Add(time.Minute))
+		created, err := management.CreateBinding(
+			ctx, "race", raceRef, "create-race-debug", "operator", now.Add(time.Minute),
+		)
+		bindingErr = err
+		if err == nil && created.Binding != nil {
+			binding = *created.Binding
+		}
 	}()
 	go func() {
 		defer wait.Done()
@@ -524,10 +545,15 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	wait.Wait()
 	switch {
 	case bindingErr == nil && errors.Is(deleteErr, ErrRuntimeCredentialInUse):
+		if binding.Label != "race" {
+			t.Fatalf("successful binding has no result: %+v", binding)
+		}
 		if _, err := service.Get(ctx, "race-debug"); err != nil {
 			t.Fatalf("binding won but credential is inactive: %v", err)
 		}
-		if err := bindings.Delete(ctx, binding.Label, binding.Revision); err != nil {
+		if _, err := management.DeleteBinding(
+			ctx, binding.Label, binding.Revision, "delete-race-debug", "operator", now.Add(2*time.Minute),
+		); err != nil {
 			t.Fatal(err)
 		}
 	case deleteErr == nil && errors.Is(bindingErr, runtimeconfig.ErrInvalid):

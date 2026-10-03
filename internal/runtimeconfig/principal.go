@@ -417,55 +417,6 @@ func (s *PrincipalService) RequiredRuntimeAdapters(
 	return result, nil
 }
 
-func (s *PrincipalService) ReplaceLabels(
-	ctx context.Context,
-	runtimeAgentID string,
-	expectedRevision uint64,
-	labels []string,
-	actor string,
-) (RuntimeAgentPrincipal, error) {
-	if err := validateRuntimeAgentID(runtimeAgentID); err != nil || expectedRevision == 0 ||
-		validateLabels(labels) != nil || !validActor(actor) {
-		return RuntimeAgentPrincipal{}, invalid("Runtime Agent principal label replacement is invalid")
-	}
-	optimistic, err := s.repository.Get(ctx, runtimeAgentID)
-	if err != nil {
-		return RuntimeAgentPrincipal{}, err
-	}
-	lockLabels := sortedUnion(optimistic.Labels, labels)
-	var result RuntimeAgentPrincipal
-	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		// Lock every binding that can participate in either the observed or the
-		// desired set before the principal row. The union itself is not a
-		// configuration layer: a label being removed may legitimately conflict
-		// with one being added.
-		if _, err := NewRepository(tx).LockBindings(ctx, lockLabels); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				return ErrUnknownLabel
-			}
-			return err
-		}
-		principalRepository := NewPrincipalRepository(tx)
-		locked, err := principalRepository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
-			return ErrPrecondition
-		}
-		// The union was locked above; validate only the desired same-layer set.
-		if _, err := validateAgentLabelSetFromLocked(ctx, tx, labels); err != nil {
-			return err
-		}
-		result, err = principalRepository.ReplaceLabels(
-			ctx, runtimeAgentID, expectedRevision, labels, actor, s.now().UTC(),
-		)
-		return err
-	})
-	return result, err
-}
-
 func (s *PrincipalService) ReplaceLabelsIdempotent(
 	ctx context.Context,
 	runtimeAgentID string,
@@ -535,40 +486,6 @@ func (s *PrincipalService) ReplaceLabelsIdempotent(
 		)
 	})
 	return result, err
-}
-
-func (s *PrincipalService) Delete(
-	ctx context.Context, runtimeAgentID string, expectedRevision uint64,
-) error {
-	if s.deletionGuard == nil {
-		return errors.New("Runtime Agent principal deletion guard is not configured")
-	}
-	release, err := s.deletionGuard.BeginPrincipalDeletion(runtimeAgentID)
-	if err != nil {
-		return err
-	}
-	defer release()
-	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		repository := NewPrincipalRepository(tx)
-		principal, err := repository.Lock(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if principal.LabelRevision != expectedRevision {
-			return ErrPrecondition
-		}
-		if len(principal.Labels) != 0 {
-			return ErrPrincipalInUse
-		}
-		inUse, err := repository.HasLiveAllocation(ctx, runtimeAgentID)
-		if err != nil {
-			return err
-		}
-		if inUse {
-			return ErrPrincipalInUse
-		}
-		return repository.Delete(ctx, runtimeAgentID, expectedRevision)
-	})
 }
 
 func (s *PrincipalService) DeleteIdempotent(

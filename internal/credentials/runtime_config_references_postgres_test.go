@@ -155,6 +155,10 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 		t.Fatal(err)
 	}
 	publisher, bindings, _ := newReferenceTestServices(t, pool, fixture.gateway, factory)
+	management, err := runtimeconfig.NewManagementService(pool, publisher, bindings)
+	if err != nil {
+		t.Fatal(err)
+	}
 	published, err := publisher.Publish(ctx, referenceTestDocument("racing-config", "racing-worker"), "publish-racing", "operator")
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +170,9 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 	go func() {
 		defer wait.Done()
 		<-start
-		_, bindErr = bindings.Create(ctx, "racing", published.Version.Ref, "operator", time.Now().UTC())
+		_, bindErr = management.CreateBinding(
+			ctx, "racing", published.Version.Ref, "bind-racing", "operator", time.Now().UTC(),
+		)
 	}()
 	go func() {
 		defer wait.Done()
@@ -215,7 +221,7 @@ func newReferenceTestServices(
 	if err != nil {
 		t.Fatal(err)
 	}
-	bindings, err := runtimeconfig.NewBindingService(pool, catalog, factory)
+	bindings, err := runtimeconfig.NewBindingService(catalog, factory)
 	if err != nil {
 		t.Fatal(err)
 	}

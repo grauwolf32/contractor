@@ -77,26 +77,31 @@ func TestRuntimeCredentialRebindDoesNotBorrowAnotherConnection(t *testing.T) {
 				}
 				refs[index] = published.Version.Ref
 			}
-			bindings, err := runtimeconfig.NewBindingService(limited, service)
+			bindings, err := runtimeconfig.NewBindingService(service)
 			if err != nil {
 				t.Fatal(err)
-			}
-			binding, err := bindings.Create(ctx, "authenticated", refs[0], "operator", time.Now().UTC())
-			if err != nil {
-				t.Fatal(err)
-			}
-			attempt, cancelAttempt := context.WithTimeout(ctx, 2*time.Second)
-			defer cancelAttempt()
-			updated, err := bindings.Rebind(attempt, binding.Label, binding.Revision, refs[1], "operator", time.Now().UTC())
-			if err != nil {
-				t.Fatalf("credential-backed rebind with one available connection: %v", err)
-			}
-			if updated.Ref != refs[1] || updated.Revision != binding.Revision+1 {
-				t.Fatalf("rebind did not preserve revision/target contract: %+v", updated)
 			}
 			management, err := runtimeconfig.NewManagementService(limited, publisher, bindings)
 			if err != nil {
 				t.Fatal(err)
+			}
+			createdAuthenticated, err := management.CreateBinding(
+				ctx, "authenticated", refs[0], "authenticated-create", "operator", time.Now().UTC(),
+			)
+			if err != nil || createdAuthenticated.Binding == nil {
+				t.Fatalf("create authenticated binding = (%+v, %v)", createdAuthenticated, err)
+			}
+			attempt, cancelAttempt := context.WithTimeout(ctx, 2*time.Second)
+			defer cancelAttempt()
+			updated, err := management.Rebind(
+				attempt, "authenticated", createdAuthenticated.Binding.Revision, refs[1],
+				"authenticated-rebind", "operator", time.Now().UTC(),
+			)
+			if err != nil {
+				t.Fatalf("credential-backed rebind with one available connection: %v", err)
+			}
+			if updated.Binding == nil || updated.Binding.Ref != refs[1] || updated.Binding.Revision != createdAuthenticated.Binding.Revision+1 {
+				t.Fatalf("rebind did not preserve revision/target contract: %+v", updated)
 			}
 			created, err := management.CreateBinding(attempt, "managed", refs[0], "managed-create", "operator", time.Now().UTC())
 			if err != nil {
