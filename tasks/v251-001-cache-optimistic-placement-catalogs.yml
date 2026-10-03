@@ -3,7 +3,8 @@ id: V251-001
 title: Reuse request-wide placement catalogs within one optimistic pass
 milestone: placement-query-cost-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 42973d0d10293427b0f556010bffcff32e51d1da
 depends_on: []
 languages: [go]
 goal: Keep optimistic placement query cost bounded by distinct pins, labels, and credentials instead of candidate count.
