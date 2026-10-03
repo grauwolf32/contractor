@@ -16,15 +16,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-// Wake is an edge-triggered latency hint. Periodic PostgreSQL reconciliation
-// remains the authoritative recovery mechanism.
-func (c *Controller) Wake() {
-	select {
-	case c.wake <- struct{}{}:
-	default:
-	}
-}
-
 func (c *Controller) Run(ctx context.Context) error {
 	if !c.beginRun() {
 		return ErrAlreadyRunning
@@ -44,7 +35,6 @@ func (c *Controller) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-c.wake:
 		case <-c.after(c.options.PollInterval):
 		}
 	}
