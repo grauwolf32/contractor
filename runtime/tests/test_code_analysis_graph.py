@@ -103,6 +103,10 @@ def test_core_graph_tools_expose_duplicate_identity_and_exact_relationships(
 
     async def scenario() -> None:
         tools, _, scratch = await _tools(tmp_path, MutableReader(files))
+        description = tools["find_symbol"].__doc__
+        assert description is not None
+        assert "Symbol name or qualified name" in description
+        assert "Do not pass an opaque symbolId" in description
         summary = await tools["graph_summary"]()
         assert set(summary) == {
             "nodeCount",
