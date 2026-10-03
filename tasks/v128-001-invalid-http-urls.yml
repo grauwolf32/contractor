@@ -3,8 +3,8 @@ id: V128-001
 title: Classify malformed HTTP URLs as invalid input before dispatch
 milestone: invalid-http-urls-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d261c2d1c8a2a6373439d55ae0dd13cd0b1b026e
 depends_on: []
 languages: [python]
 goal: Prevent malformed model URLs from triggering retryable transport failures or proxy backoff.
