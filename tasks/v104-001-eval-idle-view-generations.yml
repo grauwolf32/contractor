@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V104-001
+title: Stop idle evaluation ticks from publishing duplicate views
+milestone: eval-idle-view-generations-2026-10
+priority: P1
+status: completed
+implementation_commit: 5517ee449ccb886317407819d9ce650ba9b1af6e
+depends_on: []
+languages: [go, sql]
+goal: Keep selected evaluation views stable when coordinator ticks only update observed usage and polling order.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/141
+  finding: Every observed-token poll invalidates the member projection and publishes a full immutable view generation even when selected data is unchanged.
+scope:
+  in:
+    - Restrict submission projection invalidation to fields that affect selected views.
+    - Verify idle coordinator ticks keep the projection queue settled and do not copy view rows.
+    - Preserve usage high-water marks, poll rotation, token-budget stops, and real-change view publication.
+  out:
+    - Prune existing immutable view generations or change report retention.
+acceptance_criteria:
+  - {id: A1, text: Ten idle coordinator ticks leave view generation, member, pair, and chart row counts unchanged and queue revisions equal.}
+  - {id: A2, text: Observed-token accounting and polling rotation remain functional.}
+  - {id: A3, text: Run and Audit changes, metrics, output bindings, selections, and evidence recovery still publish changed views.}
+tests:
+  - {command: go test ./internal/evalservice ./internal/evalstore -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./..., covers: [A1, A2, A3]}
