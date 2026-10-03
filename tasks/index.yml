@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: operations-in-use-error-details-2026-10
+    exit_task: V99-001
+    outcome: >-
+      Delete conflicts show every safe Server-reported Run, Audit, Project,
+      binding, allocation and Runtime Agent reference to operators.
   - id: ui-navigation-and-run-disclosure-reliability-2026-10
     exit_task: V98-002
     outcome: >-
@@ -2776,6 +2781,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V99-001, file: v99-001-operations-in-use-error-details.yml}
   - {id: V98-001, file: v98-001-route-chunk-recovery.yml}
   - {id: V98-002, file: v98-002-run-attempt-disclosure-state.yml}
   - {id: V97-001, file: v97-001-project-http-target-url-boundary.yml}
