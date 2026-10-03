@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V182-001
+title: Restore Runtime tests after proxy and annotation interface changes
+milestone: runtime-test-parity-2026-10
+priority: P1
+status: completed
+implementation_commit: d8736cba42aaeccf23983004e4dd349261141def
+depends_on: []
+languages: [python]
+goal: Keep security and concurrency tests aligned with the current Runtime interfaces.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/439
+  finding: Five Runtime tests fail because their probes call removed or changed interfaces.
+scope:
+  in:
+    - Exercise only the supported streaming proxy request in unicode-dot route tests.
+    - Pass path through taint parser test interceptors.
+    - Verify the complete Runtime test suite and lint gate.
+  out:
+    - Restoring the removed buffered proxy request helper.
+    - Changing production taint annotation parsing.
+acceptance_criteria:
+  - {id: A1, text: Unicode-dot cases are denied before a streaming proxy send.}
+  - {id: A2, text: Taint lifecycle tests reach their parser synchronization and retain race/cancellation guarantees.}
+  - {id: A3, text: The complete Runtime test suite and lint gate pass.}
+tests:
+  - {command: cd runtime && uv run pytest, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A3]}

@@ -355,8 +355,6 @@ def test_proxy_route_refuses_unicode_dot_aliases_before_send(separator: str) -> 
         ):
             with pytest.raises(ProxyTargetDenied):
                 await proxy.stream_request("GET", url, target_policy=policy)
-            with pytest.raises(ProxyTargetDenied):
-                await proxy.request("GET", url, target_policy=policy)
         assert sent == []
         await client.aclose()
 
