@@ -3,8 +3,8 @@ id: V124-001
 title: Return distinct symbols in call relationship queries
 milestone: distinct-call-relationships-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c20928dae0abb3640ca9edbe149dba098aab2de2
 depends_on: []
 languages: [python]
 goal: Keep repeated call sites from duplicating caller and callee rows or displacing distinct relationships on a page.
