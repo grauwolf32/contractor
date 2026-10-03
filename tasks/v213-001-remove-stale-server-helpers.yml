@@ -3,7 +3,8 @@ id: V213-001
 title: Remove stale public client and Server test-only helpers
 milestone: server-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 8085f8140882fda8c902188d0ecb338f99c8d7d7
 depends_on: []
 languages: [go]
 goal: Make server tests exercise production composition and remove misleading unused helpers.
