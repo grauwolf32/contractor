@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V122-001
+title: Normalize successful edit argument paths before observing them
+milestone: edit-observation-paths-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Preserve successful edit mutations and complete workspace observations when model arguments use decomposed Unicode paths.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/267
+  finding: Edit tools normalize input paths before writing, but observation extraction rejects their original spelling.
+scope:
+  in:
+    - Canonicalize successful edit argument paths with the project path validator.
+    - Keep persisted observation and result path validation strict.
+    - Verify write, edit, copy and move observations and worker summaries for decomposed Unicode paths.
+  out:
+    - Change edit tool path handling or persisted observation schema.
+acceptance_criteria:
+  - {id: A1, text: Successful edit calls record NFC paths and retain complete workspace detail and lean summary.}
+  - {id: A2, text: Copy and move observe normalized destination and source paths as applicable.}
+  - {id: A3, text: Invalid project paths remain rejected and persisted paths must already be canonical.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_filesystem_observations.py, covers: [A1, A2, A3]}
