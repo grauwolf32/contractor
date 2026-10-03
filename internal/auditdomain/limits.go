@@ -23,3 +23,7 @@ const (
 	MaximumJSONNodes        = 250000
 	MaximumReferenceDepth   = 32
 )
+
+// MaximumCoverageValueBytes bounds both admitted proposal limitations and
+// retained Audit coverage values.
+const MaximumCoverageValueBytes = 512

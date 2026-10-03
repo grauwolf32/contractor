@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -435,6 +437,53 @@ func TestControllerFinalizesUnsupportedNextRound(t *testing.T) {
 	}
 }
 
+func TestControllerHandlesDeterministicAndRetryableNextRoundErrors(t *testing.T) {
+	transient := errors.New("temporary next-Round failure")
+	for _, test := range []struct {
+		name        string
+		builderErr  error
+		acceptErr   error
+		wantErr     error
+		wantWorked  bool
+		wantInvalid bool
+	}{
+		{"invalid proposal", &auditdomain.ValidationError{Code: auditdomain.CodeInvalid, Field: "finding.limitations"}, nil, nil, true, true},
+		{"invalid builder parameters", fmt.Errorf("build: %w", auditstore.ErrInvalid), nil, nil, true, true},
+		{"invalid retained proposal", fmt.Errorf("read: %w", artifacts.ErrArtifactIntegrity), nil, nil, true, true},
+		{"invalid store coverage", nil, fmt.Errorf("coverage: %w", auditstore.ErrInvalid), nil, true, true},
+		{"retryable builder", transient, nil, transient, false, false},
+		{"retryable store", nil, transient, transient, false, false},
+		{"stale acceptance", nil, auditstore.ErrPrecondition, nil, false, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newControllerHarness(t, 1, 1)
+			harness.store.mu.Lock()
+			harness.store.round.State = auditstore.RoundClosed
+			harness.store.items = nil
+			harness.store.executions = nil
+			harness.store.audit.Limits.MaxRounds = 2
+			harness.store.nextRoundAcceptErr = test.acceptErr
+			harness.store.mu.Unlock()
+			harness.controller.roundBuilder = &fakeRoundBuilder{err: test.builderErr}
+			worked, err := harness.controller.RunOnce(harness.ctx)
+			if worked != test.wantWorked || !errors.Is(err, test.wantErr) ||
+				(test.wantErr == nil && err != nil) {
+				t.Fatalf("reconcile = (%t, %v), want worked=%t error=%v",
+					worked, err, test.wantWorked, test.wantErr)
+			}
+			audit := harness.store.auditSnapshot()
+			if test.wantInvalid {
+				if audit.State != auditstore.AuditFinalizing || audit.Dispatch != auditstore.DispatchClosed ||
+					audit.StopReason == nil || audit.StopReason.Code != "next_round_invalid" {
+					t.Fatalf("deterministic next-Round failure did not close dispatch: %+v", audit)
+				}
+			} else if audit.State != auditstore.AuditActive || audit.StopReason != nil {
+				t.Fatalf("retryable next-Round failure changed Audit: %+v", audit)
+			}
+		})
+	}
+}
+
 func TestRoleDispositionRetryabilityIsExplicit(t *testing.T) {
 	evidenceBudget := "evidence-budget-exhausted"
 	for _, test := range []struct {
@@ -529,6 +578,7 @@ type prefixSubmissionBuilder struct{ maximum int }
 type fakeRoundBuilder struct {
 	calls  atomic.Int64
 	reason *auditstore.StopReason
+	err    error
 }
 
 func (b *fakeRoundBuilder) PrepareNextRound(
@@ -537,6 +587,9 @@ func (b *fakeRoundBuilder) PrepareNextRound(
 	snapshot auditstore.ReconcileSnapshot,
 ) (auditstore.AcceptRoundParams, *auditstore.StopReason, error) {
 	b.calls.Add(1)
+	if b.err != nil {
+		return auditstore.AcceptRoundParams{}, nil, b.err
+	}
 	if b.reason != nil {
 		return auditstore.AcceptRoundParams{}, b.reason, nil
 	}
@@ -636,6 +689,7 @@ type fakeControllerStore struct {
 	maxOutstanding      int
 	nextAttemptReads    int
 	expiredReportReview bool
+	nextRoundAcceptErr  error
 }
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
@@ -976,6 +1030,9 @@ func (s *fakeControllerStore) AcceptNextRound(
 		s.audit.Revision != params.ExpectedAuditRevision ||
 		s.round.RoundID != params.PreviousRoundID {
 		return auditstore.Round{}, false, auditstore.ErrPrecondition
+	}
+	if s.nextRoundAcceptErr != nil {
+		return auditstore.Round{}, false, s.nextRoundAcceptErr
 	}
 	s.round = auditstore.Round{
 		RoundID: params.RoundID, AuditID: s.audit.AuditID, Ordinal: params.RoundOrdinal,

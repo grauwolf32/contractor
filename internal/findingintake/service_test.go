@@ -3,6 +3,7 @@ package findingintake
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -35,6 +36,39 @@ func TestCanonicalSubmissionPinsStableIdentityAndOptionalHypothesis(t *testing.T
 	forged.SubmissionID = "finding-forged"
 	if _, err := canonicalize(forged); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("forged submission identity error = %v", err)
+	}
+}
+
+func TestCanonicalSubmissionRejectsLimitationsThatCannotEnterAuditCoverage(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		limitations []string
+	}{
+		{name: "duplicate", limitations: []string{"needs-live", "needs-live"}},
+		{name: "over 512 bytes", limitations: []string{strings.Repeat("x", auditdomain.MaximumCoverageValueBytes+1)}},
+		{name: "multibyte over 512 bytes", limitations: []string{strings.Repeat("é", auditdomain.MaximumCoverageValueBytes/2+1)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input := testSubmission("worker-invocation-1", "candidate-1", nil)
+			input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{{Objective: "Verify the finding", Method: "static"}}
+			input.Proposal.Limitations = test.limitations
+			legacy, err := auditdomain.EncodeFindingProposal(input.Proposal)
+			if err != nil {
+				t.Fatalf("legacy proposal codec rejected retained document: %v", err)
+			}
+			if _, err := auditdomain.DecodeFindingProposal(legacy); err != nil {
+				t.Fatalf("legacy proposal codec could not read retained document: %v", err)
+			}
+			if _, err := canonicalize(input); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("invalid proposed-check limitations admitted: %v", err)
+			}
+		})
+	}
+	input := testSubmission("worker-invocation-1", "candidate-1", nil)
+	input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{{Objective: "Verify the finding", Method: "static"}}
+	input.Proposal.Limitations = []string{strings.Repeat("x", auditdomain.MaximumCoverageValueBytes)}
+	if _, err := canonicalize(input); err != nil {
+		t.Fatalf("512-byte limitation rejected: %v", err)
 	}
 }
 

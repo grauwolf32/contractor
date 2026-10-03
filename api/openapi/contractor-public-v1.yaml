@@ -11901,7 +11901,12 @@ components:
         evidence_ids: {type: array, maxItems: 256, items: {type: string, minLength: 1, maxLength: 160}}
         proposed_checks: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingProposedCheck'}}
         severity_suggestion: {enum: ['', informational, low, medium, high, critical]}
-        limitations: {type: array, maxItems: 512, items: {type: string, maxLength: 65536}}
+        limitations:
+          type: array
+          maxItems: 512
+          uniqueItems: true
+          description: Each value is limited to 512 UTF-8 bytes by the Server.
+          items: {type: string, minLength: 1, maxLength: 512}
         locations:
           type: array
           maxItems: 256
