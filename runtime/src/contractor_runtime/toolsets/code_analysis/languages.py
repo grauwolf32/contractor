@@ -183,7 +183,6 @@ NODE_SPECS = MappingProxyType(
             NodeSpec("class_declaration", "name"),
             NodeSpec("class_expression", "name"),
             NodeSpec("method_definition", "name"),
-            NodeSpec("arrow_function", ""),
             NodeSpec("variable_declarator", "name"),
             NodeSpec("export_statement", ""),
             NodeSpec("lexical_declaration", ""),
@@ -195,7 +194,6 @@ NODE_SPECS = MappingProxyType(
             NodeSpec("class_declaration", "name"),
             NodeSpec("class_expression", "name"),
             NodeSpec("method_definition", "name"),
-            NodeSpec("arrow_function", ""),
             NodeSpec("variable_declarator", "name"),
             NodeSpec("export_statement", ""),
             NodeSpec("lexical_declaration", ""),
@@ -211,7 +209,6 @@ NODE_SPECS = MappingProxyType(
             NodeSpec("class_declaration", "name"),
             NodeSpec("class_expression", "name"),
             NodeSpec("method_definition", "name"),
-            NodeSpec("arrow_function", ""),
             NodeSpec("variable_declarator", "name"),
             NodeSpec("export_statement", ""),
             NodeSpec("lexical_declaration", ""),
@@ -468,14 +465,14 @@ def _extract_field(node: Node, source: bytes, field_name: str) -> str | None:
         return None
     if child.type in {
         "abstract_declarator",
+        "array_declarator",
         "function_declarator",
+        "init_declarator",
         "parenthesized_declarator",
         "pointer_declarator",
         "reference_declarator",
     }:
-        nested = _extract_name(child, source)
-        if nested:
-            return nested
+        return _extract_name(child, source)
     if child.type in {
         "async_function_definition",
         "class_definition",
@@ -489,6 +486,11 @@ def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str |
     preferred = _extract_field(node, source, preferred_field)
     if preferred:
         return preferred
+
+    # The binding's variable_declarator supplies an arrow's name. An unnamed
+    # function expression has no definition name of its own either.
+    if node.type in {"arrow_function", "function_expression"}:
+        return None
 
     if node.type == "call" and node.child_count >= 2:
         keyword = _extract_text(node.children[0], source)
