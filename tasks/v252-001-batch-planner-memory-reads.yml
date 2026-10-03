@@ -3,8 +3,8 @@ id: V252-001
 title: Batch Planner Memory reads without row locks
 milestone: memory-query-efficiency-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1b1742fa8377d67a3d607e5dcad75d6e339edea7
 depends_on: []
 languages: [go]
 goal: Read a full Planner Memory notebook in one bounded Store call and avoid row locks on read-only paths.
