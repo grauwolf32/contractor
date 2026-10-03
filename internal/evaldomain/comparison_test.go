@@ -2,6 +2,7 @@ package evaldomain
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -126,6 +127,94 @@ func TestEvalComparisonDeclaredGatesAndEvidenceInvalidation(t *testing.T) {
 		t.Fatal("zero baseline token ratio invented")
 	}
 }
+
+func TestEvalQualityDropGateUsesExactDecimalBoundary(t *testing.T) {
+	for _, test := range []struct {
+		denominator, baselinePassed, candidatePassed int
+		gate                                         float64
+		want                                         string
+	}{
+		{10, 4, 3, 0.1, "pass"},
+		{10, 5, 4, 0.1, "pass"},
+		{5, 4, 3, 0.2, "pass"},
+		{20, 4, 3, 0.05, "pass"},
+		{10, 4, 1, 0.3, "pass"},
+		{10, 4, 2, 0.1, "regressions"},
+	} {
+		name := fmt.Sprintf("%d/%d to %d/%d at %g", test.baselinePassed, test.denominator, test.candidatePassed, test.denominator, test.gate)
+		t.Run(name, func(t *testing.T) {
+			view, err := BuildComparison(
+				qualityComparisonMembers(test.denominator, test.baselinePassed, test.candidatePassed),
+				Comparison{Baseline: "a", Candidate: "b", Gates: Gates{MaxQualityDrop: test.gate}},
+				true,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if view.Summary.Conclusion != test.want || view.Suites["suite-a"].Conclusion != test.want {
+				t.Fatalf("experiment=%s suite=%s, want %s", view.Summary.Conclusion, view.Suites["suite-a"].Conclusion, test.want)
+			}
+		})
+	}
+}
+
+func TestEvalQualityDropGateMatchesExactFractions(t *testing.T) {
+	for _, gate := range []struct {
+		value       float64
+		numerator   int
+		denominator int
+	}{
+		{0.05, 1, 20}, {0.1, 1, 10}, {0.2, 1, 5}, {0.3, 3, 10},
+	} {
+		for scored := 1; scored <= 20; scored++ {
+			for baselinePassed := 0; baselinePassed <= scored; baselinePassed++ {
+				for candidatePassed := 0; candidatePassed <= scored; candidatePassed++ {
+					want := (baselinePassed-candidatePassed)*gate.denominator > gate.numerator*scored
+					got := qualityDropExceedsGate(
+						Counts{Scored: scored, QualityPassed: baselinePassed},
+						Counts{Scored: scored, QualityPassed: candidatePassed}, gate.value,
+					)
+					if got != want {
+						t.Fatalf("%d/%d to %d/%d at %g: got regression=%t, want %t", baselinePassed, scored, candidatePassed, scored, gate.value, got, want)
+					}
+				}
+			}
+		}
+	}
+}
+
+func qualityComparisonMembers(scored, baselinePassed, candidatePassed int) []SelectedMember {
+	rows := make([]SelectedMember, 0, scored*2)
+	finishedAt := time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)
+	for index := 0; index < scored; index++ {
+		for _, arm := range []struct {
+			id     string
+			passed int
+		}{{"a", baselinePassed}, {"b", candidatePassed}} {
+			assessment := "fail"
+			if index < arm.passed {
+				assessment = "pass"
+			}
+			rows = append(rows, SelectedMember{
+				PairID: fmt.Sprintf("pair-%d", index), CollectionComplete: true,
+				View: MemberView{
+					Member: MemberIdentity{
+						ID: fmt.Sprintf("%s-%d", arm.id, index), SuiteID: "suite-a",
+						CaseID: fmt.Sprintf("case-%d", index), VariantID: arm.id,
+						Eligibility: "eligible",
+					},
+					Execution: &ExecutionView{
+						Ref:   &ExecutionRef{Kind: "run", ID: fmt.Sprintf("run-%s-%d", arm.id, index)},
+						State: "succeeded", FinishedAt: &finishedAt,
+					},
+					Assessment: assessment,
+				},
+			})
+		}
+	}
+	return rows
+}
+
 func TestEvalChartsEmptySingletonEqualAndProgressGaps(t *testing.T) {
 	rows, _ := traceComparison(t)
 	v, err := BuildComparison(rows[:2], Comparison{Baseline: "a", Candidate: "b"}, true)
