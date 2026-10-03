@@ -28,6 +28,7 @@ type Registry interface {
 	ReserveAll(ReservationRequest) ([]Reservation, error)
 	GetGrant(string) (AllocationGrant, error)
 	GetReservation(string) (Reservation, error)
+	PrepareReservation(Reservation) (Reservation, error)
 	WithWriteGrant(string, func(AllocationGrant) error) error
 	SetWriteFence(string) error
 	Release(string) error
@@ -487,6 +488,7 @@ func (r *InMemoryRegistry) reserveAll(
 			RunMetadataLabels:         runMetadataLabels.Clone(),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
+			initialLeaseExpiresAt:     entry.confirmedLeaseExpiresAt,
 		}
 		entry.authoritativeAllocationID = cloneString(&allocationID)
 		entry.allocationActivated = false
@@ -694,6 +696,40 @@ func (r *InMemoryRegistry) GetReservation(allocationID string) (Reservation, err
 	stored, ok := r.allocations[allocationID]
 	if !ok {
 		return Reservation{}, ErrAllocationNotFound
+	}
+	return cloneReservation(stored.reservation), nil
+}
+
+// PrepareReservation rechecks the owning Agent's confirmed lease at the last
+// possible point before Runtime prepare. A Stage can remain durably pinned
+// while admission is deferred, so the original reservation timestamp cannot
+// be used as the prepare deadline on replay.
+func (r *InMemoryRegistry) PrepareReservation(request Reservation) (Reservation, error) {
+	allocationID := request.Grant.AllocationID
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stored, ok := r.allocations[allocationID]
+	if !ok || stored.reservation.Grant.StageExecutionID != request.Grant.StageExecutionID {
+		return Reservation{}, ErrAllocationNotFound
+	}
+	entry, ok := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+	if !ok {
+		return Reservation{}, ErrAllocationLost
+	}
+	monotonicNow := r.monotonicNow()
+	r.expireEntry(entry, monotonicNow)
+	stored = r.allocations[allocationID] // expireEntry may have marked it lost.
+	if stored.loss != nil || stored.reservation.Grant.Lost || entry.allocationLost || entry.superseded ||
+		entry.authoritativeAllocationID == nil || *entry.authoritativeAllocationID != allocationID ||
+		entry.leaseExpired || entry.confirmedLeaseDeadline == 0 ||
+		monotonicNow >= entry.confirmedLeaseDeadline {
+		return Reservation{}, ErrAllocationLost
+	}
+	if stored.phase == AllocationPreparing && !entry.allocationActivated &&
+		entry.confirmedLeaseExpiresAt.After(stored.reservation.LeaseExpiresAt) {
+		stored.reservation.LeaseExpiresAt = entry.confirmedLeaseExpiresAt
+		r.allocations[allocationID] = stored
+		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	}
 	return cloneReservation(stored.reservation), nil
 }

@@ -212,6 +212,11 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	cancelPrepare()
 	clearWorkerExecutionSettings(workerSettings)
 	if err != nil {
+		if errors.Is(err, controlplane.ErrAllocationLost) {
+			return nil, s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
+				Code: "control_lease_expired", Message: "Runtime Agent allocation control lease was lost", Retryable: true,
+			})
+		}
 		failure := infrastructureFailure("allocation_preparation_failed", "Worker allocation preparation failed", err)
 		return nil, s.beginAbort(ctx, run, workflow, execution, nil, failure)
 	}

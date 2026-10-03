@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V158-001, file: v158-001-replayed-prepare-lease.yml}
   - {id: V157-001, file: v157-001-tagged-unused-code-lint.yml}
   - {id: V156-001, file: v156-001-artifact-plane-route-inventory-guards.yml}
   - {id: V155-001, file: v155-001-release-gate-test-dedup.yml}

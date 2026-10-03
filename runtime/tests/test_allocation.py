@@ -71,6 +71,16 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
         first = await service.prepare(spec)
         second = await service.prepare(spec)
         assert second == first
+        renewed = spec.model_copy(
+            update={"lease_expires_at": spec.lease_expires_at + timedelta(minutes=2)}
+        )
+        assert await service.prepare(renewed) == first
+        with pytest.raises(AllocationError, match="differs from the active allocation"):
+            await service.prepare(
+                spec.model_copy(
+                    update={"lease_expires_at": spec.lease_expires_at - timedelta(seconds=1)}
+                )
+            )
         assert first.worker_handle.allocation_id == spec.allocation_id
         assert first.worker_handle.lease_expires_at == spec.lease_expires_at
         assert SECRET not in repr(first)

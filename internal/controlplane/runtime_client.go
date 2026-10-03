@@ -539,10 +539,15 @@ func validateWorkerHandle(
 	reservation Reservation,
 	settings contracts.RuntimeSettings,
 ) error {
+	minimumLease := reservation.initialLeaseExpiresAt
+	if minimumLease.IsZero() {
+		minimumLease = reservation.LeaseExpiresAt
+	}
 	if handle.AllocationID != reservation.Grant.AllocationID ||
 		handle.AgentTemplateRef != reservation.AgentTemplate.Ref ||
 		handle.WorkerRuntimeRef != reservation.AgentTemplate.Runtime ||
-		!handle.LeaseExpiresAt.Equal(wireTime(reservation.LeaseExpiresAt)) {
+		handle.LeaseExpiresAt.Before(wireTime(minimumLease)) ||
+		handle.LeaseExpiresAt.After(wireTime(reservation.LeaseExpiresAt)) {
 		return errors.New("Runtime Agent returned a WorkerHandle for different resolved inputs")
 	}
 	encoded, err := json.Marshal(handle)

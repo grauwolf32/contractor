@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -815,6 +816,37 @@ func equalTestStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func TestPrepareReservationRejectsActuallyExpiredOwningAgent(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "agent-1")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-expired", StageExecutionID: "stage-expired",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(61 * time.Second)
+	if _, err := registry.PrepareReservation(reservations[0]); !errors.Is(err, ErrAllocationLost) {
+		t.Fatalf("prepare after confirmed lease expiry = %v", err)
+	}
+	grant, err := registry.GetGrant(reservations[0].Grant.AllocationID)
+	if err != nil || !grant.Lost {
+		t.Fatalf("expired allocation grant = (%+v, %v)", grant, err)
+	}
+	runtime := &recordingRuntime{}
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = controller.PrepareAll(context.Background(), reservations,
+		testWorkerExecutionSettings(testTemplate(t), testRuntimeSettings(), "builder"))
+	if !errors.Is(err, ErrAllocationLost) || len(runtime.prepared) != 0 {
+		t.Fatalf("lost allocation reached Runtime prepare: error=%v prepared=%v", err, runtime.prepared)
+	}
 }
 
 func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {

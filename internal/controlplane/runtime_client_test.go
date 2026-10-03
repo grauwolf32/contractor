@@ -252,6 +252,34 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	}
 }
 
+func TestWorkerHandleAcceptsOriginalLeaseOnRenewedPrepare(t *testing.T) {
+	template := testTemplate(t)
+	original := wireTime(time.Now().Add(time.Minute))
+	renewed := original.Add(time.Minute)
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example",
+		template, renewed,
+	)
+	reservation.initialLeaseExpiresAt = original
+	handle := contracts.WorkerHandle{
+		AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: original,
+		AgentCard: testAgentCard(
+			"builder", "allocation_1",
+			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+		),
+	}
+	if err := validateWorkerHandle(handle, reservation, testRuntimeSettings()); err != nil {
+		t.Fatalf("original WorkerHandle lease on replay: %v", err)
+	}
+	for _, invalid := range []time.Time{original.Add(-time.Second), renewed.Add(time.Second)} {
+		handle.LeaseExpiresAt = invalid
+		if err := validateWorkerHandle(handle, reservation, testRuntimeSettings()); err == nil {
+			t.Fatalf("accepted WorkerHandle lease %s outside issued range", invalid)
+		}
+	}
+}
+
 func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *testing.T) {
 	t.Parallel()
 

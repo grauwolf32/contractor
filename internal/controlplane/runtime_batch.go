@@ -21,6 +21,7 @@ type RuntimeLifecycle interface {
 }
 
 type AllocationRegistry interface {
+	PrepareReservation(Reservation) (Reservation, error)
 	SetWriteFence(string) error
 	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
 	RecordAllocationReport(string, contracts.AllocationFinalReport) error
@@ -90,8 +91,16 @@ func (c *RuntimeBatchController) PrepareAll(
 		return nil, errors.New("Worker execution settings contain an unknown logical Agent")
 	}
 	handles := make(map[string]contracts.WorkerHandle, len(reservations))
-	for _, reservation := range reservations {
+	for index, reservation := range reservations {
 		logicalName := reservation.Grant.LogicalAgentName
+		refreshed, err := c.registry.PrepareReservation(reservation)
+		if err != nil {
+			prepareErr := fmt.Errorf("refresh prepare lease for logical Agent %q: %w", logicalName, err)
+			cleanupErr := c.cleanupFailedPrepare(reservations)
+			return nil, errors.Join(prepareErr, cleanupErr)
+		}
+		reservation = refreshed
+		reservations[index] = refreshed
 		handle, err := c.runtime.Prepare(ctx, reservation, settings[logicalName])
 		if err != nil {
 			prepareErr := fmt.Errorf("prepare logical Agent %q: %w", reservation.Grant.LogicalAgentName, err)
