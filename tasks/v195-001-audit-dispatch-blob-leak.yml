@@ -3,7 +3,8 @@ id: V195-001
 title: Stop blocked Audit dispatch from rebuilding artifacts and leaking blobs
 milestone: audit-dispatch-correctness-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 63fd01a8a487e94ba3704da98ab2a7052132b4a1
 depends_on: []
 languages: [go]
 goal: Avoid repeated submission work under a full Run window and remove definitely unpublished blob candidates.
