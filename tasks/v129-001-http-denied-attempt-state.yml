@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V129-001
+title: Keep denied HTTP attempts inside the evidence error contract
+milestone: http-denied-attempt-state-2026-10
+priority: P3
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Avoid writing an unsupported error value to a captured HTTP attempt on target denial.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/240
+  finding: Connect-time and proxy-route denials assign target_denied outside the CapturedAttempt and evidence error enum.
+scope:
+  in:
+    - Remove the unsupported denied-attempt error assignment while preserving http_target_denied.
+    - Verify a connect-time denial leaves no selectable finding exchange.
+  out:
+    - Expand the finding evidence error enum for incomplete exchanges.
+acceptance_criteria:
+  - {id: A1, text: Captured attempt error assignments remain within the declared and evidence error sets.}
+  - {id: A2, text: Connect-time denial returns http_target_denied and cannot be selected as finding evidence.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_http_toolset.py runtime/tests/test_finding_facades.py, covers: [A1, A2]}
