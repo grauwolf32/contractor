@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V131-001
+title: Preserve retryability for transient HTTP body artifact reads
+milestone: http-body-read-retry-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Let callers retry a stored HTTP body read after a transient Artifact API failure.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/212
+  finding: read_body maps transport and retryable Artifact API errors to non-retryable http_body_not_found.
+scope:
+  in:
+    - Map transient Artifact API and transport errors to retryable http_request_failed.
+    - Keep missing, invalid, and oversized artifact results as http_body_not_found.
+    - Verify recovery with the same request ID and document the behavior.
+  out:
+    - Change HTTP target request retry policy or artifact storage format.
+acceptance_criteria:
+  - {id: A1, text: Transport and retryable API failures return a retryable error.}
+  - {id: A2, text: Missing, invalid and oversized artifacts remain non-retryable not-found results.}
+  - {id: A3, text: A subsequent read of the same request ID succeeds after a transient failure clears.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_http_toolset.py runtime/tests/test_http_caido_security.py runtime/tests/test_http_caido_concurrency.py, covers: [A1, A2, A3]}
