@@ -3,7 +3,8 @@ id: V191-001
 title: Reject Eval create intents on deleted Runtime label bindings
 milestone: eval-admission-recovery-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 32236894d475841a2a59c8dc4300fe169f04d613
 depends_on: []
 languages: [go]
 goal: Let Eval experiments drain when a configuration dependency disappears after preparation.
