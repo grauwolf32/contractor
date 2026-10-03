@@ -28,8 +28,9 @@ var (
 	ErrAlreadyRunning    = errors.New("Audit Controller is already running")
 )
 
-// Store is the narrow claim-bound durable surface used by this delivery
-// increment. Collection and settlement deliberately remain outside it.
+// Store is the claim-bound durable surface for controller claims, transitions,
+// intents, observations, round acceptance, settlement and deletion. Collection
+// and report finalization use the separate collector.
 type Store interface {
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
