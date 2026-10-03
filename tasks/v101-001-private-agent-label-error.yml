@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V101-001
+title: Classify non-applicable Agent labels as invalid registration input
+milestone: private-agent-label-registration-error-2026-10
+priority: P2
+status: completed
+implementation_commit: 9c4feccac87767ecb56c5dd2af2f6645da8c904c
+depends_on: []
+languages: [go]
+goal: Stop retrying Agent registration when a selected Runtime label lacks Worker settings.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/209
+  finding: The private Control Plane error mapper omits ErrAgentLabelNotApplicable and returns a retryable HTTP 500.
+scope:
+  in:
+    - Map bare and wrapped ErrAgentLabelNotApplicable to a non-retryable HTTP 400 invalid_runtime_labels response.
+    - Exercise registration through the private handler and preserve public mapping.
+  out:
+    - Change RuntimeConfig applicability rules or the public API contract.
+acceptance_criteria:
+  - {id: A1, text: Bare and wrapped non-applicable label errors return 400 invalid_runtime_labels with retryable false.}
+  - {id: A2, text: The public mapper retains runtime_agent_label_not_applicable.}
+  - {id: A3, text: Control Plane and public handler tests pass.}
+tests:
+  - {command: go test ./internal/controlplane ./internal/httpapi/public, covers: [A1, A2, A3]}

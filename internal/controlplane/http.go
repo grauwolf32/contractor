@@ -144,7 +144,8 @@ func (h *privateHTTPHandler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrInvalidRequest), errors.Is(err, contracts.ErrValidation):
 		writePrivateError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private API contract", false)
 	case errors.Is(err, runtimeconfig.ErrInvalid), errors.Is(err, runtimeconfig.ErrNotFound),
-		errors.Is(err, runtimeconfig.ErrConflict), errors.Is(err, runtimeconfig.ErrPrecondition):
+		errors.Is(err, runtimeconfig.ErrConflict), errors.Is(err, runtimeconfig.ErrPrecondition),
+		errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
 		writePrivateError(w, http.StatusBadRequest, "invalid_runtime_labels", "Runtime Agent labels cannot be registered", false)
 	case errors.Is(err, ErrRegistrationConflict), errors.Is(err, ErrHeartbeatOutOfOrder):
 		writePrivateError(w, http.StatusConflict, "conflict", "request conflicts with current Runtime Agent state", true)
