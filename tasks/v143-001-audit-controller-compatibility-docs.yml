@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V143-001
+title: Correct Audit controller surface and compatibility reason docs
+milestone: audit-controller-compatibility-docs-2026-10
+priority: P3
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, markdown]
+goal: Describe the Store interface and emitted Audit compatibility reasons accurately.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/150
+  finding: Store comment excludes settlement and spec omits emitted finding_confirmation_unsupported.
+scope:
+  in:
+    - Correct Store comment and reason list with the disabled-confirmation trigger.
+    - Correct stale compatibility test wording.
+  out:
+    - Change Audit compatibility behavior or wire values.
+acceptance_criteria:
+  - {id: A1, text: Store comment includes claim-bound settlement and deletion.}
+  - {id: A2, text: Spec lists every emitted compatibility reason and reserves only unproduced values.}
+tests:
+  - {command: go test ./internal/auditservice/ -run 'Compatibility|FindingsReader', covers: [A1, A2]}
