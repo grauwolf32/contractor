@@ -199,8 +199,6 @@ func (s *Service) recordADKEvent(
 		next := state
 		next.NextSequence++
 		next.ADKEventCount++
-		next.ADKInputTokens += facts.InputTokens
-		next.ADKOutputTokens += facts.OutputTokens
 		encodedState, err := encodeState(next)
 		if err != nil {
 			return err
