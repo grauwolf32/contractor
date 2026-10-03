@@ -15,14 +15,13 @@ from typing import Any
 
 import jcs
 
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 COLLECTION_MEDIA_TYPE = "application/vnd.contractor.findings-collection+zip"
 MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}")
-MEDIA_TYPE = re.compile(r"[a-z0-9!#$%&'+.^_`|~-]+/[a-z0-9!#$%&'+.^_`|~-]+")
 
 
 class FindingsError(ValueError):
@@ -276,7 +275,7 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(
             isinstance(media_type, str)
             and len(media_type) <= 127
-            and MEDIA_TYPE.fullmatch(media_type)
+            and MEDIA_TYPE_PATTERN.fullmatch(media_type)
         )
         size = document["size_bytes"]
         require(type(size) is int and 0 <= size <= MAX_ARCHIVE_BYTES)

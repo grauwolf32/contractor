@@ -55,6 +55,7 @@ from contractor_runtime.contracts.base import (
     MAX_WORKER_RESULT_ARTIFACTS as MAX_WORKER_RESULT_ARTIFACTS,
 )
 from contractor_runtime.contracts.base import MAX_WORKER_RESULT_BYTES as MAX_WORKER_RESULT_BYTES
+from contractor_runtime.contracts.base import MEDIA_TYPE_PATTERN as MEDIA_TYPE_PATTERN
 from contractor_runtime.contracts.base import NATIVE_SKILL_TOOL_NAMES as NATIVE_SKILL_TOOL_NAMES
 from contractor_runtime.contracts.base import (
     RUN_METADATA_LABEL_KEY_PATTERN as RUN_METADATA_LABEL_KEY_PATTERN,

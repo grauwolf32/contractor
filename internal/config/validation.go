@@ -11,10 +11,9 @@ import (
 )
 
 var (
-	idPattern        = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-	versionPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
-	digestPattern    = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	mediaTypePattern = regexp.MustCompile(`^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$`)
+	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+	digestPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 const maxJSONSafeInteger = 1<<53 - 1
@@ -107,7 +106,7 @@ func validateMediaTypes(field string, values []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(values))
 	result := append([]string(nil), values...)
 	for _, value := range result {
-		if value != "*/*" && !mediaTypePattern.MatchString(value) {
+		if value != "*/*" && !contracts.ValidMediaType(value) {
 			return nil, fmt.Errorf("%s.mediaTypes contains non-canonical media type %q", field, value)
 		}
 		if _, exists := seen[value]; exists {

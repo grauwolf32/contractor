@@ -11,7 +11,7 @@
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "artifact": {"$ref": "common.schema.json#/$defs/exactArtifactRef"},
-        "mediaType": {"type": "string", "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$"},
+        "mediaType": {"$ref": "common.schema.json#/$defs/mediaType"},
         "size": {"type": "integer", "minimum": 0}
       }
     },
