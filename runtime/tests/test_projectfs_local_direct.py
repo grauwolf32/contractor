@@ -121,6 +121,120 @@ def test_mutations_use_current_bytes_and_do_not_resurrect_or_overwrite_others(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("operation", "expected_reads"),
+    [
+        ("mkdir", set()),
+        ("write_new", set()),
+        ("write_existing", {"src/a.txt"}),
+        ("update", {"src/a.txt"}),
+        ("delete", {"src/a.txt"}),
+        ("copy", {"src/a.txt"}),
+        ("move", {"src/a.txt"}),
+    ],
+)
+def test_mutation_preflight_reads_only_selected_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    expected_reads: set[str],
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            (root / "unrelated.txt").write_text("unrelated")
+            assert session._local is not None and session._local._filesystem is not None
+            filesystem = session._local._filesystem
+            original = filesystem.read_classified
+            reads: list[str] = []
+
+            def counted(path: str, **kwargs: object) -> tuple[str | None, bool]:
+                reads.append(path)
+                return original(path, **kwargs)
+
+            monkeypatch.setattr(filesystem, "read_classified", counted)
+            if operation == "mkdir":
+                await session.make_directory("new-directory")
+            elif operation == "write_new":
+                await session.write_text("new.txt", "new")
+            elif operation == "write_existing":
+                await session.write_text("src/a.txt", "replaced")
+            elif operation == "update":
+                await session.update_text("src/a.txt", lambda text: text + "updated")
+            elif operation == "delete":
+                await session.delete_path("src/a.txt")
+            elif operation == "copy":
+                await session.copy_path("src", "copied", recursive=True)
+            else:
+                await session.move_path("src", "moved")
+            assert set(reads) == expected_reads
+            assert "unrelated.txt" not in reads
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("marker", [b"\x00", b"\xff"])
+def test_content_scan_stops_after_first_binary_chunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, marker: bytes
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            path = root / "large-binary"
+            path.write_bytes(marker + b"x" * (4 * 65536 - 1))
+            original = os.read
+            read_bytes = 0
+
+            def counted(descriptor: int, count: int) -> bytes:
+                nonlocal read_bytes
+                data = original(descriptor, count)
+                if os.readlink(f"/proc/self/fd/{descriptor}") == str(path):
+                    read_bytes += len(data)
+                return data
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "read", counted)
+                snapshot = await session.snapshot()
+            assert "large-binary" in snapshot.binary_paths
+            assert 0 < read_bytes <= 65536
+
+    asyncio.run(scenario())
+
+
+def test_content_scan_accepts_utf8_split_across_chunks(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            text = "a" * (65536 - 1) + "é" + "b"
+            (root / "chunk-boundary.txt").write_text(text)
+            snapshot = await session.snapshot()
+            assert (
+                next(file.text for file in snapshot.files if file.path == "chunk-boundary.txt")
+                == text
+            )
+
+    asyncio.run(scenario())
+
+
+def test_ambiguous_text_bound_classifies_once_without_repeating_transform(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        limits = WorkspaceLimits(
+            max_files=10, max_file_bytes=100, max_expanded_bytes=100, max_managed_text_bytes=11
+        )
+        async with workspace(tmp_path, limits=limits) as (session, root):
+            calls = 0
+
+            def transform(text: str) -> str:
+                nonlocal calls
+                calls += 1
+                return text + "ab"
+
+            await session.update_text("src/a.txt", transform)
+            assert calls == 1
+            assert (root / "src/a.txt").read_bytes() == b"source\r\nab"
+
+    asyncio.run(scenario())
+
+
 def test_concurrent_transforms_serialize_the_whole_read_modify_write(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with workspace(tmp_path) as (session, root):
