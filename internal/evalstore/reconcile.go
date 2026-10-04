@@ -62,9 +62,13 @@ WHERE e.owner_id=$1
 	return m, err
 }
 
-func (s *Store) NextMember(ctx context.Context, owner, id string) (*Member, error) {
-	var member string
-	err := s.db.QueryRow(ctx, `
+// NextMembers returns the next eligible, unsubmitted members in frozen order.
+// The caller caps the batch by both free capacity and its per-tick work budget.
+func (s *Store) NextMembers(ctx context.Context, owner, id string, limit int) ([]Member, error) {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	rows, err := s.db.Query(ctx, `
 SELECT m.member_id
 FROM eval_members m
 JOIN eval_experiments e USING(experiment_id)
@@ -75,16 +79,33 @@ WHERE e.owner_id=$1
     FROM eval_submissions s
     WHERE s.experiment_id=m.experiment_id
         AND s.member_id=m.member_id)
-ORDER BY m.ordinal LIMIT 1
-`, owner, id).Scan(&member)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
+ORDER BY m.ordinal LIMIT $3
+`, owner, id, limit)
 	if err != nil {
 		return nil, err
 	}
-	m, err := s.Member(ctx, owner, id, member)
-	return &m, err
+	ids := make([]string, 0, limit)
+	for rows.Next() {
+		var memberID string
+		if err = rows.Scan(&memberID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, memberID)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	members := make([]Member, 0, len(ids))
+	for _, memberID := range ids {
+		member, err := s.Member(ctx, owner, id, memberID)
+		if err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+	return members, nil
 }
 
 func (s *Store) Outstanding(ctx context.Context, owner, id string, limit int) ([]string, error) {
@@ -113,6 +134,50 @@ ORDER BY s.updated_at, s.member_id LIMIT $3
 		out = append(out, mid)
 	}
 	return out, rows.Err()
+}
+
+// ReconciliationCandidates gives newly admitted intents a bounded lane while
+// independently rotating accepted executions. An experiment with many accepted
+// members therefore starts each new batch by its next tick without starving
+// observation of executions that are already running.
+func (s *Store) ReconciliationCandidates(ctx context.Context, owner, id string, perStateLimit int) ([]string, error) {
+	if perStateLimit < 1 || perStateLimit > evaldomain.MaxPageSize/2 {
+		return nil, evaldomain.Failure("eval_invalid")
+	}
+	rows, err := s.db.Query(ctx, `
+WITH intents AS (
+    SELECT s.member_id, s.updated_at
+    FROM eval_submissions s
+    JOIN eval_experiments e USING(experiment_id)
+    WHERE e.owner_id=$1 AND e.experiment_id=$2 AND s.state='intent'
+    ORDER BY s.updated_at, s.member_id LIMIT $3
+), accepted AS (
+    SELECT s.member_id, s.updated_at
+    FROM eval_submissions s
+    JOIN eval_experiments e USING(experiment_id)
+    WHERE e.owner_id=$1 AND e.experiment_id=$2 AND s.state='accepted'
+    ORDER BY s.updated_at, s.member_id LIMIT $3
+)
+SELECT member_id FROM (
+    SELECT member_id, updated_at, 0 AS phase FROM intents
+    UNION ALL
+    SELECT member_id, updated_at, 1 AS phase FROM accepted
+) work
+ORDER BY phase, updated_at, member_id
+`, owner, id, perStateLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	memberIDs := make([]string, 0, 2*perStateLimit)
+	for rows.Next() {
+		var memberID string
+		if err = rows.Scan(&memberID); err != nil {
+			return nil, err
+		}
+		memberIDs = append(memberIDs, memberID)
+	}
+	return memberIDs, rows.Err()
 }
 
 // LockMemberRecovery establishes all Project locks before the experiment lock

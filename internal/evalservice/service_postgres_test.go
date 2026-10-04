@@ -314,6 +314,30 @@ func (h *serviceHarness) prepared(t *testing.T, kind string) evalstore.Experimen
 	return e
 }
 
+func (h *serviceHarness) preparedWithCapacity(t *testing.T, kind string, capacity int) evalstore.Experiment {
+	t.Helper()
+	e := h.create(t, kind)
+	var draft evaldomain.Draft
+	if err := json.Unmarshal(e.Draft.Bytes(), &draft); err != nil {
+		t.Fatal(err)
+	}
+	draft.Budgets.MaxInFlight = capacity
+	update := frozen(t, "DraftUpdate", evaldomain.DraftUpdate{Name: e.Name, Draft: draft})
+	if err := h.service.tx(t.Context(), func(st *evalstore.Store) error {
+		_, err := st.UpdateDraft(t.Context(), h.scope, e.ID, update, identity(t, "capacity", e.Revision, update))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h.command(t, h.get(t, e.ID), "prepare")
+	tick(t, h.coordinator(t, "prepare"))
+	e = h.get(t, e.ID)
+	if e.State != evaldomain.StateReady || e.Expected != 8 || e.MaxInFlight != capacity {
+		t.Fatalf("batch fixture state=%s expected=%d capacity=%d", e.State, e.Expected, e.MaxInFlight)
+	}
+	return e
+}
+
 func (h *serviceHarness) finishRuns(t *testing.T) {
 	t.Helper()
 	rows, err := h.pool.Query(t.Context(), `SELECT run_id,state FROM workflow_runs WHERE state IN ('pending','running','cancelling') ORDER BY run_id`)
@@ -443,6 +467,84 @@ func TestPostgresNativeEightMembersRecoverLostResponsesAndRestart(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testing.T) {
+	for _, kind := range []string{"workflow", "audit"} {
+		t.Run(kind, func(t *testing.T) {
+			h := newHarness(t)
+			e := h.preparedWithCapacity(t, kind, 8)
+			store := evalstore.NewPostgresStore(h.pool)
+			ordered, err := store.NextMembers(t.Context(), e.OwnerID, e.ID, 8)
+			if err != nil || len(ordered) != 8 {
+				t.Fatalf("eligible members=%d: %v", len(ordered), err)
+			}
+			h.command(t, e, "start")
+			coordinator := h.coordinator(t, "batch-controller")
+			tick(t, coordinator)
+			e = h.get(t, e.ID)
+			if e.Outstanding != 8 || count(t, h.pool, "eval_submissions") != 8 {
+				t.Fatalf("one tick admitted %d of eight members", e.Outstanding)
+			}
+			rows, err := h.pool.Query(t.Context(), `SELECT member_id FROM eval_submissions WHERE experiment_id=$1 ORDER BY created_at, member_id`, e.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			admitted := []string{}
+			for rows.Next() {
+				var memberID string
+				if err = rows.Scan(&memberID); err != nil {
+					t.Fatal(err)
+				}
+				admitted = append(admitted, memberID)
+			}
+			rows.Close()
+			if err = rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			for i, member := range ordered {
+				if admitted[i] != member.MemberID {
+					t.Fatalf("admission %d=%s, want ordinal member %s", i, admitted[i], member.MemberID)
+				}
+			}
+			tick(t, coordinator)
+			table := "workflow_runs"
+			if kind == "audit" {
+				table = "audits"
+			}
+			if got := count(t, h.pool, table); got != 8 {
+				t.Fatalf("next tick created %d of eight %s executions", got, kind)
+			}
+		})
+	}
+}
+
+func TestPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
+	h := newHarness(t)
+	e := h.preparedWithCapacity(t, "workflow", 8)
+	h.command(t, e, "start")
+	a, b := h.coordinator(t, "batch-a"), h.coordinator(t, "batch-b")
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, coordinator := range []*evalcoordinator.Coordinator{a, b} {
+		wg.Add(1)
+		go func(c *evalcoordinator.Coordinator) {
+			defer wg.Done()
+			_, err := c.RunOnce(t.Context())
+			errs <- err
+		}(coordinator)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil && !errors.Is(err, errResponseLost) {
+			t.Fatal(err)
+		}
+	}
+	e = h.get(t, e.ID)
+	if e.Outstanding != 8 || count(t, h.pool, "eval_submissions") != 8 {
+		t.Fatalf("racing coordinators admitted %d of eight members", e.Outstanding)
 	}
 }
 
