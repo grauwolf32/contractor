@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,8 +34,12 @@ func TestPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	createdAt := time.Now()
 	_, err = credentials.NewRuntimeCredentialRepository(h.pool).InsertRecord(ctx, credentials.RuntimeCredentialRecord{
-		Metadata: credentials.RuntimeCredentialMetadata{CredentialID: "review-otel", Kind: material.Kind(), CreatedBy: "review", CreatedAt: time.Now()}, Envelope: envelope,
+		Metadata: credentials.RuntimeCredentialMetadata{CredentialID: "review-otel", Kind: material.Kind(), CreatedBy: "review", CreatedAt: createdAt}, Envelope: envelope,
+	}, credentials.RuntimeCredentialCreation{
+		IdempotencyKeyDigest: "sha256:" + strings.Repeat("a", 64), RequestMAC: make([]byte, 32),
+		CredentialID: "review-otel", Kind: material.Kind(), ActorID: "review", CreatedAt: createdAt,
 	})
 	if err != nil {
 		t.Fatal(err)
