@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V270-001
+title: Centralize Audit review event writes
+milestone: code-reuse-2026-10
+priority: P1
+status: completed
+implementation_commit: eba3b1a9d4c214e51c322bdb146cfb4bf1596358
+depends_on: []
+languages: [go]
+goal: Keep Audit revisions and review events owned by auditstore.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: auditservice still issued a raw UPDATE audits when appending review events.
+scope:
+  in:
+    - Move review event persistence to auditstore while retaining the caller's transaction.
+    - Advance Audit revision and record its event atomically.
+  out:
+    - Other auditstore refactors tracked by issue 87.
+acceptance_criteria:
+  - {id: A1, text: auditservice no longer directly updates audits for review events.}
+  - {id: A2, text: Successful review events advance revision and sequence together.}
+  - {id: A3, text: Rejected event inserts leave no revision increment or sequence gap.}
+  - {id: A4, text: Existing review request and decision flows keep working.}
+tests:
+  - {command: go test ./internal/auditstore ./internal/auditservice, covers: [A1, A2, A3, A4]}
