@@ -3001,12 +3001,12 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         AuditProfileRef: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
         AuditProfileSelector: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
         };
         /** @enum {unknown} */
@@ -3258,7 +3258,7 @@ export interface components {
             sizeBytes?: number;
         };
         AuditProfileIdentity: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
@@ -3441,7 +3441,7 @@ export interface components {
         /** @enum {unknown} */
         AuditCollectionDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "collection-contract-invalid";
         AuditWorkflowProvenance: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             schemaVersion: string;
             configurationRef: components["schemas"]["WorkflowRef"];
@@ -3729,7 +3729,7 @@ export interface components {
             http_exchange?: components["schemas"]["FindingHTTPExchange"];
         };
         FindingWorkflowOrigin: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             schemaVersion: string;
             configurationRef: components["schemas"]["WorkflowRef"];
@@ -3966,6 +3966,7 @@ export interface components {
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
         RuntimeConfigVersion: string;
+        ConfigurationName: string;
         ConfigVersion: string;
         Selector: string;
         RuntimeCapabilityRef: string;
@@ -4192,12 +4193,12 @@ export interface components {
             truncated: boolean;
         };
         ModelPolicyRef: {
-            policyId: components["schemas"]["ConfigId"];
+            policyId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
         LLMGatewayConfigRef: {
-            gatewayId: components["schemas"]["ConfigId"];
+            gatewayId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
@@ -4438,7 +4439,7 @@ export interface components {
             allocations: components["schemas"]["StageRuntimeAllocation"][];
         };
         AgentTemplateRef: {
-            templateId: components["schemas"]["ConfigId"];
+            templateId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
@@ -4446,7 +4447,7 @@ export interface components {
             credentialId: components["schemas"]["ConfigId"];
         };
         ExecutionConfigRef: {
-            configId: components["schemas"]["ConfigId"];
+            configId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
@@ -4750,7 +4751,7 @@ export interface components {
             from?: components["schemas"]["ArtifactBinding"];
         };
         WorkflowRef: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
         };
         WorkflowPresentation: {
@@ -4784,7 +4785,7 @@ export interface components {
             digest: components["schemas"]["Digest"];
         };
         PlannerRef: {
-            plannerId: components["schemas"]["ConfigId"];
+            plannerId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
         };
         WorkflowContextArtifact: {
@@ -4995,7 +4996,7 @@ export interface components {
         ConfigurationKind: "agent-templates" | "execution-configs" | "model-policies" | "llm-gateways";
         ConfigurationRef: {
             kind: components["schemas"]["ConfigurationKind"];
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
@@ -5103,11 +5104,11 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         PublishConfigurationRequest: {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             modelPolicy: components["schemas"]["ModelPolicyBody"];
         } | {
-            name: components["schemas"]["ConfigId"];
+            name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
             llmGateway: components["schemas"]["LLMGatewayBody"];
         };
@@ -5991,7 +5992,7 @@ export interface components {
         ArtifactNamespace: components["schemas"]["ArtifactName"];
         ArtifactName: components["schemas"]["ArtifactName"];
         ArtifactSlot: components["schemas"]["ArtifactName"];
-        ConfigName: components["schemas"]["ConfigId"];
+        ConfigName: components["schemas"]["ConfigurationName"];
         ConfigVersion: components["schemas"]["ConfigVersion"];
         ConfigurationKind: components["schemas"]["ConfigurationKind"];
         CredentialId: components["schemas"]["ConfigId"];
@@ -6022,7 +6023,7 @@ export interface components {
         /** @description Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding. */
         CatalogQuery: string;
         /** @description Exact configuration name filter for enumerating opaque versions. */
-        CatalogExactName: components["schemas"]["ConfigId"];
+        CatalogExactName: components["schemas"]["ConfigurationName"];
     };
     requestBodies: never;
     headers: {
@@ -8503,7 +8504,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["AuditState"];
-                profile?: string;
+                profile?: components["schemas"]["Selector"];
             };
             header?: never;
             path: {

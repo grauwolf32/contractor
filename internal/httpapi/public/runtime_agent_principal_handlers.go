@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -68,7 +69,7 @@ func (h *handler) getRuntimeAgentPrincipal(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	id := r.PathValue("runtimeAgentId")
-	if !runtimeAgentPrincipalIDPattern.MatchString(id) {
+	if !contracts.ValidRuntimeAgentID(id) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -100,7 +101,7 @@ func (h *handler) putRuntimeAgentLabels(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	id := r.PathValue("runtimeAgentId")
-	if !runtimeAgentPrincipalIDPattern.MatchString(id) {
+	if !contracts.ValidRuntimeAgentID(id) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -166,7 +167,7 @@ func (h *handler) deleteRuntimeAgentPrincipal(w http.ResponseWriter, r *http.Req
 		return
 	}
 	id := r.PathValue("runtimeAgentId")
-	if !runtimeAgentPrincipalIDPattern.MatchString(id) {
+	if !contracts.ValidRuntimeAgentID(id) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -213,7 +214,7 @@ func normalizeRuntimeAgentLabels(labels []string) ([]string, error) {
 	result := append([]string{}, labels...)
 	sort.Strings(result)
 	for index, label := range result {
-		if !runtimeConfigIDPattern.MatchString(label) || label == runtimeconfig.DefaultLabel ||
+		if !validRuntimeInfrastructureID(label) || label == runtimeconfig.DefaultLabel ||
 			index > 0 && result[index-1] == label {
 			return nil, errInvalidRequest
 		}

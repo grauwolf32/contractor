@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -319,4 +320,28 @@ func fixedGatewayResolver(digest string) GatewayResolver {
 			Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
+}
+
+func TestPreparePublicationGatewaySelectorUsesConfigurationGrammar(t *testing.T) {
+	t.Parallel()
+	document := func(selector string) []byte {
+		return []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},` +
+			`"spec":{"worker":{"llmGateway":{"gateway":` + strconv.Quote(selector) + `}}}}`)
+	}
+	for _, selector := range []string{
+		"local-litellm@2026.1+eu", strings.Repeat("g", contracts.MaxConfigIDLength) + "@1",
+		"gateway@" + strings.Repeat("1", contracts.MaxConfigVersionLength),
+	} {
+		if _, err := PreparePublication(document(selector)); err != nil {
+			t.Errorf("Gateway selector %q rejected: %v", selector, err)
+		}
+	}
+	for _, selector := range []string{
+		"Gateway@1", "gateway@1@2", "gateway@", strings.Repeat("g", contracts.MaxConfigIDLength+1) + "@1",
+		"gateway@" + strings.Repeat("1", contracts.MaxConfigVersionLength+1),
+	} {
+		if _, err := PreparePublication(document(selector)); !errors.Is(err, ErrInvalid) {
+			t.Errorf("Gateway selector %q error = %v", selector, err)
+		}
+	}
 }

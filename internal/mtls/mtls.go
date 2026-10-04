@@ -12,15 +12,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-var (
-	ErrRuntimeAgentIdentity = errors.New("peer certificate does not match the Runtime Agent principal")
-	runtimeAgentIDPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
-)
+var ErrRuntimeAgentIdentity = errors.New("peer certificate does not match the Runtime Agent principal")
 
 type Files struct {
 	Certificate string
@@ -116,7 +114,7 @@ func HasVerifiedRuntimeAgent(r *http.Request) bool {
 // and adds an SPKI equality check. VerifyConnection executes after Go's chain,
 // EKU and DNS/IP SAN verification but before net/http writes request bytes.
 func BindRuntimeAgentPrincipal(base *tls.Config, expectedRuntimeAgentID string) (*tls.Config, error) {
-	if base == nil || !runtimeAgentIDPattern.MatchString(expectedRuntimeAgentID) {
+	if base == nil || !contracts.ValidRuntimeAgentID(expectedRuntimeAgentID) {
 		return nil, fmt.Errorf("%w: expected principal is invalid", ErrRuntimeAgentIdentity)
 	}
 	result := base.Clone()

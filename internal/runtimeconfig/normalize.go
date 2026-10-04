@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/cabundle"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
@@ -21,11 +21,6 @@ import (
 const (
 	maxDocumentBytes = 128 * 1024
 	maxURLBytes      = 2048
-)
-
-var (
-	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
 
 type optional[T any] struct {
@@ -160,7 +155,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 	if err := validateID("metadata.name", source.Metadata.Name, 63); err != nil {
 		return PreparedPublication{}, err
 	}
-	if !versionPattern.MatchString(source.Metadata.Version) || len(source.Metadata.Version) > 128 {
+	if !contracts.ValidVersion(source.Metadata.Version) || len(source.Metadata.Version) > 128 {
 		return PreparedPublication{}, invalid("metadata.version is invalid")
 	}
 	if source.Metadata.Name == BuiltInName && source.Metadata.Version == BuiltInVersion {
@@ -251,7 +246,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	if err := validateID("metadata.name", source.Metadata.Name, 63); err != nil {
 		return Version{}, err
 	}
-	if !versionPattern.MatchString(source.Metadata.Version) || len(source.Metadata.Version) > 128 {
+	if !contracts.ValidVersion(source.Metadata.Version) || len(source.Metadata.Version) > 128 {
 		return Version{}, invalid("stored metadata.version is invalid")
 	}
 	spec, canonicalSpec, operations, err := materializeSource(source.Spec, false, nil)
@@ -340,7 +335,11 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 			path := "spec.worker.llmGateway.gateway"
 			if author {
 				var selector string
-				if err := json.Unmarshal(source.LLMGateway.value.Gateway.value, &selector); err != nil || validateSelector(selector) != nil {
+				err := json.Unmarshal(source.LLMGateway.value.Gateway.value, &selector)
+				if err == nil {
+					_, err = config.ParseSelector(selector)
+				}
+				if err != nil {
 					return WorkerPatch{}, nil, 0, invalid("%s must be an exact selector string", path)
 				}
 				value["gateway"] = selector
@@ -626,26 +625,15 @@ func collectGatewaySelectors(source specSource, result map[string]string) {
 	}
 }
 
-func validateSelector(value string) error {
-	if strings.Count(value, "@") != 1 {
-		return ErrInvalid
-	}
-	id, version, _ := strings.Cut(value, "@")
-	if !idPattern.MatchString(id) || len(id) > 63 || !versionPattern.MatchString(version) || len(version) > 128 {
-		return ErrInvalid
-	}
-	return nil
-}
-
 func validateID(field, value string, maximum int) error {
-	if !idPattern.MatchString(value) || len(value) > maximum {
+	if !contracts.ValidIdentifier(value) || len(value) > maximum {
 		return invalid("%s is invalid", field)
 	}
 	return nil
 }
 
 func validateRef(ref Ref) error {
-	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !versionPattern.MatchString(ref.Version) || len(ref.Version) > 128 || !contentdigest.Valid(ref.Digest) {
+	if err := validateID("RuntimeConfig name", ref.Name, 63); err != nil || !contracts.ValidVersion(ref.Version) || len(ref.Version) > 128 || !contentdigest.Valid(ref.Digest) {
 		return invalid("RuntimeConfig ref is invalid")
 	}
 	return nil

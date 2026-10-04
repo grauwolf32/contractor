@@ -16,7 +16,11 @@ import { BUDGET_DURATION_PATTERN, CONFIGURATION_KINDS } from "./operations";
 import { PROJECT_ID_PATTERN, PROJECT_REVISION_PATTERN } from "./projects";
 import { QUEUE_MEMBERSHIPS, QUEUE_STATES } from "./queue";
 import { RUN_ID_PATTERN, RUN_STATES, TERMINAL_RUN_STATES } from "./runs";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
+import {
+  CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+} from "./workflows";
 
 interface StringSchema {
   pattern?: string;
@@ -115,6 +119,7 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
       "Project.properties.revision",
     ],
     ["CONFIG_ID_PATTERN", CONFIG_ID_PATTERN, "ConfigId"],
+    ["CONFIG_NAME_PATTERN", CONFIG_NAME_PATTERN, "ConfigurationName"],
     ["CONFIG_VERSION_PATTERN", CONFIG_VERSION_PATTERN, "ConfigVersion"],
     [
       "BUDGET_DURATION_PATTERN",

@@ -2500,9 +2500,9 @@ type AgentTemplateBody struct {
 
 // AgentTemplateRef defines model for AgentTemplateRef.
 type AgentTemplateRef struct {
-	Digest     Digest        `json:"digest"`
-	TemplateId ConfigId      `json:"templateId"`
-	Version    ConfigVersion `json:"version"`
+	Digest     Digest            `json:"digest"`
+	TemplateId ConfigurationName `json:"templateId"`
+	Version    ConfigVersion     `json:"version"`
 }
 
 // AgentTemplateWorkflowBinding defines model for AgentTemplateWorkflowBinding.
@@ -3177,9 +3177,9 @@ type AuditProfile struct {
 
 // AuditProfileIdentity defines model for AuditProfileIdentity.
 type AuditProfileIdentity struct {
-	Digest  Digest        `json:"digest"`
-	Name    ConfigId      `json:"name"`
-	Version ConfigVersion `json:"version"`
+	Digest  Digest            `json:"digest"`
+	Name    ConfigurationName `json:"name"`
+	Version ConfigVersion     `json:"version"`
 }
 
 // AuditProfileInput defines model for AuditProfileInput.
@@ -3199,15 +3199,15 @@ type AuditProfilePage struct {
 
 // AuditProfileRef defines model for AuditProfileRef.
 type AuditProfileRef struct {
-	Digest  Digest        `json:"digest"`
-	Name    ConfigId      `json:"name"`
-	Version ConfigVersion `json:"version"`
+	Digest  Digest            `json:"digest"`
+	Name    ConfigurationName `json:"name"`
+	Version ConfigVersion     `json:"version"`
 }
 
 // AuditProfileSelector defines model for AuditProfileSelector.
 type AuditProfileSelector struct {
-	Name    ConfigId      `json:"name"`
-	Version ConfigVersion `json:"version"`
+	Name    ConfigurationName `json:"name"`
+	Version ConfigVersion     `json:"version"`
 }
 
 // AuditProfileUnsupportedDetails defines model for AuditProfileUnsupportedDetails.
@@ -3580,11 +3580,11 @@ type AuditWorkflowParameterMapping struct {
 
 // AuditWorkflowProvenance defines model for AuditWorkflowProvenance.
 type AuditWorkflowProvenance struct {
-	ClosureDigest    Digest        `json:"closureDigest"`
-	ConfigurationRef WorkflowRef   `json:"configurationRef"`
-	Name             ConfigId      `json:"name"`
-	SchemaVersion    string        `json:"schemaVersion"`
-	Version          ConfigVersion `json:"version"`
+	ClosureDigest    Digest            `json:"closureDigest"`
+	ConfigurationRef WorkflowRef       `json:"configurationRef"`
+	Name             ConfigurationName `json:"name"`
+	SchemaVersion    string            `json:"schemaVersion"`
+	Version          ConfigVersion     `json:"version"`
 }
 
 // AuditWorkspace defines model for AuditWorkspace.
@@ -3657,6 +3657,9 @@ type ConfigVersion = string
 // ConfigurationKind Version-indexed configuration kinds. Instruction resources retain normalized path identity and are therefore not exposed as name@version.
 type ConfigurationKind string
 
+// ConfigurationName defines model for ConfigurationName.
+type ConfigurationName = string
+
 // ConfigurationPage defines model for ConfigurationPage.
 type ConfigurationPage struct {
 	Items []ConfigurationResource `json:"items"`
@@ -3669,7 +3672,7 @@ type ConfigurationRef struct {
 
 	// Kind Version-indexed configuration kinds. Instruction resources retain normalized path identity and are therefore not exposed as name@version.
 	Kind    ConfigurationKind `json:"kind"`
-	Name    ConfigId          `json:"name"`
+	Name    ConfigurationName `json:"name"`
 	Version ConfigVersion     `json:"version"`
 }
 
@@ -4940,9 +4943,9 @@ type ExecutionConfigPatch struct {
 
 // ExecutionConfigRef defines model for ExecutionConfigRef.
 type ExecutionConfigRef struct {
-	ConfigId ConfigId      `json:"configId"`
-	Digest   Digest        `json:"digest"`
-	Version  ConfigVersion `json:"version"`
+	ConfigId ConfigurationName `json:"configId"`
+	Digest   Digest            `json:"digest"`
+	Version  ConfigVersion     `json:"version"`
 }
 
 // ExecutionConfigSelection defines model for ExecutionConfigSelection.
@@ -5150,11 +5153,11 @@ type FindingWebLocation struct {
 
 // FindingWorkflowOrigin defines model for FindingWorkflowOrigin.
 type FindingWorkflowOrigin struct {
-	ClosureDigest    Digest        `json:"closureDigest"`
-	ConfigurationRef WorkflowRef   `json:"configurationRef"`
-	Name             ConfigId      `json:"name"`
-	SchemaVersion    string        `json:"schemaVersion"`
-	Version          ConfigVersion `json:"version"`
+	ClosureDigest    Digest            `json:"closureDigest"`
+	ConfigurationRef WorkflowRef       `json:"configurationRef"`
+	Name             ConfigurationName `json:"name"`
+	SchemaVersion    string            `json:"schemaVersion"`
+	Version          ConfigVersion     `json:"version"`
 }
 
 // GatewayFailureSignature One exact provider response that means the model is temporarily unavailable although its HTTP status alone reads as a permanent rejection. Exactly one of messageEquals or litellmWrapped is set.
@@ -5287,9 +5290,9 @@ type LLMGatewayBodyProtocol string
 
 // LLMGatewayConfigRef defines model for LLMGatewayConfigRef.
 type LLMGatewayConfigRef struct {
-	Digest    Digest        `json:"digest"`
-	GatewayId ConfigId      `json:"gatewayId"`
-	Version   ConfigVersion `json:"version"`
+	Digest    Digest            `json:"digest"`
+	GatewayId ConfigurationName `json:"gatewayId"`
+	Version   ConfigVersion     `json:"version"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -5337,9 +5340,9 @@ type ModelPolicyBody struct {
 
 // ModelPolicyRef defines model for ModelPolicyRef.
 type ModelPolicyRef struct {
-	Digest   Digest        `json:"digest"`
-	PolicyId ConfigId      `json:"policyId"`
-	Version  ConfigVersion `json:"version"`
+	Digest   Digest            `json:"digest"`
+	PolicyId ConfigurationName `json:"policyId"`
+	Version  ConfigVersion     `json:"version"`
 }
 
 // NonTerminalWorkflowRunState defines model for NonTerminalWorkflowRunState.
@@ -5821,8 +5824,8 @@ type PlannerPlan struct {
 
 // PlannerRef defines model for PlannerRef.
 type PlannerRef struct {
-	PlannerId ConfigId      `json:"plannerId"`
-	Version   ConfigVersion `json:"version"`
+	PlannerId ConfigurationName `json:"plannerId"`
+	Version   ConfigVersion     `json:"version"`
 }
 
 // PlannerSubtask defines model for PlannerSubtask.
@@ -5881,16 +5884,16 @@ type PublishConfigurationRequest struct {
 
 // PublishConfigurationRequest0 defines model for PublishConfigurationRequest.0.
 type PublishConfigurationRequest0 struct {
-	ModelPolicy ModelPolicyBody `json:"modelPolicy"`
-	Name        ConfigId        `json:"name"`
-	Version     ConfigVersion   `json:"version"`
+	ModelPolicy ModelPolicyBody   `json:"modelPolicy"`
+	Name        ConfigurationName `json:"name"`
+	Version     ConfigVersion     `json:"version"`
 }
 
 // PublishConfigurationRequest1 defines model for PublishConfigurationRequest.1.
 type PublishConfigurationRequest1 struct {
-	LlmGateway LLMGatewayBody `json:"llmGateway"`
-	Name       ConfigId       `json:"name"`
-	Version    ConfigVersion  `json:"version"`
+	LlmGateway LLMGatewayBody    `json:"llmGateway"`
+	Name       ConfigurationName `json:"name"`
+	Version    ConfigVersion     `json:"version"`
 }
 
 // PublishFindingCollectionRequest defines model for PublishFindingCollectionRequest.
@@ -6741,8 +6744,8 @@ type WorkflowPresentation struct {
 
 // WorkflowRef defines model for WorkflowRef.
 type WorkflowRef struct {
-	Name    ConfigId      `json:"name"`
-	Version ConfigVersion `json:"version"`
+	Name    ConfigurationName `json:"name"`
+	Version ConfigVersion     `json:"version"`
 }
 
 // WorkflowResource defines model for WorkflowResource.
@@ -6852,13 +6855,13 @@ type AuditId = ResourceId
 type CSRFToken = string
 
 // CatalogExactName defines model for CatalogExactName.
-type CatalogExactName = ConfigId
+type CatalogExactName = ConfigurationName
 
 // CatalogQuery defines model for CatalogQuery.
 type CatalogQuery = string
 
 // ConfigName defines model for ConfigName.
-type ConfigName = ConfigId
+type ConfigName = ConfigurationName
 
 // ConfigVersionParameter defines model for ConfigVersion.
 type ConfigVersionParameter = ConfigVersion
@@ -7718,7 +7721,7 @@ type ListProjectAuditsParams struct {
 	Limit   *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor  *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
 	State   *AuditState `form:"state,omitempty" json:"state,omitempty"`
-	Profile *string     `form:"profile,omitempty" json:"profile,omitempty"`
+	Profile *Selector   `form:"profile,omitempty" json:"profile,omitempty"`
 }
 
 // CreateAuditParams defines parameters for CreateAudit.

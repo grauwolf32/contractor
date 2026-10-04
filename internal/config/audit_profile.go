@@ -388,10 +388,10 @@ func resolveAuditStandards(source []auditStandardRefSource) ([]AuditStandardRef,
 	result := make([]AuditStandardRef, len(source))
 	seen := make(map[string]struct{}, len(source))
 	for index, candidate := range source {
-		if !idPattern.MatchString(candidate.Scheme) {
+		if !contracts.ValidIdentifier(candidate.Scheme) {
 			return nil, fmt.Errorf("spec.standards[%d].scheme is invalid", index)
 		}
-		if !versionPattern.MatchString(candidate.Version) {
+		if !contracts.ValidConfigVersion(candidate.Version) {
 			return nil, fmt.Errorf("spec.standards[%d].version is invalid", index)
 		}
 		key := candidate.Scheme + "\x00" + candidate.Version

@@ -1,7 +1,11 @@
 import type { PublicAPI } from "./client";
 import { requireData } from "./error";
 import type { components } from "./generated/public";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
+import {
+  CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+} from "./workflows";
 
 export type AgentInstructions = components["schemas"]["AgentInstructions"];
 export type AgentTemplateWorkflowBindingPage =
@@ -22,7 +26,10 @@ export async function getAgentInstructions(
   version: string,
   signal?: AbortSignal,
 ): Promise<AgentInstructions> {
-  if (!CONFIG_ID_PATTERN.test(name) || !CONFIG_VERSION_PATTERN.test(version)) {
+  if (
+    !CONFIG_NAME_PATTERN.test(name) ||
+    !CONFIG_VERSION_PATTERN.test(version)
+  ) {
     throw new TypeError("Agent version is invalid");
   }
   const result = await api.request((client) =>
@@ -55,7 +62,10 @@ export async function listAgentTemplateWorkflowBindings(
   version: string,
   request: AgentUsagePageRequest = {},
 ): Promise<AgentTemplateWorkflowBindingPage> {
-  if (!CONFIG_ID_PATTERN.test(name) || !CONFIG_VERSION_PATTERN.test(version)) {
+  if (
+    !CONFIG_NAME_PATTERN.test(name) ||
+    !CONFIG_VERSION_PATTERN.test(version)
+  ) {
     throw new TypeError("Agent version is invalid");
   }
   const result = await api.request((client) =>
@@ -82,7 +92,7 @@ export async function listAgentTemplateWorkflowBindings(
         value.page.nextCursor.length === 0)) ||
     value.items.some(
       (item) =>
-        !CONFIG_ID_PATTERN.test(item.workflow?.name ?? "") ||
+        !CONFIG_NAME_PATTERN.test(item.workflow?.name ?? "") ||
         !CONFIG_VERSION_PATTERN.test(item.workflow?.version ?? "") ||
         !CONFIG_ID_PATTERN.test(item.stage ?? "") ||
         !CONFIG_ID_PATTERN.test(item.logicalWorker ?? ""),

@@ -13,7 +13,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
+// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID: the
+// lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
 var runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// ValidRuntimeAgentID reports whether value is a Runtime Agent ID.
+func ValidRuntimeAgentID(value string) bool { return runtimeAgentIDPattern.MatchString(value) }
 
 type AgentRegistration struct {
 	Capabilities *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
@@ -98,7 +103,7 @@ func (r AgentRegistrationResponse) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if !runtimeAgentIDPattern.MatchString(r.RuntimeAgentID) {
+	if !ValidRuntimeAgentID(r.RuntimeAgentID) {
 		return invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
 	}
 	if err := validateSortedLabels("labels", r.Labels, 32, false); err != nil {

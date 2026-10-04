@@ -6,6 +6,18 @@ priority: P1
 status: in_progress
 depends_on: []
 languages: [go, python, typescript]
+decision: >-
+  Keep + in the version grammar: id [a-z][a-z0-9_-]* (at most 128 characters)
+  and version [A-Za-z0-9][A-Za-z0-9._+-]* (at most 64). No shipped
+  configuration uses +, but docs/spec/00-workflow-and-planner.md defines the
+  selector version grammar with it, Audit standard versions allow it
+  (auditstandards, the public AuditStandardRef and audit-standard routes) and
+  AuditProfiles reference them through the configuration version grammar, and
+  RuntimeConfig versions, Runtime Agent software versions, capability refs, the
+  private schemas and the Runtime already accept it. Only the public
+  ConfigVersion and Selector schemas and the UI rejected it, so they align to
+  the spec. Configuration names get their own public ConfigurationName schema;
+  ConfigId stays the looser identifier used by user IDs, codes and Stage names.
 goal: Accept and reject the same configuration IDs and versions in Go, Python, schemas, OpenAPI and the UI.
 context:
   review: docs/research/2026-10-04-code-review.md

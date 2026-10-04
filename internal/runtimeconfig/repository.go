@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -52,7 +53,7 @@ ON CONFLICT DO NOTHING`,
 }
 
 func (r *Repository) GetVersion(ctx context.Context, name, version string) (Version, error) {
-	if err := validateID("RuntimeConfig name", name, 63); err != nil || !versionPattern.MatchString(version) || len(version) > 128 {
+	if err := validateID("RuntimeConfig name", name, 63); err != nil || !contracts.ValidVersion(version) || len(version) > 128 {
 		return Version{}, invalid("RuntimeConfig identity is invalid")
 	}
 	return scanVersion(r.db.QueryRow(ctx, `
@@ -124,7 +125,7 @@ func (r *Repository) ListVersions(ctx context.Context, afterName, afterVersion s
 		return nil, invalid("RuntimeConfig page cursor or limit is invalid")
 	}
 	if afterName != "" {
-		if err := validateID("RuntimeConfig cursor name", afterName, 63); err != nil || !versionPattern.MatchString(afterVersion) || len(afterVersion) > 128 {
+		if err := validateID("RuntimeConfig cursor name", afterName, 63); err != nil || !contracts.ValidVersion(afterVersion) || len(afterVersion) > 128 {
 			return nil, invalid("RuntimeConfig page cursor is invalid")
 		}
 	}

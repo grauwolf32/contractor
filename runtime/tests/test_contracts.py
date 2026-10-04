@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import ssl
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,8 @@ from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import (
+    ID_PATTERN,
+    VERSION_PATTERN,
     AbortAllocationRequest,
     AgentHeartbeat,
     AgentRegistration,
@@ -27,6 +30,7 @@ from contractor_runtime.contracts import (
     GatewayFailureSignature,
     GatewayFailureSignatures,
     HeartbeatResponse,
+    ModelPolicyRef,
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
     ResolvedAgentTemplate,
@@ -681,6 +685,92 @@ def test_shared_worker_session_mode_cases_match_model_and_schema() -> None:
         with pytest.raises(ValidationError):
             AllocationSpec.model_validate_json(json.dumps(candidate))
         assert list(validator.iter_errors(candidate)), case["name"]
+
+
+WIRE_REF_ID_FIELDS = (
+    ("agentTemplateRef", "templateId"),
+    ("workerRuntimeRef", "runtimeId"),
+    ("modelPolicyRef", "policyId"),
+    ("toolsetRef", "toolsetId"),
+    ("sandboxProfileRef", "sandboxProfileId"),
+)
+
+
+def _schema_pattern_accepts(schema: dict[str, Any], value: str) -> bool:
+    # JSON Schema patterns use ECMA-262 semantics, where an anchored "$" never
+    # matches before a trailing newline; jsonschema's re.search would accept one.
+    return (
+        len(value) <= schema.get("maxLength", len(value))
+        and re.fullmatch(schema["pattern"], value) is not None
+    )
+
+
+def test_shared_config_identity_cases_match_runtime_and_schemas() -> None:
+    cases = json.loads((FIXTURES / "config-identity-cases.json").read_text(encoding="utf-8"))
+    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_text(encoding="utf-8"))
+        for path in schema_root.glob("*.schema.json")
+    }
+    common = schemas["common.schema.json"]["$defs"]
+    gateway_ref = schemas["llm-gateway-config.schema.json"]["$defs"]["ref"]["properties"]
+    wire_ids = [common[name]["properties"][field] for name, field in WIRE_REF_ID_FIELDS]
+    wire_ids.append(gateway_ref["gatewayId"])
+    wire_versions = [common[name]["properties"]["version"] for name, _ in WIRE_REF_ID_FIELDS]
+    wire_versions.append(gateway_ref["version"])
+    manifests = [
+        schemas[name]["properties"]["metadata"]["properties"]
+        for name in (
+            "execution-config-manifest.schema.json",
+            "llm-gateway-config-manifest.schema.json",
+        )
+    ]
+
+    def wire_accepts(identifier: str, version: str) -> bool:
+        # Wire refs carry the grammar; every Runtime and schema layer must agree.
+        try:
+            ModelPolicyRef.model_validate(
+                {"policyId": identifier, "version": version, "digest": "sha256:" + "0" * 64}
+            )
+            model = True
+        except ValidationError:
+            model = False
+        results = {
+            ID_PATTERN.fullmatch(identifier) is not None
+            and VERSION_PATTERN.fullmatch(version) is not None,
+            _schema_pattern_accepts(common["selector"], f"{identifier}@{version}"),
+            all(_schema_pattern_accepts(item, identifier) for item in wire_ids)
+            and all(_schema_pattern_accepts(item, version) for item in wire_versions),
+            model,
+        }
+        assert len(results) == 1, (identifier, version)
+        return results.pop()
+
+    def manifest_accepts(identifier: str, version: str) -> bool:
+        # Configuration documents also carry the configuration bounds.
+        results = {
+            _schema_pattern_accepts(metadata["name"], identifier)
+            and _schema_pattern_accepts(metadata["version"], version)
+            for metadata in manifests
+        }
+        assert len(results) == 1, (identifier, version)
+        return results.pop()
+
+    for kind, valid in (("valid", True), ("invalid", False)):
+        for value in cases["id"][kind]:
+            assert wire_accepts(value, "1") is valid, value
+            assert manifest_accepts(value, "1") is valid, value
+        for value in cases["version"][kind]:
+            assert wire_accepts("a", value) is valid, value
+            assert manifest_accepts("a", value) is valid, value
+    longest_id = "a" * cases["id"]["maxLength"]
+    longest_version = "1" * cases["version"]["maxLength"]
+    assert wire_accepts(longest_id, "1") and manifest_accepts(longest_id, "1")
+    assert wire_accepts("a", longest_version) and manifest_accepts("a", longest_version)
+    # The Server bounds configuration identities before it resolves wire refs.
+    assert wire_accepts(longest_id + "a", "1") and not manifest_accepts(longest_id + "a", "1")
+    assert wire_accepts("a", longest_version + "1")
+    assert not manifest_accepts("a", longest_version + "1")
 
 
 def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:

@@ -413,7 +413,7 @@ func verifyCurrent(current artifacts.ReadResult, expected Reference, expectedDig
 }
 
 func validateReference(ref Reference) error {
-	if !schemePattern.MatchString(ref.Scheme) || !versionPattern.MatchString(ref.Version) {
+	if !schemePattern.MatchString(ref.Scheme) || !validVersion(ref.Version) {
 		return validationError(CodeIdentityMismatch, ManifestPath)
 	}
 	return nil

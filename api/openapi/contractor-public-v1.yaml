@@ -3856,7 +3856,7 @@ paths:
         - name: profile
           in: query
           required: false
-          schema: {type: string, minLength: 3, maxLength: 257, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+          schema: {$ref: '#/components/schemas/Selector'}
       responses:
         '200':
           description: Stable newest-first Audit page
@@ -6156,7 +6156,7 @@ components:
       name: name
       in: path
       required: true
-      schema: {$ref: '#/components/schemas/ConfigId'}
+      schema: {$ref: '#/components/schemas/ConfigurationName'}
     ConfigVersion:
       name: version
       in: path
@@ -6299,7 +6299,7 @@ components:
       in: query
       required: false
       description: Exact configuration name filter for enumerating opaque versions.
-      schema: {$ref: '#/components/schemas/ConfigId'}
+      schema: {$ref: '#/components/schemas/ConfigurationName'}
 
   headers:
     ContractorAPIVersion:
@@ -10861,7 +10861,7 @@ components:
       additionalProperties: false
       required: [name, version, digest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     AuditProfileSelector:
@@ -10869,7 +10869,7 @@ components:
       additionalProperties: false
       required: [name, version]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     AuditProfileMode:
       enum: [risk-assessment, requirements-verification, custom-checklist, operation-tracing, finding-verification]
@@ -11259,7 +11259,7 @@ components:
       additionalProperties: false
       required: [name, version, digest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     AuditPinnedRuntimeLabel:
@@ -11488,7 +11488,7 @@ components:
       additionalProperties: false
       required: [name, version, schemaVersion, configurationRef, closureDigest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         schemaVersion: {type: string, minLength: 1, maxLength: 128}
         configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
@@ -11910,7 +11910,7 @@ components:
       additionalProperties: false
       required: [name, version, schemaVersion, configurationRef, closureDigest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         schemaVersion: {type: string, minLength: 1, maxLength: 128}
         configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
@@ -12204,16 +12204,21 @@ components:
       minLength: 1
       maxLength: 128
       pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
+    ConfigurationName:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[a-z][a-z0-9_-]*$'
     ConfigVersion:
       type: string
       minLength: 1
       maxLength: 64
-      pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
     Selector:
       type: string
       minLength: 3
       maxLength: 193
-      pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'
+      pattern: '^[a-z][a-z0-9_-]{0,127}@[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'
     RuntimeCapabilityRef:
       type: string
       minLength: 3
@@ -12566,7 +12571,7 @@ components:
       additionalProperties: false
       required: [policyId, version, digest]
       properties:
-        policyId: {$ref: '#/components/schemas/ConfigId'}
+        policyId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     LLMGatewayConfigRef:
@@ -12574,7 +12579,7 @@ components:
       additionalProperties: false
       required: [gatewayId, version, digest]
       properties:
-        gatewayId: {$ref: '#/components/schemas/ConfigId'}
+        gatewayId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     RuntimeConfigRef:
@@ -12976,7 +12981,7 @@ components:
       additionalProperties: false
       required: [templateId, version, digest]
       properties:
-        templateId: {$ref: '#/components/schemas/ConfigId'}
+        templateId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     CredentialRef:
@@ -12990,7 +12995,7 @@ components:
       additionalProperties: false
       required: [configId, version, digest]
       properties:
-        configId: {$ref: '#/components/schemas/ConfigId'}
+        configId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     ConsumerExecutionConfig:
@@ -13414,7 +13419,7 @@ components:
       additionalProperties: false
       required: [name, version]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     WorkflowPresentation:
       type: object
@@ -13460,7 +13465,7 @@ components:
       additionalProperties: false
       required: [plannerId, version]
       properties:
-        plannerId: {$ref: '#/components/schemas/ConfigId'}
+        plannerId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     WorkflowContextArtifact:
       type: object
@@ -13649,7 +13654,7 @@ components:
       required: [kind, name, version, digest]
       properties:
         kind: {$ref: '#/components/schemas/ConfigurationKind'}
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     ModelPolicyBody:
@@ -13853,14 +13858,14 @@ components:
           additionalProperties: false
           required: [name, version, modelPolicy]
           properties:
-            name: {$ref: '#/components/schemas/ConfigId'}
+            name: {$ref: '#/components/schemas/ConfigurationName'}
             version: {$ref: '#/components/schemas/ConfigVersion'}
             modelPolicy: {$ref: '#/components/schemas/ModelPolicyBody'}
         - type: object
           additionalProperties: false
           required: [name, version, llmGateway]
           properties:
-            name: {$ref: '#/components/schemas/ConfigId'}
+            name: {$ref: '#/components/schemas/ConfigurationName'}
             version: {$ref: '#/components/schemas/ConfigVersion'}
             llmGateway: {$ref: '#/components/schemas/LLMGatewayBody'}
 

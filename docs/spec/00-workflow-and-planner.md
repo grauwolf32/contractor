@@ -388,7 +388,12 @@ version = [A-Za-z0-9][A-Za-z0-9._+-]*
 ```
 
 A selector contains exactly one `@`. Both parts are non-empty; whitespace and
-`/` are consequently invalid. Version comparison is opaque, case-sensitive
+`/` are consequently invalid. A configuration id has at most 128 characters and
+a version at most 64, as in the public `ConfigurationName`, `ConfigVersion` and
+`Selector` schemas; the Server, schemas, Runtime and UI share
+[these cases](../../api/testdata/v1alpha1/config-identity-cases.json). The
+version grammar keeps `+` because Audit standard versions, which AuditProfiles
+reference through it, allow it. Version comparison is opaque, case-sensitive
 exact equality: Contractor does not interpret semantic-version ordering.
 `latest`, version ranges and an omitted version are invalid. This selector is
 an authoring/API lookup value only, never the complete durable execution
