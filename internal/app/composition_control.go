@@ -64,7 +64,7 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure private mTLS server: %w", err)
 	}
-	if err := logControlPlaneCertificateExpiry(logger, cfg.CertificateFile,
+	if err := logControlPlaneCertificateExpiry(logger, cfg.CertificateFile, cfg.CAFile,
 		cfg.CertificateExpiryWarningWindow, time.Now); err != nil {
 		return controlServices{}, err
 	}

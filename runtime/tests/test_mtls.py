@@ -30,6 +30,7 @@ def test_runtime_certificate_expiry_logs_and_warns_with_injected_clock(
     with caplog.at_level(logging.INFO, logger="contractor_runtime.mtls"):
         logged = log_runtime_certificate_expiry(
             deployment_pki.agent_certificate,
+            ca_file=deployment_pki.ca,
             warning_days=30,
             now=expires - timedelta(days=31),
         )
@@ -43,10 +44,33 @@ def test_runtime_certificate_expiry_logs_and_warns_with_injected_clock(
     with caplog.at_level(logging.INFO, logger="contractor_runtime.mtls"):
         log_runtime_certificate_expiry(
             deployment_pki.agent_certificate,
+            ca_file=deployment_pki.ca,
             warning_days=30,
             now=expires - timedelta(days=29),
         )
     assert any(record.levelno == logging.WARNING for record in caplog.records)
+
+
+def test_runtime_certificate_expiry_warns_on_approaching_ca_expiry(
+    deployment_pki: PKI, caplog: pytest.LogCaptureFixture
+) -> None:
+    ca = x509.load_pem_x509_certificate(deployment_pki.ca.read_bytes())
+    ca_expires = ca.not_valid_after_utc
+    with caplog.at_level(logging.INFO, logger="contractor_runtime.mtls"):
+        log_runtime_certificate_expiry(
+            deployment_pki.agent_certificate,
+            ca_file=deployment_pki.ca,
+            warning_days=30,
+            now=ca_expires - timedelta(days=29),
+        )
+    assert any(
+        record.levelno == logging.WARNING and "deployment CA certificate" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        record.levelno == logging.INFO and "deployment CA certificate expires at" in record.message
+        for record in caplog.records
+    )
 
 
 @dataclass(frozen=True)

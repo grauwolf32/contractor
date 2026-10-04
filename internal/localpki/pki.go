@@ -197,6 +197,9 @@ func (g Generator) renewLeaf(root string, paths Paths, controlPlane bool) (Paths
 	if !notAfter.After(certificate.NotAfter) {
 		notAfter = certificate.NotAfter.Add(time.Second)
 	}
+	// A renewed leaf must never outlive the CA, even when extending the prior
+	// leaf would otherwise push it past the CA's own expiry.
+	notAfter = clampLeafExpiry(notAfter, caCertificate)
 	template := &x509.Certificate{
 		SerialNumber:       serial,
 		Subject:            certificate.Subject,
@@ -313,7 +316,7 @@ func (g Generator) issueLeaf(
 		SerialNumber: serial,
 		Subject:      pkix.Name{Organization: []string{"Contractor Local"}, CommonName: commonName},
 		NotBefore:    now.Add(-5 * time.Minute),
-		NotAfter:     now.Add(365 * 24 * time.Hour),
+		NotAfter:     clampLeafExpiry(now.Add(365*24*time.Hour), caCertificate),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		DNSNames:     append([]string(nil), options.DNSNames...),
@@ -330,6 +333,16 @@ func (g Generator) issueLeaf(
 		return Paths{}, err
 	}
 	return paths, nil
+}
+
+// clampLeafExpiry bounds a leaf's NotAfter by the issuing CA's NotAfter. A
+// leaf that outlived its CA would break every private mTLS link the moment the
+// CA expired, with the leaf still reporting itself valid.
+func clampLeafExpiry(notAfter time.Time, ca *x509.Certificate) time.Time {
+	if notAfter.After(ca.NotAfter) {
+		return ca.NotAfter
+	}
+	return notAfter
 }
 
 func (g Generator) now() time.Time {

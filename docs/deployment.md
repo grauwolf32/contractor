@@ -74,12 +74,16 @@ The PKI files live under `.local/pki`; keep the CA private key and leaf keys
 protected. Password hashing reads the password from the terminal and stores
 only its hash. Perform this bootstrap once for a fresh installation.
 
-The Control Plane and Runtime Agent leaf certificates are valid for 365 days.
-Both processes log their certificate expiry at startup and warn during the last
-30 days. Set the Server's `--cert-expiry-warning-window` (or
-`CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for example `720h`) and the Runtime's
-`--cert-expiry-warning-days` (or `CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change
-that lead time. Before expiry, stop the affected processes, renew their leaves,
+The Control Plane and Runtime Agent leaf certificates are valid for 365 days,
+but never past the deployment CA's own expiry: a leaf issued or renewed within
+a year of the CA expiring is clamped to the CA's `NotAfter`. Both processes log
+their leaf and the deployment CA expiry at startup and warn during the last
+30 days of each. Because a leaf never outlives the CA, an approaching CA expiry
+breaks every private mTLS link and cannot be fixed by leaf renewal alone; the
+CA warning advises rotating the CA and reissuing leaves. Set the Server's
+`--cert-expiry-warning-window` (or `CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for
+example `720h`) and the Runtime's `--cert-expiry-warning-days` (or
+`CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change that lead time. Before expiry, stop the affected processes, renew their leaves,
 then restart them so their in-memory TLS contexts load the new certificates:
 
 ```shell

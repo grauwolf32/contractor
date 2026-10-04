@@ -94,6 +94,7 @@ async def _serve(
     )
     log_runtime_certificate_expiry(
         settings.certificate_file,
+        ca_file=settings.ca_file,
         warning_days=settings.certificate_expiry_warning_days,
     )
     outgoing_tls = runtime_agent_client_context(
