@@ -182,18 +182,7 @@ WHERE e.owner_id = $1
 
 func (s *Store) LatestNativeRecord(ctx context.Context, owner, id, member, kind string) (*Record, error) {
 	var digest string
-	err := s.db.QueryRow(ctx, `
-SELECT r.record_sha256
-FROM eval_records r
-JOIN eval_experiments e USING(experiment_id)
-WHERE e.owner_id = $1
-    AND e.experiment_id = $2
-    AND r.member_id = $3
-    AND r.kind = $4
-    AND r.actor_id = 'system:eval-collector'
-ORDER BY r.created_at DESC,r.record_sha256 DESC
-LIMIT 1
-`, owner, id, member, kind).Scan(&digest)
+	err := s.db.QueryRow(ctx, latestNativeRecordSQL, owner, id, member, kind).Scan(&digest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

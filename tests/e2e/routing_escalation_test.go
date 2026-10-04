@@ -537,7 +537,7 @@ func assertWorkerObservationPlannerRetention(
 	t.Helper()
 	for _, runID := range runIDs {
 		queries := []string{
-			`SELECT COALESCE(string_agg(event::text, E'\n'), '') FROM planner_events WHERE run_id = $1`,
+			`SELECT COALESCE(string_agg(data::text, E'\n'), '') FROM workflow_run_events WHERE run_id = $1`,
 			`SELECT COALESCE(string_agg(report.report::text, E'\n'), '')
 FROM planner_execution_reports AS report JOIN stage_executions AS execution
 ON execution.stage_execution_id = report.stage_execution_id WHERE execution.run_id = $1`,
@@ -702,27 +702,21 @@ func assertModeledPlanEvents(
 	if execution.PlannerSessionID == nil {
 		t.Fatal("modeled Planner has no durable session")
 	}
-	plannerEvents, err := store.ListPlannerEvents(ctx, *execution.PlannerSessionID, 0)
-	if err != nil || len(plannerEvents) < 8 {
-		t.Fatalf("Planner events = (%d, %v), want a complete modeled trace", len(plannerEvents), err)
-	}
 	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
 	if err != nil {
 		t.Fatalf("list Run events: %v", err)
 	}
-	runEventsBySequence := make(map[int64]runstore.WorkflowRunEvent, len(runEvents))
+	var plannerEvents []runstore.WorkflowRunEvent
 	for _, event := range runEvents {
-		runEventsBySequence[event.SequenceNumber] = event
+		if strings.HasPrefix(string(event.Kind), "planner.") {
+			plannerEvents = append(plannerEvents, event)
+		}
+	}
+	if len(plannerEvents) < 8 {
+		t.Fatalf("Planner Run events = %d, want a complete modeled trace", len(plannerEvents))
 	}
 	selected := 0
-	for index, plannerEvent := range plannerEvents {
-		if plannerEvent.RunEventSequence == nil {
-			t.Fatalf("Planner/Run event %d is not atomically linked", index)
-		}
-		event, ok := runEventsBySequence[*plannerEvent.RunEventSequence]
-		if !ok || event.EventID != plannerEvent.EventID {
-			t.Fatalf("Planner/Run event %d points at a different journal record", index)
-		}
+	for _, event := range plannerEvents {
 		payload := string(event.Data)
 		for _, allocation := range allocations {
 			if strings.Contains(payload, allocation.AllocationID) ||

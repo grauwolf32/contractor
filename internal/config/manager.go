@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"go.yaml.in/yaml/v4"
@@ -78,28 +77,10 @@ type PublicationResult struct {
 	Replayed bool
 }
 
-// PublicationAudit contains only safe metadata. In particular, it never
-// contains a Gateway credential, instruction text, or a raw idempotency key.
-type PublicationAudit struct {
-	Kind                 ConfigurationKind
-	Name                 string
-	Version              string
-	Digest               string
-	RequestDigest        string
-	IdempotencyKeyDigest string
-	ActorID              string
-	PublishedAt          time.Time
-}
-
-type PublicationAuditRecorder interface {
-	RecordConfigurationPublication(context.Context, PublicationAudit) error
-}
-
 type ManagerOptions struct {
 	OperatorRoot string
 	ManagedRoot  string
 	Descriptors  Descriptors
-	Audit        PublicationAuditRecorder
 	Logger       *slog.Logger
 	Now          func() time.Time
 
@@ -122,7 +103,6 @@ type Manager struct {
 	operatorRoot string
 	managedRoot  string
 	descriptors  Descriptors
-	audit        PublicationAuditRecorder
 	logger       *slog.Logger
 	now          func() time.Time
 	afterPublish func(ConfigurationResource) error
@@ -163,7 +143,6 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 		operatorRoot: operatorRoot,
 		managedRoot:  managedRoot,
 		descriptors:  options.Descriptors,
-		audit:        options.Audit,
 		logger:       logger,
 		now:          now,
 		afterPublish: options.AfterDurablePublish,
@@ -346,7 +325,6 @@ func (m *Manager) Publish(
 		// the previous process could swap its in-memory snapshot.
 		m.current.Store(loaded)
 		m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
-		m.recordAudit(ctx, request, candidate)
 		return PublicationResult{Resource: existing, Replayed: true}, nil
 	}
 	if !errors.Is(existingErr, ErrConfigurationNotFound) {
@@ -367,7 +345,6 @@ func (m *Manager) Publish(
 	}
 	m.current.Store(next)
 	m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
-	m.recordAudit(ctx, request, candidate)
 	return PublicationResult{Resource: candidate.resource}, nil
 }
 
@@ -606,23 +583,6 @@ func (m *Manager) writeDurableManifest(candidate publicationCandidate) error {
 
 func (m *Manager) rememberPublication(key, requestDigest string) {
 	m.idempotency[key] = idempotentPublication{requestDigest: requestDigest}
-}
-
-func (m *Manager) recordAudit(
-	ctx context.Context, request PublicationRequest, candidate publicationCandidate,
-) {
-	if m.audit == nil {
-		return
-	}
-	keyDigest := contentdigest.Bytes([]byte(request.IdempotencyKey))
-	err := m.audit.RecordConfigurationPublication(ctx, PublicationAudit{
-		Kind: request.Kind, Name: candidate.selector.ID, Version: candidate.selector.Version,
-		Digest: candidate.resource.Ref.Digest, RequestDigest: candidate.requestDigest,
-		IdempotencyKeyDigest: keyDigest, ActorID: request.ActorID, PublishedAt: m.now().UTC(),
-	})
-	if err != nil {
-		m.logger.Error("record non-authoritative configuration publication audit", "error", err)
-	}
 }
 
 func requireStrictRoot(path string, create bool) (string, error) {

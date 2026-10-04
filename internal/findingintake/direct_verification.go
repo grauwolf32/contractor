@@ -395,17 +395,7 @@ INSERT INTO audit_artifact_links (
 		return err
 	}
 	var findingID string
-	err := tx.QueryRow(ctx, `
-INSERT INTO audit_finding_assessments (
-    assessment_id, finding_id, audit_id, receipt_id,
-    semantic_assessment, result_ref, result_digest,
-    direct_verification, contract_ref, contract_digest
-)
-SELECT $1, contribution.finding_id, contribution.audit_id, contribution.receipt_id,
-       $2, $3::jsonb, $4, true, $5::jsonb, $6
-  FROM audit_finding_contributions AS contribution
- WHERE contribution.audit_id = $7 AND contribution.receipt_id = $8
-RETURNING finding_id`,
+	err := tx.QueryRow(ctx, commitDirectVerificationSQL,
 		assessmentID, verification.Assessment, resultRef, result.Digest,
 		contractRef, contract.Digest, input.AuditID, input.ReceiptID,
 	).Scan(&findingID)

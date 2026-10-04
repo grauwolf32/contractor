@@ -56,15 +56,8 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		sorted := append([]ContextPin(nil), pins...)
 		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 		for _, pin := range sorted {
-			if err := artifactService.PinExact(
-				ctx,
-				params.RunID,
-				scope,
-				pin.Ref,
-				artifacts.PinStageContext,
-				params.StageExecutionID+":"+pin.Name,
-			); err != nil {
-				return fmt.Errorf("pin StageContext artifact %q: %w", pin.Name, err)
+			if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+				return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
 			}
 		}
 		return nil
@@ -97,15 +90,8 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		}
 		names := sortedArtifactNames(params.Candidate.Artifacts)
 		for _, name := range names {
-			if err := artifactService.PinExact(
-				ctx,
-				execution.RunID,
-				scope,
-				params.Candidate.Artifacts[name],
-				artifacts.PinStageResult,
-				params.StageExecutionID+":"+name,
-			); err != nil {
-				return fmt.Errorf("pin StageResult artifact %q: %w", name, err)
+			if err := artifactService.RequireExact(ctx, scope, params.Candidate.Artifacts[name]); err != nil {
+				return fmt.Errorf("require StageResult artifact %q: %w", name, err)
 			}
 		}
 		return store.EnterFinalizing(ctx, params)
@@ -377,18 +363,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 		if err := lockRunState(ctx, tx, runID, expectedRunState); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `
-UPDATE stage_executions
-SET state = $2::jsonb->>'outcome',
-    state_reason_code = 'termination_committed',
-    state_reason_message = '',
-    termination_schema_version = $3,
-    stage_termination = jsonb_set($2::jsonb, '{phase}', to_jsonb(state)),
-    abort_id = $4,
-    abort_deadline = clock_timestamp(),
-    terminal_at = clock_timestamp(),
-    updated_at = clock_timestamp()
-WHERE run_id = $1 AND state IN ('preparing', 'running')`,
+		if _, err := tx.Exec(ctx, failRunWithActiveStagesSQL,
 			runID, encoded, contracts.APIVersion, abortID,
 		); err != nil {
 			return fmt.Errorf("terminate active StageExecutions: %w", err)
@@ -599,15 +574,8 @@ func commitNextStage(
 	pins := append([]ContextPin(nil), progression.NextStage.ContextPins...)
 	sort.Slice(pins, func(i, j int) bool { return pins[i].Name < pins[j].Name })
 	for _, pin := range pins {
-		if err := artifactService.PinExact(
-			ctx,
-			progression.NextStage.Params.RunID,
-			scope,
-			pin.Ref,
-			artifacts.PinStageContext,
-			progression.NextStage.Params.StageExecutionID+":"+pin.Name,
-		); err != nil {
-			return fmt.Errorf("pin StageContext artifact %q: %w", pin.Name, err)
+		if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+			return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
 		}
 	}
 	return nil
@@ -784,18 +752,7 @@ func verifyRequiredWorkflowOutputs(
 	for _, name := range names {
 		slot := contractsByName[name]
 		var mediaType string
-		err := tx.QueryRow(ctx, `
-SELECT version.media_type
-FROM artifact_bindings AS binding
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
- AND revision.revision = binding.current_revision
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-WHERE binding.scope_kind = 'run' AND binding.scope_id = $1
-  AND binding.namespace = 'outputs' AND binding.name = $2`, runID, name).Scan(&mediaType)
+		err := tx.QueryRow(ctx, verifyRequiredWorkflowOutputsSQL, runID, name).Scan(&mediaType)
 		if errors.Is(err, pgx.ErrNoRows) && !slot.Required {
 			continue
 		}

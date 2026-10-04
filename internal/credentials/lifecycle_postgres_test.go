@@ -260,8 +260,11 @@ func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
 	if _, err := fixture.service.GetCredential(ctx, create.CredentialID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted credential remains active: %v", err)
 	}
-	if _, err := NewRepository(pool).GetTombstone(ctx, create.CredentialID); err != nil {
-		t.Fatalf("delete tombstone: %v", err)
+	var tombstones int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM credential_operations
+WHERE credential_id = $1 AND operation_kind = 'delete' AND phase = 'completed'`, create.CredentialID).Scan(&tombstones); err != nil || tombstones != 1 {
+		t.Fatalf("delete tombstones = (%d, %v)", tombstones, err)
 	}
 	replayed, err := fixture.service.Delete(ctx, deletion)
 	if err != nil || !replayed.Replayed || manager.deleteCalls() != 1 {
@@ -530,13 +533,6 @@ func TestCredentialManagerValidationRunsBeforeDurableIntent(t *testing.T) {
 		countOperations(t, ctx, pool, OperationCreate) != 0 {
 		t.Fatalf("invalid request side effects: validations=%d creates=%d operations=%d",
 			manager.validationCalls(), manager.createCalls(), countOperations(t, ctx, pool, OperationCreate))
-	}
-	var identities int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM llm_credential_identities`).Scan(&identities); err != nil {
-		t.Fatal(err)
-	}
-	if identities != 0 {
-		t.Fatalf("invalid request reserved %d credential identities", identities)
 	}
 }
 

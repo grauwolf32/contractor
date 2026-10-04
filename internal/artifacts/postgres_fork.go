@@ -2,9 +2,11 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 func (r *PostgresRepository) ForkInput(
@@ -125,45 +127,24 @@ func (r *PostgresRepository) BindOutputExact(
 	}, nil
 }
 
-func (r *PostgresRepository) PinExact(
-	ctx context.Context,
-	runID string,
-	scope Scope,
-	ref ArtifactRef,
-	kind PinKind,
-	pinID string,
-) error {
-	if _, err := RunScope(runID); err != nil {
-		return err
-	}
+func (r *PostgresRepository) RequireExact(ctx context.Context, scope Scope, ref ArtifactRef) error {
 	if err := validateScope(scope); err != nil {
 		return err
 	}
-	if _, err := exactRevision(ref); err != nil {
+	revision, err := exactRevision(ref)
+	if err != nil {
 		return err
 	}
-	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult &&
-		kind != PinRunOutput && kind != PinFindingProposal && kind != PinFindingEvidence {
-		return ErrInvalidName
-	}
-	if err := validatePinID(pinID); err != nil {
-		return ErrInvalidName
-	}
-	var sourceExists, runExists, matched bool
-	err := r.db.QueryRow(ctx, pinExactSQL,
-		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision, kind, pinID, runID,
-	).Scan(&sourceExists, &runExists, &matched)
-	if err != nil {
-		return fmt.Errorf("pin exact artifact: %w", err)
-	}
-	if !sourceExists {
+	var exists bool
+	err = r.db.QueryRow(ctx, `
+SELECT true FROM artifact_binding_revisions
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4 AND revision = $5
+FOR KEY SHARE`, scope.kind, scope.id, ref.Namespace, ref.Name, revision).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrArtifactNotFound
 	}
-	if !runExists {
-		return ErrInvalidScope
-	}
-	if !matched {
-		return ErrArtifactIntegrity
+	if err != nil {
+		return fmt.Errorf("require exact artifact: %w", err)
 	}
 	return nil
 }

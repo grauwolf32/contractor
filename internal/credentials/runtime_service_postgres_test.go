@@ -147,10 +147,9 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	} {
 		var ciphertext, requestMAC []byte
 		if err := pool.QueryRow(ctx, `
-SELECT c.ciphertext, p.request_mac
-FROM runtime_credentials c
-JOIN runtime_credential_creations p ON p.credential_id = c.credential_id
-WHERE c.credential_id = $1`, secret.credentialID).Scan(&ciphertext, &requestMAC); err != nil {
+SELECT ciphertext, request_mac
+FROM runtime_credentials
+WHERE credential_id = $1`, secret.credentialID).Scan(&ciphertext, &requestMAC); err != nil {
 			t.Fatal(err)
 		}
 		if bytes.Contains(ciphertext, []byte(secret.value)) || bytes.Contains(requestMAC, []byte(secret.value)) {
@@ -159,7 +158,7 @@ WHERE c.credential_id = $1`, secret.credentialID).Scan(&ciphertext, &requestMAC)
 	}
 	publicDigest := sha256.Sum256(otlp.canonical)
 	var storedMAC []byte
-	if err := pool.QueryRow(ctx, `SELECT request_mac FROM runtime_credential_creations WHERE credential_id = 'otel-auth'`).Scan(&storedMAC); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT request_mac FROM runtime_credentials WHERE credential_id = 'otel-auth'`).Scan(&storedMAC); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Equal(storedMAC, publicDigest[:]) {
@@ -225,7 +224,11 @@ INSERT INTO runtime_credentials (
 
 	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET created_by = 'changed' WHERE credential_id = 'otel-auth'`)
 	assertRuntimeCredentialSQLState(t, err, "23514")
-	_, err = pool.Exec(ctx, `DELETE FROM runtime_credential_tombstones WHERE credential_id = 'proxy-bearer'`)
+	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET deleted_by = NULL, deleted_at = NULL WHERE credential_id = 'proxy-bearer'`)
+	assertRuntimeCredentialSQLState(t, err, "23514")
+	_, err = pool.Exec(ctx, `UPDATE runtime_credentials SET deleted_by = 'another' WHERE credential_id = 'proxy-bearer'`)
+	assertRuntimeCredentialSQLState(t, err, "23514")
+	_, err = pool.Exec(ctx, `DELETE FROM runtime_credentials WHERE credential_id = 'proxy-bearer'`)
 	assertRuntimeCredentialSQLState(t, err, "23514")
 }
 

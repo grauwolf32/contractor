@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"crypto/hmac"
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -51,31 +50,38 @@ SELECT EXISTS (SELECT 1 FROM runtime_credentials WHERE key_id <> $1)`, keyID).Sc
 	return nil
 }
 
-func (r *RuntimeCredentialRepository) InsertRecord(ctx context.Context, record RuntimeCredentialRecord) (bool, error) {
+// InsertRecord stores a credential together with its create receipt. It
+// reports false, without error, when the credential ID or idempotency key is
+// already taken; the caller resolves that through the receipt.
+func (r *RuntimeCredentialRepository) InsertRecord(
+	ctx context.Context, record RuntimeCredentialRecord, creation RuntimeCredentialCreation,
+) (bool, error) {
 	if err := validateRuntimeCredentialRecord(record); err != nil {
 		return false, err
+	}
+	if err := validateRuntimeCredentialCreation(creation); err != nil {
+		return false, err
+	}
+	if creation.CredentialID != record.Metadata.CredentialID || creation.Kind != record.Metadata.Kind ||
+		creation.ActorID != record.Metadata.CreatedBy || !creation.CreatedAt.Equal(record.Metadata.CreatedAt) {
+		return false, runtimeInvalid("Runtime credential receipt does not match its record")
 	}
 	command, err := r.db.Exec(ctx, `
 INSERT INTO runtime_credentials (
     credential_id, credential_kind, encryption_schema_version,
-    key_id, nonce, ciphertext, created_by, created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    key_id, nonce, ciphertext, created_by, created_at,
+    idempotency_key_digest, request_mac
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT DO NOTHING`,
 		record.Metadata.CredentialID, string(record.Metadata.Kind), record.Envelope.SchemaVersion,
 		record.Envelope.KeyID, record.Envelope.Nonce, record.Envelope.Ciphertext,
 		record.Metadata.CreatedBy, persistencepostgres.Timestamp(record.Metadata.CreatedAt),
+		creation.IdempotencyKeyDigest, creation.RequestMAC,
 	)
 	if err != nil {
 		return false, classifyRuntimeCredentialWrite(err)
 	}
-	if command.RowsAffected() == 1 {
-		return true, nil
-	}
-	existing, getErr := r.GetAnyRecord(ctx, record.Metadata.CredentialID)
-	if getErr == nil && runtimeCredentialRecordsEqual(existing, record) {
-		return false, nil
-	}
-	return false, ErrRuntimeCredentialConflict
+	return command.RowsAffected() == 1, nil
 }
 
 func (r *RuntimeCredentialRepository) GetActiveRecord(ctx context.Context, credentialID string) (RuntimeCredentialRecord, error) {
@@ -83,10 +89,7 @@ func (r *RuntimeCredentialRepository) GetActiveRecord(ctx context.Context, crede
 		return RuntimeCredentialRecord{}, err
 	}
 	return scanRuntimeCredentialRecord(r.db.QueryRow(ctx, runtimeCredentialRecordSelect+`
-WHERE c.credential_id = $1
-  AND NOT EXISTS (
-      SELECT 1 FROM runtime_credential_tombstones t WHERE t.credential_id = c.credential_id
-  )`, credentialID))
+WHERE c.credential_id = $1 AND c.deleted_at IS NULL`, credentialID))
 }
 
 func (r *RuntimeCredentialRepository) GetAnyRecord(ctx context.Context, credentialID string) (RuntimeCredentialRecord, error) {
@@ -107,10 +110,7 @@ func (r *RuntimeCredentialRepository) ListActiveMetadata(
 	rows, err := r.db.Query(ctx, `
 SELECT c.credential_id, c.credential_kind, c.created_by, c.created_at
 FROM runtime_credentials c
-WHERE c.credential_id > $1
-  AND NOT EXISTS (
-      SELECT 1 FROM runtime_credential_tombstones t WHERE t.credential_id = c.credential_id
-  )
+WHERE c.credential_id > $1 AND c.deleted_at IS NULL
 ORDER BY c.credential_id
 LIMIT $2`, afterCredentialID, limit)
 	if err != nil {
@@ -131,32 +131,6 @@ LIMIT $2`, afterCredentialID, limit)
 	return result, nil
 }
 
-func (r *RuntimeCredentialRepository) InsertCreation(ctx context.Context, creation RuntimeCredentialCreation) (bool, error) {
-	if err := validateRuntimeCredentialCreation(creation); err != nil {
-		return false, err
-	}
-	command, err := r.db.Exec(ctx, `
-INSERT INTO runtime_credential_creations (
-    idempotency_key_digest, request_mac, credential_id,
-    credential_kind, actor_id, created_at
-) VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT DO NOTHING`,
-		creation.IdempotencyKeyDigest, creation.RequestMAC, creation.CredentialID,
-		string(creation.Kind), creation.ActorID, persistencepostgres.Timestamp(creation.CreatedAt),
-	)
-	if err != nil {
-		return false, classifyRuntimeCredentialWrite(err)
-	}
-	if command.RowsAffected() == 1 {
-		return true, nil
-	}
-	existing, getErr := r.GetCreation(ctx, creation.IdempotencyKeyDigest)
-	if getErr == nil && runtimeCredentialCreationsEqual(existing, creation) {
-		return false, nil
-	}
-	return false, ErrRuntimeCredentialConflict
-}
-
 func (r *RuntimeCredentialRepository) GetCreation(ctx context.Context, keyDigest string) (RuntimeCredentialCreation, error) {
 	if !contentdigest.Valid(keyDigest) {
 		return RuntimeCredentialCreation{}, runtimeInvalid("Runtime credential idempotency digest is invalid")
@@ -164,8 +138,8 @@ func (r *RuntimeCredentialRepository) GetCreation(ctx context.Context, keyDigest
 	var result RuntimeCredentialCreation
 	err := r.db.QueryRow(ctx, `
 SELECT idempotency_key_digest, request_mac, credential_id,
-       credential_kind, actor_id, created_at
-FROM runtime_credential_creations
+       credential_kind, created_by, created_at
+FROM runtime_credentials
 WHERE idempotency_key_digest = $1`, keyDigest).Scan(
 		&result.IdempotencyKeyDigest, &result.RequestMAC, &result.CredentialID,
 		&result.Kind, &result.ActorID, &result.CreatedAt,
@@ -186,9 +160,9 @@ func (r *RuntimeCredentialRepository) InsertTombstone(
 		return false, runtimeInvalid("Runtime credential tombstone is invalid")
 	}
 	command, err := r.db.Exec(ctx, `
-INSERT INTO runtime_credential_tombstones (credential_id, actor_id, deleted_at)
-VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, persistencepostgres.Timestamp(tombstone.DeletedAt))
+UPDATE runtime_credentials SET deleted_by = $2, deleted_at = $3
+WHERE credential_id = $1 AND deleted_at IS NULL`,
+		tombstone.CredentialID, tombstone.ActorID, persistencepostgres.Timestamp(tombstone.DeletedAt))
 	if err != nil {
 		return false, classifyRuntimeCredentialWrite(err)
 	}
@@ -201,9 +175,9 @@ func (r *RuntimeCredentialRepository) GetTombstone(ctx context.Context, credenti
 	}
 	var result RuntimeCredentialTombstone
 	err := r.db.QueryRow(ctx, `
-SELECT credential_id, actor_id, deleted_at
-FROM runtime_credential_tombstones
-WHERE credential_id = $1`, credentialID).Scan(&result.CredentialID, &result.ActorID, &result.DeletedAt)
+SELECT credential_id, deleted_by, deleted_at
+FROM runtime_credentials
+WHERE credential_id = $1 AND deleted_at IS NOT NULL`, credentialID).Scan(&result.CredentialID, &result.ActorID, &result.DeletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RuntimeCredentialTombstone{}, ErrRuntimeCredentialNotFound
 	}
@@ -219,19 +193,7 @@ func (r *RuntimeCredentialRepository) InspectRuntimeCredentialUsage(
 	if err := validateRuntimeCredentialID(credentialID); err != nil || limit < 1 || limit > 128 {
 		return RuntimeCredentialUsage{}, runtimeInvalid("Runtime credential usage query is invalid")
 	}
-	rows, err := r.db.Query(ctx, `
-SELECT b.label
-FROM runtime_label_bindings b
-JOIN runtime_config_versions c
-  ON c.name = b.config_name
- AND c.version = b.config_version
- AND c.digest = b.config_digest
-WHERE c.canonical_document::jsonb #>> '{spec,worker,telemetry,credential}' = $1
-   OR c.canonical_document::jsonb #>> '{spec,worker,httpProxy,credential}' = $1
-   OR c.canonical_document::jsonb #>> '{spec,worker,caido,credential}' = $1
-   OR c.canonical_document::jsonb #>> '{spec,planner,telemetry,credential}' = $1
-ORDER BY b.label
-LIMIT $2`, credentialID, limit)
+	rows, err := r.db.Query(ctx, runtimeCredentialLabelUsageSQL, credentialID, limit)
 	if err != nil {
 		return RuntimeCredentialUsage{}, errors.New("inspect active Runtime credential bindings")
 	}
@@ -312,19 +274,7 @@ LIMIT $2`, credentialID, limit)
 	if auditRows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Audit holds")
 	}
-	allocationRows, err := r.db.Query(ctx, `
-SELECT a.allocation_id
-FROM stage_allocations a
-JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
-JOIN workflow_runs r ON r.run_id = e.run_id
-WHERE a.release_completed_at IS NULL
-  AND (
-      a.runtime_configuration->'provenance'->'runtimeCredentialRefs'
-          @> jsonb_build_array(jsonb_build_object('credentialId', $1::text))
-      OR r.project_http_target_snapshot#>>'{credential,credentialId}' = $1
-  )
-ORDER BY a.created_at, a.allocation_id
-LIMIT $2`, credentialID, limit)
+	allocationRows, err := r.db.Query(ctx, runtimeCredentialAllocationUsageSQL, credentialID, limit)
 	if err != nil {
 		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential allocation snapshots")
 	}
@@ -425,19 +375,6 @@ func validateRuntimeCredentialCreation(value RuntimeCredentialCreation) error {
 		return runtimeInvalid("Runtime credential creation replay is invalid")
 	}
 	return nil
-}
-
-func runtimeCredentialRecordsEqual(left, right RuntimeCredentialRecord) bool {
-	return left.Metadata.CredentialID == right.Metadata.CredentialID && left.Metadata.Kind == right.Metadata.Kind &&
-		left.Metadata.CreatedBy == right.Metadata.CreatedBy && persistencepostgres.Timestamp(left.Metadata.CreatedAt).Equal(persistencepostgres.Timestamp(right.Metadata.CreatedAt)) &&
-		left.Envelope.SchemaVersion == right.Envelope.SchemaVersion && left.Envelope.KeyID == right.Envelope.KeyID &&
-		string(left.Envelope.Nonce) == string(right.Envelope.Nonce) && string(left.Envelope.Ciphertext) == string(right.Envelope.Ciphertext)
-}
-
-func runtimeCredentialCreationsEqual(left, right RuntimeCredentialCreation) bool {
-	return left.IdempotencyKeyDigest == right.IdempotencyKeyDigest && hmac.Equal(left.RequestMAC, right.RequestMAC) &&
-		left.CredentialID == right.CredentialID && left.Kind == right.Kind && left.ActorID == right.ActorID &&
-		persistencepostgres.Timestamp(left.CreatedAt).Equal(persistencepostgres.Timestamp(right.CreatedAt))
 }
 
 func classifyRuntimeCredentialWrite(err error) error {

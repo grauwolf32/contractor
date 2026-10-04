@@ -48,24 +48,25 @@ func (r *PostgresRepository) RecordGitSource(ctx context.Context, scope Scope, r
 	if source.RequestedRef != nil && (len(*source.RequestedRef) == 0 || len(*source.RequestedRef) > 1024 || strings.ContainsAny(*source.RequestedRef, "\x00\r\n")) {
 		return ErrArtifactIntegrity
 	}
-	var version string
-	err = r.db.QueryRow(ctx, `
-INSERT INTO artifact_git_sources (version_id, repository_url, requested_ref, resolved_commit, imported_at)
-SELECT version_id, $6, $7, $8, $9 FROM artifact_binding_revisions
-WHERE scope_kind=$1 AND scope_id=$2 AND namespace=$3 AND name=$4 AND revision=$5
-RETURNING version_id`, scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision,
-		source.RepositoryURL, source.RequestedRef, source.ResolvedCommit, source.ImportedAt).Scan(&version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrArtifactNotFound
-	}
+	var revisionFound, recorded bool
+	err = r.db.QueryRow(ctx, recordGitSourceSQL,
+		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision,
+		source.RepositoryURL, source.RequestedRef, source.ResolvedCommit, source.ImportedAt,
+	).Scan(&revisionFound, &recorded)
 	if err != nil {
 		return fmt.Errorf("record immutable artifact Git source: %w", err)
+	}
+	if !revisionFound {
+		return ErrArtifactNotFound
+	}
+	if !recorded {
+		return fmt.Errorf("record immutable artifact Git source: %w", ErrArtifactConflict)
 	}
 	return nil
 }
 
-const gitSourceProjection = `CASE WHEN git_source.version_id IS NULL THEN NULL ELSE
-jsonb_build_object('repositoryUrl', git_source.repository_url,
-                  'requestedRef', git_source.requested_ref,
-                  'resolvedCommit', git_source.resolved_commit,
-                  'importedAt', git_source.imported_at) END`
+const gitSourceProjection = `CASE WHEN version.git_resolved_commit IS NULL THEN NULL ELSE
+jsonb_build_object('repositoryUrl', version.git_repository_url,
+                  'requestedRef', version.git_requested_ref,
+                  'resolvedCommit', version.git_resolved_commit,
+                  'importedAt', version.git_imported_at) END`

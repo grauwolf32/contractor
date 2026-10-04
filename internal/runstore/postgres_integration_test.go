@@ -170,9 +170,8 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		StageExecutionID: execution.StageExecutionID,
 		SessionID:        "session-1", InvocationID: "invocation-1",
 		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{"step":0}`),
-		EventID: "event-started", EventSchemaVersion: contracts.APIVersion,
-		Event: json.RawMessage(`{"kind":"planner_started"}`), RunEvent: startedRunEvent,
-		Reason: Reason{Code: "planner_started"},
+		RunEvent: startedRunEvent,
+		Reason:   Reason{Code: "planner_started"},
 	})
 	if err != nil {
 		t.Fatalf("start Planner: %v", err)
@@ -191,10 +190,9 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		}),
 	}
 	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
-		EventID: "event-1", SessionID: "session-1",
+		SessionID:        "session-1",
 		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
-		SequenceNumber:     2,
-		EventSchemaVersion: contracts.APIVersion, Event: json.RawMessage(`{"kind":"worker_request"}`),
+		SequenceNumber:        2,
 		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":1}`),
 		RunEvent: requestRunEvent,
 	})
@@ -206,20 +204,18 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
-	events, err := store.ListPlannerEvents(ctx, "session-1", 0)
-	if err != nil || len(events) != 2 || events[0].EventID != "event-started" ||
-		events[1].EventID != "event-1" || events[0].RunEventSequence == nil ||
-		*events[0].RunEventSequence != 5 || events[1].RunEventSequence == nil ||
-		*events[1].RunEventSequence != 6 {
-		t.Fatalf("Planner events = (%+v, %v)", events, err)
+	plannerRunEvents, err := store.ListRunEvents(ctx, run.RunID, 4, 10)
+	if err != nil || len(plannerRunEvents) != 2 ||
+		plannerRunEvents[0].EventID != "event-started" || plannerRunEvents[0].SequenceNumber != 5 ||
+		plannerRunEvents[1].EventID != "event-1" || plannerRunEvents[1].SequenceNumber != 6 {
+		t.Fatalf("Planner Run events = (%+v, %v)", plannerRunEvents, err)
 	}
 	gap := requestRunEvent
 	gap.EventID = "event-gap"
 	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
-		EventID: "event-gap", SessionID: "session-1",
+		SessionID:        "session-1",
 		StageExecutionID: execution.StageExecutionID, InvocationID: "invocation-1",
-		SequenceNumber: 4, EventSchemaVersion: contracts.APIVersion,
-		Event:                 json.RawMessage(`{"kind":"worker_request"}`),
+		SequenceNumber:        4,
 		NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":2}`),
 		RunEvent: gap,
 	})

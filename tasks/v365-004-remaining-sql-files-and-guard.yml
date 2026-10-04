@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V365-004
+title: "Move the remaining SQL into *_sql.go files and enforce placement"
+milestone: schema-reduction-2026-10
+priority: P2
+status: completed
+implementation_commit: 72825e4fa46477bb524624c695efb1e414c2eb5a
+depends_on: [V365-001, V365-002, V365-003]
+languages: [go, sql]
+goal: "Keep large SQL statements in *_sql.go files with comments, without changing behaviour."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+scope:
+  in:
+    - "Move every raw-string SQL literal of 10 or more lines in internal/artifacts, internal/credentials, internal/projectstore, internal/projectlifecycle, internal/settingsstore into a *_sql.go file next to its caller."
+    - "Give each moved statement a package-level name ending in SQL and a doc comment that says what it does and which function runs it."
+    - "Add a test that walks production Go files under cmd/ and internal/ and fails on a raw-string SQL literal of 10 or more lines outside *_sql.go."
+  out:
+    - "Changing statement text, query plans or call order."
+acceptance_criteria:
+  - {id: A1, text: "No production file in these packages, other than *_sql.go, contains a raw-string SQL literal of 10 or more lines."}
+  - {id: A2, text: "Every moved statement has a doc comment describing what it does and naming its caller."}
+  - {id: A3, text: "Statement text is byte-identical before and after the move."}
+  - {id: A4, text: "Package tests, including PostgreSQL-backed tests, pass."}
+  - {id: A5, text: "The placement test fails on a fixture that violates the rule and passes on the repository."}
+tests:
+  - {command: "go build ./... && go vet ./internal/artifacts/... ./internal/credentials/... ./internal/projectstore/... ./internal/projectlifecycle/... ./internal/settingsstore/...", covers: [A1, A3]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/credentials/... ./internal/projectstore/... ./internal/projectlifecycle/... ./internal/settingsstore/...", covers: [A4]}
+  - {command: "go test -count=1 ./internal/persistence -run SQLPlacement", covers: [A5]}

@@ -557,8 +557,7 @@ For one publication Server:
    that never replaces an existing entry, removes the temporary name and flushes
    the parent directory; descriptor-relative `linkat`/`unlinkat` support Linux
    and macOS, and the managed filesystem must support hard links;
-4. atomically swaps the in-memory configuration snapshot;
-5. records non-authoritative audit metadata.
+4. atomically swaps the in-memory configuration snapshot.
 
 No successful response is returned before the file and in-memory snapshot are
 both published. A crash after file publication but before snapshot swap is
@@ -664,10 +663,11 @@ credential-management boundary has returned the bounded non-secret
 encryption/decryption operation and the model-client settings that actively
 need it.
 
-Credential IDs are never reused. Successful deletion removes the remote key and
-encrypted credential row but retains a non-secret audit tombstone containing
-only the ID, actor and deletion time; that tombstone is not a credential and
-cannot be selected for execution.
+Credential IDs are never reused: the create operation reserves its ID
+permanently. Successful deletion removes the remote key and encrypted
+credential row; the completed delete operation is the non-secret audit
+tombstone, containing only the ID, actor and deletion time. It is not a
+credential and cannot be selected for execution.
 
 The 256-bit Contractor credential-encryption master key is a bootstrap secret
 outside PostgreSQL. Server receives only an absolute

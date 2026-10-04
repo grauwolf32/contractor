@@ -49,7 +49,7 @@ SELECT constraint_name, referencing_table FROM (
                 WHERE idx.indkey[key_position.position - 1] <> con.conkey[key_position.position]
             )
             AND (idx.indpred IS NULL OR index_class.relname IN (
-                'planner_events_run_event_idx', 'artifact_scopes_run_idx'
+                'artifact_scopes_run_idx'
             ))
       )
 ) AS missing
@@ -73,40 +73,5 @@ ORDER BY referencing_table, constraint_name`)
 	rows.Close()
 	if len(missing) > 0 {
 		t.Fatalf("lifecycle foreign keys lack leading indexes: %s", strings.Join(missing, ", "))
-	}
-
-	// This is the repeated probe issued when workflow_run_events are deleted.
-	// Disabling sequential scans makes an unusable partial index visible here.
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
-		t.Fatal(err)
-	}
-	planRows, err := tx.Query(ctx, `
-EXPLAIN SELECT 1 FROM ONLY planner_events
-WHERE run_id = 'run-probe' AND run_event_sequence = 1`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var plan strings.Builder
-	for planRows.Next() {
-		var line string
-		if err := planRows.Scan(&line); err != nil {
-			planRows.Close()
-			t.Fatal(err)
-		}
-		plan.WriteString(line)
-		plan.WriteByte('\n')
-	}
-	if err := planRows.Err(); err != nil {
-		planRows.Close()
-		t.Fatal(err)
-	}
-	planRows.Close()
-	if !strings.Contains(plan.String(), "planner_events_run_event_idx") {
-		t.Fatalf("planner event cascade probe cannot use its index:\n%s", plan.String())
 	}
 }

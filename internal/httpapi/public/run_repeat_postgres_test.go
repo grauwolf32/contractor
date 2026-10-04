@@ -41,7 +41,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 		for _, table := range []string{
 			"workflow_runs", "workflow_run_events", "workflow_run_metadata_labels", "projects",
 			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions",
-			"artifact_bindings", "artifact_lineage", "artifact_pins",
+			"artifact_bindings", "artifact_lineage",
 		} {
 			var state string
 			if err := pool.QueryRow(ctx, `SELECT COALESCE(jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text), '[]'::jsonb)::text FROM `+pgx.Identifier{table}.Sanitize()+` AS row`).Scan(&state); err != nil {

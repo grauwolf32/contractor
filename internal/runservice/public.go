@@ -147,7 +147,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if err := runs.SetRunSkillSelections(ctx, runID, selectedSkills); err != nil {
 						return err
 					}
-					if err := catalog.PinRunSources(ctx, normalized.OwnerID, runID, selectedSkills); err != nil {
+					if err := catalog.RequireRunSources(ctx, normalized.OwnerID, selectedSkills); err != nil {
 						return err
 					}
 				}

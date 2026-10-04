@@ -21,35 +21,10 @@ func (r *PostgresRepository) Read(ctx context.Context, scope Scope, ref Artifact
 		return ReadResult{}, err
 	}
 	defer releaseTransfer()
-	query := `
-SELECT revision.revision, version.media_type, blob.backend, blob.object_key, blob.payload, blob.sha256, blob.size_bytes,
-       binding.created_at, revision.created_at
-FROM artifact_bindings AS binding
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
- AND revision.revision = binding.current_revision
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE binding.scope_kind = $1 AND binding.scope_id = $2
-  AND binding.namespace = $3 AND binding.name = $4`
+	query := readBindingSQL
 	arguments := []any{scope.kind, scope.id, ref.Namespace, ref.Name}
 	if ref.Revision != nil {
-		query = `
-SELECT revision.revision, version.media_type, blob.backend, blob.object_key, blob.payload, blob.sha256, blob.size_bytes,
-       binding.created_at, revision.created_at
-FROM artifact_binding_revisions AS revision
-JOIN artifact_bindings AS binding
-  ON binding.scope_kind = revision.scope_kind
- AND binding.scope_id = revision.scope_id
- AND binding.namespace = revision.namespace
- AND binding.name = revision.name
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-WHERE revision.scope_kind = $1 AND revision.scope_id = $2
-  AND revision.namespace = $3 AND revision.name = $4 AND revision.revision = $5`
+		query = readRevisionSQL
 		arguments = append(arguments, *ref.Revision)
 	}
 

@@ -185,7 +185,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				t.Fatalf("old source: %+v %v", old, err)
 			}
 			var blobs, origins int
-			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM artifact_blobs),(SELECT count(*) FROM artifact_git_sources)`).Scan(&blobs, &origins); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM artifact_blobs),(SELECT count(*) FROM artifact_versions WHERE git_resolved_commit IS NOT NULL)`).Scan(&blobs, &origins); err != nil {
 				t.Fatal(err)
 			}
 			if blobs != 1 || origins != 2 {

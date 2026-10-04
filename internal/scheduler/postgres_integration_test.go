@@ -211,18 +211,6 @@ func testPostgresSchedulerPublication(t *testing.T, resume bool) {
 		t.Fatalf("semantic/lifecycle calls = invoker:%d workers:(%d,%d,%d)",
 			invoker.calls, workers.prepareCalls, workers.finalizeCalls, workers.releaseCalls)
 	}
-	var contextPins, resultPins, outputPins int64
-	if err := pool.QueryRow(ctx, `
-SELECT
-    count(*) FILTER (WHERE pin_kind = 'stage_context'),
-    count(*) FILTER (WHERE pin_kind = 'stage_result'),
-    count(*) FILTER (WHERE pin_kind = 'run_output')
-FROM artifact_pins`).Scan(&contextPins, &resultPins, &outputPins); err != nil {
-		t.Fatal(err)
-	}
-	if contextPins != int64(expectedAttempts) || resultPins != 1 || outputPins != 1 {
-		t.Fatalf("artifact pins = context:%d result:%d output:%d", contextPins, resultPins, outputPins)
-	}
 }
 
 func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T) {
@@ -1003,8 +991,6 @@ func createFinalizingFixtureWith(
 	if err := store.StartPlanner(ctx, runstore.StartPlannerParams{
 		StageExecutionID: executionID, SessionID: "session-finalizing", InvocationID: "invocation-finalizing",
 		StateSchemaVersion: contracts.APIVersion, InitialState: json.RawMessage(`{"status":"test"}`),
-		EventID: "planner-started-finalizing", EventSchemaVersion: contracts.APIVersion,
-		Event: json.RawMessage(`{"kind":"planner_started"}`),
 		RunEvent: runstore.RunEventAppend{
 			EventID: "planner-started-finalizing", EventSchemaVersion: contracts.APIVersion,
 			Kind: runstore.RunEventPlannerStarted, Data: startedData,

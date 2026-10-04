@@ -294,7 +294,7 @@ stop:
 
 Every candidate ArtifactRef must already contain the revision selected by
 Planner. Scheduler verifies that `(RunScope, namespace, name, revision)` exists
-and resolves to a retained immutable version, then pins that version in the same
+and resolves to a retained immutable version, and locks that version for the same
 transition. It never substitutes the current binding, even when that binding
 has advanced since Planner selected the result.
 

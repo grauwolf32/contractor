@@ -441,9 +441,6 @@ type StartPlannerParams struct {
 	InvocationID       string
 	StateSchemaVersion string
 	InitialState       json.RawMessage
-	EventID            string
-	EventSchemaVersion string
-	Event              json.RawMessage
 	Reason             Reason
 	RunEvent           RunEventAppend
 }
@@ -478,19 +475,7 @@ type PlannerSession struct {
 	UpdatedAt          time.Time
 }
 
-type PlannerEvent struct {
-	EventID            string
-	SessionID          string
-	SequenceNumber     int64
-	EventSchemaVersion string
-	Event              json.RawMessage
-	RunID              *string
-	RunEventSequence   *int64
-	CreatedAt          time.Time
-}
-
 type AppendPlannerEventParams struct {
-	EventID          string
 	SessionID        string
 	StageExecutionID string
 	InvocationID     string
@@ -498,8 +483,6 @@ type AppendPlannerEventParams struct {
 	// unexpired WorkflowRun claim in the same PostgreSQL statement.
 	SchedulerClaimID      string
 	SequenceNumber        int64
-	EventSchemaVersion    string
-	Event                 json.RawMessage
 	NewStateSchemaVersion string
 	NewState              json.RawMessage
 	RunEvent              RunEventAppend

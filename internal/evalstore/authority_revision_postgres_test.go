@@ -77,10 +77,10 @@ func TestPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testing.T) 
 	mustTx(t, pool, func(s *Store) error {
 		return s.SelectFirstNative(ctx, scope, experiment.ID, result.MemberID, claim, resultDoc, evaldomain.Frozen{})
 	})
-	var historyRevision int64
-	if err := pool.QueryRow(ctx, `SELECT experiment_revision FROM eval_selection_history
-WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&historyRevision); err != nil || historyRevision != running.Revision {
-		t.Fatalf("native selection history revision = %d (%v), want %d", historyRevision, err, running.Revision)
+	var selected int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_selections
+WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&selected); err != nil || selected != 1 {
+		t.Fatalf("native selections = %d (%v), want 1", selected, err)
 	}
 	operation := Suboperation{Kind: "run-create", Key: "rejected-run", Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
 	mustTx(t, pool, func(s *Store) error {

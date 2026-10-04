@@ -134,17 +134,6 @@ const (
 	LineageAuditImport          = "audit_import"
 )
 
-type PinKind string
-
-const (
-	PinRunInput        PinKind = "run_input"
-	PinStageContext    PinKind = "stage_context"
-	PinStageResult     PinKind = "stage_result"
-	PinRunOutput       PinKind = "run_output"
-	PinFindingProposal PinKind = "finding_proposal"
-	PinFindingEvidence PinKind = "finding_evidence"
-)
-
 // Repository is implemented by PostgreSQL and can be bound either to a pool
 // or to a caller-owned transaction.
 type Repository interface {
@@ -153,7 +142,7 @@ type Repository interface {
 	List(context.Context, Scope, *string) ([]ArtifactRef, error)
 	ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
 	BindOutputExact(context.Context, Scope, string, ArtifactRef, *string) (ForkResult, error)
-	PinExact(context.Context, string, Scope, ArtifactRef, PinKind, string) error
+	RequireExact(context.Context, Scope, ArtifactRef) error
 	FreezeOutputs(context.Context, Scope) error
 }
 
@@ -177,14 +166,6 @@ func validateScope(scope Scope) error {
 
 func validateComponent(value string) error {
 	if contracts.ValidateArtifactName(value) != nil {
-		return ErrInvalidName
-	}
-	return nil
-}
-
-// Pin IDs are internal opaque identities, not Artifact names.
-func validatePinID(value string) error {
-	if strings.TrimSpace(value) == "" || strings.Contains(value, "/") || strings.ContainsRune(value, 0) {
 		return ErrInvalidName
 	}
 	return nil

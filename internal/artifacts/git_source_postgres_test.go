@@ -63,7 +63,7 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	var blobs, origins int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM artifact_blobs),(SELECT count(*) FROM artifact_git_sources)`).Scan(&blobs, &origins); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM artifact_blobs),(SELECT count(*) FROM artifact_versions WHERE git_resolved_commit IS NOT NULL)`).Scan(&blobs, &origins); err != nil {
 		t.Fatal(err)
 	}
 	if blobs != 1 || origins != 2 {
@@ -78,15 +78,17 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	if err != nil || len(versions) != 1 || versions[0].GitSource == nil || !sameGitSource(versions[0].GitSource, source) {
 		t.Fatalf("version origin: %+v %v", versions, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE artifact_git_sources SET resolved_commit=$1`, strings.Repeat("c", 40)); err == nil {
+	if _, err := pool.Exec(ctx, `UPDATE artifact_versions SET git_resolved_commit=$1 WHERE git_resolved_commit IS NOT NULL`, strings.Repeat("c", 40)); err == nil {
 		t.Fatal("origin mutation accepted")
 	}
-	// Remove only the source binding after dropping its source-side pin. The
-	// Run revision still references the immutable version and keeps its origin.
+	if _, err := pool.Exec(ctx, `UPDATE artifact_versions SET media_type='text/plain' WHERE git_resolved_commit IS NOT NULL`); err == nil {
+		t.Fatal("version mutation accepted")
+	}
+	// Remove only the source binding. The Run revision still references the
+	// immutable version and keeps its origin.
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, query := range []string{
 			`SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
-			`DELETE FROM artifact_pins WHERE scope_kind='user' AND namespace='source' AND name='original'`,
 			`DELETE FROM artifact_lineage WHERE source_scope_kind='user' AND source_namespace='source' AND source_name='original'`,
 			`DELETE FROM artifact_bindings WHERE scope_kind='user' AND namespace='source' AND name='original'`,
 			`DELETE FROM artifact_binding_revisions WHERE scope_kind='user' AND namespace='source' AND name='original'`,

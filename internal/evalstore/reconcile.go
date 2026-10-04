@@ -113,27 +113,7 @@ func (s *Store) ReconciliationCandidates(ctx context.Context, owner, id string, 
 	if perStateLimit < 1 || perStateLimit > evaldomain.MaxPageSize/2 {
 		return nil, evaldomain.Failure("eval_invalid")
 	}
-	rows, err := s.db.Query(ctx, `
-WITH intents AS (
-    SELECT s.member_id, s.updated_at
-    FROM eval_submissions s
-    JOIN eval_experiments e USING(experiment_id)
-    WHERE e.owner_id=$1 AND e.experiment_id=$2 AND s.state='intent'
-    ORDER BY s.updated_at, s.member_id LIMIT $3
-), accepted AS (
-    SELECT s.member_id, s.updated_at
-    FROM eval_submissions s
-    JOIN eval_experiments e USING(experiment_id)
-    WHERE e.owner_id=$1 AND e.experiment_id=$2 AND s.state='accepted'
-    ORDER BY s.updated_at, s.member_id LIMIT $3
-)
-SELECT member_id FROM (
-    SELECT member_id, updated_at, 0 AS phase FROM intents
-    UNION ALL
-    SELECT member_id, updated_at, 1 AS phase FROM accepted
-) work
-ORDER BY phase, updated_at, member_id
-`, owner, id, perStateLimit)
+	rows, err := s.db.Query(ctx, reconciliationCandidatesSQL, owner, id, perStateLimit)
 	if err != nil {
 		return nil, err
 	}

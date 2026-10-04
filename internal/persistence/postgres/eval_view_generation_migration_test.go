@@ -24,9 +24,6 @@ INSERT INTO eval_experiments(
 VALUES ('experiment','owner','eval-project','portable','external','Experiment','running',1,1000);
 INSERT INTO eval_view_generations(experiment_id,generation,snapshot_id,summary)
 SELECT 'experiment', generation, 'view-'||generation, convert_to('{}','UTF8') FROM generate_series(1,3) generation;
-INSERT INTO eval_view_members(experiment_id,generation,ordinal,member_id,pair_id,document,collection_complete)
-SELECT 'experiment', generation, 0, repeat('a',64), repeat('b',64), convert_to('{}','UTF8'), false
-FROM generate_series(1,3) generation;
 INSERT INTO eval_projection_queue(experiment_id,revision,published_revision,snapshot_id)
 VALUES ('experiment',4,3,'view-3');
 `)
@@ -38,20 +35,18 @@ VALUES ('experiment',4,3,'view-3');
 	if err != nil || !slices.Contains(result.AppliedVersions, 78) {
 		t.Fatalf("upgrade view generations = %+v, %v", result, err)
 	}
-	var generations, members []int64
+	var generations []int64
 	if err := pool.QueryRow(ctx, `
-SELECT (SELECT array_agg(generation ORDER BY generation) FROM eval_view_generations),
-    (SELECT array_agg(generation ORDER BY generation) FROM eval_view_members)
-`).Scan(&generations, &members); err != nil {
+SELECT array_agg(generation ORDER BY generation) FROM eval_view_generations
+`).Scan(&generations); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(generations, []int64{3}) || !slices.Equal(members, []int64{3}) {
-		t.Fatalf("retained generations=%v members=%v, want only the current generation 3", generations, members)
+	if !slices.Equal(generations, []int64{3}) {
+		t.Fatalf("retained generations=%v, want only the current generation 3", generations)
 	}
 	var pgErr *pgconn.PgError
 	for _, statement := range []string{
 		`DELETE FROM eval_view_generations WHERE experiment_id='experiment'`,
-		`DELETE FROM eval_view_members WHERE experiment_id='experiment'`,
 		`UPDATE eval_view_generations SET summary=summary`,
 	} {
 		_, err = pool.Exec(ctx, statement)

@@ -48,24 +48,7 @@ func (r *PostgresRepository) ReadExactBatch(ctx context.Context, requests []Exac
 		return nil, err
 	}
 	defer releaseTransfer()
-	rows, err := r.db.Query(ctx, `
-SELECT input.ordinality, revision.revision, version.media_type,
-       blob.backend, blob.object_key,
-       CASE WHEN sum(blob.size_bytes) OVER () <= $6 THEN blob.payload END,
-       blob.sha256, blob.size_bytes, binding.created_at, revision.created_at,
-       sum(blob.size_bytes) OVER ()
-  FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
-       WITH ORDINALITY AS input(scope_kind, scope_id, namespace, name, revision, ordinality)
-  JOIN artifact_binding_revisions AS revision
-    ON revision.scope_kind = input.scope_kind AND revision.scope_id = input.scope_id
-   AND revision.namespace = input.namespace AND revision.name = input.name
-   AND revision.revision = input.revision
-  JOIN artifact_bindings AS binding
-    ON binding.scope_kind = revision.scope_kind AND binding.scope_id = revision.scope_id
-   AND binding.namespace = revision.namespace AND binding.name = revision.name
-  JOIN artifact_versions AS version ON version.version_id = revision.version_id
-  JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
- ORDER BY input.ordinality`, kinds, ids, namespaces, names, revisions, MaxPayloadSize)
+	rows, err := r.db.Query(ctx, readExactBatchSQL, kinds, ids, namespaces, names, revisions, MaxPayloadSize)
 	if err != nil {
 		return nil, fmt.Errorf("read exact artifact batch: %w", err)
 	}

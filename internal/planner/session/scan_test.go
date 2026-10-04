@@ -307,9 +307,11 @@ func (s *fencedScanStore) AppendPlannerEvent(ctx context.Context, params runstor
 	if err := s.memoryStore.AppendPlannerEvent(ctx, params); err != nil {
 		return err
 	}
-	var event struct{ Kind string }
-	_ = json.Unmarshal(params.Event, &event)
-	if s.loseAck != "" && event.Kind == s.loseAck {
+	var data struct {
+		Activity *struct{ Kind string } `json:"activity"`
+	}
+	_ = json.Unmarshal(params.RunEvent.Data, &data)
+	if s.loseAck != "" && data.Activity != nil && data.Activity.Kind == s.loseAck {
 		s.loseAck = ""
 		return errors.New("commit acknowledgement lost")
 	}

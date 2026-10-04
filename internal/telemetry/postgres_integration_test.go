@@ -379,8 +379,6 @@ func createTelemetryStageWithPolicy(
 		InvocationID:       invocationID,
 		StateSchemaVersion: contracts.APIVersion,
 		InitialState:       json.RawMessage(`{"step":0}`),
-		EventID:            eventID, EventSchemaVersion: contracts.APIVersion,
-		Event: json.RawMessage(`{"kind":"planner_started"}`),
 		RunEvent: runstore.RunEventAppend{
 			EventID: eventID, EventSchemaVersion: contracts.APIVersion,
 			Kind: runstore.RunEventPlannerStarted, Data: startedData,

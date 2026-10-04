@@ -368,8 +368,9 @@ may be exported to the trusted sink, unredacted and within its content limits.
 Capture does not grant access to undisclosed package members or automatically
 upload complete package ZIPs.
 
-Retention pins both exact owner source and Run fork while a retained Run
-snapshot refers to them. Ordinary current updates therefore never invalidate a
+Exact owner source and Run fork revisions stay readable while a retained Run
+snapshot refers to them: UserScope revisions are immutable and never purged, and
+the fork lives as long as its Run. Ordinary current updates therefore never invalidate a
 Run. Garbage collection of unreferenced historical packages is deferred.
 
 In addition to count limits, each AgentTemplate's resolved set is bounded to 64
@@ -588,7 +589,7 @@ the package and authority rules in this document continue to apply.
 
 ## Invariants
 
-1. AgentTemplate selects versionless owner UserScope ArtifactRefs; Run pins
+1. AgentTemplate selects versionless owner UserScope ArtifactRefs; Run records
    exact immutable source and RunScope refs before scheduling.
 2. Ordinary Artifact CAS update affects future Runs only and requires no
    Runtime Agent file synchronization or restart.

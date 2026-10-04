@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V365-002
+title: "Move run execution SQL into *_sql.go files"
+milestone: schema-reduction-2026-10
+priority: P2
+status: completed
+implementation_commit: 246cc7aee9fc0d65c3f3e3b1c6ac2263df08d6c6
+depends_on: []
+languages: [go, sql]
+goal: "Keep large SQL statements in *_sql.go files with comments, without changing behaviour."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+scope:
+  in:
+    - "Move every raw-string SQL literal of 10 or more lines in internal/runstore, internal/scheduler, internal/telemetry, internal/performance into a *_sql.go file next to its caller."
+    - "Give each moved statement a package-level name ending in SQL and a doc comment that says what it does and which function runs it."
+  out:
+    - "Changing statement text, query plans or call order."
+acceptance_criteria:
+  - {id: A1, text: "No production file in these packages, other than *_sql.go, contains a raw-string SQL literal of 10 or more lines."}
+  - {id: A2, text: "Every moved statement has a doc comment describing what it does and naming its caller."}
+  - {id: A3, text: "Statement text is byte-identical before and after the move."}
+  - {id: A4, text: "Package tests, including PostgreSQL-backed tests, pass."}
+tests:
+  - {command: "go build ./... && go vet ./internal/runstore/... ./internal/scheduler/... ./internal/telemetry/... ./internal/performance/...", covers: [A1, A3]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore/... ./internal/scheduler/... ./internal/telemetry/... ./internal/performance/...", covers: [A4]}

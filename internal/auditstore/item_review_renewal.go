@@ -95,46 +95,7 @@ func renewExpiredItemReviews(
 	if limit > 0 {
 		rowLimit = &limit
 	}
-	rows, err := tx.Query(ctx, `
-SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
-       review.request_id, review.state
-  FROM audit_items AS item
-  JOIN audit_review_requests AS review
-    ON review.audit_id=item.audit_id
-   AND review.subject_kind='audit-item-action'
-   AND review.subject_id=item.item_id
-   AND review.kind=item.approval_kind
-   AND review.subject_revision=1
-   AND review.subject_digest=item.approval_subject_digest
- WHERE item.audit_id=$1 AND item.state IN ('ready','awaiting_review')
-   AND item.approval_kind <> 'none'
-   AND (review.state='expired' OR (
-       review.state IN ('pending','decided')
-       AND review.expires_at <= clock_timestamp()
-   ))
-   AND (review.state <> 'decided' OR EXISTS (
-       SELECT 1 FROM audit_review_decisions AS decision
-        WHERE decision.request_id=review.request_id AND decision.action='approve'
-   ))
-   AND NOT EXISTS (
-       SELECT 1 FROM audit_review_requests AS live
-        WHERE live.audit_id=item.audit_id
-          AND live.subject_kind='audit-item-action'
-          AND live.subject_id=item.item_id
-          AND live.kind=item.approval_kind
-          AND live.subject_revision=1
-          AND live.subject_digest=item.approval_subject_digest
-          AND (live.expires_at IS NULL OR live.expires_at > clock_timestamp())
-          AND (live.state='pending' OR (live.state='decided' AND EXISTS (
-              SELECT 1 FROM audit_review_decisions AS decision
-               WHERE decision.request_id=live.request_id AND decision.action='approve'
-          )))
-   )
- ORDER BY item.ordinal, item.item_id,
-          CASE review.state WHEN 'pending' THEN 0 WHEN 'decided' THEN 1 ELSE 2 END,
-          review.created_at DESC, review.request_id DESC
- LIMIT $2
- FOR UPDATE OF review`, auditID, rowLimit)
+	rows, err := tx.Query(ctx, expiredItemReviewsSQL, auditID, rowLimit)
 	if err != nil {
 		return 0, fmt.Errorf("find expired Audit item reviews: %w", err)
 	}
@@ -206,18 +167,7 @@ RETURNING request_id, revision`, expiring)
 		itemIDs[index], kinds[index], digests[index] = candidate.itemID, candidate.kind, candidate.digest
 		actions[index] = itemReviewActions(candidate.kind)
 	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_requests (
-    request_id,audit_id,finding_id,subject_kind,subject_id,kind,
-    subject_revision,subject_digest,requested_actions,state,expires_at,
-    idempotency_key,request_digest
-)
-SELECT renewal.request_id,$1,NULL,'audit-item-action',renewal.item_id,renewal.kind,
-       1,renewal.digest,renewal.actions::jsonb,'pending',$2,
-       renewal.request_id,renewal.digest
-  FROM unnest($3::text[],$4::text[],$5::text[],$6::text[],$7::text[])
-       WITH ORDINALITY AS renewal(request_id,item_id,kind,digest,actions,position)
- ORDER BY renewal.position`,
+	if _, err := tx.Exec(ctx, insertRenewedItemReviewsSQL,
 		auditID, deadline, requestIDs, itemIDs, kinds, digests, actions); err != nil {
 		return 0, fmt.Errorf("request renewed Audit item reviews: %w", err)
 	}

@@ -56,23 +56,7 @@ func (s *Store) PairPage(ctx context.Context, p SelectedPageParams) (SelectedPag
 		a, b = pairMeasureColumns(p.Bin.Metric)
 	}
 	bin, lo, hi, inclusive := p.binArgs()
-	query := fmt.Sprintf(`
-WITH filtered AS MATERIALIZED (
-    SELECT p.ordinal, p.document, abs(%s - %s) AS difference
-    FROM eval_view_pairs p
-    JOIN eval_experiments e USING (experiment_id)
-    WHERE e.owner_id = $1 AND p.experiment_id = $2 AND p.generation = $3
-        AND ($4 = '' OR p.suite_id = $4)
-        AND ($5 IN ('', 'all')
-            OR ($5 = 'regressions' AND p.regression)
-            OR ($5 = 'unresolved' AND p.unresolved))
-        AND (NOT $6 OR (
-            (%s >= $7 AND (%s < $8 OR ($9 AND %s = $8)))
-            OR (%s >= $7 AND (%s < $8 OR ($9 AND %s = $8)))
-        ))
-        AND ($10 = '' OR (%s IS NOT NULL AND %s IS NOT NULL))
-)
-`, b, a, a, a, a, b, b, b, a, b)
+	query := fmt.Sprintf(pairPageSQL, b, a, a, a, a, b, b, b, a, b)
 	args := []any{p.OwnerID, p.ExperimentID, p.Generation, p.SuiteID, p.Filter, bin, lo, hi, inclusive, p.Metric}
 	return readSelectedPage[evaldomain.Pair](ctx, s, query, args, p)
 }
@@ -84,39 +68,7 @@ func (s *Store) SelectedMemberPage(ctx context.Context, p SelectedPageParams) (S
 	}
 	a, b := pairMeasureColumns(metric)
 	bin, lo, hi, inclusive := p.binArgs()
-	query := fmt.Sprintf(`
-WITH members AS (
-    SELECT m.ordinal, m.document, m.collection_complete,
-        convert_from(m.document, 'UTF8')::jsonb AS value,
-        CASE WHEN convert_from(m.document, 'UTF8')::jsonb #>> '{member,variantId}' =
-            convert_from(p.document, 'UTF8')::jsonb #>> '{a,member,variantId}'
-            THEN %s ELSE %s
-        END AS measure
-    FROM eval_view_members m
-    JOIN eval_experiments e USING (experiment_id)
-    JOIN eval_view_pairs p ON p.experiment_id = m.experiment_id
-        AND p.generation = m.generation AND p.pair_id = m.pair_id
-    WHERE e.owner_id = $1 AND m.experiment_id = $2 AND m.generation = $3
-        AND ($4 = '' OR p.suite_id = $4)
-        AND (%s IS NOT NULL AND %s IS NOT NULL OR NOT $7)
-), filtered AS MATERIALIZED (
-    SELECT ordinal, document, NULL::double precision AS difference
-    FROM members
-    WHERE ($5 = '' OR value #>> '{member,variantId}' = $5)
-        AND ($6 IN ('', 'all')
-            OR ($6 = 'unresolved' AND (
-                value #>> '{execution,state}' NOT IN ('succeeded', 'failed', 'cancelled')
-                OR value ->> 'assessment' NOT IN ('pass', 'fail')
-                OR NOT collection_complete OR (value ->> 'conflicting')::boolean
-            ))
-            OR ($6 = 'failed' AND value #>> '{execution,state}' = 'failed')
-            OR ($6 = 'unscored' AND value ->> 'assessment' = 'unscored')
-            OR ($6 IN ('unsupported', 'blocked') AND value #>> '{member,eligibility}' = $6)
-            OR ($6 = 'conflicting' AND (value ->> 'conflicting')::boolean)
-        )
-        AND (NOT $7 OR (measure >= $8 AND (measure < $9 OR ($10 AND measure = $9))))
-)
-`, a, b, a, b)
+	query := fmt.Sprintf(selectedMemberPageSQL, a, b, a, b)
 	args := []any{p.OwnerID, p.ExperimentID, p.Generation, p.SuiteID, p.VariantID, p.Filter, bin, lo, hi, inclusive}
 	return readSelectedPage[evaldomain.MemberView](ctx, s, query, args, p)
 }

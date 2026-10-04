@@ -200,7 +200,6 @@ LIMIT $2
 		return nil, err
 	}
 	members := []evaldomain.SelectedMember{}
-	copies := [][]any{}
 	dirty := false
 	for rows.Next() {
 		var ordinal int
@@ -222,7 +221,6 @@ LIMIT $2
 			return nil, err
 		}
 		members = append(members, evaldomain.SelectedMember{View: v, PairID: pair, CollectionComplete: complete})
-		copies = append(copies, []any{id, int64(0), ordinal, member, pair, document, complete})
 	}
 	err = rows.Err()
 	rows.Close()
@@ -290,14 +288,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	if err != nil {
 		return nil, err
 	}
-	for _, row := range copies {
-		row[1] = generation
+	complete := make(map[string]bool, len(members))
+	for _, member := range members {
+		complete[member.View.Member.ID] = member.CollectionComplete
 	}
-	_, err = s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_members"}, []string{"experiment_id", "generation", "ordinal", "member_id", "pair_id", "document", "collection_complete"}, pgx.CopyFromRows(copies))
-	if err != nil {
-		return nil, err
-	}
-	if err = s.projectComparison(ctx, id, generation, comparisonView, pinsVerified); err != nil {
+	if err = s.projectComparison(ctx, id, generation, comparisonView, complete, pinsVerified); err != nil {
 		return nil, err
 	}
 	if e.StartedAt != nil {

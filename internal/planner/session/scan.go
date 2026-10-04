@@ -242,10 +242,6 @@ func (s *Service) CompleteScan(ctx context.Context, identity planner.ScanSession
 			// can complete without creating any dispatchable jobs.
 			next.RequestRecorded, next.RequestDigest = true, contentdigest.Bytes([]byte(`{"kind":"scan_input_unavailable"}`))
 		}
-		payload, err := encodeCompletionEvent(cloned)
-		if err != nil {
-			return err
-		}
 		kind, fields := planner.PlannerEventCompleted, &plannerRunEventData{}
 		if cloned.Failure != nil {
 			kind = planner.PlannerEventFailed
@@ -261,7 +257,7 @@ func (s *Service) CompleteScan(ctx context.Context, identity planner.ScanSession
 		if err != nil {
 			return err
 		}
-		err = s.appendScanPayload(ctx, identity, session, state.NextSequence, next, payload, runKind, runData)
+		err = s.appendScanPayload(ctx, identity, session, state.NextSequence, next, runKind, runData)
 		if err == nil {
 			return nil
 		}
@@ -295,10 +291,6 @@ func (s *Service) loadOwnedScan(ctx context.Context, identity planner.ScanSessio
 }
 
 func (s *Service) appendScan(ctx context.Context, identity planner.ScanSessionIdentity, session runstore.PlannerSession, sequence int64, state persistentState, event scanEvent) error {
-	payload, err := encodeBounded(event)
-	if err != nil {
-		return err
-	}
 	// Public events expose a closed action code, never private request data.
 	runData, err := encodeBounded(plannerRunEventData{
 		StageExecutionID: identity.StageExecutionID, SessionID: identity.SessionID,
@@ -308,10 +300,10 @@ func (s *Service) appendScan(ctx context.Context, identity planner.ScanSessionId
 	if err != nil {
 		return err
 	}
-	return s.appendScanPayload(ctx, identity, session, sequence, state, payload, runstore.RunEventPlannerActivity, runData)
+	return s.appendScanPayload(ctx, identity, session, sequence, state, runstore.RunEventPlannerActivity, runData)
 }
 
-func (s *Service) appendScanPayload(ctx context.Context, identity planner.ScanSessionIdentity, session runstore.PlannerSession, sequence int64, state persistentState, payload []byte, kind runstore.RunEventKind, runData []byte) error {
+func (s *Service) appendScanPayload(ctx context.Context, identity planner.ScanSessionIdentity, session runstore.PlannerSession, sequence int64, state persistentState, kind runstore.RunEventKind, runData []byte) error {
 	encoded, err := encodeState(state)
 	if err != nil {
 		return err
@@ -321,10 +313,9 @@ func (s *Service) appendScanPayload(ctx context.Context, identity planner.ScanSe
 		return fmt.Errorf("generate scan event identity: %w", err)
 	}
 	return s.store.AppendPlannerEvent(ctx, runstore.AppendPlannerEventParams{
-		EventID: eventID, SessionID: session.SessionID,
+		SessionID:        session.SessionID,
 		StageExecutionID: identity.StageExecutionID, InvocationID: identity.InvocationID,
 		SchedulerClaimID: identity.SchedulerClaimID, SequenceNumber: sequence,
-		EventSchemaVersion: contracts.APIVersion, Event: payload,
 		NewStateSchemaVersion: contracts.APIVersion, NewState: encoded,
 		RunEvent: runstore.RunEventAppend{EventID: eventID, EventSchemaVersion: contracts.APIVersion, Kind: kind, Data: runData},
 	})

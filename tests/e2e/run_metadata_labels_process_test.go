@@ -742,17 +742,8 @@ SELECT
     JOIN stage_executions AS execution USING (stage_execution_id)
     WHERE execution.run_id = ANY($2::text[]) AND position($1 in session.state::text) > 0
   ) OR EXISTS (
-    SELECT 1 FROM planner_events AS event
-    JOIN planner_sessions AS session USING (session_id)
-    JOIN stage_executions AS execution USING (stage_execution_id)
-    WHERE execution.run_id = ANY($2::text[]) AND position($1 in event.event::text) > 0
-  ) OR EXISTS (
     SELECT 1 FROM workflow_run_events
     WHERE run_id = ANY($2::text[]) AND position($1 in data::text) > 0
-  ) OR EXISTS (
-    SELECT 1 FROM stage_execution_reports AS report
-    JOIN stage_executions AS execution USING (stage_execution_id)
-    WHERE execution.run_id = ANY($2::text[]) AND position($1 in report.report::text) > 0
   ) OR EXISTS (
     SELECT 1 FROM allocation_execution_reports AS report
     JOIN stage_executions AS execution USING (stage_execution_id)

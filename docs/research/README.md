@@ -8,6 +8,10 @@ Scheduler decisions from these records.
 
 ## Completed experiments and implementation reviews
 
+- [Database schema review — 2026-10-03](2026-10-03-database-schema-review.md) —
+  all 91 tables: purpose, writers and readers, retention and a verdict per table;
+  updated 2026-10-04 (Audit purge and view-generation defects resolved) and a
+  staged cleanup to 64–69 tables.
 - [V60 deep review — 2026-09-20](2026-09-20-v60-deep-review-results.md) —
   execution, Runtime, storage, Audit, operations and configuration checks;
   scoped corrections, actual gates and evidence boundaries.

@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V365-016
+title: "Fold planner_execution_reports into stage_metrics"
+milestone: schema-reduction-2026-10
+priority: P2
+status: pending
+depends_on: [V365-002]
+languages: [go, sql]
+goal: "Remove planner_execution_reports (staging input of the stage_metrics rebuild) by storing its data on the parent row."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+scope:
+  in:
+    - "Store the Planner report on the stage_metrics row with the same 30-day retention."
+    - "RebuildStageMetrics reads it there."
+  out:
+    - "Changing public API, CLI or UI behaviour."
+acceptance_criteria:
+  - {id: A1, text: "The migration moves existing rows of planner_execution_reports without loss and drops the merged table(s)."}
+  - {id: A2, text: "Every API, CLI and UI read and write that used the merged table(s) returns the same results."}
+  - {id: A3, text: "No Go code or specification references the dropped table(s)."}
+tests:
+  - {command: "go build ./... && go vet ./...", covers: [A1]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/telemetry/... ./internal/scheduler/...", covers: [A1, A2, A3]}

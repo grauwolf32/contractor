@@ -19,7 +19,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
-	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -178,7 +177,6 @@ func runCLI(
 		OperatorRoot: cfg.OperatorConfigRoot,
 		ManagedRoot:  cfg.ManagedConfigRoot,
 		Descriptors:  workflowconfig.MVPDescriptors(),
-		Audit:        configaudit.New(pool),
 		Logger:       logger,
 	})
 	if err != nil {

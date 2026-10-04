@@ -86,34 +86,13 @@ SELECT EXISTS (
 			return fmt.Errorf("delete WorkflowRun %q: invalid Audit authority", runID)
 		}
 		var collected bool
-		if err := tx.QueryRow(ctx, `
-SELECT EXISTS (
-    SELECT 1
-      FROM audit_executions AS execution
-      JOIN audit_collection_receipts AS receipt
-        ON receipt.execution_id = execution.execution_id
-       AND receipt.audit_id = execution.audit_id
-       AND receipt.run_id = execution.run_id
-     WHERE execution.execution_id = $1 AND execution.run_id = $2
-       AND execution.state = 'collected' AND execution.run_provenance IS NOT NULL
-)`, *auditExecutionID, runID).Scan(&collected); err != nil {
+		if err := tx.QueryRow(ctx, runAuditCollectedSQL, *auditExecutionID, runID).Scan(&collected); err != nil {
 			return fmt.Errorf("check WorkflowRun %q Audit collection: %w", runID, err)
 		}
 		if !collected {
 			return &RunNotDeletableError{RunID: runID, Reason: RunAuditCollectionPending}
 		}
-		tag, err := tx.Exec(ctx, `
-UPDATE audit_executions
-   SET run_deleted_at = COALESCE(run_deleted_at, clock_timestamp()),
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE execution_id = $1 AND run_id = $2 AND state = 'collected'
-   AND run_provenance IS NOT NULL
-   AND EXISTS (
-       SELECT 1 FROM audit_collection_receipts AS receipt
-        WHERE receipt.execution_id = audit_executions.execution_id
-          AND receipt.audit_id = audit_executions.audit_id
-          AND receipt.run_id = audit_executions.run_id
-   )`, *auditExecutionID, runID)
+		tag, err := tx.Exec(ctx, markAuditRunDeletedSQL, *auditExecutionID, runID)
 		if err != nil {
 			return fmt.Errorf("mark WorkflowRun %q Audit tombstone: %w", runID, err)
 		}
@@ -125,20 +104,7 @@ UPDATE audit_executions
 	// Run. Imported proposals already have destination-Audit bindings; every
 	// other proposal becomes a durable discarded tombstone before Run-owned
 	// pins and bindings are purged below.
-	if _, err := tx.Exec(ctx, `
-UPDATE finding_proposal_retention AS retention
-   SET source_run_deleted_at = COALESCE(retention.source_run_deleted_at, clock_timestamp()),
-       state = CASE WHEN EXISTS (
-           SELECT 1 FROM finding_proposal_audit_holds AS hold
-            WHERE hold.receipt_id = retention.receipt_id
-       ) THEN 'audit-held' ELSE 'discarded' END,
-       discarded_at = CASE WHEN EXISTS (
-           SELECT 1 FROM finding_proposal_audit_holds AS hold
-            WHERE hold.receipt_id = retention.receipt_id
-       ) THEN NULL ELSE COALESCE(retention.discarded_at, clock_timestamp()) END,
-       updated_at = clock_timestamp()
-  FROM finding_proposal_receipts AS receipt
- WHERE receipt.receipt_id = retention.receipt_id AND receipt.run_id = $1`, runID); err != nil {
+	if _, err := tx.Exec(ctx, markProposalSourceRunDeletedSQL, runID); err != nil {
 		return fmt.Errorf("dispose WorkflowRun %q finding proposals: %w", runID, err)
 	}
 
@@ -171,21 +137,7 @@ WHERE run_id = $1 AND owner_id = $2`, runID, ownerID)
 }
 
 func lockRunDeletionAudits(ctx context.Context, tx pgx.Tx, ownerID, runID string) ([]string, error) {
-	rows, err := tx.Query(ctx, `
-SELECT audit.audit_id
-  FROM audits AS audit
- WHERE audit.owner_id = $1 AND audit.audit_id IN (
-       SELECT execution.audit_id FROM audit_executions AS execution WHERE execution.run_id = $2
-       UNION
-       SELECT receipt.audit_id FROM finding_proposal_receipts AS receipt WHERE receipt.run_id = $2
-       UNION
-       SELECT hold.audit_id
-         FROM finding_proposal_audit_holds AS hold
-         JOIN finding_proposal_receipts AS receipt USING (receipt_id)
-        WHERE receipt.run_id = $2
-   )
- ORDER BY audit.audit_id
- FOR UPDATE OF audit`, ownerID, runID)
+	rows, err := tx.Query(ctx, lockRunDeletionAuditsSQL, ownerID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("lock deleted WorkflowRun %q Audit projections: %w", runID, err)
 	}
@@ -218,30 +170,7 @@ func (s *PostgresStore) RunDeletionBlocker(
 	}
 	var state WorkflowRunState
 	var releasePending, collectionPending bool
-	err := s.db.QueryRow(ctx, `
-SELECT run.state,
-       EXISTS (
-           SELECT 1
-             FROM stage_executions AS execution
-             JOIN stage_allocations AS allocation
-               ON allocation.stage_execution_id = execution.stage_execution_id
-            WHERE execution.run_id = run.run_id
-              AND allocation.release_completed_at IS NULL
-       ),
-       run.publication_mode = 'audit-managed' AND NOT EXISTS (
-           SELECT 1
-             FROM audit_executions AS audit_execution
-             JOIN audit_collection_receipts AS receipt
-               ON receipt.execution_id = audit_execution.execution_id
-              AND receipt.audit_id = audit_execution.audit_id
-              AND receipt.run_id = run.run_id
-            WHERE audit_execution.execution_id = run.audit_execution_id
-              AND audit_execution.run_id = run.run_id
-              AND audit_execution.state = 'collected'
-              AND audit_execution.run_provenance IS NOT NULL
-       )
-  FROM workflow_runs AS run
- WHERE run.run_id = $1 AND run.owner_id = $2`, runID, ownerID).Scan(
+	err := s.db.QueryRow(ctx, runDeletionBlockerSQL, runID, ownerID).Scan(
 		&state, &releasePending, &collectionPending,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -164,11 +164,13 @@ WHERE (scope_kind, scope_id, namespace, name, revision) IN (
 	if err != nil || distinctVersions != 1 {
 		t.Fatalf("fork version reuse = (%d, %v), want one internal version", distinctVersions, err)
 	}
-	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
-		t.Fatalf("pin exact StageContext artifact: %v", err)
+	if err := service.RequireExact(ctx, mustRunScope(t, "run-fork"), runUpdate.Ref); err != nil {
+		t.Fatalf("require exact StageContext artifact: %v", err)
 	}
-	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
-		t.Fatalf("repeat idempotent pin: %v", err)
+	missing := runUpdate.Ref
+	missing.Name = "absent"
+	if err := service.RequireExact(ctx, mustRunScope(t, "run-fork"), missing); !errors.Is(err, ErrArtifactNotFound) {
+		t.Fatalf("require missing exact artifact = %v, want not found", err)
 	}
 
 	_, err = pool.Exec(ctx, `
@@ -496,12 +498,6 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	if _, err := service.ForkProjectInput(ctx, projectID, projectSource.Ref, runID, "project-source"); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.PinExact(
-		ctx, runID, mustProjectScope(t, projectID), projectSource.Ref,
-		PinStageContext, "stage-run-delete:project-source",
-	); err != nil {
-		t.Fatal(err)
-	}
 	ephemeral, err := run.Write(
 		ctx, ArtifactRef{Namespace: "scratch", Name: "ephemeral"},
 		Payload{MediaType: "text/plain", Data: []byte("run-only bytes")}, nil,
@@ -552,11 +548,11 @@ INSERT INTO stage_allocations (
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-INSERT INTO stage_execution_reports (
-    stage_execution_id, allocation_id, logical_agent_name, report_schema_version, report
-) VALUES ($1, $2, 'builder', $3, $4::jsonb)`,
+INSERT INTO allocation_execution_reports (
+    report_id, stage_execution_id, allocation_id, logical_agent_name, report_schema_version, report
+) VALUES ('report-run-delete', $1, $2, 'builder', $3, $4::jsonb)`,
 		execution.StageExecutionID, "allocation-run-delete", contracts.APIVersion,
-		`{"allocationId":"allocation-run-delete","startedAt":"2026-09-05T08:00:00Z","finishedAt":"2026-09-05T08:01:00Z","complete":true,"counters":{},"errors":[],"truncated":false}`,
+		`{"reportId":"report-run-delete","allocationId":"allocation-run-delete","worker":{"complete":true},"runtime":{"complete":true}}`,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -616,7 +612,6 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	}
 	for name, query := range map[string]string{
 		"Run scope": `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'run' AND scope_id = $1`,
-		"Run pins":  `SELECT count(*) FROM artifact_pins WHERE run_id = $1`,
 		"Run lineage": `SELECT count(*) FROM artifact_lineage
             WHERE (source_scope_kind = 'run' AND source_scope_id = $1)
                OR (target_scope_kind = 'run' AND target_scope_id = $1)`,
@@ -630,7 +625,7 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	}
 	var reportCount int
 	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM stage_execution_reports
+SELECT count(*) FROM allocation_execution_reports
 WHERE stage_execution_id = 'stage-run-delete'`).Scan(&reportCount); err != nil || reportCount != 0 {
 		t.Errorf("Execution reports after deletion = %d, error %v", reportCount, err)
 	}

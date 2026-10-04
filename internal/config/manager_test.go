@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -320,26 +318,6 @@ func TestManagerRejectsInvalidPublicationBeforeFilesystemChange(t *testing.T) {
 	}
 }
 
-func TestManagerAuditIsBestEffortAndSecretFree(t *testing.T) {
-	recorder := &recordingPublicationAudit{err: errors.New("database unavailable")}
-	manager := newTestManager(t, copyConfigTree(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{
-		Audit: recorder,
-		Now:   func() time.Time { return time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC) },
-	})
-	request := validPolicyPublication("private-idempotency-key")
-	request.ActorID = "user-1"
-	if _, err := manager.Publish(t.Context(), request); err != nil {
-		t.Fatalf("audit failure changed publication result: %v", err)
-	}
-	if len(recorder.values) != 1 {
-		t.Fatalf("audit calls = %d", len(recorder.values))
-	}
-	audit := recorder.values[0]
-	if audit.IdempotencyKeyDigest == request.IdempotencyKey || audit.ActorID != "user-1" || audit.PublishedAt.IsZero() {
-		t.Fatalf("unsafe or incomplete audit = %+v", audit)
-	}
-}
-
 func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
 	operator := copyConfigTree(t)
 	managed := filepath.Join(t.TempDir(), "managed")
@@ -505,16 +483,6 @@ spec: {model: external-model}
 	if _, err := manager.Configuration(ConfigurationModelPolicies, "external@1"); !errors.Is(err, ErrConfigurationNotFound) {
 		t.Fatalf("external change leaked into current snapshot: %v", err)
 	}
-}
-
-type recordingPublicationAudit struct {
-	values []PublicationAudit
-	err    error
-}
-
-func (r *recordingPublicationAudit) RecordConfigurationPublication(_ context.Context, value PublicationAudit) error {
-	r.values = append(r.values, value)
-	return r.err
 }
 
 func newTestManager(t *testing.T, operator, managed string, overrides ManagerOptions) *Manager {

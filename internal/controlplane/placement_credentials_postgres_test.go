@@ -3,6 +3,7 @@ package controlplane
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -47,7 +48,14 @@ func TestPlacementManagedCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 				Envelope:  envelope,
 				CreatedAt: time.Now().UTC(),
 			}
-			if _, err := pool.Exec(setupCtx, `INSERT INTO llm_credential_identities (credential_id, reserved_at) VALUES ($1, now())`, selection.Credential.CredentialID); err != nil {
+			credentialID := selection.Credential.CredentialID
+			if err := credentials.NewRepository(pool).InsertOperation(setupCtx, credentials.Operation{
+				OperationID: "create:" + credentialID, IdempotencyKey: "reserve-" + credentialID,
+				RequestHash: "sha256:" + strings.Repeat("f", 64), CredentialID: credentialID,
+				Kind: credentials.OperationCreate, Phase: credentials.OperationPrepared,
+				Request:   json.RawMessage(`{"credentialId":"` + credentialID + `"}`),
+				CreatedAt: record.CreatedAt, UpdatedAt: record.CreatedAt,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if err := credentials.NewRepository(pool).InsertCredential(setupCtx, record); err != nil {

@@ -47,20 +47,7 @@ func (s *Store) Inventory(ctx context.Context, owner, id, member string) (Invent
 	var kind string
 	var ref, state, projectID *string
 	var available, closed bool
-	err := s.db.QueryRow(ctx, `
-SELECT p.revision, m.execution_kind, sub.execution_id, COALESCE(r.state, a.state),
-    r.run_id IS NOT NULL OR a.audit_id IS NOT NULL,
-    COALESCE(a.dispatch_state = 'closed', TRUE), COALESCE(r.project_id, a.project_id)
-FROM eval_members m
-JOIN eval_experiments e USING (experiment_id)
-JOIN eval_member_projections p USING (experiment_id, member_id)
-LEFT JOIN eval_submissions sub USING (experiment_id, member_id)
-LEFT JOIN workflow_runs r ON m.execution_kind = 'run'
-    AND r.run_id = sub.execution_id AND r.owner_id = e.owner_id
-LEFT JOIN audits a ON m.execution_kind = 'audit'
-    AND a.audit_id = sub.execution_id AND a.owner_id = e.owner_id
-WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
-`, owner, id, member).Scan(&out.Revision, &kind, &ref, &state, &available, &closed, &projectID)
+	err := s.db.QueryRow(ctx, inventoryMemberSQL, owner, id, member).Scan(&out.Revision, &kind, &ref, &state, &available, &closed, &projectID)
 	if err != nil {
 		return out, normalize(err)
 	}
@@ -83,19 +70,7 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 	if kind != "audit" || !available {
 		return out, nil
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT x.execution_id,x.run_id,x.role,round.ordinal,x.state,x.terminal_outcome,r.state,r.run_id IS NOT NULL,r.project_id
-FROM audit_executions x
-JOIN audits a USING(audit_id)
-LEFT JOIN audit_rounds round ON round.audit_id = x.audit_id
-AND round.round_id = x.round_id
-LEFT JOIN workflow_runs r ON r.run_id = x.run_id
-AND r.owner_id = a.owner_id
-WHERE x.audit_id = $1
-    AND a.owner_id = $2
-ORDER BY x.created_at,x.execution_id
-LIMIT $3
-`, *ref, owner, evaldomain.MaxInventoryExecutions+1)
+	rows, err := s.db.Query(ctx, inventoryAuditExecutionsSQL, *ref, owner, evaldomain.MaxInventoryExecutions+1)
 	if err != nil {
 		return out, err
 	}

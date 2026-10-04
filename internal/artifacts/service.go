@@ -603,31 +603,17 @@ func (s *Service) WriteAuditArtifact(
 	return repository.WriteAuditArtifact(ctx, project, target, payload)
 }
 
-func (s *Service) PinExact(
-	ctx context.Context,
-	runID string,
-	scope Scope,
-	ref ArtifactRef,
-	kind PinKind,
-	pinID string,
-) error {
-	if _, err := RunScope(runID); err != nil {
-		return err
-	}
+// RequireExact confirms that an exact revision exists and holds a key-share
+// lock on it until the caller's transaction ends, so a concurrent purge cannot
+// remove it underneath the caller.
+func (s *Service) RequireExact(ctx context.Context, scope Scope, ref ArtifactRef) error {
 	if err := validateScope(scope); err != nil {
 		return err
 	}
 	if _, err := exactRevision(ref); err != nil {
 		return err
 	}
-	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult &&
-		kind != PinRunOutput && kind != PinFindingProposal && kind != PinFindingEvidence {
-		return ErrInvalidName
-	}
-	if err := validatePinID(pinID); err != nil {
-		return err
-	}
-	return s.repository.PinExact(ctx, runID, scope, ref, kind, pinID)
+	return s.repository.RequireExact(ctx, scope, ref)
 }
 
 func (s *Service) FreezeRunOutputs(ctx context.Context, runID string) error {

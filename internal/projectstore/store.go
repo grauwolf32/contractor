@@ -132,21 +132,7 @@ func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project,
 		value := string(*params.Kind)
 		kind = &value
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT project_id, owner_id, kind, name, description,
-       http_target_url, http_target_credential_id, http_target_credential_kind,
-       lifecycle_state, deletion_phase, deletion_requested_at,
-       revision, created_at, updated_at
-FROM projects
-WHERE owner_id = $1
-  AND ($2::text IS NULL OR kind = $2)
-  AND NOT EXISTS (
-      SELECT 1 FROM eval_project_dependencies d
-      WHERE d.owner_id = projects.owner_id AND d.project_id = projects.project_id
-  )
-  AND ($3::timestamptz IS NULL OR (created_at, project_id) < ($3, $4))
-ORDER BY created_at DESC, project_id DESC
-LIMIT $5`, params.OwnerID, kind, params.BeforeCreatedAt, params.BeforeProjectID, params.Limit)
+	rows, err := s.db.Query(ctx, listProjectsSQL, params.OwnerID, kind, params.BeforeCreatedAt, params.BeforeProjectID, params.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Projects: %w", err)
 	}
@@ -169,18 +155,7 @@ func (s *PostgresStore) Update(ctx context.Context, params UpdateParams) (Projec
 	if err := validateUpdate(params); err != nil {
 		return Project{}, err
 	}
-	project, err := scanProject(s.db.QueryRow(ctx, `
-UPDATE projects
-SET name = $1, description = $2,
-    http_target_url = $3, http_target_credential_id = $4, http_target_credential_kind = $5,
-    revision = revision + 1,
-    updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-WHERE owner_id = $6 AND project_id = $7 AND revision = $8
-  AND lifecycle_state = 'active'
-RETURNING project_id, owner_id, kind, name, description,
-          http_target_url, http_target_credential_id, http_target_credential_kind,
-          lifecycle_state, deletion_phase, deletion_requested_at,
-          revision, created_at, updated_at`,
+	project, err := scanProject(s.db.QueryRow(ctx, updateProjectSQL,
 		params.Name, params.Description, targetURL(params.HTTPTarget), targetCredentialID(params.HTTPTarget),
 		targetCredentialKind(params.HTTPTarget), params.OwnerID, params.ProjectID, params.ExpectedRevision,
 	))
@@ -220,19 +195,7 @@ func (s *PostgresStore) BeginDeletion(
 	if params.ExpectedRevision == 0 || params.ExpectedRevision > uint64(^uint64(0)>>1) {
 		return Project{}, false, invalid("Project revision is invalid")
 	}
-	project, err := scanProject(s.db.QueryRow(ctx, `
-UPDATE projects
-SET lifecycle_state = 'deleting',
-    deletion_phase = 'cancelling',
-    deletion_requested_at = clock_timestamp(),
-    revision = revision + 1,
-    updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-WHERE owner_id = $1 AND project_id = $2 AND revision = $3
-  AND lifecycle_state = 'active'
-RETURNING project_id, owner_id, kind, name, description,
-          http_target_url, http_target_credential_id, http_target_credential_kind,
-          lifecycle_state, deletion_phase, deletion_requested_at,
-          revision, created_at, updated_at`,
+	project, err := scanProject(s.db.QueryRow(ctx, beginProjectDeletionSQL,
 		params.OwnerID, params.ProjectID, params.ExpectedRevision,
 	))
 	if err == nil {

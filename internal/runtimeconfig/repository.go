@@ -52,6 +52,34 @@ ON CONFLICT DO NOTHING`,
 	return true, nil
 }
 
+// InsertPublishedVersion stores a published version together with its
+// idempotency receipt. It reports false, without error, when the version or
+// the idempotency key already exists; the caller resolves that by replay.
+func (r *Repository) InsertPublishedVersion(ctx context.Context, version Version, publication Publication) (bool, error) {
+	if err := validateVersion(version); err != nil {
+		return false, err
+	}
+	if !contentdigest.Valid(publication.IdempotencyKeyDigest) || !contentdigest.Valid(publication.RequestDigest) ||
+		publication.Ref != version.Ref || publication.ActorID != version.ActorID ||
+		!publication.PublishedAt.Equal(version.CreatedAt) || version.BuiltIn {
+		return false, invalid("RuntimeConfig publication receipt does not match its version")
+	}
+	command, err := r.db.Exec(ctx, `
+INSERT INTO runtime_config_versions (
+    name, version, digest, canonical_document, built_in, actor_id, created_at,
+    idempotency_key_digest, request_digest
+) VALUES ($1, $2, $3, $4, false, $5, $6, $7, $8)
+ON CONFLICT DO NOTHING`,
+		version.Ref.Name, version.Ref.Version, version.Ref.Digest, string(version.CanonicalDocument),
+		version.ActorID, persistencepostgres.Timestamp(version.CreatedAt),
+		publication.IdempotencyKeyDigest, publication.RequestDigest,
+	)
+	if err != nil {
+		return false, classifyWrite(err)
+	}
+	return command.RowsAffected() == 1, nil
+}
+
 func (r *Repository) GetVersion(ctx context.Context, name, version string) (Version, error) {
 	if err := validateID("RuntimeConfig name", name, 63); err != nil || !contracts.ValidVersion(version) || len(version) > 128 {
 		return Version{}, invalid("RuntimeConfig identity is invalid")
@@ -160,8 +188,8 @@ func (r *Repository) GetPublication(ctx context.Context, idempotencyKeyDigest st
 	var publication Publication
 	err := r.db.QueryRow(ctx, `
 SELECT idempotency_key_digest, request_digest,
-       config_name, config_version, config_digest, actor_id, published_at
-FROM runtime_config_publications
+       name, version, digest, actor_id, created_at
+FROM runtime_config_versions
 WHERE idempotency_key_digest = $1`, idempotencyKeyDigest).Scan(
 		&publication.IdempotencyKeyDigest, &publication.RequestDigest,
 		&publication.Ref.Name, &publication.Ref.Version, &publication.Ref.Digest,
@@ -174,34 +202,6 @@ WHERE idempotency_key_digest = $1`, idempotencyKeyDigest).Scan(
 		return Publication{}, persistencepostgres.WrapError("get RuntimeConfig publication", err)
 	}
 	return publication, nil
-}
-
-func (r *Repository) InsertPublication(ctx context.Context, publication Publication) (bool, error) {
-	if !contentdigest.Valid(publication.IdempotencyKeyDigest) || !contentdigest.Valid(publication.RequestDigest) ||
-		validateRef(publication.Ref) != nil || !validActor(publication.ActorID) || publication.PublishedAt.IsZero() {
-		return false, invalid("RuntimeConfig publication audit is invalid")
-	}
-	command, err := r.db.Exec(ctx, `
-INSERT INTO runtime_config_publications (
-    idempotency_key_digest, request_digest,
-    config_name, config_version, config_digest, actor_id, published_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT DO NOTHING`,
-		publication.IdempotencyKeyDigest, publication.RequestDigest,
-		publication.Ref.Name, publication.Ref.Version, publication.Ref.Digest,
-		publication.ActorID, persistencepostgres.Timestamp(publication.PublishedAt),
-	)
-	if err != nil {
-		return false, classifyWrite(err)
-	}
-	if command.RowsAffected() == 1 {
-		return true, nil
-	}
-	existing, getErr := r.GetPublication(ctx, publication.IdempotencyKeyDigest)
-	if getErr == nil && existing.RequestDigest == publication.RequestDigest && existing.Ref == publication.Ref {
-		return false, nil
-	}
-	return false, ErrConflict
 }
 
 func (r *Repository) CreateBinding(ctx context.Context, label string, ref Ref, actor string, at time.Time) (Binding, error) {

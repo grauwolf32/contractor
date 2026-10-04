@@ -119,3 +119,22 @@ WITH RECURSIVE chain(finding_id, duplicate_target_id) AS (
 )
 SELECT EXISTS (SELECT 1 FROM audit_findings WHERE audit_id = $1 AND finding_id = $2),
        EXISTS (SELECT 1 FROM chain WHERE finding_id = $3)`
+
+// reviewSelect selects review requests with their Audit and optional decision
+// in scanReviewRequest column order. Callers append the WHERE clause, which
+// filters on audit.owner_id for authorization.
+// Used by Service.GetReview and Service.ListReviews.
+const reviewSelect = `
+SELECT request.request_id, request.audit_id, request.finding_id,
+       request.subject_kind, request.subject_id, request.kind,
+       request.subject_revision, request.subject_digest, request.requested_actions,
+       request.state, request.expires_at, request.revision,
+       request.created_at, request.updated_at,
+       decision.decision_id, decision.actor_id, decision.action,
+       decision.verdict, decision.severity,
+       decision.rationale, decision.duplicate_target_id, decision.created_at
+  FROM audit_review_requests AS request
+  JOIN audits AS audit USING (audit_id)
+  LEFT JOIN audit_review_decisions AS decision
+    ON decision.request_id = request.request_id
+   AND decision.audit_id = request.audit_id`

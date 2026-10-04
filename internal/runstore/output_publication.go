@@ -28,20 +28,7 @@ func (s *PostgresStore) RecordRunOutputPublication(
 	if params.Target != nil {
 		targetRevision = params.Target.Revision
 	}
-	row := s.db.QueryRow(ctx, `
-INSERT INTO workflow_run_output_publications (
-    run_id, project_id, output_name, status,
-    source_namespace, source_name, source_revision,
-    target_namespace, target_name, target_revision,
-    error_code, error_message
-) VALUES (
-    $1, $2, $3, $4,
-    $5, $6, $7,
-    'outputs', $3, $8,
-    NULLIF($9, ''), NULLIF($10, '')
-)
-ON CONFLICT (run_id, output_name) DO NOTHING
-RETURNING `+outputPublicationColumns+`, true`,
+	row := s.db.QueryRow(ctx, recordRunOutputPublicationSQL+outputPublicationColumns+`, true`,
 		params.RunID, params.ProjectID, params.OutputName, params.Status,
 		params.Source.Namespace, params.Source.Name, *params.Source.Revision,
 		targetRevision, params.ErrorCode, params.ErrorMessage,

@@ -31,7 +31,6 @@ JOIN artifact_binding_revisions AS revision
  AND revision.name = binding.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND binding.namespace = $3 AND binding.name = $4
   AND (($5::text IS NULL AND revision.revision = binding.current_revision)
@@ -72,7 +71,6 @@ JOIN artifact_binding_revisions AS revision
  AND revision.revision = binding.current_revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
@@ -123,7 +121,6 @@ JOIN artifact_bindings AS binding
  AND binding.name = revision.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE revision.scope_kind = $1 AND revision.scope_id = $2
   AND revision.namespace = $3 AND revision.name = $4
   AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
@@ -160,28 +157,7 @@ func (r *PostgresRepository) ListLineage(
 	if err := validateLineagePageQuery(query); err != nil {
 		return nil, err
 	}
-	rows, err := r.db.Query(ctx, `
-SELECT lineage.lineage_kind,
-       lineage.source_scope_kind, lineage.source_scope_id,
-       lineage.source_namespace, lineage.source_name, lineage.source_revision,
-       lineage.target_scope_kind, lineage.target_scope_id,
-       lineage.target_namespace, lineage.target_name, lineage.target_revision,
-       lineage.created_at
-FROM artifact_lineage AS lineage
-WHERE ((
-      lineage.source_scope_kind = $1 AND lineage.source_scope_id = $2
-      AND lineage.source_namespace = $3 AND lineage.source_name = $4 AND lineage.source_revision = $5
-    ) OR (
-      lineage.target_scope_kind = $1 AND lineage.target_scope_id = $2
-      AND lineage.target_namespace = $3 AND lineage.target_name = $4 AND lineage.target_revision = $5
-    ))
-  AND ($6::text = '' OR lineage.lineage_kind <> $6)
-  AND ($7::timestamptz IS NULL OR (
-    lineage.created_at, lineage.target_revision, lineage.source_revision, lineage.lineage_kind
-  ) < ($7, $8, $9, $10))
-ORDER BY lineage.created_at DESC, lineage.target_revision DESC,
-         lineage.source_revision DESC, lineage.lineage_kind DESC
-LIMIT $11`, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
+	rows, err := r.db.Query(ctx, listLineageSQL, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
 		query.ExcludeKind,
 		query.BeforeCreatedAt, query.BeforeTargetRevision, query.BeforeSourceRevision,
 		query.BeforeKind, query.Limit)

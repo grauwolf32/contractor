@@ -48,7 +48,7 @@ func TestCatalogRunInitializationKeepsSelectedExactSourceAfterCurrentUpdate(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := catalog.PinRunSources(ctx, "owner-1", "run-1", selected); err != nil {
+	if err := catalog.RequireRunSources(ctx, "owner-1", selected); err != nil {
 		t.Fatal(err)
 	}
 	initialized, err := catalog.InitializeRun(

@@ -595,7 +595,6 @@ func assertTaintRetainedExecutionSafe(
 	queries := []string{
 		`SELECT COALESCE(runtime_config_snapshot::text || state_reason_code || state_reason_message, '')
 FROM workflow_runs WHERE run_id = $1`,
-		`SELECT COALESCE(string_agg(event::text, E'\n'), '') FROM planner_events WHERE run_id = $1`,
 		`SELECT COALESCE(string_agg(data::text, E'\n'), '') FROM workflow_run_events WHERE run_id = $1`,
 		`SELECT COALESCE(string_agg(session.state::text, E'\n'), '')
 FROM planner_sessions AS session JOIN stage_executions AS execution
