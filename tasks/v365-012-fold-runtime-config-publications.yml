@@ -3,7 +3,8 @@ id: V365-012
 title: "Fold runtime_config_publications into runtime_config_versions"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 9fc18e380afe44fdf3ecac12bd620840e3386ca6
 depends_on: []
 languages: [go, sql]
 goal: "Remove runtime_config_publications (1:1 publish receipt) by storing its data on the parent row."
