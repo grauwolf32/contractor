@@ -3,7 +3,8 @@ id: V339-001
 title: Move live advisory scans out of the deterministic gate
 milestone: review-process-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b100f747d9aeb1e8088f89520f82eb204b4431ac
 depends_on: []
 languages: [yaml, make, python]
 goal: Keep the release gate deterministic and the dependency audit trustworthy.
@@ -25,3 +26,7 @@ acceptance_criteria:
 tests:
   - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1, A2]}
   - {command: "make -n release-verify", covers: [A1]}
+verification:
+  - make -n release-verify runs no govulncheck, pip-audit or Runtime audit; the guard rejects them there or directly in the workflow, a missing advisories job and floating runner labels, and its unit tests cover each case.
+  - scripts/test_audit_runtime_dependencies.py runs offline with a fake scanner; the audit fails for a lock pinning urllib3==1.26.4, distrusts a scanner that misses that pin, uses uv export --locked and installs pip-audit from the hash-pinned closure.
+  - Live, make test-runtime-dependencies-audit passed (canary reported, lock clean), auditing a lock pinning urllib3==1.26.4 failed with its PYSEC advisories, and make test-go-vulnerabilities passed.
