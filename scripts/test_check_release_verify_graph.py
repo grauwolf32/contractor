@@ -101,6 +101,81 @@ class DocumentedStagesTest(unittest.TestCase):
             guard.check_documented_stages(STAGES, self.table(list(reversed(STAGES))))
 
 
+E2E = frozenset({"e2e"})
+PACKAGE = "example/tests/e2e"
+
+
+class FakeInventory:
+    """Packages and test lists without invoking go."""
+
+    def __init__(self, tagged: set[str], plain: frozenset[str] = frozenset()) -> None:
+        self.tagged = frozenset(tagged)
+        self.plain = plain
+
+    def packages(self, tags, patterns):
+        return (PACKAGE,) if "./tests/e2e" in patterns else ()
+
+    def tests(self, tags, packages):
+        names = self.tagged | self.plain if "e2e" in tags else self.plain
+        return {package: names for package in packages}
+
+
+def e2e_test(run: str | None, source: str = "release-verify") -> guard.GoTest:
+    return guard.GoTest(source, E2E, ("./tests/e2e",), run)
+
+
+class RunSelectionTest(unittest.TestCase):
+    def test_alternatives(self) -> None:
+        self.assertEqual(guard.run_alternatives("^(TestA|TestB)$"), ["^(?:TestA)$", "^(?:TestB)$"])
+        self.assertEqual(guard.run_alternatives("Lease|Reconcile"), ["Lease", "Reconcile"])
+        self.assertEqual(guard.run_alternatives("^TestA/sub|case"), ["^TestA"])
+        self.assertEqual(guard.run_alternatives("^(TestA)|(TestB)$"), ["^(TestA)", "(TestB)$"])
+        self.assertEqual(guard.run_alternatives("^(Test(A|B))$"), ["^(?:Test(A|B))$"])
+
+    def test_existing_names_pass(self) -> None:
+        inventory = FakeInventory({"TestA", "TestB"})
+        self.assertEqual(guard.check_selected_tests_exist([e2e_test("^(TestA|TestB)$")], inventory), 2)
+
+    def test_renamed_selected_test_is_rejected(self) -> None:
+        inventory = FakeInventory({"TestA", "TestBRenamed"})
+        with self.assertRaisesRegex(SystemExit, "TestB"):
+            guard.check_selected_tests_exist([e2e_test("^(TestA|TestB)$")], inventory)
+
+    def test_empty_selection_is_not_a_name(self) -> None:
+        self.assertEqual(guard.check_selected_tests_exist([e2e_test("^$")], FakeInventory(set())), 0)
+
+
+class E2EReachabilityTest(unittest.TestCase):
+    def reach(self, tagged: set[str], release: list[guard.GoTest], opt_in: dict | None = None, allowlist: dict | None = None) -> int:
+        inventory = FakeInventory(tagged)
+        with mock.patch.object(guard, "OPT_IN_E2E_TESTS", allowlist or {}):
+            return guard.check_e2e_reachable({PACKAGE: frozenset(tagged)}, release, opt_in or {}, inventory)
+
+    def test_selected_tests_pass(self) -> None:
+        self.assertEqual(self.reach({"TestA", "TestB"}, [e2e_test("^(TestA|TestB)$")]), 2)
+
+    def test_unselected_tagged_test_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "TestB .* is not selected by release-verify"):
+            self.reach({"TestA", "TestB"}, [e2e_test("^TestA$")])
+
+    def test_allowlisted_test_needs_its_opt_in_gate(self) -> None:
+        allowlist = {"TestB": ("test-opt-in", "needs a scanner")}
+        self.assertEqual(
+            self.reach({"TestA", "TestB"}, [e2e_test("^TestA$")], {"test-opt-in": [e2e_test("^TestB$", "test-opt-in")]}, allowlist),
+            2,
+        )
+        with self.assertRaisesRegex(SystemExit, "not selected by its opt-in target"):
+            self.reach({"TestA", "TestB"}, [e2e_test("^TestA$")], {"test-opt-in": [e2e_test("^TestA$", "test-opt-in")]}, allowlist)
+
+    def test_allowlist_must_stay_exact(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "remove it from the opt-in allowlist"):
+            self.reach({"TestA"}, [e2e_test(None)], {"test-opt-in": [e2e_test(None)]}, {"TestA": ("test-opt-in", "x")})
+        with self.assertRaisesRegex(SystemExit, "no longer exists"):
+            self.reach({"TestA"}, [e2e_test(None)], {}, {"TestGone": ("test-opt-in", "x")})
+        with self.assertRaisesRegex(SystemExit, "without a reason"):
+            self.reach({"TestA"}, [], {"test-opt-in": [e2e_test(None)]}, {"TestA": ("test-opt-in", "")})
+
+
 class DatabaseSkipGuardTest(unittest.TestCase):
     def test_skip_after_failed_ping_is_rejected(self) -> None:
         source = """

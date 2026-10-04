@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Keep the release gate's deduplicated Go suites complete."""
 
+import importlib.util
 import re
 import shlex
 import subprocess
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 from release_integration_tests import BUILD_TAG, EXCEPTIONS, TEST, discover
@@ -88,9 +90,34 @@ EXPECTED_CONFIG_TESTS = {
     "TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock",
 }
 
-EXPECTED_SCAN_TESTS = {
-    "TestKatanaDiscoveryAcrossProductionProcesses",
-    "TestScanToolsAcrossProductionProcesses",
+# e2e-tagged tests that need tools absent from the CI runner. Each names the
+# opt-in target that selects it and why release-verify cannot run it; every
+# other e2e-tagged test must be selected by release-verify.
+OPT_IN_E2E_TESTS = {
+    "TestArtifactBlobBackendsContainers": (
+        "test-artifact-blob-backends",
+        "requires Podman to run the production containers",
+    ),
+    "TestGitArtifactsProductionContainers": (
+        "test-git-artifacts",
+        "requires Podman, native git and the pinned read-only container image",
+    ),
+    "TestKatanaDiscoveryAcrossProductionProcesses": (
+        "test-scan-e2e",
+        "requires the real katana scanner on PATH",
+    ),
+    "TestOpenAPIAuditScanAcrossProductionProcesses": (
+        "test-openapi-audit-scan-e2e",
+        "requires the real nuclei and sqlmap scanners on PATH",
+    ),
+    "TestPodmanSandboxAcrossProductionProcesses": (
+        "test-podman-e2e",
+        "requires rootless Podman and a preinstalled digest-pinned image",
+    ),
+    "TestScanToolsAcrossProductionProcesses": (
+        "test-scan-e2e",
+        "requires the real nuclei, naabu, sqlmap, ffuf and katana scanners on PATH",
+    ),
 }
 
 
@@ -257,15 +284,6 @@ def check_release_graph() -> None:
             f"missing={sorted(EXPECTED_CONFIG_TESTS - set(config_tests))}, "
             f"added={sorted(set(config_tests) - EXPECTED_CONFIG_TESTS)}"
         )
-    scan_commands = [
-        shlex.split(command)
-        for command in dry_run("test-scan-e2e")
-        if "go test" in command and "-tags=e2e" in command
-    ]
-    if len(scan_commands) != 1 or set(re.findall(
-        r"Test[A-Za-z0-9_]+", scan_commands[0][scan_commands[0].index("-run") + 1]
-    )) != EXPECTED_SCAN_TESTS:
-        raise SystemExit("opt-in scanner process tests lost their explicit gate")
 
 
 def check_family_entry_points() -> None:
@@ -279,24 +297,254 @@ def check_family_entry_points() -> None:
             raise SystemExit(f"{target} lost its focused Go suite")
 
 
-def check_tagged_e2e_inventory() -> int:
-    # A new tagged test must be named by a Make target or executable gate
-    # script, not just recorded in a task file or this guard's inventory.
-    selections = "\n".join(
-        path.read_text()
-        for pattern in ("make/*.mk", "scripts/test-*.py", ".github/workflows/*.yml")
-        for path in ROOT.glob(pattern)
+@dataclass(frozen=True)
+class GoTest:
+    """One go test invocation: where it comes from, tags, packages, -run."""
+
+    source: str
+    tags: frozenset[str]
+    packages: tuple[str, ...]
+    run: str | None
+
+
+def parse_go_test(command: str, source: str) -> GoTest | None:
+    if "go test" not in command:
+        return None
+    tokens = shlex.split(command)
+    start = next(index for index in range(len(tokens)) if tokens[index : index + 2] == ["go", "test"])
+    arguments = tokens[start + 2 :]
+    tags: frozenset[str] = frozenset()
+    run = None
+    for index, token in enumerate(arguments):
+        if token.startswith("-tags="):
+            tags = frozenset(filter(None, token.removeprefix("-tags=").split(",")))
+        elif token == "-run":
+            run = arguments[index + 1]
+        elif token.startswith("-run="):
+            run = token.removeprefix("-run=")
+    packages = tuple(token for token in arguments if token.startswith("./"))
+    return GoTest(source, tags, packages, run)
+
+
+def load_script(relative: str):
+    spec = importlib.util.spec_from_file_location(Path(relative).stem.replace("-", "_"), ROOT / relative)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"cannot load {relative}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def script_go_tests(relative: str) -> list[GoTest]:
+    """The Go selections a gate script runs, read from the script's own constants."""
+    module = load_script(relative)
+    if relative == "scripts/test-findings-e2e.py":
+        return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
+    if relative == "scripts/test-openapi-audit-scan-e2e.py":
+        return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), f"^{module.TEST}$")]
+    if relative == "scripts/test-audit-completion-e2e.py":
+        packages = tuple("./" + name.removeprefix(MODULE) for name in module.matrix()["go"])
+        return [GoTest(relative, frozenset({"integration"}), packages, module.PATTERN)]
+    raise SystemExit(f"{relative} runs Go tests this guard cannot see; declare its selection in script_go_tests")
+
+
+SCRIPT_GATE = re.compile(r"\bpython3 (scripts/test-[\w-]+\.py)\b")
+
+
+def selections(*targets: str) -> list[GoTest]:
+    found = []
+    for command in dry_run(*targets):
+        test = parse_go_test(command, " ".join(targets))
+        if test is not None:
+            found.append(test)
+        for script in SCRIPT_GATE.findall(command):
+            found.extend(script_go_tests(script))
+    return found
+
+
+def split_top(pattern: str, separator: str) -> list[str]:
+    """Split a regex at separators outside groups, classes and escapes."""
+    parts, current, depth, in_class, escaped = [], "", 0, False, False
+    for char in pattern:
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif in_class:
+            in_class = char != "]"
+        elif char == "[":
+            in_class = True
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == separator and depth == 0:
+            parts.append(current)
+            current = ""
+            continue
+        current += char
+    return [*parts, current]
+
+
+def wraps_whole(pattern: str) -> bool:
+    """Whether pattern is ^( ... )$ with one group spanning everything between."""
+    if not (pattern.startswith("^(") and pattern.endswith(")$")):
+        return False
+    depth, in_class, escaped = 0, False, False
+    for index in range(1, len(pattern) - 1):
+        char = pattern[index]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif in_class:
+            in_class = char != "]"
+        elif char == "[":
+            in_class = True
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0 and index != len(pattern) - 2:
+                return False
+    return depth == 0
+
+
+def run_alternatives(pattern: str) -> list[str]:
+    """Top-level test alternatives of a -run pattern; go test matches each by search."""
+    level = split_top(pattern, "/")[0]
+    if wraps_whole(level):
+        return [f"^(?:{alternative})$" for alternative in split_top(level[2:-2], "|")]
+    return split_top(level, "|")
+
+
+def selects(test: GoTest, name: str) -> bool:
+    return test.run is None or re.search(split_top(test.run, "/")[0], name) is not None
+
+
+class Inventory:
+    """go list and go test -list results, cached per build-tag set."""
+
+    def __init__(self) -> None:
+        self.expanded: dict[tuple[frozenset[str], tuple[str, ...]], tuple[str, ...]] = {}
+        self.listed: dict[tuple[frozenset[str], str], frozenset[str]] = {}
+
+    def packages(self, tags: frozenset[str], patterns: tuple[str, ...]) -> tuple[str, ...]:
+        key = (tags, patterns)
+        if key not in self.expanded:
+            # Packages whose files all need other tags have nothing to list.
+            result = subprocess.run(
+                [
+                    "go", "list", "-e", "-tags=" + ",".join(sorted(tags)),
+                    "-f", "{{if or .GoFiles .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}",
+                    *patterns,
+                ],
+                cwd=ROOT, capture_output=True, text=True, check=True,
+            )
+            self.expanded[key] = tuple(result.stdout.split())
+        return self.expanded[key]
+
+    def tests(self, tags: frozenset[str], packages: tuple[str, ...]) -> dict[str, frozenset[str]]:
+        missing = sorted({package for package in packages if (tags, package) not in self.listed})
+        if missing:
+            result = subprocess.run(
+                ["go", "test", "-list", ".", "-tags=" + ",".join(sorted(tags)), *missing],
+                cwd=ROOT, capture_output=True, text=True,
+            )
+            if result.returncode:
+                raise SystemExit(f"go test -list failed:\n{result.stdout}{result.stderr}")
+            names: list[str] = []
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if fields and fields[0] in {"ok", "?"}:
+                    self.listed[(tags, fields[1])] = frozenset(names)
+                    names = []
+                elif fields:
+                    names.append(fields[0])
+        return {package: self.listed[(tags, package)] for package in packages}
+
+
+def check_selected_tests_exist(tests: list[GoTest], inventory: Inventory) -> int:
+    """Every -run alternative must select an existing test in its packages."""
+    absent = []
+    checked = 0
+    # One go test -list per tag set instead of one per selection.
+    wanted: dict[frozenset[str], set[str]] = {}
+    for test in tests:
+        if test.run is not None:
+            wanted.setdefault(test.tags, set()).update(inventory.packages(test.tags, test.packages))
+    for tags, packages in wanted.items():
+        inventory.tests(tags, tuple(packages))
+    for test in tests:
+        if test.run is None:
+            continue
+        packages = inventory.packages(test.tags, test.packages)
+        names = frozenset().union(*inventory.tests(test.tags, packages).values())
+        for alternative in run_alternatives(test.run):
+            # '^$' or '.*' select nothing or everything rather than a name.
+            if re.fullmatch(alternative, ""):
+                continue
+            checked += 1
+            if not any(re.search(alternative, name) for name in names):
+                absent.append(f"{test.source}: {alternative!r} in {' '.join(test.packages)}")
+    if absent:
+        raise SystemExit("go test -run selections name no existing test:\n  " + "\n  ".join(absent))
+    return checked
+
+
+def e2e_tagged_tests(inventory: Inventory) -> dict[str, frozenset[str]]:
+    """Tests compiled only with -tags=e2e, per package import path."""
+    patterns = sorted(
+        {
+            "./" + path.parent.relative_to(ROOT).as_posix()
+            for source_root in GO_SOURCE_ROOTS
+            for path in (ROOT / source_root).rglob("*_test.go")
+            if (tag := BUILD_TAG.search(path.read_text().split("\npackage ", 1)[0]))
+            and re.search(r"\be2e\b", tag.group(1))
+        }
     )
-    discovered: dict[str, str] = {}
-    for source in (ROOT / "tests/e2e").glob("*_test.go"):
-        data = source.read_text()
-        if re.search(r"^//go:build .*\be2e\b", data.split("\npackage ", 1)[0], re.M):
-            for name in re.findall(r"^func (Test\w+)\(", data, re.M):
-                discovered[name] = str(source.relative_to(ROOT))
-    missing = {name: source for name, source in discovered.items() if name not in selections}
-    if missing:
-        raise SystemExit(f"e2e-tagged tests absent from executable gates: {missing}")
-    return len(discovered)
+    e2e = frozenset({"e2e"})
+    packages = inventory.packages(e2e, tuple(patterns))
+    tagged = inventory.tests(e2e, packages)
+    plain = inventory.tests(frozenset(), inventory.packages(frozenset(), tuple(patterns)))
+    return {package: names - plain.get(package, frozenset()) for package, names in tagged.items()}
+
+
+def check_e2e_reachable(
+    tagged: dict[str, frozenset[str]],
+    release: list[GoTest],
+    opt_in: dict[str, list[GoTest]],
+    inventory: Inventory,
+) -> int:
+    """Every e2e-tagged test runs in release-verify or in its allowlisted opt-in gate."""
+
+    def selected(tests: list[GoTest], package: str, name: str) -> bool:
+        return any(
+            "e2e" in test.tags and package in inventory.packages(test.tags, test.packages) and selects(test, name)
+            for test in tests
+        )
+
+    problems = []
+    known = {name for names in tagged.values() for name in names}
+    for name in sorted(OPT_IN_E2E_TESTS.keys() - known):
+        problems.append(f"{name} is allowlisted but no longer exists")
+    for package, names in sorted(tagged.items()):
+        for name in sorted(names):
+            reached = selected(release, package, name)
+            if name not in OPT_IN_E2E_TESTS:
+                if not reached:
+                    problems.append(f"{name} ({package}) is not selected by release-verify")
+                continue
+            target, reason = OPT_IN_E2E_TESTS[name]
+            if not reason:
+                problems.append(f"{name} is allowlisted without a reason")
+            if reached:
+                problems.append(f"{name} runs in release-verify; remove it from the opt-in allowlist")
+            if not selected(opt_in.get(target, []), package, name):
+                problems.append(f"{name} is not selected by its opt-in target {target}")
+    if problems:
+        raise SystemExit("e2e-tagged test gates are incomplete:\n  " + "\n  ".join(problems))
+    return len(known)
 
 
 GO_SOURCE_ROOTS = ("cmd", "internal", "tests", "tools")
@@ -410,11 +658,15 @@ if __name__ == "__main__":
     check_documented_stages(stages, TESTING_GUIDE.read_text())
     check_release_graph()
     check_family_entry_points()
-    tagged = check_tagged_e2e_inventory()
+    inventory = Inventory()
+    release = selections("release-verify")
+    opt_in = {target: selections(target) for target in sorted({target for target, _ in OPT_IN_E2E_TESTS.values()})}
+    named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
+    tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
         f"release graph: {len(stages)} stages in CI order, 36 race packages, 19 process tests, "
-        f"6 fixture tests, 2 opt-in scanner tests, {tagged} tagged e2e tests and "
-        f"{count} integration tests covered"
+        f"6 fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
+        f"({len(OPT_IN_E2E_TESTS)} opt-in) and {count} integration tests covered"
     )

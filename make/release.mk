@@ -31,7 +31,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-worker-session-modes-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
-	test-performance-metrics test-runtime-dependencies-audit
+	test-findings-e2e test-performance-metrics test-runtime-dependencies-audit
 
 release-verify-browser: ui-browser-mocked test-release-ui-stack
 

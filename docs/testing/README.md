@@ -42,7 +42,7 @@ failing stage in one run.
 | `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, and the command builds |
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
-| `release-verify-families` | The feature families' Runtime, UI and matrix checks, the Audit completion gate and the Runtime dependency audit |
+| `release-verify-families` | The feature families' Runtime, UI and matrix checks, the Audit completion and findings process gates, and the Runtime dependency audit |
 | `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
 | `release-verify-race` | One deduplicated Go race pass |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector |
@@ -58,6 +58,11 @@ process-test inventory, and discovers every integration-tagged test. New names
 enter the release pass automatically; tool-dependent exceptions must name an
 opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).
+The guard also lists the real tests with `go test -list`: every `-run`
+alternative in release-verify and in the opt-in gates must select an existing
+test, and every e2e-tagged test must run in release-verify unless
+[`scripts/check_release_verify_graph.py`](../../scripts/check_release_verify_graph.py)
+allowlists it with its opt-in target and the reason (real scanners or Podman).
 The families stage also audits the frozen production Runtime lock with a pinned
 `pip-audit` scanner; it fails when the advisory service reports a vulnerable
 dependency. Development-only packages are excluded from this shipped graph.
