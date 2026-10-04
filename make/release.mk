@@ -10,7 +10,7 @@ RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
 	release-verify-integration release-verify-process
 
 .PHONY: $(RELEASE_STAGES) test-release-go-race test-release-process-e2e \
-	test-release-integration test-release-ui-stack \
+	test-release-integration test-release-non-race test-release-ui-stack \
 	test-runtime-dependencies-audit
 
 release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
@@ -37,7 +37,7 @@ release-verify-browser: ui-browser-mocked test-release-ui-stack
 
 release-verify-race: test-release-go-race
 
-release-verify-integration: test-release-integration
+release-verify-integration: test-release-integration test-release-non-race
 
 release-verify-process: test-release-process-e2e
 
@@ -67,6 +67,14 @@ RELEASE_INTEGRATION_TESTS := $(shell python3 scripts/release_integration_tests.p
 
 test-release-integration: require-database runtime-venv
 	go test -p 1 -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
+
+# Packages with race-constrained test files relax a budget under the race
+# detector (findingintake doubles its 10-second production collection
+# deadline). This pass runs them without -race, enforcing the real budget.
+RELEASE_NON_RACE_PACKAGES := ./internal/findingintake
+
+test-release-non-race: require-database
+	go test -tags=integration -count=1 -timeout=10m $(RELEASE_NON_RACE_PACKAGES)
 
 RELEASE_E2E_TESTS := TestAgentSkillsMVPProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditProgramsAcrossProductionProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestProductionMemoryTemplatesAcrossProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestRoutingAndEscalationProductionBoundaries|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestSharedMemoryMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries
 

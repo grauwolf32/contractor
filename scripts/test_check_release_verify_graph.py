@@ -176,6 +176,31 @@ class E2EReachabilityTest(unittest.TestCase):
             self.reach({"TestA"}, [], {"test-opt-in": [e2e_test(None)]}, {"TestA": ("test-opt-in", "")})
 
 
+class IdentityInventory:
+    def packages(self, tags, patterns):
+        return tuple(patterns)
+
+
+class NonRacePassTest(unittest.TestCase):
+    CONSTRAINED = {"./internal/findingintake": frozenset({"integration"})}
+
+    def check(self, *tests: guard.GoTest) -> None:
+        guard.check_non_race_passes(self.CONSTRAINED, list(tests), IdentityInventory())
+
+    def test_complete_non_race_pass_passes(self) -> None:
+        self.check(guard.GoTest("x", frozenset({"integration"}), ("./internal/findingintake",), None))
+
+    def test_race_only_pass_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "without -race"):
+            self.check(guard.GoTest("x", frozenset({"integration"}), ("./internal/findingintake",), None, race=True))
+
+    def test_pass_without_the_needed_tag_or_with_a_selection_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "without -race"):
+            self.check(guard.GoTest("x", frozenset(), ("./internal/findingintake",), None))
+        with self.assertRaisesRegex(SystemExit, "without -race"):
+            self.check(guard.GoTest("x", frozenset({"integration"}), ("./internal/findingintake",), "Budget"))
+
+
 class DatabaseSkipGuardTest(unittest.TestCase):
     def test_skip_after_failed_ping_is_rejected(self) -> None:
         source = """

@@ -45,7 +45,7 @@ failing stage in one run.
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, the Audit completion and findings process gates, and the Runtime dependency audit |
 | `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
 | `release-verify-race` | One deduplicated Go race pass |
-| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
 | `release-verify-process` | The 19 process e2e tests; `make test-e2e` runs the same pass |
 
 Inside the stages, family targets skip their own Go suites and browser stack

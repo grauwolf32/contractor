@@ -305,6 +305,7 @@ class GoTest:
     tags: frozenset[str]
     packages: tuple[str, ...]
     run: str | None
+    race: bool = False
 
 
 def parse_go_test(command: str, source: str) -> GoTest | None:
@@ -323,7 +324,7 @@ def parse_go_test(command: str, source: str) -> GoTest | None:
         elif token.startswith("-run="):
             run = token.removeprefix("-run=")
     packages = tuple(token for token in arguments if token.startswith("./"))
-    return GoTest(source, tags, packages, run)
+    return GoTest(source, tags, packages, run, "-race" in arguments)
 
 
 def load_script(relative: str):
@@ -344,7 +345,7 @@ def script_go_tests(relative: str) -> list[GoTest]:
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), f"^{module.TEST}$")]
     if relative == "scripts/test-audit-completion-e2e.py":
         packages = tuple("./" + name.removeprefix(MODULE) for name in module.matrix()["go"])
-        return [GoTest(relative, frozenset({"integration"}), packages, module.PATTERN)]
+        return [GoTest(relative, frozenset({"integration"}), packages, module.PATTERN, race=True)]
     raise SystemExit(f"{relative} runs Go tests this guard cannot see; declare its selection in script_go_tests")
 
 
@@ -547,6 +548,46 @@ def check_e2e_reachable(
     return len(known)
 
 
+def race_constrained_packages() -> dict[str, frozenset[str]]:
+    """Packages with test files built only with or without -race, and the
+    other build tags their tests need."""
+    constrained: dict[str, frozenset[str]] = {}
+    tags: dict[str, set[str]] = {}
+    for source_root in GO_SOURCE_ROOTS:
+        for path in (ROOT / source_root).rglob("*_test.go"):
+            tag = BUILD_TAG.search(path.read_text().split("\npackage ", 1)[0])
+            if tag is None:
+                continue
+            package = "./" + path.parent.relative_to(ROOT).as_posix()
+            names = re.findall(r"(!?)\b([A-Za-z_][A-Za-z0-9_.]*)\b", tag.group(1))
+            tags.setdefault(package, set()).update(name for negated, name in names if not negated and name != "race")
+            if any(name == "race" for _, name in names):
+                constrained[package] = frozenset()
+    return {package: frozenset(tags[package]) for package in constrained}
+
+
+def check_non_race_passes(
+    constrained: dict[str, frozenset[str]], release: list[GoTest], inventory: Inventory
+) -> None:
+    """A test budget relaxed under the race detector must also run without it."""
+    missing = [
+        package
+        for package, tags in sorted(constrained.items())
+        if not any(
+            not test.race
+            and test.run is None
+            and tags <= test.tags
+            and set(inventory.packages(test.tags, (package,))) <= set(inventory.packages(test.tags, test.packages))
+            for test in release
+        )
+    ]
+    if missing:
+        raise SystemExit(
+            "packages with race-constrained tests have no complete release pass without -race "
+            f"(tags {[sorted(constrained[package]) for package in missing]}): {missing}"
+        )
+
+
 GO_SOURCE_ROOTS = ("cmd", "internal", "tests", "tools")
 # A configured but unreachable database must fail the gate; a database test
 # may skip only when CONTRACTOR_TEST_DATABASE_URL is unset.
@@ -595,10 +636,11 @@ def check_database_tests_fail_closed() -> None:
 
 def check_integration_graph() -> int:
     selected = discover()
+    # The non-race budget pass is checked by check_non_race_passes.
     commands = [
         shlex.split(command)
         for command in dry_run("release-verify")
-        if "go test" in command and "-tags=integration" in command
+        if "go test" in command and "-tags=integration" in command and "-race" in shlex.split(command)
     ]
     consolidated = [tokens for tokens in commands if "-v" in tokens and "-p" in tokens]
     if len(commands) != 4 or len(consolidated) != 1:
@@ -663,6 +705,7 @@ if __name__ == "__main__":
     opt_in = {target: selections(target) for target in sorted({target for target, _ in OPT_IN_E2E_TESTS.values()})}
     named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
     tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
+    check_non_race_passes(race_constrained_packages(), release, inventory)
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
