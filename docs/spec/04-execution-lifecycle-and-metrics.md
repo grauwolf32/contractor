@@ -40,7 +40,11 @@ unexpected failure at any point before its terminal update is acknowledged
 bounded best effort, so the leased probe is not held until it expires; an
 attempt abandoned before any outcome reports `released`, which relinquishes the
 probe without reopening the blocked route or resetting its retry window.
-`finished` is reserved for an observed non-retryable response. Cancellation
+A request the Gateway received but did not answer within the participant's own
+request timeout (`workerRequestTimeout` or `plannerTimeout`) is reported as
+`released`: a slow model is not an outage, and the request is not resent, since
+the Gateway may still be generating its answer. The model call fails as
+transient. `finished` is reserved for an observed non-retryable response. Cancellation
 before a grant is known sends nothing and leaves an unknown lease to its expiry.
 A Server-side Planner retries a transient database failure while recording an
 observed outcome a bounded number of times. A model reply or permanent

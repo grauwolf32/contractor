@@ -12,16 +12,19 @@ import (
 type Service struct {
 	pool   *pgxpool.Pool
 	policy Policy
+	// requestTimeout is the longest model request any participant may make;
+	// a probe lease must outlast it, or a slow probe would admit a second one.
+	requestTimeout time.Duration
 }
 
-func New(pool *pgxpool.Pool, policy Policy) (*Service, error) {
-	if pool == nil {
+func New(pool *pgxpool.Pool, policy Policy, requestTimeout time.Duration) (*Service, error) {
+	if pool == nil || requestTimeout < time.Second {
 		return nil, ErrInvalid
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
-	return &Service{pool: pool, policy: policy}, nil
+	return &Service{pool: pool, policy: policy, requestTimeout: requestTimeout}, nil
 }
 
 type routeState struct {

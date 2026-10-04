@@ -12,6 +12,12 @@ import (
 type Failure struct {
 	Code      string
 	Retryable bool
+	// Abandoned marks a request the Gateway received but did not answer
+	// before the client deadline. The failure is transient, yet the Gateway
+	// may still be generating the answer (an OpenAI-compatible proxy does not
+	// cancel upstream inference when its client disconnects), so resending
+	// the request would queue duplicate inference behind the abandoned one.
+	Abandoned bool
 }
 
 const maximumClassificationBytes = 16 * 1024
@@ -47,26 +53,26 @@ func Classify(status int, header http.Header, body []byte, signatures contracts.
 	}
 	for _, permanentCode := range signatures.PermanentCodes {
 		if code == permanentCode {
-			return Failure{permanentCode, false}
+			return Failure{Code: permanentCode, Retryable: false}
 		}
 	}
 	if modelUnavailable(status, message, signatures) {
-		return Failure{"model_unavailable", true}
+		return Failure{Code: "model_unavailable", Retryable: true}
 	}
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return Failure{"gateway_access_denied", false}
+		return Failure{Code: "gateway_access_denied", Retryable: false}
 	case http.StatusTooManyRequests:
-		return Failure{"gateway_rate_limited", true}
+		return Failure{Code: "gateway_rate_limited", Retryable: true}
 	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
-		return Failure{"gateway_timeout", true}
+		return Failure{Code: "gateway_timeout", Retryable: true}
 	case http.StatusConflict:
-		return Failure{"gateway_unavailable", true}
+		return Failure{Code: "gateway_unavailable", Retryable: true}
 	}
 	if status >= 500 && status < 600 || header.Get("x-should-retry") == "true" {
-		return Failure{"gateway_unavailable", true}
+		return Failure{Code: "gateway_unavailable", Retryable: true}
 	}
-	return Failure{"gateway_request_rejected", false}
+	return Failure{Code: "gateway_request_rejected", Retryable: false}
 }
 
 func modelUnavailable(status int, message string, signatures contracts.GatewayFailureSignatures) bool {

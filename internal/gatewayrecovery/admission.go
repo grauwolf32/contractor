@@ -79,7 +79,7 @@ WHERE run_id=$1 AND state='pending' AND state_reason_code IS DISTINCT FROM $2`, 
 			// hold the gate indefinitely; the first request takes a request-sized lease.
 			if _, err := tx.Exec(ctx, `
 UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=$2,probe_until=$3
-WHERE route_key=$1`, key, runID, now.Add(s.policy.RequestTimeout+s.policy.MaxDelay)); err != nil {
+WHERE route_key=$1`, key, runID, now.Add(s.requestTimeout+s.policy.MaxDelay)); err != nil {
 				return err
 			}
 		}

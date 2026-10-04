@@ -119,7 +119,9 @@ func configureWorkflows(
 	plannerTelemetryRegistry *telemetry.PlannerAdapterRegistry,
 	logger *slog.Logger,
 ) (workflowServices, error) {
-	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery)
+	// Workers bound each model request by workerRequestTimeout and modeled
+	// planners by plannerTimeout; a recovery probe lease must outlast either.
+	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery, max(cfg.WorkerRequestTimeout, cfg.PlannerTimeout))
 	if err != nil {
 		return workflowServices{}, err
 	}

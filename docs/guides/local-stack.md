@@ -221,19 +221,26 @@ These process settings are configurable under `ServerConfig.spec`:
 
 ```yaml
 llmRecovery:
-  requestTimeout: 60s
   initialDelay: 1s
   maxDelay: 30s
   automaticWindow: 5m
 ```
 
-The defaults allow a short local model reload, cap each request at one minute,
-use exponential retry delays from one to thirty seconds, and stop automatic
-probes after five minutes. For a slower model, increase `requestTimeout` to cover
-its expected response time. Matching environment variables are
-`CONTRACTOR_LLM_RECOVERY_REQUEST_TIMEOUT`, `CONTRACTOR_LLM_RECOVERY_INITIAL_DELAY`,
+The defaults allow a short local model reload, use exponential retry delays from
+one to thirty seconds, and stop automatic probes after five minutes. Matching
+environment variables are `CONTRACTOR_LLM_RECOVERY_INITIAL_DELAY`,
 `CONTRACTOR_LLM_RECOVERY_MAX_DELAY`, and `CONTRACTOR_LLM_RECOVERY_AUTOMATIC_WINDOW`.
 CLI flags use the corresponding `--llm-recovery-...` names.
+
+Recovery does not shorten a model request. A Worker request is bounded by
+`workerRequestTimeout` and a modeled planner request by `plannerTimeout`; size
+them for the slowest expected response of the local model. A request the Gateway
+received but did not answer in time is not resent and does not block the route:
+LiteLLM keeps the upstream inference running after its client disconnects, so a
+resend would queue a duplicate generation behind the abandoned one. The model
+call fails as transient and the Stage attempt ends instead. Only a request that
+never reached the Gateway (connection failure or connect timeout), a Gateway
+5xx/408/504/429 or a recognized model-unload response blocks the route.
 
 After the automatic window expires, restore the model and choose **Retry model
 connection** on the Run page, or POST `{}` to `/v1/runs/{runId}/retry-gateway`.

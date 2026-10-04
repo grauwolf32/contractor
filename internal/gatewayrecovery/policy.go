@@ -9,8 +9,9 @@ import (
 	"time"
 )
 
+// Policy paces recovery probes. It does not bound a model request: each
+// participant keeps its own configured request timeout.
 type Policy struct {
-	RequestTimeout  time.Duration
 	InitialDelay    time.Duration
 	MaxDelay        time.Duration
 	AutomaticWindow time.Duration
@@ -20,15 +21,14 @@ type Policy struct {
 // Operators can change every duration through ServerConfig.llmRecovery.
 func DefaultPolicy() Policy {
 	return Policy{
-		RequestTimeout:  time.Minute,
 		InitialDelay:    time.Second,
 		MaxDelay:        30 * time.Second,
 		AutomaticWindow: 5 * time.Minute,
 	}
 }
 func (p Policy) Validate() error {
-	if p.RequestTimeout < time.Second || p.InitialDelay < time.Second || p.MaxDelay < p.InitialDelay || p.AutomaticWindow < p.MaxDelay {
-		return errors.New("LLM recovery requires positive request timeout and 1s <= initialDelay <= maxDelay <= automaticWindow")
+	if p.InitialDelay < time.Second || p.MaxDelay < p.InitialDelay || p.AutomaticWindow < p.MaxDelay {
+		return errors.New("LLM recovery requires 1s <= initialDelay <= maxDelay <= automaticWindow")
 	}
 	return nil
 }
@@ -48,11 +48,10 @@ func (r Route) Key() string {
 }
 
 type Decision struct {
-	Allowed               bool    `json:"allowed"`
-	Code                  string  `json:"code,omitempty"`
-	RetryAfterSeconds     float64 `json:"retryAfterSeconds"`
-	RequestTimeoutSeconds float64 `json:"requestTimeoutSeconds"`
-	RequiresRetry         bool    `json:"requiresRetry"`
+	Allowed           bool    `json:"allowed"`
+	Code              string  `json:"code,omitempty"`
+	RetryAfterSeconds float64 `json:"retryAfterSeconds"`
+	RequiresRetry     bool    `json:"requiresRetry"`
 }
 
 var ErrUnavailable = errors.New("gateway recovery authority is unavailable")

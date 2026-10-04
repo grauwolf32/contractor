@@ -22,7 +22,6 @@ class Authority:
         return RecoveryDecision(
             allowed=not self.wait,
             retry_after_seconds=60,
-            request_timeout_seconds=1,
             requires_retry=self.wait,
         )
 
@@ -64,6 +63,92 @@ def test_model_unload_retries_only_identical_model_request():
         assert authority.events[0][1] == authority.events[1][1]
         assert authority.events[2][1] == authority.events[3][1] != authority.events[0][1]
         assert "secret" not in repr(authority.events)
+
+    asyncio.run(scenario())
+
+
+def test_unanswered_request_is_not_resent_and_releases_its_grant():
+    async def scenario():
+        authority = Authority()
+        requests = []
+
+        async def gateway(request):
+            requests.append(request)
+            raise httpx.ReadTimeout("model still generating", request=request)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            with pytest.raises(GatewayRequestError) as caught:
+                await handle.complete({"model": "worker"})
+        # Transient for the invocation, but never queued again behind itself.
+        assert caught.value.retryable
+        assert len(requests) == 1
+        assert [event[2] for event in authority.events] == ["acquire", "released"]
+
+    asyncio.run(scenario())
+
+
+def test_allocation_timeout_bounds_each_recovered_request():
+    async def scenario():
+        authority = Authority()
+        requests = []
+
+        async def gateway(request):
+            requests.append(request)
+            await asyncio.sleep(30)
+            return httpx.Response(200, json={"ok": True})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=0.2,
+                http_client=http,
+                recovery=authority,
+            )
+            async with asyncio.timeout(5):
+                with pytest.raises(GatewayRequestError) as caught:
+                    await handle.complete({"model": "worker"})
+        assert caught.value.provider_error_type == "APITimeoutError"
+        assert len(requests) == 1
+        assert [event[2] for event in authority.events] == ["acquire", "released"]
+
+    asyncio.run(scenario())
+
+
+def test_undelivered_request_timeout_blocks_route_and_retries():
+    async def scenario():
+        authority = Authority()
+        requests = []
+
+        async def gateway(request):
+            requests.append(request)
+            if len(requests) == 1:
+                raise httpx.ConnectTimeout("gateway unreachable", request=request)
+            return httpx.Response(200, json={"ok": True})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            assert await handle.complete({"model": "worker"}) == {"ok": True}
+        assert len(requests) == 2
+        assert [event[2:4] for event in authority.events] == [
+            ("acquire", None),
+            ("failed", "gateway_timeout"),
+            ("acquire", None),
+            ("succeeded", None),
+        ]
 
     asyncio.run(scenario())
 
@@ -339,9 +424,7 @@ class ScriptedTransport:
         return ArtifactHTTPResponse(200, {}, step)
 
 
-DECISION = json.dumps(
-    {"allowed": True, "retryAfterSeconds": 0, "requestTimeoutSeconds": 1, "requiresRetry": False}
-).encode()
+DECISION = json.dumps({"allowed": True, "retryAfterSeconds": 0, "requiresRetry": False}).encode()
 
 
 def recovery_client(script, clock, *, on_retry=None):
@@ -446,10 +529,7 @@ def test_authority_4xx_and_invalid_decisions_stop_without_retry():
             ([b"not json"], "invalid decision"),
             ([b'{"allowed": "yes"}'], "invalid decision"),
             (
-                [
-                    b'{"allowed": true, "retryAfterSeconds": -1,'
-                    b' "requestTimeoutSeconds": 1, "requiresRetry": false}'
-                ],
+                [b'{"allowed": true, "retryAfterSeconds": -1, "requiresRetry": false}'],
                 "invalid decision",
             ),
         ]:
@@ -466,8 +546,7 @@ def test_complete_server_decision_shape_is_the_strict_wire_contract():
     from contractor_runtime.llm.recovery import RecoveryStoppedError
 
     blocked = (
-        b'{"allowed":false,"code":"model_unavailable","retryAfterSeconds":30,'
-        b'"requestTimeoutSeconds":60,"requiresRetry":true}'
+        b'{"allowed":false,"code":"model_unavailable","retryAfterSeconds":30,"requiresRetry":true}'
     )
 
     async def scenario():
@@ -478,9 +557,11 @@ def test_complete_server_decision_shape_is_the_strict_wire_contract():
         assert decision.requires_retry is True
         assert decision.retry_after_seconds == 30
         for body in (
-            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1}',
-            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1,'
-            b'"requiresRetry":false,"unknown":1}',
+            b'{"allowed":true,"retryAfterSeconds":0}',
+            b'{"allowed":true,"retryAfterSeconds":0,"requiresRetry":false,"unknown":1}',
+            # Model request timeouts belong to the allocation, not the authority.
+            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":60,'
+            b'"requiresRetry":false}',
         ):
             client, _ = recovery_client([body], FakeClock())
             with pytest.raises(RecoveryStoppedError, match="invalid decision"):

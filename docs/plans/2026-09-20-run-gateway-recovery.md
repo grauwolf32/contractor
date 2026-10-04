@@ -76,3 +76,15 @@ Final commit verification also passed after incorporating the neighboring main
 commits: `go test ./...`, both recovery process tests (94.0 s), 64 focused UI
 tests, both TypeScript checks and the production UI build. PostgreSQL suites,
 413 Runtime tests and recovery race checks passed on the isolated V65 tree.
+
+## Live rollout follow-up (2026-10-04)
+
+The first live demo Audit showed that the recovery gate capped every model
+request at its own one-minute `llmRecovery.requestTimeout`, below the
+configured `workerRequestTimeout`. A reasoning model answering in minutes was
+classified as `gateway_timeout`, the route blocked and the identical request
+resent; LiteLLM kept every abandoned upstream request running, so LM Studio
+queued duplicate generations and each resend timed out behind them. The gate no
+longer bounds requests: each participant uses its own timeout, the probe lease
+covers the longest of them, and a request the Gateway received but did not
+answer in time is released and not resent.

@@ -164,7 +164,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	if err != nil {
 		t.Fatal(err)
 	}
-	recovery, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	recovery, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

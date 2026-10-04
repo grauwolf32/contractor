@@ -300,6 +300,28 @@
       }
     },
     {
+      "name": "default matches lm studio engine loss",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "Engine protocol predict request failed: fetch failed"
+      }
+    },
+    {
+      "name": "default matches litellm wrapped engine loss",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'Engine protocol predict request failed: fetch failed'}. Received Model Group=worker-model"
+        }
+      }
+    },
+    {
       "name": "default includes budget_exceeded",
       "status": 429,
       "signatures": "default",

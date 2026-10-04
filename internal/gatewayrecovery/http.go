@@ -8,7 +8,9 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,41 +29,43 @@ func (e *FailureError) Error() string {
 }
 
 // Do retries the same serialized model request inside a planner invocation.
-// Context cancellation remains authoritative over all waits and network calls.
-// A non-retryable failure ends the call as a *FailureError.
+// Each attempt is bounded by the client's own timeout. Context cancellation
+// remains authoritative over all waits and network calls. A non-retryable or
+// abandoned failure ends the call as a *FailureError.
 func (p *Participant) Do(request *http.Request, client *http.Client, maxResponseBytes int64) ([]byte, error) {
 	for {
 		requestID, err := newRequestID()
 		if err != nil {
 			return nil, err
 		}
-		decision, err := p.acquire(request.Context(), requestID)
-		if err != nil {
+		if _, err := p.acquire(request.Context(), requestID); err != nil {
 			return nil, err
 		}
-		attemptContext, cancel := context.WithTimeout(request.Context(), time.Duration(decision.RequestTimeoutSeconds*float64(time.Second)))
-		attempt := request.Clone(attemptContext)
+		attempt := request.Clone(request.Context())
 		attempt.Body, err = request.GetBody()
 		if err != nil {
-			cancel()
 			return nil, fmt.Errorf("copy model request")
 		}
-		response, sendErr := client.Do(attempt)
-		body, failure, delay := readResponse(response, sendErr, maxResponseBytes, p.signatures)
-		cancel()
+		body, failure, delay := send(attempt, client, maxResponseBytes, p.signatures)
 		action := "succeeded"
 		if failure != nil {
-			action = "finished"
-			if failure.Retryable {
+			switch {
+			case failure.Abandoned:
+				// No model result was observed: relinquish a probe without
+				// reopening or further blocking the route.
+				action = "released"
+			case failure.Retryable:
 				action = "failed"
+			default:
+				action = "finished"
 			}
 		}
 		update := Request{RequestID: requestID, Action: action, RetryAfterSeconds: delay}
-		if failure != nil {
+		if action == "failed" {
 			update.Code = failure.Code
 		}
 		err = p.record(request.Context(), update)
-		if failure != nil && failure.Retryable {
+		if action == "failed" {
 			// The route must record the failure before the request is resent.
 			if err != nil {
 				return nil, err
@@ -110,12 +114,27 @@ func (p *Participant) record(ctx context.Context, update Request) error {
 func Send(
 	request *http.Request, client *http.Client, maxResponseBytes int64, signatures contracts.GatewayFailureSignatures,
 ) ([]byte, error) {
-	response, sendErr := client.Do(request)
-	body, failure, _ := readResponse(response, sendErr, maxResponseBytes, signatures)
+	body, failure, _ := send(request, client, maxResponseBytes, signatures)
 	if failure != nil {
 		return nil, &FailureError{Failure: *failure}
 	}
 	return body, nil
+}
+
+// send performs one attempt and classifies its outcome. Whether the request
+// was fully written separates an unreachable Gateway from one that received
+// the request and is still working on it.
+func send(
+	request *http.Request, client *http.Client, limit int64, signatures contracts.GatewayFailureSignatures,
+) ([]byte, *Failure, float64) {
+	var delivered atomic.Bool
+	trace := &httptrace.ClientTrace{WroteRequest: func(info httptrace.WroteRequestInfo) {
+		if info.Err == nil {
+			delivered.Store(true)
+		}
+	}}
+	response, sendErr := client.Do(request.WithContext(httptrace.WithClientTrace(request.Context(), trace)))
+	return readResponse(response, sendErr, delivered.Load(), limit, signatures)
 }
 
 func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, error) {
@@ -134,21 +153,23 @@ func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, 
 	}
 }
 
-func readResponse(response *http.Response, sendErr error, limit int64, signatures contracts.GatewayFailureSignatures) ([]byte, *Failure, float64) {
+func readResponse(
+	response *http.Response, sendErr error, delivered bool, limit int64, signatures contracts.GatewayFailureSignatures,
+) ([]byte, *Failure, float64) {
 	if sendErr != nil {
 		var netError net.Error
 		if errors.Is(sendErr, context.DeadlineExceeded) || errors.As(sendErr, &netError) && netError.Timeout() {
-			return nil, &Failure{"gateway_timeout", true}, 0
+			return nil, &Failure{Code: "gateway_timeout", Retryable: true, Abandoned: delivered}, 0
 		}
-		return nil, &Failure{"gateway_unavailable", true}, 0
+		return nil, &Failure{Code: "gateway_unavailable", Retryable: true}, 0
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil {
-		return nil, &Failure{"gateway_unavailable", true}, 0
+		return nil, &Failure{Code: "gateway_unavailable", Retryable: true}, 0
 	}
 	if len(body) > int(limit) {
-		return nil, &Failure{"invalid_gateway_response", false}, 0
+		return nil, &Failure{Code: "invalid_gateway_response", Retryable: false}, 0
 	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		return body, nil, 0

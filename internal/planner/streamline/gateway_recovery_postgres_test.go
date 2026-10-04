@@ -60,7 +60,7 @@ func TestPostgresGatewayRecoveryEndsPermanentFailuresNonRetryable(t *testing.T) 
 			t.Cleanup(server.Close)
 			participant := admittedPlannerParticipant(t, ctx, pool, "run-gateway")
 			sessions := newFakeSessions()
-			instance := recoveryBackedPlanner(t, server, participant, sessions, 32)
+			instance := recoveryBackedPlanner(t, server, participant, sessions, 32, 0)
 
 			_, err := instance.Run(ctx)
 			assertPlannerCode(t, err, "planner_gateway_rejected")
@@ -141,7 +141,7 @@ func TestPostgresGatewayRecoveryKeepsOutcomeWhenBookkeepingWaits(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 			participant := admittedPlannerParticipant(t, ctx, budgeted, "run-bookkeeping")
-			instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 1)
+			instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 1, 0)
 
 			_, runErr := instance.Run(ctx)
 			select {
@@ -162,6 +162,37 @@ func TestPostgresGatewayRecoveryKeepsOutcomeWhenBookkeepingWaits(t *testing.T) {
 	}
 }
 
+func TestPostgresGatewayRecoveryDoesNotResendAbandonedRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	pool := isolatedStreamlinePool(t, ctx)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		calls.Add(1)
+		// Received but unanswered: a local model still generating.
+		<-release
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+	participant := admittedPlannerParticipant(t, ctx, pool, "run-abandoned")
+	instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 32, 300*time.Millisecond)
+
+	_, err := instance.Run(ctx)
+	assertPlannerCode(t, err, "planner_gateway_unavailable")
+	if failure := planner.FailureFrom(err); !failure.Retryable || calls.Load() != 1 {
+		t.Fatalf("failure=%+v Gateway calls=%d, want one retryable unanswered request", failure, calls.Load())
+	}
+	// A slow model is not an outage: the route stays open and the Run running.
+	var blocked bool
+	var state string
+	if err := pool.QueryRow(ctx, `
+SELECT g.blocked, r.state FROM gateway_recovery_routes g, workflow_runs r
+WHERE r.run_id='run-abandoned'`).Scan(&blocked, &state); err != nil || blocked || state != string(runstore.RunRunning) {
+		t.Fatalf("recovery state blocked=%v Run=%s err=%v", blocked, state, err)
+	}
+}
+
 // admittedPlannerParticipant binds a planner invocation of one admitted,
 // running Run to the production recovery authority.
 func admittedPlannerParticipant(
@@ -169,8 +200,8 @@ func admittedPlannerParticipant(
 ) *gatewayrecovery.Participant {
 	t.Helper()
 	service, err := gatewayrecovery.New(pool, gatewayrecovery.Policy{
-		RequestTimeout: time.Minute, InitialDelay: time.Second, MaxDelay: time.Second, AutomaticWindow: time.Minute,
-	})
+		InitialDelay: time.Second, MaxDelay: time.Second, AutomaticWindow: time.Minute,
+	}, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,11 +228,12 @@ func admittedPlannerParticipant(
 
 func recoveryBackedPlanner(
 	t *testing.T, server *httptest.Server, participant *gatewayrecovery.Participant,
-	sessions *fakeSessions, maxModelCalls int,
+	sessions *fakeSessions, maxModelCalls int, requestTimeout time.Duration,
 ) planner.Planner {
 	t.Helper()
 	llm, err := NewOpenAICompatibleModel(GatewaySettings{
 		Recovery: participant, URL: server.URL + "/v1", Model: "planner-model", HTTPClient: server.Client(),
+		RequestTimeout: requestTimeout,
 	})
 	if err != nil {
 		t.Fatal(err)
