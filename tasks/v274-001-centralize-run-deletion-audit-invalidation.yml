@@ -3,8 +3,8 @@ id: V274-001
 title: Centralize Run-deletion Audit projection invalidation
 milestone: code-reuse-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: bbff50d2e802d2482303bd54316102a5f4fb6ead
 depends_on: []
 languages: [go]
 goal: Keep Audit revision updates caused by Run deletion behind auditstore.
