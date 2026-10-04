@@ -79,6 +79,7 @@ export function createEvalFixture(
     }[],
     lostCommand: false,
     commandRaceOnce: false,
+    commandCancelledOnce: false,
     commandSettleOnce: false,
     commandUnavailableOnce: false,
     lostAssessment: false,
@@ -293,13 +294,20 @@ export function createEvalFixture(
       );
     } else if (path.endsWith("/commands") && method === "POST") {
       if (e.controlMode !== "server") return error("eval_external_control");
+      // Authority changes such as a selection or another browser's command
+      // advance the revision first; coordinator progress never does.
       if (fixture.commandRaceOnce) {
         fixture.commandRaceOnce = false;
         e.revision++;
       }
+      if (fixture.commandCancelledOnce) {
+        fixture.commandCancelledOnce = false;
+        e.revision++;
+        e.state = "cancelling";
+        e.allowedCommands = ["duplicate"];
+      }
       if (fixture.commandSettleOnce) {
         fixture.commandSettleOnce = false;
-        e.revision++;
         e.state = "finished";
         e.allowedCommands = ["duplicate"];
       }
@@ -310,6 +318,14 @@ export function createEvalFixture(
       if (etag !== `"${e.revision}"`)
         return error("eval_revision_mismatch", 412);
       const command = body as unknown as EvalCommand;
+      if (!e.allowedCommands.includes(command.kind))
+        return error("eval_not_ready");
+      if (
+        command.kind !== "prepare" &&
+        command.kind !== "duplicate" &&
+        command.planSha256 !== e.planSha256
+      )
+        return error("eval_pin_mismatch");
       e.revision++;
       if (command.kind === "prepare") {
         e.setup = structuredClone(e.draft!);

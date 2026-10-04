@@ -101,10 +101,14 @@ selection and Project deletion fences. Native plan preparation and coordinator
 observations (including admission, settlement, token usage, first native
 selection and execution tombstones) update progress and `updatedAt` without
 consuming that authority revision. A previously read ETag therefore remains
-valid for Pause or Cancel until another authority mutation occurs. Content
-hashes are SHA-256 over exact retained bytes. Secret values do not enter public
-DTOs, logs, cursors or error text. Objects/arrays remain bounded by spec 26;
-DTO schema validation is closed, with explicitly versioned extensions only.
+valid for Pause or Cancel until another authority mutation occurs. A stop that
+progress has since ruled out passes that check and fails with 409
+`eval_not_ready` (or `eval_pin_mismatch` for another plan); the browser drops
+such a pending command and refetches instead of replaying it, while a lost
+response or 5xx keeps it for an exact replay. Content hashes are SHA-256 over
+exact retained bytes. Secret values do not enter public DTOs, logs, cursors or
+error text. Objects/arrays remain bounded by spec 26; DTO schema validation is
+closed, with explicitly versioned extensions only.
 
 ## Dataset and variant selection
 
