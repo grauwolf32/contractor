@@ -1644,7 +1644,10 @@ it. Source-Run pins may be released only after that durable disposition.
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,
 releases evidence/accepted-proposal holds, and only then purges Audit-managed
-Project bindings and domain rows. Project deletion adds an
+Project bindings and domain rows. Purge removes every row the Audit owns,
+including immutable review decisions and finding assessments that outlive the
+deleted child Runs; their restricting keys protect them only outside a purge.
+Project deletion adds an
 earlier Audit-cancellation/drain phase before its existing Run and ProjectScope
 purge. No Audit work starts in a deleting Project and no Audit hold survives a
 completed Project purge. Cleanup runs regardless of owner/Audit queue pause.
