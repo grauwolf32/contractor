@@ -3,7 +3,7 @@ id: V279-001
 title: Close report reviews when a Project deletes its Audits
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V278-001]
 languages: [go, sql]
 goal: Make Project-owned Audit deletion expire pending report-acceptance reviews exactly like owner deletion, through one auditstore deletion primitive.

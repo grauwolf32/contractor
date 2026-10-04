@@ -3,7 +3,7 @@ id: V278-001
 title: Purge Audits that hold review decisions or collected finding assessments
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: Let Audit purge and Project deletion finish for Audits whose owner decided a review or whose check collection attached a finding.
