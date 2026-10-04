@@ -3,8 +3,8 @@ id: V256-001
 title: Verify embedded migrations before Server startup
 milestone: database-schema-verification-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ff34fc1953b808cfe58a4ab11406f36080dafac0
 depends_on: []
 languages: [go]
 goal: Refuse to serve traffic when the PostgreSQL migration ledger does not match this binary.
