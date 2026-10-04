@@ -37,6 +37,9 @@ WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
 WORKSPACE_OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json"
 MAX_DIFF_BYTES = 1 << 20
+# Rendered diff bytes one session keeps between pages: the largest page plus the
+# diff of a fully rewritten 16 MiB file. A larger window is not retained.
+MAX_DIFF_CACHE_BYTES = 64 << 20
 _NO_NEWLINE = "\\ No newline at end of file\n"
 MAX_WORKSPACE_EXPORT_BYTES = 16 << 20
 
@@ -98,6 +101,9 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         # of re-encoding every text file; replacing the tree recounts it once.
         self._text_bytes: tuple[ManagedWorkspaceTree, int] | None = None
         self._generation = 0
+        # The latest diff query and the generation it rendered. Diff worker
+        # threads and close replace it, always under the session lock.
+        self._diff_cache: tuple[int, _DiffPager] | None = None
 
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_project_path(path, allow_root=False)
@@ -268,16 +274,20 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         normalized = normalize_project_path(path, allow_root=True)
         async with self._lock:
             self._require_open()
-            return tuple(
-                WorkspaceChange(
-                    path=candidate,
-                    change=_change_kind(self._checkpoint, self._tree, candidate),
-                    token=_change_token(self._checkpoint, self._tree, candidate),
-                )
-                for candidate in sorted(self._checkpoint.paths() | self._tree.paths())
-                if _within(candidate, normalized)
-                and _path_value(self._checkpoint, candidate) != _path_value(self._tree, candidate)
+            # Tokens hash every changed text; every diff page fingerprints them.
+            return await to_thread_until_done(
+                self._change_entries, normalized, name="workspace-change-entries"
             )
+
+    def _change_entries(self, root: str) -> tuple[WorkspaceChange, ...]:
+        return tuple(
+            WorkspaceChange(
+                path=candidate,
+                change=_change_kind(self._checkpoint, self._tree, candidate),
+                token=_change_token(self._checkpoint, self._tree, candidate),
+            )
+            for candidate in _changed_paths(self._checkpoint, self._tree, root)
+        )
 
     async def diff(
         self,
@@ -297,9 +307,29 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             raise WorkspaceStorageError("workspace_limit_exceeded")
         async with self._lock:
             self._require_open()
-            return _workspace_diff(
-                self._checkpoint, self._tree, normalized, max_bytes, offset_bytes
+            # difflib is superlinear in file size. The lock keeps both trees
+            # unchanged until the thread returns, even when this call is cancelled.
+            return await to_thread_until_done(
+                self._diff_page, normalized, max_bytes, offset_bytes, name="workspace-diff"
             )
+
+    def _diff_page(self, root: str, maximum: int, offset: int) -> WorkspaceDiff:
+        cached, self._diff_cache = self._diff_cache, None
+        if (
+            cached is not None
+            and cached[0] == self._generation
+            and cached[1].root == root
+            and cached[1].start <= offset
+        ):
+            pager = cached[1]
+        else:
+            pager = _DiffPager(root, _changed_paths(self._checkpoint, self._tree, root))
+        result = pager.page(self._checkpoint, self._tree, offset, maximum)
+        # Every mutation advances the generation, so a retained pager is only
+        # resumed over the same trees it has already rendered.
+        if len(pager.window) <= MAX_DIFF_CACHE_BYTES:
+            self._diff_cache = (self._generation, pager)
+        return result
 
     def changes_view(self) -> WorkspaceChanges:
         self._require_open()
@@ -397,6 +427,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
     async def close(self, *, deadline: float | None = None) -> None:
         async with asyncio.timeout_at(deadline), self._lock:
             self._closed = True
+            self._diff_cache = None
             for tree in (self._tree, self._source, self._checkpoint):
                 tree.directories.clear()
                 tree.text_files.clear()
@@ -669,54 +700,97 @@ def _workspace_diff(
     maximum: int,
     offset: int,
 ) -> WorkspaceDiff:
-    changed = [
+    pager = _DiffPager(root, _changed_paths(before, after, root))
+    return pager.page(before, after, offset, maximum)
+
+
+def _changed_paths(
+    before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, root: str
+) -> tuple[str, ...]:
+    return tuple(
         path
         for path in sorted(before.paths() | after.paths())
         if _within(path, root) and _path_value(before, path) != _path_value(after, path)
-    ]
-    chunks: list[str] = []
-    used = 0
-    remaining_skip = offset
-    truncated = False
-    for path in changed:
-        lines = _path_diff(before, after, path)
-        for line in lines:
-            if not line.endswith("\n"):
-                # Only a content line can lack LF: that side of the file ends
-                # without a newline, which a valid patch must say explicitly.
-                line += "\n" + _NO_NEWLINE
-            encoded = line.encode("utf-8")
-            if remaining_skip:
-                if remaining_skip >= len(encoded):
-                    remaining_skip -= len(encoded)
-                    continue
-                encoded = encoded[remaining_skip:]
-                try:
-                    encoded.decode("utf-8")
-                except UnicodeError:
-                    raise WorkspaceStorageError("workspace_cursor_invalid") from None
-                remaining_skip = 0
-            remaining = maximum - used
-            if len(encoded) > remaining:
-                chunks.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-                used += len(chunks[-1].encode("utf-8"))
-                if used == 0:
-                    raise WorkspaceStorageError("workspace_limit_exceeded")
-                truncated = True
-                break
-            chunks.append(encoded.decode("utf-8"))
-            used += len(encoded)
-        if truncated:
-            break
-    if remaining_skip:
-        raise WorkspaceStorageError("workspace_cursor_invalid")
-    return WorkspaceDiff(
-        text="".join(chunks),
-        returned_bytes=used,
-        truncated=truncated,
-        offset_bytes=offset,
-        next_offset=offset + used if truncated else None,
     )
+
+
+@dataclass(slots=True)
+class _DiffPager:
+    """Byte pages of one rendered diff, kept from the latest requested page on.
+
+    Paths render whole and in order, so paging forward renders each changed
+    path once. Bytes before the latest requested offset are discarded; an
+    earlier offset needs a new pager.
+    """
+
+    root: str
+    paths: tuple[str, ...]
+    rendered_paths: int = 0
+    start: int = 0
+    window: bytearray = field(default_factory=bytearray)
+
+    def page(
+        self,
+        before: ManagedWorkspaceTree,
+        after: ManagedWorkspaceTree,
+        offset: int,
+        maximum: int,
+    ) -> WorkspaceDiff:
+        if offset < self.start:
+            raise RuntimeError("diff pager cannot return before its window")
+        self._discard_before(offset)
+        # One byte past the page tells whether the diff continues.
+        while self.rendered_paths < len(self.paths) and (
+            self.start + len(self.window) <= offset + maximum
+        ):
+            self.window += _rendered_path_diff(before, after, self.paths[self.rendered_paths])
+            self.rendered_paths += 1
+            self._discard_before(offset)
+        relative = offset - self.start
+        if relative > len(self.window) or (
+            relative < len(self.window) and _utf8_continuation(self.window[relative])
+        ):
+            raise WorkspaceStorageError("workspace_cursor_invalid")
+        end = relative + maximum
+        truncated = end < len(self.window)
+        if truncated:
+            while end > relative and _utf8_continuation(self.window[end]):
+                end -= 1
+            if end == relative:
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+        else:
+            end = len(self.window)
+        used = end - relative
+        return WorkspaceDiff(
+            text=self.window[relative:end].decode("utf-8"),
+            returned_bytes=used,
+            truncated=truncated,
+            offset_bytes=offset,
+            next_offset=offset + used if truncated else None,
+        )
+
+    def _discard_before(self, offset: int) -> None:
+        count = min(offset - self.start, len(self.window))
+        if count:
+            del self.window[:count]
+            self.start += count
+
+
+def _utf8_continuation(value: int) -> bool:
+    return value & 0xC0 == 0x80
+
+
+def _rendered_path_diff(
+    before: ManagedWorkspaceTree, after: ManagedWorkspaceTree, path: str
+) -> bytes:
+    lines: list[str] = []
+    for line in _path_diff(before, after, path):
+        if not line.endswith("\n"):
+            # Only a content line can lack LF: that side of the file ends
+            # without a newline, which a valid patch must say explicitly.
+            line += "\n" + _NO_NEWLINE
+        lines.append(line)
+    return "".join(lines).encode("utf-8")
 
 
 def _path_diff(

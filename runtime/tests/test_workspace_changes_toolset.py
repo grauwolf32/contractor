@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     OverlayWorkspaceSession,
 )
+from contractor_runtime.projectfs import overlay as overlay_module
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.toolsets.workspace_changes.tools import WorkspaceChangesToolsetFactory
@@ -173,6 +176,174 @@ def test_factory_rejects_absent_and_direct_views_and_cursors_track_content(
         "diff",
         "rollback_changes",
     }
+
+
+def test_diff_pages_render_once_per_generation_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        session = await overlay("diff-pages")
+        tools = await make_tools(tmp_path, session.changes_view(), WorkerState(), ["diff"])
+        await session.write_text("modified.txt", "".join(f"after {i}\n" for i in range(40)))
+        await session.write_text("created.txt", "".join(f"créé {i}\n" for i in range(40)))
+        expected = uncached_diff(session)
+        rendered = record_rendering(monkeypatch)
+        hashed: list[int] = []
+        change_token = overlay_module._change_token
+
+        def counted_token(*args: Any) -> str:
+            hashed.append(threading.get_ident())
+            return change_token(*args)
+
+        monkeypatch.setattr(overlay_module, "_change_token", counted_token)
+
+        pages = await page_through(tools, "", 64)
+        assert len(pages) > 10
+        assert "".join(pages) == expected
+        # Each changed text renders once for all pages, always in a worker thread.
+        assert sorted(path for path, _ in rendered) == ["created.txt", "modified.txt"]
+        assert threading.get_ident() not in {thread for _, thread in rendered}
+        assert hashed and threading.get_ident() not in hashed
+
+        await session.write_text("created.txt", "replaced\n")
+        expected = uncached_diff(session)
+        rendered.clear()
+        pages = await page_through(tools, "", 64)
+        assert "".join(pages) == expected
+        assert sorted(path for path, _ in rendered) == ["created.txt", "modified.txt"]
+
+    asyncio.run(scenario())
+
+
+def test_diff_cache_restarts_for_new_generation_root_or_earlier_offset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        session = await overlay("diff-restart")
+        await session.write_text("modified.txt", "".join(f"after {i}\n" for i in range(40)))
+        await session.write_text("created.txt", "created\n")
+        rendered = record_rendering(monkeypatch)
+
+        def paths() -> list[str]:
+            return [path for path, _ in rendered]
+
+        first = await session.diff(max_bytes=32)
+        assert paths() == ["created.txt"]
+        second = await session.diff(max_bytes=32, offset_bytes=first.next_offset or 0)
+        assert paths() == ["created.txt", "modified.txt"]
+        # A retried page and another page size reuse the retained bytes.
+        assert await session.diff(max_bytes=32, offset_bytes=second.offset_bytes) == second
+        await session.diff(max_bytes=7, offset_bytes=second.offset_bytes)
+        assert len(rendered) == 2
+
+        # An earlier offset or another root renders again.
+        assert await session.diff(max_bytes=32) == first
+        assert paths()[2:] == ["created.txt"]
+        await session.diff("modified.txt", max_bytes=32)
+        assert paths()[3:] == ["modified.txt"]
+
+        offset = first.next_offset or 0
+        await session.diff(max_bytes=32, offset_bytes=offset)
+        # Same length, different bytes: a stale window would return "+created".
+        await session.write_text("created.txt", "changed\n")
+        changed = await session.diff(max_bytes=32, offset_bytes=offset)
+        assert "+changed\n" in changed.text
+        assert changed == overlay_module._workspace_diff(
+            session._checkpoint, session._tree, "", 32, offset
+        )
+
+    asyncio.run(scenario())
+
+
+def test_diff_cache_does_not_retain_more_than_its_bound(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        session = await overlay("diff-bound")
+        await session.write_text("modified.txt", "".join(f"after {i}\n" for i in range(40)))
+        expected = uncached_diff(session)
+        rendered = record_rendering(monkeypatch)
+        # Smaller than any truncated page plus its look-ahead byte.
+        monkeypatch.setattr(overlay_module, "MAX_DIFF_CACHE_BYTES", 31)
+        chunks: list[str] = []
+        offset = 0
+        while True:
+            page = await session.diff(max_bytes=32, offset_bytes=offset)
+            chunks.append(page.text)
+            if page.next_offset is None:
+                break
+            assert session._diff_cache is None
+            offset = page.next_offset
+        assert "".join(chunks) == expected
+        # Without a retained window every page renders the file again.
+        assert len(rendered) == len(chunks) > 1
+
+    asyncio.run(scenario())
+
+
+def test_diff_thread_holds_the_session_lock_through_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        session = await overlay("diff-lock")
+        await session.write_text("modified.txt", "after\n")
+        started, release = threading.Event(), threading.Event()
+        unified_diff = overlay_module.difflib.unified_diff
+
+        def blocked(*args: Any, **kwargs: Any) -> Iterator[str]:
+            started.set()
+            if not release.wait(5):
+                raise AssertionError("diff worker was never released")
+            yield from unified_diff(*args, **kwargs)
+
+        monkeypatch.setattr(overlay_module.difflib, "unified_diff", blocked)
+        cancelled = asyncio.create_task(session.diff())
+        assert await asyncio.to_thread(started.wait, 2)
+        writer = asyncio.create_task(session.write_text("modified.txt", "concurrent\n"))
+        cancelled.cancel()
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # The edit waits for the diff thread although its caller was cancelled.
+        assert not writer.done() and not cancelled.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await cancelled
+        await writer
+        monkeypatch.undo()
+        diff = (await session.diff()).text
+        assert "+concurrent\n" in diff and "+after\n" not in diff
+
+    asyncio.run(scenario())
+
+
+def record_rendering(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int]]:
+    """Record each difflib run by project path and the thread that ran it."""
+
+    calls: list[tuple[str, int]] = []
+    unified_diff = overlay_module.difflib.unified_diff
+
+    def counted(*args: Any, **kwargs: Any) -> Iterator[str]:
+        label = kwargs["tofile"] if kwargs["tofile"] != "/dev/null" else kwargs["fromfile"]
+        calls.append((label.split("/", 1)[1], threading.get_ident()))
+        yield from unified_diff(*args, **kwargs)
+
+    monkeypatch.setattr(overlay_module.difflib, "unified_diff", counted)
+    return calls
+
+
+def uncached_diff(session: OverlayWorkspaceSession) -> str:
+    return overlay_module._workspace_diff(
+        session._checkpoint, session._tree, "", overlay_module.MAX_DIFF_BYTES, 0
+    ).text
+
+
+async def page_through(tools: dict[str, Any], path: str, max_bytes: int) -> list[str]:
+    chunks: list[str] = []
+    cursor = ""
+    while True:
+        page = await tools["diff"](path, cursor, max_bytes)
+        chunks.append(page["text"])
+        cursor = page["nextCursor"] or ""
+        if not cursor:
+            return chunks
 
 
 async def overlay(name: str) -> OverlayWorkspaceSession:
