@@ -83,7 +83,12 @@ uv run contractor-runtime \
 ```
 
 Start the second process on another listen/advertised port with
-`agent-telemetry.{crt,key}`. Omit `--runtime-adapter` to probe all built-ins, or
+`agent-telemetry.{crt,key}` and a different `--work-root`. If local project
+workspaces are enabled, give it a different `--workspace-work-root` too. Each
+Runtime holds an exclusive lock on both roots while running; a second process
+using either root fails before startup cleanup can remove live files. Keep the
+scratch and project-workspace roots separate rather than nesting them.
+Omit `--runtime-adapter` to probe all built-ins, or
 repeat it for an explicit subset. Startup labels seed only a previously unseen
 certificate principal; subsequent assignments use CAS on
 `PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels`.

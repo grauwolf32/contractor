@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import shutil
 import stat
@@ -10,6 +9,8 @@ import uuid
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+
+from contractor_runtime.threads import to_thread_until_done
 
 ALLOCATION_DIRECTORY_PREFIX = "allocation-"
 # Sibling of the directory it authorizes, so allocation tools cannot see,
@@ -71,7 +72,9 @@ class LocalWorkdirFactory:
             or path == root
         ):
             raise ValueError("refusing to clean an unrecognized allocation workspace")
-        await asyncio.to_thread(_remove_owned_workdir, root, path.name)
+        await to_thread_until_done(
+            _remove_owned_workdir, root, path.name, name="allocation-cleanup"
+        )
 
 
 def cleanup_orphan_workdirs(root: Path) -> None:

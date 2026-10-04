@@ -18,6 +18,7 @@ from contractor_runtime.sandbox.podman.settings import (
     podman_settings,
 )
 from contractor_runtime.toolsets.common.target_policy import IPNetwork, parse_allowed_networks
+from contractor_runtime.work_root_lock import validate_distinct_work_roots
 
 DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS = 30.0
 
@@ -191,6 +192,12 @@ def parse_settings(
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
     allowed_target_networks = _allowed_target_networks(parser, args.allowed_target_network, values)
     workspace = _workspace_settings(parser, args)
+    try:
+        validate_distinct_work_roots(
+            work_root, workspace.work_root if workspace is not None else None
+        )
+    except ValueError as error:
+        parser.error(str(error))
     podman = podman_settings(parser, args)
     if podman.enabled and (workspace is None or workspace.storage != "local"):
         parser.error("enabled podman requires --workspace-storage local")

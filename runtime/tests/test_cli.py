@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import dataclasses
 import json
+import logging
 import socket
 import ssl
 import subprocess
@@ -24,6 +25,7 @@ from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     parse_allowed_networks,
 )
+from contractor_runtime.work_root_lock import hold_work_roots
 
 
 def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
@@ -95,6 +97,55 @@ def test_startup_orphan_cleanup_runs_off_the_event_loop(
         assert cleanup_threads and cleanup_threads[0] != loop_thread
 
     asyncio.run(scenario())
+
+
+def test_cancelled_startup_holds_root_lock_until_cleanup_thread_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        settings = make_settings(tmp_path)
+        started = threading.Event()
+        release = threading.Event()
+
+        def delayed_cleanup(_: Path) -> None:
+            started.set()
+            assert release.wait(timeout=5)
+
+        monkeypatch.setattr(runtime_cli, "cleanup_orphan_workdirs", delayed_cleanup)
+        task = asyncio.create_task(runtime_cli.serve(settings, install_signal_handlers=False))
+        try:
+            assert await asyncio.to_thread(started.wait, 2)
+            task.cancel()
+            await asyncio.sleep(0)
+            with (
+                pytest.raises(RuntimeError, match="scratch work root in use"),
+                hold_work_roots(settings.work_root, None),
+            ):
+                pass
+        finally:
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        with hold_work_roots(settings.work_root, None):
+            pass
+
+    asyncio.run(scenario())
+
+
+def test_main_reports_work_root_lock_contention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    settings = make_settings(tmp_path)
+    monkeypatch.setattr(runtime_cli, "parse_settings", lambda _: settings)
+    monkeypatch.setattr(runtime_cli, "configure_logging", lambda _: None)
+    with (
+        hold_work_roots(settings.work_root, None),
+        caplog.at_level(logging.ERROR, logger="contractor_runtime.cli"),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        runtime_cli.main([])
+    assert exit_info.value.code == 1
+    assert any("scratch work root in use" in record.message for record in caplog.records)
 
 
 def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path) -> None:
