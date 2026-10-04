@@ -19,7 +19,14 @@
 	test-shared-memory-faults test-shared-memory-hardening \
 	test-http-caido-matrix test-http-caido-runtime \
 	test-http-caido-architecture test-http-caido-hardening \
-	test-shared-memory-e2e test-production-memory-e2e test-http-caido-e2e
+	test-shared-memory-e2e test-production-memory-e2e test-http-caido-e2e \
+	test-scan-e2e
+
+# These opt-in process tests dispatch real host scanners, so they need the
+# binaries in addition to the release gate's usual database and Runtime.
+test-scan-e2e: require-database runtime-venv ui-install
+	@for tool in nuclei naabu sqlmap ffuf katana; do command -v "$$tool" >/dev/null || { echo "real scanner $$tool is required on PATH" >&2; exit 1; }; done
+	go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestKatanaDiscoveryAcrossProductionProcesses|TestScanToolsAcrossProductionProcesses)$$'
 
 test-code-analysis-matrix: test-hardening-matrices
 
