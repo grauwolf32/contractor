@@ -3,7 +3,8 @@ id: V286-001
 title: Release artifact transfer slots before writing archive previews
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 52d718296f90d9842f3b3c89972e64ddd2d8d94a
 depends_on: []
 languages: [go]
 goal: Stop slow clients from holding the Server's artifact transfer slots during response writes.
