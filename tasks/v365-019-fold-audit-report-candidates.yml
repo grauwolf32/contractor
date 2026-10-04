@@ -3,7 +3,8 @@ id: V365-019
 title: "Fold audit_report_candidates into audit_artifact_links and the review request"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: b74c3f5cd006def6d09502a88f44129e3f88e7a7
 depends_on: [V365-001]
 languages: [go, sql]
 goal: "Remove audit_report_candidates (report frozen while acceptance is pending) by storing its data on the parent row."
