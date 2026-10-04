@@ -46,12 +46,3 @@ export function runtimeConfigVersionPath(ref: {
 }): string {
   return `${RUNTIME_CONFIGURATION_PATH}/${encodeURIComponent(ref.name)}/${encodeURIComponent(ref.version)}`;
 }
-
-/**
- * Legacy `/runs/configuration…` locations map onto the Operations hub with the
- * rest of the path, the query and the fragment preserved.
- */
-export function legacyRunConfigurationDestination(location: Location): string {
-  const rest = location.pathname.replace(/^\/runs\/configuration(?=\/|$)/, "");
-  return `${RUNTIME_CONFIGURATION_PATH}${rest}${location.search}${location.hash}`;
-}

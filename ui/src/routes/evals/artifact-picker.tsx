@@ -1,12 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  listArtifacts,
-  downloadExactArtifact,
-  type ArtifactMetadata,
-} from "../../api/artifacts";
+import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { usePublicAPI } from "../../api/context";
+import { scopedArtifactAPI } from "../../api/scoped-artifacts";
 import type { EvalArtifact } from "../../api/evals";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
@@ -15,6 +12,9 @@ import { ArtifactWriteForm } from "../artifacts/common";
 import { EvalError, EvalField } from "./common";
 import { queryKeys } from "../../api/query-keys";
 import { sha256Hex } from "../../app/digest";
+
+/** Skill packages live on the Skills surface, not among Eval inputs. */
+const EXCLUDED_SKILL_NAMESPACE = "skills";
 
 export function EvalArtifactPicker({
   projectId,
@@ -37,24 +37,26 @@ export function EvalArtifactPicker({
             projectId,
             ...(cursor ? { cursor } : {}),
           })
-        : listArtifacts(api, cursor ? { cursor } : {}),
+        : listArtifacts(api, {
+            excludeNamespace: EXCLUDED_SKILL_NAMESPACE,
+            ...(cursor ? { cursor } : {}),
+          }),
   });
   const select = useMutation({
     mutationFn: async (metadata: ArtifactMetadata) => {
       const scopeId =
         scope === "project" ? projectId : session!.principal.userId;
-      const prefix =
+      const { blob } = await scopedArtifactAPI(
+        api,
         scope === "project"
-          ? `/v1/projects/${encodeURIComponent(projectId)}`
-          : "/v1";
-      const artifact = metadata.artifact;
-      const path = `${prefix}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
-      const { blob } = await downloadExactArtifact(api, metadata, path);
+          ? { kind: "project", id: projectId }
+          : { kind: "user" },
+      ).download(metadata);
       const sha256 = `sha256:${await sha256Hex(await blob.arrayBuffer())}`;
       return {
         scope,
         scopeId,
-        ...artifact,
+        ...metadata.artifact,
         sha256,
         mediaType: metadata.mediaType,
         sizeBytes: blob.size,
