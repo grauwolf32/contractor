@@ -3,7 +3,8 @@ id: V155-001
 title: Deduplicate release-gate race and process tests
 milestone: release-gate-test-dedup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 81b84acd60a9d02b73564069e72312787d8ffdc2
 depends_on: []
 languages: [make, yaml, python]
 goal: Run each Go race package and process e2e test once in release-verify while retaining focused family entry points.
@@ -27,3 +28,6 @@ tests:
   - {command: python3 scripts/check_release_verify_graph.py, covers: [A1, A2, A3]}
   - {command: make -n release-verify, covers: [A1]}
   - {command: make -n test-worker-session-modes-hardening, covers: [A3]}
+verification:
+  graph: 36 race packages, 19 process tests, 6 fixture tests, 2 opt-in scanner tests, 35 tagged e2e tests and 51 integration tests covered.
+  ci_release_verify: https://github.com/grauwolf32/contractor/actions/runs/37186027201 (success, 85m43s within the 150m job timeout).
