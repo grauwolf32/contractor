@@ -3,8 +3,8 @@ id: V270-001
 title: Centralize Audit review event writes
 milestone: code-reuse-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: eba3b1a9d4c214e51c322bdb146cfb4bf1596358
 depends_on: []
 languages: [go]
 goal: Keep Audit revisions and review events owned by auditstore.
