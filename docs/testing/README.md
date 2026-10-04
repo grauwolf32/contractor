@@ -47,7 +47,12 @@ failing stage in one run.
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
-| `release-verify-process` | The 19 process e2e tests; `make test-e2e` runs the same pass |
+| `release-verify-process-a` | The first shard of the 19 process e2e tests |
+| `release-verify-process-b` | The second shard of the 19 process e2e tests |
+
+The process shards run on separate CI runners. `make test-e2e` still runs all
+19 process tests in one local command; the release-graph guard checks that the
+two shards select each test exactly once.
 
 Inside the stages, family targets skip their own Go suites and browser stack
 in favor of the race, integration, process and browser passes; running a

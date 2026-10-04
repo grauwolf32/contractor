@@ -243,7 +243,7 @@ def check_release_graph() -> list[str]:
         raise SystemExit(f"release gate runs the browser stack {len(stacks)} times, want once")
     if len(races) != 2:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want the explicit and discovered passes")
-    if process_commands != 1 or set(process_tests) != EXPECTED_PROCESS_TESTS or any(
+    if process_commands != 2 or set(process_tests) != EXPECTED_PROCESS_TESTS or any(
         count != 1 for count in process_tests.values()
     ):
         raise SystemExit(
