@@ -41,7 +41,9 @@ command checks; completed results are recorded in the corresponding task files.
 
 Provide an explicit disposable test database whose user may create and drop
 schemas. Process tests create isolated schemas and clean them up; PostgreSQL
-itself is supplied by the caller.
+itself is supplied by the caller. Database tests skip only while
+`CONTRACTOR_TEST_DATABASE_URL` is unset: once it is set, an unreachable server
+fails them, and `make lint` rejects helpers that skip after a failed connection.
 
 ```shell
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable'

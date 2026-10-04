@@ -203,6 +203,52 @@ def check_tagged_e2e_inventory() -> int:
     return len(discovered)
 
 
+GO_SOURCE_ROOTS = ("cmd", "internal", "tests", "tools")
+# A configured but unreachable database must fail the gate; a database test
+# may skip only when CONTRACTOR_TEST_DATABASE_URL is unset.
+DATABASE_CONNECT = re.compile(r"\.Ping\(|pgxpool\.New|pgx\.Connect|\.Acquire\(|sql\.Open\(")
+ERROR_BRANCH = re.compile(r"^\s*if\b.*\berr\s*!=\s*nil\s*\{\s*$")
+SKIP_CALL = re.compile(r"\.Skip(?:f|Now)?\(")
+UNREACHABLE_SKIP = re.compile(
+    r"\.Skip(?:f)?\(\s*\"[^\"]*(?:PostgreSQL|Postgres|database)[^\"]*(?:unavailable|unreachable|down|refused)",
+    re.IGNORECASE,
+)
+
+
+def database_skip_violations(source: str) -> list[int]:
+    """Return the lines of skips taken when a configured database is unreachable."""
+    lines = source.splitlines()
+    violations = {number for number, line in enumerate(lines, 1) if UNREACHABLE_SKIP.search(line)}
+    for index, line in enumerate(lines):
+        previous = lines[index - 1] if index else ""
+        if ERROR_BRANCH.match(line) is None or not (
+            DATABASE_CONNECT.search(line) or DATABASE_CONNECT.search(previous)
+        ):
+            continue
+        depth = 0
+        for offset in range(index, len(lines)):
+            if offset > index and SKIP_CALL.search(lines[offset]):
+                violations.add(offset + 1)
+            depth += lines[offset].count("{") - lines[offset].count("}")
+            if depth <= 0:
+                break
+    return sorted(violations)
+
+
+def check_database_tests_fail_closed() -> None:
+    found = {
+        str(path.relative_to(ROOT)): lines
+        for source_root in GO_SOURCE_ROOTS
+        for path in sorted((ROOT / source_root).rglob("*_test.go"))
+        if (lines := database_skip_violations(path.read_text()))
+    }
+    if found:
+        raise SystemExit(
+            "database tests skip when CONTRACTOR_TEST_DATABASE_URL is set but unreachable; "
+            f"fail instead: {found}"
+        )
+
+
 def check_integration_graph() -> int:
     selected = discover()
     commands = [
@@ -267,4 +313,5 @@ if __name__ == "__main__":
     check_family_entry_points()
     tagged = check_tagged_e2e_inventory()
     count = check_integration_graph()
+    check_database_tests_fail_closed()
     print(f"release graph: 36 race packages, 19 process tests, 6 fixture tests, 2 opt-in scanner tests, {tagged} tagged e2e tests and {count} integration tests covered")

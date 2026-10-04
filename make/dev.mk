@@ -12,6 +12,7 @@ lint:
 	test -z "$$(gofmt -l cmd internal tests)"
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./...
+	python3 -m unittest discover -s scripts -p 'test_*.py'
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
