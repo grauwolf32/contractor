@@ -12,9 +12,12 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+// scanPlanFixtureRoot is a frozen slice of the scan catalog's scan-plan Workflows.
+const scanPlanFixtureRoot = "testdata/scan-plan-catalog"
+
 func scanPlanWorkflow(t *testing.T, name string) ResolvedWorkflow {
 	t.Helper()
-	workflow, err := mustLoad(t, "../../configs/scan", MVPDescriptors()).ResolveRunWorkflow(context.Background(), name, ExecutionConfigPatch{}, nil)
+	workflow, err := mustLoad(t, scanPlanFixtureRoot, MVPDescriptors()).ResolveRunWorkflow(context.Background(), name, ExecutionConfigPatch{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +198,7 @@ func TestScanPlanFFUFRequiresBoundWordlist(t *testing.T) {
 }
 
 func TestScanPlanPolicySnapshotIsDetachedAndRevalidated(t *testing.T) {
-	snapshot := mustLoad(t, "../../configs/scan", MVPDescriptors())
+	snapshot := mustLoad(t, scanPlanFixtureRoot, MVPDescriptors())
 	workflow, _ := snapshot.Workflow("request-set-scan@1")
 	stage := workflow.Stages["scan"]
 	stage.ScanPlan.Tools[0].TestParameters[0] = "changed"
@@ -248,7 +251,7 @@ func TestScanPlanModelOverridesAndAuthoringUnknownFieldsAreRejected(t *testing.T
 	if err := l.applyExecutionConfigPatch(&workflow, patch, "test"); err == nil || !strings.Contains(err.Error(), "do not apply") {
 		t.Fatalf("workflow model override error=%v", err)
 	}
-	valid := string(readFile(t, filepath.Join("..", "..", "configs", "scan", "workflows", "request_set_scan.yaml")))
+	valid := string(readFile(t, filepath.Join(scanPlanFixtureRoot, "workflows", "request_set_scan.yaml")))
 	for _, invalid := range []string{
 		strings.Replace(valid, "maxInputs: 100", "maxInputs: 100\n        unknown: true", 1),
 		strings.Replace(valid, "worker: sqlmap", "worker: sqlmap\n            unknown: true", 1),

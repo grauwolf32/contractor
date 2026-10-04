@@ -12,7 +12,7 @@ import (
 )
 
 func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/secondary.yaml"), []byte(secondaryGatewayYAML))
 	workflowPath := filepath.Join(root, "workflows/artifact_copy.yaml")
 	replaceFile(t, workflowPath, `  executionConfig:
@@ -121,7 +121,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 }
 
 func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	workflowPath := filepath.Join(root, "workflows/artifact_copy.yaml")
 	replaceFile(t, workflowPath, `  executionConfig:
     workers:
@@ -157,7 +157,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
 }
 
 func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/secondary.yaml"), []byte(secondaryGatewayYAML))
 	workflowPath := filepath.Join(root, "workflows/artifact_copy.yaml")
 	replaceFile(t, workflowPath, "      planner: passthrough@1", "      planner: streamline@1")
@@ -206,7 +206,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
 }
 
 func TestWorkflowWidePlannerDefaultSkipsPassthroughStages(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	workflow := strings.Replace(
 		multiStageWorkflowYAML,
 		"  executionConfig:\n    workers: {llmGateway: local-litellm@1}\n",
@@ -281,7 +281,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			test.mutate(t, root)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
@@ -292,7 +292,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 }
 
 func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing.T) {
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
 	localGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"credential":"selected-credential"}}`)
 	tests := []struct {
@@ -311,7 +311,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@2", patch, test.lookup)
+			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, test.lookup)
 			if err == nil || strings.Contains(err.Error(), "secret-value") ||
 				(!strings.Contains(err.Error(), "unavailable") && !strings.Contains(err.Error(), "another LLMGatewayConfig")) {
 				t.Fatalf("unsafe or missing credential error = %v", err)
@@ -319,7 +319,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 		})
 	}
 	if _, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@2", patch,
+		t.Context(), "artifact-copy@1", patch,
 		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
 	); err != nil {
 		t.Fatalf("matching credential was rejected: %v", err)

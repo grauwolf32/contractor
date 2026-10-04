@@ -21,7 +21,7 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyAuditPreparationCatalog(t)
 			data := profileYAML
 			for _, replacement := range tc.Replacements {
 				if !strings.Contains(data, replacement[0]) {
@@ -62,7 +62,7 @@ func TestAuditPreparationAuthoringFixtures(t *testing.T) {
 }
 
 func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyAuditPreparationCatalog(t)
 	writeAuditProfile(t, root, "prepared-openapi-scan", string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml")))
 	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("prepared-openapi-scan@1")
 	if err != nil {
@@ -95,11 +95,14 @@ func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *tes
 	}
 }
 
-func TestRepositoryAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+// TestAuditProfilesWithoutPreparationKeepDigests pins frozen fixture digests:
+// a profile without a prepare role keeps its digest when preparation fields
+// join the algorithm.
+func TestAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
 	for ref, digest := range map[string]string{
-		"source-checklist@1":          "sha256:e1546170093cc6e83617a83d635c8d54a1cb7d0487e6ba6e0f524832be05cffb",
-		"openapi-operation-observe@1": "sha256:6e6d3e396810e990da04faa18bd3b5f4dc896d6e830361f9df06aae7c1515b4e",
+		"openapi-sqlmap-scan@1": "sha256:a011789cffbe65cee70e2c8f4965e693a3c6593ac05e6a1cff65cf5a8b6da390",
+		"openapi-nuclei-scan@1": "sha256:eab2a7a3ea204906fe70d29b0887ec5d95b17b61e4ffc83ab8bbcd0f7478141b",
 	} {
 		profile, err := snapshot.AuditProfile(ref)
 		if err != nil {
@@ -112,7 +115,7 @@ func TestRepositoryAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
 }
 
 func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyAuditPreparationCatalog(t)
 	data := string(readFile(t, "../../api/testdata/audit-composition/prepared-openapi-scan.yaml"))
 	writeAuditProfile(t, root, "prepared-openapi-scan", data)
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -165,4 +168,11 @@ func TestAuditPreparationDependenciesAndSnapshotValidation(t *testing.T) {
 	if _, err := DecodeResolvedAuditProfileSnapshot([]byte(obsolete)); err == nil {
 		t.Fatal("obsolete snapshot schema accepted")
 	}
+}
+
+// copyAuditPreparationCatalog adds the scan check Workflows and the prepare
+// Workflow that the shared prepared-openapi-scan profile selects.
+func copyAuditPreparationCatalog(t *testing.T) string {
+	t.Helper()
+	return copyCoreFixture(t, "audit-scan-catalog", "audit-preparation-catalog")
 }

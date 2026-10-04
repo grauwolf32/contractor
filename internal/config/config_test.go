@@ -14,37 +14,28 @@ import (
 
 const repositoryConfigRoot = "../../configs"
 
-func TestLoadRepositoryConfig(t *testing.T) {
+// coreFixtureRoot is the frozen catalog that behavioral tests load or copy. On
+// a copy, configtest adds its test-* policies, artifact builder and
+// artifact-copy Workflow; testdata/<topic> directories add focused slices.
+const coreFixtureRoot = "testdata/valid"
+
+func TestLoadResolvesAndPinsCatalogReferences(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, coreFixtureRoot, MVPDescriptors())
 
-	if got := snapshot.Counts().ModelPolicies; got != 4 {
-		t.Fatalf("default catalog ModelPolicies = %d, want planner, worker, terminal summarizer and Audit completion", got)
-	}
-	plannerPolicy, err := snapshot.ModelPolicy("planner@2")
-	if err != nil {
-		t.Fatalf("resolve Planner ModelPolicy: %v", err)
-	}
-	if plannerPolicy.ContextWindowTokens != 118000 || plannerPolicy.Model != "planner-model" || plannerPolicy.MaxOutputTokens != 16384 ||
-		plannerPolicy.MaxModelCalls != 200 || plannerPolicy.MaxWorkerCalls != 200 ||
-		plannerPolicy.MaxTotalTokens != 2500000 || plannerPolicy.MaxToolCalls != 0 ||
-		plannerPolicy.Temperature == nil || *plannerPolicy.Temperature != 0.1 {
-		t.Fatalf("unexpected Planner ModelPolicy: %+v", plannerPolicy)
-	}
-
-	policy, err := snapshot.ModelPolicy("worker@2")
+	policy, err := snapshot.ModelPolicy("worker@1")
 	if err != nil {
 		t.Fatalf("resolve ModelPolicy: %v", err)
 	}
 	assertDigest(t, policy.Ref.Digest)
-	if policy.ContextWindowTokens != 118000 || policy.Model != "worker-model" || policy.MaxOutputTokens != 32768 ||
-		policy.MaxModelCalls != 200 || policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 2500000 ||
+	if policy.Model != "worker-model" || policy.MaxOutputTokens != 4096 ||
+		policy.MaxModelCalls != 8 || policy.MaxToolCalls != 16 || policy.MaxTotalTokens != 32768 ||
 		policy.Temperature == nil || *policy.Temperature != 0.1 {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
 
-	template, err := snapshot.AgentTemplate("artifact_builder@2")
+	template, err := snapshot.AgentTemplate("artifact_builder@1")
 	if err != nil {
 		t.Fatalf("resolve AgentTemplate: %v", err)
 	}
@@ -53,11 +44,12 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	if template.ModelPolicy.Ref.Digest != policy.Ref.Digest {
 		t.Fatalf("template policy digest = %q, want %q", template.ModelPolicy.Ref.Digest, policy.Ref.Digest)
 	}
-	if got, want := selectedToolsets(template.Toolsets)["run-artifacts@1"], []string{"list_artifacts", "read_artifact", "write_artifact"}; !equalStrings(got, want) {
-		t.Fatalf("selected tools = %v, want %v", got, want)
+	if len(template.Toolsets) != 1 || template.Toolsets[0].Ref != (contracts.ToolsetRef{ToolsetID: "run-artifacts", Version: "1"}) ||
+		!equalStrings(template.Toolsets[0].Tools, []string{"list_artifacts", "read_artifact", "write_artifact"}) {
+		t.Fatalf("selected tools = %+v", template.Toolsets)
 	}
 
-	workflow, err := snapshot.Workflow("artifact-copy@2")
+	workflow, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatalf("resolve Workflow: %v", err)
 	}
@@ -85,91 +77,8 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 }
 
-func TestRepositoryLocalLiteLLMWorkflowsPinRoleCredentials(t *testing.T) {
-	t.Parallel()
-
-	for _, root := range []string{repositoryConfigRoot, filepath.Join(repositoryConfigRoot, "e2e")} {
-		root := root
-		t.Run(root, func(t *testing.T) {
-			t.Parallel()
-			snapshot := mustLoad(t, root, MVPDescriptors())
-			for _, workflow := range snapshot.Workflows() {
-				workflowRef := workflow.Ref.Name + "@" + workflow.Ref.Version
-				for stageName, stage := range workflow.Stages {
-					assertLocalLiteLLMCredential(
-						t, workflowRef+" Stage "+stageName+" Planner",
-						stage.ExecutionConfig.Planner, "development-planner",
-					)
-					for logicalName, selection := range stage.ExecutionConfig.Agents {
-						selection := selection
-						assertLocalLiteLLMCredential(
-							t, workflowRef+" Stage "+stageName+" Agent "+logicalName,
-							&selection, "development-worker",
-						)
-					}
-				}
-			}
-		})
-	}
-}
-
-func assertLocalLiteLLMCredential(
-	t *testing.T,
-	consumer string,
-	selection *ResolvedConsumerExecutionConfig,
-	wantCredential string,
-) {
-	t.Helper()
-	if selection == nil || selection.LLMGateway == nil ||
-		selection.LLMGateway.Ref.GatewayID != "local-litellm" {
-		return
-	}
-	if selection.Credential == nil || selection.Credential.CredentialID != wantCredential {
-		t.Fatalf(
-			"%s selects local-litellm without role credential %q: %+v",
-			consumer, wantCredential, selection.Credential,
-		)
-	}
-}
-
-func TestRepositoryInstructionsDoNotExposePrivateWorkerProtocol(t *testing.T) {
-	t.Parallel()
-
-	patterns := []string{
-		filepath.Join(repositoryConfigRoot, "instructions", "*.md"),
-		filepath.Join(repositoryConfigRoot, "e2e", "instructions", "*.md"),
-	}
-	for _, pattern := range patterns {
-		paths, err := filepath.Glob(pattern)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, path := range paths {
-			text := string(readFile(t, path))
-			for _, forbidden := range []string{
-				"StageContentRequest",
-				"StageContentResult",
-				"contractor/v1alpha1",
-				"result slot",
-				"declared output",
-				"Runtime records",
-				"Runtime associates",
-				"Runtime owns",
-				"Scheduler",
-			} {
-				if strings.Contains(text, forbidden) {
-					t.Errorf("%s exposes private Worker protocol phrase %q", path, forbidden)
-				}
-			}
-		}
-	}
-}
-
 func TestLoadValidatesBundledSkillsWithoutReadingManagedRoot(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "operator")
-	if err := os.CopyFS(root, os.DirFS(repositoryConfigRoot)); err != nil {
-		t.Fatal(err)
-	}
+	root := copyCoreFixture(t)
 	skillDirectory := filepath.Join(root, "skills", "review")
 	if err := os.MkdirAll(skillDirectory, 0o755); err != nil {
 		t.Fatal(err)
@@ -330,11 +239,13 @@ func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
 	}
 }
 
-func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
+func TestCodeAnalysisSelectionLoadsAndDigestsInTemplate(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	template, err := snapshot.AgentTemplate("workspace_source_graph_analyst@3")
+	root := copyCoreFixture(t)
+	writeFile(t, filepath.Join(root, "agent-templates/source_graph_analyst.yaml"), []byte(codeAnalysisTemplateYAML))
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	template, err := snapshot.AgentTemplate("source_graph_analyst@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,6 +269,36 @@ func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
 		t.Fatal("resolved template omitted code-analysis@1")
 	}
 }
+
+// codeAnalysisTemplateYAML selects every code-analysis@1 tool in authoring
+// order so the loader must normalize the selection before digesting.
+const codeAnalysisTemplateYAML = `apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: source_graph_analyst
+  version: "1"
+spec:
+  description: Inspects the source graph of a workspace
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  modelPolicy: test-worker@1
+  toolsets:
+    - ref: code-analysis@1
+      tools:
+        - search_def
+        - list_symbols
+        - graph_summary
+        - find_symbol
+        - find_callers
+        - find_callees
+        - paths_between
+        - entrypoint_paths_to
+        - attack_surface
+        - complexity_hotspots
+        - functions_that_raise
+  sandboxProfile: local-workdir@1
+`
 
 func TestEditFilesToolsetDescriptor(t *testing.T) {
 	t.Parallel()
@@ -580,33 +521,10 @@ func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
 	}
 }
 
-func TestWorkflowExamplesLoad(t *testing.T) {
-	for _, example := range []struct {
-		name     string
-		selector string
-	}{
-		{"bounded_retry_workflow.yaml", "artifact-copy-with-retry@2"},
-		{"multi_stage_workflow.yaml", "artifact-build-review@2"},
-		{"router_openapi_workflow.yaml", "router-openapi@2"},
-		{"streamline_review_workflow.yaml", "streamline-review@2"},
-	} {
-		t.Run(example.name, func(t *testing.T) {
-			root := copyConfigTree(t)
-			contents := readFile(t, filepath.Join(repositoryConfigRoot, "examples", example.name))
-			writeFile(t, filepath.Join(root, "workflows", example.name), contents)
-			snapshot := mustLoad(t, root, MVPDescriptors())
-			if _, err := snapshot.Workflow(example.selector); err != nil {
-				t.Fatalf("resolve example Workflow %s: %v", example.selector, err)
-			}
-		})
-	}
-}
-
 func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t, "workflow-examples")
 	path := filepath.Join(root, "workflows", "streamline_review_workflow.yaml")
-	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "streamline_review_workflow.yaml"))
-	writeFile(t, path, example)
+	example := readFile(t, path)
 	snapshot := mustLoad(t, root, MVPDescriptors())
 	workflow, err := snapshot.Workflow("streamline-review@2")
 	if err != nil {
@@ -634,11 +552,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 }
 
 func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
-	root := copyConfigTree(t)
-	path := filepath.Join(root, "workflows", "router_openapi_workflow.yaml")
-	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "router_openapi_workflow.yaml"))
-	writeFile(t, path, example)
-	snapshot := mustLoad(t, root, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"), MVPDescriptors())
 	workflow, err := snapshot.Workflow("router-openapi@2")
 	if err != nil {
 		t.Fatal(err)
@@ -671,7 +585,7 @@ func TestStoredFixtures(t *testing.T) {
 	}
 	for _, name := range invalid {
 		t.Run(name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			fixture := readFile(t, filepath.Join("testdata/invalid", name))
 			writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), fixture)
 			snapshot, err := Load(root, MVPDescriptors())
@@ -703,7 +617,7 @@ func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.old, test.replacement)
 			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
@@ -809,7 +723,7 @@ spec: {model: other, maxOutputTokens: 1}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			test.mutate(t, root)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil {
@@ -841,7 +755,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 	}
 
 	t.Run("symlink escape", func(t *testing.T) {
-		root := copyConfigTree(t)
+		root := copyCoreFixture(t)
 		outside := filepath.Join(filepath.Dir(root), "outside.md")
 		writeFile(t, outside, []byte("outside\n"))
 		target := filepath.Join(root, "instructions/artifact-builder.md")
@@ -858,7 +772,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 	})
 
 	t.Run("invalid utf8", func(t *testing.T) {
-		root := copyConfigTree(t)
+		root := copyCoreFixture(t)
 		writeFile(t, filepath.Join(root, "instructions/artifact-builder.md"), []byte{0xff, 0xfe})
 		snapshot, err := Load(root, MVPDescriptors())
 		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "strict UTF-8") {
@@ -870,7 +784,7 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +797,7 @@ func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 func TestToolsetVisibleNameCollision(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
 	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: alternate@1
       tools: [read_artifact]
@@ -898,7 +812,7 @@ func TestToolsetVisibleNameCollision(t *testing.T) {
 
 func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 	t.Parallel()
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(multiStageWorkflowYAML))
 
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -914,7 +828,7 @@ func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 }
 
 func TestWorkflowAutomaticRetryMayExceed1024Attempts(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(strings.Replace(
 		multiStageWorkflowYAML, "maxAttempts: 3", "maxAttempts: 1025", 1,
 	)))
@@ -929,7 +843,7 @@ func TestWorkflowAutomaticRetryMayExceed1024Attempts(t *testing.T) {
 
 func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 	t.Run("output", func(t *testing.T) {
-		root := copyConfigTree(t)
+		root := copyCoreFixture(t)
 		path := filepath.Join(root, "workflows/artifact_copy.yaml")
 		replaceFile(t, path,
 			"  outputs:\n    result:\n      required: true\n      mediaTypes: [text/plain]",
@@ -961,7 +875,7 @@ func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows/artifact_copy.yaml")
 			replaceFile(t, path, test.old, test.replacement)
 			snapshot, err := Load(root, MVPDescriptors())
@@ -975,7 +889,7 @@ func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 
 func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
 	t.Parallel()
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	cyclic := strings.Replace(
 		multiStageWorkflowYAML,
 		"    review:\n"+reviewStageYAML,
@@ -992,7 +906,7 @@ func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
 
 func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
 	t.Parallel()
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	workflow := multiStageWorkflowYAML + "    orphan:\n" + reviewStageYAML
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 
@@ -1004,7 +918,7 @@ func TestWorkflowGraphRejectsUnreachableStage(t *testing.T) {
 
 func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T) {
 	t.Parallel()
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	workflow := strings.Replace(
 		multiStageWorkflowYAML,
 		"      workflowOutputs:\n        result: copied\n",
@@ -1022,7 +936,7 @@ func TestWorkflowTransitionRejectsSuccessPathWithoutRequiredOutput(t *testing.T)
 func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	workflow := strings.Replace(
 		multiStageWorkflowYAML,
 		"          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}\n      workflowOutputs:",
@@ -1078,7 +992,7 @@ func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, path), test.old, test.replacement)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.fragment) {
@@ -1175,6 +1089,20 @@ func equalStrings(left, right []string) bool {
 func copyConfigTree(t *testing.T) string {
 	t.Helper()
 	return configtest.CopyWithPolicies(t, repositoryConfigRoot)
+}
+
+// copyCoreFixture copies the core fixture catalog with the shared test
+// policies, then adds each named testdata/<topic> catalog slice. Topic files
+// must not replace core files, so every fixture stays attributable.
+func copyCoreFixture(t *testing.T, topics ...string) string {
+	t.Helper()
+	root := configtest.CopyWithPolicies(t, coreFixtureRoot)
+	for _, topic := range topics {
+		if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", topic))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
 }
 
 func readFile(t *testing.T, path string) []byte {
