@@ -3,8 +3,8 @@ id: V259-001
 title: Admit native Eval members up to available capacity per tick
 milestone: eval-coordinator-throughput-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4ee5fff096d85f58ce6c25da5f1e32e7d6544a0d
 depends_on: []
 languages: [go]
 goal: Fill native Eval execution capacity without one-member-per-poll pacing.
