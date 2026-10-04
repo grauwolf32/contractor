@@ -3,7 +3,8 @@ id: V297-001
 title: Remove legacy Planner session token decoding
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 96e72561094f50684f034d3e157d94ef9b7f4043
 depends_on: []
 languages: [go]
 goal: Drop backward-compatibility decoding that the pre-production project does not need.

@@ -3,7 +3,8 @@ id: V293-001
 title: Report permanent Planner Gateway failures as non-retryable
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 077810e66f70947872edbdb9d6814bd2d5dcfed9
 depends_on: []
 languages: [go, typescript]
 goal: Stop Stage retry policies from repeating deterministic Planner Gateway failures.

@@ -3,7 +3,8 @@ id: V296-001
 title: Update Memory notes without loading the whole notebook
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f481032cacf953c7eb98315d3ed9d21923c1126e
 depends_on: []
 languages: [go]
 goal: Read only the target note when updating an existing Memory note.
