@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V267-001
+title: Select every e2e-tagged test through an executable gate
+milestone: release-gate-2026-10
+priority: P2
+status: completed
+implementation_commit: 810b71d301857deb815136f257fc8dd043f7302c
+depends_on: []
+languages: [go, python, markdown]
+goal: Keep process and configuration e2e tests running after their original feature tasks close.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/119
+  finding: Eleven tagged tests had no Make or CI selection, and an obsolete catalog test referenced removed authoring entries.
+scope:
+  in:
+    - Run six quick tagged fixture tests from test-hardening-matrices.
+    - Add catalog restart and Gateway recovery scenarios to the consolidated process gate.
+    - Provide an opt-in gate for tests that dispatch real host scanners.
+    - Reject newly unlisted e2e test names in the release-graph check.
+    - Align the Agent Skills hardening matrix with the renamed binary-result test.
+  out:
+    - Replacing real scanner binaries with stubs in the process tests.
+acceptance_criteria:
+  - {id: A1, text: Every e2e-tagged test has an executable Make or script gate.}
+  - {id: A2, text: The five old configuration tests and Runtime lock fixture test run in test-hardening-matrices.}
+  - {id: A3, text: Catalog restart and both Gateway recovery process scenarios pass.}
+  - {id: A4, text: The stale catalog assertion is removed and the Agent Skills matrix selects its existing test.}
+tests:
+  - {command: make test-hardening-matrices, covers: [A2, A4]}
+  - {command: go test -tags=e2e ./tests/e2e -run '^(TestAuditProgramCatalogReplacementRestartsServer|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses)$', covers: [A3]}
+  - {command: python3 scripts/check_release_verify_graph.py, covers: [A1]}
+  - {command: make lint, covers: [A1, A4]}
