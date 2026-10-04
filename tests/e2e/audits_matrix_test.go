@@ -236,7 +236,9 @@ func validateAuditsGateCoverage(repositoryRoot string, matrix auditsMatrix) erro
 			if owner.Kind == "test_title" {
 				// The UI stack runs every spec; its report validator requires this
 				// spec file and the named title is checked by validateMatrixNamedOwner.
-				matched = strings.Contains(line, "go test -tags=e2e") && strings.Contains(line, "./tests/ui-stack") &&
+				fields := strings.Fields(line)
+				matched = strings.Contains(line, "go test ") && slices.Contains(fields, "-tags=e2e") &&
+					slices.Contains(fields, "./tests/ui-stack") &&
 					bytes.Contains(stackSource, []byte("\""+strings.TrimPrefix(owner.Source, "ui/")+"\""))
 			} else if owner.Kind == "go_test" {
 				matched = goGateSelectsOwner(repositoryRoot, line, owner)
