@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -125,6 +126,183 @@ SELECT request.state, request.revision, finding.revision
 		expired.EntityID != "review-triage" ||
 		!strings.Contains(string(expired.Summary), `"findingId": "`+findingID+`"`) {
 		t.Fatalf("collection events = %+v, %+v (%s)", collected, expired, expired.Summary)
+	}
+}
+
+// A later Round expands one proposal into one item per proposed check, and a
+// batch may carry several of them. Each member keeps its own assessment; the
+// highest batch ordinal supplies the finding's current assessment.
+func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditPool(t, ctx, databaseURL)
+	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-batched-checks", OwnerID: "owner-batched-checks", Kind: projectstore.KindProject,
+		Name: "Batched checks", IdempotencyKey: "project-create", RequestDigest: testDigest("1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgresStore(pool)
+	audit, _, err := store.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-batched-checks", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:         ProfileIdentity{Name: "profile", Version: "1", Digest: testDigest("2")},
+		ProfileSnapshot: json.RawMessage(`{"name":"profile","workflows":{"verify":{"kind":"check"}}}`),
+		InputSelection:  json.RawMessage(`{"inputs":{}}`),
+		Limits: Limits{
+			MaxRounds: 2, BatchSize: 2, MaxItemsPerRound: 2, MaxItemsTotal: 2,
+			MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20,
+		},
+		IdempotencyKey: "audit-create", RequestDigest: testDigest("3"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	audit, _, err = store.MaterializeRound(ctx, MaterializeRoundParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		RoundID: "round-one", RoundOrdinal: 1, Manifest: testExact("audits", "round-one", "r1"),
+		BaselineSnapshot: json.RawMessage(`{"inputs":{},"skills":[]}`),
+		DeadlineAt:       time.Now().Add(time.Hour), Items: []MaterializedItem{},
+		IdempotencyKey: "audit-start", RequestDigest: testDigest("4"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.Claim(ctx, ClaimParams{HolderID: "controller-batched-checks", Lease: 30 * time.Second, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	closed := closeAuditRoundForTest(t, ctx, store, claim, "round-one", 1)
+
+	const receiptID = "receipt-two-checks"
+	proposal := testExact("audit-findings", "proposal-two-checks", "proposal-r1")
+	proposal.MediaType, proposal.SizeBytes = "application/json", 128
+	insertAuditProposalHoldForRoundTest(t, ctx, pool, audit, proposal, receiptID)
+	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]MaterializedItem, 2)
+	members := make([]ExecutionMemberIntent, 2)
+	for ordinal := range items {
+		suffix := strconv.Itoa(ordinal)
+		items[ordinal] = MaterializedItem{
+			ItemID: "item-check-" + suffix, ItemKey: "verify-check-" + suffix, Ordinal: ordinal,
+			Kind: "finding-verification", SubjectKey: "subject-two-checks",
+			Task:   testExact("audits", "task-check-"+suffix, "r1"),
+			Origin: testOrigin("verify-check-" + suffix), WorkflowRole: "verify",
+			InitialState: ItemReady, Coverage: emptyCoverage(),
+			ProposalSources: []ProposalItemSource{{
+				ReceiptID: receiptID, ProposedCheckOrdinal: ordinal, Proposal: proposal,
+			}},
+		}
+		members[ordinal] = ExecutionMemberIntent{
+			ExecutionItemID: "member-check-" + suffix, ItemID: items[ordinal].ItemID,
+			BatchOrdinal: ordinal, ItemAttempt: 1, Task: items[ordinal].Task, Inputs: []ExactArtifact{},
+		}
+	}
+	round, _, err := store.AcceptNextRound(ctx, AcceptRoundParams{
+		Claim: claim, ExpectedAuditRevision: audit.Revision,
+		PreviousRoundID: closed.RoundID, RoundID: "round-two", RoundOrdinal: 2,
+		Manifest: testExact("audits", "round-two", "r1"), Items: items,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	round, err = store.TransitionRound(ctx, RoundTransitionParams{
+		Claim: claim, RoundID: round.RoundID, ExpectedRevision: round.Revision,
+		ExpectedState: RoundAccepted, TargetState: RoundExecuting,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, _, err := store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
+		Claim: claim, ExecutionID: "execution-two-checks", RoundID: &round.RoundID, Role: ExecutionCheck,
+		WorkflowRole: "verify", Manifest: testExact("audits", "execution-two-checks", "manifest-r1"),
+		SubmissionKey: "submission-two-checks", RequestDigest: testDigest("5"), Members: members,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err = insertAndBindTestRun(t, ctx, pool, claim, execution, "run-two-checks", project.OwnerID, project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, sequence := terminateTestRun(t, ctx, pool, "run-two-checks", "succeeded")
+	if _, err := store.ObserveTerminal(ctx, ObserveTerminalParams{
+		Claim: claim, ExecutionID: execution.ExecutionID, RunID: "run-two-checks",
+		Generation: generation, Sequence: sequence,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := testExact("audit-batched-checks", "result", "result-r1")
+	collected := make([]CollectionItem, len(members))
+	for index, member := range members {
+		collected[index] = CollectionItem{
+			ExecutionItemID: member.ExecutionItemID, Disposition: CollectionAccepted,
+			FinalDisposition: FinalAccepted, Result: &result,
+			Coverage: Coverage{Status: CoverageViolated, Requested: []string{}, Completed: []string{}, Gaps: []string{}},
+			FindingAssociations: []FindingAssociation{{
+				AssessmentID: "assessment-" + member.ExecutionItemID, ReceiptID: receiptID,
+				Proposal: proposal, SemanticAssessment: []string{"refuted", "supported"}[index],
+			}},
+		}
+	}
+	if _, inserted, err := store.Collect(ctx, CollectParams{
+		Claim: claim, ReceiptID: "receipt-collection-two-checks", ExecutionID: execution.ExecutionID,
+		Disposition: CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"),
+		Retained: []ArtifactLink{{
+			LogicalKey: "result/two-checks", Artifact: result,
+			SourceProvenance: json.RawMessage(`{"runId":"run-two-checks"}`),
+		}},
+		Items: collected,
+	}); err != nil || !inserted {
+		t.Fatalf("collect batched checks of one proposal = (%t, %v)", inserted, err)
+	}
+	var currentAssessment, semantic string
+	var findingRevision, assessments int
+	if err := pool.QueryRow(ctx, `
+SELECT finding.current_assessment_id, current.semantic_assessment, finding.revision,
+       (SELECT count(*) FROM audit_finding_assessments AS assessment
+         WHERE assessment.finding_id = finding.finding_id)
+  FROM audit_findings AS finding
+  JOIN audit_finding_assessments AS current
+    ON current.assessment_id = finding.current_assessment_id
+ WHERE finding.audit_id = $1 AND finding.first_receipt_id = $2`,
+		audit.AuditID, receiptID).Scan(&currentAssessment, &semantic, &findingRevision, &assessments); err != nil {
+		t.Fatal(err)
+	}
+	if assessments != 2 || currentAssessment != "assessment-member-check-1" || semantic != "supported" ||
+		findingRevision != 2 {
+		t.Fatalf("batched finding assessments = %d, current %q (%s), revision %d",
+			assessments, currentAssessment, semantic, findingRevision)
+	}
+	settled, err := store.ListItems(ctx, audit.AuditID)
+	if err != nil || len(settled) != 2 {
+		t.Fatalf("Round items = (%+v, %v)", settled, err)
+	}
+	for _, item := range settled {
+		if item.State != ItemSettled || item.FinalDisposition == nil || *item.FinalDisposition != FinalAccepted {
+			t.Fatalf("batched finding check did not settle: %+v", item)
+		}
+	}
+	for _, states := range [][2]RoundState{{RoundExecuting, RoundAssessing}, {RoundAssessing, RoundClosed}} {
+		if round, err = store.TransitionRound(ctx, RoundTransitionParams{
+			Claim: claim, RoundID: round.RoundID, ExpectedRevision: round.Revision,
+			ExpectedState: states[0], TargetState: states[1],
+		}); err != nil {
+			t.Fatalf("progress Round to %q: %v", states[1], err)
+		}
+	}
+	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || audit.Revision != audit.EventSequence {
+		t.Fatalf("Audit revision/event sequence = (%+v, %v)", audit, err)
 	}
 }
 

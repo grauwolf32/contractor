@@ -555,6 +555,12 @@ func (i *Importer) commitCollection(
 		SourceOutput: source, Retained: nonNilLinks(retained), ErrorCode: errorCode,
 		RequestDigest: auditdomain.DigestBytes(encoded), Items: items,
 	})
+	if errors.Is(err, auditstore.ErrInvalid) {
+		// The store rejects a request by its content alone, so retrying the
+		// same request can never commit. Collect retains a contract-invalid
+		// receipt instead of leaving the execution collecting forever.
+		return false, fmt.Errorf("%w: %w", ErrPermanent, err)
+	}
 	return err == nil, err
 }
 
