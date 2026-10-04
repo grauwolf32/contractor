@@ -241,6 +241,10 @@ test("Git key settings live under Operations and retain no browser secret", asyn
   await expect(page.getByText("Unsupported key format")).toBeVisible();
   await expect(page.getByText("SHA256:fixture-public")).toBeVisible();
   await page.getByRole("button", { name: "Remove Git key" }).click();
+  await page
+    .getByRole("alertdialog", { name: "Remove Git key?" })
+    .getByRole("button", { name: "Remove Git key" })
+    .click();
   await expect(input).toHaveValue("");
   await expect(page.getByText("No Git SSH key configured.")).toBeVisible();
   expect(

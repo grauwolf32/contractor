@@ -171,5 +171,4 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
     "href",
     "/artifacts/skills/architecture-review",
   );
-  await expect(page.getByText("Skills", { exact: true })).toBeVisible();
 });

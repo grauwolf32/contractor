@@ -27,20 +27,15 @@ failed tests and Go test skips fail the command. The process suite allows
 26 minutes: its serial managed matrix executes 48 ordinary Workers with
 production heartbeat/release timing, including two children per Audit.
 
-The companion browser fixtures use an independently running UI service:
+The companion browser fixtures run in the database-free mocked browser gate:
 
 ```sh
-cd ui
-corepack pnpm dev --host 127.0.0.1 --port 4173
-# In another terminal, from ui/:
-CONTRACTOR_UI_E2E_BASE_URL=http://127.0.0.1:4173 \
-  corepack pnpm exec playwright test e2e/evals-setup.spec.ts \
-  e2e/evals-comparison.spec.ts e2e/evals-skills.spec.ts
+make ui-browser-mocked
 ```
 
-Restart that service after changing the UI package version; build and runtime
-versions are deliberately checked at startup. These browser fixtures replace
-API responses and are separate from the real process evidence below.
+The gate builds and serves an isolated production UI and runs these Evals specs
+with the other API-mocked journeys. These fixtures replace API responses and
+are separate from the real process evidence below.
 
 ## Evidence boundaries
 
