@@ -244,12 +244,25 @@ func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 // insertAuditChildReceipt records one more receipt of the fixture's source Run
 // with the fixture Audit as its origin, as intake does for an Audit child Run.
 func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey string) Receipt {
+	return insertAuditChildReceiptWithEvidence(t, f, clientKey, []ExactArtifact{})
+}
+
+// insertAuditChildReceiptWithEvidence is insertAuditChildReceipt for a
+// proposal citing exact evidence revisions of the source Run, given in
+// canonical reference order.
+func insertAuditChildReceiptWithEvidence(
+	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact,
+) Receipt {
 	t.Helper()
 	source, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonical, err := canonicalize(testSubmission(clientKey+"-invocation", clientKey, []contracts.ArtifactRef{}))
+	refs := make([]contracts.ArtifactRef, len(evidence))
+	for index := range evidence {
+		refs[index] = evidence[index].Ref
+	}
+	canonical, err := canonicalize(testSubmission(clientKey+"-invocation", clientKey, refs))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +281,7 @@ func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey st
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
 	receiptID := clientKey + "-receipt"
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, proposal, []ExactArtifact{}, origin, f.request.OwnerID, &project, grant)
+		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, proposal, evidence, origin, f.request.OwnerID, &project, grant)
 	}); err != nil {
 		t.Fatal(err)
 	}

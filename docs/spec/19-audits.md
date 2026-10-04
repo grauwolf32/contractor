@@ -931,9 +931,12 @@ in one PostgreSQL transaction.
 Before an Audit child Run receives its collection receipt, every committed
 proposal and its evidence is copied to collision-free protected ProjectScope
 bindings and recorded in an exact Audit hold. This transfer is idempotent and
-does not confirm or associate the proposal with an item. A profile with
-`findingConfirmation: disabled` cannot select the Toolset, and an unexpected
-receipt makes collection contract-invalid rather than admitting it.
+does not confirm or associate the proposal with an item. Each transaction
+retains a bounded number of proposal and evidence revisions, so a collection
+attempt that reaches its deadline keeps the holds it committed and the next
+attempt retains only the rest. A profile with `findingConfirmation: disabled`
+cannot select the Toolset, and an unexpected receipt makes collection
+contract-invalid rather than admitting it.
 
 An owner may similarly import an exact proposal from an ordinary Run into a
 non-terminal Audit in the same Project whose pinned profile requires finding

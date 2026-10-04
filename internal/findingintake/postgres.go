@@ -438,9 +438,19 @@ func (s *Service) RetainAuditCollection(
 	return s.importIntoAudit(ctx, request, true)
 }
 
-// RetainAuditCollectionBatch keeps one source-Run and destination-Audit lock
-// for a bounded page. Each receipt still uses the same exact artifact and
-// direct-verification checks as a single import; the page commits atomically.
+// maxCollectionTransactionWork bounds the work of one collection transaction.
+// A proposal counts once for its receipt, hold and direct-verification work,
+// plus once for each proposal or evidence revision it imports. A transaction
+// always retains at least one proposal, so even one with the maximum evidence
+// commits alone, and a collection attempt that outlives one bounded
+// transaction commits progress instead of rolling back a whole page.
+const maxCollectionTransactionWork = 512
+
+// RetainAuditCollectionBatch retains a bounded page in transactions bounded
+// by maxCollectionTransactionWork. Each transaction holds the source-Run and
+// destination-Audit locks until it commits, and each receipt still uses the
+// same exact artifact and direct-verification checks as a single import. A
+// failed transaction leaves earlier ones committed; a retry skips them.
 func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []ImportRequest) error {
 	if len(requests) == 0 || len(requests) > MaxAuditReceiptBatchSize {
 		return ErrInvalid
@@ -455,18 +465,50 @@ func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []Imp
 			return ErrInvalid
 		}
 	}
-	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		authority, err := lockFindingImportAuthority(ctx, tx, first, true)
+	for len(requests) != 0 {
+		retained, err := s.retainAuditCollectionPrefix(ctx, requests)
 		if err != nil {
 			return err
 		}
+		requests = requests[retained:]
+	}
+	return nil
+}
+
+// retainAuditCollectionPrefix retains requests in order in one transaction
+// until their work reaches maxCollectionTransactionWork, at least one, and
+// returns how many it committed.
+func (s *Service) retainAuditCollectionPrefix(ctx context.Context, requests []ImportRequest) (int, error) {
+	retained := 0
+	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		retained = 0
+		authority, err := lockFindingImportAuthority(ctx, tx, requests[0], true)
+		if err != nil {
+			return err
+		}
+		work := 0
 		for _, request := range requests {
-			if _, _, err := s.importIntoAuditWithTx(ctx, request, true, tx, &authority); err != nil {
+			if work >= maxCollectionTransactionWork {
+				break
+			}
+			hold, replayed, err := s.importIntoAuditWithTx(ctx, request, true, tx, &authority)
+			if err != nil {
 				return err
 			}
+			retained++
+			work += collectionWork(hold, replayed)
 		}
 		return nil
 	})
+	return retained, err
+}
+
+// collectionWork weighs one retained receipt for maxCollectionTransactionWork.
+func collectionWork(hold AuditHold, replayed bool) int {
+	if replayed {
+		return 1
+	}
+	return 2 + len(hold.Evidence)
 }
 
 func (s *Service) importIntoAudit(

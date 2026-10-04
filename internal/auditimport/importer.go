@@ -306,9 +306,7 @@ func (i *Importer) retainFindingProposals(
 				receipt.Origin.RunID != *execution.RunID {
 				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
 			}
-			if candidate.Rejected || (candidate.Retained &&
-				(candidate.PostTerminalRetained || candidate.DirectAssessed ||
-					*execution.TerminalOutcome != auditstore.TerminalSucceeded)) {
+			if !candidate.NeedsRetention(*execution.TerminalOutcome == auditstore.TerminalSucceeded) {
 				continue
 			}
 			request := findingintake.ImportRequest{
