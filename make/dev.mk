@@ -1,7 +1,7 @@
 # Formatting, linting, code generation and the checks that hold the
 # public API and the architecture model to the specifications.
 
-.PHONY: fmt lint generate-public-client verify-architecture verify-public-api \
+.PHONY: fmt lint generate-public-client verify-architecture docs-erd verify-public-api \
 	verify-public-api-postgres run-local
 
 fmt:
@@ -22,6 +22,12 @@ generate-public-client:
 
 verify-architecture:
 	npx --yes likec4@1.56.0 validate docs/spec
+
+# Regenerates docs/spec/database-erd.html from a scratch database migrated to
+# the current schema; see scripts/erd/README.md.
+docs-erd:
+	npm ci --prefix scripts/erd --no-audit --no-fund
+	python3 scripts/erd/build_erd.py
 
 verify-public-api:
 	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestProjectRunHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts|TestPublicAuditReportPreservesProposedReview|TestPublicAuditPreparationContracts|TestPublicConfigurationProjectionContracts|TestPublicRuntimeConfigAuthorAndReadContracts|TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears|TestPublicRequestAndHistoryContracts)$$'
