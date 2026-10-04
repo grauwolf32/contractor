@@ -197,15 +197,17 @@ class _TaintAnnotationSession:
                 raise TaintAnnotationError("taint_annotation_language_unsupported") from None
             if len(encoded) > MAX_SOURCE_FILE_BYTES:
                 raise TaintAnnotationError("taint_annotation_capacity_exceeded")
-            language = language_support.detect_language(request.path)
+            header = Language.C
+            if language_support.is_header(request.path):
+                header = await _workspace_header_language(writer)
+            language = language_support.detect_language(request.path, header=header)
             if language is None:
                 raise TaintAnnotationError("taint_annotation_language_unsupported")
             try:
-                parsed, language = await to_thread_until_done(
+                parsed = await to_thread_until_done(
                     _parse_target_file,
                     encoded,
                     language,
-                    request.path,
                     name="taint-annotation-cpu",
                 )
                 plan = _plan_mutation(source, language, parsed, request)
@@ -746,17 +748,22 @@ def _normalize_error(error: Exception) -> TaintAnnotationError:
     return TaintAnnotationError("taint_annotation_unavailable", retryable=True)
 
 
-def _parse_target_file(
-    source: bytes, language: Language, path: str
-) -> tuple[AnnotationParseResult, Language]:
-    parser = language_support.load_parser(language)
-    parsed = parse_annotation_targets(parser, source, language)
-    if path.lower().endswith(".h") and language is Language.C and parsed.parse_error:
-        cpp = Language.CPP
-        alternate = parse_annotation_targets(language_support.load_parser(cpp), source, cpp)
-        if not alternate.parse_error:
-            return alternate, cpp
-    return parsed, language
+async def _workspace_header_language(writer: WorkspaceWriter) -> Language:
+    """Resolve the ``.h`` grammar from the workspace exactly as code analysis does."""
+
+    try:
+        metadata = await writer.observation_metadata()
+    except asyncio.CancelledError:
+        raise
+    except WorkspaceStorageError as error:
+        raise _map_workspace_error(error) from None
+    except Exception:
+        raise TaintAnnotationError("taint_annotation_unavailable", retryable=True) from None
+    return language_support.header_language(metadata.managed_text_paths)
+
+
+def _parse_target_file(source: bytes, language: Language) -> AnnotationParseResult:
+    return parse_annotation_targets(language_support.load_parser(language), source, language)
 
 
 def _without_newline(value: str) -> str:

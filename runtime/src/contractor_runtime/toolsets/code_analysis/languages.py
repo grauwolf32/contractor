@@ -80,11 +80,17 @@ EXTENSION_LANGUAGES = MappingProxyType(
     }
 )
 
-CPP_HEADER_CONTEXT_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
+# A ".h" header is valid C and C++ alike; header_language() picks one grammar
+# for all of a snapshot's headers from its unambiguous C and C++ files.
+HEADER_EXTENSION = ".h"
+C_SOURCE_EXTENSIONS = frozenset({".c"})
+CPP_SOURCE_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
 
 # Reviewed extension table for Trailmark 0.5.0 auto-detection plus parser-walk
-# headers. Its C and Objective-C parsers both walk .h after another source
-# activates them. An isolated .h does not activate either parser.
+# headers. Its parser walk matches these suffixes case-sensitively. Its C and
+# Objective-C parsers both walk .h after a source with one of the
+# GRAPH_HEADER_PARSER_EXTENSIONS activates them, always with their own
+# grammar. An isolated .h does not activate either parser.
 GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
     {
         ".py": "python",
@@ -133,6 +139,8 @@ GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
         ".sql": "sql",
     }
 )
+
+GRAPH_HEADER_PARSER_EXTENSIONS = frozenset({".c", ".m", ".mm"})
 
 # Extensions recognized by the pinned graph engine but not by the shallow v1
 # surface. They are reported as unsupported instead of being mistaken for
@@ -308,7 +316,6 @@ NODE_SPECS = MappingProxyType(
             NodeSpec("interface_declaration", "name"),
             NodeSpec("trait_declaration", "name"),
             NodeSpec("enum_declaration", "name"),
-            NodeSpec("arrow_function", ""),
         ),
         Language.SCALA: (
             NodeSpec("function_definition", "name"),
@@ -353,6 +360,32 @@ NODE_SPECS = MappingProxyType(
 )
 
 
+# C and C++ nest a declared name below pointer, reference, function, array,
+# parenthesized, attributed and initializer declarators. Reference,
+# parenthesized and attributed declarators hold their inner declarator in a
+# child without a field name.
+_C_DECLARATOR_WRAPPERS = frozenset(
+    {
+        "array_declarator",
+        "attributed_declarator",
+        "function_declarator",
+        "init_declarator",
+        "parenthesized_declarator",
+        "pointer_declarator",
+        "reference_declarator",
+    }
+)
+# C++ name nodes whose source text is not one plain identifier.
+_CPP_NAME_NODES = frozenset(
+    {"destructor_name", "operator_name", "qualified_identifier", "template_function"}
+)
+_C_DECLARATOR_CHILDREN = (
+    _C_DECLARATOR_WRAPPERS
+    | _CPP_NAME_NODES
+    | frozenset({"field_identifier", "identifier", "type_identifier"})
+)
+
+
 @dataclass(frozen=True, slots=True)
 class SymbolRecord:
     name: str
@@ -374,17 +407,43 @@ class ParseResult:
     long_names_skipped: bool = False
 
 
-def detect_language(path: str, *, cpp_headers: bool = False) -> Language | None:
+def detect_language(path: str, *, header: Language) -> Language | None:
+    """Return the shallow language of ``path``; a ``.h`` header uses ``header``.
+
+    Suffixes match case-insensitively, so ``Tool.PY`` is Python source.
+    """
+
     suffix = PurePosixPath(path).suffix.lower()
-    if suffix == ".h" and cpp_headers:
-        return Language.CPP
+    if suffix == HEADER_EXTENSION:
+        return header
     return EXTENSION_LANGUAGES.get(suffix)
 
 
-def cpp_header_context(paths: Iterable[str]) -> bool:
-    return any(
-        PurePosixPath(path).suffix.lower() in CPP_HEADER_CONTEXT_EXTENSIONS for path in paths
-    )
+def is_header(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() == HEADER_EXTENSION
+
+
+def header_language(paths: Iterable[str]) -> Language:
+    """Return the one grammar for every ``.h`` header of a snapshot.
+
+    Shallow analysis, graph admission and taint annotation all call this with
+    the snapshot's managed text paths, so they agree on every header. Headers
+    are C++ when the snapshot has at least as many unambiguous C++ files as C
+    sources, so a C project with a vendored C++ file keeps C. Ties favor C++:
+    its grammar parses nearly every C header, while the C grammar rejects
+    every class, namespace, template and reference. Without either kind of
+    file, headers are C.
+    """
+
+    c_files = 0
+    cpp_files = 0
+    for path in paths:
+        suffix = PurePosixPath(path).suffix.lower()
+        if suffix in C_SOURCE_EXTENSIONS:
+            c_files += 1
+        elif suffix in CPP_SOURCE_EXTENSIONS:
+            cpp_files += 1
+    return Language.CPP if cpp_files and cpp_files >= c_files else Language.C
 
 
 def graph_only_source(path: str) -> bool:
@@ -475,16 +534,8 @@ def _extract_field(node: Node, source: bytes, field_name: str) -> str | None:
     child = node.child_by_field_name(field_name)
     if child is None:
         return None
-    if child.type in {
-        "abstract_declarator",
-        "array_declarator",
-        "function_declarator",
-        "init_declarator",
-        "parenthesized_declarator",
-        "pointer_declarator",
-        "reference_declarator",
-    }:
-        return _extract_name(child, source)
+    if child.type in _C_DECLARATOR_WRAPPERS or child.type in _CPP_NAME_NODES:
+        return _c_declarator_name(child, source)
     if child.type in {
         "async_function_definition",
         "class_definition",
@@ -499,9 +550,9 @@ def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str |
     if preferred:
         return preferred
 
-    # The binding's variable_declarator supplies an arrow's name. An unnamed
-    # function expression has no definition name of its own either.
-    if node.type in {"arrow_function", "function_expression"}:
+    # An unnamed function expression has no definition name of its own; a
+    # binding's variable_declarator supplies it.
+    if node.type == "function_expression":
         return None
 
     if node.type == "call" and node.child_count >= 2:
@@ -600,6 +651,59 @@ def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str |
         if child.type in {"identifier", "simple_identifier", "type_identifier"}:
             return _extract_text(child, source) or None
     return None
+
+
+def _c_declarator_name(node: Node, source: bytes) -> str | None:
+    """Return the name a C or C++ declarator declares below its wrappers."""
+
+    current: Node | None = node
+    while current is not None and current.type in _C_DECLARATOR_WRAPPERS:
+        inner = current.child_by_field_name("declarator")
+        if inner is None:
+            inner = next(
+                (child for child in current.named_children if child.type in _C_DECLARATOR_CHILDREN),
+                None,
+            )
+        current = inner
+    if current is None:
+        return None
+    if current.type == "qualified_identifier":
+        return _cpp_qualified_name(current, source)
+    if current.type in {"destructor_name", "operator_name"}:
+        # Keep the written text: operator()/operator[] would lose their
+        # operator in _clean_identifier, and search_def's text prefilter needs
+        # every bare definition name to occur in its source.
+        return _extract_text(current, source) or None
+    if current.type == "template_function":
+        name = current.child_by_field_name("name")
+        return _c_declarator_name(name, source) if name is not None else None
+    return _clean_identifier(_extract_text(current, source))
+
+
+def _cpp_qualified_name(node: Node, source: bytes) -> str | None:
+    """Join scopes without template arguments: ``Box<T>::get`` is ``Box::get``."""
+
+    parts: list[str] = []
+    current = node
+    while current.type == "qualified_identifier":
+        scope = current.child_by_field_name("scope")
+        name = current.child_by_field_name("name")
+        if name is None:
+            return None
+        if scope is None:
+            # A global qualifier keeps its leading "::".
+            parts.append("")
+        else:
+            scope_name = _clean_identifier(_extract_text(scope, source))
+            if scope_name is None:
+                return None
+            parts.append(scope_name)
+        current = name
+    terminal = _c_declarator_name(current, source)
+    if terminal is None:
+        return None
+    parts.append(terminal)
+    return "::".join(parts)
 
 
 def _clean_identifier(value: str) -> str | None:

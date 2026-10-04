@@ -188,6 +188,64 @@ def test_root_init_symbols_survive_same_digest_rebuilds(
     asyncio.run(scenario())
 
 
+def test_root_init_proxy_symbols_survive_rebuilds_without_mirror_names(tmp_path: Path) -> None:
+    snapshot = WorkspaceSnapshot(
+        directories=("pkg",),
+        files=(
+            _file(
+                "__init__.py",
+                "class Service:\n"
+                "    def run(self):\n"
+                "        print('ready')\n"
+                "        return self.missing()\n",
+            ),
+            _file("pkg/mod.py", "def leaf():\n    print('leaf')\n"),
+        ),
+        binary_paths=(),
+        digest="sha256:" + "b" * 64,
+    )
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path / "scratch")
+        try:
+            await host.build(snapshot)
+            first_mirror = host._mirror
+            assert first_mirror is not None
+            original = await host.symbols()
+            proxies = {item.name: item for item in original.items if item.kind == "proxy"}
+            assert set(proxies) == {"__init__:print", "__init__:Service.missing", "pkg.mod:print"}
+            assert [
+                item.symbol_id
+                for item in (await host.find_symbols("__init__:print", offset=0, limit=10)).items
+            ] == [proxies["__init__:print"].symbol_id]
+            assert (
+                await host.find_symbols(first_mirror.path.name + ":print", offset=0, limit=10)
+            ).items == ()
+
+            async def assert_old_proxy_ids_work() -> None:
+                for name, caller in (
+                    ("__init__:print", "run"),
+                    ("__init__:Service.missing", "run"),
+                    ("pkg.mod:print", "leaf"),
+                ):
+                    callers = await host.relationships(
+                        "find_callers", proxies[name].symbol_id, offset=0, limit=10
+                    )
+                    assert [item.symbol.name for item in callers.items] == [caller]
+
+            await assert_old_proxy_ids_work()
+            await host.invalidate()
+            await host.build(snapshot)
+            assert host._mirror is not None and host._mirror.path != first_mirror.path
+            assert (await host.symbols()).items == original.items
+            await assert_old_proxy_ids_work()
+        finally:
+            await host.close()
+        assert list((tmp_path / "scratch").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
 def test_mirror_admission_is_lexicographic_bounded_and_reports_coverage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

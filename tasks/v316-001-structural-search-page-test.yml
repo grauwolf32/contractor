@@ -3,7 +3,8 @@ id: V316-001
 title: Replace the V221 wall-clock stall test with structural checks
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: 9cb86008196315e154d441a1ded8a358ac7f0b73
 depends_on: []
 languages: [python]
 goal: Make the search page-fitting test deterministic and make each row's size be computed once.

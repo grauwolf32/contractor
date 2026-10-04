@@ -3,7 +3,8 @@ id: V315-001
 title: Keep Trailmark proxy node IDs stable for root packages
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: d8216052268ae8630cb1bc65feeadf5dcb1e1c8a
 depends_on: []
 languages: [python]
 goal: "Finish V194: no symbol or proxy ID may depend on the random mirror directory name."

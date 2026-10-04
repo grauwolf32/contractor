@@ -92,7 +92,8 @@ does not accept or emit the graph Toolset's allocation-private `symbolId`.
 All paths are normalized workspace-relative POSIX paths. `symbol` is the exact
 case-sensitive structural name as written in a function-like declaration.
 Python and Java methods use the bare name (`get` in `Handler.get`); an out-of-line
-C++ definition uses `Handler::get`, and a Lua dotted function uses `Handler.get`.
+C++ definition uses `Handler::get` (`Box::get` for `Box<T>::get`), and a Lua
+dotted function uses `Handler.get`.
 Callers may omit `definition_line` by passing its default `0` when
 `(path, symbol)` identifies exactly one declaration. If more than one real
 declaration matches, the operation fails with `taint_annotation_target_ambiguous`;
@@ -172,7 +173,9 @@ assigned variable name.
 The resolver parses only the named current UTF-8 managed-text file. It finds
 all exact structural matches, folds parser wrapper nodes belonging to one real
 declaration, and applies `definition_line` only after that deduplication. It
-never selects the first ambiguous result.
+never selects the first ambiguous result. A `.h` header uses the snapshot-wide
+C or C++ grammar rule of the shallow code-analysis surface, so a function
+definition `search_def` returns from a header resolves here too.
 
 Line numbers, both the `definition_line` selector and the returned
 `annotationLine`/`definitionLine`, use `filesystem@1/read_file` boundaries:
