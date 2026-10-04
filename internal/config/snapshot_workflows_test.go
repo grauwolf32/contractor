@@ -6,10 +6,10 @@ import (
 )
 
 func TestSnapshotWorkflowsAreSortedDeepCopies(t *testing.T) {
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "workflow-examples"), MVPDescriptors())
 	workflows := snapshot.Workflows()
 	if len(workflows) < 2 {
-		t.Fatalf("repository snapshot has only %d Workflow", len(workflows))
+		t.Fatalf("fixture snapshot has only %d Workflow", len(workflows))
 	}
 	selectors := make([]string, len(workflows))
 	for index, workflow := range workflows {

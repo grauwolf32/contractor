@@ -12,7 +12,7 @@ import (
 )
 
 func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
-	snapshot := mustLoad(t, "../../configs/scan", MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
 	if snapshot.Counts().ModelPolicies != 0 {
 		t.Fatal("scan fixtures must have no model policies")
 	}
@@ -28,6 +28,13 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 		}
 		if !template.IsToolWorker() || stage.ExecutionConfig.Planner != nil || !stage.ExecutionConfig.Agents["scanner"].ModelPolicy.IsZero() {
 			t.Fatal("model leaked into tool workflow")
+		}
+		encoded, err := json.Marshal(workflow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if restored, err := DecodeResolvedWorkflowSnapshot(encoded); err != nil || !reflect.DeepEqual(restored, workflow) {
+			t.Fatalf("%s did not survive persisted snapshot validation: %v", name, err)
 		}
 		wire, err := json.Marshal(template)
 		if err != nil {
@@ -46,7 +53,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 }
 
 func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
-	snapshot := mustLoad(t, "../../configs/scan", MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
 	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sqlmap-request@1", ExecutionConfigPatch{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +94,7 @@ func TestToolWorkerGoldenDigest(t *testing.T) {
 }
 
 func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
-	snapshot := mustLoad(t, "../../configs/scan", MVPDescriptors())
+	snapshot := mustLoad(t, scanFixtureRoot, MVPDescriptors())
 	original, _ := snapshot.AgentTemplate("nuclei-scan@1")
 	for _, change := range []func(*contracts.ResolvedAgentTemplate){
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution = nil },

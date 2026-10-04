@@ -15,7 +15,10 @@ isolated behavioral test data, independent of the retired default catalog
 versions. The other workflows, templates and instructions remain copied from the
 supplied catalog. This preserves realistic wiring while keeping the budgets and
 model variants used in behavioral tests independent of production policy tuning.
-Tests of the actual shipped catalog load `configs/` directly.
+The supplied catalog is always test data, such as `testdata/configs/` or
+`internal/config/testdata/valid/`; no Go test loads the operator catalog in
+`configs/`. Its validity is checked by `make test-config`
+(`config validate --root ./configs`).
 
 Minimal loader fixtures and malformed manifests remain in
 `internal/config/testdata/`. Neither helper edits the source catalog or e2e files.

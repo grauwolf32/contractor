@@ -15,7 +15,7 @@ func TestWorkflowRejectsNonportableArtifactBindings(t *testing.T) {
 		{"Agent namespace", "template: artifact_builder@1", "template: artifact_builder@1\n          namespace: review team"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), test.old, test.replacement)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "ASCII") {

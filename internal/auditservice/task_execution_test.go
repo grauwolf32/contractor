@@ -3,6 +3,7 @@ package auditservice
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -12,10 +13,7 @@ import (
 )
 
 func TestInventoryConstructionDoesNotChooseScanExecutor(t *testing.T) {
-	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot := loadAuditServiceCatalog(t)
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +47,7 @@ func TestInventoryConstructionDoesNotChooseScanExecutor(t *testing.T) {
 		t.Run(scanner, func(t *testing.T) {
 			inputs := make(map[string]artifacts.ReadResult)
 			for name, file := range map[string]string{"openapi": "openapi.json", "settings": scanner + "-settings.json"} {
-				data, err := os.ReadFile("../../configs/scan/examples/audit-openapi-scan/" + file)
+				data, err := os.ReadFile(filepath.Join(openAPIScanInputFixture, file))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -77,10 +75,7 @@ func TestInventoryConstructionDoesNotChooseScanExecutor(t *testing.T) {
 }
 
 func TestFindingInventoryRejectsScanExecutorAndAcceptsOrdinaryCheckRole(t *testing.T) {
-	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot := loadAuditServiceCatalog(t)
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate", Title: "Check access",
 		Description:   "Verify the reported access condition.",

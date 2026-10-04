@@ -694,7 +694,7 @@ type fakeControllerStore struct {
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
 	t.Helper()
-	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
+	snapshot, err := config.Load("../../testdata/configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

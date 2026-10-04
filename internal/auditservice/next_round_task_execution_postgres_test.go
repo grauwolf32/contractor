@@ -28,7 +28,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	defer cancel()
 	pool := isolatedAuditServicePool(t, ctx, databaseURL)
 	root := t.TempDir()
-	if err := os.CopyFS(root, os.DirFS("../../configs")); err != nil {
+	if err := os.CopyFS(root, os.DirFS(auditServiceCatalogFixture)); err != nil {
 		t.Fatal(err)
 	}
 	profilePath := filepath.Join(root, "audit-profiles", "openapi_sqlmap_scan.yaml")
@@ -81,7 +81,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	for name, file := range map[string]string{
 		"openapi": "openapi.json", "settings": "sqlmap-settings.json",
 	} {
-		payload, err := os.ReadFile(filepath.Join("../../configs/scan/examples/audit-openapi-scan", file))
+		payload, err := os.ReadFile(filepath.Join(openAPIScanInputFixture, file))
 		if err != nil {
 			t.Fatal(err)
 		}

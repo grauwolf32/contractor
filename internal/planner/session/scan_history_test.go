@@ -28,7 +28,7 @@ func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]r
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	t.Helper()
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	snapshot, err := config.Load("../../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,8 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinary, err := snapshot.Workflow("artifact-copy@2")
+	// Any Stage without an auditScan executor is an ordinary Stage here.
+	ordinary, err := snapshot.Workflow("nuclei-target@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +47,8 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	before.On.Succeeded = config.TransitionAction{Kind: config.TransitionNext, NextStage: "check-request"}
 	scan := workflow.Stages["scan"]
 	workflow.Stages = map[string]config.ResolvedStage{"prepare": before, "check-request": scan}
+	// The composed Workflow declares the parameter its ordinary Stage consumes.
+	workflow.Parameters = ordinary.Parameters
 	workflow.EntryStage = "prepare"
 	workflow.AuditTask.Stage = "check-request"
 	if err := config.ValidateWorkflowGraph(workflow); err != nil {

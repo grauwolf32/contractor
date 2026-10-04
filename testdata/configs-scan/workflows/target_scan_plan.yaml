@@ -1,0 +1,43 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: target-scan-plan, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    targets:
+      required: true
+      mediaTypes: [text/vnd.contractor.target-list]
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Plan bounded HTTP and TCP scans for supplied targets
+      instructions: {ref: instructions/scan.md}
+      planner: scan-plan@1
+      scanPlan:
+        inputArtifact: targets
+        maxInputs: 100
+        maxJobs: 10
+        maxTotalSeconds: 1800
+        tools:
+          - worker: nuclei
+            maxJobs: 3
+            maxTotalSeconds: 900
+          - worker: naabu
+            maxJobs: 7
+            maxTotalSeconds: 420
+      agents:
+        nuclei: {template: nuclei-scan@1}
+        naabu: {template: naabu-scan@1}
+      context:
+        artifacts:
+          targets: {namespace: inputs, name: targets, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scan-plan, name: target-report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

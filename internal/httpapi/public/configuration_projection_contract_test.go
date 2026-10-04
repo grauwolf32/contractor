@@ -15,15 +15,16 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-// Exercise real catalog projections and normalized runtime documents, including
-// optional fields that a minimal fixture does not contain.
+// Exercise projections of manifests copied from the shipped catalog and
+// normalized runtime documents, including optional fields that a minimal
+// fixture does not contain.
 func TestPublicConfigurationProjectionContracts(t *testing.T) {
 	document := loadPublicOpenAPI(t)
 	router, err := gorillamux.NewRouter(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
 
 	t.Run("repository catalog", func(t *testing.T) {
 		summarizers, instructions := 0, 0

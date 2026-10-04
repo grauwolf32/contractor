@@ -173,9 +173,9 @@ func TestStandardTaskMatchesItsExactRetainedMapping(t *testing.T) {
 		t.Fatal("task with an invented standard review policy matched retained mapping")
 	}
 
-	_, selectedPackage, err := auditstandards.PackageDirectory(filepath.Join(
-		"..", "..", "configs", "audit-standards", "owasp-asvs-5.0.0",
-	))
+	_, selectedPackage, err := auditstandards.PackageDirectory(
+		filepath.Join(auditStandardsFixture, "owasp-asvs-5.0.0"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,11 +239,15 @@ func TestStandardEvidenceContractRejectsInventedAssessmentAndKind(t *testing.T) 
 	}
 }
 
+// auditStandardsFixture holds frozen copies of the standard packages these
+// tests resolve references against; they never read the operator configs/ tree.
+const auditStandardsFixture = "testdata/audit-standards"
+
 func top10ImportPackage(t *testing.T) auditstandards.Package {
 	t.Helper()
-	_, pkg, err := auditstandards.PackageDirectory(filepath.Join(
-		"..", "..", "configs", "audit-standards", "owasp-web-top10-2025",
-	))
+	_, pkg, err := auditstandards.PackageDirectory(
+		filepath.Join(auditStandardsFixture, "owasp-web-top10-2025"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

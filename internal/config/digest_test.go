@@ -10,8 +10,8 @@ import (
 func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
 	t.Parallel()
 
-	baselineRoot := copyConfigTree(t)
-	variantRoot := copyConfigTree(t)
+	baselineRoot := copyCoreFixture(t)
+	variantRoot := copyCoreFixture(t)
 	writePresentationVariant(t, variantRoot)
 
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
@@ -31,12 +31,12 @@ func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
 func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	t.Parallel()
 
-	baselineRoot := copyConfigTree(t)
+	baselineRoot := copyCoreFixture(t)
 	writePresentationVariant(t, baselineRoot)
-	semanticRoot := copyConfigTree(t)
+	semanticRoot := copyCoreFixture(t)
 	writePresentationVariant(t, semanticRoot)
 	replaceFile(t, filepath.Join(semanticRoot, "model-policies/test-worker.yaml"), "maxOutputTokens: 4096", "maxOutputTokens: 4097")
-	instructionRoot := copyConfigTree(t)
+	instructionRoot := copyCoreFixture(t)
 	writePresentationVariant(t, instructionRoot)
 	appendFile(t, filepath.Join(instructionRoot, "instructions/artifact-builder.md"), "\n")
 
@@ -70,7 +70,7 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 	t.Parallel()
 
-	baseline := mustLoad(t, copyConfigTree(t), MVPDescriptors())
+	baseline := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
 	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
 	for _, test := range []struct{ field, from, to string }{
@@ -79,7 +79,7 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 		{"maxTotalTokens", "maxTotalTokens: 32768", "maxTotalTokens: 32769"},
 	} {
 		t.Run(test.field, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.from, test.to)
 			variant := mustLoad(t, root, MVPDescriptors())
 			policy, _ := variant.ModelPolicy("test-worker@1")

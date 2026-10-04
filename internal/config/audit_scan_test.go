@@ -15,7 +15,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 	for _, scanner := range []string{"sqlmap", "nuclei"} {
 		t.Run(scanner, func(t *testing.T) {
 			t.Parallel()
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t, "audit-scan-catalog")
 			// Rename every authored resource and the role, Stage and Worker.
 			// Also give Audit inputs names different from their Workflow aliases.
 			changes := map[string]*strings.Replacer{
@@ -75,7 +75,7 @@ func TestAuditScanUsesContractsInsteadOfCatalogNames(t *testing.T) {
 
 func TestAuditScanValidatesExecutionContract(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)
@@ -116,12 +116,12 @@ func TestAuditScanValidatesExecutionContract(t *testing.T) {
 
 func TestAuditTaskAllowsSurroundingStagesAndOtherRoles(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"), MVPDescriptors())
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinary, err := snapshot.Workflow("artifact-copy@2")
+	ordinary, err := snapshot.Workflow("artifact-copy@1")
 	if err != nil {
 		t.Fatal(err)
 	}

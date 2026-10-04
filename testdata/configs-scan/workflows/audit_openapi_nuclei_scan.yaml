@@ -1,0 +1,50 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: audit-openapi-nuclei-scan, version: "1"}
+spec:
+  # Declare the accepted task contract and its executor, independently of inventory.
+  auditTask: {contract: openapi-scan@1, stage: scan}
+  parameters: {}
+  inputs:
+    openapi: {required: true, mediaTypes: [application/json, application/yaml]}
+    settings: {required: true, mediaTypes: [application/json]}
+    task: {required: true, mediaTypes: [application/zip]}
+    execution_manifest: {required: true, mediaTypes: [application/json]}
+  outputs:
+    result: {required: true, primary: true, mediaTypes: [application/zip]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Check the fixed OpenAPI URL with the pinned Nuclei template selection
+      instructions: {ref: instructions/audit-openapi-scan.md}
+      planner: scan-plan@1
+      auditScan:
+        scanner: nuclei
+        settingsArtifact: settings
+        taskArtifact: task
+        manifestArtifact: execution_manifest
+        unknownOutcome: retain-gap
+      scanPlan:
+        inputArtifact: openapi
+        maxInputs: 1
+        maxJobs: 1
+        # Matches the single Worker's five-minute invocation deadline.
+        maxTotalSeconds: 300
+        tools:
+          - {worker: scanner, maxJobs: 1, maxTotalSeconds: 300}
+      agents:
+        scanner: {template: audit-nuclei-scan@1}
+      context:
+        artifacts:
+          openapi: {namespace: inputs, name: openapi, required: true}
+          settings: {namespace: inputs, name: settings, required: true}
+          task: {namespace: inputs, name: task, required: true}
+          execution_manifest: {namespace: inputs, name: execution_manifest, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/zip], from: {namespace: scan-results, name: audit-result}}
+      workflowOutputs: {result: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {retry: {maxAttempts: 2, then: {fail: {}}}}
+        interrupted: {retry: {maxAttempts: 2, then: {fail: {}}}}

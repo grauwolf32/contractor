@@ -31,7 +31,7 @@ func TestPrecomputedAnalysisRunForksReportsAndRejectsWrongMediaType(t *testing.T
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+			fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
 			user, err := fixture.artifacts.User("user-1")
 			if err != nil {
 				t.Fatal(err)

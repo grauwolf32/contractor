@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"encoding/json"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -185,27 +184,8 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 
 func loadPublicAuditConfiguration(t *testing.T) *config.Snapshot {
 	t.Helper()
-	sourceRoot := filepath.Clean("../../../configs")
-	targetRoot := filepath.Join(t.TempDir(), "configs")
-	err := filepath.WalkDir(sourceRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		relative, err := filepath.Rel(sourceRoot, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(targetRoot, relative)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, 0o600)
-	})
-	if err != nil {
+	targetRoot := filepath.Join(t.TempDir(), "catalog")
+	if err := os.CopyFS(targetRoot, os.DirFS(publicCatalogFixture)); err != nil {
 		t.Fatalf("copy configuration: %v", err)
 	}
 	profile := []byte(`apiVersion: contractor/v1alpha1

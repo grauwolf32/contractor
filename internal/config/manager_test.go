@@ -14,7 +14,7 @@ import (
 )
 
 func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager := newTestManager(t, operator, managed, ManagerOptions{})
 	before := manager.Snapshot().Counts().ModelPolicies
@@ -56,7 +56,7 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 }
 
 func TestManagerPublishesNormalizedGateway(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager := newTestManager(t, operator, managed, ManagerOptions{})
 
@@ -89,7 +89,7 @@ func TestManagerPublishesNormalizedGateway(t *testing.T) {
 
 func TestManagerPublicationIdempotencyAndConflicts(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed")
-	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
 	request := validPolicyPublication("stable-key")
 	created, err := manager.Publish(t.Context(), request)
 	if err != nil {
@@ -129,7 +129,7 @@ func TestManagerPublicationIdempotencyAndConflicts(t *testing.T) {
 }
 
 func TestManagerCrashAfterPublicationIsRecovered(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	crash := errors.New("simulated crash")
 	manager := newTestManager(t, operator, managed, ManagerOptions{
@@ -159,7 +159,7 @@ func TestManagerDurablePublicationPreservesExistingEntries(t *testing.T) {
 	for _, kind := range []string{"file", "directory", "symlink", "dangling-symlink"} {
 		t.Run(kind, func(t *testing.T) {
 			managed := filepath.Join(t.TempDir(), "managed")
-			manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+			manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
 			candidate, err := preparePublication(validPolicyPublication("existing-entry"))
 			if err != nil {
 				t.Fatal(err)
@@ -215,7 +215,7 @@ func TestManagerDurablePublicationPreservesExistingEntries(t *testing.T) {
 
 func TestManagerConcurrentDurablePublicationsHaveOneWinner(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed")
-	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
 	const writers = 8
 	candidates := make([]publicationCandidate, writers)
 	for index := range candidates {
@@ -265,7 +265,7 @@ func TestManagerConcurrentDurablePublicationsHaveOneWinner(t *testing.T) {
 }
 
 func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
-	manager := newTestManager(t, copyConfigTree(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
+	manager := newTestManager(t, copyCoreFixture(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
 	before := manager.Snapshot().Counts().ModelPolicies
 	start := make(chan struct{})
 	var wait sync.WaitGroup
@@ -298,7 +298,7 @@ func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
 
 func TestManagerRejectsInvalidPublicationBeforeFilesystemChange(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed")
-	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
 	tests := []PublicationRequest{
 		{Kind: ConfigurationAgentTemplates, Name: "worker", Version: "2", IdempotencyKey: "readonly"},
 		{Kind: ConfigurationModelPolicies, Name: "../escape", Version: "1", IdempotencyKey: "escape", ModelPolicy: &ModelPolicyPublication{Model: "m"}},
@@ -319,7 +319,7 @@ func TestManagerRejectsInvalidPublicationBeforeFilesystemChange(t *testing.T) {
 }
 
 func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	if _, err := requireStrictRoot(managed, true); err != nil {
 		t.Fatal(err)
@@ -341,7 +341,7 @@ func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
 
 func TestManagerPublishFailsWhenManagedSubtreeIsMissing(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed")
-	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	manager := newTestManager(t, copyCoreFixture(t), managed, ManagerOptions{})
 	current := manager.Snapshot()
 	workflows := filepath.Join(managed, "workflows")
 	if err := os.Remove(workflows); err != nil {
@@ -367,7 +367,7 @@ func TestManagerPublishFailsWhenManagedSubtreeIsMissing(t *testing.T) {
 }
 
 func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	parent := t.TempDir()
 	realManaged := filepath.Join(parent, "real")
 	if _, err := requireStrictRoot(realManaged, true); err != nil {
@@ -402,7 +402,7 @@ func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 }
 
 func TestManagerRejectsOverlappingManagedRootBeforeCreatingIt(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	parent := filepath.Dir(operator)
 	for _, managed := range []string{
 		filepath.Join(operator, "managed-configs"),
@@ -468,7 +468,7 @@ func TestRequireStrictRootRejectsExistingRegularFileSubtree(t *testing.T) {
 }
 
 func TestManagerFailsClosedOnExternalFilesystemChange(t *testing.T) {
-	operator := copyConfigTree(t)
+	operator := copyCoreFixture(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager := newTestManager(t, operator, managed, ManagerOptions{})
 	writeFile(t, filepath.Join(managed, "model-policies", "external@1.yaml"), []byte(`apiVersion: contractor/v1alpha1
