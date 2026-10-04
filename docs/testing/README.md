@@ -9,13 +9,13 @@ UI dependencies. Choose a check by the boundary you changed:
 | --- | --- | --- |
 | Formatting, language tests, builds and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
-| Runtime production dependency advisories | `make test-runtime-dependencies-audit` | uv and access to the PyPI advisory service |
+| Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
-| Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries, a test database, and network access for the pinned `pip-audit` scanner and LikeC4 CLI; no host scanners or Podman |
+| Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries and a test database; no advisory service, host scanners or Podman |
 
 The aggregate targets and their exact dependencies are defined in the
 [Makefile](../../Makefile), which includes the grouped target files under
@@ -42,7 +42,7 @@ failing stage in one run.
 | `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, and the command builds |
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
-| `release-verify-families` | The feature families' Runtime, UI and matrix checks, the Audit completion and findings process gates, and the Runtime dependency audit |
+| `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
 | `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
 | `release-verify-race` | One deduplicated Go race pass |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
@@ -63,9 +63,23 @@ alternative in release-verify and in the opt-in gates must select an existing
 test, and every e2e-tagged test must run in release-verify unless
 [`scripts/check_release_verify_graph.py`](../../scripts/check_release_verify_graph.py)
 allowlists it with its opt-in target and the reason (real scanners or Podman).
-The families stage also audits the frozen production Runtime lock with a pinned
-`pip-audit` scanner; it fails when the advisory service reports a vulnerable
-dependency. Development-only packages are excluded from this shipped graph.
+
+## Advisory scans
+
+`make advisories` runs `govulncheck` over the production Go commands and audits
+the production Runtime graph: `uv export --locked` fails when `uv.lock` no
+longer matches `pyproject.toml`, development-only packages are excluded, and
+`pip-audit` is installed with its whole dependency closure from the
+hash-pinned
+[`scripts/pip-audit-requirements.txt`](../../scripts/pip-audit-requirements.txt).
+The audit first requires the scanner to report a known-vulnerable pin, so a
+scanner that silently reports nothing cannot pass, and then fails on any
+published advisory for the lock. A scan's verdict changes whenever upstream
+publishes an advisory, without a code change, so CI runs the scans in the
+separate `advisories` job, outside the required `release-verify` check. The
+release gate queries no advisory service; apart from downloading its pinned
+tools and locked dependencies it needs no network. All CI jobs run on the
+pinned `ubuntu-24.04` runner image.
 
 ## Database and process tests
 

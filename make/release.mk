@@ -10,8 +10,7 @@ RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
 	release-verify-integration release-verify-process
 
 .PHONY: $(RELEASE_STAGES) test-release-go-race test-release-process-e2e \
-	test-release-integration test-release-non-race test-release-ui-stack \
-	test-runtime-dependencies-audit
+	test-release-integration test-release-non-race test-release-ui-stack
 
 release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
 release-verify: $(RELEASE_STAGES)
@@ -31,7 +30,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-worker-session-modes-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
-	test-findings-e2e test-performance-metrics test-runtime-dependencies-audit
+	test-findings-e2e test-performance-metrics
 
 release-verify-browser: ui-browser-mocked test-release-ui-stack
 
@@ -40,11 +39,6 @@ release-verify-race: test-release-go-race
 release-verify-integration: test-release-integration test-release-non-race
 
 release-verify-process: test-release-process-e2e
-
-# Audit exactly the frozen production Runtime graph. The scanner runs outside
-# the shipped Runtime environment and is pinned for repeatable CI behavior.
-test-runtime-dependencies-audit:
-	python3 scripts/audit_runtime_dependencies.py
 
 RELEASE_RACE_PATTERNS := \
 	./cmd/contractor-skill/... \

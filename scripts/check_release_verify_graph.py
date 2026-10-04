@@ -211,6 +211,29 @@ def check_ci_workflow(stages: list[str], text: str) -> None:
             raise SystemExit(f"{name}: {reason}")
 
 
+# Scanners whose verdict depends on live advisory databases.
+ADVISORY_SCANNERS = ("govulncheck", "pip-audit", "audit_runtime_dependencies.py")
+
+
+def check_advisories_outside_release(release: list[str], advisories: list[str], workflow: str) -> None:
+    """release-verify stays deterministic; the advisory job runs the live scans."""
+    scans = [command for command in release if any(scanner in command for scanner in ADVISORY_SCANNERS)]
+    if scans:
+        raise SystemExit(f"release-verify runs live advisory scans; move them to make advisories: {scans}")
+    for scanner in ("govulncheck", "audit_runtime_dependencies.py"):
+        if not any(scanner in command for command in advisories):
+            raise SystemExit(f"make advisories no longer runs {scanner}")
+    name = CI_WORKFLOW.relative_to(ROOT)
+    if re.search(r"^\s+(?:- )?run: make (?:-k )?advisories\s*$", workflow, re.M) is None:
+        raise SystemExit(f"{name} must run make advisories in its own job")
+    direct = [scanner for scanner in ADVISORY_SCANNERS if scanner in workflow]
+    if direct:
+        raise SystemExit(f"{name} runs advisory scanners outside make advisories: {direct}")
+    floating = re.findall(r"^\s+runs-on:\s*(\S+-latest)\s*$", workflow, re.M)
+    if floating:
+        raise SystemExit(f"{name} must pin runner images, not {sorted(set(floating))}")
+
+
 def check_documented_stages(stages: list[str], text: str) -> None:
     documented = re.findall(r"^\| `(release-verify-[a-z0-9-]+)` \|", text, re.M)
     if documented != stages:
@@ -698,6 +721,7 @@ if __name__ == "__main__":
     stages = check_stage_order()
     check_ci_workflow(stages, CI_WORKFLOW.read_text())
     check_documented_stages(stages, TESTING_GUIDE.read_text())
+    check_advisories_outside_release(dry_run("release-verify"), dry_run("advisories"), CI_WORKFLOW.read_text())
     check_release_graph()
     check_family_entry_points()
     inventory = Inventory()

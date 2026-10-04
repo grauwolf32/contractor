@@ -18,7 +18,7 @@ jobs:
   # first failing target.
   stage:
     name: ${{ matrix.stage }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
@@ -81,12 +81,6 @@ jobs:
       - name: Confirm Go toolchain
         run: go version
 
-      - name: Scan production Go commands for vulnerabilities
-        if: matrix.stage == 'release-verify-lint'
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-          "$(go env GOPATH)/bin/govulncheck" ./cmd/...
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -147,7 +141,30 @@ jobs:
   release-verify:
     if: ${{ !cancelled() }}
     needs: stage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require every release stage
         run: test "${{ needs.stage.result }}" = success
+
+  # Live advisory scans query databases that change without a code change, so
+  # they report here instead of failing the deterministic release-verify check.
+  advisories:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.28
+
+      - name: Scan Go commands and the locked Runtime graph
+        run: make -k advisories

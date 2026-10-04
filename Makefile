@@ -26,7 +26,7 @@ runtime-venv:
 # release gate runs their union once through dedicated aggregate targets.
 run-family-test = $(if $(filter 1,$(RELEASE_CONSOLIDATED)),:,$(1))
 
-include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk make/release.mk
+include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk make/release.mk make/advisories.mk
 
 test: test-go test-runtime
 

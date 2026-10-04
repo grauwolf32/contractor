@@ -89,6 +89,32 @@ class WorkflowTest(unittest.TestCase):
             guard.check_ci_workflow(STAGES, workflow)
 
 
+ADVISORIES = ["go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./cmd/...", "python3 scripts/audit_runtime_dependencies.py"]
+ADVISORY_JOB = """  advisories:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: make -k advisories
+"""
+
+
+class AdvisoryScanTest(unittest.TestCase):
+    def test_advisory_job_outside_release_passes(self) -> None:
+        guard.check_advisories_outside_release(["go test ./..."], ADVISORIES, WORKFLOW + ADVISORY_JOB)
+
+    def test_scan_in_release_verify_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "release-verify runs live advisory scans"):
+            guard.check_advisories_outside_release(ADVISORIES[1:], ADVISORIES, WORKFLOW + ADVISORY_JOB)
+
+    def test_missing_advisory_job_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "its own job"):
+            guard.check_advisories_outside_release([], ADVISORIES, WORKFLOW)
+
+    def test_floating_runner_image_is_rejected(self) -> None:
+        workflow = WORKFLOW + ADVISORY_JOB.replace("ubuntu-24.04", "ubuntu-latest")
+        with self.assertRaisesRegex(SystemExit, "pin runner images"):
+            guard.check_advisories_outside_release([], ADVISORIES, workflow)
+
+
 class DocumentedStagesTest(unittest.TestCase):
     def table(self, stages: list[str]) -> str:
         return "| Stage | Runs |\n| --- | --- |\n" + "".join(f"| `{stage}` | x |\n" for stage in stages)
