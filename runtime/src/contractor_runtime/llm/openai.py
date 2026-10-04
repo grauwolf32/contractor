@@ -255,9 +255,12 @@ def _content_messages(content: types.Content) -> list[dict[str, Any]]:
     ordinary: dict[str, Any] | None = None
     joined_text = "\n".join(text)
     if role == "assistant" and (joined_text or reasoning or tool_calls):
-        ordinary = {"role": "assistant", "content": joined_text or None}
-        if reasoning:
-            ordinary["reasoning_content"] = "".join(reasoning)
+        # Earlier reasoning is not replayed. Qwen-style templates expect history
+        # without it, and LM Studio renders a replayed reasoning_content as a
+        # second <think> block inside the content: the model then copies that
+        # paragraph turn after turn and loops. A reasoning-only turn keeps an
+        # empty message so the role order is unchanged.
+        ordinary = {"role": "assistant", "content": joined_text or (None if tool_calls else "")}
         if tool_calls:
             ordinary["tool_calls"] = tool_calls
     elif role == "user" and joined_text:

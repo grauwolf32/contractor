@@ -248,7 +248,9 @@ def test_adk_request_and_gateway_response_round_trip() -> None:
             "user",
         ]
         assert payload["messages"][1]["content"] == "first\nsecond"
-        assert payload["messages"][2]["reasoning_content"] == "prior thought"
+        # Earlier reasoning stays out of the replayed history.
+        assert "reasoning_content" not in payload["messages"][2]
+        assert "prior thought" not in json.dumps(payload["messages"])
         assert payload["messages"][2]["tool_calls"][0]["id"] == "call-prior"
         assert json.loads(payload["messages"][3]["content"]) == {"contents": "old"}
         assert payload["tool_choice"] == {
@@ -746,3 +748,10 @@ def test_retry_wait_obeys_aggregate_deadline_and_cancellation(
             await model.close()
 
     asyncio.run(scenario())
+
+
+def test_reasoning_only_history_turn_keeps_an_empty_assistant_message():
+    from contractor_runtime.llm.openai import _content_messages
+
+    content = types.Content(role="model", parts=[types.Part(text="earlier thought", thought=True)])
+    assert _content_messages(content) == [{"role": "assistant", "content": ""}]
