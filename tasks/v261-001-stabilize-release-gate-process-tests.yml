@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V261-001
+title: Restore the deterministic release process gate
+milestone: release-gate-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, python]
+goal: Make the failing release process tests pass on main under the CI runner.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/304
+  finding: Main release verification failed in Agent Skills, Audit Programs, and Code Analysis process tests.
+scope:
+  in:
+    - Reproduce and resolve the failing process assertions or underlying runtime behavior.
+    - Preserve meaningful coverage of process behavior.
+  out:
+    - Bypassing the release process gate.
+acceptance_criteria:
+  - {id: A1, text: Agent Skills process test completes its fixture sequence.}
+  - {id: A2, text: Audit Programs process test reaches completion.}
+  - {id: A3, text: Code Analysis process test observes both runtime agents and completes.}
+  - {id: A4, text: Main release gate passes on GitHub Actions.}
+tests:
+  - {command: go test -tags=e2e ./tests/e2e, covers: [A1, A2, A3]}
+  - {command: make release-verify, covers: [A1, A2, A3, A4]}

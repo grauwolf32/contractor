@@ -246,14 +246,6 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	if !bytes.Equal(oldExact, packageA.payload) || oldExactMedia != agentskills.MediaType {
 		t.Fatal("pinned owner package A was not retained after package B update")
 	}
-
-	newRunID := createAgentSkillWorkflowRun(
-		t, publicClient, publicBaseURL, "agent-skills-new-b", inputs,
-		[]string{"agent-skills-debug"},
-	)
-	assertPendingAgentSkillSelection(
-		t, ctx, store, newRunID, *updatedB.Revision, packageB,
-	)
 	gateway.releaseBlockedRequest()
 
 	blockerStatus := waitForRun(
@@ -266,10 +258,34 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	oldStatus := waitForDomainRun(
 		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, oldRunID,
 	)
+	assertAgentSkillAttemptSequence(t, oldStatus, true)
+
+	// Keep the next Runtime slot occupied while selecting B. The fake model
+	// scripts are ordered, so the two Skill Runs must not race to its first step.
+	secondBlock := gateway.blockNextRequest()
+	secondBlockerRunID := createWorkflowRun(
+		t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-second-blocker", blockerInput,
+	)
+	select {
+	case <-secondBlock:
+	case <-ctx.Done():
+		t.Fatalf("wait for second blocking Worker model request: %v", ctx.Err())
+	}
+	newRunID := createAgentSkillWorkflowRun(
+		t, publicClient, publicBaseURL, "agent-skills-new-b", inputs,
+		[]string{"agent-skills-debug"},
+	)
+	assertPendingAgentSkillSelection(t, ctx, store, newRunID, *updatedB.Revision, packageB)
+	gateway.releaseBlockedRequest()
+	secondBlockerStatus := waitForRun(
+		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, secondBlockerRunID,
+	)
+	if len(secondBlockerStatus.Attempts) != 1 || secondBlockerStatus.Attempts[0].State != "succeeded" {
+		t.Fatalf("second blocking Run did not complete normally: %+v", secondBlockerStatus.Attempts)
+	}
 	newStatus := waitForDomainRun(
 		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, newRunID,
 	)
-	assertAgentSkillAttemptSequence(t, oldStatus, true)
 	assertAgentSkillAttemptSequence(t, newStatus, false)
 	oldEvidence := assertAgentSkillRunEvidence(
 		t, ctx, store, publicClient, publicBaseURL, oldRunID,
@@ -330,8 +346,8 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
 	}
 
-	if gateway.CompletedStages() != 7 || len(gateway.Failures()) != 0 {
-		t.Fatalf("Agent Skill gateway stages/failures = %d/%v, want 7/none",
+	if gateway.CompletedStages() != 8 || len(gateway.Failures()) != 0 {
+		t.Fatalf("Agent Skill gateway stages/failures = %d/%v, want 8/none",
 			gateway.CompletedStages(), gateway.Failures())
 	}
 	assertAgentSkillGatewaySequence(t, gateway.Observations(), fixture)

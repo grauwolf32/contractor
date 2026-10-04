@@ -46,6 +46,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "old/likec4_validate"),
 			fixture, fixture.PackageACanary,
 		),
+		artifactCopyGatewayStage("blocker-after-old/copy"),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "new/likec4_build"),
 			fixture, fixture.PackageBCanary,
@@ -99,7 +100,9 @@ func withAgentSkillGateway(
 		panic("Agent Skill gateway Stage has no domain steps")
 	}
 	first := stage.steps[0]
-	first.validate = composeGatewayValidation(requireToolOutput(canary), first.validate)
+	first.validate = composeGatewayValidation(
+		requireAgentSkillPackageOutput(fixture, canary), first.validate,
+	)
 	stage.steps = append(prefix, append([]domainGatewayStep{first}, stage.steps[1:]...)...)
 	return stage
 }
@@ -114,7 +117,7 @@ func failedAgentSkillGatewayStage(
 	sort.Strings(tools)
 	steps := agentSkillDisclosureSteps(fixture)
 	steps = append(steps, domainGatewayStep{
-		validate: requireToolOutput(canary), modelFail: true,
+		validate: requireAgentSkillPackageOutput(fixture, canary), modelFail: true,
 	})
 	return domainGatewayStage{name: name, tools: tools, steps: steps}
 }
@@ -154,6 +157,29 @@ func requireToolOutput(fragment string) func(map[string]any) error {
 			return fmt.Errorf(
 				"native Skill tool response did not match the fixture (safe fields: %v)",
 				gatewaySafeScalars(messages),
+			)
+		}
+		return nil
+	}
+}
+
+func requireAgentSkillPackageOutput(
+	fixture agentSkillMVPFixture,
+	expectedCanary string,
+) func(map[string]any) error {
+	alternateCanary := fixture.PackageACanary
+	if expectedCanary == fixture.PackageACanary {
+		alternateCanary = fixture.PackageBCanary
+	}
+	requireExpected := requireToolOutput(expectedCanary)
+	return func(request map[string]any) error {
+		if err := requireExpected(request); err != nil {
+			messages := request["messages"]
+			return fmt.Errorf(
+				"%w; alternate package marker present=%t; reference heading present=%t",
+				err,
+				containsStringFragment(messages, alternateCanary),
+				containsStringFragment(messages, "# CLI Reference"),
 			)
 		}
 		return nil

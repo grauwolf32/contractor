@@ -199,7 +199,7 @@ Every enabled factory owns its local probe semantics:
 - a RuntimeAdapter probe proves that its local code/dependencies can construct
   that exact typed adapter contract without contacting a configured endpoint.
 
-Ordinary factory probes have a five-second timeout and the complete startup
+Ordinary factory probes have a twelve-second timeout and the complete startup
 probe phase has a thirty-second timeout when Podman is disabled. Opt-in
 [Podman discovery](21-podman-sandbox.md#probes-errors-and-metrics) has a
 sixty-second total budget and a shared profile/execution probe bounded to
