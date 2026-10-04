@@ -183,6 +183,48 @@ func TestCopyRegularFileCannotEscapeAfterParentChanges(t *testing.T) {
 	}
 }
 
+func TestEncodeFilesRejectsFilesThatChangeSizeAfterInspection(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(t *testing.T, path string)
+	}{
+		{"appended past the per-file limit", func(t *testing.T, path string) {
+			file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			if _, err := file.Write(bytes.Repeat([]byte("x"), 5<<20)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"truncated", func(t *testing.T, path string) {
+			if err := os.Truncate(path, 2); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "app.log")
+			writeTestFile(t, path, "start")
+			sourceRoot, err := os.OpenRoot(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sourceRoot.Close()
+			files, _, err := inspectFiles(sourceRoot, []string{"app.log"})
+			if err != nil || len(files) != 1 {
+				t.Fatalf("inspect files = %v, %v", files, err)
+			}
+			test.change(t, path)
+			if _, err := encodeFiles(sourceRoot, files); err == nil || !strings.Contains(err.Error(), "app.log changed while packaging") {
+				t.Fatalf("encode after size change = %v, want the member to fail", err)
+			}
+		})
+	}
+}
+
 func TestBuildHonorsGitAndContractorIgnore(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")

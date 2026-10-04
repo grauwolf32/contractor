@@ -89,19 +89,9 @@ func Build(source string, options Options) (Bundle, error) {
 	if len(files) == 0 {
 		return Bundle{}, errors.New("source has no files to package after ignore filtering")
 	}
-
-	members := make([]sourcezip.Member, len(files))
-	for index, file := range files {
-		members[index] = sourcezip.Member{
-			Name: file.path, Size: file.info.Size(),
-			Write: func(destination io.Writer) error {
-				return copyRegularFile(destination, sourceRoot, file)
-			},
-		}
-	}
-	payload, err := sourcezip.Encode(context.Background(), members, sourcezip.Options{CompressionLevel: 6})
+	payload, err := encodeFiles(sourceRoot, files)
 	if err != nil {
-		return Bundle{}, archiveError(err)
+		return Bundle{}, err
 	}
 	return Bundle{
 		Data: payload, Files: len(files), ExpandedBytes: expanded,
@@ -420,6 +410,27 @@ func portablePath(value string) (string, error) {
 	return value, nil
 }
 
+// encodeFiles archives inspected files with the sizes inspectFiles checked.
+func encodeFiles(root *os.Root, files []sourceFile) ([]byte, error) {
+	members := make([]sourcezip.Member, len(files))
+	for index, file := range files {
+		members[index] = sourcezip.Member{
+			Name: file.path, Size: file.info.Size(),
+			Write: func(destination io.Writer) error {
+				return copyRegularFile(destination, root, file)
+			},
+		}
+	}
+	payload, err := sourcezip.Encode(context.Background(), members, sourcezip.Options{CompressionLevel: 6})
+	if err != nil {
+		return nil, archiveError(err)
+	}
+	return payload, nil
+}
+
+// copyRegularFile copies exactly the inspected size of file. A file that grew
+// after inspection, such as an appended log, fails instead of exceeding the
+// declared size or the per-file limit that inspection enforced.
 func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) error {
 	source, err := root.Open(file.relativePath)
 	if err != nil {
@@ -430,12 +441,16 @@ func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) erro
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(file.info, opened) {
 		return fmt.Errorf("source member %s changed while packaging", file.path)
 	}
-	written, err := io.Copy(destination, source)
+	// One byte past the inspected size distinguishes growth from an exact match.
+	data, err := io.ReadAll(io.LimitReader(source, file.info.Size()+1))
 	if err != nil {
-		return archiveError(err)
+		return fmt.Errorf("read source member %s: %w", file.path, err)
 	}
-	if written != opened.Size() {
+	if int64(len(data)) != file.info.Size() {
 		return fmt.Errorf("source member %s changed while packaging", file.path)
+	}
+	if _, err := destination.Write(data); err != nil {
+		return archiveError(err)
 	}
 	return nil
 }
