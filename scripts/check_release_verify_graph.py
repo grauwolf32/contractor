@@ -2,6 +2,7 @@
 """Keep the release gate's deduplicated Go suites complete."""
 
 import importlib.util
+import os
 import re
 import shlex
 import subprocess
@@ -86,16 +87,28 @@ TESTING_GUIDE = ROOT / "docs/testing/README.md"
 FAST_STAGES = ("release-verify-lint", "release-verify-unit", "release-verify-ui")
 
 
-def dry_run(*targets: str) -> list[str]:
-    result = subprocess.run(
-        ["make", "-n", *targets], cwd=ROOT, capture_output=True, text=True, check=True
+def make(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    # Under make lint the guard is itself a recipe: drop the parent's flags
+    # and level so a nested make neither inherits -k or -j nor prints
+    # directory changes between commands.
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in {"MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES"}
+    }
+    return subprocess.run(
+        ["make", "--no-print-directory", *arguments],
+        cwd=ROOT, env=environment, capture_output=True, text=True, check=check,
     )
-    return result.stdout.splitlines()
+
+
+def dry_run(*targets: str) -> list[str]:
+    return make("-n", *targets).stdout.splitlines()
 
 
 def make_prerequisites(target: str) -> list[str]:
     # -q exits 1 for an out-of-date goal; the printed database is complete.
-    result = subprocess.run(["make", "-pq", target], cwd=ROOT, capture_output=True, text=True)
+    result = make("-pq", target, check=False)
     if result.returncode not in (0, 1):
         raise SystemExit(f"make -pq {target} failed: {result.stderr.strip()}")
     for line in result.stdout.splitlines():

@@ -1,5 +1,6 @@
 """Negative tests for the release-graph guard; run by make lint."""
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +52,11 @@ def stage_order(stages: str, unit: str = "go test ./...") -> list[str]:
 class StageOrderTest(unittest.TestCase):
     def test_fast_stages_first(self) -> None:
         self.assertEqual(stage_order(" ".join(STAGES)), STAGES)
+
+    def test_order_holds_when_the_guard_runs_inside_make(self) -> None:
+        # make lint runs the guard as a recipe of a parent make -k.
+        with mock.patch.dict(os.environ, {"MAKELEVEL": "1", "MAKEFLAGS": "k"}):
+            self.assertEqual(stage_order(" ".join(STAGES)), STAGES)
 
     def test_heavy_stage_before_lint_is_rejected(self) -> None:
         with self.assertRaisesRegex(SystemExit, "must start with"):
