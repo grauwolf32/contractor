@@ -3,7 +3,7 @@ id: V280-001
 title: Collect co-batched verification checks of one finding proposal
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Never wedge Audit collection when two finding-verification items of one proposal run in one batch, and turn deterministic store rejections into contract-invalid receipts.
