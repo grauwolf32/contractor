@@ -3,7 +3,8 @@ id: V333-001
 title: Normalize configuration roots and accept group-level help
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d7c45b1b0e31592eaa880dbe80f33713da142595
 depends_on: []
 languages: [go]
 goal: Make trailing slashes harmless for configuration roots and let command groups print help.

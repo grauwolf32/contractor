@@ -3,7 +3,8 @@ id: V330-001
 title: Fail configuration reloads when a managed subtree is missing
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 592a5cef3a0afcdcff1826f2da1eed10ee597a9a
 depends_on: []
 languages: [go]
 goal: Keep the current configuration snapshot when a managed subtree disappears.

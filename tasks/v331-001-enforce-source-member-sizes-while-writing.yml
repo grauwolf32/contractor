@@ -3,7 +3,8 @@ id: V331-001
 title: Enforce source bundle member sizes while writing
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f2b4aa33a4615b7a5b9994d3b9887851d38d745f
 depends_on: []
 languages: [go]
 goal: Reject source files that grow between inspection and archiving.
