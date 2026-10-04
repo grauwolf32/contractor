@@ -14,8 +14,6 @@ spec:
   toolsets:
     - ref: memory-tools@1
       tools: [list_memories, read_memory, write_memory, append_memory, search_memory, list_memory_tags]
-    - ref: run-artifacts@1
-      tools: [read_artifact]
     - ref: http-tools@1
       tools: [http_request, http_read_body, http_history, http_session_set, http_session_get, http_session_clear]
     - ref: text-artifacts@1

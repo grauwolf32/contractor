@@ -20,8 +20,6 @@ spec:
         - append_memory
         - search_memory
         - list_memory_tags
-    - ref: run-artifacts@1
-      tools: [read_artifact]
     - ref: source-analysis@1
       tools: [open_source_archive, list_source_files, read_source, search_source]
     - ref: audit-results@2

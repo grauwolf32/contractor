@@ -20,8 +20,6 @@ spec:
         - append_memory
         - search_memory
         - list_memory_tags
-    - ref: run-artifacts@1
-      tools: [read_artifact]
     - ref: filesystem@1
       tools: [ls, glob, read_file, grep]
     - ref: code-analysis@1
