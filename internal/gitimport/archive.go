@@ -1,21 +1,25 @@
 package gitimport
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
+	"io"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
-const MaxEntries = 10000
-const MaxFileBytes = 4 << 20
-const MaxPathBytes = 512
+const (
+	MaxArchiveBytes = sourcezip.MaxArchiveBytes
+	MaxEntries      = sourcezip.MaxEntries
+	MaxFileBytes    = sourcezip.MaxFileBytes
+	MaxPathBytes    = sourcezip.MaxPathBytes
+)
 
 type sourceFile struct {
 	name string
@@ -124,34 +128,34 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 		return nil, plumbing.ZeroHash, ErrContent
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })
-	var buffer bytes.Buffer
-	writer := zip.NewWriter(&archiveWriter{ctx: ctx, buffer: &buffer})
-	for _, file := range files {
-		if err := ctx.Err(); err != nil {
-			return nil, plumbing.ZeroHash, err
-		}
-		header := &zip.FileHeader{Name: file.name, Method: zip.Deflate, Modified: time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)}
-		header.SetMode(0644)
-		entry, err := writer.CreateHeader(header)
-		if err != nil {
-			return nil, plumbing.ZeroHash, err
-		}
-		// Chunking ensures cancellation is observed even for compressible content.
-		for data := file.data; len(data) > 0; {
-			if err := ctx.Err(); err != nil {
-				return nil, plumbing.ZeroHash, err
-			}
-			n := min(len(data), 32<<10)
-			if _, err := entry.Write(data[:n]); err != nil {
-				return nil, plumbing.ZeroHash, err
-			}
-			data = data[n:]
+	members := make([]sourcezip.Member, len(files))
+	for index, file := range files {
+		members[index] = sourcezip.Member{
+			Name: file.name, Size: int64(len(file.data)),
+			Write: func(entry io.Writer) error {
+				// Chunking observes cancellation even for compressible content.
+				for data := file.data; len(data) > 0; {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+					n := min(len(data), 32<<10)
+					if _, err := entry.Write(data[:n]); err != nil {
+						return err
+					}
+					data = data[n:]
+				}
+				return nil
+			},
 		}
 	}
-	if err := writer.Close(); err != nil {
+	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{ModifiedField: true})
+	if errors.Is(err, sourcezip.ErrLimit) {
+		return nil, plumbing.ZeroHash, ErrBudget
+	}
+	if err != nil {
 		return nil, plumbing.ZeroHash, err
 	}
-	return buffer.Bytes(), commit, nil
+	return archive, commit, nil
 }
 
 func headerHash(data []byte, prefix string) (plumbing.Hash, error) {
@@ -175,19 +179,4 @@ func safeComponent(name string) bool {
 		}
 	}
 	return true
-}
-
-type archiveWriter struct {
-	ctx    context.Context
-	buffer *bytes.Buffer
-}
-
-func (w *archiveWriter) Write(p []byte) (int, error) {
-	if err := w.ctx.Err(); err != nil {
-		return 0, err
-	}
-	if len(p) > MaxArchiveBytes-w.buffer.Len() {
-		return 0, ErrBudget
-	}
-	return w.buffer.Write(p)
 }
