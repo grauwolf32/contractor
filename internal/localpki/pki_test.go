@@ -138,6 +138,60 @@ func assertRenewFailsWithoutWriting(t *testing.T, paths Paths, renew func() erro
 	}
 }
 
+func TestLeafExpiryIsBoundedByCA(t *testing.T) {
+	initial := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	issuer := Generator{Now: func() time.Time { return initial }}
+	if _, err := issuer.InitCA(root, false); err != nil {
+		t.Fatal(err)
+	}
+	ca := readTestCertificate(t, CAPaths(root).Certificate)
+
+	// Issue near CA expiry: the natural 365-day leaf validity would outlive
+	// the CA, so it must be clamped to the CA's NotAfter.
+	nearExpiry := ca.NotAfter.Add(-100 * 24 * time.Hour)
+	lateIssuer := Generator{Now: func() time.Time { return nearExpiry }}
+	leaf := LeafOptions{DNSNames: []string{"runtime.example"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
+
+	for _, test := range []struct {
+		name  string
+		issue func() (Paths, error)
+		renew func() (Paths, error)
+	}{
+		{name: "Runtime Agent",
+			issue: func() (Paths, error) { return lateIssuer.IssueAgent(root, "worker-clamp", leaf) },
+			renew: func() (Paths, error) { return lateIssuer.RenewAgent(root, "worker-clamp") }},
+		{name: "Control Plane",
+			issue: func() (Paths, error) {
+				return lateIssuer.IssueControlPlane(root, ControlPlaneOptions{
+					LeafOptions: leaf, URI: "urn:contractor:control-plane:clamp-test",
+				})
+			},
+			renew: func() (Paths, error) { return lateIssuer.RenewControlPlane(root) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			paths, err := test.issue()
+			if err != nil {
+				t.Fatal(err)
+			}
+			issued := readTestCertificate(t, paths.Certificate)
+			if issued.NotAfter.After(ca.NotAfter) {
+				t.Fatalf("issued leaf outlives the CA: leaf=%s ca=%s", issued.NotAfter, ca.NotAfter)
+			}
+			if !issued.NotAfter.Equal(ca.NotAfter) {
+				t.Fatalf("issued leaf near CA expiry not clamped to the CA: leaf=%s ca=%s", issued.NotAfter, ca.NotAfter)
+			}
+			if _, err := test.renew(); err != nil {
+				t.Fatal(err)
+			}
+			renewed := readTestCertificate(t, paths.Certificate)
+			if renewed.NotAfter.After(ca.NotAfter) {
+				t.Fatalf("renewed leaf outlives the CA: leaf=%s ca=%s", renewed.NotAfter, ca.NotAfter)
+			}
+		})
+	}
+}
+
 func readTestCertificate(t *testing.T, path string) *x509.Certificate {
 	t.Helper()
 	encoded, err := os.ReadFile(path)

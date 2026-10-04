@@ -18,6 +18,7 @@ func TestControlPlaneExpiryLogsAndWarnsWithInjectedClock(t *testing.T) {
 	if _, err := generator.InitCA(root, false); err != nil {
 		t.Fatal(err)
 	}
+	caPaths := localpki.CAPaths(root)
 	paths, err := generator.IssueControlPlane(root, localpki.ControlPlaneOptions{
 		LeafOptions: localpki.LeafOptions{IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}},
 	})
@@ -25,24 +26,35 @@ func TestControlPlaneExpiryLogsAndWarnsWithInjectedClock(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, test := range []struct {
-		name string
-		now  time.Time
-		warn bool
+		name   string
+		now    time.Time
+		warn   bool
+		caWarn bool
 	}{
 		{name: "far from expiry", now: issued.Add(100 * 24 * time.Hour)},
-		{name: "inside warning window", now: issued.Add(340 * 24 * time.Hour), warn: true},
+		{name: "inside leaf warning window", now: issued.Add(340 * 24 * time.Hour), warn: true},
+		// The default CA lasts ten years; near its expiry both the leaf
+		// (already renewed many times in practice) and the CA warn.
+		{name: "inside CA warning window", now: issued.Add((10*365 - 20) * 24 * time.Hour), warn: true, caWarn: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var output bytes.Buffer
 			logger := slog.New(slog.NewTextHandler(&output, nil))
-			if err := logControlPlaneCertificateExpiry(logger, paths.Certificate,
+			if err := logControlPlaneCertificateExpiry(logger, paths.Certificate, caPaths.Certificate,
 				30*24*time.Hour, func() time.Time { return test.now }); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output.String(), "level=INFO") ||
-				!strings.Contains(output.String(), "not_after=") ||
-				strings.Contains(output.String(), "level=WARN") != test.warn {
-				t.Fatalf("expiry log = %q", output.String())
+			logged := output.String()
+			if !strings.Contains(logged, "level=INFO") ||
+				!strings.Contains(logged, "Control Plane mTLS certificate expiry") ||
+				!strings.Contains(logged, "deployment CA certificate expiry") {
+				t.Fatalf("expiry log missing info lines = %q", logged)
+			}
+			if strings.Contains(logged, "Control Plane mTLS certificate expires within warning window") != test.warn {
+				t.Fatalf("leaf warning = %q, want %v", logged, test.warn)
+			}
+			if strings.Contains(logged, "deployment CA certificate expires within warning window") != test.caWarn {
+				t.Fatalf("CA warning = %q, want %v", logged, test.caWarn)
 			}
 		})
 	}

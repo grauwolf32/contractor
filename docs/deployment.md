@@ -11,8 +11,13 @@ until it acquires the Control Plane lease; the Kubernetes example uses a
 `Recreate` update to avoid overlapping active pods.
 The lease uses a dedicated PostgreSQL session, so connect directly to
 PostgreSQL or through a session-pooling proxy, not transaction-mode pooling.
-The active Server checks that session every second; if it is lost, the Server
-closes both listeners and stops the Scheduler immediately.
+The active Server probes that session every second; a single probe may run up
+to a ten-second tolerance window, so a brief client-to-database stall does not
+stop the Server. Once a probe fails within that window, the Server closes both
+listeners and stops the Scheduler. The window stays below the server-side
+keepalive bound, so the Server stops before PostgreSQL releases the lock to a
+standby. A standby that hits a transient acquisition stall reconnects and keeps
+polling rather than exiting.
 
 ## Install the release
 
@@ -69,12 +74,16 @@ The PKI files live under `.local/pki`; keep the CA private key and leaf keys
 protected. Password hashing reads the password from the terminal and stores
 only its hash. Perform this bootstrap once for a fresh installation.
 
-The Control Plane and Runtime Agent leaf certificates are valid for 365 days.
-Both processes log their certificate expiry at startup and warn during the last
-30 days. Set the Server's `--cert-expiry-warning-window` (or
-`CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for example `720h`) and the Runtime's
-`--cert-expiry-warning-days` (or `CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change
-that lead time. Before expiry, stop the affected processes, renew their leaves,
+The Control Plane and Runtime Agent leaf certificates are valid for 365 days,
+but never past the deployment CA's own expiry: a leaf issued or renewed within
+a year of the CA expiring is clamped to the CA's `NotAfter`. Both processes log
+their leaf and the deployment CA expiry at startup and warn during the last
+30 days of each. Because a leaf never outlives the CA, an approaching CA expiry
+breaks every private mTLS link and cannot be fixed by leaf renewal alone; the
+CA warning advises rotating the CA and reissuing leaves. Set the Server's
+`--cert-expiry-warning-window` (or `CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for
+example `720h`) and the Runtime's `--cert-expiry-warning-days` (or
+`CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change that lead time. Before expiry, stop the affected processes, renew their leaves,
 then restart them so their in-memory TLS contexts load the new certificates:
 
 ```shell

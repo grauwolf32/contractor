@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) error {
+func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
 	current, err := s.store.GetRun(ctx, run.RunID)
 	if err != nil {
 		return err
@@ -27,7 +27,7 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 		}
 	}
 	if run.State == runstore.RunCancelling {
-		return s.executeCancelling(ctx, run)
+		return s.executeCancelling(ctx, run, claimID)
 	}
 	if run.State != runstore.RunRunning && run.State != runstore.RunPending && run.State != runstore.RunWaiting {
 		return nil
@@ -74,6 +74,9 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 	if err := validatePersistedExecution(execution, run, workflow); err != nil {
 		return s.failInvalidRunState(ctx, run.RunID, err)
 	}
+	// Scope allocation-loss interrupts to the Stage this lane is now
+	// progressing; a loss for an already-finished Stage must not cancel it.
+	s.setActiveStage(run.RunID, claimID, execution.StageExecutionID)
 
 	switch execution.State {
 	case runstore.StagePreparing:
@@ -98,7 +101,7 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 	}
 }
 
-func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.WorkflowRun) error {
+func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.WorkflowRun, claimID string) error {
 	executions, err := s.store.ListStageExecutions(ctx, run.RunID)
 	if err != nil {
 		return err
@@ -130,6 +133,7 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	}
 
 	execution := active[0]
+	s.setActiveStage(run.RunID, claimID, execution.StageExecutionID)
 	var reservations []controlplane.Reservation
 	if workflowErr == nil {
 		workflow, workflowErr = workflow.selectExecution(execution)

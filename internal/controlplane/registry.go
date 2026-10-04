@@ -1274,6 +1274,7 @@ func (r *InMemoryRegistry) markAllocationLost(entry *agentEntry, reason Allocati
 	}
 	stored.reservation.Grant.WriteFenced = true
 	stored.reservation.Grant.Lost = true
+	stored.reservation.Grant.LossReason = reason
 	stored.loss = &loss
 	r.allocations[allocationID] = stored
 	entry.allocationLost = true

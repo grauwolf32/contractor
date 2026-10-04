@@ -164,8 +164,9 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if errors.Is(err, errControlPlaneAllocationLost) {
 		cleanupContext, cancelCleanup := claimCleanupContext(ctx)
 		defer cancelCleanup()
+		code, message := allocationLossFailure(err)
 		return nil, s.beginAbort(cleanupContext, run, workflow, execution, reservations, planner.Failure{
-			Code: "control_lease_expired", Message: "Runtime Agent allocation control lease was lost", Retryable: true,
+			Code: code, Message: message, Retryable: true,
 		})
 	}
 	if err != nil {
@@ -181,6 +182,16 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if admitting {
 		execution, err = s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
 		if err != nil {
+			if fresh && errors.Is(err, runstore.ErrQueuePaused) {
+				// The owner's queue paused between the pre-placement probe and
+				// atomic admission. This Stage was never admitted and recorded
+				// no durable allocations, so discard the just-reserved batch;
+				// otherwise its pinned grant keeps the Runtime ineligible for
+				// other owners until the paused owner resumes. The next claim
+				// re-places the Stage on resume.
+				s.releaseUnprepared(reservations)
+				return nil, err
+			}
 			// Placement is already durable. Keep it live so the next claim
 			// reuses it instead of finding pinned rows without grants.
 			return nil, err
