@@ -85,7 +85,9 @@ func (p *passthroughPlanner) Run(
 		return contracts.StageContentResult{}, err
 	}
 	if started.Completion != nil {
-		return p.recoverCompletion(ctx, *started.Completion)
+		return RecoverCompletion(
+			ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, *started.Completion, p.inspector,
+		)
 	}
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
@@ -236,26 +238,6 @@ func (p *passthroughPlanner) finishReport(
 }
 
 func int64Pointer(value int64) *int64 { return &value }
-
-func (p *passthroughPlanner) recoverCompletion(
-	ctx context.Context, completion Completion,
-) (contracts.StageContentResult, error) {
-	if err := validateCompletion(completion); err != nil {
-		return contracts.StageContentResult{}, NewError(
-			"planner_session_invalid", "Recorded Planner completion is invalid", false, err,
-		)
-	}
-	if completion.Failure != nil {
-		return contracts.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
-	}
-	result := completion.Result.Clone()
-	if err := validateCandidate(
-		ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
-	); err != nil {
-		return contracts.StageContentResult{}, err
-	}
-	return result, nil
-}
 
 func (p *passthroughPlanner) fail(
 	ctx context.Context, identity SessionIdentity, plannerError *Error,

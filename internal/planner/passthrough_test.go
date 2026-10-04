@@ -13,6 +13,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -148,7 +149,7 @@ func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
 			name: "transient first write",
 			complete: func(_ context.Context, attempt int) error {
 				if attempt == 1 {
-					return &pgconn.PgError{Code: "55P03"}
+					return &pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}
 				}
 				return nil
 			},
@@ -185,6 +186,44 @@ func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
 				t.Fatalf("Run = (%+v, %v), completion calls = %d", result, err, sessions.completeCalls)
 			}
 		})
+	}
+}
+
+func TestRecoverCompletionRevalidatesRecordedOutcome(t *testing.T) {
+	revision := "result-r1"
+	contract := map[string]workflowconfig.ArtifactSlot{
+		"report": {Required: true, MediaTypes: []string{"application/json"}},
+	}
+	recorded := contracts.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "report created",
+		Artifacts: map[string]contracts.ArtifactRef{
+			"report": {Namespace: "builder", Name: "report", Revision: &revision},
+		},
+	}
+	inspector := &fakeInspector{mediaTypes: map[string]string{"builder/report/result-r1": "application/json"}}
+	result, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Result: &recorded}, inspector)
+	if err != nil || !reflect.DeepEqual(result, recorded) {
+		t.Fatalf("recovered result = (%+v, %v)", result, err)
+	}
+	failure := Failure{Code: "worker_failed", Message: "Worker failed", Retryable: true}
+	if _, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Failure: &failure}, inspector); FailureFrom(err) != failure {
+		t.Fatalf("recovered failure = %v", err)
+	}
+	for name, completion := range map[string]Completion{
+		"empty":         {},
+		"both":          {Result: &recorded, Failure: &failure},
+		"blank failure": {Failure: &Failure{Code: "worker_failed"}},
+	} {
+		_, err := RecoverCompletion(t.Context(), "run-1", contract, completion, inspector)
+		if got := FailureFrom(err); got.Code != "planner_session_invalid" || got.Retryable {
+			t.Errorf("%s completion = %+v", name, got)
+		}
+	}
+	missing := "missing"
+	unreadable := recorded.Clone()
+	unreadable.Artifacts["report"] = contracts.ArtifactRef{Namespace: "builder", Name: "report", Revision: &missing}
+	if _, err := RecoverCompletion(t.Context(), "run-1", contract, Completion{Result: &unreadable}, inspector); err == nil {
+		t.Fatal("recorded result with an unreadable artifact was accepted")
 	}
 }
 

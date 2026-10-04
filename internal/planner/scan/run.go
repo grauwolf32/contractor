@@ -27,7 +27,9 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 		return empty, scanError("scan_session_unavailable", err)
 	}
 	if start.Completion != nil {
-		return p.recoverCompletion(ctx, *start.Completion)
+		return planner.RecoverCompletion(
+			ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, *start.Completion, p.factory.inspector,
+		)
 	}
 	if !start.Invoke {
 		return empty, scanError("scan_session_unavailable", nil)

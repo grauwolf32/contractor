@@ -79,7 +79,9 @@ func (p *streamlinePlanner) Run(
 		return contracts.StageContentResult{}, err
 	}
 	if started.Completion != nil {
-		return p.recoverCompletion(ctx, *started.Completion)
+		return planner.RecoverCompletion(
+			ctx, p.invocation.RunID, p.resultContract, *started.Completion, p.inspector,
+		)
 	}
 	bindings := make([]string, 0, len(p.workers))
 	for _, worker := range p.workers {
@@ -467,26 +469,6 @@ func (p *streamlinePlanner) stateInstruction() string {
 		"Pagination cursors are opaque and valid only for the same function and completed dispatch; copy them exactly and do not interpret them.",
 		"Worker State evidence is advisory. A State projection error does not undo a completed subtask and must not by itself change its Worker result, dispatch status, or the Stage outcome.",
 	}, "\n")
-}
-
-func (p *streamlinePlanner) recoverCompletion(
-	ctx context.Context, completion planner.Completion,
-) (contracts.StageContentResult, error) {
-	if (completion.Result == nil) == (completion.Failure == nil) {
-		return contracts.StageContentResult{}, planner.NewError(
-			"planner_session_invalid", "Recorded Planner completion is invalid", false, nil,
-		)
-	}
-	if completion.Failure != nil {
-		return contracts.StageContentResult{}, planner.NewErrorFromFailure(*completion.Failure, nil)
-	}
-	result := completion.Result.Clone()
-	if err := planner.ValidateCandidate(
-		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
-	); err != nil {
-		return contracts.StageContentResult{}, err
-	}
-	return result, nil
 }
 
 func (p *streamlinePlanner) fail(
