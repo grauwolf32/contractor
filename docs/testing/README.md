@@ -43,16 +43,18 @@ failing stage in one run.
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
-| `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
+| `release-verify-browser-a` | The API-mocked browser journeys, production operations browser stack, and native managed Evals |
+| `release-verify-browser-b` | External managed Evals in the production browser stack |
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
 | `release-verify-process-a` | The first shard of the 19 process e2e tests |
 | `release-verify-process-b` | The second shard of the 19 process e2e tests |
 
-The process shards run on separate CI runners. `make test-e2e` still runs all
-19 process tests in one local command; the release-graph guard checks that the
-two shards select each test exactly once.
+The process and browser shards run on separate CI runners. `make test-e2e`
+still runs all 19 process tests in one local command, and `make test-ui-stack`
+still runs the full browser stack locally. The release-graph guard checks that
+each selected process and browser test runs exactly once.
 
 Inside the stages, family targets skip their own Go suites and browser stack
 in favor of the race, integration, process and browser passes; running a

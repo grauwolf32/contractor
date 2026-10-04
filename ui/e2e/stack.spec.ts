@@ -480,7 +480,11 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   });
   await runSetup.getByRole("button", { name: "Start Workflow Run" }).click();
   const submitted = await createRequest;
-  expect((await submitted.response())?.status()).toBe(202);
+  const acceptedResponse = await submitted.response();
+  expect(acceptedResponse?.status()).toBe(202);
+  // request.response() resolves at the headers. Keep the route active until
+  // Chromium has received the body consumed by createRun's fetch.
+  expect(await acceptedResponse?.finished()).toBeNull();
   await page.unroute("**/v1/runs");
   expect(submittedBody).not.toBeNull();
   const body = JSON.parse(submittedBody ?? "null");

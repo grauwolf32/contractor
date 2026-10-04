@@ -32,7 +32,9 @@ jobs:
             timeout: 30
           - stage: release-verify-families
             timeout: 60
-          - stage: release-verify-browser
+          - stage: release-verify-browser-a
+            timeout: 60
+          - stage: release-verify-browser-b
             timeout: 60
           - stage: release-verify-race
             timeout: 45
@@ -107,7 +109,7 @@ jobs:
         run: cd ui && corepack pnpm install --frozen-lockfile
 
       - name: Install Chromium and host libraries
-        if: matrix.stage == 'release-verify-browser'
+        if: startsWith(matrix.stage, 'release-verify-browser-')
         run: cd ui && corepack pnpm exec playwright install --with-deps chromium
 
       - name: Check UI image dependency layer

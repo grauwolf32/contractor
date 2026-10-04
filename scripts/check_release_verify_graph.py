@@ -41,6 +41,16 @@ EXPECTED_PROCESS_TESTS = {
     "TestWorkerSummarizerProductionBoundaries",
 }
 
+EXPECTED_BROWSER_STACK_TESTS = {
+    "TestBrowserOperationsStack",
+    "TestManagedEvalsNativeStack",
+    "TestManagedEvalsExternalStack",
+    "TestBrowserReportRequiresExecutedSelection",
+    "TestManagedEvalGatewayHasIndependentHistories",
+    "TestUIStackConfigurationClosure",
+    "TestModelGatewayFindsNamedInputAfterParameterBlock",
+}
+
 EXPECTED_CONFIG_TESTS = {
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
@@ -239,8 +249,21 @@ def check_release_graph() -> list[str]:
                 process_tests.update(names)
 
     stacks = [command for command in commands if "go test" in command and "./tests/ui-stack" in command]
-    if len(stacks) != 1:
-        raise SystemExit(f"release gate runs the browser stack {len(stacks)} times, want once")
+    browser_tests: Counter[str] = Counter()
+    for command in stacks:
+        tokens = shlex.split(command)
+        if "-run" not in tokens or "-count=1" not in tokens or "-tags=e2e" not in tokens:
+            raise SystemExit(f"browser stack shard must select uncached tagged tests: {command}")
+        browser_tests.update(re.findall(r"Test[A-Za-z0-9_]+", tokens[tokens.index("-run") + 1]))
+    if len(stacks) != 2 or set(browser_tests) != EXPECTED_BROWSER_STACK_TESTS or any(
+        count != 1 for count in browser_tests.values()
+    ):
+        raise SystemExit(
+            "release browser stack selection changed: "
+            f"commands={len(stacks)}, missing={sorted(EXPECTED_BROWSER_STACK_TESTS - set(browser_tests))}, "
+            f"added={sorted(set(browser_tests) - EXPECTED_BROWSER_STACK_TESTS)}, "
+            f"duplicates={sorted(name for name, count in browser_tests.items() if count != 1)}"
+        )
     if len(races) != 2:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want the explicit and discovered passes")
     if process_commands != 2 or set(process_tests) != EXPECTED_PROCESS_TESTS or any(
