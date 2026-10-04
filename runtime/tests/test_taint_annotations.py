@@ -333,6 +333,27 @@ def test_qualified_declaration_names_in_cpp_and_lua(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_cpp_functions_returning_references_are_annotatable(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = (
+            "const std::string& Handler::name() const { return name_; }\n"
+            "int &counter() { static int c; return c; }\n"
+        )
+        writer = MemoryWriter({"handler.cpp": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        for symbol in ("Handler::name", "counter"):
+            result = await tools["annotate_trace"]("handler.cpp", symbol, target="test")
+            assert result["changed"] is True
+        assert await writer.read_text("handler.cpp") == (
+            "// @trace target=test\n"
+            "const std::string& Handler::name() const { return name_; }\n"
+            "// @trace target=test\n"
+            "int &counter() { static int c; return c; }\n"
+        )
+
+    asyncio.run(scenario())
+
+
 def test_named_php_javascript_and_lua_closures_are_real_targets(tmp_path: Path) -> None:
     async def scenario() -> None:
         writer = MemoryWriter(

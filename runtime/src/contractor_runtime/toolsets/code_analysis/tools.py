@@ -980,7 +980,7 @@ class _CodeAnalysisSession:
     def _needs_text_prefilter(self, path: str) -> bool:
         """Return whether search_def must scan this file's text for the needle.
 
-        A defined name is a substring of its source, so cached symbols alone
+        A defined bare name is a substring of its source, so cached symbols alone
         decide whether a clean cached file can match. The text is consulted
         only for uncached files and for cached files whose parse-error or
         long-name flags count in coverage only when they contain the needle.

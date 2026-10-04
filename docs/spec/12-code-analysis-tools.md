@@ -305,7 +305,11 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 ```
 
 - `symbol` is mandatory and matched against extracted definition names using
-  exact and case-folded bare-name comparison;
+  exact and case-folded bare-name comparison. A C or C++ definition is named
+  by its declarator below any pointer, reference, array or parenthesized
+  wrapper; a qualified C++ name keeps its scopes without template arguments
+  (`Box<T>::get` is `Box::get`) and an operator keeps its written form
+  (`operator()`);
 - `path` is the normalized relative workspace root/subtree;
 - `language` is empty or one exact v1 language name;
 - `limit` is 1..200.
@@ -313,9 +317,9 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 For efficiency, the implementation first performs a bounded case-folded text
 prefilter for the bare symbol, then parses only candidate files and validates
 actual definition nodes. A file whose compact symbols are already cached skips
-the text scan: a definition name is part of its source, so the cached rows
-decide the match. Only a cached file with a parse-error or long-name flag is
-still scanned, because those flags count in coverage only when the file
+the text scan: a definition's bare name is part of its source, so the cached
+rows decide the match. Only a cached file with a parse-error or long-name flag
+is still scanned, because those flags count in coverage only when the file
 contains the symbol. Search retains and counts only matching definitions
 toward the compact-symbol ceiling, so results are identical with or without
 the cache. Results are sorted by path, start line, column, name

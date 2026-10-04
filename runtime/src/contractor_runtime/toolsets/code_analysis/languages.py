@@ -353,6 +353,32 @@ NODE_SPECS = MappingProxyType(
 )
 
 
+# C and C++ nest a declared name below pointer, reference, function, array,
+# parenthesized, attributed and initializer declarators. Reference,
+# parenthesized and attributed declarators hold their inner declarator in a
+# child without a field name.
+_C_DECLARATOR_WRAPPERS = frozenset(
+    {
+        "array_declarator",
+        "attributed_declarator",
+        "function_declarator",
+        "init_declarator",
+        "parenthesized_declarator",
+        "pointer_declarator",
+        "reference_declarator",
+    }
+)
+# C++ name nodes whose source text is not one plain identifier.
+_CPP_NAME_NODES = frozenset(
+    {"destructor_name", "operator_name", "qualified_identifier", "template_function"}
+)
+_C_DECLARATOR_CHILDREN = (
+    _C_DECLARATOR_WRAPPERS
+    | _CPP_NAME_NODES
+    | frozenset({"field_identifier", "identifier", "type_identifier"})
+)
+
+
 @dataclass(frozen=True, slots=True)
 class SymbolRecord:
     name: str
@@ -475,16 +501,8 @@ def _extract_field(node: Node, source: bytes, field_name: str) -> str | None:
     child = node.child_by_field_name(field_name)
     if child is None:
         return None
-    if child.type in {
-        "abstract_declarator",
-        "array_declarator",
-        "function_declarator",
-        "init_declarator",
-        "parenthesized_declarator",
-        "pointer_declarator",
-        "reference_declarator",
-    }:
-        return _extract_name(child, source)
+    if child.type in _C_DECLARATOR_WRAPPERS or child.type in _CPP_NAME_NODES:
+        return _c_declarator_name(child, source)
     if child.type in {
         "async_function_definition",
         "class_definition",
@@ -600,6 +618,59 @@ def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str |
         if child.type in {"identifier", "simple_identifier", "type_identifier"}:
             return _extract_text(child, source) or None
     return None
+
+
+def _c_declarator_name(node: Node, source: bytes) -> str | None:
+    """Return the name a C or C++ declarator declares below its wrappers."""
+
+    current: Node | None = node
+    while current is not None and current.type in _C_DECLARATOR_WRAPPERS:
+        inner = current.child_by_field_name("declarator")
+        if inner is None:
+            inner = next(
+                (child for child in current.named_children if child.type in _C_DECLARATOR_CHILDREN),
+                None,
+            )
+        current = inner
+    if current is None:
+        return None
+    if current.type == "qualified_identifier":
+        return _cpp_qualified_name(current, source)
+    if current.type in {"destructor_name", "operator_name"}:
+        # Keep the written text: operator()/operator[] would lose their
+        # operator in _clean_identifier, and search_def's text prefilter needs
+        # every bare definition name to occur in its source.
+        return _extract_text(current, source) or None
+    if current.type == "template_function":
+        name = current.child_by_field_name("name")
+        return _c_declarator_name(name, source) if name is not None else None
+    return _clean_identifier(_extract_text(current, source))
+
+
+def _cpp_qualified_name(node: Node, source: bytes) -> str | None:
+    """Join scopes without template arguments: ``Box<T>::get`` is ``Box::get``."""
+
+    parts: list[str] = []
+    current = node
+    while current.type == "qualified_identifier":
+        scope = current.child_by_field_name("scope")
+        name = current.child_by_field_name("name")
+        if name is None:
+            return None
+        if scope is None:
+            # A global qualifier keeps its leading "::".
+            parts.append("")
+        else:
+            scope_name = _clean_identifier(_extract_text(scope, source))
+            if scope_name is None:
+                return None
+            parts.append(scope_name)
+        current = name
+    terminal = _c_declarator_name(current, source)
+    if terminal is None:
+        return None
+    parts.append(terminal)
+    return "::".join(parts)
 
 
 def _clean_identifier(value: str) -> str | None:

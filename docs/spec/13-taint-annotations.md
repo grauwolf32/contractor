@@ -92,7 +92,8 @@ does not accept or emit the graph Toolset's allocation-private `symbolId`.
 All paths are normalized workspace-relative POSIX paths. `symbol` is the exact
 case-sensitive structural name as written in a function-like declaration.
 Python and Java methods use the bare name (`get` in `Handler.get`); an out-of-line
-C++ definition uses `Handler::get`, and a Lua dotted function uses `Handler.get`.
+C++ definition uses `Handler::get` (`Box::get` for `Box<T>::get`), and a Lua
+dotted function uses `Handler.get`.
 Callers may omit `definition_line` by passing its default `0` when
 `(path, symbol)` identifies exactly one declaration. If more than one real
 declaration matches, the operation fails with `taint_annotation_target_ambiguous`;

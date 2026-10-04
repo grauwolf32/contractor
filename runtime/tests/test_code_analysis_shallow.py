@@ -140,6 +140,125 @@ def test_initialized_c_family_declarations_use_identifier_names(
     assert all("=" not in name for name in names)
 
 
+CPP_REFERENCE_DECLARATIONS = (
+    ("const std::string& Handler::name() const { return name_; }\n", "Handler::name", "name"),
+    ("int &counter() { static int c; return c; }\n", "counter", "counter"),
+    ("template <typename T>\nT&& take(T&& value) { return value; }\n", "take", "take"),
+    ("Foo& Foo::operator=(const Foo& other) { return *this; }\n", "Foo::operator=", "operator="),
+    (
+        "struct Foo {\n  Foo& operator=(Foo&& other) { return *this; }\n};\n",
+        "operator=",
+        "operator=",
+    ),
+    (
+        "struct Widget {\n  inline const T& label() const { return label_; }\n};\n",
+        "label",
+        "label",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected", "bare"),
+    CPP_REFERENCE_DECLARATIONS,
+    ids=["qualified", "lvalue", "rvalue", "operator", "member-operator", "inline-method"],
+)
+def test_cpp_functions_returning_references_use_declarator_names(
+    source: str, expected: str, bare: str
+) -> None:
+    parsed = parse_symbols(
+        load_parser(Language.CPP), source.encode(), "src/a.cpp", Language.CPP, 100
+    )
+    assert not parsed.parse_error
+    functions = [item for item in parsed.symbols if item.node_type == "function_definition"]
+    assert [item.name for item in functions] == [expected]
+    assert functions[0].line == source[: source.index(f"{bare}(")].count("\n") + 1
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "expected"),
+    [
+        (
+            Language.CPP,
+            "struct Box {\n  bool operator()(int x) const { return x; }\n"
+            "  int& operator[](int i) { return v[i]; }\n"
+            "  bool operator<(const Box& o) const { return false; }\n};\n"
+            "bool Box::operator()(int x) const { return x; }\n",
+            ["operator()", "operator[]", "operator<", "Box::operator()"],
+        ),
+        (
+            Language.CPP,
+            "template <typename T> T& Box<T>::get() { return value; }\n"
+            "[[nodiscard]] int& Box<int>::cached() { return value; }\n",
+            ["Box::get", "Box::cached"],
+        ),
+        (
+            Language.CPP,
+            "int& (*ref_fn_ptr)(int);\nconst char* const& name_ref() { return n; }\n"
+            "typedef int& (*ref_callback)(int);\nint (&arr_ref())[3] { return values; }\n",
+            ["ref_fn_ptr", "name_ref", "ref_callback", "arr_ref"],
+        ),
+        (
+            Language.C,
+            "int (*handler_ptr)(int);\nint (*handler_table[4])(int);\n"
+            "typedef int (*callback)(int);\n",
+            ["handler_ptr", "handler_table", "callback"],
+        ),
+    ],
+    ids=["operators", "template-scopes", "cpp-wrapped", "c-function-pointers"],
+)
+def test_c_family_declarators_name_operators_qualified_and_pointer_forms(
+    language: Language, source: str, expected: list[str]
+) -> None:
+    parsed = parse_symbols(load_parser(language), source.encode(), "src/a.c", language, 100)
+    assert not parsed.parse_error
+    declared = {"declaration", "function_definition", "type_definition"}
+    assert [item.name for item in parsed.symbols if item.node_type in declared] == expected
+
+
+def test_search_def_and_list_symbols_find_cpp_reference_returning_definitions(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        files = {
+            f"src/form{index}.cpp": source
+            for index, (source, _, _) in enumerate(CPP_REFERENCE_DECLARATIONS)
+        }
+        tools, _ = await _tools(MutableReader(files), tmp_path)
+        listed = await tools["list_symbols"](node_type="function_definition", limit=200)
+        assert sorted(item["name"] for item in listed["items"]) == sorted(
+            expected for _, expected, _ in CPP_REFERENCE_DECLARATIONS
+        )
+        for index, (_, expected, bare) in enumerate(CPP_REFERENCE_DECLARATIONS):
+            found = await tools["search_def"](bare, language="cpp")
+            assert (f"src/form{index}.cpp", expected) in {
+                (item["path"], item["name"]) for item in found["items"]
+            }
+        for return_type in ("T", "Foo", "string"):
+            found = await tools["search_def"](return_type)
+            assert all(item["nodeType"] != "function_definition" for item in found["items"])
+
+    asyncio.run(scenario())
+
+
+def test_cpp_declarator_names_search_identically_with_and_without_cache(tmp_path: Path) -> None:
+    source = (
+        "template <typename T> T& Box<T>::get() { return value; }\n"
+        "struct Box { bool operator ()(int x) const { return x; } };\n"
+    )
+
+    async def scenario() -> None:
+        tools, _ = await _tools(MutableReader({"src/box.cpp": source}), tmp_path)
+        queries = {"get": "Box::get", "Box::get": "Box::get", "operator ()": "operator ()"}
+        uncached = {query: await tools["search_def"](query) for query in queries}
+        await tools["list_symbols"]()
+        for query, expected in queries.items():
+            assert [item["name"] for item in uncached[query]["items"]] == [expected]
+            assert await tools["search_def"](query) == uncached[query]
+
+    asyncio.run(scenario())
+
+
 def test_search_def_uses_arrow_bindings_and_initialized_c_names(tmp_path: Path) -> None:
     async def scenario() -> None:
         tools, _ = await _tools(
