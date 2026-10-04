@@ -81,11 +81,18 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err := renewExpiredItemReviews(ctx, tx, audit, deadline); err != nil {
+	// Expired human decisions are never silently extended by resuming an
+	// Audit. Each needs a fresh decision for the same exact task before
+	// another submission; the PostgreSQL clock judges expiry, and the fresh
+	// requests expire with the new deadline.
+	revision, err := store.RenewItemReviewsForResume(ctx, auditstore.ResumeRenewalParams{
+		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, DeadlineAt: deadline,
+	})
+	if err != nil {
 		return MutationResult{}, err
 	}
 	resumed, inserted, err := store.Resume(ctx, auditstore.ResumeParams{
-		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: revision,
 		DeadlineAt: deadline, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 	})
 	return MutationResult{Audit: resumed, Replayed: !inserted}, err
@@ -112,23 +119,4 @@ func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.
 	}
 	deadline := now.Add(timeDurationSeconds(profile.Execution.DeadlineSeconds))
 	return &deadline, nil
-}
-
-// Expired human decisions are never silently extended by resuming an Audit.
-// Require a fresh decision for the same exact task before another submission.
-// Expiry is judged by the PostgreSQL clock, like execution authorization.
-func renewExpiredItemReviews(ctx context.Context, tx pgx.Tx, audit auditstore.Audit, deadline *time.Time) error {
-	_, err := tx.Exec(ctx, `UPDATE audit_review_requests SET state='expired',revision=revision+1,updated_at=clock_timestamp() WHERE audit_id=$1 AND subject_kind='audit-item-action' AND state='pending' AND expires_at <= clock_timestamp()`, audit.AuditID)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `WITH needs_review AS (
-        UPDATE audit_items AS item SET state='awaiting_review',updated_at=clock_timestamp()
-        WHERE item.audit_id=$1 AND item.state IN ('ready','awaiting_review') AND item.approval_kind <> 'none'
-          AND NOT EXISTS (SELECT 1 FROM audit_review_requests r WHERE r.audit_id=item.audit_id AND r.subject_id=item.item_id AND r.subject_kind='audit-item-action' AND r.subject_digest=item.approval_subject_digest AND (r.expires_at IS NULL OR r.expires_at>clock_timestamp()) AND (r.state='pending' OR (r.state='decided' AND EXISTS(SELECT 1 FROM audit_review_decisions d WHERE d.request_id=r.request_id AND d.action='approve'))))
-        RETURNING item.*
-    ) INSERT INTO audit_review_requests(request_id,audit_id,finding_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,expires_at,idempotency_key,request_digest)
-      SELECT 'review-resume-'||$2::text||'-'||item.item_id,item.audit_id,NULL,'audit-item-action',item.item_id,item.approval_kind,1,item.approval_subject_digest,
-        CASE WHEN item.approval_kind='requirement-applicability' THEN '["approve","reject","not_applicable"]'::jsonb ELSE '["approve","reject"]'::jsonb END,'pending',$3,'resume:'||$2::text||':'||item.item_id,item.approval_subject_digest FROM needs_review item`, audit.AuditID, fmt.Sprint(audit.Revision), deadline)
-	return err
 }
