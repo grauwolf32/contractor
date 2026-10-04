@@ -59,8 +59,11 @@ EXPECTED_RACE_PACKAGES = {
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
     "TestAgentSkillsMVPProcesses",
+    "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+    "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+    "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
     "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
     "TestHeterogeneousRuntimeCapabilityPlacement",
     "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
@@ -76,6 +79,20 @@ EXPECTED_PROCESS_TESTS = {
     "TestWorkerSummarizerProductionBoundaries",
 }
 
+EXPECTED_CONFIG_TESTS = {
+    "TestCodeAnalysisE2EConfigurationLoads",
+    "TestDomainGatewayFindsNamedInputAfterParameterBlock",
+    "TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure",
+    "TestProductionMemoryConfigurationStaging",
+    "TestProjectWorkerBudgetMatchesPinnedPolicy",
+    "TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock",
+}
+
+EXPECTED_SCAN_TESTS = {
+    "TestKatanaDiscoveryAcrossProductionProcesses",
+    "TestScanToolsAcrossProductionProcesses",
+}
+
 
 def dry_run(target: str) -> list[str]:
     result = subprocess.run(
@@ -88,7 +105,9 @@ def check_release_graph() -> None:
     commands = dry_run("release-verify")
     races: list[str] = []
     process_tests: Counter[str] = Counter()
+    config_tests: Counter[str] = Counter()
     process_commands = 0
+    config_commands = 0
     for command in commands:
         if "go test" not in command:
             continue
@@ -96,9 +115,14 @@ def check_release_graph() -> None:
         if "-race" in tokens and not any(token.startswith("-tags=") for token in tokens):
             races.append(command)
         if "-tags=e2e" in tokens and "./tests/e2e" in tokens:
-            process_commands += 1
             pattern = tokens[tokens.index("-run") + 1]
-            process_tests.update(re.findall(r"Test[A-Za-z0-9_]+", pattern))
+            names = re.findall(r"Test[A-Za-z0-9_]+", pattern)
+            if set(names).intersection(EXPECTED_CONFIG_TESTS):
+                config_commands += 1
+                config_tests.update(names)
+            else:
+                process_commands += 1
+                process_tests.update(names)
 
     if len(races) != 1:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want one")
@@ -129,6 +153,24 @@ def check_release_graph() -> None:
             f"added={sorted(set(process_tests) - EXPECTED_PROCESS_TESTS)}, "
             f"duplicates={sorted(name for name, count in process_tests.items() if count != 1)}"
         )
+    if config_commands != 1 or set(config_tests) != EXPECTED_CONFIG_TESTS or any(
+        count != 1 for count in config_tests.values()
+    ):
+        raise SystemExit(
+            "release configuration test set changed: "
+            f"commands={config_commands}, "
+            f"missing={sorted(EXPECTED_CONFIG_TESTS - set(config_tests))}, "
+            f"added={sorted(set(config_tests) - EXPECTED_CONFIG_TESTS)}"
+        )
+    scan_commands = [
+        shlex.split(command)
+        for command in dry_run("test-scan-e2e")
+        if "go test" in command and "-tags=e2e" in command
+    ]
+    if len(scan_commands) != 1 or set(re.findall(
+        r"Test[A-Za-z0-9_]+", scan_commands[0][scan_commands[0].index("-run") + 1]
+    )) != EXPECTED_SCAN_TESTS:
+        raise SystemExit("opt-in scanner process tests lost their explicit gate")
 
 
 def check_family_entry_points() -> None:
@@ -139,6 +181,26 @@ def check_family_entry_points() -> None:
     ):
         if not any(marker in command for command in dry_run(target)):
             raise SystemExit(f"{target} lost its focused Go suite")
+
+
+def check_tagged_e2e_inventory() -> int:
+    # A new tagged test must be named by a Make target or executable gate
+    # script, not just recorded in a task file or this guard's inventory.
+    selections = "\n".join(
+        path.read_text()
+        for pattern in ("make/*.mk", "scripts/test-*.py", ".github/workflows/*.yml")
+        for path in ROOT.glob(pattern)
+    )
+    discovered: dict[str, str] = {}
+    for source in (ROOT / "tests/e2e").glob("*_test.go"):
+        data = source.read_text()
+        if re.search(r"^//go:build .*\be2e\b", data.split("\npackage ", 1)[0], re.M):
+            for name in re.findall(r"^func (Test\w+)\(", data, re.M):
+                discovered[name] = str(source.relative_to(ROOT))
+    missing = {name: source for name, source in discovered.items() if name not in selections}
+    if missing:
+        raise SystemExit(f"e2e-tagged tests absent from executable gates: {missing}")
+    return len(discovered)
 
 
 def check_integration_graph() -> int:
@@ -203,5 +265,6 @@ def check_integration_graph() -> int:
 if __name__ == "__main__":
     check_release_graph()
     check_family_entry_points()
+    tagged = check_tagged_e2e_inventory()
     count = check_integration_graph()
-    print(f"release graph: 36 race packages, 16 process tests and {count} integration tests covered")
+    print(f"release graph: 36 race packages, 19 process tests, 6 fixture tests, 2 opt-in scanner tests, {tagged} tagged e2e tests and {count} integration tests covered")

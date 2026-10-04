@@ -11,6 +11,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | PostgreSQL repositories | `make test-postgres` | Test database |
 | Runtime production dependency advisories | `make test-runtime-dependencies-audit` | uv and access to the PyPI advisory service |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
+| Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |

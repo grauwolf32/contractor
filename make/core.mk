@@ -20,6 +20,7 @@ test-runtime-hardening:
 
 test-hardening-matrices: runtime-venv
 	go test -count=1 ./tests/e2e
+	go test -tags=e2e -v -count=1 ./tests/e2e -run '^(TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock)$$'
 
 test-contracts:
 	go test ./internal/contracts/...
@@ -77,7 +78,7 @@ test-faults: require-database
 	cd runtime && uv run pytest -W error tests
 
 test-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=28m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSummarizerProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestSchedulerConcurrencyAcrossProductionProcesses)$$'
+	go test -tags=e2e -count=1 -timeout=35m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSummarizerProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses)$$'
 
 test-capability-e2e: require-database runtime-venv
 	go test -tags=e2e -count=1 -timeout=3m ./tests/e2e -run '^TestHeterogeneousRuntimeCapabilityPlacement$$'

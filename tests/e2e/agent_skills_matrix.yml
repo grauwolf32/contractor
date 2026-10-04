@@ -67,8 +67,8 @@ cases:
   - id: disclosure_estimate_and_binary_capability
     covers: [A1, A4]
     faults: [F10]
-    expected: An oversized native result is suppressed content-free and leaves no single-use binary authorization.
-    test: {source: runtime/tests/test_agent_skill_toolset.py, symbol: test_oversized_native_result_is_suppressed_without_binary_authorization}
+    expected: An oversized native binary result is suppressed content-free and does not leak into metrics.
+    test: {source: runtime/tests/test_agent_skill_toolset.py, symbol: test_oversized_native_binary_result_is_suppressed}
   - id: cleanup_failure_fences_process
     covers: [A4]
     faults: [F11]
