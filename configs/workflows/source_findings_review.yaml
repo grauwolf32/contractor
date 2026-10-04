@@ -42,5 +42,5 @@ spec:
         report: report
       on:
         succeeded: {succeed: {}}
-        failed: {fail: {}}
-        interrupted: {fail: {}}
+        failed: {retry: {maxAttempts: 2, then: {fail: {}}}}
+        interrupted: {retry: {maxAttempts: 2, then: {fail: {}}}}

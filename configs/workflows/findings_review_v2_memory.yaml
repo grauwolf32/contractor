@@ -47,6 +47,12 @@ spec:
         succeeded:
           succeed: {}
         failed:
-          fail: {}
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
         interrupted:
-          fail: {}
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
