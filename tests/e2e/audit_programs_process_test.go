@@ -329,7 +329,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	assertASVSCoverage(t, asvsCoverage)
 	assertAuditProgramReportSelection(t, client, publicBaseURL, asvsAudit.AuditID)
 	backtrace := prepareASVSFindingBacktraceAfterRunDeletion(
-		t, ctx, client, publicBaseURL, asvsAudit, ordinaryASVS.RunID,
+		t, ctx, client, publicBaseURL, asvsAudit, ordinaryASVS.RunID, gateway,
 	)
 	replaceAuditProgramCatalog(t, ctx, isolateURL, userID, configRoot)
 	server.stop(t)
@@ -538,10 +538,6 @@ func asvsFindingArguments(request map[string]any) (map[string]any, error) {
 				"scheme": "owasp-asvs", "version": "5.0.0",
 				"requirement_id": "v5.0.0-1.2.4",
 			},
-			map[string]string{
-				"scheme": "owasp-asvs", "version": "5.0.0",
-				"requirement_id": "v5.0.0-1.2.5",
-			},
 		},
 	}, nil
 }
@@ -559,6 +555,10 @@ func ordinaryASVSFindingArguments(request map[string]any) (map[string]any, error
 			source,
 		},
 		"standard_refs": []any{
+			map[string]string{
+				"scheme": "owasp-asvs", "version": "5.0.0",
+				"requirement_id": "v5.0.0-1.2.4",
+			},
 			map[string]string{
 				"scheme": "owasp-asvs", "version": "5.0.0",
 				"requirement_id": "v5.0.0-1.2.5",
@@ -850,7 +850,10 @@ func waitForAuditProgram(
 					_ = auditProgramTryGET(
 						ctx, client, baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/items?limit=100", &page,
 					)
-					t.Fatalf("completed Audit counters = %+v; items=%+v", audit, page.Items)
+					if audit.OutstandingRuns != 0 || audit.SubmittedRunCount < expectedRuns ||
+						!auditProgramRunsAreOnlyRetries(page.Items, expectedRuns, audit.SubmittedRunCount) {
+						t.Fatalf("completed Audit counters = %+v; items=%+v", audit, page.Items)
+					}
 				}
 				return audit
 			case "failed", "cancelled":
@@ -873,6 +876,37 @@ func waitForAuditProgram(
 		case <-ticker.C:
 		}
 	}
+}
+
+// A failed or missing Worker result may be retried by the Audit controller.
+// Preserve the expected number of distinct selected items and reject any
+// duplicate successful dispatch hidden by a larger submitted-run count.
+func auditProgramRunsAreOnlyRetries(items []auditProgramItem, expectedItems, submittedRuns int) bool {
+	selected, attempts := 0, 0
+	seenRuns := make(map[string]struct{})
+	for _, item := range items {
+		if len(item.Attempts) == 0 {
+			continue
+		}
+		selected++
+		attempts += len(item.Attempts)
+		for index, attempt := range item.Attempts {
+			if attempt.RunID == "" {
+				return false
+			}
+			if _, duplicate := seenRuns[attempt.RunID]; duplicate {
+				return false
+			}
+			seenRuns[attempt.RunID] = struct{}{}
+			if index < len(item.Attempts)-1 &&
+				attempt.CollectionDisposition != "execution-failed" &&
+				attempt.CollectionDisposition != "missing-output" &&
+				attempt.CollectionDisposition != "invalid-result" {
+				return false
+			}
+		}
+	}
+	return selected == expectedItems && attempts == submittedRuns
 }
 
 func decidePendingAuditItems(
@@ -1121,6 +1155,7 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	baseURL string,
 	audit auditProgramAudit,
 	ordinaryRunID string,
+	gateway *domainGateway,
 ) asvsBacktraceFixture {
 	t.Helper()
 	var itemPage struct {
@@ -1148,8 +1183,9 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	}
 	if causalItem == nil || causalItem.Origin.Standard.EvidenceContract.ID != "bounded-source-verification" ||
 		causalItem.Origin.Standard.EvidenceContract.Version != "1" ||
-		causalItem.FinalDisposition != "accepted-result" || len(causalItem.Attempts) != 1 ||
-		causalItem.Attempts[0].RunID == "" {
+		causalItem.FinalDisposition != "accepted-result" || len(causalItem.Attempts) == 0 ||
+		causalItem.Attempts[len(causalItem.Attempts)-1].CollectionDisposition != "accepted-result" ||
+		causalItem.Attempts[len(causalItem.Attempts)-1].RunID == "" {
 		t.Fatalf("ASVS causal item is incomplete: %+v", causalItem)
 	}
 
@@ -1158,7 +1194,8 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audits/"+url.PathEscape(audit.AuditID)+"/findings?limit=100", &findingPage)
 	if len(findingPage.Items) != 2 {
-		t.Fatalf("ASVS standard mappings multiplied findings: %+v", findingPage.Items)
+		t.Fatalf("ASVS findings = %+v; items=%+v; stages=%+v; failures=%+v",
+			findingPage.Items, itemPage.Items, gateway.Observations(), gateway.Failures())
 	}
 	var causalFinding, ordinaryFinding *auditProgramFinding
 	for index := range findingPage.Items {
@@ -1174,13 +1211,14 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	}
 	if causalFinding == nil || causalFinding.FirstProposal.Origin.Audit == nil ||
 		causalFinding.FirstProposal.Origin.Audit.AuditID != audit.AuditID ||
-		!hasASVSReference(*causalFinding, "v5.0.0-1.2.4") ||
-		!hasASVSReference(*causalFinding, "v5.0.0-1.2.5") {
-		t.Fatalf("ASVS finding did not retain causal and incidental references: %+v", causalFinding)
+		len(causalFinding.FirstProposal.Document.StandardRefs) != 1 ||
+		!hasASVSReference(*causalFinding, "v5.0.0-1.2.4") {
+		t.Fatalf("ASVS finding did not retain its assigned causal reference: %+v", causalFinding)
 	}
 	if ordinaryFinding == nil || ordinaryFinding.FirstProposal.Origin.Audit != nil ||
 		ordinaryFinding.FirstProposal.Origin.RunID != ordinaryRunID ||
-		len(ordinaryFinding.FirstProposal.Document.StandardRefs) != 1 ||
+		len(ordinaryFinding.FirstProposal.Document.StandardRefs) != 2 ||
+		!hasASVSReference(*ordinaryFinding, "v5.0.0-1.2.4") ||
 		!hasASVSReference(*ordinaryFinding, "v5.0.0-1.2.5") {
 		t.Fatalf("ordinary finding was assigned a false ASVS Audit origin: %+v", ordinaryFinding)
 	}
@@ -1227,7 +1265,7 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	decisionResponse := do(t, client, decisionRequest, http.StatusOK)
 	decisionResponse.Body.Close()
 
-	causalRunID := causalItem.Attempts[0].RunID
+	causalRunID := causalItem.Attempts[len(causalItem.Attempts)-1].RunID
 	deleteASVSBacktraceRun(t, ctx, client, baseURL, causalRunID)
 	deleteASVSBacktraceRun(t, ctx, client, baseURL, ordinaryRunID)
 	return asvsBacktraceFixture{
@@ -1349,7 +1387,7 @@ func assertASVSFindingBacktrace(
 		url.PathEscape(fixture.CausalFindingID), &causal)
 	if causal.AnalystVerdict == nil || *causal.AnalystVerdict != "true_positive" ||
 		causal.AnalystSeverity == nil || *causal.AnalystSeverity != "high" ||
-		len(causal.FirstProposal.Document.StandardRefs) != 2 ||
+		len(causal.FirstProposal.Document.StandardRefs) != 1 ||
 		causal.FirstProposal.Origin.RunID != fixture.CausalRunID ||
 		!causal.FirstProposal.Origin.RunDeleted || causal.FirstProposal.Origin.Audit == nil ||
 		causal.FirstProposal.Origin.Audit.AuditID != auditID {
@@ -1426,7 +1464,8 @@ func assertASVSFindingBacktrace(
 		!strings.HasPrefix(ordinary.FirstProposal.ClientKey, "call-") ||
 		ordinary.FirstProposal.Origin.RunID != fixture.OrdinaryRunID ||
 		!ordinary.FirstProposal.Origin.RunDeleted || ordinary.FirstProposal.Origin.Audit != nil ||
-		len(ordinary.FirstProposal.Document.StandardRefs) != 1 ||
+		len(ordinary.FirstProposal.Document.StandardRefs) != 2 ||
+		!hasASVSReference(ordinary, "v5.0.0-1.2.4") ||
 		!hasASVSReference(ordinary, "v5.0.0-1.2.5") {
 		t.Fatalf("ordinary ASVS-mapped finding gained a causal Audit origin: %+v", ordinary)
 	}
@@ -1520,12 +1559,16 @@ func deleteCollectedAuditRuns(
 	}
 	runIDs := make(map[string]struct{}, len(page.Items))
 	for _, item := range page.Items {
+		if len(item.Attempts) == 0 {
+			t.Fatalf("Audit item has no accepted attempt: %+v", item)
+		}
+		accepted := item.Attempts[len(item.Attempts)-1]
 		if item.State != "settled" || item.FinalDisposition != "accepted-result" ||
-			item.AcceptedResult == nil || len(item.Attempts) != 1 ||
-			item.Attempts[0].CollectionDisposition != "accepted-result" || item.Attempts[0].RunID == "" {
+			item.AcceptedResult == nil || accepted.CollectionDisposition != "accepted-result" ||
+			accepted.RunID == "" {
 			t.Fatalf("Audit item was not durably collected: %+v", item)
 		}
-		runIDs[item.Attempts[0].RunID] = struct{}{}
+		runIDs[accepted.RunID] = struct{}{}
 	}
 	for runID := range runIDs {
 		waitForAuditRunDeletable(t, ctx, client, baseURL, runID)
@@ -1541,7 +1584,7 @@ func deleteCollectedAuditRuns(
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/items?limit=100", &page)
 	for _, item := range page.Items {
-		if len(item.Attempts) != 1 || !item.Attempts[0].RunDeleted {
+		if len(item.Attempts) == 0 || !item.Attempts[len(item.Attempts)-1].RunDeleted {
 			t.Fatalf("deleted child Run lost its Audit tombstone: %+v", item)
 		}
 	}
@@ -1641,7 +1684,7 @@ func findingResultArguments(arguments map[string]any) func(map[string]any) (map[
 		for _, response := range findingsToolResponses(request, "finding") {
 			key, ok := response["client_key"].(string)
 			if !ok || key == "" {
-				return nil, fmt.Errorf("finding response omitted client_key")
+				return nil, fmt.Errorf("finding response omitted client_key: %+v", response)
 			}
 			keys = append(keys, key)
 		}
