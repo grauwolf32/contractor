@@ -21,15 +21,18 @@ input aliases can change without changing Go code; the executor Stage may be
 surrounded by ordinary Workflow Stages. Exact inputs, approval and the canonical
 result producer remain enforced by the execution contract.
 
-Run the preparation/inventory example check from the repository root:
+Tests do not read these files. Frozen copies live in
+`testdata/configs-scan/audit-openapi-scan/` and are exercised from the
+repository root by:
 
 ```sh
-go test ./internal/auditdomain -run '^TestOpenAPIScanDocumentedInputs$'
+go test ./internal/auditdomain -run '^TestOpenAPIScanFixtureInputsPrepareQueryURLAndRequest$'
 go test ./internal/planner/scan -run '^TestAuditExecutor'
 ```
 
-This check performs no scanner or network calls. It verifies the concrete
-request/URL and the exact source/settings provenance against the files here.
+These checks perform no scanner or network calls. Editing the examples here
+does not change the tests; refresh the fixture copies only alongside a change
+to the input contract.
 See the [adapter contract](../../../../docs/spec/openapi-audit-scans.md) for
 execution, result and recovery requirements. With disposable PostgreSQL and
 installed SQLMap/Nuclei, run `make test-openapi-audit-scan-e2e` for the mandatory
