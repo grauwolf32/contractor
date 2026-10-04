@@ -634,21 +634,6 @@ func scanFindingRow(row pgx.Row) (findingRow, error) {
 	return result, nil
 }
 
-const reviewSelect = `
-SELECT request.request_id, request.audit_id, request.finding_id,
-       request.subject_kind, request.subject_id, request.kind,
-       request.subject_revision, request.subject_digest, request.requested_actions,
-       request.state, request.expires_at, request.revision,
-       request.created_at, request.updated_at,
-       decision.decision_id, decision.actor_id, decision.action,
-       decision.verdict, decision.severity,
-       decision.rationale, decision.duplicate_target_id, decision.created_at
-  FROM audit_review_requests AS request
-  JOIN audits AS audit USING (audit_id)
-  LEFT JOIN audit_review_decisions AS decision
-    ON decision.request_id = request.request_id
-   AND decision.audit_id = request.audit_id`
-
 func scanReviewRequest(row pgx.Row) (ReviewRequest, error) {
 	var result ReviewRequest
 	var actionsJSON []byte
