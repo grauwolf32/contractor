@@ -3,7 +3,7 @@ id: V329-001
 title: Report untrusted SSH hosts that offer no pinned key type
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Keep host-trust failures classified as git_host_untrusted when negotiation fails for lack of a pinned key type.

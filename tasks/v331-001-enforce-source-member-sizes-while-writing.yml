@@ -3,7 +3,7 @@ id: V331-001
 title: Enforce source bundle member sizes while writing
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Reject source files that grow between inspection and archiving.
