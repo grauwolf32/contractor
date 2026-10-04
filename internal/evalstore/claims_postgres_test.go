@@ -2,6 +2,7 @@ package evalstore
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -143,6 +144,83 @@ SELECT experiment_id FROM eval_experiments`)
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "running-one" {
 		t.Fatalf("claim from terminal-heavy table = %+v, %v", claims, err)
 	}
+}
+
+func TestPostgresClaimPlanReadsPausedDeadlinesAsRange(t *testing.T) {
+	pool := testPool(t)
+	scope := setupProject(t, pool, "claim-paused-owner", "claim-paused-project")
+	ctx := t.Context()
+	// Only the expired pauses are actionable; the rest wait for their deadline.
+	_, err := pool.Exec(ctx, `
+INSERT INTO eval_experiments
+  (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms,started_at,deadline_at)
+SELECT 'paused-'||n, $1, $2, 'paused-'||n, 'external', 'paused fixture', 'paused', 1, 1000,
+       clock_timestamp()-interval '7 days',
+       CASE WHEN n <= 3 THEN clock_timestamp()-interval '1 day'
+            ELSE clock_timestamp()+n*interval '1 minute' END
+FROM generate_series(1,2000) AS n`, scope.OwnerID, scope.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id)
+SELECT experiment_id FROM eval_experiments`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"eval_experiments", "eval_controller_claims", "eval_commands", "eval_projection_queue"} {
+		if _, err := pool.Exec(ctx, "ANALYZE "+table); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var raw string
+	if err := pool.QueryRow(ctx, "EXPLAIN (FORMAT JSON) "+claimStatement,
+		"plan-controller", int64(time.Minute/time.Millisecond), 10).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var plan []any
+	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
+		t.Fatal(err)
+	}
+	conditions := planIndexConditions(plan, "eval_experiments_claim_paused_deadline_idx")
+	if len(conditions) == 0 || planScansExperimentTable(plan) {
+		t.Fatalf("claim plan does not read paused experiments through their deadline index: %s", raw)
+	}
+	for _, condition := range conditions {
+		if !strings.Contains(condition, "deadline_at") {
+			t.Fatalf("claim plan reads every paused experiment instead of a deadline range: %s", raw)
+		}
+	}
+	claims, err := NewPostgresStore(pool).Claim(ctx, "plan-controller", time.Minute, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, claim := range claims {
+		got[claim.ExperimentID] = true
+	}
+	if len(claims) != 3 || !got["paused-1"] || !got["paused-2"] || !got["paused-3"] {
+		t.Fatalf("expired paused claims = %+v", claims)
+	}
+}
+
+// planIndexConditions returns the index condition of every plan node reading index.
+func planIndexConditions(value any, index string) []string {
+	var conditions []string
+	switch node := value.(type) {
+	case map[string]any:
+		if node["Index Name"] == index {
+			condition, _ := node["Index Cond"].(string)
+			conditions = append(conditions, condition)
+		}
+		for _, child := range node {
+			conditions = append(conditions, planIndexConditions(child, index)...)
+		}
+	case []any:
+		for _, child := range node {
+			conditions = append(conditions, planIndexConditions(child, index)...)
+		}
+	}
+	return conditions
 }
 
 func planScansExperimentTable(value any) bool {

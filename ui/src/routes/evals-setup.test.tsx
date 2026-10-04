@@ -11,8 +11,10 @@ import { applicationRoutes } from "../app/router";
 import {
   createEvalFixture,
   EVAL_FIXTURE_ORIGIN,
+  EVAL_FIXTURE_SESSION,
   EVAL_API_VERSION,
 } from "../test/evals-fixture";
+import { writeCommand } from "./evals/recovery";
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", new MemoryStorage());
@@ -211,7 +213,7 @@ describe("Managed Evals setup", () => {
     });
   });
 
-  it("retries Pause once with a new key when progress races the command", async () => {
+  it("retries Pause once with a new key when another change advances the revision", async () => {
     const fixture = createEvalFixture({ prepared: true });
     fixture.state.experiment.state = "running";
     fixture.state.experiment.allowedCommands = ["pause", "cancel"];
@@ -286,6 +288,123 @@ describe("Managed Evals setup", () => {
       ),
     ).toHaveLength(1);
     expect(fixture.state.experiment.state).toBe("finished");
+  });
+
+  it("drops a Pause that another browser's Cancel already ruled out", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.commandCancelledOnce = true;
+    const user = userEvent.setup();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    await screen.findByText(/no longer available/);
+    expect(storedValues(localStorage)).not.toContain("eval-recovery");
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/commands"),
+      ),
+    ).toHaveLength(1);
+    expect(fixture.state.experiment.state).toBe("cancelling");
+  });
+
+  it("clears a recovered Pause the server rejects after the coordinator settled", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.commandUnavailableOnce = true;
+    const user = userEvent.setup();
+    let view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    expect(
+      await screen.findByRole("button", { name: "Try again" }),
+    ).toBeVisible();
+    const first = fixture.state.requests.find((request) =>
+      request.path.endsWith("/commands"),
+    )!;
+    view.unmount();
+    // Settling is coordinator progress: the revision the intent carries stays current.
+    fixture.state.experiment.state = "finished";
+    fixture.state.experiment.allowedCommands = ["duplicate"];
+    view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await screen.findByText(/no longer available/);
+    expect(storedValues(localStorage)).not.toContain("eval-recovery");
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Duplicate" })).toBeEnabled();
+    const commands = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/commands"),
+    );
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toMatchObject({
+      key: first.key,
+      etag: first.etag,
+      body: first.body,
+    });
+    view.unmount();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    expect(
+      await screen.findByRole("button", { name: "Duplicate" }),
+    ).toBeEnabled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/commands"),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("clears a recovered Cancel whose plan the server no longer pins", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    const recovered = {
+      key: `eval-ui-${"0".repeat(32)}`,
+      revision: 1,
+      body: {
+        kind: "cancel" as const,
+        planSha256: `sha256:${"b".repeat(64)}`,
+      },
+    };
+    writeCommand(
+      `${EVAL_FIXTURE_ORIGIN}/${EVAL_FIXTURE_SESSION.principal.userId}`,
+      "experiment-1",
+      recovered,
+    );
+    const view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await screen.findByText(/no longer available/);
+    expect(storedValues(localStorage)).not.toContain("eval-recovery");
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/commands"),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        key: recovered.key,
+        etag: '"1"',
+        body: recovered.body,
+      }),
+    ]);
+    view.unmount();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeEnabled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/commands"),
+      ),
+    ).toHaveLength(1);
+    expect(fixture.state.experiment.state).toBe("running");
   });
 
   it("keeps a Pause that met a server outage for resume after reload", async () => {

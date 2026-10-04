@@ -3,7 +3,8 @@ id: V298-001
 title: Keep Eval admission and publication running when one member fails
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: 06eeb858a608c50e605ff113b5e4a309d83dda8b
 depends_on: []
 languages: [go]
 goal: One member whose reconcile keeps failing must not stop admission, view publication or draining for the rest of the experiment.

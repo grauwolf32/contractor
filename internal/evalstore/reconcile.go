@@ -108,34 +108,6 @@ ORDER BY m.ordinal LIMIT $3
 	return members, nil
 }
 
-func (s *Store) Outstanding(ctx context.Context, owner, id string, limit int) ([]string, error) {
-	if limit < 1 || limit > evaldomain.MaxPageSize {
-		return nil, evaldomain.Failure("eval_invalid")
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT s.member_id
-FROM eval_submissions s
-JOIN eval_experiments e USING(experiment_id)
-WHERE e.owner_id=$1
-    AND e.experiment_id=$2
-    AND s.state IN ('intent', 'accepted')
-ORDER BY s.updated_at, s.member_id LIMIT $3
-`, owner, id, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []string{}
-	for rows.Next() {
-		var mid string
-		if err = rows.Scan(&mid); err != nil {
-			return nil, err
-		}
-		out = append(out, mid)
-	}
-	return out, rows.Err()
-}
-
 // ReconciliationCandidates gives newly admitted intents a bounded lane while
 // independently rotating accepted executions. An experiment with many accepted
 // members therefore starts each new batch by its next tick without starving

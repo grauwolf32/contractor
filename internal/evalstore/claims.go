@@ -21,7 +21,7 @@ WITH actionable AS (
     WHERE state IN ('preparing', 'running', 'settling', 'pausing', 'cancelling')
     UNION
     SELECT experiment_id FROM eval_experiments
-    WHERE state = 'paused' AND deadline_at <= clock_timestamp()
+    WHERE state = 'paused' AND deadline_at <= statement_timestamp()
     UNION
     SELECT experiment_id FROM eval_commands
     WHERE state IN ('accepted', 'running')
@@ -48,6 +48,8 @@ RETURNING c.experiment_id, c.holder_id, c.epoch, c.expires_at
 
 // Claim polls only work that can advance an Eval. A paused Eval with no
 // command or dirty projection needs no tick until its wall deadline passes.
+// That deadline is compared with the stable statement timestamp: a volatile
+// clock cannot be an index condition, so every poll would read every pause.
 func (s *Store) Claim(ctx context.Context, holder string, lease time.Duration, limit int) ([]Claim, error) {
 	if !resourceID.MatchString(holder) || lease < time.Second || lease > 5*time.Minute || limit < 1 || limit > evaldomain.MaxPageSize {
 		return nil, evaldomain.Failure("eval_invalid")

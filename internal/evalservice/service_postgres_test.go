@@ -522,29 +522,44 @@ func TestPostgresNativeBatchAdmissionFillsCapacityAndCreatesByNextTick(t *testin
 
 func TestPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill(t *testing.T) {
 	h := newHarness(t)
-	e := h.preparedWithCapacity(t, "workflow", 8)
+	e := h.preparedWithCapacity(t, "workflow", 3)
 	h.command(t, e, "start")
 	a, b := h.coordinator(t, "batch-a"), h.coordinator(t, "batch-b")
-	errs := make(chan error, 2)
-	var wg sync.WaitGroup
-	for _, coordinator := range []*evalcoordinator.Coordinator{a, b} {
-		wg.Add(1)
-		go func(c *evalcoordinator.Coordinator) {
-			defer wg.Done()
-			_, err := c.RunOnce(t.Context())
-			errs <- err
-		}(coordinator)
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil && !errors.Is(err, errResponseLost) {
+	peak := 0
+	for round := 0; round < 40 && e.State != evaldomain.StateFinished; round++ {
+		errs := make(chan error, 2)
+		var wg sync.WaitGroup
+		for _, coordinator := range []*evalcoordinator.Coordinator{a, b} {
+			wg.Add(1)
+			go func(c *evalcoordinator.Coordinator) {
+				defer wg.Done()
+				_, err := c.RunOnce(t.Context())
+				errs <- err
+			}(coordinator)
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil && !errors.Is(err, errResponseLost) {
+				t.Fatal(err)
+			}
+		}
+		var active int
+		if err := h.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM eval_submissions WHERE experiment_id = $1 AND state IN ('intent', 'accepted')`, e.ID).Scan(&active); err != nil {
 			t.Fatal(err)
 		}
+		if e = h.get(t, e.ID); active > e.MaxInFlight || e.Outstanding != active {
+			t.Fatalf("round %d: racing coordinators hold %d active members (outstanding %d) over capacity %d", round, active, e.Outstanding, e.MaxInFlight)
+		}
+		peak = max(peak, active)
+		h.finishRuns(t)
 	}
-	e = h.get(t, e.ID)
-	if e.Outstanding != 8 || count(t, h.pool, "eval_submissions") != 8 {
-		t.Fatalf("racing coordinators admitted %d of eight members", e.Outstanding)
+	if e.State != evaldomain.StateFinished || peak != e.MaxInFlight {
+		t.Fatalf("racing coordinators did not fill capacity and drain: state=%s peak=%d", e.State, peak)
+	}
+	if count(t, h.pool, "eval_submissions") != 8 || count(t, h.pool, "workflow_runs") != 8 {
+		t.Fatal("racing coordinators admitted or executed a member twice")
 	}
 }
 
@@ -618,15 +633,15 @@ VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "expired-pause" {
 		t.Fatalf("expired paused claim = %+v, %v", claims, err)
 	}
-	progressed, err := h.service.tickExecution(ctx, claims[0])
-	if err != nil || !progressed {
-		t.Fatalf("expired paused tick = %v, %v", progressed, err)
+	progressed, memberErr, err := h.service.tickExecution(ctx, claims[0])
+	if err != nil || memberErr != nil || !progressed {
+		t.Fatalf("expired paused tick = %v, %v, %v", progressed, memberErr, err)
 	}
 	if state := h.get(t, "expired-pause").State; state != evaldomain.StateSettling {
 		t.Fatalf("expired pause state = %s, want settling", state)
 	}
-	if _, err := h.service.tickExecution(ctx, claims[0]); err != nil {
-		t.Fatal(err)
+	if _, memberErr, err := h.service.tickExecution(ctx, claims[0]); err != nil || memberErr != nil {
+		t.Fatal(memberErr, err)
 	}
 	if state := h.get(t, "expired-pause").State; state != evaldomain.StateFinished {
 		t.Fatalf("expired pause state = %s, want finished", state)
@@ -805,7 +820,7 @@ func TestPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *test
 				if err != nil || len(claims) != 1 {
 					t.Fatal(err)
 				}
-				members, err := store.Outstanding(t.Context(), e.OwnerID, e.ID, 100)
+				members, err := store.ReconciliationCandidates(t.Context(), e.OwnerID, e.ID, membersPerTick)
 				if err != nil || len(members) != 1 {
 					t.Fatal(members, err)
 				}
