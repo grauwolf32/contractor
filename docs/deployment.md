@@ -206,8 +206,10 @@ error for a database-only standard that it cannot verify.
 
 The DSN above assumes a local database; configure PostgreSQL TLS for a remote
 database. Migrations are forward-only and run in one transaction. A concurrent
-migrator polls for the migration leader's advisory lock until it is released,
-the caller cancels, or the whole migrator deadline expires. Once it holds the
+migrator of the same schema (the first existing schema in `search_path`) polls
+for that schema's migration leader's advisory lock until it is released, the
+caller cancels, or the whole migrator deadline expires; other schemas in the
+same database migrate independently. Once it holds the
 lock, each statement is limited to 120 seconds and each DDL relation-lock wait
 to 10 seconds by default; for a large upgrade raise them with
 `--statement-timeout` and `--lock-timeout` (or
