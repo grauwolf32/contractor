@@ -423,6 +423,29 @@ func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 	}
 }
 
+func TestManagerRejectsOverlappingManagedRootBeforeCreatingIt(t *testing.T) {
+	operator := copyConfigTree(t)
+	parent := filepath.Dir(operator)
+	for _, managed := range []string{
+		filepath.Join(operator, "managed-configs"),
+		filepath.Join(operator, "nested", "managed-configs") + "/",
+		parent,
+	} {
+		_, err := NewManager(ManagerOptions{OperatorRoot: operator, ManagedRoot: managed, Descriptors: MVPDescriptors()})
+		if err == nil || !strings.Contains(err.Error(), "roots must not overlap") {
+			t.Fatalf("overlapping managed root %s = %v", managed, err)
+		}
+	}
+	for _, created := range []string{filepath.Join(operator, "managed-configs"), filepath.Join(operator, "nested")} {
+		if _, err := os.Lstat(created); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("rejected managed root created %s: %v", created, err)
+		}
+	}
+	if entries, err := os.ReadDir(parent); err != nil || len(entries) != 1 {
+		t.Fatalf("rejected managed root changed its parent: %v, error %v", entries, err)
+	}
+}
+
 func TestRequireStrictRootConcurrentCreation(t *testing.T) {
 	parent := t.TempDir()
 	for attempt := range 100 {

@@ -60,6 +60,25 @@ func TestGlobalHelpPrintsOnceWithoutConfiguration(t *testing.T) {
 	}
 }
 
+func TestServerGroupHelpPrintsUsageWithoutConfiguration(t *testing.T) {
+	for _, args := range [][]string{
+		{"server", "--help"}, {"server", "-h"}, {"server", "config", "--help"}, {"server", "auth", "-h"},
+	} {
+		var stderr bytes.Buffer
+		command := New(strings.NewReader(""), io.Discard, &stderr, func(string) string { return "" })
+		if err := command.Run(context.Background(), args); err != nil {
+			t.Fatalf("%v = %v, want usage and success", args, err)
+		}
+		if args[1] == "--help" && !strings.Contains(stderr.String(), "config validate") {
+			t.Fatalf("server usage = %q", stderr.String())
+		}
+	}
+	command := New(strings.NewReader(""), io.Discard, io.Discard, func(string) string { return "" })
+	if err := command.Run(context.Background(), []string{"server", "config"}); err == nil {
+		t.Fatal("server config without validate succeeded")
+	}
+}
+
 func TestSourcePushPackagesDirectoryAndCreatesArtifact(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "source tree")
 	if err := os.Mkdir(source, 0o755); err != nil {

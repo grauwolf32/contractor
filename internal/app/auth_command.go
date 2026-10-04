@@ -17,6 +17,10 @@ type passwordPrompt func(string) ([]byte, error)
 var errAuthRequiresTerminal = errors.New("auth hash-password requires an interactive terminal")
 
 func runAuthCLI(args []string) error {
+	if err := commandGroupHelp(args, "auth",
+		[2]string{"hash-password", "print a local-auth bootstrap document for a password read from the terminal"}); err != nil {
+		return err
+	}
 	if len(args) == 0 || args[0] != "hash-password" {
 		return errors.New("auth command requires the hash-password subcommand")
 	}
