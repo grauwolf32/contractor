@@ -3,7 +3,8 @@ id: V281-001
 title: Bound finding-collection transactions by work
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 62235607559d60fe3bf319f04087f5ce497f2e14
 depends_on: [V280-001]
 languages: [go]
 goal: Keep Audit finding collection making progress when a page of proposals carries many evidence imports.

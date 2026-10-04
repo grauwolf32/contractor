@@ -3,7 +3,8 @@ id: V282-001
 title: Isolate deterministic retention failures to one proposal
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 79ad62e2370f023ada7c9377a6e437d1dc11f0f8
 depends_on: [V281-001]
 languages: [go]
 goal: Stop one proposal with missing or corrupt evidence from blocking its whole collection page, and keep a single receipt hydration path.
