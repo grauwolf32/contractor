@@ -29,37 +29,42 @@ func (s *Service) PrepareNextRound(
 	if snapshot.Round == nil || snapshot.Round.State != auditstore.RoundClosed ||
 		claim.AuditID != snapshot.Audit.AuditID || snapshot.Audit.CurrentRoundID == nil ||
 		*snapshot.Audit.CurrentRoundID != snapshot.Round.RoundID {
-		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("next Audit Round snapshot is invalid")
+		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the next-Round snapshot is not a closed current Round", nil)
 	}
 	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
 		profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
-		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("pinned AuditProfile cannot build a next Round")
+		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned AuditProfile snapshot is invalid", err)
 	}
 	if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled {
 		return auditstore.AcceptRoundParams{}, nil, nil
 	}
 	baseline, err := DecodeBaseline(snapshot.Audit.BaselineSnapshot)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit baseline is invalid", err)
 	}
 	selection, err := DecodeDraftSelection(snapshot.Audit.InputSelection)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the pinned Audit input selection is invalid", err)
 	}
 	var totalItems int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id = $1`,
 		snapshot.Audit.AuditID).Scan(&totalItems); err != nil {
 		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("count Audit items: %w", err)
 	}
-	remainingTotal := snapshot.Audit.Limits.MaxItemsTotal - totalItems
-	capacity := snapshot.Audit.Limits.MaxItemsPerRound
-	if remainingTotal < capacity {
-		capacity = remainingTotal
-	}
-	proposalSelection, err := s.selectNextProposalChecks(
-		ctx, snapshot.Audit, capacity,
+	capacity := roundItemCapacity(
+		snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, totalItems,
 	)
+	roundOrdinal := snapshot.Round.Ordinal + 1
+	approval := nextRoundApproval(profile)
+	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
+	budget, err := newNextRoundBudget(
+		snapshot.Audit.AuditID, namespace, roundOrdinal, capacity, profile, baseline, selection, approval,
+	)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
+	proposalSelection, err := s.selectNextProposalChecks(ctx, snapshot.Audit, budget)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
@@ -83,9 +88,8 @@ func (s *Service) PrepareNextRound(
 		snapshot.Audit.ProjectID,
 	)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the Audit Project artifact scope is invalid", err)
 	}
-	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	sourceArtifact, err := writeImmutableArtifact(
 		ctx, projectArtifacts,
 		contracts.ArtifactRef{
@@ -95,22 +99,11 @@ func (s *Service) PrepareNextRound(
 		artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: sourceBytes},
 	)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
 	}
-	approval := auditdomain.ApprovalNone
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
-		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
-		// Proposed-check methods are operator/model data, not a safe classifier.
-		// Requiring approval for the whole later-round set is conservative and
-		// cannot weaken a profile that requests an active-check gate.
-		approval = auditdomain.ApprovalActiveCheck
-	}
-	roundOrdinal := snapshot.Round.Ordinal + 1
-	inventory, err := auditdomain.BuildFindingInventory(sourceBytes, auditdomain.InventoryOptions{
-		Round: roundOrdinal, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
-		SourceInputName: "proposal_inventory", SourceRef: sourceArtifact.Ref,
-		Scope: baseline.Scope.Values(), ApprovalRequirement: approval,
-	})
+	inventory, err := auditdomain.BuildFindingInventory(sourceBytes, nextRoundInventoryOptions(
+		roundOrdinal, profile, baseline, approval, sourceArtifact.Ref,
+	))
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
@@ -127,13 +120,13 @@ func (s *Service) PrepareNextRound(
 		ctx, projectArtifacts, namespace, profile, selection, inventory,
 	)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
 	}
 	worklist, err := writeRoundPackage(
 		ctx, projectArtifacts, namespace, roundOrdinal, inventory, manifest,
 	)
 	if err != nil {
-		return auditstore.AcceptRoundParams{}, nil, err
+		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
 	}
 	descriptors := make(map[string]auditstore.ExactArtifact, len(selected))
 	for _, proposal := range selected {
@@ -146,11 +139,11 @@ func (s *Service) PrepareNextRound(
 	for index, item := range inventory.Worklist.Items {
 		task := inventory.Tasks[index].Document
 		if task.Finding == nil {
-			return auditstore.AcceptRoundParams{}, nil, errors.New("next Round generated a non-finding item")
+			return auditstore.AcceptRoundParams{}, nil, inconsistentRound("the next Round generated a non-finding item", nil)
 		}
 		proposal, exists := descriptors[task.Finding.ReceiptID]
 		if !exists || proposal.Digest != task.Finding.ProposalDigest {
-			return auditstore.AcceptRoundParams{}, nil, errors.New("next Round proposal descriptor drifted")
+			return auditstore.AcceptRoundParams{}, nil, inconsistentRound("a next-Round proposal descriptor drifted", nil)
 		}
 		itemID := auditdomain.DeterministicID(
 			"item", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal), item.ItemKey,
@@ -159,7 +152,7 @@ func (s *Service) PrepareNextRound(
 			snapshot.Audit.AuditID, profile, itemID, item, taskArtifacts[index],
 		)
 		if err != nil {
-			return auditstore.AcceptRoundParams{}, nil, err
+			return auditstore.AcceptRoundParams{}, nil, inconsistentRound("a next-Round item approval is invalid", err)
 		}
 		originRef := task.SourceRef
 		items[index] = auditstore.MaterializedItem{
@@ -194,6 +187,16 @@ func (s *Service) PrepareNextRound(
 	}, nil, nil
 }
 
+// nextRoundWriteError classifies a collision of a content-named Round
+// artifact with different stored content, which retained Audit data cannot
+// cause and a retry cannot repair.
+func nextRoundWriteError(err error) error {
+	if errors.Is(err, artifacts.ErrArtifactConflict) {
+		return inconsistentRound("a content-named Round artifact holds different content", err)
+	}
+	return err
+}
+
 func nextRoundStopReason(selection proposalCheckSelection, roundOrdinal, maxRounds, capacity int) *auditstore.StopReason {
 	hasWork := len(selection.Proposals) != 0 || selection.Eligible
 	if hasWork && roundOrdinal >= maxRounds {
@@ -213,6 +216,9 @@ func nextRoundStopReason(selection proposalCheckSelection, roundOrdinal, maxRoun
 			Code:    "proposal_scan_budget_exhausted",
 			Message: "The bounded finding inbox scan ended before more schedulable work could be established.",
 		}
+	}
+	if !hasWork && len(selection.Unschedulable) != 0 {
+		return unschedulableStopReason(selection.Unschedulable)
 	}
 	return nil
 }

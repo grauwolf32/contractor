@@ -1288,15 +1288,26 @@ func seedAuditFinding(
 	projectID, ownerID, auditID, suffix string, proposedChecks ...auditdomain.ProposedCheck,
 ) string {
 	t.Helper()
-	checks := append([]auditdomain.ProposedCheck{}, proposedChecks...)
-	document := auditdomain.FindingProposal{
+	return seedAuditFindingDocument(t, ctx, pool, projectID, ownerID, auditID, suffix,
+		auditFindingDocument(suffix, proposedChecks...))
+}
+
+func auditFindingDocument(suffix string, proposedChecks ...auditdomain.ProposedCheck) auditdomain.FindingProposal {
+	return auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + suffix,
 		Title: "Candidate " + suffix, Description: "A retained candidate for review.",
 		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "component-" + suffix},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
-		EvidenceIDs: []string{}, ProposedChecks: checks,
+		EvidenceIDs: []string{}, ProposedChecks: append([]auditdomain.ProposedCheck{}, proposedChecks...),
 		SeveritySuggestion: "medium", Limitations: []string{},
 	}
+}
+
+func seedAuditFindingDocument(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal,
+) string {
+	t.Helper()
 	payload, err := auditdomain.EncodeFindingProposal(document)
 	if err != nil {
 		t.Fatal(err)

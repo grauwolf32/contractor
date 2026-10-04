@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
@@ -28,6 +31,9 @@ func TestNextRoundStopReasons(t *testing.T) {
 		{"item budget", proposalCheckSelection{Eligible: true}, 1, 2, 0, "item_budget_exhausted"},
 		{"scan budget", proposalCheckSelection{ScanExhausted: true}, 1, 2, 1, "proposal_scan_budget_exhausted"},
 		{"available work", proposalCheckSelection{Proposals: []auditdomain.FindingInventoryProposal{{}}, Eligible: true}, 1, 2, 1, ""},
+		{"unschedulable proposals only", proposalCheckSelection{Unschedulable: []unschedulableProposal{{ReceiptID: "receipt-a", Limit: "proposal_inventory.bytes"}}}, 1, 2, 1, "proposal_inventory_limit_exceeded"},
+		{"unschedulable beside work", proposalCheckSelection{Eligible: true, Proposals: []auditdomain.FindingInventoryProposal{{}}, Unschedulable: []unschedulableProposal{{ReceiptID: "receipt-a", Limit: "proposal_inventory.bytes"}}}, 1, 2, 1, ""},
+		{"scan budget before unschedulable", proposalCheckSelection{ScanExhausted: true, Unschedulable: []unschedulableProposal{{ReceiptID: "receipt-a", Limit: "proposal_inventory.bytes"}}}, 1, 2, 1, "proposal_scan_budget_exhausted"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			reason := nextRoundStopReason(test.selection, test.roundOrdinal, test.maxRounds, test.capacity)
@@ -46,31 +52,90 @@ func TestProposalPageSelectionBoundaries(t *testing.T) {
 	audit := auditstore.Audit{AuditID: "audit", ProjectID: "project"}
 	receipt := findingintake.Receipt{ReceiptID: "receipt", Document: auditdomain.FindingProposal{ProposedChecks: make([]auditdomain.ProposedCheck, 3)}, AuditHolds: []findingintake.AuditHold{{AuditID: "audit", ProjectID: "project"}}}
 	for _, capacity := range []int{0, 1, 2} {
-		selection := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal)}
+		selection := proposalCheckAccumulator{budget: testNextRoundBudget(t, capacity)}
 		used := map[string]bool{auditdomain.ReceiptCheckIdentity("receipt", 0): true}
-		if err := selection.addPage(audit, []findingintake.Receipt{receipt}, used, capacity); err != nil {
+		if err := selection.addPage(audit, []findingintake.Receipt{receipt}, used); err != nil {
 			t.Fatal(err)
 		}
-		if !selection.eligible || selection.selectedCount != capacity {
+		if !selection.eligible || selection.budget.Checks() != capacity {
 			t.Fatalf("capacity %d: %+v", capacity, selection)
 		}
-		for _, ordinal := range selection.selected["receipt"].SelectedCheckOrdinals {
-			if ordinal == 0 {
-				t.Fatal("scheduled check selected again")
+		for _, proposal := range selection.selected {
+			for _, ordinal := range proposal.SelectedCheckOrdinals {
+				if ordinal == 0 {
+					t.Fatal("scheduled check selected again")
+				}
 			}
 		}
 	}
-	selection := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal), scanned: maxNextRoundInboxScan - 1}
+	selection := proposalCheckAccumulator{budget: testNextRoundBudget(t, 1), scanned: maxNextRoundInboxScan - 1}
 	invalid := findingintake.Receipt{ReceiptID: "missing-hold"}
-	if err := selection.addPage(audit, []findingintake.Receipt{receipt, invalid}, nil, 1); err != nil {
+	if err := selection.addPage(audit, []findingintake.Receipt{receipt, invalid}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if selection.scanned != maxNextRoundInboxScan {
 		t.Fatal("scan exceeded budget")
 	}
-	empty := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal)}
-	if err := empty.addPage(audit, []findingintake.Receipt{invalid}, nil, 0); err == nil {
-		t.Fatal("zero capacity bypassed exact hold check")
+	empty := proposalCheckAccumulator{budget: testNextRoundBudget(t, 0)}
+	if err := empty.addPage(audit, []findingintake.Receipt{invalid}, nil); !errors.Is(err, ErrRoundPreparationInconsistent) {
+		t.Fatalf("zero capacity bypassed exact hold check: %v", err)
+	}
+}
+
+// TestNextRoundSelectionSplitsChecksAcrossRounds covers a profile whose
+// per-Round limit exceeds the inventory item maximum: 4608 eligible checks
+// form one full Round within the inventory limits and a later Round.
+func TestNextRoundSelectionSplitsChecksAcrossRounds(t *testing.T) {
+	const receipts, checksPerReceipt = 9, auditdomain.MaximumCoverageValues
+	inbox := make([]findingintake.Receipt, receipts)
+	for index := range inbox {
+		checks := make([]auditdomain.ProposedCheck, checksPerReceipt)
+		for ordinal := range checks {
+			checks[ordinal] = auditdomain.ProposedCheck{
+				Objective: fmt.Sprintf("Verify condition %d.", ordinal), Method: "static-trace",
+			}
+		}
+		inbox[index] = testInboxReceipt(t, fmt.Sprintf("receipt-%d", index), time.Unix(int64(index+1), 0), checks)
+	}
+	scheduled := make(map[string]bool)
+	list := func(_ context.Context, _, _ string, query findingintake.ListQuery) ([]findingintake.Receipt, error) {
+		start := 0
+		for start < len(inbox) && query.AfterReceiptID != "" && inbox[start].ReceiptID <= query.AfterReceiptID {
+			start++
+		}
+		return inbox[start:min(start+query.Limit, len(inbox))], nil
+	}
+	used := func(_ context.Context, _ string, _ []string) (map[string]bool, error) { return scheduled, nil }
+	audit := auditstore.Audit{AuditID: "audit", OwnerID: "owner", ProjectID: "project"}
+	capacity := roundItemCapacity(10_000, 100_000, 0)
+	var rounds []int
+	for range 3 {
+		selection, err := selectNextProposalChecksFromInbox(t.Context(), audit, testNextRoundBudget(t, capacity), list, used)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(selection.Proposals) == 0 {
+			if selection.Eligible || nextRoundStopReason(selection, 2, 5, capacity) != nil {
+				t.Fatalf("consumed inbox = %+v", selection)
+			}
+			break
+		}
+		if _, err := auditdomain.EncodeFindingInventory(auditdomain.FindingInventoryDocument{
+			Schema: auditdomain.FindingInventorySchema, Proposals: selection.Proposals,
+		}); err != nil {
+			t.Fatalf("Round %d inventory: %v", len(rounds)+2, err)
+		}
+		checks := 0
+		for _, proposal := range selection.Proposals {
+			for _, ordinal := range proposal.SelectedCheckOrdinals {
+				scheduled[auditdomain.ReceiptCheckIdentity(proposal.ReceiptID, ordinal)] = true
+				checks++
+			}
+		}
+		rounds = append(rounds, checks)
+	}
+	if fmt.Sprint(rounds) != "[4096 512]" {
+		t.Fatalf("Round sizes = %v, want [4096 512]", rounds)
 	}
 }
 
@@ -125,7 +190,7 @@ func TestNextRoundScanBoundaryDistinguishesCompleteInboxFromTruncation(t *testin
 			}
 			selection, err := selectNextProposalChecksFromInbox(t.Context(), auditstore.Audit{
 				AuditID: "audit", OwnerID: "owner", ProjectID: "project",
-			}, 1, list, scheduled)
+			}, testNextRoundBudget(t, 1), list, scheduled)
 			if err != nil || selection.Eligible || len(selection.Proposals) != 0 ||
 				selection.ScanExhausted != test.wantExhausted || pages != test.wantPages {
 				t.Fatalf("fully consumed inbox size %d: selection=%+v pages=%d error=%v",
@@ -137,5 +202,70 @@ func TestNextRoundScanBoundaryDistinguishesCompleteInboxFromTruncation(t *testin
 				t.Fatalf("scan boundary stop reason = %+v", reason)
 			}
 		})
+	}
+}
+
+func TestUnschedulableStopReasonNamesBoundedProposals(t *testing.T) {
+	proposals := make([]unschedulableProposal, maximumReportedUnschedulable+2)
+	for index := range proposals {
+		proposals[index] = unschedulableProposal{ReceiptID: fmt.Sprintf("receipt-%d", index), Limit: "proposal_inventory.bytes"}
+	}
+	reason := unschedulableStopReason(proposals)
+	if reason.Code != "proposal_inventory_limit_exceeded" ||
+		!strings.Contains(reason.Message, "receipt-0 (proposal_inventory.bytes)") ||
+		strings.Contains(reason.Message, fmt.Sprintf("receipt-%d ", maximumReportedUnschedulable)) ||
+		!strings.HasSuffix(reason.Message, ", and 2 more.") {
+		t.Fatalf("stop reason = %+v", reason)
+	}
+	if one := unschedulableStopReason(proposals[:1]); !strings.HasSuffix(one.Message, ": receipt-0 (proposal_inventory.bytes).") {
+		t.Fatalf("single stop reason = %+v", one)
+	}
+}
+
+func testNextRoundBudget(t *testing.T, capacity int) *auditdomain.FindingRoundBudget {
+	t.Helper()
+	namespace := auditdomain.ArtifactNamespace("audit")
+	budget, err := auditdomain.NewFindingRoundBudget(capacity, auditdomain.FindingRoundShape{
+		Inventory: nextRoundInventoryOptions(2, config.ResolvedAuditProfile{
+			Mode:      config.AuditModeFindingVerification,
+			Inventory: config.AuditInventory{ItemWorkflowRole: "verify"},
+		}, BaselineSnapshot{}, auditdomain.ApprovalNone, contracts.ArtifactRef{
+			Namespace: namespace, Name: auditdomain.DeterministicID("proposal-inventory", "audit"),
+			Revision: &provisionalRevision,
+		}),
+		TaskNamespace: namespace, TaskRevision: provisionalRevision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return budget
+}
+
+func testInboxReceipt(
+	t *testing.T, receiptID string, createdAt time.Time, checks []auditdomain.ProposedCheck,
+) findingintake.Receipt {
+	t.Helper()
+	document := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + receiptID,
+		Title: "Candidate " + receiptID, Description: "A retained candidate for review.",
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "component-" + receiptID},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: checks,
+		SeveritySuggestion: "medium", Limitations: []string{},
+	}
+	encoded, err := auditdomain.EncodeFindingProposal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := "proposal-r1"
+	return findingintake.Receipt{
+		ReceiptID: receiptID, CreatedAt: createdAt, Document: document,
+		AuditHolds: []findingintake.AuditHold{{
+			AuditID: "audit", ProjectID: "project",
+			Proposal: findingintake.ExactArtifact{
+				Ref:    contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: receiptID, Revision: &revision},
+				Digest: auditdomain.DigestBytes(encoded), MediaType: auditdomain.JSONMediaType, SizeBytes: int64(len(encoded)),
+			},
+		}},
 	}
 }

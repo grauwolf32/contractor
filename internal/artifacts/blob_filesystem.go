@@ -183,27 +183,48 @@ func (s *FilesystemBlobStore) Read(ctx context.Context, object BlobObject) ([]by
 	}
 	defer f.Close()
 	actual, err := f.Stat()
-	if err != nil || !actual.Mode().IsRegular() || actual.Size() != object.Size {
+	if err != nil {
+		return nil, blobIOError(err)
+	}
+	if !actual.Mode().IsRegular() || actual.Size() != object.Size {
 		return nil, ErrArtifactIntegrity
 	}
-	data := make([]byte, int(object.Size))
+	data, err := readBlobContent(ctx, f, object.Size)
+	if err != nil {
+		return nil, err
+	}
+	if err := verifyBlob(object, data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// readBlobContent reads exactly size bytes. Content shorter or longer than
+// its recorded size is corrupt; any other read failure is storage I/O that
+// may succeed on retry, so it is never reported as an integrity failure.
+func readBlobContent(ctx context.Context, file io.Reader, size int64) ([]byte, error) {
+	data := make([]byte, int(size))
 	for offset := 0; offset < len(data); {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		end := min(offset+64*1024, len(data))
-		n, err := io.ReadFull(f, data[offset:end])
-		if err != nil {
+		n, err := io.ReadFull(file, data[offset:end])
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return nil, ErrArtifactIntegrity
+		}
+		if err != nil {
+			return nil, blobIOError(err)
 		}
 		offset += n
 	}
 	var extra [1]byte
-	if n, err := f.Read(extra[:]); n != 0 || err != io.EOF {
+	n, err := file.Read(extra[:])
+	if n != 0 {
 		return nil, ErrArtifactIntegrity
 	}
-	if err := verifyBlob(object, data); err != nil {
-		return nil, err
+	if !errors.Is(err, io.EOF) {
+		return nil, blobIOError(err)
 	}
 	return data, nil
 }
@@ -252,5 +273,5 @@ func blobIOError(err error) error {
 	if errors.Is(err, os.ErrNotExist) {
 		return ErrBlobMissing
 	}
-	return errors.New("artifact blob storage I/O failed")
+	return ErrBlobIO
 }

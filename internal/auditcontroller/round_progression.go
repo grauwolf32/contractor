@@ -6,10 +6,16 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
 func nextRoundValidationError(err error) bool {
+	// Failed storage I/O proves nothing about stored bytes and may succeed on
+	// retry, so it is never a deterministic validation failure.
+	if errors.Is(err, artifacts.ErrBlobIO) {
+		return false
+	}
 	var validation *auditdomain.ValidationError
 	return errors.As(err, &validation) || errors.Is(err, auditstore.ErrInvalid) ||
 		errors.Is(err, artifacts.ErrArtifactIntegrity)
@@ -21,6 +27,22 @@ func (c *Controller) closeInvalidNextRound(
 	reason := &auditstore.StopReason{
 		Code:    "next_round_invalid",
 		Message: "The next Audit Round failed deterministic proposal or item validation.",
+	}
+	return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+}
+
+// closeInconsistentNextRound stops an Audit whose retained state cannot form
+// a next Round. The stop reason names the violated invariant; the log keeps
+// the full error for operators.
+func (c *Controller) closeInconsistentNextRound(
+	ctx context.Context, claim auditstore.ControllerClaim, audit auditstore.Audit,
+	inconsistent *auditservice.RoundPreparationError,
+) *reconcileResult {
+	c.options.Logger.Error("Audit next Round preparation reached an inconsistent state",
+		"audit_id", audit.AuditID, "error", inconsistent)
+	reason := &auditstore.StopReason{
+		Code:    "next_round_contract_invalid",
+		Message: "The next Audit Round cannot be prepared because " + inconsistent.Diagnostic + ".",
 	}
 	return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
 }
@@ -90,6 +112,10 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				if c.roundBuilder != nil {
 					params, closureReason, buildErr := c.roundBuilder.PrepareNextRound(ctx, claim, snapshot)
 					if buildErr != nil {
+						var inconsistent *auditservice.RoundPreparationError
+						if errors.As(buildErr, &inconsistent) {
+							return c.closeInconsistentNextRound(ctx, claim, audit, inconsistent)
+						}
 						if nextRoundValidationError(buildErr) {
 							return c.closeInvalidNextRound(ctx, claim, audit)
 						}

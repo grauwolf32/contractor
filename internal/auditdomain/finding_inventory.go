@@ -23,44 +23,70 @@ func BuildFindingInventory(
 	basisSubjects := make([]map[string]any, 0)
 	subjects := make([]inventorySubject, 0)
 	for _, proposal := range document.Proposals {
-		// With an unspecified affected subject, verification addresses the
-		// retained finding receipt itself; the proposal remains subject:null.
-		subjectKey := proposal.ReceiptID
-		if proposal.Document.Subject != nil {
-			subjectKey = proposal.Document.Subject.Key
-		}
-		limitations := slices.Clone(proposal.Document.Limitations)
-		sort.Strings(limitations)
+		checks := newFindingChecks(proposal)
 		for _, ordinal := range proposal.SelectedCheckOrdinals {
-			check := proposal.Document.ProposedChecks[ordinal]
-			finding := &FindingTask{
-				ReceiptID: proposal.ReceiptID, ProposalRef: proposal.Proposal.Ref.Clone(),
-				ProposalDigest: proposal.Proposal.Digest, ProposedCheckOrdinal: ordinal,
-				Objective: check.Objective, Method: check.Method, Limitations: slices.Clone(limitations),
-			}
-			itemKey := findingCheckItemKey(proposal.ReceiptID, ordinal)
-			basisSubjects = append(basisSubjects, map[string]any{
-				"receipt_id":             proposal.ReceiptID,
-				"proposal_ref":           proposal.Proposal.Ref,
-				"proposal_digest":        proposal.Proposal.Digest,
-				"proposed_check_ordinal": ordinal,
-				"objective":              check.Objective,
-				"method":                 check.Method,
-				"subject_key":            subjectKey,
-				"limitations":            limitations,
-			})
-			subjects = append(subjects, inventorySubject{
-				itemKey: itemKey, kind: "finding-verification",
-				subjectKey: subjectKey, finding: finding,
-				requested: []string{check.Method}, gaps: slices.Clone(limitations),
-			})
+			basisSubject, subject := checks.subject(ordinal)
+			basisSubjects = append(basisSubjects, basisSubject)
+			subjects = append(subjects, subject)
 		}
 	}
-	basis := inventoryBasis{
-		Schema: InventoryBasisSchema, Kind: "finding-candidates",
-		Subjects: basisSubjects, Gaps: []string{},
-	}
+	basis := newFindingInventoryBasis(basisSubjects)
 	return finishInventory(source, JSONMediaType, basis, subjects, options)
+}
+
+// findingChecks derives the per-check inventory entries of one admitted
+// proposal. BuildFindingInventory and FindingRoundBudget share it, so a Round
+// is measured with exactly the entries it is later built from.
+type findingChecks struct {
+	proposal    FindingInventoryProposal
+	subjectKey  string
+	limitations []string
+}
+
+func newFindingChecks(proposal FindingInventoryProposal) findingChecks {
+	// With an unspecified affected subject, verification addresses the
+	// retained finding receipt itself; the proposal remains subject:null.
+	subjectKey := proposal.ReceiptID
+	if proposal.Document.Subject != nil {
+		subjectKey = proposal.Document.Subject.Key
+	}
+	limitations := slices.Clone(proposal.Document.Limitations)
+	sort.Strings(limitations)
+	return findingChecks{proposal: proposal, subjectKey: subjectKey, limitations: limitations}
+}
+
+// subject returns the canonical inventory entry and the item subject of one
+// proposed check. The ordinal must address one of the proposal's checks.
+func (checks findingChecks) subject(ordinal int) (map[string]any, inventorySubject) {
+	proposal := checks.proposal
+	check := proposal.Document.ProposedChecks[ordinal]
+	finding := &FindingTask{
+		ReceiptID: proposal.ReceiptID, ProposalRef: proposal.Proposal.Ref.Clone(),
+		ProposalDigest: proposal.Proposal.Digest, ProposedCheckOrdinal: ordinal,
+		Objective: check.Objective, Method: check.Method, Limitations: slices.Clone(checks.limitations),
+	}
+	basisSubject := map[string]any{
+		"receipt_id":             proposal.ReceiptID,
+		"proposal_ref":           proposal.Proposal.Ref,
+		"proposal_digest":        proposal.Proposal.Digest,
+		"proposed_check_ordinal": ordinal,
+		"objective":              check.Objective,
+		"method":                 check.Method,
+		"subject_key":            checks.subjectKey,
+		"limitations":            checks.limitations,
+	}
+	return basisSubject, inventorySubject{
+		itemKey: findingCheckItemKey(proposal.ReceiptID, ordinal), kind: "finding-verification",
+		subjectKey: checks.subjectKey, finding: finding,
+		requested: []string{check.Method}, gaps: slices.Clone(checks.limitations),
+	}
+}
+
+func newFindingInventoryBasis(subjects []map[string]any) inventoryBasis {
+	return inventoryBasis{
+		Schema: InventoryBasisSchema, Kind: "finding-candidates",
+		Subjects: subjects, Gaps: []string{},
+	}
 }
 
 func findingCheckItemKey(receiptID string, ordinal int) string {
