@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,7 +19,7 @@ type batchPlanTestStore struct {
 	calls    int
 }
 
-func TestLoadPlansAcceptsLegacySessionTokenCounters(t *testing.T) {
+func TestPlannerStateRejectsRemovedTokenCounters(t *testing.T) {
 	identity := planner.SessionIdentity{SessionID: "session", StageExecutionID: "stage", InvocationID: "invocation"}
 	for _, state := range []persistentState{
 		{Status: statusRunning, NextSequence: 3, ADKEventCount: 1},
@@ -37,54 +36,34 @@ func TestLoadPlansAcceptsLegacySessionTokenCounters(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var legacy map[string]json.RawMessage
-			if err := json.Unmarshal(encoded, &legacy); err != nil {
-				t.Fatal(err)
+			if decoded, err := decodeState(encoded); err != nil || !reflect.DeepEqual(decoded, state) {
+				t.Fatalf("decode current state = (%+v, %v), want %+v", decoded, err, state)
 			}
-			legacy["adkInputTokens"] = json.RawMessage(`11`)
-			legacy["adkOutputTokens"] = json.RawMessage(`7`)
-			stored, err := json.Marshal(legacy)
-			if err != nil {
-				t.Fatal(err)
-			}
-			decoded, err := decodeState(stored)
-			if err != nil || !reflect.DeepEqual(decoded, state) {
-				t.Fatalf("decode legacy state = (%+v, %v), want %+v", decoded, err, state)
-			}
-			rewritten, err := encodeState(decoded)
-			if err != nil || bytes.Contains(rewritten, []byte("adkInputTokens")) ||
-				bytes.Contains(rewritten, []byte("adkOutputTokens")) {
-				t.Fatalf("rewritten legacy state = (%s, %v)", rewritten, err)
-			}
-			row := runstore.PlannerSession{
-				SessionID: identity.SessionID, StageExecutionID: identity.StageExecutionID,
-				InvocationID: identity.InvocationID, StateSchemaVersion: contracts.APIVersion, State: stored,
-			}
-			store := &batchPlanTestStore{sessions: map[string]runstore.PlannerSession{identity.SessionID: row}}
-			service, err := New(store, Options{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			plans, err := service.LoadPlans(t.Context(), []planner.SessionIdentity{identity})
-			if err != nil || len(plans) != 0 || store.calls != 1 {
-				t.Fatalf("LoadPlans legacy state = (%v, %v), calls=%d", plans, err, store.calls)
-			}
-			legacy["unexpected"] = json.RawMessage(`true`)
-			unknown, err := json.Marshal(legacy)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := decodeState(unknown); err == nil {
-				t.Fatal("unknown Planner state key was accepted")
-			}
-			delete(legacy, "unexpected")
-			legacy["adkInputTokens"] = json.RawMessage(`-1`)
-			negative, err := json.Marshal(legacy)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := decodeState(negative); err == nil {
-				t.Fatal("negative legacy token count was accepted")
+			for _, key := range []string{"adkInputTokens", "adkOutputTokens"} {
+				var document map[string]json.RawMessage
+				if err := json.Unmarshal(encoded, &document); err != nil {
+					t.Fatal(err)
+				}
+				document[key] = json.RawMessage(`11`)
+				stored, err := json.Marshal(document)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := decodeState(stored); err == nil {
+					t.Fatalf("Planner state with removed %s was accepted", key)
+				}
+				row := runstore.PlannerSession{
+					SessionID: identity.SessionID, StageExecutionID: identity.StageExecutionID,
+					InvocationID: identity.InvocationID, StateSchemaVersion: contracts.APIVersion, State: stored,
+				}
+				store := &batchPlanTestStore{sessions: map[string]runstore.PlannerSession{identity.SessionID: row}}
+				service, err := New(store, Options{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if plans, err := service.LoadPlans(t.Context(), []planner.SessionIdentity{identity}); err == nil || store.calls != 1 {
+					t.Fatalf("LoadPlans with removed %s = (%v, %v), calls=%d", key, plans, err, store.calls)
+				}
 			}
 		})
 	}

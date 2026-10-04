@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V353-001
+title: Bound overlay diff CPU under the session lock
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V320-001]
+languages: [python]
+goal: Keep a pathological diff from holding the workspace session lock for minutes.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V320-001: the diff now runs off the event loop, but a pathological difflib input can still burn minutes of CPU while holding the session lock, so a stop deadline can fence the allocation (the same accepted risk as V265's prepare_export)."
+scope:
+  in:
+    - Bound diff work (size or line-count thresholds with a summarized fallback) without changing output for ordinary inputs.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "A pathological diff input finishes within a documented bound."}
+tests:
+  - {command: "cd runtime && uv run pytest tests -k 'workspace or projectfs'", covers: [A1]}

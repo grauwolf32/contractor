@@ -23,6 +23,10 @@ var (
 	ErrBlobBackend         = errors.New("invalid or unsupported artifact blob backend")
 	ErrBlobBackendMismatch = errors.New("artifact blob backend does not match the installation")
 	ErrBlobMissing         = errors.New("artifact blob content is missing")
+	// ErrBlobIO reports a failed blob storage operation. Unlike
+	// ErrArtifactIntegrity it proves nothing about the stored bytes, and the
+	// same operation may succeed on retry.
+	ErrBlobIO = errors.New("artifact blob storage I/O failed")
 )
 
 // BlobObject describes physical bytes; it never crosses the Artifact API.

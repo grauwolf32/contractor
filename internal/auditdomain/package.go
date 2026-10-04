@@ -259,7 +259,7 @@ func validPackageKind(kind PackageKind) bool {
 
 func validMediaType(value string) bool {
 	normalized := normalizedMediaType(value)
-	return len(normalized) <= 127 && contracts.ValidMediaType(normalized)
+	return contracts.ValidMediaType(normalized)
 }
 
 func validatePackagePath(raw string) (string, error) {

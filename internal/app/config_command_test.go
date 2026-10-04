@@ -125,6 +125,38 @@ func TestConfigValidateDefaultsToSiblingManagedRoot(t *testing.T) {
 	}
 }
 
+func TestConfigValidateTreatsUncleanRootLikeCleanPath(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	for _, suffix := range []string{"/", "//", "/."} {
+		t.Run(suffix, func(t *testing.T) {
+			operator := copyConfigValidationTree(t)
+			root := operator + suffix
+			if err := runConfigCLI([]string{"validate", "--root", root}, logger); err != nil {
+				t.Fatalf("config validate --root %s: %v", root, err)
+			}
+			if _, err := os.Stat(filepath.Join(operator, "managed-configs")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("validation derived a managed root inside the operator root: %v", err)
+			}
+			// A duplicate in the sibling root proves validation reads it.
+			managed := filepath.Join(filepath.Dir(operator), "managed-configs", "model-policies")
+			if err := os.MkdirAll(managed, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			payload, err := os.ReadFile(filepath.Join(operator, "model-policies", "worker.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(managed, "duplicate.yaml"), payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err = runConfigCLI([]string{"validate", "--root", root}, logger)
+			if err == nil || !strings.Contains(err.Error(), "duplicate ModelPolicy identity") {
+				t.Fatalf("sibling managed root was not used for %s: %v", root, err)
+			}
+		})
+	}
+}
+
 func TestConfigValidateRejectsMissingManagedRootUnderOperatorSymlink(t *testing.T) {
 	operator := copyConfigValidationTree(t)
 	alias := filepath.Join(filepath.Dir(operator), "operator-alias")

@@ -25,7 +25,10 @@ Equivalent environment variables are `CONTRACTOR_GIT_ALLOWED_REMOTES`
 TLS uses the system CA trust store. A scratch image needs a read-only CA bundle;
 set `SSL_CERT_FILE` to its path when appropriate. Provision SSH `known_hosts`
 through the operator's trusted configuration process. There is no interactive
-host acceptance. Trust changes take effect on subsequent imports.
+host acceptance. When `known_hosts` pins keys for a host, imports negotiate only
+those key types and host certificates; a host that offers none of them or
+presents a different key fails with `git_host_untrusted`. Trust changes take
+effect on subsequent imports.
 
 Each authenticated owner can add, replace or remove one unencrypted Ed25519 or
 RSA SSH private key in the **Repository access** section of Operations Settings

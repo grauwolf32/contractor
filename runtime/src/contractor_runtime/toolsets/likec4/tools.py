@@ -18,11 +18,11 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.document_session import (
     DocumentSession,
@@ -568,21 +568,15 @@ async def _run_likec4(
     except (UnicodeDecodeError, ValueError):
         return _validation_failure(True, "LikeC4 returned invalid JSON")
 
-    reported_valid: bool | None = None
-    stats: dict[str, Any] = {}
-    if isinstance(parsed, dict):
-        errors = parsed.get("errors")
-        if not isinstance(errors, list):
-            return _validation_failure(True, "LikeC4 returned an unexpected JSON shape")
-        if "valid" in parsed:
-            if not isinstance(parsed["valid"], bool):
-                return _validation_failure(True, "LikeC4 returned an unexpected JSON shape")
-            reported_valid = parsed["valid"]
-        stats = _sanitize_stats(parsed.get("stats"))
-    elif isinstance(parsed, list):
-        errors = parsed
-    else:
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("errors"), list):
         return _validation_failure(True, "LikeC4 returned an unexpected JSON shape")
+    errors = parsed["errors"]
+    reported_valid: bool | None = None
+    if "valid" in parsed:
+        if not isinstance(parsed["valid"], bool):
+            return _validation_failure(True, "LikeC4 returned an unexpected JSON shape")
+        reported_valid = parsed["valid"]
+    stats = _sanitize_stats(parsed.get("stats"))
 
     try:
         issues, truncated = _sanitize_diagnostics(errors)

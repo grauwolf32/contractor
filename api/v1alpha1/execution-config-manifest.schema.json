@@ -43,8 +43,8 @@
       "additionalProperties": false,
       "required": ["name", "version"],
       "properties": {
-        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-        "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
+        "name": {"type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9_-]*$"},
+        "version": {"type": "string", "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
       }
     },
     "spec": {"$ref": "#/$defs/stageOverride"}

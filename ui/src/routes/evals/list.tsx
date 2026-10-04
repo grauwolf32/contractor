@@ -2,26 +2,17 @@ import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
-import { listEvalExperiments, type EvalListQuery } from "../../api/evals";
+import {
+  EVAL_STATES,
+  listEvalExperiments,
+  type EvalListQuery,
+} from "../../api/evals";
 import { EvalError, EvalField, EvalFrame } from "./common";
 import { useEvalProjects } from "./queries";
 import { RecordedTime } from "../../app/recorded-time";
 import { StateBadge } from "../runs/components";
 import { evalListPollInterval } from "./polling";
 import { queryKeys } from "../../api/query-keys";
-
-const EVAL_STATES = [
-  "draft",
-  "preparing",
-  "ready",
-  "running",
-  "settling",
-  "finished",
-  "pausing",
-  "paused",
-  "cancelling",
-  "cancelled",
-] as const;
 
 export function EvalListRoute() {
   useDocumentTitle("Evals");

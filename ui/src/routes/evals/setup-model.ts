@@ -118,6 +118,24 @@ export function sortedBindings(
     });
 }
 
+// Match the server's conservative authoring bound. The portable plan stores
+// each member twice (member row and execution order) and repeats comparison
+// dimensions in both arms' pin maps. JSON escaping follows Go's encoder;
+// api/testdata/evals/plan-size-cases.json holds both estimates to the same
+// cases.
+export function estimatedPlanBytes(draft: EvalDraft): number {
+  const draftJSON = JSON.stringify(draft).replace(
+    /[<>&\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+  const draftBytes = new TextEncoder().encode(draftJSON).length;
+  const members = draft.caseIds.length * 2 * draft.repetitions;
+  const dimensions =
+    draft.comparison.requiredEqual.length +
+    draft.comparison.allowedDifferences.length;
+  return 3 * draftBytes + 900 * members + 128 * dimensions + 32 * 1024;
+}
+
 export function draftProblem(name: string, draft: EvalDraft): string | null {
   if (!name.trim()) return "Name the experiment.";
   if (draft.variants.some((v) => !v.selector))
@@ -133,21 +151,7 @@ export function draftProblem(name: string, draft: EvalDraft): string | null {
   const expected = draft.caseIds.length * 2 * draft.repetitions;
   if (expected > MAX_EVAL_MEMBERS || expected > draft.budgets.maxMembers)
     return "The matrix exceeds the selected member allowance.";
-  // Match the server's conservative authoring bound. The portable plan stores
-  // each member twice (member row and execution order) and repeats comparison
-  // dimensions in both arms' pin maps.
-  const draftJSON = JSON.stringify(draft).replace(
-    /[<>&\u2028\u2029]/g,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
-  const draftBytes = new TextEncoder().encode(draftJSON).length;
-  const dimensions =
-    draft.comparison.requiredEqual.length +
-    draft.comparison.allowedDifferences.length;
-  if (
-    3 * draftBytes + 900 * expected + 128 * dimensions + 32 * 1024 >
-    MAX_EVAL_DOCUMENT_BYTES
-  )
+  if (estimatedPlanBytes(draft) > MAX_EVAL_DOCUMENT_BYTES)
     return "The matrix is too large for a frozen 1 MiB plan. Reduce cases or repetitions.";
   if (
     !Number.isInteger(draft.budgets.maxInFlight) ||

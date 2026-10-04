@@ -411,8 +411,9 @@ for continued Planner execution.
 This design enforces one active Control Plane instance per PostgreSQL database.
 The Server acquires a session-level advisory lease before starting credential
 recovery, the Scheduler and private API. A standby has only public health and
-503 readiness until it wins that lease; loss of the active lease session stops
-its listeners and Scheduler. Multiple active Control Plane replicas, shared
+503 readiness until it wins that lease; loss of the active lease session, a
+liveness probe failing within a bounded tolerance window that absorbs transient
+stalls, stops its listeners and Scheduler. Multiple active Control Plane replicas, shared
 fleet coordination and durable liveness state are deferred together; they must
 not be approximated by sharing an unfenced `runtime_agents` table. Durable
 certificate principals and their label assignments under
@@ -640,6 +641,15 @@ Scheduler invocation and Runtime Agent self-fences its Worker.
 
 It contains no host path, tool-sandbox handle or in-process Worker object.
 It also contains no LLM Gateway token or other RuntimeSettings secret.
+Runtime before returning a handle and Server before accepting it scan the Agent
+Card for those secrets. A card value matches a secret of any length exactly and
+one of at least 16 UTF-8 bytes anywhere, except the exact protocol- or
+Server-fixed value at a trusted path (such as the template description or the
+`stage` skill tag), so a short credential may coincide with fixed vocabulary.
+Every object key is scanned whatever its path, for secrets of at least 16 UTF-8
+bytes. Both implementations share the trusted path table, the Runtime's card
+shape and the leak cases in
+[`agent-card-secret-scan-cases.json`](../../api/testdata/v1alpha1/agent-card-secret-scan-cases.json).
 
 ## Preparation and execution flow
 

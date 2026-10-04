@@ -9,6 +9,7 @@ import (
 	"compress/flate"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 )
@@ -20,7 +21,10 @@ const (
 	MaxPathBytes    = 512
 )
 
-var ErrLimit = errors.New("source ZIP exceeds its resource limit")
+var (
+	ErrLimit      = errors.New("source ZIP exceeds its resource limit")
+	ErrMemberSize = errors.New("source ZIP member size differs from its declaration")
+)
 
 type Member struct {
 	Name  string
@@ -39,8 +43,10 @@ type Options struct {
 }
 
 // Encode writes members in the caller's order with fixed mode and timestamp.
-// It checks the shared source limits before reading any member, then bounds
-// compressed bytes and observes ctx during compression and between members.
+// It checks the shared source limits against the declared sizes before
+// reading any member, requires each member to write exactly its declared
+// Size, bounds compressed bytes and observes ctx during compression and
+// between members.
 func Encode(ctx context.Context, members []Member, options Options) ([]byte, error) {
 	maximum := options.MaxBytes
 	if maximum == 0 {
@@ -81,8 +87,14 @@ func Encode(ctx context.Context, members []Member, options Options) ([]byte, err
 		if err != nil {
 			return nil, err
 		}
-		if err := member.Write(entry); err != nil {
+		// A source that changed after its size was checked must not carry a
+		// member past the limits validated above.
+		counted := &memberWriter{writer: entry, name: member.Name, remaining: member.Size}
+		if err := member.Write(counted); err != nil {
 			return nil, err
+		}
+		if counted.remaining != 0 {
+			return nil, fmt.Errorf("%w: %s", ErrMemberSize, member.Name)
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -92,6 +104,22 @@ func Encode(ctx context.Context, members []Member, options Options) ([]byte, err
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// memberWriter rejects any write that would exceed a member's declared size.
+type memberWriter struct {
+	writer    io.Writer
+	name      string
+	remaining int64
+}
+
+func (w *memberWriter) Write(p []byte) (int, error) {
+	if int64(len(p)) > w.remaining {
+		return 0, fmt.Errorf("%w: %s", ErrMemberSize, w.name)
+	}
+	n, err := w.writer.Write(p)
+	w.remaining -= int64(n)
+	return n, err
 }
 
 type boundedWriter struct {

@@ -11,8 +11,13 @@ until it acquires the Control Plane lease; the Kubernetes example uses a
 `Recreate` update to avoid overlapping active pods.
 The lease uses a dedicated PostgreSQL session, so connect directly to
 PostgreSQL or through a session-pooling proxy, not transaction-mode pooling.
-The active Server checks that session every second; if it is lost, the Server
-closes both listeners and stops the Scheduler immediately.
+The active Server probes that session every second; a single probe may run up
+to a ten-second tolerance window, so a brief client-to-database stall does not
+stop the Server. Once a probe fails within that window, the Server closes both
+listeners and stops the Scheduler. The window stays below the server-side
+keepalive bound, so the Server stops before PostgreSQL releases the lock to a
+standby. A standby that hits a transient acquisition stall reconnects and keeps
+polling rather than exiting.
 
 ## Install the release
 
@@ -69,12 +74,16 @@ The PKI files live under `.local/pki`; keep the CA private key and leaf keys
 protected. Password hashing reads the password from the terminal and stores
 only its hash. Perform this bootstrap once for a fresh installation.
 
-The Control Plane and Runtime Agent leaf certificates are valid for 365 days.
-Both processes log their certificate expiry at startup and warn during the last
-30 days. Set the Server's `--cert-expiry-warning-window` (or
-`CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for example `720h`) and the Runtime's
-`--cert-expiry-warning-days` (or `CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change
-that lead time. Before expiry, stop the affected processes, renew their leaves,
+The Control Plane and Runtime Agent leaf certificates are valid for 365 days,
+but never past the deployment CA's own expiry: a leaf issued or renewed within
+a year of the CA expiring is clamped to the CA's `NotAfter`. Both processes log
+their leaf and the deployment CA expiry at startup and warn during the last
+30 days of each. Because a leaf never outlives the CA, an approaching CA expiry
+breaks every private mTLS link and cannot be fixed by leaf renewal alone; the
+CA warning advises rotating the CA and reissuing leaves. Set the Server's
+`--cert-expiry-warning-window` (or `CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for
+example `720h`) and the Runtime's `--cert-expiry-warning-days` (or
+`CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change that lead time. Before expiry, stop the affected processes, renew their leaves,
 then restart them so their in-memory TLS contexts load the new certificates:
 
 ```shell
@@ -131,6 +140,10 @@ settings table and independent deadline rules.
 | Operator and managed configurations | Retain both roots; production managed storage must support hard links and durable publication |
 | Login, PKI and encrypted-credential master key | Retain owner-only files; the master key is needed to decrypt stored credentials |
 | Runtime workspaces | Disposable allocation data; cleanup must finish before reusing a slot |
+
+Server creates the managed root and its kind subtrees at startup. If one is
+later removed or unmounted, publications fail and the current configuration
+stays in effect until the subtree is restored.
 
 The [no-PVC Kubernetes example](operations/artifact-blob-storage.md#deployment-without-pvc)
 is a disposable exception: its `/managed` memory volume loses every
@@ -199,15 +212,20 @@ contractor server run --config .local/server.yaml
 ```
 
 `config validate` checks the operator root and its sibling `managed-configs/`
-without creating directories. If Server uses a different managed root, pass
-the same path with `--managed-root`. Offline validation requires every
-AuditProfile standard to be bundled under the operator root; it reports an
-error for a database-only standard that it cannot verify.
+without creating directories. It and `server run` derive that sibling from the
+cleaned operator root, so `configs/` and `configs` are equivalent, and Server
+rejects overlapping roots before it creates a missing managed root. If Server
+uses a different managed root, pass the same path with `--managed-root`.
+Offline validation requires every AuditProfile standard to be bundled under
+the operator root; it reports an error for a database-only standard that it
+cannot verify.
 
 The DSN above assumes a local database; configure PostgreSQL TLS for a remote
 database. Migrations are forward-only and run in one transaction. A concurrent
-migrator polls for the migration leader's advisory lock until it is released,
-the caller cancels, or the whole migrator deadline expires. Once it holds the
+migrator of the same schema (the first existing schema in `search_path`) polls
+for that schema's migration leader's advisory lock until it is released, the
+caller cancels, or the whole migrator deadline expires; other schemas in the
+same database migrate independently. Once it holds the
 lock, each statement is limited to 120 seconds and each DDL relation-lock wait
 to 10 seconds by default; for a large upgrade raise them with
 `--statement-timeout` and `--lock-timeout` (or

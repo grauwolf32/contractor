@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V297-001
+title: Remove legacy Planner session token decoding
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 96e72561094f50684f034d3e157d94ef9b7f4043
+depends_on: []
+languages: [go]
+goal: Drop backward-compatibility decoding that the pre-production project does not need.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: V188 (4632a9ad) added strict decoding of legacy adkInputTokens and adkOutputTokens keys (internal/planner/session/service.go:689-704) with tests in plans_batch_test.go. The project has no deployed data and forbids compatibility shims.
+scope:
+  in:
+    - Remove the legacy keys from decoding and tests so documents carrying them are rejected.
+  out:
+    - Other session fields.
+acceptance_criteria:
+  - {id: A1, text: "Session decoding accepts only the current fields."}
+tests:
+  - {command: "go test -count=1 ./internal/planner/session", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

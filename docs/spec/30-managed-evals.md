@@ -101,10 +101,17 @@ selection and Project deletion fences. Native plan preparation and coordinator
 observations (including admission, settlement, token usage, first native
 selection and execution tombstones) update progress and `updatedAt` without
 consuming that authority revision. A previously read ETag therefore remains
-valid for Pause or Cancel until another authority mutation occurs. Content
-hashes are SHA-256 over exact retained bytes. Secret values do not enter public
-DTOs, logs, cursors or error text. Objects/arrays remain bounded by spec 26;
-DTO schema validation is closed, with explicitly versioned extensions only.
+valid for Pause or Cancel until another authority mutation occurs. A stop that
+progress has since ruled out passes that check and fails with 409
+`eval_not_ready` (or `eval_pin_mismatch` for another plan); the browser drops
+such a pending command and refetches instead of replaying it, while a lost
+response or 5xx keeps it for an exact replay. Content hashes are SHA-256 over
+exact retained bytes. A frozen plan or registration is schema-validated once
+before it is stored; reads trust the immutable row and its database-generated
+digest instead of revalidating up to 1 MiB on every coordinator tick, admission
+or collection. Secret values do not enter public DTOs, logs, cursors or error
+text. Objects/arrays remain bounded by spec 26; DTO schema validation is
+closed, with explicitly versioned extensions only.
 
 ## Dataset and variant selection
 
@@ -212,8 +219,12 @@ or state conflict before effects.
 Native controls additionally use `pausing → paused → running` and
 `cancelling → cancelled`. An ordinary process restart reacquires the claim
 and reconciles automatically. Reconciliation failures leave the experiment in
-its current active state for retry. Finished can have `pass`, `regressions` or
-`inconclusive` conclusion; awaiting assessment is separate from execution progress.
+its current active state for retry. A member whose reconciliation keeps failing
+stays outstanding and holds its in-flight slot, but does not stop admission or
+publication of other members, budget stops or the drain of the rest; its error
+is reported after the coordinator tick did that work. Finished can have `pass`,
+`regressions` or `inconclusive` conclusion; awaiting assessment is separate from
+execution progress.
 Finished means accepted executions have drained, even if human review is still
 pending; later assessments can change the comparison without restarting execution.
 External registration starts ready; the first accepted submission starts its clock
@@ -488,7 +499,11 @@ Read models are keyed by `(owner,experiment,plan digest,selection revision)` and
 built from the complete expected member set. A candidate view generation becomes
 visible atomically only when its rows and summaries are complete. Interrupted
 projection leaves the last complete view visible with an explicit freshness flag.
-It is rebuildable; changing selected authority still requires CAS.
+It is rebuildable; changing selected authority still requires CAS. A publication
+whose selected member documents, comparison policy, pins and selection revision
+are unchanged keeps the current generation and only marks it current. A new
+generation prunes the ones it supersedes: every read resolves the current snapshot
+inside one snapshot transaction, so no reader can reach a replaced generation.
 
 Return expected/eligible/unsupported/blocked/submitted/terminal/missing/conflicting,
 collection-complete/scored/quality-passed counts per arm and suite. End-to-end pass

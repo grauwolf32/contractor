@@ -99,10 +99,10 @@ def test_real_workspace_cross_toolset_race_preserves_the_edit_winner(
         entered = threading.Event()
         resume = threading.Event()
 
-        def delayed_parse(source: bytes, language: Any, path: str) -> Any:
+        def delayed_parse(source: bytes, language: Any) -> Any:
             entered.set()
             assert resume.wait(timeout=5)
-            return original_parse(source, language, path)
+            return original_parse(source, language)
 
         monkeypatch.setattr(taint_annotations, "_parse_target_file", delayed_parse)
         annotation_tools, _ = await make_tools(tmp_path, workspace.writer_view())
@@ -144,10 +144,10 @@ def test_cancelled_parse_is_joined_and_close_prevents_queued_mutation(
         entered = threading.Event()
         resume = threading.Event()
 
-        def delayed_parse(source: bytes, language: Any, path: str) -> Any:
+        def delayed_parse(source: bytes, language: Any) -> Any:
             entered.set()
             assert resume.wait(timeout=5)
-            return original_parse(source, language, path)
+            return original_parse(source, language)
 
         monkeypatch.setattr(taint_annotations, "_parse_target_file", delayed_parse)
         active = asyncio.create_task(tools["annotate_trace"]("app.py", "handler"))

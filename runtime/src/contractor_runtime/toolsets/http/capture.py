@@ -10,10 +10,8 @@ from typing import Any, Literal
 import httpx
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.common.credentials import RUNTIME_TARGET_CREDENTIAL
 from contractor_runtime.toolsets.http.limits import MAX_HISTORY
-
-# Captured in place of the project target credential that Runtime injects.
-RUNTIME_TARGET_CREDENTIAL = "[runtime-target-credential]"
 
 
 def capture_headers(headers: httpx.Headers) -> list[dict[str, str]]:

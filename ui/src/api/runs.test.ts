@@ -236,6 +236,16 @@ describe("Run API", () => {
     expect(requests[5]?.url).toContain("cursor=lineage-next");
   });
 
+  it("rejects a RunScope Artifact page without continuation", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response({ items: [] })),
+    );
+    await expect(listRunArtifacts(api, { runId: "run-1" })).rejects.toThrow(
+      "Server returned an invalid Artifact page",
+    );
+  });
+
   it("cancels with trimmed reason and accepts only authoritative 200/202", async () => {
     let captured: Request | undefined;
     const api = new PublicAPI(

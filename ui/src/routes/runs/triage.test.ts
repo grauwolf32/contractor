@@ -174,6 +174,30 @@ describe("Run triage", () => {
     expect(deriveRunTriage(run).issue).toBeUndefined();
   });
 
+  it.each(["planner_gateway_rejected", "worker_gateway_invalid_request"])(
+    "routes the permanent Gateway failure %s to model infrastructure review",
+    (code) => {
+      const failed = attempt("stage-1", "analysis", 1);
+      failed.state = "failed";
+      failed.result = {
+        apiVersion: "contractor/v1alpha1",
+        outcome: "failed",
+        summary: "The Gateway rejected the request.",
+        artifacts: {},
+        error: { code, message: "Gateway request rejected", retryable: false },
+      };
+      const run = runFixture();
+      run.state = "failed";
+      run.attempts = [failed];
+
+      expect(deriveRunTriage(run).guidance).toMatchObject({
+        kind: "gateway-configuration",
+        title: "Review the selected model infrastructure",
+        operationsPath: "/operations/configurations",
+      });
+    },
+  );
+
   it("formats bounded durations for quick scanning", () => {
     expect(formatRunDuration(undefined)).toBe("—");
     expect(formatRunDuration(700)).toBe("<1s");

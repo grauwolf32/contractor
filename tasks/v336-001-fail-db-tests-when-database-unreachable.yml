@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V336-001
+title: Fail Postgres-backed tests when the configured database is unreachable
+milestone: review-process-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 7d933af49ba68ff8c64bd4af28f972515cd50f48
+depends_on: []
+languages: [go]
+goal: Stop the gate from passing without a database.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: internal/settingsstore/postgres_integration_test.go:123-126 and internal/runservice/service_postgres_test.go:374-377 call t.Skipf on a failed ping even when CONTRACTOR_TEST_DATABASE_URL is set, and require-database (Makefile:17-18) only checks that the variable is non-empty, so the release gate passes when PostgreSQL is down.
+scope:
+  in:
+    - t.Fatal when the URL is set but the database is unreachable, in every such helper.
+    - A grep guard against reintroducing skip-on-unreachable.
+  out:
+    - Skipping when the variable is unset.
+acceptance_criteria:
+  - {id: A1, text: "With a set but unreachable URL the DB-backed tests fail."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=postgres://invalid@127.0.0.1:1/x go test -count=1 ./internal/settingsstore ./internal/runservice", covers: [A1]}
+  - {command: "make lint", covers: [A1]}
+verification:
+  - With CONTRACTOR_TEST_DATABASE_URL=postgres://invalid@127.0.0.1:1/x, go test -count=1 ./internal/settingsstore ./internal/runservice exits 1 with three runservice tests reporting the unreachable database. The settingsstore and auditcontroller database tests are integration-tagged and fail the same way with -tags=integration.
+  - The three packages and internal/persistence/postgres pass against a reachable PostgreSQL 17 with -tags=integration.
+  - make lint passes; its guard flags the three former skip-on-unreachable helpers and has unit tests for the rejected and allowed patterns.

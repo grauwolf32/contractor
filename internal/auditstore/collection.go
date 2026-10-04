@@ -13,7 +13,7 @@ func (s *PostgresStore) Collect(
 	ctx context.Context,
 	params CollectParams,
 ) (CollectionReceipt, bool, error) {
-	if err := validateCollect(params); err != nil {
+	if err := ValidateCollect(params); err != nil {
 		return CollectionReceipt{}, false, err
 	}
 	if replay, found, err := s.lookupReceiptReplay(

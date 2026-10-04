@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V305-001
+title: Retry failed Operations snapshot reads with backoff
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 931fa332f84a9d10bcdd3fdc92ff33a43a5966f4
+depends_on: []
+languages: [typescript]
+goal: Never resume the Operations live stream from a stale cursor after a failed snapshot read.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "refreshSnapshot awaits queryClient.invalidateQueries (ui/src/routes/operations/layout.tsx:68-76), which does not reject when the GET fails, and returns the cached cursor from before the resync; #runSnapshot (live-refresh.ts:82-95,120-143) then resumes from it. When the stream requests a resync (cursor_unavailable, sequence_gap) while the snapshot GET fails, the client resumes the stale cursor, the server requests a resync again and the loop runs with delay 0: a test measured 138 snapshot GETs and 139 subscribe frames in 500 ms (pre-V262 code: 1 and 1). The catch and cursor===undefined branches are dead and backoff applies only to generation_changed. Because liveKey is now the generation only, Refresh no longer recreates a subscription stuck after a 1008 close."
+scope:
+  in:
+    - Use a baseline fetch that fails (throwOnError or fetchQuery) so a failed read keeps the resync pending.
+    - Exponential backoff for every repeated resync or failed baseline.
+    - Refresh recreates a subscription stuck after 1008.
+    - Integration test with a failing snapshot read.
+  out:
+    - Changing the event protocol.
+acceptance_criteria:
+  - {id: A1, text: "A failing snapshot read during resync produces bounded, backed-off retries and no resume from a stale cursor."}
+  - {id: A2, text: "Refresh recovers a subscription closed with 1008."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run src/routes/operations src/events", covers: [A1, A2]}
+  - {command: "cd ui && corepack pnpm typecheck && corepack pnpm lint", covers: [A1, A2]}

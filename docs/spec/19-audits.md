@@ -563,9 +563,13 @@ A check execution contains one to `batchSize` compatible items, subject to both
 the Server item-count maximum and the encoded Audit package byte bounds.
 `batchSize` is a ceiling, not a promise that every compatible count-sized group
 fits one Run. Each item retains its own batch ordinal, attempt, result,
-evidence, proposal membership, coverage, and settlement. Retry creates a new
-`AuditExecution` and `AuditExecutionItem` for every retried item; the Controller
-may regroup ready retries without changing item identity or attempt history.
+evidence, proposal membership, coverage, and settlement. Members verifying
+distinct proposed checks of one finding may share an execution: each records
+its own assessment, and the member with the highest batch ordinal supplies the
+finding's current assessment, as if the members were collected in batch order.
+Retry creates a new `AuditExecution` and `AuditExecutionItem` for every retried
+item; the Controller may regroup ready retries without changing item identity
+or attempt history.
 Items with different pinned Workflow role/configuration, resolved Run inputs or
 parameters, baseline/workspace, credentials, active-check authority, or exact
 approval kind/subject digest cannot share an execution. Workspace reuse does
@@ -927,9 +931,12 @@ in one PostgreSQL transaction.
 Before an Audit child Run receives its collection receipt, every committed
 proposal and its evidence is copied to collision-free protected ProjectScope
 bindings and recorded in an exact Audit hold. This transfer is idempotent and
-does not confirm or associate the proposal with an item. A profile with
-`findingConfirmation: disabled` cannot select the Toolset, and an unexpected
-receipt makes collection contract-invalid rather than admitting it.
+does not confirm or associate the proposal with an item. Each transaction
+retains a bounded number of proposal and evidence revisions, so a collection
+attempt that reaches its deadline keeps the holds it committed and the next
+attempt retains only the rest. A profile with `findingConfirmation: disabled`
+cannot select the Toolset, and an unexpected receipt makes collection
+contract-invalid rather than admitting it.
 
 An owner may similarly import an exact proposal from an ordinary Run into a
 non-terminal Audit in the same Project whose pinned profile requires finding
@@ -1232,9 +1239,28 @@ The next-Round builder scans at most 10,000 held finding receipts per pass.
 Reaching that count is a scan-budget stop only when another receipt exists;
 a fully scanned inbox with no unscheduled checks completes the Round.
 
+Start, input preview and the next-Round builder share one per-Round item
+budget: the profile's per-Round limit and the Audit's remaining total, never
+more than the 4,096 inventory items of §7. The builder admits unscheduled
+proposal checks in inbox order only while the Round also stays within every
+byte, JSON-node and nesting limit of the documents it derives: the proposal
+inventory, its canonical inventory, the coverage, worklist and execution
+documents and their Round package, and the generated item-task packages.
+Checks that do not fit wait for a later Round, so one proposal's checks may
+span Rounds. A proposal whose first unscheduled check cannot fit even an empty
+Round is skipped rather than failing the Round; when only such proposals
+remain, the Audit finalizes with `proposal_inventory_limit_exceeded`, whose
+message names each skipped receipt and the limit it exceeds.
+
 If a retained proposal or materialized item fails deterministic next-Round
-validation, the Controller closes dispatch and moves the Audit to `finalizing`
-with `next_round_invalid`. Transient failures remain retryable.
+validation, including exact artifact bytes that fail their digest, the
+Controller closes dispatch and moves the Audit to `finalizing` with
+`next_round_invalid`. A preparation state that retained Audit data cannot
+reach, such as an undecodable pinned snapshot, a drifted proposal descriptor
+or a content-named artifact holding different bytes, finalizes it with
+`next_round_contract_invalid`; the stop reason names the violated invariant and
+the Controller logs the full error. Transient failures, including failed blob
+storage I/O, remain retryable.
 
 A claim alone does not authorize stale commits. Every mutation checks epoch or
 revision plus uniqueness constraints. No network/model call occurs under a DB
@@ -1305,7 +1331,11 @@ disabling the Audit clock does not extend an existing review's authority.
 Resume replaces expired requests with fresh exact-subject requests for eligible
 unfinished work, requiring a new decision. The Controller also renews item
 requests that expire after Resume, including while the Audit waits for review.
-It returns a formerly ready item to awaiting review. Historical expired
+Both use one renewal: it expires a still-pending or approved request, creates
+the fresh request, returns a formerly ready item to awaiting review and records
+`review.expired` and `review.requested` events, each advancing the Audit
+revision by one. Resume records them before `audit.resumed`, and its fresh
+requests expire with the deadline Resume applies. Historical expired
 requests do not keep the Audit claimable after a live replacement exists.
 Before creating an authorized execution intent, PostgreSQL rechecks that the
 item is still ready,
@@ -1325,7 +1355,10 @@ the Audit completed; rejection or bounded expiry records a stable terminal
 reason. Each is an ordinary revisioned Audit transition: acceptance records
 the same `audit.report_committed` event as an automatic report commit,
 rejection records `audit.state_changed` to `failed`, and the owner's decision
-then records `review.decided`. A non-expired report request is excluded from Controller claims, while
+then records `review.decided`. Every other exit from `waiting_review` (owner
+cancellation, owner deletion or deletion of the owning Project) expires the
+pending request in the same Audit transition and records one `review.expired`
+event after the lifecycle event. A non-expired report request is excluded from Controller claims, while
 an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity
@@ -1571,11 +1604,12 @@ exact terminal observation. The receipt is required even when the Run failed or
 was cancelled, produced no output, or produced an invalid package. Accepted
 evidence is retained by exact revision; a receipt with no accepted evidence
 records that fact rather than waiting for an impossible successful import.
-If the trusted collector cannot validate pinned internal data, it records the
-bounded `collection-contract-invalid` disposition, settles the affected items
-as invalid with blocked coverage, and preserves their prior requested and
-completed coverage arrays. This is a cleanup-safe technical outcome, never
-accepted evidence.
+If the trusted collector cannot validate pinned internal data, or the Store
+rejects a collection request by its content alone so that no retry can commit
+it, the collector records the bounded `collection-contract-invalid`
+disposition, settles the affected items as invalid with blocked coverage, and
+preserves their prior requested and completed coverage arrays. This is a
+cleanup-safe technical outcome, never accepted evidence.
 After collection, Run deletion is allowed. AuditExecution and
 AuditExecutionItem retain outcome, exact retained refs when any, and tombstone
 provenance through a nullable non-cascading Run relation.
@@ -1639,12 +1673,18 @@ For an Audit child Run, collection accounts for every committed proposal
 receipt before making the Run deletable: an allowed proposal receives an exact
 Audit-owned inbox link/hold, while a profile with finding production disabled
 treats an unexpected proposal result as invalid rather than silently admitting
-it. Source-Run pins may be released only after that durable disposition.
+it. A proposal whose own proposal or evidence revision is missing or no longer
+matches its receipt can never be retained; collection records it as rejected,
+like a proposal with invalid standard references, and keeps collecting the
+others. Source-Run pins may be released only after that durable disposition.
 
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,
 releases evidence/accepted-proposal holds, and only then purges Audit-managed
-Project bindings and domain rows. Project deletion adds an
+Project bindings and domain rows. Purge removes every row the Audit owns,
+including immutable review decisions and finding assessments that outlive the
+deleted child Runs; their restricting keys protect them only outside a purge.
+Project deletion adds an
 earlier Audit-cancellation/drain phase before its existing Run and ProjectScope
 purge. No Audit work starts in a deleting Project and no Audit hold survives a
 completed Project purge. Cleanup runs regardless of owner/Audit queue pause.

@@ -58,7 +58,7 @@ type CandidateEdge struct {
 }
 
 // PinnedReservationConfig is attached only after durable allocation
-// provenance commits. It never slices.Contains RuntimeSettings or secret material.
+// provenance commits. It never contains RuntimeSettings or secret material.
 type PinnedReservationConfig struct {
 	RuntimeAgentLabelRevision   uint64
 	Resolved                    runtimeconfig.ResolvedRuntimeConfig
@@ -78,6 +78,10 @@ type AllocationGrant struct {
 	WritePolicy       ArtifactWritePolicy
 	WriteFenced       bool
 	Lost              bool
+	// LossReason records why the grant was lost. It is set together with Lost
+	// so a consumer that detects the loss through the grant can report the
+	// specific reason instead of collapsing every loss into one code.
+	LossReason AllocationLossReason
 }
 
 type AllocationLossReason string

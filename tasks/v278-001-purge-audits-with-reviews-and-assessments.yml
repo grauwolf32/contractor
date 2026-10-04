@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V278-001
+title: Purge Audits that hold review decisions or collected finding assessments
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 1d28f59709dffea4360f8ebb4eeed635d0b9d9e2
+depends_on: []
+languages: [go, sql]
+goal: Let Audit purge and Project deletion finish for Audits whose owner decided a review or whose check collection attached a finding.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: PurgeClaimed deletes the audits row and relies on cascades, but audit_review_decisions_request_fkey (internal/persistence/migrations/000044_audit_action_reviews.sql:74-76) and audit_finding_assessments_collection_fkey (000041_audit_findings_reviews.sql:92-94) are ON DELETE RESTRICT. Decisions have no cascade path to audits and assessments sit one cascade level deeper than collection receipts, so DELETE FROM audits (internal/auditstore/lifecycle.go:317-323) fails with SQLSTATE 23503 on every pass. settleClosedAudit retries forever, the Audit stays in deleting and waitForDrain keeps its Project in draining (internal/projectlifecycle/controller.go:342-366). Reproduced with DecideActionReview(reject) then Delete then PurgeClaimed, and with Collect(FindingAssociations) then RequestDelete then PurgeClaimed. Eval-managed purges use the same PurgeClaimed.
+scope:
+  in:
+    - Add a migration (reserved number 000077) or ordered deletes inside purge so Audit-owned review decisions and finding assessments are removed with their Audit while deferred current_decision constraints stay valid at commit.
+    - Check every RESTRICT foreign key reachable from audits (item_fkey, duplicate_fkey and the rest) for the same cascade-ordering hazard and fix or prove each one.
+    - Add decide-then-purge, collect-then-purge and Project-deletion regression tests on PostgreSQL.
+  out:
+    - Changing review, collection or finding semantics.
+    - Relaxing RESTRICT constraints that protect live data outside an Audit purge.
+acceptance_criteria:
+  - {id: A1, text: "An Audit with a decided action, report or finding review purges and its Project deletion completes."}
+  - {id: A2, text: "An Audit whose collection attached finding assessments purges."}
+  - {id: A3, text: "No foreign key from an Audit-owned table blocks purge; the test covers every such constraint."}
+  - {id: A4, text: "An Eval-managed Audit with the same data purges."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditservice ./internal/projectlifecycle ./internal/evalservice", covers: [A1, A2, A3, A4]}
+  - {command: "make lint", covers: [A1, A2, A3, A4]}

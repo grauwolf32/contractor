@@ -5,13 +5,15 @@ import type {
 
 interface LiveRefreshOptions {
   initial: OperationsSnapshotCursor;
-  refreshSnapshot: () => Promise<OperationsSnapshotCursor | undefined>;
+  /** Reads a new snapshot from the Server; rejects when the read fails. */
+  refreshSnapshot: () => Promise<OperationsSnapshotCursor>;
   refreshPrincipals: () => Promise<unknown>;
   resume: (cursor: OperationsSnapshotCursor) => void;
   random?: () => number;
 }
 
 const REFRESH_INTERVAL_MS = 1_000;
+const MAXIMUM_RESYNC_DELAY_MS = 30_000;
 
 /** Serializes REST reads without discarding the newest event revision. */
 export class OperationsLiveRefresh {
@@ -29,7 +31,8 @@ export class OperationsLiveRefresh {
   #principalDirty = false;
   #resyncPending = false;
   #resyncDelay = 0;
-  #generationResyncs = 0;
+  /** Resyncs and failed baselines since the stream last delivered an event. */
+  #resyncAttempts = 0;
   #disposed = false;
 
   constructor(options: LiveRefreshOptions) {
@@ -46,7 +49,7 @@ export class OperationsLiveRefresh {
     if (this.#disposed || cursor.generation !== this.#generation) return;
     const revision = BigInt(cursor.revision);
     if (revision > this.#observedRevision) this.#observedRevision = revision;
-    this.#generationResyncs = 0;
+    this.#resyncAttempts = 0;
     if (this.#observedRevision > this.#appliedRevision) {
       this.#scheduleSnapshot(REFRESH_INTERVAL_MS);
     }
@@ -79,15 +82,9 @@ export class OperationsLiveRefresh {
     // A resync needs a new baseline, not a replay of revisions from the old
     // stream. Any fetch already in flight may have started before the resync.
     this.#observedRevision = this.#appliedRevision;
-    if (reason === "generation_changed") {
-      const maximum = Math.min(30_000, 500 * 2 ** this.#generationResyncs);
-      this.#generationResyncs += 1;
-      this.#resyncDelay = Math.floor(
-        maximum * (0.5 + Math.max(0, Math.min(1, this.#random())) / 2),
-      );
-    } else {
-      this.#resyncDelay = 0;
-    }
+    // Only the first lost cursor after live events reads its baseline at
+    // once; a Server that keeps requesting resyncs is not polled in a loop.
+    this.#resyncDelay = this.#nextResyncDelay(reason !== "generation_changed");
     if (this.#snapshotTimer !== undefined) {
       clearTimeout(this.#snapshotTimer);
       this.#snapshotTimer = undefined;
@@ -117,6 +114,17 @@ export class OperationsLiveRefresh {
     }, delay);
   }
 
+  /** Returns the delay of the next baseline read and counts the attempt. */
+  #nextResyncDelay(immediate: boolean): number {
+    const attempt = this.#resyncAttempts;
+    this.#resyncAttempts += 1;
+    if (immediate && attempt === 0) return 0;
+    const maximum = Math.min(MAXIMUM_RESYNC_DELAY_MS, 500 * 2 ** attempt);
+    return Math.floor(
+      maximum * (0.5 + Math.max(0, Math.min(1, this.#random())) / 2),
+    );
+  }
+
   async #runSnapshot(): Promise<void> {
     if (this.#disposed) return;
     this.#snapshotRunning = true;
@@ -125,16 +133,17 @@ export class OperationsLiveRefresh {
     try {
       const cursor = await this.#refreshSnapshot();
       if (this.#disposed) return;
-      if (cursor !== undefined) {
-        this.snapshot(cursor);
-        if (resumeAfterFetch && cursor.generation === this.#generation) {
-          this.#resume(cursor);
-        }
-      } else if (resumeAfterFetch) {
-        this.#resyncPending = true;
+      this.snapshot(cursor);
+      if (resumeAfterFetch && cursor.generation === this.#generation) {
+        this.#resume(cursor);
       }
     } catch {
-      if (resumeAfterFetch) this.#resyncPending = true;
+      // The cached cursor predates the resync, and resuming from it would only
+      // make the Server request another one. Keep the resync pending.
+      if (resumeAfterFetch) {
+        this.#resyncPending = true;
+        this.#resyncDelay = this.#nextResyncDelay(false);
+      }
     } finally {
       this.#snapshotRunning = false;
       if (this.#resyncPending) this.#scheduleSnapshot(this.#resyncDelay);

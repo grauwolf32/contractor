@@ -12,15 +12,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-var (
-	ErrRuntimeAgentIdentity = errors.New("peer certificate does not match the Runtime Agent principal")
-	runtimeAgentIDPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
-)
+var ErrRuntimeAgentIdentity = errors.New("peer certificate does not match the Runtime Agent principal")
 
 type Files struct {
 	Certificate string
@@ -32,20 +30,31 @@ type Files struct {
 // within the caller's warning window. The clock is supplied by the caller so
 // startup diagnostics can be tested without waiting for real time to pass.
 func LeafExpiry(certificatePath string, now time.Time, warningWindow time.Duration) (time.Time, bool, error) {
+	return certificateExpiry("TLS leaf certificate", certificatePath, now, warningWindow)
+}
+
+// CAExpiry reports when the deployment CA expires and whether it falls within
+// the caller's warning window. A leaf never outlives its CA, so an approaching
+// CA expiry breaks every private mTLS link and warrants its own warning.
+func CAExpiry(caPath string, now time.Time, warningWindow time.Duration) (time.Time, bool, error) {
+	return certificateExpiry("deployment CA certificate", caPath, now, warningWindow)
+}
+
+func certificateExpiry(label, path string, now time.Time, warningWindow time.Duration) (time.Time, bool, error) {
 	if warningWindow <= 0 {
 		return time.Time{}, false, errors.New("certificate expiry warning window must be positive")
 	}
-	encoded, err := os.ReadFile(certificatePath)
+	encoded, err := os.ReadFile(path)
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("read TLS leaf certificate: %w", err)
+		return time.Time{}, false, fmt.Errorf("read %s: %w", label, err)
 	}
 	block, _ := pem.Decode(encoded)
 	if block == nil || block.Type != "CERTIFICATE" {
-		return time.Time{}, false, errors.New("TLS leaf certificate is not PEM encoded")
+		return time.Time{}, false, fmt.Errorf("%s is not PEM encoded", label)
 	}
 	certificate, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("parse TLS leaf certificate: %w", err)
+		return time.Time{}, false, fmt.Errorf("parse %s: %w", label, err)
 	}
 	return certificate.NotAfter, !now.Add(warningWindow).Before(certificate.NotAfter), nil
 }
@@ -116,7 +125,7 @@ func HasVerifiedRuntimeAgent(r *http.Request) bool {
 // and adds an SPKI equality check. VerifyConnection executes after Go's chain,
 // EKU and DNS/IP SAN verification but before net/http writes request bytes.
 func BindRuntimeAgentPrincipal(base *tls.Config, expectedRuntimeAgentID string) (*tls.Config, error) {
-	if base == nil || !runtimeAgentIDPattern.MatchString(expectedRuntimeAgentID) {
+	if base == nil || !contracts.ValidRuntimeAgentID(expectedRuntimeAgentID) {
 		return nil, fmt.Errorf("%w: expected principal is invalid", ErrRuntimeAgentIdentity)
 	}
 	result := base.Clone()

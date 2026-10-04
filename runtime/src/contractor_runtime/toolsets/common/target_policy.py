@@ -1,8 +1,10 @@
 """Destination policy shared by model-selected HTTP requests and scanner launches.
 
-The policy classifies resolved IP addresses, never URL text alone. Literal hosts
-are normalized the way resolvers interpret them (shortened, decimal, octal and
-hexadecimal IPv4; IPv4-mapped and NAT64 IPv6) before classification:
+The policy classifies resolved IP addresses, never URL text alone. Every route
+first requires :func:`validate_host_syntax`, so a host is a name or literal all
+resolvers and proxies read alike. Literal hosts are normalized the way
+resolvers interpret them (shortened, decimal, octal and hexadecimal IPv4;
+IPv4-mapped and NAT64 IPv6) before classification:
 
 - Runtime service endpoints (by host name and by resolved address plus port)
   and cloud metadata, unspecified, multicast and reserved destinations are
@@ -38,6 +40,7 @@ type Resolver = Callable[[str, int], Awaitable[Sequence[IPAddress]]]
 
 MAX_RESOLVED_ADDRESSES = 32
 MAX_ALLOWED_TARGET_NETWORKS = 64
+MAX_HOST_NAME_BYTES = 253
 PROTECTED_RESOLUTION_TIMEOUT_SECONDS = 5.0
 
 # Instance metadata services reachable from common cloud and container hosts.
@@ -66,6 +69,7 @@ _NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
 _LOOPBACK_ADDRESSES = (ipaddress.ip_address("127.0.0.1"), ipaddress.ip_address("::1"))
 _IPV4_PART = re.compile(r"0[xX][0-9a-fA-F]*|0[0-7]*|[1-9][0-9]*")
 _NUMERIC_LABEL = re.compile(r"[0-9]+|0[xX][0-9a-fA-F]*")
+_HOST_LABEL = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,62}")
 
 
 class TargetDenied(RuntimeError):
@@ -80,6 +84,47 @@ class TargetUnresolved(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__("target destination did not resolve")
+
+
+def validate_host_syntax(host: str) -> None:
+    """Require a host that the HTTP, Caido and scanner routes all interpret alike.
+
+    A host is an IP address literal or a name of ASCII labels made of letters,
+    digits, '_' and '-', so docker-compose service names keep their
+    underscores. Each label has at most 63 bytes and never starts with '-' (no
+    scanner reads a host as an option); the name has at most 253 bytes plus an
+    optional final dot. A non-ASCII name must IDNA-encode, as httpx encodes it,
+    and an ASCII 'xn--' label must decode. Percent-escapes, sub-delimiters and
+    IPv6 zone identifiers are rejected: resolvers and proxies disagree about
+    them, and the policy classifies only names it can interpret.
+
+    Raises ValueError without echoing the host.
+    """
+
+    if not isinstance(host, str) or not host or "%" in host:
+        raise ValueError("invalid destination host")
+    try:
+        ipaddress.ip_address(host)
+        return
+    except ValueError:
+        pass
+    name = host.lower().removesuffix(".")
+    if not name.isascii():
+        try:
+            name = idna.encode(name).decode("ascii")
+        except UnicodeError:
+            raise ValueError("invalid destination host") from None
+    labels = name.split(".")
+    if len(name) > MAX_HOST_NAME_BYTES or any(
+        _HOST_LABEL.fullmatch(label) is None for label in labels
+    ):
+        raise ValueError("invalid destination host")
+    for label in labels:
+        if label.startswith("xn--"):
+            try:
+                idna.decode(label)
+            except UnicodeError:
+                raise ValueError("invalid destination host") from None
 
 
 def canonical_address(address: IPAddress) -> IPAddress:
@@ -284,9 +329,10 @@ class TargetPolicy:
 
         try:
             name = normalized_host(host)
+            validate_host_syntax(name)
         except ValueError:
             raise TargetDenied from None
-        if not name or (name, port) in self.protected_names or name in METADATA_HOSTNAMES:
+        if (name, port) in self.protected_names or name in METADATA_HOSTNAMES:
             raise TargetDenied
         address = literal_address(name)
         if address is not None:

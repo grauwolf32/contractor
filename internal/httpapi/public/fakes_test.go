@@ -375,6 +375,8 @@ type fakeArtifactRepository struct {
 	frozen     map[artifactKey]bool
 	lineage    []artifacts.LineageEdge
 	queryReads int
+	// beforeWrite stands in for slow storage work; it sees the write context.
+	beforeWrite func(context.Context) error
 }
 
 func newFakeArtifactRepository() *fakeArtifactRepository {
@@ -385,12 +387,17 @@ func newFakeArtifactRepository() *fakeArtifactRepository {
 }
 
 func (f *fakeArtifactRepository) Write(
-	_ context.Context,
+	ctx context.Context,
 	scope artifacts.Scope,
 	ref artifacts.ArtifactRef,
 	payload artifacts.Payload,
 	expected *string,
 ) (artifacts.WriteResult, error) {
+	if f.beforeWrite != nil {
+		if err := f.beforeWrite(ctx); err != nil {
+			return artifacts.WriteResult{}, err
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes++

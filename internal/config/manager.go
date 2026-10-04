@@ -134,6 +134,12 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("operator configuration root: %w", err)
 	}
+	// Reject an overlapping managed root before creating it or its subtrees,
+	// so a misconfiguration leaves nothing inside the operator root.
+	// requireStrictRoot reports a path that cannot be resolved here.
+	if location, err := rootLocation(options.ManagedRoot); err == nil && rootsOverlap(operatorRoot, location) {
+		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
+	}
 	managedRoot, err := requireStrictRoot(options.ManagedRoot, true)
 	if err != nil {
 		return nil, fmt.Errorf("managed configuration root: %w", err)
@@ -205,7 +211,20 @@ func LoadUnionReadOnly(operatorPath, managedPath string, descriptors Descriptors
 	if managedExists {
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
-	return loadConfigurationRoots(roots, descriptors, true)
+	return loadConfigurationRoots(roots, descriptors, loadOptions{allowMissingManagedSubtrees: true})
+}
+
+// rootLocation resolves where a possibly missing root is or would be created,
+// without creating anything.
+func rootLocation(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("path is required")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return resolveMissingRoot(absolute)
 }
 
 func resolveMissingRoot(path string) (string, error) {
@@ -365,9 +384,6 @@ type publicationCandidate struct {
 func preparePublication(request PublicationRequest) (publicationCandidate, error) {
 	if err := validatePublicationKey(request.IdempotencyKey); err != nil {
 		return publicationCandidate{}, err
-	}
-	if len(request.Name) > 128 || len(request.Version) > 64 {
-		return publicationCandidate{}, fmt.Errorf("%w: name or version exceeds the public contract", ErrInvalidPublication)
 	}
 	selector, err := validateMetadata(&metadataSource{Name: request.Name, Version: request.Version})
 	if err != nil {

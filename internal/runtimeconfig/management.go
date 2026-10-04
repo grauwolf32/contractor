@@ -185,6 +185,12 @@ func (s *ManagementService) Rebind(
 					} else if pathErr != nil {
 						return pathErr
 					}
+					// The rebind target still exists, so the missing label is
+					// one of the other labels held by an optimistically listed
+					// principal that was removed concurrently. The snapshot is
+					// stale; report a precondition failure rather than an
+					// unknown label the request never selected.
+					return ErrPrecondition
 				}
 				return err
 			}

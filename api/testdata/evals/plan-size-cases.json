@@ -1,0 +1,422 @@
+{
+  "description": "Native Eval plan-size estimates of drafts as the UI holds and the Server decodes them: 3 x the draft's compact JSON (Go escaping, UTF-8 bytes) + 900 x members + 128 x comparison dimensions + 32 KiB, rejected above 1 MiB. A padding entry sets variants[0].parameters.padding to unit repeated repeat times.",
+  "maxDocumentBytes": 1048576,
+  "cases": [
+    {
+      "name": "initial-workflow-draft",
+      "draft": {
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "case-1"
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {}
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {}
+          }
+        ],
+        "repetitions": 1,
+        "order": {
+          "kind": "alternating"
+        },
+        "checks": [
+          {
+            "id": "review",
+            "evaluator": "human-review@1",
+            "required": true,
+            "rubricRevision": "r1"
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 1,
+            "maxQualityDrop": 0
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowedDifferences": [
+            "instructions",
+            "models",
+            "sampling",
+            "tools",
+            "skills",
+            "runtime-config",
+            "execution",
+            "standards",
+            "inventory",
+            "audit-execution",
+            "audit-interaction"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 1000,
+          "maxInFlight": 1,
+          "wallMs": 5400000,
+          "maxObservedTotalTokens": null
+        }
+      },
+      "estimatedBytes": 38691,
+      "withinLimit": true
+    },
+    {
+      "name": "escaped-and-unicode-text",
+      "draft": {
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "case-1",
+          "case-2",
+          "case-3"
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {},
+            "runtimeLabels": [
+              "gpu",
+              "eu-west"
+            ],
+            "inputMapping": {
+              "source": "inputs/source"
+            },
+            "outputMapping": {
+              "report": "outputs/report"
+            },
+            "parameters": {
+              "focus": "<script>&amp;</script>",
+              "notes": "line\u2028break\u2029para",
+              "locale": "\u00e9 \u4e2d\u6587 \u03a9"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {}
+          }
+        ],
+        "repetitions": 4,
+        "order": {
+          "kind": "random",
+          "seed": 42
+        },
+        "checks": [
+          {
+            "id": "review",
+            "evaluator": "human-review@1",
+            "required": true,
+            "rubricRevision": "r2"
+          },
+          {
+            "id": "tokens",
+            "evaluator": "token-budget@1",
+            "required": false,
+            "implementationSha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "parameters": {
+              "limit": "<= 5000 & > 10"
+            },
+            "allowNotApplicable": true
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 0.95,
+            "maxQualityDrop": 0.05,
+            "maxTotalTokensRatio": 1.5
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowedDifferences": [
+            "instructions",
+            "models",
+            "sampling",
+            "tools",
+            "skills",
+            "runtime-config",
+            "execution",
+            "standards",
+            "inventory",
+            "audit-execution",
+            "audit-interaction"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 24,
+          "maxInFlight": 4,
+          "wallMs": 7200000,
+          "maxObservedTotalTokens": 250000
+        }
+      },
+      "estimatedBytes": 60135,
+      "withinLimit": true
+    },
+    {
+      "name": "execution-config-patch",
+      "draft": {
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "case-1"
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {}
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {
+              "workers": {
+                "modelPolicy": "small-worker@2",
+                "llmGateway": "local-litellm@1"
+              },
+              "stages": {
+                "triage": {
+                  "planner": {
+                    "modelPolicy": "planner@3"
+                  },
+                  "agents": {
+                    "worker": {
+                      "credential": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "repetitions": 1,
+        "order": {
+          "kind": "alternating"
+        },
+        "checks": [
+          {
+            "id": "review",
+            "evaluator": "human-review@1",
+            "required": true,
+            "rubricRevision": "r1"
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 1,
+            "maxQualityDrop": 0
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers",
+            "instructions",
+            "tools",
+            "skills",
+            "runtime-config",
+            "execution"
+          ],
+          "allowedDifferences": [
+            "models",
+            "sampling"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 1000,
+          "maxInFlight": 1,
+          "wallMs": 5400000,
+          "maxObservedTotalTokens": null
+        }
+      },
+      "estimatedBytes": 38512,
+      "withinLimit": true
+    },
+    {
+      "name": "at-the-limit",
+      "draft": {
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "case-1",
+          "case-2",
+          "case-3",
+          "case-4",
+          "case-5"
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {}
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {}
+          }
+        ],
+        "repetitions": 100,
+        "order": {
+          "kind": "alternating"
+        },
+        "checks": [
+          {
+            "id": "review",
+            "evaluator": "human-review@1",
+            "required": true,
+            "rubricRevision": "r1"
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 1,
+            "maxQualityDrop": 0
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowedDifferences": [
+            "instructions",
+            "models",
+            "sampling",
+            "tools",
+            "skills",
+            "runtime-config",
+            "execution",
+            "standards",
+            "inventory",
+            "audit-execution"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 1000,
+          "maxInFlight": 1,
+          "wallMs": 5400000,
+          "maxObservedTotalTokens": null
+        }
+      },
+      "padding": {
+        "unit": "x",
+        "repeat": 37225
+      },
+      "estimatedBytes": 1048576,
+      "withinLimit": true
+    },
+    {
+      "name": "one-byte-over-the-limit",
+      "draft": {
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "case-1",
+          "case-2",
+          "case-3",
+          "case-4",
+          "case-5"
+        ],
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {}
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {}
+          }
+        ],
+        "repetitions": 100,
+        "order": {
+          "kind": "alternating"
+        },
+        "checks": [
+          {
+            "id": "review",
+            "evaluator": "human-review@1",
+            "required": true,
+            "rubricRevision": "r1"
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 1,
+            "maxQualityDrop": 0
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowedDifferences": [
+            "instructions",
+            "models",
+            "sampling",
+            "tools",
+            "skills",
+            "runtime-config",
+            "execution",
+            "standards",
+            "inventory",
+            "audit-execution"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 1000,
+          "maxInFlight": 1,
+          "wallMs": 5400000,
+          "maxObservedTotalTokens": null
+        }
+      },
+      "padding": {
+        "unit": "x",
+        "repeat": 37226
+      },
+      "estimatedBytes": 1048579,
+      "withinLimit": false
+    }
+  ]
+}

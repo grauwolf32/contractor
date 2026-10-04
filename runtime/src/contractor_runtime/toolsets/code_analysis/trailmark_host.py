@@ -25,6 +25,7 @@ from contractor_runtime.toolsets.code_analysis.ids import (
     decode_symbol_id,
     encode_symbol_key,
 )
+from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.trailmark_child import (
     MAX_REQUEST_BYTES,
     MAX_RESPONSE_BYTES,
@@ -936,18 +937,27 @@ def _admit_snapshot(
     unsupported = 0
     oversized = 0
     excluded = 0
-    header_parser_active = any(
-        PurePosixPath(item.path).suffix.lower() in {".c", ".m", ".mm"}
+    # Trailmark parses .h only with its C or Objective-C grammar, so headers
+    # that shallow analysis and taint annotation resolve to C++ stay out.
+    header = language_support.header_language(item.path for item in snapshot.files)
+    header_parser_active = header is Language.C and any(
+        PurePosixPath(item.path).suffix in language_support.GRAPH_HEADER_PARSER_EXTENSIONS
         and not language_support.graph_walk_excluded(item.path)
         and item.size <= MAX_GRAPH_FILE_BYTES
         for item in snapshot.files
     )
     for item in sorted(snapshot.files, key=lambda candidate: candidate.path):
-        suffix = PurePosixPath(item.path).suffix.lower()
+        # The parser walk matches suffixes case-sensitively: Tool.PY is a
+        # recognized source that Trailmark never parses.
+        suffix = PurePosixPath(item.path).suffix
         graph_source = suffix in language_support.GRAPH_EXTENSION_LANGUAGES and (
-            suffix != ".h" or header_parser_active
+            suffix != language_support.HEADER_EXTENSION or header_parser_active
         )
-        if not graph_source and language_support.detect_language(item.path) is None:
+        if (
+            not graph_source
+            and language_support.detect_language(item.path, header=header) is None
+            and not language_support.graph_only_source(item.path)
+        ):
             continue
         # Trailmark would never parse these, so they must not consume the
         # mirror's file/byte budget ahead of the sources it does analyze.

@@ -235,57 +235,78 @@ LIMIT $2
 	if len(members) != e.Expected {
 		return nil, evaldomain.Failure("eval_member_conflict")
 	}
+	// BuildComparison is a pure function of this content: a dirty event that
+	// changed no selected document only marks the current generation current.
+	content := evaldomain.Digest(bytesOf(struct {
+		ExperimentID      string
+		SelectionRevision int64
+		Members           []evaldomain.SelectedMember
+		Comparison        evaldomain.Comparison
+		Pins              bool
+	}{id, e.ViewGeneration, members, comparison, pinsVerified}))
+	unchanged := false
+	if snapshot != nil {
+		err = s.db.QueryRow(ctx, `
+SELECT content_sha256 IS NOT DISTINCT FROM $3
+FROM eval_view_generations
+WHERE experiment_id = $1
+    AND snapshot_id = $2
+`, id, *snapshot, content).Scan(&unchanged)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if unchanged {
+		_, err = s.db.Exec(ctx, `UPDATE eval_projection_queue SET published_revision = $2 WHERE experiment_id = $1`, id, revision)
+		if err != nil {
+			return nil, err
+		}
+		return s.LatestView(ctx, e.OwnerID, id)
+	}
 	comparisonView, err := evaldomain.BuildComparison(members, comparison, pinsVerified)
 	if err != nil {
 		return nil, err
 	}
-	identity := bytesOf(struct {
-		ExperimentID      string
-		SelectionRevision int64
-		SourceRevision    int64
-		Members           []evaldomain.SelectedMember
-		Comparison        evaldomain.Comparison
-		Pins              bool
-	}{id, e.ViewGeneration, revision, members, comparison, pinsVerified})
-	newSnapshot := "view-" + evaldomain.Digest(identity)[7:]
-	if snapshot == nil || *snapshot != newSnapshot {
-		var generation int64
-		if err = s.db.QueryRow(ctx, `
+	// The source revision makes evidence invalidation/recovery a new snapshot,
+	// even when the recovered selected documents equal an earlier generation.
+	newSnapshot := "view-" + evaldomain.Digest(bytesOf(struct {
+		Content        string
+		SourceRevision int64
+	}{content, revision}))[7:]
+	var generation int64
+	if err = s.db.QueryRow(ctx, `
 SELECT COALESCE(max(generation), 0) + 1
 FROM eval_view_generations
 WHERE experiment_id = $1
 `, id).Scan(&generation); err != nil {
-			return nil, err
-		}
-		// The source revision makes evidence invalidation/recovery a new snapshot,
-		// even when the recovered selected documents equal a previous generation.
-		_, err = s.db.Exec(ctx, `
+		return nil, err
+	}
+	_, err = s.db.Exec(ctx, `
 INSERT INTO eval_view_generations(
-    experiment_id, generation, snapshot_id, summary, suites, pins_verified, source_revision
+    experiment_id, generation, snapshot_id, summary, suites, pins_verified, source_revision, content_sha256
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-`, id, generation, newSnapshot, bytesOf(comparisonView.Summary), bytesOf(comparisonView.Suites), pinsVerified, revision)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range copies {
-			row[1] = generation
-		}
-		_, err = s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_members"}, []string{"experiment_id", "generation", "ordinal", "member_id", "pair_id", "document", "collection_complete"}, pgx.CopyFromRows(copies))
-		if err != nil {
-			return nil, err
-		}
-		if err = s.projectComparison(ctx, id, generation, comparisonView, pinsVerified); err != nil {
-			return nil, err
-		}
-		if e.StartedAt != nil {
-			_, err = s.db.Exec(ctx, `
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`, id, generation, newSnapshot, bytesOf(comparisonView.Summary), bytesOf(comparisonView.Suites), pinsVerified, revision, content)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range copies {
+		row[1] = generation
+	}
+	_, err = s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_members"}, []string{"experiment_id", "generation", "ordinal", "member_id", "pair_id", "document", "collection_complete"}, pgx.CopyFromRows(copies))
+	if err != nil {
+		return nil, err
+	}
+	if err = s.projectComparison(ctx, id, generation, comparisonView, pinsVerified); err != nil {
+		return nil, err
+	}
+	if e.StartedAt != nil {
+		_, err = s.db.Exec(ctx, `
 INSERT INTO eval_progress_observations(experiment_id, counts, observed_at)
 VALUES($1,$2,(SELECT created_at FROM eval_view_generations WHERE experiment_id = $1 AND snapshot_id = $3))
 `, id, bytesOf(map[string]any{"a": comparisonView.Summary.Counts[comparison.Baseline].Terminal, "b": comparisonView.Summary.Counts[comparison.Candidate].Terminal, "suites": comparisonView.Suites}), newSnapshot)
-			if err != nil {
-				return nil, err
-			}
+		if err != nil {
+			return nil, err
 		}
 	}
 	_, err = s.db.Exec(ctx, `
@@ -293,6 +314,12 @@ UPDATE eval_projection_queue
 SET published_revision = $2,snapshot_id = $3
 WHERE experiment_id = $1
 `, id, revision, newSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	// Readers resolve the queue's snapshot inside one snapshot transaction, so
+	// no reader can reach a superseded generation once this commit is visible.
+	_, err = s.db.Exec(ctx, `DELETE FROM eval_view_generations WHERE experiment_id = $1 AND generation <> $2`, id, generation)
 	if err != nil {
 		return nil, err
 	}

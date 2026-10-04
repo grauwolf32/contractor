@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V357-001
+title: Apply the shared redaction policy to OTLP span attributes
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V311-001]
+languages: [python]
+goal: Stop dropping span attributes that merely contain a short secret.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V311-001: adapters/otlp_http.py drops span attributes containing any Runtime secret, even a 1-byte one, the same class of problem V311-001 fixed for metrics."
+scope:
+  in:
+    - Use contractor_runtime.redaction for span attributes.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Short secrets no longer drop unrelated span attributes; long secrets are still redacted."}
+tests:
+  - {command: "cd runtime && uv run pytest tests -k 'otlp or telemetry'", covers: [A1]}

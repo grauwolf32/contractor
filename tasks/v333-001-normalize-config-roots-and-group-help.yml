@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V333-001
+title: Normalize configuration roots and accept group-level help
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: d7c45b1b0e31592eaa880dbe80f33713da142595
+depends_on: []
+languages: [go]
+goal: Make trailing slashes harmless for configuration roots and let command groups print help.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "--root configs/ (config validate) or --operator-config-root configs/ (serve) places the default managed root inside the operator root; serve creates configs/managed-configs before failing the overlap check. Group-level auth, config and blobs --help still error (for example 'auth command requires the hash-password subcommand'); V268 fixed only auth hash-password --help."
+scope:
+  in:
+    - filepath.Clean roots before deriving the managed root and check overlap before MkdirAll.
+    - Group-level --help prints usage and exits 0.
+  out:
+    - Changing command names.
+acceptance_criteria:
+  - {id: A1, text: "Trailing slashes behave like the clean path and create nothing on failure."}
+  - {id: A2, text: "auth, config and blobs --help exit 0 with usage."}
+tests:
+  - {command: "go test -count=1 ./internal/app ./internal/cli", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

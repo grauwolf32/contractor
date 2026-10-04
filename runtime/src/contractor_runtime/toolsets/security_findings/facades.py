@@ -10,7 +10,8 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.security_findings.locations import (
     ExactEvidenceRef,

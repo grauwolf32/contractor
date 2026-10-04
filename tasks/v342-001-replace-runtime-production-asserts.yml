@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V342-001
+title: Replace production asserts in the Runtime
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V309-001, V313-001, V317-001, V320-001]
+languages: [python]
+goal: Follow the no-assert convention in production Python.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: About 76 assert statements remain in production Runtime code (for example control_client.py:271,276, allocation/service.py:237-238,258, http/tools.py:440,609,657, trailmark_host.py, common/process.py:118,127); asserts disappear under python -O.
+scope:
+  in:
+    - Replace each with an explicit check that raises a typed error.
+    - Add a ruff rule (S101) for runtime/src.
+  out:
+    - Tests.
+acceptance_criteria:
+  - {id: A1, text: "runtime/src contains no assert statements and ruff enforces it."}
+tests:
+  - {command: "cd runtime && uv run ruff check . && uv run pytest", covers: [A1]}

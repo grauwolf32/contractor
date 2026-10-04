@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V330-001
+title: Fail configuration reloads when a managed subtree is missing
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 592a5cef3a0afcdcff1826f2da1eed10ee597a9a
+depends_on: []
+languages: [go]
+goal: Keep the current configuration snapshot when a managed subtree disappears.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: V210 (acf86a2d) renamed loadConfigurationRoots' boolean from strictSymlinks to allowMissingManagedSubtrees, but LoadUnion still passes the literal true (internal/config/loader.go:55-59,168,234), used by NewManager (manager.go:144) and the Publish reload (manager.go:301). If managed-configs/workflows is removed or unmounted, the next Publish succeeds with a snapshot missing the managed Workflows instead of failing and keeping the current snapshot.
+scope:
+  in:
+    - LoadUnion requires managed subtrees.
+    - Replace the positional bool with a named options struct.
+    - Test.
+  out:
+    - config validate behaviour from V210.
+acceptance_criteria:
+  - {id: A1, text: "Publish with a missing managed subtree fails and keeps the current snapshot."}
+  - {id: A2, text: "config validate keeps its V210 behaviour."}
+tests:
+  - {command: "go test -count=1 ./internal/config ./internal/app", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

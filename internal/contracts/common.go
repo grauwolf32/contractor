@@ -18,13 +18,50 @@ import (
 
 const APIVersion = "contractor/v1alpha1"
 
+// MaxConfigIDLength and MaxConfigVersionLength bound the two parts of a
+// configuration <id>@<version> selector, as the public ConfigurationName,
+// ConfigVersion and Selector schemas do.
+const (
+	MaxConfigIDLength      = 128
+	MaxConfigVersionLength = 64
+)
+
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a
 	// Contractor wire invariant.
-	ErrValidation  = errors.New("contract validation failed")
+	ErrValidation = errors.New("contract validation failed")
+	// idPattern and versionPattern are the only Go definitions of the
+	// identifier and opaque version grammars. The shared cases in
+	// api/testdata/v1alpha1/config-identity-cases.json hold Go, the schemas,
+	// the public OpenAPI, the Runtime and the UI to them.
 	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
+
+// ValidIdentifier reports whether value matches the identifier grammar
+// [a-z][a-z0-9_-]*. Callers apply the length bound of their field.
+func ValidIdentifier(value string) bool { return idPattern.MatchString(value) }
+
+// ValidVersion reports whether value matches the opaque version grammar
+// [A-Za-z0-9][A-Za-z0-9._+-]*. Callers apply the length bound of their field.
+func ValidVersion(value string) bool { return versionPattern.MatchString(value) }
+
+// ValidSelector reports whether value is an exact <id>@<version> selector in
+// those grammars. Callers apply the length bounds of their field.
+func ValidSelector(value string) bool {
+	id, version, found := strings.Cut(value, "@")
+	return found && ValidIdentifier(id) && ValidVersion(version)
+}
+
+// ValidConfigID reports whether value is a bounded configuration identifier.
+func ValidConfigID(value string) bool {
+	return len(value) <= MaxConfigIDLength && ValidIdentifier(value)
+}
+
+// ValidConfigVersion reports whether value is a bounded configuration version.
+func ValidConfigVersion(value string) bool {
+	return len(value) <= MaxConfigVersionLength && ValidVersion(value)
+}
 
 // Validatable is implemented by every top-level wire DTO.
 type Validatable interface {
@@ -76,8 +113,7 @@ func validateSelector(field, value string) error {
 	if strings.Count(value, "@") != 1 {
 		return invalidf("%s must use exact <id>@<version> syntax", field)
 	}
-	id, version, _ := strings.Cut(value, "@")
-	if !idPattern.MatchString(id) || !versionPattern.MatchString(version) {
+	if !ValidSelector(value) {
 		return invalidf("%s has an invalid exact selector", field)
 	}
 	return nil

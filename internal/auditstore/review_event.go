@@ -3,16 +3,14 @@ package auditstore
 import (
 	"context"
 	"encoding/json"
-	"math"
 )
 
 // ReviewEventParams describes an event emitted by a human review mutation.
 type ReviewEventParams struct {
-	AuditID        string
-	Kind           string
-	EntityID       string
-	EntityRevision *uint64
-	Summary        map[string]any
+	AuditID  string
+	Kind     string
+	EntityID string
+	Summary  map[string]any
 }
 
 // AppendReviewEvent advances the Audit revision and records the matching
@@ -23,13 +21,6 @@ func (s *PostgresStore) AppendReviewEvent(ctx context.Context, params ReviewEven
 	if err != nil {
 		return err
 	}
-	var revision any
-	if params.EntityRevision != nil {
-		if *params.EntityRevision > math.MaxInt64 {
-			return ErrInvalid
-		}
-		revision = int64(*params.EntityRevision)
-	}
 	var sequence int64
 	return s.db.QueryRow(ctx, `
 WITH advanced AS (
@@ -39,14 +30,12 @@ WITH advanced AS (
      WHERE audit_id = $1
     RETURNING audit_id, next_event_sequence
 ), recorded AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1, $2, $3, $4, $5::jsonb
+    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
+    SELECT audit_id, next_event_sequence - 1, $2, $3, $4::jsonb
       FROM advanced
     RETURNING sequence_number
 )
 SELECT sequence_number FROM recorded`,
-		params.AuditID, params.Kind, params.EntityID, revision, summary,
+		params.AuditID, params.Kind, params.EntityID, summary,
 	).Scan(&sequence)
 }

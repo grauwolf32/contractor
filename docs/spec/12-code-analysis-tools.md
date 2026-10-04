@@ -298,6 +298,15 @@ if the fixed set cannot be honored, both shallow operations are omitted rather
 than advertising an unexpressed language subset. Runtime startup never
 downloads grammars.
 
+Extensions match case-insensitively, so `Tool.PY` is Python source. A `.h`
+header is valid C and C++ alike, so one snapshot-wide rule picks its grammar
+for shallow analysis, graph admission and `taint-annotations@1`: C++ when the
+snapshot holds at least as many unambiguous C++ files (`.cpp`, `.cc`, `.cxx`,
+`.hpp`, `.hh`, `.hxx`) as C sources (`.c`), otherwise C. A C project with a
+vendored C++ file therefore keeps C headers, and a tie favors C++, whose
+grammar parses nearly every C header while the C grammar rejects every class,
+namespace, template and reference.
+
 ### `search_def`
 
 ```text
@@ -305,7 +314,11 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 ```
 
 - `symbol` is mandatory and matched against extracted definition names using
-  exact and case-folded bare-name comparison;
+  exact and case-folded bare-name comparison. A C or C++ definition is named
+  by its declarator below any pointer, reference, array or parenthesized
+  wrapper; a qualified C++ name keeps its scopes without template arguments
+  (`Box<T>::get` is `Box::get`) and an operator keeps its written form
+  (`operator()`);
 - `path` is the normalized relative workspace root/subtree;
 - `language` is empty or one exact v1 language name;
 - `limit` is 1..200.
@@ -313,9 +326,9 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 For efficiency, the implementation first performs a bounded case-folded text
 prefilter for the bare symbol, then parses only candidate files and validates
 actual definition nodes. A file whose compact symbols are already cached skips
-the text scan: a definition name is part of its source, so the cached rows
-decide the match. Only a cached file with a parse-error or long-name flag is
-still scanned, because those flags count in coverage only when the file
+the text scan: a definition's bare name is part of its source, so the cached
+rows decide the match. Only a cached file with a parse-error or long-name flag
+is still scanned, because those flags count in coverage only when the file
 contains the symbol. Search retains and counts only matching definitions
 toward the compact-symbol ceiling, so results are identical with or without
 the cache. Results are sorted by path, start line, column, name
@@ -346,6 +359,15 @@ cannot be safely preempted inside a Python thread; the 4 MiB per-file ceiling
 bounds one uninterrupted parser call. Budget exhaustion after that call returns
 explicit `deadline` coverage and retains no partial AST. Their cache may
 accelerate later calls but cannot change results or cursor ordering.
+
+Offloading a parse does not keep the event loop responsive during it: the
+pinned binding holds the GIL for the whole `Parser.parse` call, so the loop
+stalls for the full parse, which grows with file size and syntactic density
+(tens of milliseconds for a few MiB of long lines, around a second for 4 MiB of
+dense code on a loaded host). The per-file ceiling is the only bound on one
+stall. Result-page fitting also runs in a worker thread; it encodes each row
+once and only the small envelope per tried page size, so it keeps the loop
+running apart from interpreter pauses such as garbage collection.
 
 ## Trailmark graph surface
 
@@ -393,7 +415,11 @@ its pinned public API: Python, JavaScript, TypeScript/TSX, PHP, Ruby, C, C++,
 C#, Java, Go, Rust, Solidity, Cairo, Circom, Haskell, Erlang, MASM, Swift,
 Objective-C, Kotlin, Dart, Move, Tact, FunC, Sway, Rego, Protobuf, Thrift,
 GraphQL and SQL. A shallow-supported language outside this set is counted as
-unsupported for graph coverage.
+unsupported for graph coverage. So is a recognized source whose suffix differs
+in case from the pinned walk, which matches suffixes case-sensitively and never
+parses `Tool.PY`, and a `.h` header that resolves to C++: Trailmark parses
+headers only with its C and Objective-C grammars, after a `.c`, `.m` or `.mm`
+source activates one of them.
 
 ### Stable symbol identity
 
@@ -406,6 +432,13 @@ IDs without retaining an old graph. Collisions fail the build, cross-allocation
 IDs fail validation, and the key is erased on close. All graph results expose
 only this ID, symbol name, kind and normalized relative source location; they
 never expose the mirror, workspace-provider or Runtime host path.
+
+Trailmark names a root `__init__.py` module after its parse-root directory,
+which is the randomly named mirror. The child therefore rewrites that module,
+the definitions below it and the proxy nodes of its unresolved calls to the
+`__init__` package (`__init__:print` for a builtin call), so their upstream IDs,
+names and `symbolId` values stay identical when the same digest is rebuilt
+after an invalidation or query timeout.
 
 `find_symbol` is the only name-to-ID operation. Every relationship/path tool
 requires an exact `symbolId`; it never chooses the first equal bare name. An ID

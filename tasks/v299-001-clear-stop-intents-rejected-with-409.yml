@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V299-001
+title: Clear Eval stop intents the server rules out with 409
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 9f9a619b02dcd7c1ce5b6823920aac0b773cf532
+depends_on: []
+languages: [typescript]
+goal: Never leave a persisted Eval stop command replaying after the server has ruled it out.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "Since V235 coordinator transitions no longer bump the Eval revision, so a stale Pause or Resume passes the CAS check and fails with 409 eval_not_ready instead of 412 eval_revision_mismatch (internal/evalstore/commands.go:31-34,116). The UI handles only 412 (ui/src/routes/evals/controls.tsx:126-132,237-252): on 409 the pending command stays in state and localStorage, every reload re-POSTs it and every action button stays disabled; 'Try again' actually drops the command, so the label misleads. The fixture (ui/src/test/evals-fixture.ts:301-305) still bumps the revision on settle, so V165's tests pass against pre-V235 behaviour. The StopIntentUnavailableError branch in recover() (controls.tsx:239) is unreachable."
+scope:
+  in:
+    - "Treat 409 eval_not_ready and eval_pin_mismatch for pause, resume and cancel like StopIntentUnavailableError: clear the pending command, refetch and show no retry."
+    - "Align the fixture with the server: observations do not bump the revision and disallowed commands return 409."
+    - Remove the unreachable recover() branch.
+  out:
+    - Server-side command semantics.
+acceptance_criteria:
+  - {id: A1, text: "A persisted stop intent that the server rejects with 409 is cleared and not replayed after reload."}
+  - {id: A2, text: "A 503 still keeps the command and replays it with the same key, ETag and body."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run src/routes/evals", covers: [A1, A2]}
+  - {command: "cd ui && corepack pnpm typecheck && corepack pnpm lint", covers: [A1, A2]}

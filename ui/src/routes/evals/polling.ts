@@ -1,4 +1,8 @@
-import { EVAL_POLL_MS, type EvalExperiment } from "../../api/evals";
+import {
+  EVAL_POLL_MS,
+  isTerminalEvalState,
+  type EvalExperiment,
+} from "../../api/evals";
 
 export const EVAL_SETTLED_POLL_MS = 30_000;
 
@@ -9,10 +13,7 @@ type EvalPollState = Pick<
 type EvalListPollState = Pick<EvalExperiment, "state" | "freshness">;
 
 function isTerminalAndCurrent(value: EvalListPollState): boolean {
-  return (
-    (value.state === "finished" || value.state === "cancelled") &&
-    value.freshness === "current"
-  );
+  return isTerminalEvalState(value.state) && value.freshness === "current";
 }
 
 export function evalExperimentPollInterval(

@@ -170,7 +170,17 @@ WITH collection_input AS MATERIALIZED (
       JOIN collection_input AS collected
         ON collected.execution_item_id = input.execution_item_id
       CROSS JOIN inserted_receipt AS receipt
-    RETURNING assessment_id, finding_id, audit_id
+    RETURNING assessment_id, finding_id, audit_id, execution_item_id
+), current_finding_assessments AS (
+    -- Batch members may verify distinct checks of one finding. Each keeps its
+    -- assessment; the highest batch ordinal becomes current, as if the members
+    -- had been collected in batch order, so the finding changes once.
+    SELECT DISTINCT ON (assessment.finding_id)
+           assessment.assessment_id, assessment.finding_id, assessment.audit_id
+      FROM inserted_finding_assessments AS assessment
+      JOIN audit_execution_items AS member
+        ON member.execution_item_id = assessment.execution_item_id
+     ORDER BY assessment.finding_id, member.batch_ordinal DESC
 ), updated_findings AS (
     UPDATE audit_findings AS finding
        SET current_assessment_id = assessment.assessment_id,
@@ -178,7 +188,7 @@ WITH collection_input AS MATERIALIZED (
            rejection_reason = NULL, duplicate_target_id = NULL,
            revision = finding.revision + 1,
            updated_at = GREATEST(clock_timestamp(), finding.updated_at + interval '1 microsecond')
-      FROM inserted_finding_assessments AS assessment
+      FROM current_finding_assessments AS assessment
      WHERE finding.finding_id = assessment.finding_id
        AND finding.audit_id = assessment.audit_id
 ), updated_coverage AS (

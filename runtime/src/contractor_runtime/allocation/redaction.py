@@ -1,52 +1,10 @@
-"""Values and URL hosts used to redact allocation observations."""
+"""URL hosts and Agent Card text used to check allocation observations."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlsplit
-
-from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.artifacts import runtime_secrets
-
-# A private value this long is specific enough to be matched anywhere in
-# model- or Worker-authored text; a shorter one (a proxy username, a short
-# password) only as a complete string, so ordinary words cannot fail closed.
-MIN_PRIVATE_SUBSTRING_BYTES = 16
-
-
-def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
-    """Every private RuntimeSettings value: credentials, endpoints, CA bundles."""
-
-    values = [settings.llm_gateway_url, settings.artifact_api_url]
-    if settings.telemetry is not None:
-        values.append(settings.telemetry.endpoint)
-    if settings.http_proxy is not None:
-        values.append(settings.http_proxy.proxy_url)
-        if settings.http_proxy.ca_bundle_pem is not None:
-            values.append(settings.http_proxy.ca_bundle_pem)
-    if settings.caido is not None:
-        values.append(settings.caido.endpoint)
-        if settings.caido.ca_bundle_pem is not None:
-            values.append(settings.caido.ca_bundle_pem)
-    values.extend(runtime_secrets(settings))
-    return tuple(value for value in values if value)
-
-
-def _substring_values(values: Iterable[str]) -> tuple[str, ...]:
-    return tuple(
-        value for value in values if len(value.encode("utf-8")) >= MIN_PRIVATE_SUBSTRING_BYTES
-    )
-
-
-def _contains_private_value(text: str, values: Iterable[str]) -> bool:
-    """Whether text exposes a private value under the shared matching policy."""
-
-    return any(
-        value == text
-        or (len(value.encode("utf-8")) >= MIN_PRIVATE_SUBSTRING_BYTES and value in text)
-        for value in values
-    )
 
 
 def _url_hosts(urls: Sequence[str]) -> tuple[str, ...]:
@@ -60,21 +18,21 @@ def _url_hosts(urls: Sequence[str]) -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
-def _untrusted_agent_card_strings(
-    card: Mapping[str, Any],
+def _trusted_agent_card_values(
     *,
     allocation_id: str,
     logical_agent_name: str,
     description: str,
     version: str,
     endpoint: str,
-) -> set[str]:
-    """Card text beyond exact protocol and Server-supplied values.
+) -> dict[tuple[str, ...], tuple[str, ...]]:
+    """Exact Agent Card strings fixed by the protocol or the Server, by card path.
 
-    Keep this path policy aligned with Go's trustedWorkerCardString. A changed
-    value at a normally fixed path is still scanned for private data.
+    Go's workerCardTrustedValues holds the same table, and
+    api/testdata/v1alpha1/agent-card-secret-scan-cases.json pins both.
     """
-    trusted: dict[tuple[str, ...], tuple[str, ...]] = {
+
+    return {
         ("name",): (logical_agent_name, f"Contractor Worker {logical_agent_name}"),
         ("description",): (description,),
         ("version",): (version,),
@@ -103,18 +61,46 @@ def _untrusted_agent_card_strings(
             "Deployment-CA mutual TLS with a Contractor Control Plane peer",
         ),
     }
-    result: set[str] = set()
+
+
+def _untrusted_agent_card_text(
+    card: Mapping[str, Any],
+    *,
+    allocation_id: str,
+    logical_agent_name: str,
+    description: str,
+    version: str,
+    endpoint: str,
+) -> tuple[set[str], set[str]]:
+    """Card values beyond exact protocol and Server-supplied text, and every key.
+
+    A changed value at a normally fixed path is still scanned for private data.
+    Object keys carry no path exemption; they are returned separately because
+    nearly all of them are protocol vocabulary, which only a private value long
+    enough to match anywhere is checked against.
+    """
+
+    trusted = _trusted_agent_card_values(
+        allocation_id=allocation_id,
+        logical_agent_name=logical_agent_name,
+        description=description,
+        version=version,
+        endpoint=endpoint,
+    )
+    values: set[str] = set()
+    keys: set[str] = set()
 
     def visit(value: Any, path: tuple[str, ...]) -> None:
         if isinstance(value, str):
             if value not in trusted.get(path, ()):
-                result.add(value)
+                values.add(value)
         elif isinstance(value, Mapping):
             for key, nested in value.items():
-                visit(nested, (*path, key))
+                keys.add(str(key))
+                visit(nested, (*path, str(key)))
         elif isinstance(value, (list, tuple)):
             for index, nested in enumerate(value):
                 visit(nested, (*path, str(index)))
 
     visit(card, ())
-    return result
+    return values, keys

@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V351-001
+title: Read Eval plan digests without fetching whole documents
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V302-001]
+languages: [go]
+goal: Avoid reading full plan documents where only the digest and setup are needed.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V302-001: plan reads still fetch the whole document (about 0.9 ms per read, about 100 ms per tick at 1,000 members); a SHA-plus-setup read takes 0.08 ms and would serve Admit, insertRecord and collectMember. PlanResource still validates small documents on every read."
+scope:
+  in:
+    - Digest-and-setup reads for those callers.
+    - Trusted reads for stored plan resources.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Admission and collection ticks over a 1,000-member plan do not fetch the full plan document per member."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/evalservice", covers: [A1]}

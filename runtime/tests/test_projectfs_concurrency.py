@@ -107,6 +107,21 @@ def test_export_generation_rejects_rollback_import_and_checkpoint(tmp_path: Path
         await session.move_path("copied.txt", "moved.txt")
         with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
             await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.make_directory("generated/deep", parents=True)
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.delete_path("moved.txt")
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        # An existing directory is no change and keeps the export current.
+        bundle = await session.prepare_export()
+        await session.make_directory("generated")
+        await session.commit_export(bundle)
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())

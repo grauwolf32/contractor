@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V295-001
+title: Give scan-planner completion writes the shared budget and retry
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 5904f55fc7d48b88a9634a24760c820aff5ea9c8
+depends_on: []
+languages: [go]
+goal: Protect scan Stage completion from transient database waits like V226 did for passthrough and streamline, through one shared completion helper.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: planner/scan uses one fixed 5 s context (internal/planner/scan/run.go:21) for the report Create, ValidateCandidate, CompleteScan and, for Audits, auditscan.BuildResult; there is no transient retry and every scanError is non-retryable, so a lock or acquire wait past 5 s permanently fails the scan Stage (scan_completion_write_failed). recoverCompletion exists three times with different strictness (passthrough.go:240, streamline/planner.go:472, scan/factory.go:97); the transient classifiers a2a.retryableGetTaskError, planner.transientCompletionWriteError and gatewayrecovery.readResponse drifted; planner/session_lifecycle.go:122 uses raw SQLSTATE literals.
+scope:
+  in:
+    - Reuse the CompleteSession budget and retry for CompleteScan and give result building its own budget.
+    - Share one recoverCompletion implementation.
+    - Move transientCompletionWriteError into persistence/postgres with SQLState constants (add 53300) and document that it requires an idempotent callee.
+  out:
+    - Changing scan semantics.
+acceptance_criteria:
+  - {id: A1, text: "A transient lock wait during scan completion is retried within budget."}
+  - {id: A2, text: "One recoverCompletion implementation remains."}
+  - {id: A3, text: "The planner packages contain no raw SQLSTATE literals."}
+tests:
+  - {command: "go test -count=1 ./internal/planner/... ./internal/persistence/postgres", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

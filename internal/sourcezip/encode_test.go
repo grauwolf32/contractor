@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 )
@@ -54,6 +55,41 @@ func TestEncodeIsDeterministicAndEnforcesArchiveLimit(t *testing.T) {
 	members[0].Size = 6
 	if _, err := Encode(ctx, members, Options{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled archive error = %v", err)
+	}
+}
+
+func TestEncodeRequiresMembersToWriteTheirDeclaredSize(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		chunks []string
+	}{
+		{"grown in one write", []string{"hello!"}},
+		{"grown across writes", []string{"hel", "lo", "!"}},
+		{"shrunk", []string{"hell"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			accepted := 0
+			members := []Member{{
+				Name: "app.log", Size: 5,
+				Write: func(w io.Writer) error {
+					for _, chunk := range test.chunks {
+						n, err := io.WriteString(w, chunk)
+						accepted += n
+						if err != nil {
+							return err
+						}
+					}
+					return nil
+				},
+			}}
+			_, err := Encode(context.Background(), members, Options{})
+			if !errors.Is(err, ErrMemberSize) || !strings.Contains(err.Error(), "app.log") {
+				t.Fatalf("Encode error = %v, want ErrMemberSize naming the member", err)
+			}
+			if accepted > 5 {
+				t.Fatalf("member writer accepted %d bytes beyond its declared 5", accepted-5)
+			}
+		})
 	}
 }
 

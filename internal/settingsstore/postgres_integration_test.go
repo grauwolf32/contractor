@@ -122,7 +122,7 @@ func isolatedSettingsPool(
 	}
 	if err := admin.Ping(ctx); err != nil {
 		admin.Close()
-		t.Skipf("PostgreSQL is unavailable: %v", err)
+		t.Fatalf("CONTRACTOR_TEST_DATABASE_URL is set but PostgreSQL is unreachable: %v", err)
 	}
 	suffix := make([]byte, 8)
 	if _, err := cryptorand.Read(suffix); err != nil {

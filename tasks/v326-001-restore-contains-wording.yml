@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V326-001
+title: Restore error wording damaged by the slices.Contains replacement
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 78401b1ec441101b22f6b79048a11d0a436a5ecf
+depends_on: []
+languages: [go]
+goal: Undo text damage from a mechanical replacement in V179-003.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "dba6aacf (V179-003) replaced the word 'contains' with 'slices.Contains' in production error messages and comments: internal/controlplane/principal_operations.go:48, runtime_batch.go:401,404, internal/auditimport/cwe.go:43,46, internal/controlplane/operations.go:81 and allocation.go:61. A reservation batch with duplicate IDs fails with 'allocation reservation batch slices.Contains duplicate allocation IDs'."
+scope:
+  in:
+    - Restore the wording in messages and comments.
+  out:
+    - Other refactors.
+acceptance_criteria:
+  - {id: A1, text: "No string literal or prose comment contains 'slices.Contains'."}
+tests:
+  - {command: "go test -count=1 ./internal/controlplane ./internal/auditimport", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

@@ -281,5 +281,6 @@ metadata queries join it without reading blobs. The ordinary exact input fork
 reuses that version. The import service checks preconditions before fetch, then
 locks owned Project lifecycle and publishes the revision/source together in a
 short transaction. Git and shared transfer admission remain held through the
-metadata response. Failure responses never include remote diagnostics, and
-interrupted responses instruct clients to inspect metadata before retrying.
+metadata response, whose socket write has its own short deadline. Failure
+responses never include remote diagnostics, and interrupted responses instruct
+clients to inspect metadata before retrying.

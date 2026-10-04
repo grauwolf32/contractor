@@ -579,15 +579,17 @@ func TestParseConfigReadsConfigurationRootsAndDerivesManagedFlagDefault(t *testi
 		t.Fatalf("explicit configuration roots = %+v", explicit)
 	}
 
-	derived, err := ParseConfig(
-		[]string{"--operator-config-root=/srv/custom/configs"},
-		func(string) string { return "" },
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if derived.ManagedConfigRoot != "/srv/custom/managed-configs" {
-		t.Fatalf("derived managed root = %q", derived.ManagedConfigRoot)
+	for _, root := range []string{"/srv/custom/configs", "/srv/custom/configs/", "/srv/custom/configs//"} {
+		derived, err := ParseConfig(
+			[]string{"--operator-config-root=" + root},
+			func(string) string { return "" },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if derived.ManagedConfigRoot != "/srv/custom/managed-configs" {
+			t.Fatalf("managed root derived from %q = %q", root, derived.ManagedConfigRoot)
+		}
 	}
 }
 

@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V346-001
+title: Bound tree-sitter parse stalls for large files
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V316-001]
+languages: [python]
+goal: Keep large-file parses from stalling the Runtime event loop.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: tree-sitter Parser.parse (code_analysis/languages.py:425, called through to_thread_until_done at code_analysis/tools.py:1015) holds the GIL for its whole run; the loop gap roughly equals parse time (16 ms for 879 KB, 63 ms for 3.5 MB), so 4 MiB files stall heartbeats about 70 ms per file regardless of offloading.
+scope:
+  in:
+    - Measure; parse large files in a subprocess or chunk work so the loop keeps ticking.
+  out:
+    - Changing analysis results.
+acceptance_criteria:
+  - {id: A1, text: "Parsing a 4 MiB file keeps event-loop gaps under a documented bound."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_code_analysis_shallow.py", covers: [A1]}

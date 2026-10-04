@@ -944,8 +944,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toBeVisible();
   await expect(page.getByText("ui-stack-key", { exact: true })).toHaveCount(0);
 
-  await page.goto("/runs/configuration");
-  await expect(page).toHaveURL(/\/operations\/configuration$/);
+  await page.goto("/operations/configuration");
   await expect(
     page.getByRole("heading", { name: "RuntimeConfig versions" }),
   ).toBeVisible();

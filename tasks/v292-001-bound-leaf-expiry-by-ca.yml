@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V292-001
+title: Bound local mTLS leaf expiry by the CA and warn on CA expiry
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: e683bd87e52e00b3b74b516a25e175546be2e119
+depends_on: []
+languages: [go, python]
+goal: Never issue local mTLS leaves that outlive their CA and warn before the CA expires.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: internal/localpki/pki.go:196 sets leaf NotAfter to now plus 365 days without clamping to the CA's NotAfter; mtls.LeafExpiry and the Runtime's log_runtime_certificate_expiry check only the leaf, so CA expiry breaks every private mTLS link without warning (plausible, about nine years out for a default CA).
+scope:
+  in:
+    - Clamp issued and renewed leaf NotAfter to the CA NotAfter.
+    - Warn on approaching CA expiry in the Server and the Runtime.
+  out:
+    - Automatic CA rotation.
+acceptance_criteria:
+  - {id: A1, text: "A leaf issued near CA expiry never outlives the CA."}
+  - {id: A2, text: "Server and Runtime log a warning when the CA nears expiry."}
+tests:
+  - {command: "go test -count=1 ./internal/localpki ./internal/mtls ./internal/app ./cmd/contractor-pki", covers: [A1, A2]}
+  - {command: "cd runtime && uv run pytest tests/test_mtls.py", covers: [A2]}
+  - {command: "make lint", covers: [A1, A2]}

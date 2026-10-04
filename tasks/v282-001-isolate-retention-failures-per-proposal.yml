@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V282-001
+title: Isolate deterministic retention failures to one proposal
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 79ad62e2370f023ada7c9377a6e437d1dc11f0f8
+depends_on: [V281-001]
+languages: [go]
+goal: Stop one proposal with missing or corrupt evidence from blocking its whole collection page, and keep a single receipt hydration path.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "RetainAuditCollectionBatch errors such as ErrConflict, artifacts.ErrArtifactIntegrity or ErrArtifactNotFound are wrapped as retryable (internal/auditimport/importer.go:340-350) and never fall back to a contract-invalid receipt, so one bad proposal wedges the page (plausible, same shape as V280-001). GetAuditReceipt (internal/findingintake/postgres.go:267-314) duplicates GetAuditReceipts with drift: readReceiptByID loads all holds and then overwrites them and admission skips the project check. After source deletion, collection publication reads holds[0] across all of the owner's Audits (collection_publication.go:233-238). RetainAuditCollection, importIntoAudit and the findingImportAuthority marker type are production-dead."
+scope:
+  in:
+    - Classify per-proposal integrity, conflict and not-found failures as a per-proposal reject (RejectAuditCollection) or ErrPermanent.
+    - Implement GetAuditReceipt through GetAuditReceipts and read the requesting Audit's hold in collection publication.
+    - Delete the dead retention path and marker type.
+  out:
+    - Changing retention semantics for valid proposals.
+acceptance_criteria:
+  - {id: A1, text: "A page with one proposal whose evidence revision is missing still collects the other proposals."}
+  - {id: A2, text: "GetAuditReceipt and GetAuditReceipts return identical holds for the same receipt."}
+  - {id: A3, text: "The dead code is removed and the build and tests pass."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake ./internal/auditimport", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

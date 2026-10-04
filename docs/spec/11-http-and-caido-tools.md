@@ -135,8 +135,9 @@ invalid or oversized stored bodies fail with non-retryable `http_body_not_found`
   send, including redirects and retries. A URL that grows past 8192 UTF-8
   bytes after encoding, contains a backslash or has an invalid percent escape
   fails `http_request_invalid` before that hop is sent.
-  Raw control characters and invalid IDNA hosts are also invalid input;
-  neither direct nor proxy routes retry them as transport failures.
+  Raw control characters and hosts outside the shared host rule (see
+  [Target policy](#target-policy)) are also invalid input; neither direct nor
+  proxy routes resolve, forward or retry them as transport failures.
 
 A response with a status outside 100..599 or headers that the finding-evidence
 contract cannot retain (including a block over 64 KiB) fails
@@ -161,6 +162,21 @@ routing, not a hint; failure never falls back to direct network.
 
 `http-tools@1`, every `scan@1` operation and request-bound `caido@1` actions share one Runtime target policy
 (`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
+
+Every host first passes one shared syntax rule: `http_request` URLs and each
+redirect hop, Caido raw and captured Replay, Automate and active-workflow
+connection hosts, and every scanner URL or host argument. A host is an IP
+literal (a Caido connection host may bracket an IPv6 literal) or a name of
+ASCII labels made of letters, digits, `_` and `-`, each 1..63 bytes and not
+starting with `-`, with at most 253 bytes in total plus an optional final dot.
+Docker-compose service names such as `juice_shop` therefore work everywhere. A
+Unicode name must IDNA-encode, and httpx sends and Katana canonicalizes its
+A-label; an `xn--` label must decode. Percent-escapes (`%6c%6fcalhost`),
+sub-delimiters (`a!b$c.example`) and IPv6 zone identifiers are rejected as
+non-retryable invalid input (`http_request_invalid`, `caido_request_invalid` or
+the scanner's input error) before any resolver, proxy or GraphQL call, because
+resolvers and forward proxies disagree about them.
+
 A literal host is first normalized the way resolvers read it: shortened,
 single-number, octal and hexadecimal IPv4 forms (`127.1`, `2130706433`,
 `0x7f000001`, `0`), IPv4-mapped IPv6 and the NAT64 well-known prefix
@@ -383,6 +399,22 @@ is at most 8192 characters (or 6144 binary bytes encoded as base64). A missing
 request/session is an explicit bounded `not_found` domain result, while a
 malformed partial response is `caido_response_invalid` and produces no selected
 artifact.
+
+Caido stores proxied traffic as sent. When the `tool-http`, `tool-subprocess`
+or `llm-gateway` route uses Caido as its forward proxy, those requests carry the
+Authorization and Proxy-Authorization values Runtime injected. Request detail
+and Replay previews, exchange artifacts and convert output therefore replace a
+header line whose value equals the project target credential with
+`[runtime-target-credential]`, and one equal to the proxy or Gateway credential
+with `[runtime-credential]`, at any length (the authentication scheme compares
+case-insensitively). Other Runtime secrets, and these header values elsewhere
+in a message such as an echoing response body, are replaced by `[REDACTED]` in
+raw bytes and in every result string when they are at least 16 bytes long, the
+shared substring policy. Previews, sizes and artifacts describe the scrubbed
+bytes, while a captured request used for Replay or Automate is still submitted
+to Caido unchanged. Caido itself retains the credentials and evaluates HTTPQL
+filters against them, so a deployment that must keep the project credential
+from the model does not route credentialed traffic through Caido.
 
 Replay requests receive an opaque allocation-derived `X-Request-Id` tag. HTTP
 tool and Caido replay counters use distinct infixes so proxy history can

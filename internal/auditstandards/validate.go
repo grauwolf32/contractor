@@ -10,15 +10,19 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 var (
 	schemePattern  = regexp.MustCompile(`^[a-z][a-z0-9.-]{0,63}$`)
-	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$`)
 	entryIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:._/-]{0,127}$`)
 	rolePattern    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 )
+
+// validVersion applies the configuration version grammar and bound, which
+// AuditProfile standard refs share.
+func validVersion(value string) bool { return contracts.ValidConfigVersion(value) }
 
 var supportedLicenses = map[string]map[DisclosurePolicy]bool{
 	"CC-BY-4.0":              {DisclosureMetadata: true, DisclosureIdentifiers: true, DisclosureFull: true},
@@ -113,7 +117,7 @@ func validateDocument(document Document) error {
 		return validationError(CodeManifestInvalid, ManifestPath)
 	}
 	metadata := document.Standard
-	if !schemePattern.MatchString(metadata.Scheme) || !versionPattern.MatchString(metadata.Version) {
+	if !schemePattern.MatchString(metadata.Scheme) || !validVersion(metadata.Version) {
 		return validationError(CodeIdentityMismatch, ManifestPath)
 	}
 	if !validText(metadata.Title, 512, true) || !validText(metadata.Description, 4096, true) ||
@@ -136,7 +140,7 @@ func validateDocument(document Document) error {
 
 	contracts := make(map[string]EvidenceContract, len(document.EvidenceContracts))
 	for _, contract := range document.EvidenceContracts {
-		if !entryIDPattern.MatchString(contract.ID) || !versionPattern.MatchString(contract.Version) ||
+		if !entryIDPattern.MatchString(contract.ID) || !validVersion(contract.Version) ||
 			contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
 			contract.MaximumEvidence > 64 || len(contract.Assessments) == 0 || len(contract.Assessments) > 16 ||
 			len(contract.EvidenceKinds) > 16 {

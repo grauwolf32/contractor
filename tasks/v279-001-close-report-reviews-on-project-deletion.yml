@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V279-001
+title: Close report reviews when a Project deletes its Audits
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 9c0c162c0bf8b3b0137cdd912398cc0943ffed28
+depends_on: [V278-001]
+languages: [go, sql]
+goal: Make Project-owned Audit deletion expire pending report-acceptance reviews exactly like owner deletion, through one auditstore deletion primitive.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "RequestProjectOwnedDeletion (internal/auditstore/project_deletion.go:76-111) lacks the report-review expiry CTEs of RequestDelete (deletion.go:35-98) and Transition (transition.go:38-102), and TransitionClaimed cancelling to deleting (transition.go:145-192) does not expire them either. A waiting_review Audit whose Project is deleted keeps a pending review: no review.expired event, workspace PendingReviews still counts it, a decision returns 412 (action_review.go:125) and pendingReportReview keeps finding triage frozen until purge. The two deletion requests duplicate the state CASE, stop reason and event. Transition also keeps owner-unreachable branches ($5='active' project gate and the 'cancelled' report branch) and ReviewEventParams.EntityRevision is always nil."
+scope:
+  in:
+    - One auditstore deletion-request primitive with a source parameter used by owner and Project-owned deletion.
+    - One shared close-report-review SQL fragment used by every exit from waiting_review.
+    - Remove the unreachable Transition branches and ReviewEventParams.EntityRevision with its overflow check.
+  out:
+    - Changing owner deletion behaviour or events.
+acceptance_criteria:
+  - {id: A1, text: "Project-owned deletion of a waiting_review Audit expires its pending report review with a review.expired event and the workspace pending count drops."}
+  - {id: A2, text: "Owner deletion behaviour, events and revisions are unchanged."}
+  - {id: A3, text: "The removed branches and field had no reachable production caller."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditservice ./internal/projectlifecycle", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

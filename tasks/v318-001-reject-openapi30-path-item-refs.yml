@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V318-001
+title: Reject OpenAPI 3.0 Path Item references with guidance
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: e5cebac98296efa5e258c99a6389cbc04e6e2376
+depends_on: []
+languages: [python]
+goal: Give the model an actionable error instead of an unpassable validation loop for 3.0 Path Item references.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: V211 (8f8337c1) accepts a sourced 3.0 Path Item $ref (runtime/src/contractor_runtime/toolsets/openapi/tools.py:344-346,1229-1230,1290-1303,1669-1676), but the mandatory x-path-files sibling triggers vacuum's no-$ref-siblings rule and a local 3.0 Path Item ref triggers operation-operationId-unique; removing x-path-files breaks structural provenance, so the model loops. The tests mock vacuum.
+scope:
+  in:
+    - Reject 3.0 Path Item $ref with an 'inline the Path Item' error while keeping component aliases.
+    - Test against real vacuum or a recorded vacuum fixture.
+  out:
+    - OpenAPI 3.1 behaviour.
+acceptance_criteria:
+  - {id: A1, text: "A 3.0 Path Item $ref returns an actionable non-retryable error."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_openapi_toolset.py", covers: [A1]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1]}

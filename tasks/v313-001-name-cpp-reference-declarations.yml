@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V313-001
+title: Name C++ declarations that return references
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: b120f1d9838e59fae28d5b1e86658396aaf419f0
+depends_on: []
+languages: [python]
+goal: Keep C++ functions and methods that return references in shallow symbol listings and searches.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: Since V161 (486a06f1) _extract_field (runtime/src/contractor_runtime/toolsets/code_analysis/languages.py:470-492) no longer falls back to the node text; reference_declarator has no declarator field and the child fallback (:590-601) accepts only identifiers. const std::string& Handler::name() const {}, int &counter(), T&& take(), Foo& operator= and inline const T& label() const vanish from list_symbols and search_def; _extract_name returns None for them (verified).
+scope:
+  in:
+    - Recurse into declarator-typed children (reference, pointer and function declarators, qualified identifiers, operator names).
+    - Tests for each listed form.
+  out:
+    - Changing names of other languages.
+acceptance_criteria:
+  - {id: A1, text: "All listed forms are named and searchable."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py", covers: [A1]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1]}

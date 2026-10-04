@@ -756,7 +756,11 @@ func validateSubmissionFailure(params ObserveSubmissionFailureParams) error {
 	return validateID("executionID", params.ExecutionID)
 }
 
-func validateCollect(params CollectParams) error {
+// ValidateCollect is the deterministic request contract Collect enforces
+// before it reads the database. It depends only on params, so a request it
+// rejects with ErrInvalid can never commit. Test doubles call it to keep the
+// production rules.
+func ValidateCollect(params CollectParams) error {
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
 	}
@@ -791,7 +795,7 @@ func validateCollect(params CollectParams) error {
 		return invalidf("collection payload is too large")
 	}
 	seenItems := make(map[string]struct{}, len(params.Items))
-	seenFindingReceipts := make(map[string]struct{})
+	seenAssessments := make(map[string]struct{})
 	collectionBytes := 0
 	for _, item := range params.Items {
 		if err := validateID("executionItemID", item.ExecutionItemID); err != nil {
@@ -827,17 +831,24 @@ func validateCollect(params CollectParams) error {
 		if len(item.FindingAssociations) > 128 {
 			return invalidf("collection item has too many finding associations")
 		}
+		// Batch members may verify distinct proposed checks of one receipt,
+		// so a receipt is unique per member, not per collection.
+		seenItemReceipts := make(map[string]struct{}, len(item.FindingAssociations))
 		for _, association := range item.FindingAssociations {
 			if err := validateID("finding assessment ID", association.AssessmentID); err != nil {
 				return err
 			}
+			if _, duplicate := seenAssessments[association.AssessmentID]; duplicate {
+				return invalidf("finding assessment is duplicated")
+			}
+			seenAssessments[association.AssessmentID] = struct{}{}
 			if err := validateID("finding receipt ID", association.ReceiptID); err != nil {
 				return err
 			}
-			if _, duplicate := seenFindingReceipts[association.ReceiptID]; duplicate {
-				return invalidf("finding receipt is associated more than once")
+			if _, duplicate := seenItemReceipts[association.ReceiptID]; duplicate {
+				return invalidf("finding receipt is associated more than once by one collection item")
 			}
-			seenFindingReceipts[association.ReceiptID] = struct{}{}
+			seenItemReceipts[association.ReceiptID] = struct{}{}
 			if err := validateExactArtifact("finding proposal", association.Proposal, true); err != nil {
 				return err
 			}

@@ -17,7 +17,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type scanMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
@@ -274,6 +276,34 @@ func TestFactoryRetainsFailedToolReportWithoutRepeatingScanner(t *testing.T) {
 	}
 }
 
+func TestFactoryRetriesTransientCompletionWriteBeyondResultBuildingBudget(t *testing.T) {
+	for _, audit := range []bool{false, true} {
+		name := "scan"
+		if audit {
+			name = "audit"
+		}
+		t.Run(name, func(t *testing.T) {
+			h := newFactoryHarness(t, 1)
+			if audit {
+				h, _ = newAuditFactoryHarness(t, "sqlmap")
+			}
+			h.sessions.completionTimeout = time.Hour
+			h.sessions.completeErrs = []error{&pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}}
+			result := h.run(t)
+			if result.Outcome != contracts.StageSucceeded || h.sessions.completeCalls != 2 ||
+				h.sessions.completion == nil || h.sessions.completion.Result == nil {
+				t.Fatalf("result=%+v completion calls=%d", result, h.sessions.completeCalls)
+			}
+			// The completion record is bounded by the completion budget, not by
+			// the storage budget that built the candidate.
+			if !h.sessions.completeDeadline.After(h.artifacts.lastCreateDeadline) {
+				t.Fatalf("completion deadline %s is not beyond result building deadline %s",
+					h.sessions.completeDeadline, h.artifacts.lastCreateDeadline)
+			}
+		})
+	}
+}
+
 type factoryHarness struct {
 	t          *testing.T
 	factory    *Factory
@@ -381,6 +411,8 @@ type factoryArtifacts struct {
 	current map[string]contracts.ArtifactRef
 	reads   []contracts.ArtifactRef
 	creates []contracts.ArtifactRef
+	// lastCreateDeadline is the deadline of the most recent Create context.
+	lastCreateDeadline time.Time
 }
 
 func (s *factoryArtifacts) Read(ctx context.Context, _ string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
@@ -397,6 +429,7 @@ func (s *factoryArtifacts) Create(ctx context.Context, _ string, target contract
 		return contracts.ArtifactRef{}, errors.New("invalid artifact create")
 	}
 	s.creates = append(s.creates, target)
+	s.lastCreateDeadline, _ = ctx.Deadline()
 	if ref, exists := s.current[factoryRefKey(target)]; exists {
 		if current := s.payload(ref); current.MediaType != payload.MediaType || !bytes.Equal(current.Data, payload.Data) {
 			return contracts.ArtifactRef{}, errors.New("immutable artifact conflict")
@@ -450,18 +483,23 @@ func factoryExactRef(namespace, name string) contracts.ArtifactRef {
 }
 
 type factorySessions struct {
-	t               *testing.T
-	artifacts       *factoryArtifacts
-	expectedJobs    int
-	state           planner.ScanState
-	completion      *planner.Completion
-	initializeCalls int
-	completeCalls   int
-	claimed         []string
-	rejectClaim     bool
-	claimErr        error
-	finishErr       error
+	t                 *testing.T
+	artifacts         *factoryArtifacts
+	expectedJobs      int
+	state             planner.ScanState
+	completion        *planner.Completion
+	initializeCalls   int
+	completeCalls     int
+	completeErrs      []error
+	completeDeadline  time.Time
+	completionTimeout time.Duration
+	claimed           []string
+	rejectClaim       bool
+	claimErr          error
+	finishErr         error
 }
+
+func (s *factorySessions) CompletionWriteTimeout() time.Duration { return s.completionTimeout }
 
 func (s *factorySessions) BeginScan(_ context.Context, stage, claim string) (planner.ScanSessionStart, error) {
 	return planner.ScanSessionStart{
@@ -519,8 +557,14 @@ func (s *factorySessions) FinishScanJob(_ context.Context, _ planner.ScanSession
 	return errors.New("unknown job")
 }
 
-func (s *factorySessions) CompleteScan(_ context.Context, _ planner.ScanSessionIdentity, completion planner.Completion) error {
+func (s *factorySessions) CompleteScan(ctx context.Context, _ planner.ScanSessionIdentity, completion planner.Completion) error {
 	s.completeCalls++
+	s.completeDeadline, _ = ctx.Deadline()
+	if len(s.completeErrs) > 0 {
+		err := s.completeErrs[0]
+		s.completeErrs = s.completeErrs[1:]
+		return err
+	}
 	s.completion = cloneFactoryValue(&completion)
 	return nil
 }

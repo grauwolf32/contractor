@@ -7,6 +7,7 @@ import {
 } from "./safe-resources";
 import {
   CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
   listConfigurations,
   listCredentials,
@@ -23,7 +24,7 @@ export const WRITABLE_CONFIGURATION_KINDS = [
   "model-policies",
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
-export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_ID_PATTERN;
+export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_NAME_PATTERN;
 export const BUDGET_DURATION_PATTERN =
   /^(?=.{2,32}$)[1-9][0-9]*(?:s|m|h|d|mo)$/;
 
@@ -114,7 +115,7 @@ function requireExactRuntimeKeys(
 
 function requireConfigIdentity(name: string, version?: string): void {
   if (
-    !CONFIG_ID_PATTERN.test(name) ||
+    !CONFIG_NAME_PATTERN.test(name) ||
     (version !== undefined && !CONFIG_VERSION_PATTERN.test(version))
   ) {
     throw new TypeError("Configuration identity is invalid");

@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V356-001
+title: Accept underscore hosts in Go scan planning
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V310-001]
+languages: [go]
+goal: Keep scan planning consistent with the Runtime host-syntax rule from V310-001.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V310-001: internal/scanplan/plan_http.go scanHost still rejects underscores, so the planner skips targets the Runtime now accepts (docker-compose service names)."
+scope:
+  in:
+    - Use the V310 host grammar in scan planning, through a shared fixture with the Runtime.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Scan planning accepts and rejects the same hosts as the Runtime."}
+tests:
+  - {command: "go test -count=1 ./internal/scanplan", covers: [A1]}
+  - {command: "cd runtime && uv run pytest tests/test_host_syntax.py", covers: [A1]}

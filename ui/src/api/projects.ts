@@ -125,20 +125,18 @@ function safeProject(value: Project, status: number): Project {
   ) {
     throw invalidProjectResponse(status);
   }
-  // Readback must preserve a legacy target whose URL the browser cannot parse,
-  // so its Project still loads and the owner can replace or remove the target.
+  // A stored target obeys the same rules as an authored one.
   const target = value.httpTarget;
-  if (
-    target !== undefined &&
-    (typeof target.url !== "string" ||
-      new TextEncoder().encode(target.url).length >
-        MAXIMUM_PROJECT_TARGET_URL_BYTES ||
-      (target.credential !== undefined &&
-        (!RUNTIME_CREDENTIAL_ID_PATTERN.test(target.credential.credentialId) ||
-          (target.credential.kind !== "http-origin-basic@1" &&
-            target.credential.kind !== "http-origin-bearer@1"))))
-  ) {
-    throw invalidProjectResponse(status);
+  if (target !== undefined) {
+    let normalized: ProjectHTTPTarget;
+    try {
+      normalized = normalizeProjectHTTPTarget(target);
+    } catch {
+      throw invalidProjectResponse(status);
+    }
+    if (normalized.url !== target.url) {
+      throw invalidProjectResponse(status);
+    }
   }
   return value;
 }

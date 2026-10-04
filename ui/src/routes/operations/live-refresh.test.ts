@@ -137,4 +137,64 @@ describe("Operations live REST refreshes", () => {
     }
     updates.dispose();
   });
+
+  it("keeps a resync pending across failed baseline reads and backs off", async () => {
+    vi.useFakeTimers();
+    const refreshSnapshot = vi
+      .fn<() => Promise<OperationsSnapshotCursor>>()
+      .mockRejectedValueOnce(new Error("snapshot unavailable"))
+      .mockRejectedValueOnce(new Error("snapshot unavailable"))
+      .mockResolvedValueOnce(cursor(12));
+    const resume = vi.fn();
+    const updates = new OperationsLiveRefresh({
+      initial: cursor(7),
+      refreshSnapshot,
+      refreshPrincipals: vi.fn(async () => undefined),
+      resume,
+      random: () => 0,
+    });
+    updates.resync("cursor_unavailable");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(1);
+    for (const [attempt, delay] of [500, 1_000].entries()) {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(refreshSnapshot).toHaveBeenCalledTimes(attempt + 1);
+      expect(resume).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refreshSnapshot).toHaveBeenCalledTimes(attempt + 2);
+    }
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(resume).toHaveBeenCalledWith(cursor(12));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(3);
+    updates.dispose();
+  });
+
+  it("backs off repeated lost-cursor resyncs until the stream delivers an event", async () => {
+    vi.useFakeTimers();
+    const refreshSnapshot = vi.fn(async () => cursor(7));
+    const resume = vi.fn();
+    const updates = new OperationsLiveRefresh({
+      initial: cursor(7),
+      refreshSnapshot,
+      refreshPrincipals: vi.fn(async () => undefined),
+      resume,
+      random: () => 0,
+    });
+    updates.resync("sequence_gap");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(1);
+    updates.resync("cursor_unavailable");
+    await vi.advanceTimersByTimeAsync(499);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(2);
+    // A delivered event shows that the resumed stream is healthy again.
+    updates.event(cursor(8), "allocation");
+    updates.resync("sequence_gap");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(3);
+    expect(resume).toHaveBeenCalledTimes(3);
+    updates.dispose();
+  });
 });

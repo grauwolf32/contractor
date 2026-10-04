@@ -23,12 +23,16 @@ type cweCatalog struct {
 }
 
 var bundledCWECatalog = sync.OnceValues(func() (cweCatalog, error) {
+	return parseCWECatalog(bundledCWECatalogJSON)
+})
+
+func parseCWECatalog(data []byte) (cweCatalog, error) {
 	var document struct {
 		Scheme      string   `json:"scheme"`
 		Version     string   `json:"version"`
 		WeaknessIDs []string `json:"weakness_ids"`
 	}
-	if err := json.Unmarshal(bundledCWECatalogJSON, &document); err != nil {
+	if err := json.Unmarshal(data, &document); err != nil {
 		return cweCatalog{}, fmt.Errorf("decode bundled CWE catalog: %w", err)
 	}
 	if document.Scheme != "CWE" || document.Version == "" || len(document.WeaknessIDs) == 0 {
@@ -40,15 +44,15 @@ var bundledCWECatalog = sync.OnceValues(func() (cweCatalog, error) {
 	}
 	for _, id := range document.WeaknessIDs {
 		if id == "" {
-			return cweCatalog{}, errors.New("bundled CWE catalog slices.Contains an empty ID")
+			return cweCatalog{}, errors.New("bundled CWE catalog contains an empty ID")
 		}
 		if _, exists := result.weaknessIDs[id]; exists {
-			return cweCatalog{}, errors.New("bundled CWE catalog slices.Contains a duplicate ID")
+			return cweCatalog{}, errors.New("bundled CWE catalog contains a duplicate ID")
 		}
 		result.weaknessIDs[id] = struct{}{}
 	}
 	return result, nil
-})
+}
 
 func validateCWEClassification(reference auditdomain.StandardReference) error {
 	catalog, err := bundledCWECatalog()

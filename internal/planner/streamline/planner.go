@@ -12,6 +12,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -79,7 +80,9 @@ func (p *streamlinePlanner) Run(
 		return contracts.StageContentResult{}, err
 	}
 	if started.Completion != nil {
-		return p.recoverCompletion(ctx, *started.Completion)
+		return planner.RecoverCompletion(
+			ctx, p.invocation.RunID, p.resultContract, *started.Completion, p.inspector,
+		)
 	}
 	bindings := make([]string, 0, len(p.workers))
 	for _, worker := range p.workers {
@@ -306,10 +309,14 @@ func (p *streamlinePlanner) newRootAgent(
 					return nil, providerErr
 				}
 				var rejected *gatewayResponseRejected
+				var gatewayFailure *gatewayrecovery.FailureError
 				var failure *planner.Error
-				if errors.As(providerErr, &rejected) {
+				switch {
+				case errors.As(providerErr, &rejected):
 					failure = state.rejectedGatewayResponse(rejected)
-				} else {
+				case errors.As(providerErr, &gatewayFailure) && !gatewayFailure.Failure.Retryable:
+					failure = state.rejectedGatewayRequest(gatewayFailure.Failure.Code)
+				default:
 					failure = state.providerFailure()
 				}
 				endModelSpan("failed", planner.FailureFrom(failure).Code, nil)
@@ -467,26 +474,6 @@ func (p *streamlinePlanner) stateInstruction() string {
 		"Pagination cursors are opaque and valid only for the same function and completed dispatch; copy them exactly and do not interpret them.",
 		"Worker State evidence is advisory. A State projection error does not undo a completed subtask and must not by itself change its Worker result, dispatch status, or the Stage outcome.",
 	}, "\n")
-}
-
-func (p *streamlinePlanner) recoverCompletion(
-	ctx context.Context, completion planner.Completion,
-) (contracts.StageContentResult, error) {
-	if (completion.Result == nil) == (completion.Failure == nil) {
-		return contracts.StageContentResult{}, planner.NewError(
-			"planner_session_invalid", "Recorded Planner completion is invalid", false, nil,
-		)
-	}
-	if completion.Failure != nil {
-		return contracts.StageContentResult{}, planner.NewErrorFromFailure(*completion.Failure, nil)
-	}
-	result := completion.Result.Clone()
-	if err := planner.ValidateCandidate(
-		ctx, p.invocation.RunID, p.resultContract, result, p.inspector,
-	); err != nil {
-		return contracts.StageContentResult{}, err
-	}
-	return result, nil
 }
 
 func (p *streamlinePlanner) fail(

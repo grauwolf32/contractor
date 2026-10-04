@@ -19,6 +19,21 @@ CASES = json.loads(
         encoding="utf-8"
     )
 )
+# Case groups only the Go Server checks, each with its reason. Every other group
+# must be exercised below.
+GO_ONLY_GROUPS: dict[str, str] = {
+    "llmGatewayConfigs": (
+        "the resolved Gateway body and its digest stay on the Go Server; the Runtime "
+        "receives only the digest-bearing LLMGatewayConfigRef"
+    ),
+}
+RUNTIME_GROUPS = {"modelPolicies", "agentTemplates"}
+
+
+def test_every_case_group_is_checked_or_go_only() -> None:
+    assert CASES.keys() == RUNTIME_GROUPS | GO_ONLY_GROUPS.keys()
+    assert RUNTIME_GROUPS.isdisjoint(GO_ONLY_GROUPS)
+    assert all(reason.strip() for reason in GO_ONLY_GROUPS.values())
 
 
 @pytest.mark.parametrize(

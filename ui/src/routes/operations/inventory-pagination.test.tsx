@@ -289,4 +289,94 @@ describe("Operations inventories beyond the first page", () => {
       ).not.toBeInTheDocument(),
     );
   });
+
+  it("does not report an empty inventory while a page loads or fails", async () => {
+    let credentialsAvailable = false;
+    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
+      const url = new URL(request.url);
+      if (url.pathname === "/v1/operations/runtime-configs")
+        return new Promise<Response>(() => undefined);
+      if (url.pathname === "/v1/operations/runtime-credentials")
+        return credentialsAvailable
+          ? reply({ items: [credential(1)], page: { hasMore: false } })
+          : reply(
+              {
+                code: "unavailable",
+                message: "Runtime credentials are unavailable",
+                retryable: true,
+              },
+              503,
+            );
+      return reply({ items: [], page: { hasMore: false } });
+    });
+    expect(await screen.findByText("Loading RuntimeConfigs…")).toBeVisible();
+    expect(
+      await screen.findByText("Could not load Runtime credentials"),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No RuntimeConfig versions are visible."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No Runtime credentials exist."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/on this page/)).not.toBeInTheDocument();
+
+    credentialsAvailable = true;
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("credential-01")).toBeVisible();
+    expect(screen.getByText("1 on this page")).toBeVisible();
+  });
+
+  it("labels an empty later page without claiming the inventory is empty", async () => {
+    const config = {
+      ref: { name: "debug", version: "1", digest: digest(500) },
+      document: {
+        apiVersion: "contractor/v1alpha1",
+        kind: "RuntimeConfig",
+        metadata: { name: "debug", version: "1" },
+        spec: {},
+      },
+      builtIn: false,
+      createdBy: "operator",
+      createdAt: now,
+    };
+    const firstOrEmpty = (item: unknown, cursor: string | null) =>
+      cursor === null
+        ? { items: [item], page: { hasMore: true, nextCursor: "page-2" } }
+        : { items: [], page: { hasMore: false } };
+    renderWithAPI(<RuntimeConfigurationRoute />, async (request) => {
+      const url = new URL(request.url);
+      const cursor = url.searchParams.get("cursor");
+      if (url.pathname === "/v1/operations/runtime-configs")
+        return reply(firstOrEmpty(config, cursor));
+      if (url.pathname === "/v1/operations/runtime-credentials")
+        return reply(firstOrEmpty(credential(1), cursor));
+      return reply({ items: [], page: { hasMore: false } });
+    });
+    const user = userEvent.setup();
+    for (const label of ["RuntimeConfig pages", "Runtime credential pages"]) {
+      const navigation = await screen.findByRole("navigation", { name: label });
+      await user.click(
+        await within(navigation).findByRole("button", { name: "Next" }),
+      );
+    }
+    expect(
+      await screen.findByText(
+        "This page lists no RuntimeConfig versions. Earlier pages may list more.",
+      ),
+    ).toBeVisible();
+    expect(
+      await screen.findByText(
+        "This page lists no Runtime credentials. Earlier pages may list more.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No RuntimeConfig versions are visible."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No Runtime credentials exist."),
+    ).not.toBeInTheDocument();
+  });
 });

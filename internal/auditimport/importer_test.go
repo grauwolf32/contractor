@@ -739,6 +739,40 @@ func TestImporterConvertsPermanentPinnedContractFailureToReceipt(t *testing.T) {
 	}
 }
 
+func TestImporterConvertsDeterministicStoreRejectionToReceipt(t *testing.T) {
+	harness := newImportHarness(t)
+	rejected := 0
+	harness.store.collectErr = func(params auditstore.CollectParams) error {
+		if params.Disposition == auditstore.CollectionContractInvalid {
+			return nil
+		}
+		rejected++
+		return fmt.Errorf("%w: collection payload is too large", auditstore.ErrInvalid)
+	}
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	collected := harness.store.collected
+	if err != nil || !worked || rejected != 1 || collected.Disposition != auditstore.CollectionContractInvalid ||
+		collected.ErrorCode == nil || *collected.ErrorCode != "collection-contract-invalid" ||
+		len(collected.Items) != 1 || collected.Items[0].Retryable {
+		t.Fatalf("deterministic store rejection = (%t, %v, rejected=%d, %+v)", worked, err, rejected, collected)
+	}
+
+	harness = newImportHarness(t)
+	transient := errors.New("database connection reset")
+	harness.store.collectErr = func(auditstore.CollectParams) error { return transient }
+	worked, err = harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if !errors.Is(err, transient) || errors.Is(err, ErrPermanent) || worked ||
+		harness.store.collected.ExecutionID != "" {
+		t.Fatalf("transient store failure = (%t, %v, %+v), want retryable error without receipt",
+			worked, err, harness.store.collected)
+	}
+}
+
 func TestImporterSettlesEvidenceBudgetExhaustionWithoutStaging(t *testing.T) {
 	harness := newImportHarness(t)
 	harness.snapshot.Audit.Limits.MaxEvidenceBytes = harness.artifacts.runDescriptor.SizeBytes - 1
@@ -1487,7 +1521,13 @@ func (f *fakeImportStore) CollectionDispositionCounts(context.Context, string) (
 func (f *fakeImportStore) ListReportFindings(context.Context, string) ([]auditstore.ReportFinding, error) {
 	return append([]auditstore.ReportFinding{}, f.findings...), nil
 }
+
+// Collect enforces the production request contract, so a collection shape
+// the PostgreSQL store would reject cannot pass here.
 func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
+	if err := auditstore.ValidateCollect(params); err != nil {
+		return auditstore.CollectionReceipt{}, false, err
+	}
 	if f.collectErr != nil {
 		if err := f.collectErr(params); err != nil {
 			return auditstore.CollectionReceipt{}, false, err
@@ -1560,22 +1600,13 @@ func (f *fakeFindingRetention) ListAuditCollection(
 	return result, nil
 }
 
-func (f *fakeFindingRetention) RetainAuditCollection(
-	_ context.Context, request findingintake.ImportRequest,
-) (findingintake.AuditHold, bool, error) {
-	f.imports = append(f.imports, request)
-	if f.retainErr != nil {
-		return findingintake.AuditHold{}, false, f.retainErr
-	}
-	return findingintake.AuditHold{AuditID: request.AuditID}, false, nil
-}
-
 func (f *fakeFindingRetention) RetainAuditCollectionBatch(
-	ctx context.Context, requests []findingintake.ImportRequest,
+	_ context.Context, requests []findingintake.ImportRequest,
 ) error {
 	for _, request := range requests {
-		if _, _, err := f.RetainAuditCollection(ctx, request); err != nil {
-			return err
+		f.imports = append(f.imports, request)
+		if f.retainErr != nil {
+			return f.retainErr
 		}
 	}
 	return nil

@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V325-001
+title: Restore Python coverage of every fixture-index message type
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: c3ec72ab3180c702c44668ae72eaa695cb010fbd
+depends_on: []
+languages: [python]
+goal: Make the Python contract suite fail when a shared fixture type is silently skipped.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "V222 (1e6b4592) removed ResolvedLLMGatewayConfig from MODELS in runtime/tests/test_contracts.py:52-76; the filters entry['type'] in MODELS (lines 81, 85, 91) then drop all eight gateway fixtures, including V179-002's newline permanent-code regression fixture. test_digest_cases.py dropped the llmGatewayConfigs cases and test_all_golden_files_have_an_assigned_model checks names, not types: pytest --collect-only shows zero llm-gateway cases."
+scope:
+  in:
+    - Fail on any index type missing from MODELS unless it is in an explicit Go-only list with a reason.
+    - A direct test that GatewayFailureSignatures rejects 'insufficient_quota\n'.
+  out:
+    - Changing fixtures.
+acceptance_criteria:
+  - {id: A1, text: "An unassigned fixture type fails the suite."}
+  - {id: A2, text: "Gateway fixtures are exercised or explicitly listed as Go-only."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_digest_cases.py", covers: [A1, A2]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2]}

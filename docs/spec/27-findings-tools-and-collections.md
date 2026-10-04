@@ -91,7 +91,10 @@ Absent or empty holds encode by omitting the member.
 `retention` captures the existing receipt state: `source-held`, `audit-held` or
 `discarded`. It never substitutes for package byte availability. A discarded
 receipt can be included only if all selected exact bytes remain available through
-an authorized retained copy; otherwise publication fails.
+an authorized retained copy; otherwise publication fails. After its source Run
+is deleted, a receipt is read from the retained copy of an Audit source that
+selected it (the lowest such Audit ID holding one), never from another
+destination's copy; without such a copy publication fails.
 
 Review `revision` is an integer in 1–9007199254740991. `state` is `proposed`,
 `confirmed`, `rejected`, `duplicate` or `needs-evidence`. IDs are copied only when
@@ -261,6 +264,12 @@ Runtime owns allocation-local reader-toolset preparation:
    Failed preparation may leave ordinary unexposed intermediate artifacts;
    replay verifies/reuses them and existing Run cleanup owns their lifecycle.
 
+A failed preparation reports its bounded `findings_*` code as the allocation
+error. `findings_collection_unavailable` and `findings_document_unavailable`
+are retryable only for a lost Artifact API transport or an Artifact API error
+marked retryable; invalid or oversized collections and
+`findings_document_conflict` are non-retryable for the recorded Run snapshot.
+
 The toolset may perform this internal materialization even in a reader-only
 configuration. This grants no model-visible creation operation. It uses the
 existing `WriteInputsAndIntermediates` allocation policy and leaves
@@ -394,8 +403,10 @@ No content-based deduplication or guessed subject is introduced.
 Optional `cwe` maps to `standard_refs` with scheme `CWE`, version `4.20` and the
 explicit `CWE-NNN` weakness ID. The bundled catalog records MITRE's versioned XML
 archive URL, archive/XML SHA-256 and its weakness IDs, excluding Weakness entries
-with `Status="Deprecated"`. Unknown or deprecated IDs fail locally;
-no live taxonomy lookup occurs. Updating the catalog/version requires reviewing
+with `Status="Deprecated"`. Unknown or deprecated IDs fail locally, in `cwe` and
+in explicit `standard_refs` entries with scheme `CWE`; such an entry must also use
+version `4.20`. Rejected references never reach intake, and no live taxonomy
+lookup occurs. Updating the catalog/version requires reviewing
 the mapping and the external benchmark binding together.
 Audit import accepts known `CWE@4.20` references without pinning CWE as an
 Audit standard; they are incidental classifications and cannot satisfy an

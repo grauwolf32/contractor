@@ -28,13 +28,13 @@ from contractor_runtime.projectfs.paths import (
     normalize_project_glob,
     project_glob_matches,
 )
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _reject_unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError

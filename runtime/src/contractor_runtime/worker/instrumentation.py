@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -17,9 +16,11 @@ from contractor_runtime.adapters.content import capture_span_content, model_requ
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
+    SAFE_ERROR_CODE,
     MetricsState,
     bind_tool_metric_correlation,
     reset_tool_metric_correlation,
+    safe_error_code,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.worker.observations import (
@@ -28,8 +29,6 @@ from contractor_runtime.worker.observations import (
     WorkspaceToolObservation,
 )
 from contractor_runtime.worker.state import InvocationPhase, WorkerStateStore
-
-_SAFE_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 class InvocationBudget(Protocol):
@@ -563,6 +562,13 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._pending_auxiliary_models.pop(phase, None)
                 _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
             for pending in self._pending_tools.values():
+                # A tool still running when the Worker closes was cancelled; the
+                # allocation report records it like any other tool call.
+                self._record_tool_metric_locked(
+                    pending,
+                    failed=True,
+                    error=_RecordedToolFailure("tool_call_cancelled", retryable=True),
+                )
                 _end_span(pending.span, outcome="cancelled")
                 self._metrics.release_tool_correlation(pending.correlation_id)
                 with contextlib.suppress(RuntimeError, ValueError):
@@ -588,30 +594,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         tool_args: Mapping[str, Any] | None,
         result: Any,
     ) -> None:
-        recorded_failure = self._metrics.correlated_tool_outcome(pending.correlation_id)
-        if recorded_failure is None:
-            bounded_error: Exception | None = None
-            if failed:
-                code = _safe_error_code(error)
-                bounded_error = _RecordedToolFailure(
-                    code,
-                    retryable=bool(getattr(error, "retryable", False)),
-                )
-            token = bind_tool_metric_correlation(pending.correlation_id)
-            try:
-                self._metrics.record_tool_call(
-                    pending.name,
-                    arguments={},
-                    error=bounded_error,
-                    duration_ms=max(
-                        0,
-                        int((time.perf_counter_ns() - pending.started_ns) / 1_000_000),
-                    ),
-                )
-            finally:
-                reset_tool_metric_correlation(token)
-            recorded_failure = failed
-        failed = failed or bool(recorded_failure)
+        failed = self._record_tool_metric_locked(pending, failed=failed, error=error) or failed
         self._require_reducer().record_tool_call(pending.name, failed=failed)
         if not failed and pending.observation_cursor is not None:
             try:
@@ -645,6 +628,38 @@ class WorkerInstrumentationPlugin(BasePlugin):
         with contextlib.suppress(RuntimeError, ValueError):
             reset_tool_metric_correlation(pending.metric_token)
         await self._publish_locked(callback_context)
+
+    def _record_tool_metric_locked(
+        self, pending: _PendingTool, *, failed: bool, error: Exception | None
+    ) -> bool:
+        """Record one allocation tool call unless the tool recorded it itself.
+
+        Returns whether the recorded call failed.
+        """
+
+        recorded_failure = self._metrics.correlated_tool_outcome(pending.correlation_id)
+        if recorded_failure is not None:
+            return recorded_failure
+        bounded_error: Exception | None = None
+        if failed:
+            bounded_error = _RecordedToolFailure(
+                safe_error_code(error),
+                retryable=bool(getattr(error, "retryable", False)),
+            )
+        token = bind_tool_metric_correlation(pending.correlation_id)
+        try:
+            self._metrics.record_tool_call(
+                pending.name,
+                arguments={},
+                error=bounded_error,
+                duration_ms=max(
+                    0,
+                    int((time.perf_counter_ns() - pending.started_ns) / 1_000_000),
+                ),
+            )
+        finally:
+            reset_tool_metric_correlation(token)
+        return failed
 
     async def _publish_locked(self, callback_context: Any | None) -> None:
         active = self._active_invocation_id
@@ -705,20 +720,13 @@ def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
     return {
         "ok": False,
         "error": {
-            "code": _safe_error_code(error),
+            "code": safe_error_code(error),
             "message": message.encode("utf-8", errors="replace")[:512].decode(
                 "utf-8", errors="ignore"
             ),
             "retryable": bool(getattr(error, "retryable", False)),
         },
     }
-
-
-def _safe_error_code(error: Exception | None) -> str:
-    code = getattr(error, "code", "tool_call_failed")
-    if not isinstance(code, str) or _SAFE_ERROR_CODE.fullmatch(code) is None:
-        return "tool_call_failed"
-    return code
 
 
 def _result_is_failure(result: Any) -> bool:
@@ -731,7 +739,7 @@ def _result_is_failure(result: Any) -> bool:
 
 def _safe_error_type(error: Exception) -> str:
     error_type = getattr(error, "provider_error_type", type(error).__name__)
-    if not isinstance(error_type, str) or _SAFE_ERROR_CODE.fullmatch(error_type) is None:
+    if not isinstance(error_type, str) or SAFE_ERROR_CODE.fullmatch(error_type) is None:
         return type(error).__name__
     return error_type
 

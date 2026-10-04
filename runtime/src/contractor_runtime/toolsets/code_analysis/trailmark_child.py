@@ -116,7 +116,7 @@ class _TrailmarkAdapter:
         mirror_root = Path.cwd().resolve()
         if any(not isinstance(node_id, str) for node_id in graph.nodes):
             raise _RequestError("code_analysis_engine_failed")
-        canonical_ids, root_module_id = _canonical_graph_ids(graph, mirror_root)
+        canonical_ids, canonical_names = _canonical_graph_ids(graph, mirror_root)
         upstream_ids = {canonical: upstream for upstream, canonical in canonical_ids.items()}
         if len(upstream_ids) != len(graph.nodes):
             raise _RequestError("code_analysis_engine_failed")
@@ -135,8 +135,8 @@ class _TrailmarkAdapter:
                 raise _RequestError("code_analysis_engine_failed")
             symbol_ids.add(symbol_id)
             projection = _project_node(node, mirror_root, symbol_id)
-            if upstream_id == root_module_id:
-                projection["name"] = raw_id
+            if upstream_id in canonical_names:
+                projection["name"] = _safe_text(canonical_names[upstream_id], MAX_NAME_CHARS)
             nodes[raw_id] = projection
             symbols.append(projection)
             for key in _index_name_keys(raw_id, projection["name"]):
@@ -613,8 +613,15 @@ def _object(value: object, keys: set[str]) -> dict[str, Any]:
     return value
 
 
-def _canonical_graph_ids(graph: Any, mirror_root: Path) -> tuple[dict[str, str], str | None]:
-    """Remove Trailmark's random parse-root prefix from root-package IDs."""
+def _canonical_graph_ids(graph: Any, mirror_root: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Remove Trailmark's random parse-root name from root-package identities.
+
+    Trailmark names a root ``__init__.py`` module after the parse-root
+    directory, which is the random mirror. Its definitions extend that module
+    ID, and its unresolved calls become ``proxy.<kind>:<root>:<call>`` nodes
+    named ``<root>:<call>``. Returns the canonical ID of every node and the
+    canonical name of every node whose name starts with the parse root.
+    """
     root_modules = [
         raw_id
         for raw_id, node in graph.nodes.items()
@@ -625,22 +632,39 @@ def _canonical_graph_ids(graph: Any, mirror_root: Path) -> tuple[dict[str, str],
     if len(root_modules) > 1:
         raise _RequestError("code_analysis_engine_failed")
     if not root_modules:
-        return {raw_id: raw_id for raw_id in graph.nodes}, None
+        return {raw_id: raw_id for raw_id in graph.nodes}, {}
 
     root_id = root_modules[0]
-    rooted = {
-        raw_id for raw_id in graph.nodes if raw_id == root_id or raw_id.startswith(root_id + ":")
-    }
-    unrelated = set(graph.nodes) - rooted
+    rooted: dict[str, tuple[str, str]] = {}
+    for raw_id, node in graph.nodes.items():
+        head = ""
+        if _enum_value(getattr(node, "kind", "")) == "proxy" and raw_id.startswith("proxy."):
+            head = raw_id[: raw_id.find(":") + 1]
+        rest = _root_relative(raw_id[len(head) :], root_id)
+        if rest is not None:
+            rooted[raw_id] = (head, rest)
+    unrelated = set(graph.nodes) - set(rooted)
     prefix = "__init__"
     suffix = 0
-    while any(prefix + raw_id[len(root_id) :] in unrelated for raw_id in rooted):
+    while any(head + prefix + rest in unrelated for head, rest in rooted.values()):
         suffix += 1
         prefix = f"__init__#{suffix}"
-    return {
-        raw_id: prefix + raw_id[len(root_id) :] if raw_id in rooted else raw_id
-        for raw_id in graph.nodes
-    }, root_id
+    canonical_ids = {raw_id: raw_id for raw_id in graph.nodes}
+    canonical_names: dict[str, str] = {}
+    for raw_id, (head, rest) in rooted.items():
+        canonical_ids[raw_id] = head + prefix + rest
+        name_rest = _root_relative(str(getattr(graph.nodes[raw_id], "name", "")), root_id)
+        if name_rest is not None:
+            canonical_names[raw_id] = prefix + name_rest
+    return canonical_ids, canonical_names
+
+
+def _root_relative(value: str, root_id: str) -> str | None:
+    """Return the text after a leading root-package ID, or None without one."""
+
+    if value == root_id or value.startswith(root_id + ":"):
+        return value[len(root_id) :]
+    return None
 
 
 def _project_node(node: object, mirror_root: Path, symbol_id: str) -> dict[str, Any]:

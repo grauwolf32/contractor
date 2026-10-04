@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V283-001
+title: Respect inventory limits when selecting the next Audit Round
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 73f48d509f84a3b7a02d0f723cf9df7810954fdc
+depends_on: []
+languages: [go]
+goal: Split oversized next-Round selections instead of finalizing the Audit with next_round_invalid.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "Next-Round capacity is min(MaxItemsPerRound, remaining total) (internal/auditservice/next_round.go:55-81) and MaxItemsPerRound may be 10,000 (internal/config/audit_profile.go:23). addPage (next_round_selection.go:91-126) ignores auditdomain.MaximumItems (4096 checks) and MaximumDocumentBytes (8 MiB) although the inventory embeds every selected proposal document (an httpExchange may carry a 1 MiB body). EncodeFindingInventory then returns CodeLimitExceeded and nextRoundValidationError (internal/auditcontroller/round_progression.go:12-16,92-95) finalizes the Audit since V237. Reproduced: 4608 checks give audit_limit_exceeded finding_inventory.checks; 150 proposals of about 60 KiB with capacity 200 give audit_limit_exceeded document."
+scope:
+  in:
+    - Cap capacity at MaximumItems and stop adding proposals once the encoded inventory would exceed MaximumDocumentBytes.
+    - Reject a single proposal that can never fit with a precise per-proposal reason instead of failing the Round.
+    - Share one limit budget between Start, preview and next-Round selection.
+  out:
+    - Changing configured limits.
+acceptance_criteria:
+  - {id: A1, text: "4608 eligible checks produce Rounds within limits instead of next_round_invalid."}
+  - {id: A2, text: "Proposals totalling more than 8 MiB are spread across Rounds."}
+  - {id: A3, text: "A single proposal that can never fit is reported and skipped."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditservice ./internal/auditdomain ./internal/auditcontroller", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

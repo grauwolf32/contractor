@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V328-001
+title: Document transaction-retry 503 responses for public operations
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: be4b73382c26eecb14ca11b42eaf1ed19e8ea540
+depends_on: [V323-001]
+languages: [go, yaml]
+goal: Make every public operation that can return a transaction-retry 503 document it.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: V207 maps SQLSTATE 40001 and 40P01 to 503 for every public handler (internal/httpapi/public/errors.go:168), but the OpenAPI 503 response was added only to the two Run-create operations, so other operations can return undocumented 503 responses.
+scope:
+  in:
+    - Document 503 on every affected operation through a shared response component, or restrict the mapping.
+    - Contract test.
+  out:
+    - Changing retry semantics.
+acceptance_criteria:
+  - {id: A1, text: "Every operation that can return 503 documents it."}
+tests:
+  - {command: "make verify-public-api", covers: [A1]}
+  - {command: "cd ui && corepack pnpm generate:check", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

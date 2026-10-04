@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V281-001
+title: Bound finding-collection transactions by work
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 62235607559d60fe3bf319f04087f5ce497f2e14
+depends_on: [V280-001]
+languages: [go]
+goal: Keep Audit finding collection making progress when a page of proposals carries many evidence imports.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "Since V240 a whole page of up to 200 proposals, each with up to 256 evidence imports, commits in one transaction (internal/findingintake/postgres.go:444-470; internal/auditimport/importer.go:340-351). When the page cannot finish inside OperationTimeout (10 s, shared with the snapshot read and hydration; internal/auditcontroller/types.go:23) it rolls back and the next attempt repeats the same page forever. Measured: 200 proposals with 48 evidence each commit after 10.003 s and roll back on every attempt; 200 with 8 evidence already issue 6,404 queries in one transaction. V240 tests call collectFixtureProposals, a copy of the skip predicate without the Rejected and non-succeeded clauses, and two tests are timing-sensitive (8.8 s against a 10 s limit; a 3 s partial run)."
+scope:
+  in:
+    - Bound each collection transaction by total artifact imports or bytes (or halve and retry after a deadline) so every attempt commits progress.
+    - Export one needs-retention predicate used by the importer and by tests.
+    - Replace assertions that depend on finishing within a few seconds of a deadline with structural checks.
+  out:
+    - Changing what is collected or retained.
+acceptance_criteria:
+  - {id: A1, text: "A page of 200 proposals with 48 evidence imports each completes across attempts within the default budget."}
+  - {id: A2, text: "Collection tests use the production skip predicate."}
+  - {id: A3, text: "No collection test depends on wall-clock margins of a few seconds."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake ./internal/auditimport", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

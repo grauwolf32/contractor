@@ -14,6 +14,7 @@ from test_projectfs_zip import REVISION, archive, settings, workspace_inputs
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import AllocationWorkspaceState, ArtifactRef
 from contractor_runtime.projectfs import (
+    DirectWorkspaceSession,
     LocalWorkspaceProvider,
     ManagedWorkspaceTree,
     MemoryWorkspaceProvider,
@@ -321,6 +322,142 @@ def test_overlay_edits_validate_only_changed_text_and_keep_limits(
             await bounded.copy_path("a.txt", "c.txt")
         await bounded.move_path("a.txt", "c.txt")
         assert await bounded.read_text("c.txt") == "12345"
+
+    asyncio.run(scenario())
+
+
+def test_overlay_delete_and_mkdir_validate_only_changed_entries_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        source = ManagedWorkspaceTree(
+            directories={"dir", "dir/nested"},
+            text_files={f"dir/file-{index}.txt": "content\n" for index in range(40)}
+            | {"dir/nested/deep.txt": "deep\n"},
+        )
+        session = await overlay(source, "path-delta")
+        clones: list[int] = []
+        clone = ManagedWorkspaceTree.clone
+
+        def counted_clone(tree: ManagedWorkspaceTree) -> ManagedWorkspaceTree:
+            clones.append(threading.get_ident())
+            return clone(tree)
+
+        def unexpected(*_: object) -> None:
+            raise AssertionError("delete and mkdir must not validate unchanged entries")
+
+        monkeypatch.setattr(ManagedWorkspaceTree, "clone", counted_clone)
+        monkeypatch.setattr(overlay_module, "_validate_tree", unexpected)
+        monkeypatch.setattr(overlay_module, "_validate_text", unexpected)
+        await session.make_directory("dir/new/leaf", parents=True)
+        await session.delete_path("dir/file-0.txt")
+        await session.delete_path("dir/nested", recursive=True)
+        await session.make_directory("dir")
+        assert len(clones) == 3 and threading.get_ident() not in clones
+        monkeypatch.undo()
+
+        snapshot = await session.snapshot()
+        assert snapshot.directories == ("dir", "dir/new", "dir/new/leaf")
+        assert [item.path for item in snapshot.files] == sorted(
+            f"dir/file-{index}.txt" for index in range(1, 40)
+        )
+
+    asyncio.run(scenario())
+
+
+def test_overlay_delete_and_mkdir_keep_count_and_byte_limits() -> None:
+    async def scenario() -> None:
+        tight = WorkspaceLimits(
+            max_files=4, max_expanded_bytes=12, max_managed_text_bytes=12, max_file_bytes=10
+        )
+        provider = MemoryWorkspaceProvider(WorkspaceSettings(storage="memory", limits=tight))
+        storage = await provider.create("path-limits")
+        session = OverlayWorkspaceSession(
+            storage=storage,
+            content_root=f"{storage.root}/run_workdir",
+            limits=tight,
+            directories=set(),
+            text_files={"a.txt": "12345", "b.txt": "67890"},
+            binary_paths=set(),
+        )
+        await session.make_directory("c")
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.make_directory("d/e", parents=True)
+        await session.make_directory("d")
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("c/f.txt", "1")
+        await session.delete_path("d")
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("c/f.txt", "123")
+        # The deleted text's bytes are released for later writes.
+        await session.delete_path("a.txt")
+        await session.write_text("c/f.txt", "1234567")
+        assert await session.read_text("c/f.txt") == "1234567"
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("b.txt", "678901")
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "flag"),
+    [
+        ("delete_path", "missing.txt", False),
+        ("delete_path", "tree", False),
+        ("delete_path", "tree", True),
+        ("delete_path", "tree/empty", False),
+        ("delete_path", "blobs", True),
+        ("delete_path", "image.bin", False),
+        ("make_directory", "tree", False),
+        ("make_directory", "file.txt", True),
+        ("make_directory", "missing/child", False),
+        ("make_directory", "missing/child", True),
+        ("make_directory", "file.txt/child", True),
+        ("make_directory", "tree/file.txt", False),
+        ("make_directory", "tree/new", False),
+        ("make_directory", "a/b/c/d", True),
+    ],
+)
+def test_overlay_delete_and_mkdir_match_memory_direct_session(
+    method: str, path: str, flag: bool
+) -> None:
+    async def scenario() -> None:
+        tree = ManagedWorkspaceTree(
+            directories={"tree", "tree/empty", "blobs"},
+            text_files={"file.txt": "file\n", "tree/file.txt": "nested\n"},
+            binary_paths={"image.bin", "blobs/blob.bin"},
+        )
+        bounds = WorkspaceLimits(
+            max_files=9,
+            max_expanded_bytes=1 << 20,
+            max_managed_text_bytes=1 << 19,
+            max_file_bytes=1 << 18,
+        )
+        provider = MemoryWorkspaceProvider(WorkspaceSettings(storage="memory", limits=bounds))
+        outcomes = []
+        for session_type in (DirectWorkspaceSession, OverlayWorkspaceSession):
+            storage = await provider.create(f"parity-{session_type.__name__}")
+            arguments = dict(
+                storage=storage,
+                content_root=f"{storage.root}/run_workdir",
+                limits=bounds,
+                directories=tree.directories,
+                text_files=tree.text_files,
+                binary_paths=tree.binary_paths,
+            )
+            session = (
+                DirectWorkspaceSession(mode="direct", **arguments)
+                if session_type is DirectWorkspaceSession
+                else OverlayWorkspaceSession(**arguments)
+            )
+            keyword = "recursive" if method == "delete_path" else "parents"
+            try:
+                await getattr(session, method)(path, **{keyword: flag})
+                outcome = None
+            except overlay_module.WorkspaceStorageError as error:
+                outcome = error.args[0]
+            outcomes.append((outcome, await session.snapshot()))
+        assert outcomes[0] == outcomes[1]
 
     asyncio.run(scenario())
 

@@ -30,6 +30,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ResolvedSkill, RuntimeSettings
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.toolsets.common.metrics import ToolCallCancelled
 from contractor_runtime.workspace import AllocationWorkspace
 
 from .package import (
@@ -316,68 +317,81 @@ class ContractorSkillTool(BaseTool):
         started = time.monotonic()
         owner = self._owner
         native = self._native
+        metrics = self._metrics
         safe_arguments: dict[str, Any] = {"arguments_valid": False}
         error: SkillToolError | None = None
         result: Any
         visible_bytes = 0
-        if owner is None or native is None:
-            error = SkillToolError("SKILL_TOOL_UNAVAILABLE")
-            result = _tool_error("SKILL_TOOL_UNAVAILABLE", "Agent Skill tools are unavailable.")
-        else:
-            validated = _validate_tool_arguments(self.name, args, owner.selected_names)
-            if validated is None:
-                error = SkillToolError("INVALID_ARGUMENTS")
-                result = _tool_error("INVALID_ARGUMENTS", "Skill function arguments are invalid.")
+        try:
+            if owner is None or native is None:
+                error = SkillToolError("SKILL_TOOL_UNAVAILABLE")
+                result = _tool_error("SKILL_TOOL_UNAVAILABLE", "Agent Skill tools are unavailable.")
             else:
-                skill_name, file_path, safe_arguments = validated
-                charge = owner.charge_for(self.name, skill_name, file_path)
-                if not await owner.disclosure.reserve(charge):
-                    error = SkillToolError("SKILL_DISCLOSURE_LIMIT")
+                validated = _validate_tool_arguments(self.name, args, owner.selected_names)
+                if validated is None:
+                    error = SkillToolError("INVALID_ARGUMENTS")
                     result = _tool_error(
-                        "SKILL_DISCLOSURE_LIMIT",
-                        "Agent Skill disclosure limit was reached.",
+                        "INVALID_ARGUMENTS", "Skill function arguments are invalid."
                     )
                 else:
-                    try:
-                        result = await native.run_async(args=args, tool_context=tool_context)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:
-                        error = SkillToolError("SKILL_TOOL_ERROR")
-                        result = _tool_error("SKILL_TOOL_ERROR", "Agent Skill function failed.")
-                    native_code = _native_error_code(result)
-                    if native_code is not None:
-                        error = SkillToolError(native_code)
-                    binary_asset = (
-                        self.name == "load_skill_resource"
-                        and (skill_name, file_path) in owner.binary_resources
-                    )
-                    visible_bytes = _json_bytes(result)
-                    if visible_bytes > charge:
-                        error = SkillToolError("SKILL_DISCLOSURE_ESTIMATE_INVALID")
+                    skill_name, file_path, safe_arguments = validated
+                    charge = owner.charge_for(self.name, skill_name, file_path)
+                    if not await owner.disclosure.reserve(charge):
+                        error = SkillToolError("SKILL_DISCLOSURE_LIMIT")
                         result = _tool_error(
-                            "SKILL_DISCLOSURE_ESTIMATE_INVALID",
-                            "Agent Skill result was suppressed by Runtime policy.",
+                            "SKILL_DISCLOSURE_LIMIT",
+                            "Agent Skill disclosure limit was reached.",
+                        )
+                    else:
+                        try:
+                            result = await native.run_async(args=args, tool_context=tool_context)
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            error = SkillToolError("SKILL_TOOL_ERROR")
+                            result = _tool_error("SKILL_TOOL_ERROR", "Agent Skill function failed.")
+                        native_code = _native_error_code(result)
+                        if native_code is not None:
+                            error = SkillToolError(native_code)
+                        binary_asset = (
+                            self.name == "load_skill_resource"
+                            and (skill_name, file_path) in owner.binary_resources
                         )
                         visible_bytes = _json_bytes(result)
-                    elif (
-                        binary_asset
-                        and error is None
-                        and isinstance(result, Mapping)
-                        and isinstance(result.get("status"), str)
-                    ):
-                        # The OpenAI-compatible Gateway accepts text only. Do
-                        # not promise an attachment that it cannot transport.
-                        result = _binary_resource_status(skill_name, file_path)
-                        visible_bytes = _json_bytes(result)
-                    elif binary_asset and error is None:
-                        error = SkillToolError("SKILL_TOOL_ERROR")
-                        result = _tool_error("SKILL_TOOL_ERROR", "Agent Skill function failed.")
-                        visible_bytes = _json_bytes(result)
+                        if visible_bytes > charge:
+                            error = SkillToolError("SKILL_DISCLOSURE_ESTIMATE_INVALID")
+                            result = _tool_error(
+                                "SKILL_DISCLOSURE_ESTIMATE_INVALID",
+                                "Agent Skill result was suppressed by Runtime policy.",
+                            )
+                            visible_bytes = _json_bytes(result)
+                        elif (
+                            binary_asset
+                            and error is None
+                            and isinstance(result, Mapping)
+                            and isinstance(result.get("status"), str)
+                        ):
+                            # The OpenAI-compatible Gateway accepts text only. Do
+                            # not promise an attachment that it cannot transport.
+                            result = _binary_resource_status(skill_name, file_path)
+                            visible_bytes = _json_bytes(result)
+                        elif binary_asset and error is None:
+                            error = SkillToolError("SKILL_TOOL_ERROR")
+                            result = _tool_error("SKILL_TOOL_ERROR", "Agent Skill function failed.")
+                            visible_bytes = _json_bytes(result)
+        except asyncio.CancelledError:
+            # A cancelled call is recorded like every other tool call.
+            metrics.record_tool_call(
+                self.name,
+                arguments=safe_arguments,
+                error=ToolCallCancelled(),
+                duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+            )
+            raise
 
         if visible_bytes == 0:
             visible_bytes = _json_bytes(result)
-        self._metrics.record_tool_call(
+        metrics.record_tool_call(
             self.name,
             arguments=safe_arguments,
             error=error,

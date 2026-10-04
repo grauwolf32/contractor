@@ -140,30 +140,70 @@ func TestCollectionValidationKeepsAttemptAndLogicalSettlementDistinct(t *testing
 			Coverage: emptyCoverage(),
 		}},
 	}
-	if err := validateCollect(params); err != nil {
+	if err := ValidateCollect(params); err != nil {
 		t.Fatalf("valid retryable collection: %v", err)
 	}
 	params.Items[0].FinalDisposition = FinalAccepted
-	if err := validateCollect(params); !errors.Is(err, ErrInvalid) {
+	if err := ValidateCollect(params); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("mismatched final disposition error = %v", err)
 	}
 	params.Items[0].FinalDisposition = FinalInvalidResult
 	params.Items[0].Disposition = CollectionInvalidResult
 	params.Disposition = CollectionInvalidResult
-	if err := validateCollect(params); !errors.Is(err, ErrInvalid) {
+	if err := ValidateCollect(params); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid result without exact source output error = %v", err)
 	}
 	invalidSource := testExact("outputs", "invalid-result", "r1")
 	params.SourceOutput = &invalidSource
-	if err := validateCollect(params); err != nil {
+	if err := ValidateCollect(params); err != nil {
 		t.Fatalf("invalid result with exact source output: %v", err)
 	}
 	params.SourceOutput = nil
 	params.Disposition = CollectionContractInvalid
 	params.Items[0].Disposition = CollectionContractInvalid
 	params.Items[0].Retryable = false
-	if err := validateCollect(params); err != nil {
+	if err := ValidateCollect(params); err != nil {
 		t.Fatalf("collection contract failure without invented source output: %v", err)
+	}
+}
+
+func TestCollectionValidationScopesFindingReceiptsToOneMember(t *testing.T) {
+	t.Parallel()
+	result := testExact("outputs", "result", "r1")
+	proposal := testExact("audit-findings", "candidate", "r1")
+	proposal.MediaType = "application/json"
+	member := func(executionItemID string, associations ...FindingAssociation) CollectionItem {
+		return CollectionItem{
+			ExecutionItemID: executionItemID, Disposition: CollectionAccepted,
+			FinalDisposition: FinalAccepted, Result: &result, Coverage: emptyCoverage(),
+			FindingAssociations: associations,
+		}
+	}
+	association := func(assessmentID string) FindingAssociation {
+		return FindingAssociation{
+			AssessmentID: assessmentID, ReceiptID: "receipt-1",
+			Proposal: proposal, SemanticAssessment: "supported",
+		}
+	}
+	params := CollectParams{
+		Claim:     ControllerClaim{AuditID: "audit", HolderID: "controller", Epoch: 1},
+		ReceiptID: "receipt", ExecutionID: "execution-1", Disposition: CollectionAccepted,
+		SourceOutput: &result, RequestDigest: testDigest("4"),
+		Items: []CollectionItem{
+			member("member-1", association("assessment-1")),
+			member("member-2", association("assessment-2")),
+		},
+	}
+	if err := ValidateCollect(params); err != nil {
+		t.Fatalf("distinct members verifying one receipt: %v", err)
+	}
+	params.Items[1].FindingAssociations[0].AssessmentID = "assessment-1"
+	if err := ValidateCollect(params); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("duplicate finding assessment error = %v", err)
+	}
+	params.Items = []CollectionItem{member("member-1", association("assessment-1"), association("assessment-2"))}
+	if err := ValidateCollect(params); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("one member associating a receipt twice error = %v", err)
 	}
 }
 

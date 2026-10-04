@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V302-001
+title: Stop re-validating frozen Eval plans on every read
+milestone: review-followups-2026-10-04
+priority: P2
+status: completed
+implementation_commit: b3d1359c73155291e44dfd257978b909b26ef0a3
+depends_on: []
+languages: [go]
+goal: Keep Eval coordinator ticks cheap for large native plans.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: FrozenPlan calls Freeze, which re-validates the whole plan against its schema on every call (about 25 ms for a 1,000-member, 442 KB plan). admitNativeMembers does this once plus once per batch member per tick and collectMember once per dirty member (up to 100 per tick), so a tick can spend seconds validating. Stored plans are integrity-protected by the immutable trigger and the generated sha column. NextMembers issues one query per member.
+scope:
+  in:
+    - A trusted constructor for stored plans, or validate once per tick.
+    - Fetch NextMembers in one query.
+    - A benchmark or counting test.
+  out:
+    - Changing plan contents or validation of new plans.
+acceptance_criteria:
+  - {id: A1, text: "A tick over a 1,000-member plan validates the plan at most once."}
+  - {id: A2, text: "NextMembers issues one query."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice ./internal/evalstore", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

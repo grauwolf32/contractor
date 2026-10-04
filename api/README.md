@@ -37,6 +37,12 @@ finding decision variants, multibyte passwords, label selectors and retained
 Run history. These fixtures establish their tested cases, not exhaustive
 equivalence between every schema and domain validator.
 
+Every operation whose handler reaches PostgreSQL documents the retryable `503`
+(`storage_transaction_conflict`) returned when definite serialization or
+deadlock aborts exhaust their retries. The contract test lists the few
+process-local operations that cannot return it, so a new operation must either
+document the response or be added there with its reason.
+
 `make verify-public-api-postgres` requires an explicit disposable
 `CONTRACTOR_TEST_DATABASE_URL` and checks Audit pagination at its maximum page
 size, including receipt hydration, next cursors and owner/revision fences. It

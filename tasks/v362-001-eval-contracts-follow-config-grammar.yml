@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V362-001
+title: Align Eval selector, media and 503 contracts with the shared rules
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V323-001, V324-001, V328-001]
+languages: [go, typescript, yaml]
+goal: Remove the remaining Eval-specific contract drift left after V323-001 and V324-001.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V323-001, V324-001 and V328-001: the Eval Selector (^[a-z0-9][a-z0-9._-]*@..., at most 128) is narrower than the configuration grammar, so Eval capabilities break for Workflow or AuditProfile versions with + or upper case; the Eval Media schema keeps its own looser grammar and 256 limit; the generated Eval 503 description does not mention transaction conflicts; artifact_versions.media_type has no database length CHECK."
+scope:
+  in:
+    - Reuse the shared configuration selector grammar for Eval capabilities.
+    - Use the shared media-type rule and bound for Eval Media.
+    - Mention conflicts in the Eval 503 description.
+    - Add a length CHECK on artifact media types.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Eval capabilities accept every published configuration selector."}
+  - {id: A2, text: "Eval media types follow the shared rule."}
+tests:
+  - {command: "go test -count=1 ./internal/evaldomain ./internal/httpapi/public", covers: [A1, A2]}
+  - {command: "cd ui && corepack pnpm generate:check", covers: [A1, A2]}

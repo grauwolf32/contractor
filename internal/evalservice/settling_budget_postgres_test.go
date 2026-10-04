@@ -60,9 +60,9 @@ func TestPostgresEvalSettlingEnforcesBudgetUntilAcceptedWorkDrains(t *testing.T)
 					if err != nil || len(claims) != 1 {
 						t.Fatalf("claim: %v %v", claims, err)
 					}
-					members, err := store.Outstanding(t.Context(), experiment.OwnerID, experiment.ID, 100)
+					members, err := store.ReconciliationCandidates(t.Context(), experiment.OwnerID, experiment.ID, membersPerTick)
 					if err != nil || len(members) != 8 {
-						t.Fatalf("outstanding: %v %v", members, err)
+						t.Fatalf("reconciliation candidates: %v %v", members, err)
 					}
 					if err := h.service.tx(t.Context(), func(store *evalstore.Store) error {
 						return store.ObserveTokens(t.Context(), h.scope, experiment.ID, members[0], claims[0], 100)

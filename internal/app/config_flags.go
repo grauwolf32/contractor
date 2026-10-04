@@ -26,6 +26,30 @@ func parseCommandFlags(flags *flag.FlagSet, args []string) error {
 	return err
 }
 
+// commandGroupHelp prints a command group's usage when its first argument is
+// -h or --help instead of a subcommand, reporting errHelpShown; otherwise it
+// returns nil and the group parses its subcommand.
+func commandGroupHelp(args []string, group string, subcommands ...[2]string) error {
+	if len(args) == 0 || !isHelpFlag(args[0]) {
+		return nil
+	}
+	_, _ = fmt.Fprintf(commandUsageOutput, "Usage: contractor-server %s <subcommand> [flags]\n\nSubcommands:\n", group)
+	for _, subcommand := range subcommands {
+		_, _ = fmt.Fprintf(commandUsageOutput, "  %-14s %s\n", subcommand[0], subcommand[1])
+	}
+	_, _ = fmt.Fprintf(commandUsageOutput, "\nRun 'contractor-server %s <subcommand> --help' for its flags.\n", group)
+	return errHelpShown
+}
+
+// isHelpFlag reports the spellings the flag package treats as a help request.
+func isHelpFlag(argument string) bool {
+	switch argument {
+	case "-h", "-help", "--h", "--help":
+		return true
+	}
+	return false
+}
+
 func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)

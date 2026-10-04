@@ -2,15 +2,20 @@ package public
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
+
+var errArchiveMediaType = errors.New("archive preview requires a ZIP or Skill package")
 
 type artifactArchiveResponse struct {
 	Artifact contracts.ArtifactRef   `json:"artifact"`
@@ -99,51 +104,70 @@ func (h *handler) getArtifactArchive(w http.ResponseWriter, r *http.Request, res
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	ctx, release, err := artifacts.AcquireTransfer(ctx)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	defer release()
 	r = r.WithContext(ctx)
 	store, ok := resolve(w, r)
 	if !ok {
 		return
 	}
-	result, err := store.Read(ctx, contracts.ArtifactRef{
-		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"), Revision: &revision,
-	})
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	if !artifactpreview.SupportsMediaType(result.Payload.MediaType) {
-		h.writeError(w, http.StatusUnsupportedMediaType, "archive_media_type", "Archive preview requires a ZIP or Skill package", false)
-		return
-	}
-	archive, err := artifactpreview.Open(ctx, result.Payload.Data)
+	defer transfer.Close()
+	etag, body, err := archivePreview(r.Context(), store, contracts.ArtifactRef{
+		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"), Revision: &revision,
+	}, file, query.Get("path"))
+	// A listing can reach several MiB. The payload and the opened archive are
+	// unreachable once archivePreview returns, and a client that stops reading
+	// the response must not keep the transfer slot.
+	transfer.ReleaseBeforeWrite(int64(len(body)))
 	if err != nil {
 		h.handleArchiveError(w, err)
 		return
 	}
-	if file {
-		text, err := archive.Text(ctx, query.Get("path"))
-		if err != nil {
-			h.handleArchiveError(w, err)
-			return
-		}
-		w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
-		writeJSON(w, http.StatusOK, artifactArchiveFileResponse{
-			Artifact: result.Ref, Path: query.Get("path"), Size: len(text), Text: text,
-		})
-		return
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+// archivePreview reads and inspects the payload while the caller holds the
+// transfer slot and returns only the encoded response and its ETag.
+func archivePreview(
+	ctx context.Context, store artifacts.ScopedStore, ref contracts.ArtifactRef, file bool, path string,
+) (string, []byte, error) {
+	result, err := store.Read(ctx, ref)
+	if err != nil {
+		return "", nil, err
 	}
-	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
-	writeJSON(w, http.StatusOK, artifactArchiveResponse{Artifact: result.Ref, Entries: archive.Entries})
+	if !artifactpreview.SupportsMediaType(result.Payload.MediaType) {
+		return "", nil, errArchiveMediaType
+	}
+	archive, err := artifactpreview.Open(ctx, result.Payload.Data)
+	if err != nil {
+		return "", nil, err
+	}
+	var response any = artifactArchiveResponse{Artifact: result.Ref, Entries: archive.Entries}
+	if file {
+		text, err := archive.Text(ctx, path)
+		if err != nil {
+			return "", nil, err
+		}
+		response = artifactArchiveFileResponse{Artifact: result.Ref, Path: path, Size: len(text), Text: text}
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		return "", nil, err
+	}
+	return httpx.QuotedETag(result.Ref.Revision), append(body, '\n'), nil
 }
 
 func (h *handler) handleArchiveError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errArchiveMediaType):
+		h.writeError(w, http.StatusUnsupportedMediaType, "archive_media_type", "Archive preview requires a ZIP or Skill package", false)
 	case errors.Is(err, artifactpreview.ErrInvalid):
 		h.writeError(w, http.StatusUnprocessableEntity, "archive_invalid", "Archive is invalid, unsupported or contains unsafe entries. Download the original to inspect it separately.", false)
 	case errors.Is(err, artifactpreview.ErrLimit):

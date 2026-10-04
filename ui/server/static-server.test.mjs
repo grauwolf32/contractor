@@ -153,8 +153,6 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/catalog/skills",
     "/operations",
     "/operations/runtime-agents",
-    "/runs/configuration",
-    "/runs/configuration/debug/1",
     "/operations/configuration",
     "/operations/configuration/debug/1",
     "/operations/allocations",
@@ -218,7 +216,7 @@ test("encoded client identities serve the same shell on direct GET and HEAD", as
   const run = encodeURIComponent("run:example");
   const version = encodeURIComponent("1.0.0+local");
   for (const path of [
-    `/runs/configuration/default/${version}`,
+    `/operations/configuration/default/${version}`,
     `/projects/${project}`,
     `/projects/${project}/artifacts`,
     `/projects/${project}/artifacts/sources/service`,
@@ -243,8 +241,8 @@ test("encoded client identities serve the same shell on direct GET and HEAD", as
 test("decoding client identities preserves route and traversal boundaries", async (t) => {
   const { origin } = await fixture(t);
   for (const path of [
-    "/runs/configuration/default/1%2Flocal",
-    "/runs/configuration/default/1%5Clocal",
+    "/operations/configuration/default/1%2Flocal",
+    "/operations/configuration/default/1%5Clocal",
     "/projects/project%00id",
     "/projects/project%3Aexample/%2e%2e/runs",
     "/projects/project%3Aexample/artifacts/sources/%",
@@ -252,11 +250,11 @@ test("decoding client identities preserves route and traversal boundaries", asyn
     assert.equal((await rawRequest(origin, path)).status, 400, path);
   }
   for (const path of [
-    "/runs/configuration/default/1%252Blocal",
+    "/operations/configuration/default/1%252Blocal",
     "/projects/project%253Aexample/workflows/artifact-copy/1/run",
     "/projects/project%3Aexample/unknown",
-    "/runs/configuration/default/1%3Fextra",
-    "/runs/configuration/default/1%23extra",
+    "/operations/configuration/default/1%3Fextra",
+    "/operations/configuration/default/1%23extra",
     "/%76%31/auth/session",
     "/%61pi/runs",
     "/%70rivate/control",
@@ -380,6 +378,7 @@ test("API-looking, missing asset, extension, retired and unknown routes never fa
     "/operations/configurations/unknown/worker/1",
     "/operations/runtime-configs/debug/1/extra",
     "/operations/runtime-configs/INVALID/1",
+    "/runs/configuration/debug/1",
     "/runs/configuration/debug/1/extra",
     "/runs/configuration/INVALID/1",
     "/operations/credentials/worker-budget/extra",

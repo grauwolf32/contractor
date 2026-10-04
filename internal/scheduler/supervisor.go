@@ -166,7 +166,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID, run.State, leaseExpiresAt)
 	}()
 
-	err = s.executeRun(executionContext, run)
+	err = s.executeRun(executionContext, run, claimID)
 	if errors.Is(err, runstore.ErrQueuePaused) {
 		err = ErrDeferred
 	}
@@ -181,7 +181,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 			err = loadErr
 		} else if current.State == runstore.RunCancelling ||
 			(errors.Is(cause, ErrAllocationLeaseLost) && (current.State == runstore.RunRunning || current.State == runstore.RunWaiting)) {
-			err = s.executeRun(ownershipContext, current)
+			err = s.executeRun(ownershipContext, current, claimID)
 		} else {
 			err = nil
 		}
@@ -306,14 +306,18 @@ func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
 
 func (s *Scheduler) pollAllocationLosses() {
 	for _, loss := range s.allocator.PollAllocationLosses() {
+		interrupted := s.interruptStageAllocationLoss(loss)
 		s.options.Logger.Warn(
 			"Runtime Agent allocation was lost",
 			"run_id", loss.RunID,
 			"stage_execution_id", loss.StageExecutionID,
 			"allocation_id", loss.AllocationID,
 			"reason", loss.Reason,
+			"interrupted_current_stage", interrupted,
 		)
-		s.interruptRun(loss.RunID, &AllocationLeaseLossError{Loss: loss})
+		// A loss for a Stage that is no longer current interrupts nothing; its
+		// fenced grant is reclaimed by terminal release recovery. Waking lets
+		// recovery and any waiting lane run promptly in either case.
 		s.Wake()
 	}
 }

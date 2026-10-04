@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V298-001
+title: Keep Eval admission and publication running when one member fails
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 06eeb858a608c50e605ff113b5e4a309d83dda8b
+depends_on: []
+languages: [go]
+goal: One member whose reconcile keeps failing must not stop admission, view publication or draining for the rest of the experiment.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "tickExecution returns early when reconcileErrors is non-empty (internal/evalservice/service.go:206-207), before the admission switch, and Tick returns before CollectView (:134-137). V191 keeps unknown create errors (for example runservice.ErrNotConfigured or an untyped database error) as replayable intents, so a member that fails every tick blocks admission of other members, publication of finished members and draining at the wall deadline. Reproduced: 8 members, capacity 2, one failing key; after 15 ticks six eligible members were never admitted and the finished member was never published."
+scope:
+  in:
+    - Collect per-member errors, still run the state switch, admission and CollectView, and return the joined error at the end.
+    - Test with a persistently failing member.
+  out:
+    - Changing V191 error classification.
+acceptance_criteria:
+  - {id: A1, text: "With one persistently failing member, other members are admitted up to capacity and finished members are published."}
+  - {id: A2, text: "The wall deadline still moves the experiment to cancelling and it drains."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice ./internal/evalstore", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

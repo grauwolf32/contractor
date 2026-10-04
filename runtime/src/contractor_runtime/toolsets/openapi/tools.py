@@ -26,10 +26,10 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceReader,
     WorkspaceStorageError,
 )
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.document_session import (
     DocumentSession,
@@ -874,7 +874,8 @@ class UpsertOpenAPIPathTool(_BaseOpenAPITool):
 
     Load or initialize the document first. Fields merge recursively; supplied
     lists and reference objects replace existing values. Local $ref values must
-    resolve. Implementation-source evidence is required.
+    resolve. An OpenAPI 3.0 Path Item cannot itself be a $ref; inline its
+    operations instead. Implementation-source evidence is required.
 
     Args:
         path: API path key, such as "/users/{id}".
@@ -1155,6 +1156,10 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         documents = list(yaml.load_all(text, Loader=_UniqueSafeLoader))
     except yaml.YAMLError as error:
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
+    except RecursionError:
+        # PyYAML composes nodes recursively. Nesting that exhausts the stack is
+        # far beyond the depth limit _validate_json_tree enforces afterwards.
+        raise ToolInputError("OpenAPI document exceeds the maximum nesting depth") from None
     if len(documents) != 1 or not isinstance(documents[0], dict):
         raise ToolInputError("OpenAPI artifact must contain exactly one object document")
     document = documents[0]
@@ -1226,6 +1231,14 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
     for path, path_item in paths.items():
         _validate_api_path(path)
         _validate_path_item(path_item)
+        if version.startswith("3.0.") and "$ref" in path_item:
+            # Required x-path-files provenance cannot sit beside a 3.0 $ref,
+            # and a local alias duplicates its target's operationIds. The path
+            # comes last so a long path cannot truncate the guidance.
+            raise ToolInputError(
+                "OpenAPI 3.0 Path Item $ref is not supported; inline the Path Item with "
+                f"its own operations and unique operationIds at path {path}"
+            )
         if require_provenance:
             _validate_provenance(path_item.get("x-path-files"), f"path {path}")
     components = document.get("components", {})
@@ -1255,7 +1268,7 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
     if "tags" in document:
         _validate_tags(document["tags"])
     _validate_schema_shapes(document, version)
-    _validate_reference_siblings(document, version, root=True)
+    _validate_reference_siblings(document, version)
     _validate_local_refs(document)
 
 
@@ -1287,20 +1300,14 @@ def _reference_only_component(value: Any, version: str) -> bool:
     return version.startswith("3.0.") and isinstance(value, dict) and set(value) == {"$ref"}
 
 
-def _validate_reference_siblings(
-    value: Any, version: str, *, path_item: bool = False, root: bool = False
-) -> None:
-    """Reject 3.0 Reference Object siblings, except on Path Item Objects."""
+def _validate_reference_siblings(value: Any, version: str) -> None:
+    """Reject Reference Object siblings which OpenAPI 3.0 ignores."""
 
     if isinstance(value, dict):
-        if version.startswith("3.0.") and "$ref" in value and len(value) != 1 and not path_item:
+        if version.startswith("3.0.") and "$ref" in value and len(value) != 1:
             raise ToolInputError("OpenAPI 3.0 $ref objects cannot contain sibling fields")
-        for key, child in value.items():
-            if root and key == "paths" and isinstance(child, dict):
-                for item in child.values():
-                    _validate_reference_siblings(item, version, path_item=True)
-            else:
-                _validate_reference_siblings(child, version)
+        for child in value.values():
+            _validate_reference_siblings(child, version)
     elif isinstance(value, list):
         for child in value:
             _validate_reference_siblings(child, version)

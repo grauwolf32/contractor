@@ -72,6 +72,28 @@ func TestLeafExpiryUsesSelectedWarningWindow(t *testing.T) {
 	}
 }
 
+func TestCAExpiryUsesSelectedWarningWindow(t *testing.T) {
+	files := generateFiles(t, "ca-expiry")
+	ca := parseCertificate(t, files.controlPlane.CA)
+	for _, test := range []struct {
+		name    string
+		now     time.Time
+		window  time.Duration
+		warning bool
+	}{
+		{name: "outside window", now: ca.NotAfter.Add(-31 * 24 * time.Hour), window: 30 * 24 * time.Hour},
+		{name: "inside window", now: ca.NotAfter.Add(-29 * 24 * time.Hour), window: 30 * 24 * time.Hour, warning: true},
+		{name: "expired", now: ca.NotAfter.Add(time.Second), window: 30 * 24 * time.Hour, warning: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			expires, warning, err := CAExpiry(files.controlPlane.CA, test.now, test.window)
+			if err != nil || !expires.Equal(ca.NotAfter) || warning != test.warning {
+				t.Fatalf("expires=%s warning=%v err=%v", expires, warning, err)
+			}
+		})
+	}
+}
+
 func TestRuntimeAgentRejectsCAValidPeerWithoutControlPlaneURI(t *testing.T) {
 	files := generateFiles(t, "deployment")
 	server, err := ControlPlaneServerConfig(files.agent)

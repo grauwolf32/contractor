@@ -346,6 +346,58 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
     asyncio.run(scenario())
 
 
+def test_cancelled_skill_calls_are_recorded(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        selected, value = resolved_value(skill_package())
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="allocation-1",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda _allocation, _settings: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None
+        state = WorkerState()
+        adapter = prepared.build_adapter(metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+
+        # Cancelled while the native ADK tool runs.
+        native = BlockingNativeTool()
+        tools["list_skills"]._native = native
+        running = asyncio.create_task(
+            tools["list_skills"].run_async(args={}, tool_context=FakeToolContext())
+        )
+        await native.started.wait()
+        running.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await running
+
+        # Cancelled while waiting for the disclosure reservation.
+        disclosure = BlockingDisclosure()
+        prepared.disclosure = disclosure
+        waiting = asyncio.create_task(
+            tools["load_skill"].run_async(
+                args={"skill_name": "demo"}, tool_context=FakeToolContext()
+            )
+        )
+        await disclosure.started.wait()
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+
+        listed, loaded = state.metrics.tool_calls
+        for call, name in ((listed, "list_skills"), (loaded, "load_skill")):
+            assert call.tool == name
+            assert call.error is not None
+            assert call.error.code == "tool_call_cancelled"
+            assert call.error.retryable is True
+        assert loaded.arguments == {"skill_name": "demo"}
+        assert state.metrics.counters["tool_errors"] == 2
+        await prepared.close()
+
+    asyncio.run(scenario())
+
+
 def test_concurrent_disclosure_reservations_stop_at_the_exact_allocation_limit(
     tmp_path: Path,
 ) -> None:
@@ -531,6 +583,28 @@ class ExplodingNativeTool(BaseTool):
         del args, tool_context
         self.calls += 1
         raise RuntimeError("private native failure")
+
+
+class BlockingNativeTool(BaseTool):
+    def __init__(self) -> None:
+        super().__init__(name="list_skills", description="blocks")
+        self.started = asyncio.Event()
+
+    async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
+        del args, tool_context
+        self.started.set()
+        await asyncio.Event().wait()
+
+
+class BlockingDisclosure:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+
+    async def reserve(self, charge: int) -> bool:
+        del charge
+        self.started.set()
+        await asyncio.Event().wait()
+        return True
 
 
 class OversizedBinaryNativeTool(BaseTool):

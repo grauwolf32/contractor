@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V332-001
+title: Reject source bundles the Runtime cannot open
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 1f209187a3638638b44684a02288614634dfefa2
+depends_on: []
+languages: [go, python]
+goal: "Finish V198: Go accepts only bundles the Runtime can open."
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "After V198 the Go side still accepts bundles the Runtime rejects: bundles with only binary files or only files under Runtime-ignored directories (Runtime: 'no readable UTF-8 files'), and a file and a directory whose names collide after NFC normalization (Runtime: 'nests an entry below a regular file')."
+scope:
+  in:
+    - Align Go validation with the Runtime's openability rules through the shared testdata/source_member_paths.json fixture.
+    - Tests in both languages.
+  out:
+    - Changing Runtime ignore rules.
+acceptance_criteria:
+  - {id: A1, text: "Both cases are rejected at push with a clear error."}
+  - {id: A2, text: "The shared fixture covers them."}
+tests:
+  - {command: "go test -count=1 ./internal/sourcebundle ./internal/cli", covers: [A1, A2]}
+  - {command: "cd runtime && uv run pytest tests/test_source_analysis_toolset.py", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

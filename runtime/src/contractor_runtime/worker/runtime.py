@@ -60,13 +60,18 @@ from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
 )
+from contractor_runtime.redaction import (
+    contains_private_value,
+    runtime_secrets,
+    runtime_setting_values,
+    substring_values,
+)
 from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
 )
 from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
-from contractor_runtime.toolsets.common.artifacts import runtime_secrets
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.completion import (
@@ -1297,27 +1302,18 @@ def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
     same-host deployment audits a service next to its own.
     """
 
-    # Imported here: the allocation package builds Workers, so a module-level
-    # import would be circular.
-    from contractor_runtime.allocation.redaction import _contains_private_value
-
     gateway_token = _gateway_token(context)
     if gateway_token and gateway_token in text:
         return True
-    return _contains_private_value(text, runtime_secrets(context.runtime_settings))
+    return contains_private_value(text, runtime_secrets(context.runtime_settings))
 
 
 def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
     """Return allocation-private values that must not enter summarizer input."""
 
-    from contractor_runtime.allocation.redaction import (
-        _runtime_setting_values,
-        _substring_values,
-    )
-
     candidates = (
         _gateway_token(context),
-        *_substring_values(_runtime_setting_values(context.runtime_settings)),
+        *substring_values(runtime_setting_values(context.runtime_settings)),
         str(context.workspace.path),
         str(context.workspace.root),
     )

@@ -130,81 +130,93 @@ func (s *Service) prepare(ctx context.Context, e evalstore.Experiment, claim eva
 
 // Tick performs a bounded amount of reconciliation. External mode never enters
 // the member selection/admission path: it only recovers already accepted work.
+// A member whose reconciliation fails is reported only after admission,
+// lifecycle progress and view publication ran, so it cannot stall the rest.
 func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error) {
-	progressed, err := s.tickExecution(ctx, claim)
-	if err != nil {
-		return progressed, err
+	progressed, memberErr, err := s.tickExecution(ctx, claim)
+	if err == nil {
+		err = s.publish(ctx, claim)
 	}
-	e, err := evalstore.NewPostgresStore(s.pool).GetClaimed(ctx, claim)
+	return progressed, errors.Join(memberErr, err)
+}
+
+// publish collects the claimed experiment's view unless the tick purged it.
+func (s *Service) publish(ctx context.Context, claim evalstore.Claim) error {
+	store := evalstore.NewPostgresStore(s.pool)
+	e, err := store.GetClaimed(ctx, claim)
 	if errors.Is(err, evalstore.ErrClaimLost) {
-		exists, checkErr := evalstore.NewPostgresStore(s.pool).ClaimTargetExists(ctx, claim)
-		if checkErr != nil {
-			return progressed, checkErr
-		}
-		if !exists {
-			return progressed, nil
+		exists, checkErr := store.ClaimTargetExists(ctx, claim)
+		if checkErr != nil || !exists {
+			return checkErr
 		}
 	}
 	if notFound(err) {
-		return progressed, nil
+		return nil
 	}
 	if err != nil {
-		return progressed, err
+		return err
 	}
-	return progressed, s.CollectView(ctx, e, claim)
+	return s.CollectView(ctx, e, claim)
 }
 
-func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (bool, error) {
+// tickExecution returns the joined reconcile failures of individual members
+// separately from a failure that ends the tick.
+func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (progressed bool, memberErr, err error) {
 	store := evalstore.NewPostgresStore(s.pool)
 	e, err := store.GetClaimed(ctx, claim)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if err = s.recoverCommands(ctx, e, claim); err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if e.State == evaldomain.StatePreparing {
 		if err = s.prepare(ctx, e, claim); err != nil {
-			return s.preparationFailed(ctx, e, claim, err)
+			progressed, err = s.preparationFailed(ctx, e, claim, err)
+			return progressed, nil, err
 		}
-		return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandPrepare)
+		return true, nil, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandPrepare)
 	}
 	outstanding, err := store.ReconciliationCandidates(ctx, e.OwnerID, e.ID, membersPerTick)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
-	var reconcileErrors []error
+	var memberErrors []error
 	for _, memberID := range outstanding {
 		m, err := store.Member(ctx, e.OwnerID, e.ID, memberID)
 		if err != nil {
-			return false, err
+			return false, errors.Join(memberErrors...), err
 		}
 		if err = s.driver.Reconcile(ctx, e, m, claim); err != nil {
-			reconcileErrors = append(reconcileErrors, err)
+			memberErrors = append(memberErrors, err)
 			// Rotate failed observations as well: one uncertain member must not
 			// starve cancellation/recovery of the rest of a large experiment.
 			if ctx.Err() == nil {
 				if rotateErr := s.tx(ctx, func(st *evalstore.Store) error { return st.ObserveTokens(ctx, scope(e), e.ID, m.MemberID, claim, 0) }); rotateErr != nil {
-					return false, errors.Join(err, rotateErr)
+					return false, errors.Join(memberErrors...), rotateErr
 				}
 			}
 		}
 	}
-	e, err = store.Get(ctx, e.OwnerID, e.ID)
-	if err != nil {
-		return false, err
+	memberErr = errors.Join(memberErrors...)
+	if e, err = store.Get(ctx, e.OwnerID, e.ID); err != nil {
+		return false, memberErr, err
 	}
+	progressed, err = s.advance(ctx, e, claim, len(outstanding) > 0)
+	return progressed, memberErr, err
+}
+
+// advance applies budget stops, native admission and drain transitions to the
+// state that member reconciliation left. A failed member stays outstanding, so
+// it still holds its capacity and blocks only the drain that must wait for it.
+func (s *Service) advance(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, reconciled bool) (bool, error) {
+	var err error
 	expired := e.DeadlineAt != nil && !s.now().Before(*e.DeadlineAt)
 	exhausted := e.TokenLimit != nil && e.ObservedTokens >= *e.TokenLimit
 	if target, stop := e.Lifecycle().BudgetStop(expired || exhausted); stop {
-		transitionErr := s.tx(ctx, func(st *evalstore.Store) error {
+		return true, s.tx(ctx, func(st *evalstore.Store) error {
 			return st.Transition(ctx, scope(e), e.ID, claim, e.State, target, e.ObservedTokens, diagnostic("eval_budget_exhausted"))
 		})
-		return true, errors.Join(append(reconcileErrors, transitionErr)...)
-	}
-
-	if len(reconcileErrors) > 0 {
-		return true, errors.Join(reconcileErrors...)
 	}
 	switch e.State {
 	case evaldomain.StateRunning:
@@ -212,13 +224,13 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (boo
 			return false, err
 		}
 		if e.ControlMode == evaldomain.ControlExternal {
-			return len(outstanding) > 0, nil
+			return reconciled, nil
 		}
 		admitted, settled, err := s.admitNativeMembers(ctx, claim)
 		if err != nil || settled {
 			return settled, err
 		}
-		return len(admitted) > 0 || len(outstanding) > 0, nil
+		return len(admitted) > 0 || reconciled, nil
 	case evaldomain.StatePausing:
 		if e.Outstanding == 0 {
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
@@ -250,7 +262,7 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (boo
 			return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandCancel)
 		}
 	}
-	return len(outstanding) > 0, nil
+	return reconciled, nil
 }
 
 func (s *Service) admitNativeMembers(ctx context.Context, claim evalstore.Claim) ([]evalstore.Member, bool, error) {

@@ -1,7 +1,6 @@
 package scan
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -92,20 +91,6 @@ type execution struct {
 
 func scanError(code string, cause error) *planner.Error {
 	return planner.NewError(code, "Scan planning or execution could not be completed", false, cause)
-}
-
-func (p *execution) recoverCompletion(ctx context.Context, completion planner.Completion) (contracts.StageContentResult, error) {
-	if completion.Failure != nil && completion.Result == nil {
-		return contracts.StageContentResult{}, planner.NewErrorFromFailure(*completion.Failure, nil)
-	}
-	if completion.Result == nil || completion.Failure != nil {
-		return contracts.StageContentResult{}, scanError("scan_session_invalid", nil)
-	}
-	result := completion.Result.Clone()
-	if err := planner.ValidateCandidate(ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); err != nil {
-		return contracts.StageContentResult{}, err
-	}
-	return result, nil
 }
 
 var _ planner.Factory = (*Factory)(nil)

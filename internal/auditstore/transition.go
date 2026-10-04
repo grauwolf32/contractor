@@ -10,6 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Transition applies an owner pause or cancellation; validateTransition admits
+// no other owner target. Leaving waiting_review closes a pending report review
+// in the same revision step.
 func (s *PostgresStore) Transition(
 	ctx context.Context,
 	params TransitionParams,
@@ -28,54 +31,26 @@ func (s *PostgresStore) Transition(
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
-WITH active_project_gate AS MATERIALIZED (
-    SELECT audit.audit_id, CASE WHEN $5 = 'active'
-           THEN contractor_require_active_audit_project(project_id, owner_id)
-           END
-     FROM audits AS audit
+WITH target AS MATERIALIZED (
+    SELECT audit.audit_id, audit.state
+      FROM audits AS audit
      WHERE audit.audit_id = $2 AND audit.owner_id = $1
      FOR UPDATE OF audit
-), report_review AS MATERIALIZED (
-    SELECT review.request_id, review.audit_id
-      FROM audit_report_candidates AS candidate
-      JOIN audit_review_requests AS review
-        ON review.request_id = candidate.request_id
-       AND review.audit_id = candidate.audit_id
-      JOIN active_project_gate AS gate ON gate.audit_id = candidate.audit_id
-     WHERE $5 IN ('cancelling', 'cancelled')
-       AND review.state = 'pending'
-     FOR UPDATE OF review
-), report_review_count AS MATERIALIZED (
-    SELECT count(*)::bigint AS expired FROM report_review
-), changed AS (
+), `+reportReviewSelectionCTEs("target")+`, changed AS (
     UPDATE audits AS audit
        SET state = $5,
            paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
            revision = audit.revision + 1 + report_review_count.expired,
-           dispatch_state = CASE
-               WHEN $5 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed')
-                   THEN 'closed'
-               ELSE dispatch_state
-           END,
+           dispatch_state = CASE WHEN $5 = 'cancelling' THEN 'closed' ELSE dispatch_state END,
            stop_reason_code = $6,
            stop_reason_message = $7,
-           finished_at = CASE WHEN $5 IN ('completed', 'cancelled', 'failed')
-                              THEN clock_timestamp() ELSE NULL END,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
            next_event_sequence = audit.next_event_sequence + 1 + report_review_count.expired
-      FROM active_project_gate, report_review_count
-     WHERE audit.audit_id = active_project_gate.audit_id
+      FROM target, report_review_count
+     WHERE audit.audit_id = target.audit_id
        AND audit.revision = $3 AND audit.state = $4
     RETURNING audit.*
-), expired_report_review AS (
-    UPDATE audit_review_requests AS review
-       SET state = 'expired', revision = review.revision + 1,
-           updated_at = GREATEST(clock_timestamp(), review.updated_at + interval '1 microsecond')
-      FROM report_review, changed
-     WHERE review.request_id = report_review.request_id
-       AND review.audit_id = changed.audit_id AND review.state = 'pending'
-    RETURNING review.request_id, review.audit_id, review.revision
-), idempotency_row AS (
+), `+reportReviewClosureCTEs+`, idempotency_row AS (
     INSERT INTO audit_idempotency (
         owner_id, operation, idempotency_key, request_digest,
         audit_id, resource_id, response_snapshot
@@ -90,16 +65,6 @@ WITH active_project_gate AS MATERIALIZED (
            'audit.state_changed', audit_id, revision,
            jsonb_build_object('from', $4::text, 'to', $5::text)
       FROM changed CROSS JOIN report_review_count
-), expired_report_event AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT review.audit_id,
-           changed.next_event_sequence - 1 - report_review_count.expired
-               + row_number() OVER (ORDER BY review.request_id),
-           'review.expired', review.request_id, review.revision,
-           jsonb_build_object('subjectKind', 'audit-report', 'kind', 'report-acceptance')
-      FROM expired_report_review AS review
-      JOIN changed USING (audit_id)
-      CROSS JOIN report_review_count
 )
 SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
@@ -108,9 +73,6 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	))
 	if err == nil {
 		return audit, true, nil
-	}
-	if persistencepostgres.SQLState(err) == "55000" {
-		return Audit{}, false, ErrProjectDeleting
 	}
 	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)

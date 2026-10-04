@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V290-001
+title: Release pinned placement when a paused owner blocks admission
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 22cb4f4794336384aec2a21641b3163337969240
+depends_on: []
+languages: [go]
+goal: Ensure a paused owner pins no Runtime slot.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: The pause probe runs before placement (internal/scheduler/allocation_reservations.go:53-58). If AdmitStage then fails with ErrQueuePaused the durable placement is kept (stage_preparation.go:180-187) and the Run is only deferred (supervisor.go:170), so entry.authoritativeAllocationID stays set and that Runtime is ineligible for others until the owner resumes (plausible).
+scope:
+  in:
+    - Discard the pinned batch for a never-admitted, unprepared Stage on ErrQueuePaused.
+    - Test pause racing placement.
+  out:
+    - Changing queue pause semantics.
+acceptance_criteria:
+  - {id: A1, text: "After a pause races placement the Runtime becomes eligible for other owners."}
+  - {id: A2, text: "Resume places the Stage again."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/scheduler", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

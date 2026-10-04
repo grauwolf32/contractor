@@ -59,10 +59,13 @@ type directVerificationCache struct {
 }
 
 type preparedDirectVerification struct {
-	descriptor      artifacts.Metadata
-	contractBytes   []byte
-	results         map[string]auditdomain.DirectVerificationResult
-	budgetExhausted bool
+	descriptor    artifacts.Metadata
+	contractBytes []byte
+	results       map[string]auditdomain.DirectVerificationResult
+	// budgetExhaustedIn is the transaction that found the Audit evidence
+	// budget exhausted. Another transaction checks again: a rolled-back one
+	// returns the bytes it charged, and collection may continue after it.
+	budgetExhaustedIn pgx.Tx
 }
 
 // WithCollectionDirectVerificationCache shares one immutable terminal Run
@@ -109,7 +112,7 @@ func tryAcceptDirectVerification(
 	if !exists {
 		return nil
 	}
-	if prepared.budgetExhausted {
+	if prepared.budgetExhaustedIn == tx {
 		return nil
 	}
 	runArtifacts, err := artifactService.Run(input.RunID)
@@ -141,7 +144,7 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 		return err
 	}
 	if !withinBudget {
-		prepared.budgetExhausted = true
+		prepared.budgetExhaustedIn = tx
 		return nil
 	}
 

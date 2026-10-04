@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"path/filepath"
 
 	contractorconfig "github.com/grauwolf32/contractor/internal/config"
 )
 
 func runConfigCLI(args []string, logger *slog.Logger) error {
+	if err := commandGroupHelp(args, "config",
+		[2]string{"validate", "check the operator and managed configuration roots offline"}); err != nil {
+		return err
+	}
 	if len(args) == 0 || args[0] != "validate" {
 		return fmt.Errorf("config command requires the validate subcommand")
 	}
@@ -29,7 +32,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	}
 
 	if managedRoot == "" {
-		managedRoot = filepath.Join(filepath.Dir(root), "managed-configs")
+		managedRoot = defaultManagedConfigRoot(root)
 	}
 	snapshot, err := contractorconfig.LoadUnionReadOnly(root, managedRoot, contractorconfig.MVPDescriptors())
 	if err != nil {

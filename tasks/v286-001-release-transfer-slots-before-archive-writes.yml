@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V286-001
+title: Release artifact transfer slots before writing archive previews
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 52d718296f90d9842f3b3c89972e64ddd2d8d94a
+depends_on: []
+languages: [go]
+goal: Stop slow clients from holding the Server's artifact transfer slots during response writes.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: "getArtifactArchive (internal/httpapi/public/artifact_archive_handlers.go:100-142) acquires one of the four transfer slots (internal/artifacts/blob_context.go:67) and holds it through a deferred release while writeJSON sends a listing of up to about 4 MB. Neither http.Server sets WriteTimeout (internal/app/system.go:59-63) and a context deadline does not interrupt a blocked socket write. AcquireTransfer does not wait (blob_context.go:96-99), so four authenticated clients with tiny receive windows make every public, private Runtime and server-internal artifact read or write fail with ErrTransferCapacity (503) for as long as they keep the sockets open. Reproduced: four stalled archive previews still held every slot after 20 s. V234 bounded the other artifact handlers but missed this route."
+scope:
+  in:
+    - Build the archive response, release the slot and drop payload references before writing.
+    - Audit every handler that writes while holding a slot (archive, Git import, artifact GET/PUT, project and private artifacts) and bound its socket writes with per-write deadlines.
+    - One artifacttransfer helper for acquire, socket deadlines and release-before-write.
+    - Real-server stalled-reader regression test.
+  out:
+    - Changing the slot count.
+acceptance_criteria:
+  - {id: A1, text: "Four stalled archive readers leave transfer capacity available to other requests."}
+  - {id: A2, text: "Every handler that holds a slot bounds its socket writes."}
+  - {id: A3, text: "Existing V234 transfer tests still pass."}
+tests:
+  - {command: "go test -count=1 ./internal/httpapi/public ./internal/httpapi/artifacttransfer ./internal/httpapi/privateartifacts ./internal/artifacts", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

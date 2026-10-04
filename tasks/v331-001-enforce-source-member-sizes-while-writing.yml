@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V331-001
+title: Enforce source bundle member sizes while writing
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: f2b4aa33a4615b7a5b9994d3b9887851d38d745f
+depends_on: []
+languages: [go]
+goal: Reject source files that grow between inspection and archiving.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "sourcezip.Encode checks only the declared Member.Size (internal/sourcezip/encode.go:55,84); copyRegularFile (internal/sourcebundle/bundle.go:433-437) copies the whole file with io.Copy and compares against a fresh stat taken at open time. A log file appended to during contractor source push produces a member above the 4 MiB limit (inspect 5 bytes, append 5 MiB: a 5,242,885-byte member) that the Runtime rejects later at Run time."
+scope:
+  in:
+    - Copy through io.LimitReader(inspected+1) and require the written size to equal the inspected size, or count bytes per member in Encode.
+    - Test.
+  out:
+    - Changing limits.
+acceptance_criteria:
+  - {id: A1, text: "A file that grows after inspection fails the bundle at push time."}
+tests:
+  - {command: "go test -count=1 ./internal/sourcebundle ./internal/sourcezip ./internal/gitimport", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

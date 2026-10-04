@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
@@ -155,16 +156,49 @@ func (s *Scheduler) interruptRun(runID string, cause error) {
 }
 
 // activeRunClaim routes in-process interrupts to the lane holding one exact
-// durable claim of a Run.
+// durable claim of a Run. stageExecutionID is the StageExecution that lane is
+// currently progressing, so an allocation loss interrupts only its owning
+// Stage and not a later Stage that a surviving owner has already advanced to.
 type activeRunClaim struct {
-	claimID string
-	cancel  context.CancelCauseFunc
+	claimID          string
+	stageExecutionID string
+	cancel           context.CancelCauseFunc
 }
 
 func (s *Scheduler) registerActiveRun(runID, claimID string, cancel context.CancelCauseFunc) {
 	s.activeMu.Lock()
 	s.active[runID] = activeRunClaim{claimID: claimID, cancel: cancel}
 	s.activeMu.Unlock()
+}
+
+// setActiveStage records the StageExecution the claim is currently
+// progressing. It updates only the entry still owned by this claim so a
+// released-and-reclaimed Run keeps the new lane's stage.
+func (s *Scheduler) setActiveStage(runID, claimID, stageExecutionID string) {
+	s.activeMu.Lock()
+	if current, ok := s.active[runID]; ok && current.claimID == claimID {
+		current.stageExecutionID = stageExecutionID
+		s.active[runID] = current
+	}
+	s.activeMu.Unlock()
+}
+
+// interruptStageAllocationLoss cancels the lane only when the lost allocation
+// belongs to the Stage that lane is currently executing. A loss for a Stage
+// that already finished (its owner died after completion but before release)
+// must not cancel the Run's current Stage; terminal release recovery reclaims
+// the fenced grant instead. The loss, including its reason, is carried into
+// the cancellation cause.
+func (s *Scheduler) interruptStageAllocationLoss(loss controlplane.AllocationLoss) bool {
+	s.activeMu.Lock()
+	current, ok := s.active[loss.RunID]
+	match := ok && current.stageExecutionID == loss.StageExecutionID
+	s.activeMu.Unlock()
+	if !match {
+		return false
+	}
+	current.cancel(&AllocationLeaseLossError{Loss: loss})
+	return true
 }
 
 // unregisterActiveRun removes only this claim's entry. After a claim is
@@ -200,3 +234,20 @@ var (
 	errControlPlaneStateLost      = errors.New("Control Plane state for durable allocations is unavailable")
 	errControlPlaneAllocationLost = errors.New("Runtime Agent allocation is irreversibly lost")
 )
+
+// allocationLostError carries the specific loss reason so the Stage
+// termination diagnostic reports it instead of collapsing every loss into one
+// code. It unwraps to errControlPlaneAllocationLost so existing errors.Is
+// checks keep matching.
+type allocationLostError struct {
+	reason controlplane.AllocationLossReason
+}
+
+func (e *allocationLostError) Error() string {
+	if e.reason == "" {
+		return errControlPlaneAllocationLost.Error()
+	}
+	return errControlPlaneAllocationLost.Error() + ": " + string(e.reason)
+}
+
+func (*allocationLostError) Unwrap() error { return errControlPlaneAllocationLost }

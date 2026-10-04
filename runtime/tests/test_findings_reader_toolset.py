@@ -701,6 +701,49 @@ def test_reader_preparation_distinguishes_byte_limit_from_missing_input():
     asyncio.run(scenario())
 
 
+def test_reader_preparation_errors_keep_their_cause_retryability():
+    class LostReads(Transport):
+        async def request(self, method, path, **kwargs):
+            if method == "GET":
+                raise ArtifactTransportError("connection reset")
+            return await super().request(method, path, **kwargs)
+
+    class BusyWrites(Transport):
+        async def request(self, method, path, **kwargs):
+            if method == "PUT":
+                error = {
+                    "code": "artifact_store_busy",
+                    "message": "artifact store is busy",
+                    "retryable": True,
+                    "requestId": "reader-test-2",
+                }
+                return ArtifactHTTPResponse(503, {"content-type": "application/json"}, _json(error))
+            return await super().request(method, path, **kwargs)
+
+    async def failure(transport):
+        with pytest.raises(FindingsError) as raised:
+            await _tools(transport)
+        return raised.value.code, raised.value.retryable
+
+    async def scenario():
+        payload = _package(*_fixture())
+        assert await failure(LostReads(payload)) == ("findings_collection_unavailable", True)
+        assert await failure(BusyWrites(payload)) == ("findings_document_unavailable", True)
+        denied = Transport(payload)
+        denied.deny_get = True
+        assert await failure(denied) == ("findings_collection_unavailable", False)
+        rejected = Transport(payload)
+        rejected.fail_at = 1  # A bare 503 does not claim to be retryable.
+        assert await failure(rejected) == ("findings_document_unavailable", False)
+        changed = Transport(payload)
+        await _tools(changed)
+        target = next(key for key in changed.bindings if key[0] != "inputs")
+        changed.bindings[target] = ("changed", "application/json", b"different bytes")
+        assert await failure(changed) == ("findings_document_conflict", False)
+
+    asyncio.run(scenario())
+
+
 def test_reader_errors_keep_distinct_codes_in_model_visible_envelope(monkeypatch):
     async def scenario():
         tools, _, _ = await _tools(Transport(_package(*_fixture())))

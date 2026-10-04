@@ -62,6 +62,17 @@ function stopIntentAvailable(
   );
 }
 
+// Coordinator progress does not advance the revision, so a stale stop intent
+// can pass the CAS check and still be ruled out by the current state or plan.
+// A replay of the same request cannot apply it either.
+function stopIntentRejected(error: unknown): boolean {
+  return (
+    error instanceof PublicAPIError &&
+    error.status === 409 &&
+    (error.code === "eval_not_ready" || error.code === "eval_pin_mismatch")
+  );
+}
+
 export function EvalControls({
   experiment,
   disabled = false,
@@ -112,14 +123,34 @@ export function EvalControls({
   }
   const send = useMutation({
     mutationFn: async (current: PendingCommand) => {
-      const submit = (command: PendingCommand) =>
-        commandEvalExperiment(
-          api,
-          experiment.experimentId,
-          command.body,
-          command.key,
-          command.revision,
-        );
+      // A ruled-out stop intent is dropped so it is never replayed.
+      const drop = (command: PendingCommand) => {
+        writeCommand(owner, experiment.experimentId, null);
+        setPending(null);
+        return new StopIntentUnavailableError(command.body.kind);
+      };
+      const submit = async (command: PendingCommand) => {
+        try {
+          return await commandEvalExperiment(
+            api,
+            experiment.experimentId,
+            command.body,
+            command.key,
+            command.revision,
+          );
+        } catch (error) {
+          if (
+            !needsCurrentRevision(command.body.kind) ||
+            !stopIntentRejected(error)
+          )
+            throw error;
+          const unavailable = drop(command);
+          await cache.invalidateQueries({
+            queryKey: queryKeys.evals.experiment(experiment.experimentId),
+          });
+          throw unavailable;
+        }
+      };
       try {
         return { result: await submit(current), command: current };
       } catch (error) {
@@ -132,18 +163,13 @@ export function EvalControls({
           throw error;
         // A rejected CAS has not applied the command. Recheck intent and
         // persist a new correlation before one retry; a lost response still
-        // replays the exact key, body and revision that were sent. An intent
-        // the latest state rules out is dropped so it is never replayed.
+        // replays the exact key, body and revision that were sent.
         const latest = await getEvalExperiment(api, experiment.experimentId);
         cache.setQueryData(
           queryKeys.evals.experiment(experiment.experimentId),
           latest,
         );
-        if (!stopIntentAvailable(latest, current)) {
-          writeCommand(owner, experiment.experimentId, null);
-          setPending(null);
-          throw new StopIntentUnavailableError(current.body.kind);
-        }
+        if (!stopIntentAvailable(latest, current)) throw drop(current);
         const retry = {
           ...current,
           key: createMutationIdempotencyKey("eval"),
@@ -235,9 +261,7 @@ export function EvalControls({
     }
   }
   async function recover() {
-    // The ruled-out intent was already dropped; there is nothing to replay.
-    if (send.error instanceof StopIntentUnavailableError) send.reset();
-    else if (
+    if (
       error instanceof PublicAPIError &&
       error.status >= 400 &&
       error.status < 500
@@ -313,7 +337,7 @@ export function EvalControls({
                     ),
                   });
                 }
-              : error
+              : error && !(error instanceof StopIntentUnavailableError)
                 ? () => void recover()
                 : undefined
         }

@@ -30,7 +30,7 @@ func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err := store.List(ctx, namespace.binding)
+	refs, err := store.LoadAll(ctx, namespace.binding)
 	if err != nil || len(refs) != 0 {
 		t.Fatalf("empty bounded view=%+v %v", refs, err)
 	}
@@ -40,7 +40,7 @@ func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing
 	}
 	for i := 1; i <= MaximumNotes; i++ {
 		if i == MaximumNotes {
-			refs, err = store.List(ctx, namespace.binding)
+			refs, err = store.LoadAll(ctx, namespace.binding)
 			if err != nil || len(refs) != MaximumNotes {
 				t.Fatalf("at quota=%d %v", len(refs), err)
 			}
@@ -64,7 +64,7 @@ func TestPostgresMemoryIgnoresOrdinaryBindingsAndDetectsQuotaOverflow(t *testing
 			t.Fatal(err)
 		}
 	}
-	refs, err = store.List(ctx, namespace.binding)
+	refs, err = store.LoadAll(ctx, namespace.binding)
 	if err != nil || len(refs) != MaximumNotes+1 {
 		t.Fatalf("overflow sentinel=%d %v", len(refs), err)
 	}

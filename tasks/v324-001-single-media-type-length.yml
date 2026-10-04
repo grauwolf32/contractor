@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V324-001
+title: Cap media types at one length everywhere
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: a98289ab86744ec3f4dba50f477bc4ff6a36a347
+depends_on: [V323-001]
+languages: [go, python, typescript]
+goal: Apply the same media-type length bound in every validator.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: contracts.ValidMediaType (internal/contracts/media_type.go:9-14), used by the artifact store (artifacts/types.go:215) and config (config/validation.go:108), has no length cap; auditdomain/package.go validMediaType and Python collection.py use 127 characters; OpenAPI MediaType and ui/src/api/artifacts.ts:16 use 255. The shared media-type-cases.json has no length cases, so a 300-character Content-Type is stored and returned in responses that violate the OpenAPI.
+scope:
+  in:
+    - Cap at 255 (or one chosen bound) in all validators.
+    - Add 255- and 256-character cases to the shared fixture.
+  out:
+    - Changing the media-type grammar.
+acceptance_criteria:
+  - {id: A1, text: "All validators agree on the bound through shared cases."}
+tests:
+  - {command: "go test -count=1 ./internal/contracts ./internal/artifacts ./internal/auditdomain ./internal/config", covers: [A1]}
+  - {command: "cd runtime && uv run pytest tests -k media_type", covers: [A1]}
+  - {command: "cd ui && corepack pnpm exec vitest run src/api", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

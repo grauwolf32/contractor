@@ -413,7 +413,7 @@ def test_validation_reports_deeply_nested_output_as_invalid_json(
     assert validation["executionError"] == "LikeC4 returned invalid JSON"
 
 
-def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
+def test_validation_accepts_banner_and_current_json_and_normalizes_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
@@ -441,7 +441,9 @@ def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
                 ).encode(),
                 b"private stderr banner",
             ),
-            subprocess.CompletedProcess([], 0, b"[]", b""),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps({"valid": True, "errors": [], "stats": {}}).encode(), b""
+            ),
         ]
     )
     monkeypatch.setattr(
@@ -510,6 +512,8 @@ def test_validation_keeps_found_token_in_long_parser_diagnostic(
         (subprocess.CompletedProcess([], 2, b"{}", b"secret stderr"), "execution failure"),
         (subprocess.CompletedProcess([], 0, b"", b"secret stderr"), "empty or oversized"),
         (subprocess.CompletedProcess([], 0, b"not-json", b""), "invalid JSON"),
+        # The legacy bare diagnostic list is not the current CLI output shape.
+        (subprocess.CompletedProcess([], 0, b"[]", b""), "unexpected JSON shape"),
         (
             subprocess.CompletedProcess([], 0, json.dumps({"valid": True}).encode(), b""),
             "unexpected JSON shape",

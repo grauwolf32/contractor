@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
 import time
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -140,6 +142,125 @@ def test_initialized_c_family_declarations_use_identifier_names(
     assert all("=" not in name for name in names)
 
 
+CPP_REFERENCE_DECLARATIONS = (
+    ("const std::string& Handler::name() const { return name_; }\n", "Handler::name", "name"),
+    ("int &counter() { static int c; return c; }\n", "counter", "counter"),
+    ("template <typename T>\nT&& take(T&& value) { return value; }\n", "take", "take"),
+    ("Foo& Foo::operator=(const Foo& other) { return *this; }\n", "Foo::operator=", "operator="),
+    (
+        "struct Foo {\n  Foo& operator=(Foo&& other) { return *this; }\n};\n",
+        "operator=",
+        "operator=",
+    ),
+    (
+        "struct Widget {\n  inline const T& label() const { return label_; }\n};\n",
+        "label",
+        "label",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected", "bare"),
+    CPP_REFERENCE_DECLARATIONS,
+    ids=["qualified", "lvalue", "rvalue", "operator", "member-operator", "inline-method"],
+)
+def test_cpp_functions_returning_references_use_declarator_names(
+    source: str, expected: str, bare: str
+) -> None:
+    parsed = parse_symbols(
+        load_parser(Language.CPP), source.encode(), "src/a.cpp", Language.CPP, 100
+    )
+    assert not parsed.parse_error
+    functions = [item for item in parsed.symbols if item.node_type == "function_definition"]
+    assert [item.name for item in functions] == [expected]
+    assert functions[0].line == source[: source.index(f"{bare}(")].count("\n") + 1
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "expected"),
+    [
+        (
+            Language.CPP,
+            "struct Box {\n  bool operator()(int x) const { return x; }\n"
+            "  int& operator[](int i) { return v[i]; }\n"
+            "  bool operator<(const Box& o) const { return false; }\n};\n"
+            "bool Box::operator()(int x) const { return x; }\n",
+            ["operator()", "operator[]", "operator<", "Box::operator()"],
+        ),
+        (
+            Language.CPP,
+            "template <typename T> T& Box<T>::get() { return value; }\n"
+            "[[nodiscard]] int& Box<int>::cached() { return value; }\n",
+            ["Box::get", "Box::cached"],
+        ),
+        (
+            Language.CPP,
+            "int& (*ref_fn_ptr)(int);\nconst char* const& name_ref() { return n; }\n"
+            "typedef int& (*ref_callback)(int);\nint (&arr_ref())[3] { return values; }\n",
+            ["ref_fn_ptr", "name_ref", "ref_callback", "arr_ref"],
+        ),
+        (
+            Language.C,
+            "int (*handler_ptr)(int);\nint (*handler_table[4])(int);\n"
+            "typedef int (*callback)(int);\n",
+            ["handler_ptr", "handler_table", "callback"],
+        ),
+    ],
+    ids=["operators", "template-scopes", "cpp-wrapped", "c-function-pointers"],
+)
+def test_c_family_declarators_name_operators_qualified_and_pointer_forms(
+    language: Language, source: str, expected: list[str]
+) -> None:
+    parsed = parse_symbols(load_parser(language), source.encode(), "src/a.c", language, 100)
+    assert not parsed.parse_error
+    declared = {"declaration", "function_definition", "type_definition"}
+    assert [item.name for item in parsed.symbols if item.node_type in declared] == expected
+
+
+def test_search_def_and_list_symbols_find_cpp_reference_returning_definitions(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        files = {
+            f"src/form{index}.cpp": source
+            for index, (source, _, _) in enumerate(CPP_REFERENCE_DECLARATIONS)
+        }
+        tools, _ = await _tools(MutableReader(files), tmp_path)
+        listed = await tools["list_symbols"](node_type="function_definition", limit=200)
+        assert sorted(item["name"] for item in listed["items"]) == sorted(
+            expected for _, expected, _ in CPP_REFERENCE_DECLARATIONS
+        )
+        for index, (_, expected, bare) in enumerate(CPP_REFERENCE_DECLARATIONS):
+            found = await tools["search_def"](bare, language="cpp")
+            assert (f"src/form{index}.cpp", expected) in {
+                (item["path"], item["name"]) for item in found["items"]
+            }
+        for return_type in ("T", "Foo", "string"):
+            found = await tools["search_def"](return_type)
+            assert all(item["nodeType"] != "function_definition" for item in found["items"])
+
+    asyncio.run(scenario())
+
+
+def test_cpp_declarator_names_search_identically_with_and_without_cache(tmp_path: Path) -> None:
+    source = (
+        "template <typename T> T& Box<T>::get() { return value; }\n"
+        "struct Box { bool operator ()(int x) const { return x; } };\n"
+    )
+
+    async def scenario() -> None:
+        tools, _ = await _tools(MutableReader({"src/box.cpp": source}), tmp_path)
+        queries = {"get": "Box::get", "Box::get": "Box::get", "operator ()": "operator ()"}
+        uncached = {query: await tools["search_def"](query) for query in queries}
+        await tools["list_symbols"]()
+        for query, expected in queries.items():
+            assert [item["name"] for item in uncached[query]["items"]] == [expected]
+            assert await tools["search_def"](query) == uncached[query]
+
+    asyncio.run(scenario())
+
+
 def test_search_def_uses_arrow_bindings_and_initialized_c_names(tmp_path: Path) -> None:
     async def scenario() -> None:
         tools, _ = await _tools(
@@ -211,6 +332,91 @@ def test_c_family_headers_keep_the_snapshot_language(tmp_path: Path) -> None:
         )
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [
+        ((), Language.C),
+        (("include/a.h", "README.md"), Language.C),
+        (("src/main.c", "include/a.h"), Language.C),
+        (("src/main.cpp", "include/a.h"), Language.CPP),
+        (("src/a.c", "src/b.c", "src/c.c", "vendor/lib.cc"), Language.C),
+        (("src/a.c", "src/b.cc"), Language.CPP),
+        (("src/a.c", "include/b.hpp", "include/c.hh"), Language.CPP),
+        (("SRC/MAIN.CPP", "src/x.c"), Language.CPP),
+    ],
+)
+def test_header_language_follows_the_snapshot_c_family_majority(
+    paths: tuple[str, ...], expected: Language
+) -> None:
+    assert code_analysis_languages.header_language(paths) is expected
+    assert code_analysis_languages.detect_language("a/b.H", header=expected) is expected
+
+
+def test_c_project_with_a_vendored_cpp_file_keeps_c_headers(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    # typeof is valid C but not C++ syntax.
+                    "include/util.h": (
+                        "static inline int twice(int value) {\n"
+                        "  typeof(value) doubled = value * 2;\n  return doubled;\n}\n"
+                    ),
+                    "src/a.c": "int main(void) { return twice(2); }\n",
+                    "src/b.c": "int other(void) { return 1; }\n",
+                    "third_party/lib.cc": "int lib() { return 3; }\n",
+                }
+            ),
+            tmp_path,
+        )
+        listed = await tools["list_symbols"](path="include", node_type="function_definition")
+        assert listed["coverage"]["parseErrors"] == 0
+        assert [(item["name"], item["language"]) for item in listed["items"]] == [("twice", "c")]
+
+    asyncio.run(scenario())
+
+
+def test_case_variant_extensions_are_parsed_or_reported(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    "Tool.PY": "def upper_tool():\n    return 1\n",
+                    "native/impl.C": "int upper_c(void) { return 3; }\n",
+                    "native/impl.H": "int upper_h(void);\n",
+                    "contracts/Token.SOL": "contract Token {}\n",
+                }
+            ),
+            tmp_path,
+        )
+        listed = await tools["list_symbols"]()
+        assert {(item["path"], item["name"], item["language"]) for item in listed["items"]} == {
+            ("Tool.PY", "upper_tool", "python"),
+            ("native/impl.C", "upper_c", "c"),
+            ("native/impl.H", "upper_h", "c"),
+        }
+        assert listed["coverage"]["unsupportedSourceFiles"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_php_arrow_functions_are_not_structural_definitions() -> None:
+    assert all(
+        spec.node_type != "arrow_function"
+        for specs in code_analysis_languages.NODE_SPECS.values()
+        for spec in specs
+    )
+    parsed = parse_symbols(
+        load_parser(Language.PHP),
+        b"<?php\n$double = fn($x) => $x * 2;\nfunction named($y) { return $y; }\n",
+        "src/app.php",
+        Language.PHP,
+        100,
+    )
+    assert not parsed.parse_error
+    assert [item.name for item in parsed.symbols] == ["named"]
 
 
 def test_extension_registry_retains_the_v1_surface() -> None:
@@ -677,52 +883,65 @@ def test_encoded_result_limit_reduces_page_without_silent_truncation(
     asyncio.run(scenario())
 
 
-def test_large_search_page_fits_once_per_row_without_stalling_loop(
+def test_large_search_page_fits_off_loop_and_encodes_each_row_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Structural checks instead of an event-loop gap bound: a worker-thread
+    # garbage collection or Tree-sitter parse holds the GIL however page
+    # fitting is scheduled, so wall-clock gaps are not deterministic.
     body = "\n".join("    value = '" + ("x" * 350) + "'" for _ in range(12))
     source = "\n".join(f"def target():\n{body}" for _ in range(200)) + "\n"
 
     async def scenario() -> None:
         tools, _ = await _tools(MutableReader({"many.py": source}), tmp_path)
-        original = jcs.canonicalize
-        calls = 0
+        loop_thread = threading.get_ident()
+        original_canonicalize = jcs.canonicalize
+        original_fit = code_analysis._fit_result_page
+        row_encodings: Counter[int] = Counter()
+        encoding_threads: set[int] = set()
+        fit_threads: list[int] = []
 
-        def count_canonicalizations(value: Any) -> bytes:
-            nonlocal calls
-            calls += 1
-            return original(value)
+        def count_row_encodings(value: Any) -> bytes:
+            # Encoding an envelope encodes each of its items as well.
+            rows = value.get("items", ()) if isinstance(value, dict) else ()
+            if isinstance(value, dict) and "nodeType" in value:
+                rows = (value,)
+            for row in rows:
+                row_encodings[row["line"]] += 1
+                encoding_threads.add(threading.get_ident())
+            return original_canonicalize(value)
 
-        loop = asyncio.get_running_loop()
-        gaps: list[float] = []
-        running = True
+        def record_fit_thread(rows: list[Any], build_result: Any) -> dict[str, Any]:
+            fit_threads.append(threading.get_ident())
+            return original_fit(rows, build_result)
 
-        async def ticker() -> None:
-            previous = loop.time()
-            while running:
-                await asyncio.sleep(0.005)
-                current = loop.time()
-                gaps.append(current - previous)
-                previous = current
-
-        tick_task = asyncio.create_task(ticker())
-        await asyncio.sleep(0.01)
         try:
             with monkeypatch.context() as patch:
-                patch.setattr(jcs, "canonicalize", count_canonicalizations)
+                patch.setattr(jcs, "canonicalize", count_row_encodings)
+                patch.setattr(code_analysis, "_fit_result_page", record_fit_thread)
                 result = await tools["search_def"]("target", limit=200)
         finally:
-            running = False
-            await tick_task
             await tools["search_def"].close()
         assert result["observedTotal"] == 200
         assert 0 < len(result["items"]) < 200
         assert result["truncated"] and result["nextCursor"]
-        assert len(original(result)) <= MAX_RESULT_BYTES
-        assert calls <= 230
-        assert gaps and max(gaps) < 0.05
+        assert len(original_canonicalize(result)) <= MAX_RESULT_BYTES
+        assert len(fit_threads) == 1 and loop_thread not in fit_threads
+        assert encoding_threads and loop_thread not in encoding_threads
+        assert sorted(row_encodings) == [1 + 13 * index for index in range(200)]
+        assert set(row_encodings.values()) == {1}
 
     asyncio.run(scenario())
+
+
+def test_result_page_fitting_rejects_item_dependent_envelopes() -> None:
+    rows = [{"number": 1}, {"number": 2}]
+    for build in (
+        lambda _count, items: {"items": list(items)},
+        lambda _count, items: {"items": items, "first": items[:1]},
+    ):
+        with pytest.raises(CodeAnalysisError, match="code_analysis_engine_failed"):
+            code_analysis._fit_result_page(rows, build)
 
 
 @pytest.mark.parametrize("shape", ["shallow", "graph", "path"])

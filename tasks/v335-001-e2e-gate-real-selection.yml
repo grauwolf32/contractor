@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V335-001
+title: Gate e2e tests by real selection and existence
+milestone: review-process-2026-10-04
+priority: P1
+status: completed
+implementation_commit: c28db5a290e1d7dd6bd5e515fa6f77e6f6b2ea27
+depends_on: []
+languages: [python, make]
+goal: Make the release-graph guard prove that every tagged test is selected by a reachable gate and that every selected name exists.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "scripts/check_release_verify_graph.py:186-203 treats a tagged test as gated if its name appears as a substring anywhere in make/*.mk, scripts or workflows. Adding untargeted e2e tests (TestCodeAnalysisE2EConfiguration, TestRunMetadataLabels) passed the guard and renaming the gated TestLocalGoToPythonArtifactCopy passed too, while go test -run '^(Missing)$' silently runs nothing. 10 of 35 e2e-tagged tests never run in CI: four findings tests need only a database (TestFindingsProducerAndReaderAcrossProcesses, TestFindingsCollectionsRetainOrdinaryAndAuditReceipts, TestFindingsReaderBoundariesAcrossProcesses, TestFindingLocationsAcrossProcesses; make test-findings-e2e is not in release-verify), three need real scanners and three need Podman."
+scope:
+  in:
+    - Evaluate each -run regex of every target reachable from release-verify against the real test list (go test -list with tags).
+    - Fail when a selected name does not exist or a tagged test is unreachable, unless it is in an opt-in allowlist with a reason.
+    - Add test-findings-e2e to release-verify.
+  out:
+    - Running scanner or Podman tests in CI.
+acceptance_criteria:
+  - {id: A1, text: "Renaming a gated test fails the guard."}
+  - {id: A2, text: "An unselected tagged test fails the guard unless allowlisted."}
+  - {id: A3, text: "The findings e2e tests run in release-verify."}
+tests:
+  - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1, A2, A3]}
+  - {command: "make -n release-verify", covers: [A3]}
+verification:
+  - The guard lists the real tests with go test -list per tag set and checks 142 -run alternatives from release-verify and the opt-in gates and all 42 e2e-tagged tests, 6 of them allowlisted with their opt-in target and reason (real scanners or Podman).
+  - Renaming TestLocalGoToPythonArtifactCopy fails the guard because its -run alternative selects no test; adding an unselected e2e-tagged test fails it as not selected by release-verify. Unit tests cover both and every allowlist rule.
+  - make -n release-verify runs scripts/test-findings-e2e.py in the families stage; make test-findings-e2e passed against PostgreSQL 17 (14 required process cases, 224 s).

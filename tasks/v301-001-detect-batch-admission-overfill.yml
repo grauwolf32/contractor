@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V301-001
+title: Make the batch-admission race test detect overfill
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 9f7303b3180de4ee59d2dcebae3b8ce7bedb1aa2
+depends_on: []
+languages: [go]
+goal: Exercise V259's capacity and transition guarantees with tests that can fail.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: TestPostgresNativeBatchAdmissionTwoCoordinatorsDoNotOverfill (internal/evalservice/service_postgres_test.go:523-525) uses capacity 8 with exactly 8 members, so overfill is impossible; no test races pause or cancel against a batch, so V259 A2 is unexercised. Store.Outstanding (internal/evalstore/reconcile.go:111) has no production caller and the rotation assertions in collection_revision_postgres_test.go:113-126 test it instead of ReconciliationCandidates.
+scope:
+  in:
+    - More members than capacity in the race test.
+    - A pause or cancel versus batch race test.
+    - Remove Store.Outstanding and port the rotation tests to ReconciliationCandidates.
+  out:
+    - Changing admission behaviour.
+acceptance_criteria:
+  - {id: A1, text: "The race test fails if admissions exceed capacity."}
+  - {id: A2, text: "A pause or cancel during a batch admits nothing after the transition."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice ./internal/evalstore", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

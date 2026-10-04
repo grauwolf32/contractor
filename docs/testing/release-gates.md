@@ -115,8 +115,9 @@ It first runs the strict executable matrix in
 `tests/e2e/runtime_configuration_matrix.yml`, all relevant Go packages under
 the race detector and the Python adapter/lease failure suites. It then runs the
 two-certificate process scenario and the real Chromium stack. `make
-release-verify` prepends the ordinary Go/Python/UI verification and is the CI
-release command. `make verify` remains database-independent and validates the
+release-verify`, the CI release command, runs the ordinary Go/Python/UI
+verification first and these suites in its later
+[stages](README.md#release-gate-stages). `make verify` remains database-independent and validates the
 matrix references, so removing or renaming an owning hardening test cannot
 silently narrow the release gate.
 
@@ -194,7 +195,8 @@ and process logs; they do not turn labels into a supported secret store. Run
 credentials and source fragments must still never be supplied as labels.
 
 `make test-e2e` includes this process scenario, and `make release-verify`
-combines it with the existing real-browser stack. The process test requires the
+runs it in the process stage next to the real-browser stack in the browser
+stage. The process test requires the
 locked `runtime/.venv`; its target runs `uv sync --locked` first. Only the
 external LLM-compatible and OTLP endpoints are fakes—Run creation, PostgreSQL,
 mTLS, scheduling, allocation, Artifact API and Runtime lifecycle are production

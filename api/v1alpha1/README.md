@@ -24,9 +24,13 @@ type and schema; each implementation validates the wire types it owns and
 checks the listed rejections. Gateway body fixtures remain in this shared
 catalog for Go Server schema and digest checks; Python Runtime validates the
 Gateway ref and effective runtime settings instead. A new fixture needs an
-index entry. `digest-cases.json` holds resolved ModelPolicy and AgentTemplate
+index entry, and its type needs a Runtime model or an explicit Go-only reason
+in `runtime/tests/test_contracts.py`. `digest-cases.json` holds resolved ModelPolicy and AgentTemplate
 bodies checked by Go and Python, plus Server-only LLMGatewayConfig bodies,
 including non-ASCII text and floating-point temperatures and ratios.
+`agent-card-secret-scan-cases.json` holds the WorkerHandle Agent Card secret
+scan both implementations apply: the trusted path table, the Runtime's card and
+the cases each must accept or reject.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required

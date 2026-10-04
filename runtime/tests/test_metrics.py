@@ -72,6 +72,58 @@ def test_input_error_diagnostics_keep_repair_reason_and_redact_secrets(error_typ
     assert "untrusted-input-must-not-be-logged" not in encoded
 
 
+def test_short_secrets_never_garble_tool_names_codes_or_messages() -> None:
+    state = MetricsState()
+    state.record_tool_call(
+        "read_artifact",
+        arguments={"name": "a", "path": "data/alpha", "limit": "1", "ops": "operations"},
+        error=ToolFailure("provider failed"),
+        secrets=("a", "ops", "1"),
+    )
+
+    report = state.build_report(report_id="worker-short-secrets", duration_ms=1)
+    call = report.tool_calls[0]
+    assert call.tool == "read_artifact"
+    assert call.error is not None
+    assert call.error.code == "synthetic_tool_failure"
+    assert call.error.message == "Tool read_artifact failed (ToolFailure)"
+    # A short private value matches only a complete string.
+    assert call.arguments == {
+        "name": "[REDACTED]",
+        "path": "data/alpha",
+        "limit": "[REDACTED]",
+        "[REDACTED]": "operations",
+    }
+    assert [error.code for error in report.errors] == ["tool_read_artifact_failed"]
+    assert set(report.metrics.tools) == {"read_artifact"}
+
+
+def test_long_secrets_stay_redacted_in_arguments_messages_and_codes() -> None:
+    private = "private-canary-value-0f3a9"
+
+    class PrivateCode(RuntimeError):
+        code = f"code-{private}"
+
+    class TextCode(RuntimeError):
+        code = "provider said no"
+
+    state = MetricsState()
+    state.record_tool_call(
+        "probe",
+        arguments={f"key-{private}": f"value {private} tail", "same": private},
+        error=PrivateCode(),
+        secrets=(private, "a"),
+    )
+    state.record_tool_call("probe", arguments={}, error=TextCode(), secrets=(private,))
+
+    report = state.build_report(report_id="worker-long-secrets", duration_ms=1)
+    first, second = report.tool_calls
+    assert first.arguments == {"key-[REDACTED]": "value [REDACTED] tail", "same": "[REDACTED]"}
+    assert first.error is not None and first.error.code == "tool_call_failed"
+    assert second.error is not None and second.error.code == "tool_call_failed"
+    assert private not in report.model_dump_json()
+
+
 def test_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() -> None:
     state = MetricsState()
     for index in range(MAX_METRIC_TOOL_CALLS + 5):

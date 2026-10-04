@@ -12,11 +12,23 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
+// FailureError reports a classified model request failure. Its text names only
+// the safe classification code, never provider response content.
+type FailureError struct {
+	Failure Failure
+}
+
+func (e *FailureError) Error() string {
+	return "Planner Gateway request failed (" + e.Failure.Code + ")"
+}
+
 // Do retries the same serialized model request inside a planner invocation.
 // Context cancellation remains authoritative over all waits and network calls.
+// A non-retryable failure ends the call as a *FailureError.
 func (p *Participant) Do(request *http.Request, client *http.Client, maxResponseBytes int64) ([]byte, error) {
 	for {
 		requestID, err := newRequestID()
@@ -48,16 +60,62 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 		if failure != nil {
 			update.Code = failure.Code
 		}
-		if _, err := p.Update(request.Context(), update); err != nil {
+		err = p.record(request.Context(), update)
+		if failure != nil && failure.Retryable {
+			// The route must record the failure before the request is resent.
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		// A reply or permanent rejection ends the call, and a transient failure
+		// to record it must not discard it: the route and the Run's waits
+		// reconcile on a later update, the probe lease expiry or the Stage end.
+		if err != nil && (request.Context().Err() != nil || !persistencepostgres.IsTransientFailure(err)) {
 			return nil, err
 		}
-		if failure == nil {
-			return body, nil
+		if failure != nil {
+			return nil, &FailureError{Failure: *failure}
 		}
-		if !failure.Retryable {
-			return nil, fmt.Errorf("Planner Gateway request failed (%s)", failure.Code)
+		return body, nil
+	}
+}
+
+// maxRecordAttempts bounds the bookkeeping of one observed outcome. Each
+// attempt is itself bounded by the database acquire and lock budgets.
+const maxRecordAttempts = 3
+
+// record reports an observed outcome and retries a transient database failure.
+// Repeating an update for the same request ID is idempotent, including after
+// an unacknowledged commit.
+func (p *Participant) record(ctx context.Context, update Request) error {
+	for attempt := 1; ; attempt++ {
+		_, err := p.Update(ctx, update)
+		if err == nil || attempt == maxRecordAttempts || ctx.Err() != nil ||
+			!persistencepostgres.IsTransientFailure(err) {
+			return err
+		}
+		timer := time.NewTimer(time.Duration(attempt) * 50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return err
+		case <-timer.C:
 		}
 	}
+}
+
+// Send performs one model request without a recovery authority. A failure is
+// classified exactly as Do classifies it and returned as a *FailureError.
+func Send(
+	request *http.Request, client *http.Client, maxResponseBytes int64, signatures contracts.GatewayFailureSignatures,
+) ([]byte, error) {
+	response, sendErr := client.Do(request)
+	body, failure, _ := readResponse(response, sendErr, maxResponseBytes, signatures)
+	if failure != nil {
+		return nil, &FailureError{Failure: *failure}
+	}
+	return body, nil
 }
 
 func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, error) {

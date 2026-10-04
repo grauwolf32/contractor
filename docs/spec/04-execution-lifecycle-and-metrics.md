@@ -42,6 +42,12 @@ attempt abandoned before any outcome reports `released`, which relinquishes the
 probe without reopening the blocked route or resetting its retry window.
 `finished` is reserved for an observed non-retryable response. Cancellation
 before a grant is known sends nothing and leaves an unknown lease to its expiry.
+A Server-side Planner retries a transient database failure while recording an
+observed outcome a bounded number of times. A model reply or permanent
+rejection is kept, and its usage charged, even when that recording still
+fails: the route and waits reconcile on a later update, the probe lease expiry
+or the end of the Stage. A retryable failure must be recorded before its
+request is resent.
 This does not persist or restore an ADK session after Runtime process loss.
 
 Failure classification has two layers. Status rules belong to the
@@ -60,6 +66,22 @@ provider text cannot become an availability failure. Server-side Planners and
 Runtime Workers apply the same effective set, and one shared fixture
 (`api/testdata/v1alpha1/gateway-failure-classification-cases.json`) keeps the
 two classifiers identical.
+
+A modeled Server-side Planner retries a transient failure inside its
+invocation as described above, so only a permanent classification ends it.
+That ends the invocation with the non-retryable Planner error
+`planner_gateway_rejected`, whose message names only the safe classification
+code (for example `gateway_access_denied` or a declared permanent code such
+as `context_length_exceeded`). Scheduler records it as an interrupted
+StageTermination with `retryable: false`, so a `retry` action does not repeat
+a revoked credential, an exhausted quota or an over-long prompt. The Planner
+Gateway errors are:
+
+| Code | Retryable | Meaning |
+| --- | --- | --- |
+| `planner_gateway_rejected` | no | Permanent classification: HTTP 401/403 or another permanent 4xx, a declared permanent provider code, an `x-should-retry: false` hint or an oversized response |
+| `planner_gateway_unavailable` | yes | Any other failed model request, such as a transient failure sent without a recovery authority or an unavailable recovery authority |
+| `planner_gateway_invalid_response` | yes | An HTTP 2xx reply without a usable choice or valid token usage; its valid usage is still charged |
 
 Public `RunStatus.recovery` contains safe cause/timing and whether a manual retry
 is required. `POST /v1/runs/{runId}/retry-gateway` is owner-scoped and preserves the
@@ -605,7 +627,17 @@ map without exposing it to either model.
   result size and stable error code may remain. Instructions, resource/package
   bytes, extracted paths and generated context are always dropped under [09](09-agent-skills.md).
 - RuntimeSettings tokens and other known deployment secrets are always removed,
-  even if a tool argument or error accidentally contains them.
+  even if a tool argument or error accidentally contains them. One policy
+  applies to metrics, allocation checks and Worker results: a secret of at
+  least 16 UTF-8 bytes is replaced by `[REDACTED]` wherever it occurs, while a
+  shorter one (a proxy username, a short header value) replaces only a complete
+  string, so it never garbles ordinary text. Tool names and error codes are
+  Runtime vocabulary and are never redacted; an error code that is not an
+  identifier, or that contains a long secret, is recorded as `tool_call_failed`.
+- Every started tool call is recorded exactly once. A call cancelled while it
+  runs, including an Agent Skill or `audit-results@2` call and a call still
+  pending when the Worker closes, fails with the retryable
+  `tool_call_cancelled` unless its toolset records a domain error.
 - Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by
   trusted Server provenance. Counters are non-negative and saturating;
   `flush_*` is absent for adapters without a flush operation. Error codes are a

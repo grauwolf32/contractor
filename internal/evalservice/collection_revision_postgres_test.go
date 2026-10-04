@@ -30,9 +30,9 @@ func liveMember(t *testing.T) (*serviceHarness, evalstore.Experiment, evalstore.
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim: %v %v", claims, err)
 	}
-	members, err := store.Outstanding(t.Context(), e.OwnerID, e.ID, 100)
+	members, err := store.ReconciliationCandidates(t.Context(), e.OwnerID, e.ID, membersPerTick)
 	if err != nil || len(members) == 0 {
-		t.Fatalf("outstanding: %v %v", members, err)
+		t.Fatalf("reconciliation candidates: %v %v", members, err)
 	}
 	return h, e, claims[0], members[0]
 }
@@ -110,9 +110,9 @@ func TestPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 	}
 
 	store := evalstore.NewPostgresStore(h.pool)
-	outstanding, err := store.Outstanding(t.Context(), e.OwnerID, e.ID, 2)
+	outstanding, err := store.ReconciliationCandidates(t.Context(), e.OwnerID, e.ID, 2)
 	if err != nil || len(outstanding) != 2 {
-		t.Fatalf("outstanding: %v %v", outstanding, err)
+		t.Fatalf("reconciliation candidates: %v %v", outstanding, err)
 	}
 	claims, err := store.Claim(t.Context(), "usage-observer", time.Minute, 1)
 	if err != nil || len(claims) != 1 {
@@ -123,9 +123,9 @@ func TestPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rotated, err := store.Outstanding(t.Context(), e.OwnerID, e.ID, 2)
-	if err != nil || len(rotated) != 2 || rotated[0] != outstanding[1] {
-		t.Fatalf("usage poll did not rotate Outstanding: before=%v after=%v err=%v", outstanding, rotated, err)
+	rotated, err := store.ReconciliationCandidates(t.Context(), e.OwnerID, e.ID, 2)
+	if err != nil || len(rotated) != 2 || rotated[0] != outstanding[1] || rotated[1] != outstanding[0] {
+		t.Fatalf("usage poll did not rotate reconciliation candidates: before=%v after=%v err=%v", outstanding, rotated, err)
 	}
 	if got := h.get(t, e.ID).ObservedTokens; got != 17 {
 		t.Fatalf("observed tokens = %d, want 17", got)
@@ -193,7 +193,8 @@ FROM eval_projection_queue WHERE experiment_id=$1`, e.ID).Scan(
 	}
 	tick(t, c)
 	changed := state()
-	if changed.generations <= after.generations || changed.snapshot == after.snapshot || changed.revision != changed.published {
+	// Publication prunes the replaced generation, so only the new one remains.
+	if changed.generations != 1 || changed.snapshot == after.snapshot || changed.revision != changed.published {
 		t.Fatalf("Run state change did not publish a current view: before=%+v after=%+v", after, changed)
 	}
 }

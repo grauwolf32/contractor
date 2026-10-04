@@ -3,12 +3,12 @@ package planner
 import (
 	"context"
 	"errors"
-	"io"
-	"net"
 	"time"
 
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // DefaultCompletionWriteTimeout covers the default two-second database acquire
@@ -52,6 +52,31 @@ func StartSession(
 	return start, nil
 }
 
+// RecoverCompletion replays a completion recorded by an earlier invocation of
+// the same Stage execution. A recorded failure ends this invocation with that
+// failure; a recorded result is revalidated against the result contract.
+func RecoverCompletion(
+	ctx context.Context,
+	runID string,
+	contract map[string]workflowconfig.ArtifactSlot,
+	completion Completion,
+	inspector ArtifactInspector,
+) (contracts.StageContentResult, error) {
+	if err := validateCompletion(completion); err != nil {
+		return contracts.StageContentResult{}, NewError(
+			"planner_session_invalid", "Recorded Planner completion is invalid", false, err,
+		)
+	}
+	if completion.Failure != nil {
+		return contracts.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
+	}
+	result := completion.Result.Clone()
+	if err := validateCandidate(ctx, runID, contract, result, inspector); err != nil {
+		return contracts.StageContentResult{}, err
+	}
+	return result, nil
+}
+
 // RecordSessionRequest durably records bounded request facts inside a
 // session.record_request span.
 func RecordSessionRequest(
@@ -78,6 +103,25 @@ func RecordSessionRequest(
 func CompleteSession(
 	ctx context.Context, sessions SessionService, identity SessionIdentity, completion Completion,
 ) error {
+	return writeCompletion(ctx, sessions, func(recordContext context.Context) error {
+		return sessions.Complete(recordContext, identity, completion)
+	})
+}
+
+// CompleteScanSession records a scan completion with the same bounded write
+// and transient retry as CompleteSession.
+func CompleteScanSession(
+	ctx context.Context, sessions ScanSessionService, identity ScanSessionIdentity, completion Completion,
+) error {
+	return writeCompletion(ctx, sessions, func(recordContext context.Context) error {
+		return sessions.CompleteScan(recordContext, identity, completion)
+	})
+}
+
+// writeCompletion retries a transient database failure within one completion
+// budget. Both session writes are idempotent: repeating a committed
+// completion succeeds, which a lost commit acknowledgement requires.
+func writeCompletion(ctx context.Context, sessions any, write func(context.Context) error) error {
 	budget := DefaultCompletionWriteTimeout
 	if configured, ok := sessions.(interface{ CompletionWriteTimeout() time.Duration }); ok {
 		if timeout := configured.CompletionWriteTimeout(); timeout > 0 {
@@ -88,12 +132,13 @@ func CompleteSession(
 	defer cancel()
 	var lastError error
 	for attempt := range maxCompletionWriteAttempts {
-		err := sessions.Complete(recordContext, identity, completion)
+		err := write(recordContext)
 		if err == nil {
 			return nil
 		}
 		lastError = err
-		if attempt == maxCompletionWriteAttempts-1 || !transientCompletionWriteError(err) || recordContext.Err() != nil {
+		if attempt == maxCompletionWriteAttempts-1 || !persistencepostgres.IsTransientFailure(err) ||
+			recordContext.Err() != nil {
 			return err
 		}
 		timer := time.NewTimer(time.Duration(attempt+1) * 50 * time.Millisecond)
@@ -105,25 +150,6 @@ func CompleteSession(
 		}
 	}
 	return lastError
-}
-
-func transientCompletionWriteError(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) ||
-		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	var networkError net.Error
-	if errors.As(err, &networkError) && (networkError.Timeout() || networkError.Temporary()) {
-		return true
-	}
-	var databaseError *pgconn.PgError
-	if errors.As(err, &databaseError) {
-		switch databaseError.Code {
-		case "40001", "40P01", "55P03", "57014", "53300":
-			return true
-		}
-	}
-	return false
 }
 
 // CompletionWriteError reports an unwritten failure without changing the

@@ -57,14 +57,7 @@ func finishInventory(
 			return Inventory{}, invalid(CodeInventoryInvalid, "items.item_key")
 		}
 		seen[subject.itemKey] = struct{}{}
-		document := ItemTask{
-			Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
-			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
-			CanonicalInventoryDigest: canonicalDigest,
-			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
-			Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
-		}
+		document := newItemTask(subject, sourceMediaType, sourceDigest, canonicalDigest, options)
 		documentBytes, encodeErr := EncodeItemTask(document)
 		if encodeErr != nil {
 			return Inventory{}, encodeErr
@@ -80,19 +73,7 @@ func finishInventory(
 		if generatedBytes > MaximumGeneratedBytes {
 			return Inventory{}, invalid(CodeLimitExceeded, "generated_packages")
 		}
-		approval := subject.approval
-		// A trusted profile-level active-check gate is stronger than an
-		// inventory-authored/manual gate. One exact owner decision authorizes
-		// the resulting action, so untrusted inventory data can request more
-		// review but can never downgrade the profile policy.
-		if options.ApprovalRequirement == ApprovalActiveCheck || approval == "" {
-			approval = options.ApprovalRequirement
-		}
-		item := WorklistItem{
-			ItemKey: subject.itemKey, Ordinal: ordinal, Kind: subject.kind,
-			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-			TaskPackageID: packageID, ApprovalRequirement: approval,
-		}
+		item := newWorklistItem(subject, ordinal, packageID, options)
 		worklist.Items = append(worklist.Items, item)
 		inputs := []ExactInput{{Name: options.SourceInputName, Ref: options.SourceRef.Clone(), Digest: sourceDigest}}
 		if subject.scan != nil {
@@ -106,10 +87,7 @@ func finishInventory(
 			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
 			Inputs: inputs,
 		})
-		coverage.Rows = append(coverage.Rows, CoverageRow{
-			ItemKey: subject.itemKey, SubjectKey: subject.subjectKey, Status: "not-tested",
-			Requested: arrayStrings(subject.requested), Completed: []string{}, Gaps: arrayStrings(subject.gaps),
-		})
+		coverage.Rows = append(coverage.Rows, newCoverageRow(subject))
 		tasks = append(tasks, GeneratedTask{
 			Item: item, Document: document, Package: packageBytes, PackageDigest: validatedPackage.Digest,
 		})
@@ -132,6 +110,47 @@ func finishInventory(
 		return Inventory{}, err
 	}
 	return result, nil
+}
+
+// newItemTask returns the task document of one inventory subject.
+func newItemTask(
+	subject inventorySubject,
+	sourceMediaType, sourceDigest, canonicalDigest string,
+	options InventoryOptions,
+) ItemTask {
+	return ItemTask{
+		Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
+		SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
+		SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
+		CanonicalInventoryDigest: canonicalDigest,
+		Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
+		Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
+	}
+}
+
+// newWorklistItem returns the worklist entry of one inventory subject.
+func newWorklistItem(subject inventorySubject, ordinal int, packageID string, options InventoryOptions) WorklistItem {
+	approval := subject.approval
+	// A trusted profile-level active-check gate is stronger than an
+	// inventory-authored/manual gate. One exact owner decision authorizes
+	// the resulting action, so untrusted inventory data can request more
+	// review but can never downgrade the profile policy.
+	if options.ApprovalRequirement == ApprovalActiveCheck || approval == "" {
+		approval = options.ApprovalRequirement
+	}
+	return WorklistItem{
+		ItemKey: subject.itemKey, Ordinal: ordinal, Kind: subject.kind,
+		SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
+		TaskPackageID: packageID, ApprovalRequirement: approval,
+	}
+}
+
+// newCoverageRow returns the initial coverage row of one inventory subject.
+func newCoverageRow(subject inventorySubject) CoverageRow {
+	return CoverageRow{
+		ItemKey: subject.itemKey, SubjectKey: subject.subjectKey, Status: "not-tested",
+		Requested: arrayStrings(subject.requested), Completed: []string{}, Gaps: arrayStrings(subject.gaps),
+	}
 }
 
 // ValidateInventory rechecks every cross-document identity and package before

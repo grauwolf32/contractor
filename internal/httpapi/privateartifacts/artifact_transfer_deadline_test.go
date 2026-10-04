@@ -109,6 +109,53 @@ func TestPrivateArtifactStalledDownloadsReleaseTransferSlots(t *testing.T) {
 	}
 }
 
+// Once the Runtime has sent the whole body, storage work keeps its own budget:
+// a slow database within it must not fail the upload at the client deadline.
+// The body is empty, so net/http is already watching the idle connection when
+// the body deadline is armed.
+func TestPrivateArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.writeStarted = make(chan struct{})
+	repository.continueWrite = make(chan struct{})
+	server, _ := privateTransferServer(t, repository)
+	var body []byte
+	slow := artifacttransfer.Duration(0) + time.Second
+	type outcome struct {
+		status int
+		body   string
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/inputs/slow_storage", bytes.NewReader(body))
+		if err != nil {
+			done <- outcome{err: err}
+			return
+		}
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-None-Match", "*")
+		response, err := (&http.Client{Timeout: slow + 10*time.Second}).Do(request)
+		if err != nil {
+			done <- outcome{err: err}
+			return
+		}
+		defer response.Body.Close()
+		payload, _ := io.ReadAll(response.Body)
+		done <- outcome{status: response.StatusCode, body: string(payload)}
+	}()
+	waitArtifactSignal(t, repository.writeStarted, "Artifact Store write")
+	time.Sleep(slow)
+	close(repository.continueWrite)
+	select {
+	case result := <-done:
+		if result.err != nil || result.status != http.StatusCreated {
+			t.Fatalf("private upload with slow storage = %d %s (%v), want 201", result.status, result.body, result.err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("private upload with slow storage did not answer")
+	}
+}
+
 func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptest.Server, *artifacts.BlobRuntime) {
 	t.Helper()
 	inner := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)

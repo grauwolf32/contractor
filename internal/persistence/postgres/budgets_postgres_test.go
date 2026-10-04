@@ -273,7 +273,7 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer locker.Rollback(ctx)
-	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationLockKey); err != nil {
+	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock(`+migrationLockKeySQL+`)`, migrationLockKey); err != nil {
 		t.Fatal(err)
 	}
 	short, stop := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -302,7 +302,7 @@ func TestPostgresMigrationLeaderWaitOutlivesDDLLockTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer locker.Rollback(ctx)
-	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationLockKey); err != nil {
+	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock(`+migrationLockKeySQL+`)`, migrationLockKey); err != nil {
 		t.Fatal(err)
 	}
 	type outcome struct {

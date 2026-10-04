@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V311-001
+title: One redaction policy for metrics and results
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 42bedf61289e4b2b71b638cade552fe0341ddd03
+depends_on: []
+languages: [python]
+goal: Redact secrets consistently without garbling tool names and record cancelled tool calls for every toolset.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: telemetry/metrics.py:600-603 substring-redacts every Runtime secret in tool names (:281), error codes (:253) and argument keys and values. Since V179-005 runtime_secrets includes short proxy and target basic-auth usernames and passwords, so a username 'a' turns a tool name into re[REDACTED]d_[REDACTED]rtif[REDACTED]ct, contradicting MIN_PRIVATE_SUBSTRING_BYTES=16 (allocation/redaction.py:15). Commit 153ee7ff rewrote V179-005's acceptance criteria to exempt Agent Skills and audit-results@2, which still record nothing on cancellation (agent_skills/runtime.py:343; audit_results/v2.py:139,294), and the instrumentation plugin drops pending calls on close() (worker/instrumentation.py:565).
+scope:
+  in:
+    - Substring-redact only secrets of at least 16 bytes, match shorter ones exactly, never rewrite tool names or error codes.
+    - Move runtime_secrets into a leaf module shared by metrics, allocation and summarizer.
+    - Record cancelled Agent Skill and audit-results calls and pending calls on plugin close.
+  out:
+    - Changing which values are secret.
+acceptance_criteria:
+  - {id: A1, text: "Short credentials never garble tool names or error codes."}
+  - {id: A2, text: "Secrets of at least 16 bytes are still redacted everywhere."}
+  - {id: A3, text: "Cancelled Agent Skill and audit-results calls are recorded."}
+tests:
+  - {command: "cd runtime && uv run pytest tests -k 'metric or redact or instrumentation or agent_skill or audit_results'", covers: [A1, A2, A3]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2, A3]}

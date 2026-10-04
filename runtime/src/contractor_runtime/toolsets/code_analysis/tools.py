@@ -891,12 +891,12 @@ class _CodeAnalysisSession:
         coverage = _Coverage(
             binary_files=sum(1 for item in snapshot.binary_paths if _under_path(item, path))
         )
-        cpp_headers = language_support.cpp_header_context(item.path for item in snapshot.files)
+        header = language_support.header_language(item.path for item in snapshot.files)
         candidates: list[tuple[WorkspaceTextFile, Language]] = []
         for item in sorted(snapshot.files, key=lambda value: value.path):
             if not _under_path(item.path, path):
                 continue
-            language = language_support.detect_language(item.path, cpp_headers=cpp_headers)
+            language = language_support.detect_language(item.path, header=header)
             if language is None:
                 if language_support.graph_only_source(item.path):
                     coverage.unsupported_source_files += 1
@@ -980,7 +980,7 @@ class _CodeAnalysisSession:
     def _needs_text_prefilter(self, path: str) -> bool:
         """Return whether search_def must scan this file's text for the needle.
 
-        A defined name is a substring of its source, so cached symbols alone
+        A defined bare name is a substring of its source, so cached symbols alone
         decide whether a clean cached file can match. The text is consulted
         only for uncached files and for cached files whose parse-error or
         long-name flags count in coverage only when they contain the needle.
@@ -1417,16 +1417,15 @@ def _fit_result_page(
     rows: list[Any],
     build_result: Callable[[int, list[Any]], dict[str, Any]],
 ) -> dict[str, Any]:
-    """Fit the largest prefix without repeatedly encoding the same rows."""
+    """Fit the largest row prefix, canonicalizing each row exactly once.
 
-    full = build_result(len(rows), rows)
-    if len(jcs.canonicalize(full)) <= MAX_RESULT_BYTES:
-        return full
-    if not rows:
-        raise CodeAnalysisError("code_analysis_capacity_exceeded")
+    ``build_result(count, items)`` places ``items`` verbatim under "items" and
+    derives every other member from ``count`` alone. Replacing the empty items
+    array of that envelope adds each canonical row and one comma between
+    adjacent rows, so the encoded size of every prefix is exact without
+    encoding a page; only the small envelope is encoded per tried count.
+    """
 
-    # Replacing an empty items array adds each canonical row and one comma
-    # between adjacent rows. Only the small envelope and cursor vary by count.
     prefix = [0]
     for row in rows:
         prefix.append(prefix[-1] + len(jcs.canonicalize(row)))
@@ -1435,25 +1434,26 @@ def _fit_result_page(
         envelope = build_result(count, [])
         return len(jcs.canonicalize(envelope)) + prefix[count] + max(0, count - 1)
 
-    if projected_size(0) > MAX_RESULT_BYTES:
-        raise CodeAnalysisError("code_analysis_capacity_exceeded")
-    low, high = 0, len(rows) - 1
-    while low < high:
-        middle = (low + high + 1) // 2
-        if projected_size(middle) <= MAX_RESULT_BYTES:
-            low = middle
-        else:
-            high = middle - 1
-
-    # Confirm the final wire result. The fallback preserves fail-closed
-    # behavior if a future envelope contains count-dependent encoding.
-    while True:
-        result = build_result(low, rows[:low])
-        if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
-            return result
-        if low == 0:
+    count = len(rows)
+    if projected_size(count) > MAX_RESULT_BYTES:
+        if projected_size(0) > MAX_RESULT_BYTES:
             raise CodeAnalysisError("code_analysis_capacity_exceeded")
-        low -= 1
+        low, high = 0, count - 1
+        while low < high:
+            middle = (low + high + 1) // 2
+            if projected_size(middle) <= MAX_RESULT_BYTES:
+                low = middle
+            else:
+                high = middle - 1
+        count = low
+
+    # The projection holds only for the envelope contract above; fail closed
+    # instead of returning an unmeasured result if a builder breaks it.
+    selected = rows[:count]
+    result = build_result(count, selected)
+    if result.get("items") is not selected or {**result, "items": []} != build_result(count, []):
+        raise CodeAnalysisError("code_analysis_engine_failed")
+    return result
 
 
 def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:

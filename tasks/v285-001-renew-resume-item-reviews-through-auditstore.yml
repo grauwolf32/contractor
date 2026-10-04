@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V285-001
+title: Renew expired item reviews on Resume through auditstore
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: 07f87d2bea9fd1d6f0e760d8b3d722b3ccb383c6
+depends_on: []
+languages: [go, sql]
+goal: Make Resume renew expired item reviews with the same events and revision bumps as the Controller path.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: renewExpiredItemReviews (internal/auditservice/resume.go:120-134) expires requests and creates new ones with raw SQL. Unlike the V236 controller renewal (internal/auditstore/item_review_renewal.go) it emits no review.expired or review.requested events, makes no matching revision bumps and skips the GREATEST updated_at guard (resume.go:121).
+scope:
+  in:
+    - Move Resume renewal into auditstore and reuse the V236 renewal path.
+    - Emit events and revisions consistently and test Resume with expired reviews.
+  out:
+    - Changing review expiry policy.
+acceptance_criteria:
+  - {id: A1, text: "Resume renewal emits review.expired and review.requested events with correct sequence numbers and revisions."}
+  - {id: A2, text: "Approval and execution authorization after renewal behave as before."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditservice ./internal/auditstore ./internal/auditcontroller", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

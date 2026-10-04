@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V310-001
+title: One host-syntax rule for HTTP, Caido and scanners
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: eb646480da8e75abb4593f1ba32cc3cf9e3bb941
+depends_on: [V309-001]
+languages: [python]
+goal: Validate target host names with one rule that rejects percent-escapes and accepts docker-compose names everywhere.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "V162 (54f4c899) accepts any ASCII host text (runtime/src/contractor_runtime/toolsets/http/tools.py:1348-1358), including percent-escapes and sub-delims: http://169.254.169.%32%35%34/, http://%6c%6fcalhost:8080/ and http://a!b$c.example/ pass _validate_target, and literal_address and normalized_host (common/target_policy.py:99,133) never decode %, so they count as names. On the direct route the resolver is called verbatim with retries and the result is retryable http_request_failed instead of non-retryable invalid input; the proxy route forwards verbatim, so a forward proxy that percent-decodes the authority could reach destinations the Runtime never classified (plausible). Meanwhile scan/tools.py:1038-1049 and katana.py:48-51 reject underscore host names that http_request accepts."
+scope:
+  in:
+    - "One helper in common/target_policy.py: ASCII labels [A-Za-z0-9_-]{1,63}, total length at most 253, IDNA for non-ASCII, no percent-escapes, used by http, caido and scanners."
+    - Shared test cases for all three toolsets.
+  out:
+    - Changing private-network policy.
+acceptance_criteria:
+  - {id: A1, text: "Percent-escaped and sub-delim hosts are rejected as non-retryable invalid input everywhere."}
+  - {id: A2, text: "Underscore host names work for http_request and the scanners."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_http_target_policy.py tests/test_http_toolset.py tests -k 'scan or katana or nuclei or caido'", covers: [A1, A2]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2]}

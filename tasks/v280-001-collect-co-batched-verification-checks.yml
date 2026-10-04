@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V280-001
+title: Collect co-batched verification checks of one finding proposal
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 6aa761f476544f3949d48aa475f65138a3d1c05b
+depends_on: []
+languages: [go]
+goal: Never wedge Audit collection when two finding-verification items of one proposal run in one batch, and turn deterministic store rejections into contract-invalid receipts.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: "A later-Round proposal with two or more proposed checks becomes several finding-verification items with the same envelope, so dispatchReadyBatch (internal/auditcontroller/dispatch_selection.go:27-61) co-batches them when batchSize is at least 2. resolveMemberProposals (internal/auditimport/check_results.go:222-233,283-297) emits a FindingAssociation for the same receipt per item, validateCollect (internal/auditstore/validation.go:837-840) rejects a receipt associated more than once with ErrInvalid, and Importer.Collect (internal/auditimport/importer.go:47-61) converts only ErrPermanent into a contract-invalid receipt. collectOne therefore fails on every pass and reconcile never reaches Round progression, dispatch or settlement, so cancel and delete are blocked as well. importer_test.go:636 asserts this batch shape and passes only because its fake store does not validate. Reproduced against PostgresStore.Collect: 'finding receipt is associated more than once' on every attempt."
+scope:
+  in:
+    - "Prevent the duplicate association: do not co-batch items that verify the same receipt, or allow one association per receipt per execution item with a deterministic finding update."
+    - Map deterministic auditstore.ErrInvalid returned by Collect to ErrPermanent so a contract-invalid receipt is retained instead of retrying forever.
+    - Make the importer test exercise real store validation (PostgreSQL or a fake that enforces validateCollect).
+  out:
+    - Changing batch sizes of shipped AuditProfiles.
+acceptance_criteria:
+  - {id: A1, text: "A multi-Round Audit with batchSize 2 and a proposal with two checks collects and progresses."}
+  - {id: A2, text: "A deterministic store rejection during Collect yields a contract-invalid receipt instead of an endless retry."}
+  - {id: A3, text: "The regression test runs with real collection validation."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditimport ./internal/auditcontroller ./internal/auditstore", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

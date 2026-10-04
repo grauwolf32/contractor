@@ -27,6 +27,9 @@ func TestServerCommandsPrintUsageForHelp(t *testing.T) {
 		{[]string{"config", "validate", "-h"}, "-root"},
 		{[]string{"blobs", "cleanup", "--help"}, "-offline"},
 		{[]string{"auth", "hash-password", "--help"}, "-username"},
+		{[]string{"auth", "--help"}, "  hash-password "},
+		{[]string{"config", "-h"}, "  validate "},
+		{[]string{"blobs", "-help"}, "  cleanup "},
 	} {
 		usage.Reset()
 		if err := RunCLI(context.Background(), test.args, getenv, logger); err != nil {
@@ -34,6 +37,12 @@ func TestServerCommandsPrintUsageForHelp(t *testing.T) {
 		}
 		if !strings.Contains(usage.String(), test.flag) {
 			t.Fatalf("%v: usage %q does not mention %s", test.args, usage.String(), test.flag)
+		}
+	}
+
+	for _, group := range []string{"auth", "config", "blobs"} {
+		if err := RunCLI(context.Background(), []string{group}, getenv, logger); err == nil {
+			t.Fatalf("%s without a subcommand succeeded", group)
 		}
 	}
 

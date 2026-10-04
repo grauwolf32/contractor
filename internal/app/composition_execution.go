@@ -74,7 +74,8 @@ func configurePlanners(
 	}
 	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
 		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-			Recovery: access.Recovery, URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
+			Recovery: access.Recovery, FailureSignatures: access.LLMGateway.EffectiveFailureSignatures(),
+			URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
 			MaxOutputTokens: access.ModelPolicy.MaxOutputTokens, RequestTimeout: cfg.PlannerTimeout,
 		})
 	}

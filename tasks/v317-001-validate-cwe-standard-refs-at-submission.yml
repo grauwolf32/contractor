@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V317-001
+title: Validate CWE standard references before storing finding proposals
+milestone: review-defects-2026-10-04
+priority: P1
+status: completed
+implementation_commit: 6a0d508d79cd1709c18f841696f130412d9d72ec
+depends_on: []
+languages: [python]
+goal: Reject retired or unknown CWE references at submission, as V180 intended.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: FindingPublisher.submit (runtime/src/contractor_runtime/toolsets/security_findings/publisher.py:64-69) accepts standard_refs with retired or unknown CWE IDs, for example CWE-534 in catalog 4.20, CWE-999999 or version 4.9; submission.py:60-66 checks syntax only. Only the Audit collector and the Go import reject them later.
+scope:
+  in:
+    - One CWE validator in classification.py (weakness IDs as a frozenset) used by the publisher and collector.check_proposal_refs.
+    - Tests.
+  out:
+    - Changing the bundled catalog.
+acceptance_criteria:
+  - {id: A1, text: "Retired or unknown CWE references and unsupported catalog versions are rejected at submission with a repairable error."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_finding_facades.py", covers: [A1]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1]}

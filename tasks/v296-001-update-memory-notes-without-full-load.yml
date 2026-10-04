@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V296-001
+title: Update Memory notes without loading the whole notebook
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: f481032cacf953c7eb98315d3ed9d21923c1126e
+depends_on: []
+languages: [go]
+goal: Read only the target note when updating an existing Memory note.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: Since V252 WriteMemory always calls LoadAll (up to 129 notes of 32 KiB, about 4 MiB plus blob reads; internal/memory/namespace.go:181-197) to update one note. memory.Store.List and PostgresStore.List (namespace.go:90, postgres.go:39-53) are production-dead after V252.
+scope:
+  in:
+    - Read one note for updates and keep the full snapshot only for creation.
+    - Remove the dead List methods.
+    - Tests that count reads.
+  out:
+    - Changing Memory capacity rules.
+acceptance_criteria:
+  - {id: A1, text: "Updating an existing note reads only that note."}
+  - {id: A2, text: "Creation still enforces notebook capacity."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/memory ./internal/planner/streamline", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

@@ -686,23 +686,12 @@ func decodeState(data json.RawMessage) (persistentState, error) {
 	if len(data) == 0 || len(data) > maxSessionJSONBytes {
 		return persistentState{}, fmt.Errorf("Planner state exceeds its bounded contract")
 	}
-	// Older sessions persisted these write-only cumulative counters. Accept
-	// exactly those legacy keys on read, but never copy them into active state
-	// or a later write. Strict decoding still rejects every other unknown key.
-	var stored struct {
-		persistentState
-		ADKInputTokens  int64 `json:"adkInputTokens"`
-		ADKOutputTokens int64 `json:"adkOutputTokens"`
-	}
-	if err := strictjson.Decode(data, &stored); errors.Is(err, strictjson.ErrTrailingData) {
+	var state persistentState
+	if err := strictjson.Decode(data, &state); errors.Is(err, strictjson.ErrTrailingData) {
 		return persistentState{}, fmt.Errorf("Planner state contains trailing JSON")
 	} else if err != nil {
 		return persistentState{}, fmt.Errorf("decode Planner state: %w", err)
 	}
-	if stored.ADKInputTokens < 0 || stored.ADKOutputTokens < 0 {
-		return persistentState{}, fmt.Errorf("legacy Planner ADK token counts must be non-negative")
-	}
-	state := stored.persistentState
 	if _, err := encodeState(state); err != nil {
 		return persistentState{}, err
 	}

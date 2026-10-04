@@ -25,7 +25,9 @@ labels never establish membership. `Settle` observes authoritative terminal stat
 and resolves every suboperation before decrementing outstanding once. A cancelled
 intent with no possible execution creation can settle without inventing a Run.
 
-Datasets and plans retain byte payloads with database-computed SHA-256. External
+Datasets and plans retain byte payloads with database-computed SHA-256. Only
+`Freeze` output reaches the immutable plan row, so `FrozenPlan` restores the
+stored bytes and generated digest without validating the schema again. External
 registration has its own stored document digest, separate from `Plan.SHA256`,
 which preserves the attributed source plan identity used by the producer. Native
 `Plan.SHA256` is the exact portable plan digest. Preparation in V38-004 owns
@@ -64,10 +66,14 @@ current authority revision; selected-view and collection revisions remain separa
 Collection revalidates selected evidence and publishes every expected member,
 pair, suite summary and chart aggregate atomically. Failure leaves the last
 complete generation visible as stale. A source revision belongs to the snapshot
-identity, so recovered evidence cannot revive an older progress timestamp.
-Selected-page reads use keyset pagination over retained generations and never
-scan historical executions/artifacts. Histograms retain exact cohort percentiles;
-progress reads choose real observations in at most 200 buckets.
+identity, so recovered evidence cannot revive an older progress timestamp. A
+publication with an unchanged content digest (selected documents, comparison,
+pins, selection revision) keeps the current generation; a new generation deletes
+the superseded ones, which `contractor_eval_view_immutable` permits only for
+generations the queue no longer names. Selected-page reads use keyset pagination
+over the current generation and never scan historical executions/artifacts.
+Histograms retain exact cohort percentiles; progress reads choose real
+observations in at most 200 buckets.
 
 Execution inventories join authoritative Audit associations across roles, rounds
 and retries. Public inventories paginate the full set; bounded native collection

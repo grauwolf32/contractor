@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
@@ -18,12 +18,20 @@ import (
 
 const maximumRuntimeConfigBodyBytes int64 = 128 * 1024
 
-var (
-	runtimeConfigIDPattern         = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
-	runtimeConfigVersionPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
-	runtimeCredentialIDPattern     = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,127}$`)
-	runtimeAgentPrincipalIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-)
+// RuntimeConfig names and labels, versions and Runtime credential IDs use the
+// contracts grammars within the bounds of the public RuntimeInfrastructureId,
+// RuntimeConfigVersion and RuntimeCredentialId schemas.
+func validRuntimeInfrastructureID(value string) bool {
+	return len(value) <= 63 && contracts.ValidIdentifier(value)
+}
+
+func validRuntimeConfigVersion(value string) bool {
+	return len(value) <= 128 && contracts.ValidVersion(value)
+}
+
+func validRuntimeCredentialID(value string) bool {
+	return len(value) <= 128 && contracts.ValidIdentifier(value)
+}
 
 func (h *handler) listRuntimeConfigs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -73,7 +81,7 @@ func (h *handler) getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, version := r.PathValue("name"), r.PathValue("version")
-	if !runtimeConfigIDPattern.MatchString(name) || !runtimeConfigVersionPattern.MatchString(version) {
+	if !validRuntimeInfrastructureID(name) || !validRuntimeConfigVersion(version) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -183,7 +191,7 @@ func (h *handler) getRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	label := r.PathValue("label")
-	if !runtimeConfigIDPattern.MatchString(label) {
+	if !validRuntimeInfrastructureID(label) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -212,7 +220,7 @@ func (h *handler) putRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	label := r.PathValue("label")
-	if !runtimeConfigIDPattern.MatchString(label) {
+	if !validRuntimeInfrastructureID(label) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -277,7 +285,7 @@ func (h *handler) deleteRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	label := r.PathValue("label")
-	if !runtimeConfigIDPattern.MatchString(label) {
+	if !validRuntimeInfrastructureID(label) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -362,7 +370,7 @@ func (h *handler) getRuntimeCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("credentialId")
-	if !runtimeCredentialIDPattern.MatchString(id) {
+	if !validRuntimeCredentialID(id) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -396,7 +404,7 @@ func (h *handler) createRuntimeCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer request.Material.Destroy()
-	if !runtimeCredentialIDPattern.MatchString(request.CredentialID) {
+	if !validRuntimeCredentialID(request.CredentialID) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
@@ -430,7 +438,7 @@ func (h *handler) deleteRuntimeCredential(w http.ResponseWriter, r *http.Request
 		return
 	}
 	id := r.PathValue("credentialId")
-	if !runtimeCredentialIDPattern.MatchString(id) {
+	if !validRuntimeCredentialID(id) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
