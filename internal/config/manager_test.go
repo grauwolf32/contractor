@@ -361,6 +361,33 @@ func TestLoadUnionRejectsDuplicatesAndSymlinks(t *testing.T) {
 	}
 }
 
+func TestManagerPublishFailsWhenManagedSubtreeIsMissing(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	current := manager.Snapshot()
+	workflows := filepath.Join(managed, "workflows")
+	if err := os.Remove(workflows); err != nil {
+		t.Fatal(err)
+	}
+	request := validPolicyPublication("missing-subtree")
+	if _, err := manager.Publish(t.Context(), request); err == nil ||
+		!strings.Contains(err.Error(), "configuration subtree workflows") {
+		t.Fatalf("Publish with a missing managed subtree = %v, want a reload error", err)
+	}
+	if manager.Snapshot() != current {
+		t.Fatal("failed reload replaced the current snapshot")
+	}
+	if entries, err := os.ReadDir(filepath.Join(managed, "model-policies")); err != nil || len(entries) != 0 {
+		t.Fatalf("failed reload published files %v, error %v", entries, err)
+	}
+	if err := os.Mkdir(workflows, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Publish(t.Context(), request); err != nil {
+		t.Fatalf("Publish after restoring the managed subtree: %v", err)
+	}
+}
+
 func TestManagerRejectsSymlinkRootAndSubtree(t *testing.T) {
 	operator := copyConfigTree(t)
 	parent := t.TempDir()

@@ -205,7 +205,7 @@ func LoadUnionReadOnly(operatorPath, managedPath string, descriptors Descriptors
 	if managedExists {
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
-	return loadConfigurationRoots(roots, descriptors, true)
+	return loadConfigurationRoots(roots, descriptors, loadOptions{allowMissingManagedSubtrees: true})
 }
 
 func resolveMissingRoot(path string) (string, error) {

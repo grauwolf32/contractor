@@ -132,6 +132,10 @@ settings table and independent deadline rules.
 | Login, PKI and encrypted-credential master key | Retain owner-only files; the master key is needed to decrypt stored credentials |
 | Runtime workspaces | Disposable allocation data; cleanup must finish before reusing a slot |
 
+Server creates the managed root and its kind subtrees at startup. If one is
+later removed or unmounted, publications fail and the current configuration
+stays in effect until the subtree is restored.
+
 The [no-PVC Kubernetes example](operations/artifact-blob-storage.md#deployment-without-pvc)
 is a disposable exception: its `/managed` memory volume loses every
 API-published configuration version on pod replacement. Use only baked-in
