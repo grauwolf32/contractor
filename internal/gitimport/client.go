@@ -513,6 +513,13 @@ func (c *Client) ssh(ctx context.Context, remote Remote, signer ssh.Signer) (*pa
 	}}
 	sessionConn, channels, requests, err := ssh.NewClientConn(conn, remote.Address, cfg)
 	if err != nil {
+		// A host that offers none of the pinned key types fails negotiation
+		// before HostKeyCallback runs. It cannot present a key the verifier
+		// would accept, so it is untrusted like a mismatched key, not unavailable.
+		var negotiation *ssh.AlgorithmNegotiationError
+		if hostKeyAlgorithms != nil && errors.As(err, &negotiation) && negotiation.What == "host key" {
+			return nil, nil, cleanup, wire, ErrTrust
+		}
 		return nil, nil, cleanup, wire, err
 	}
 	client := ssh.NewClient(sessionConn, channels, requests)
