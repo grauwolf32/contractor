@@ -2,7 +2,7 @@
 # ui/ against the pinned pnpm toolchain.
 
 .PHONY: ui-install ui-browser-install ui-generate ui-generate-check ui-format \
-	ui-lint ui-typecheck ui-test ui-build ui-verify
+	ui-lint ui-typecheck ui-test ui-build ui-verify ui-browser-mocked
 
 ui-install:
 	cd ui && corepack pnpm install --frozen-lockfile
@@ -31,6 +31,9 @@ ui-test:
 
 ui-build:
 	cd ui && corepack pnpm build
+
+ui-browser-mocked: ui-install
+	node ui/server/mocked-browser-gate.mjs
 
 ui-verify:
 	cd ui && corepack pnpm install --frozen-lockfile

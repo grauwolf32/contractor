@@ -140,7 +140,15 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
   make test-ui-stack
 ```
 
-`corepack pnpm --dir ui test:e2e` alone intentionally skips the real-stack
-scenario unless the harness supplies its isolated URLs, credentials, source
-fixture and evidence paths. The pinned baseline is Chromium; broader browser
-and visual-regression matrices are deferred.
+Run the self-contained browser fixtures without starting a UI service or
+database:
+
+```shell
+make ui-browser-mocked
+```
+
+This builds and serves an isolated production UI, runs every API-mocked spec,
+and checks the Playwright report for executed passes with no skips or flaky
+attempts. The real-stack scenarios still use their Go harness and its isolated
+URLs, credentials, source fixture and evidence paths. The pinned baseline is
+Chromium; broader browser and visual-regression matrices are deferred.

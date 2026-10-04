@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V266-001
+title: Run every mocked browser journey in release verification
+milestone: release-gate-2026-10
+priority: P2
+status: completed
+implementation_commit: eddef91dada4eaa73c028b74f4fa4d4e85d68907
+depends_on: []
+languages: [javascript, typescript, markdown]
+goal: Make the self-contained Playwright journeys executable and mandatory in CI.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/125
+  finding: Thirteen mocked browser specs were compiled but never executed by a release gate.
+scope:
+  in:
+    - Build and serve an isolated production UI for all mocked browser specs.
+    - Reject missing, skipped, failed, or flaky Playwright executions and unlisted spec files.
+    - Repair stale browser fixtures and document the standalone gate.
+  out:
+    - Replacing process-backed browser journeys with mocked fixtures.
+acceptance_criteria:
+  - {id: A1, text: All 13 previously ungated specs and Git artifacts execute in the release gate.}
+  - {id: A2, text: The report validator requires a passing execution in every selected file with no skips or flaky attempts.}
+  - {id: A3, text: Every browser spec is selected by this or a process-backed gate.}
+  - {id: A4, text: A clean standalone invocation needs no manually started UI server.}
+tests:
+  - {command: make ui-browser-mocked, covers: [A1, A2, A3, A4]}
+  - {command: make ui-typecheck ui-lint ui-test, covers: [A2, A4]}
