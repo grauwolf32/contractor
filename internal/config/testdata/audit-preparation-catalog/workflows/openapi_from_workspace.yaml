@@ -1,0 +1,78 @@
+# Contract-only stand-in for the openapi-from-workspace@7 prepare Workflow that
+# api/testdata/audit-composition/prepared-openapi-scan.yaml selects. It keeps
+# the inputs and the outputs that profile maps, but runs one copy Stage.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: openapi-from-workspace
+  version: "7"
+
+spec:
+  parameters:
+    objective:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    existing_openapi:
+      required: false
+      mediaTypes: [application/yaml, application/json]
+
+  outputs:
+    openapi:
+      required: true
+      primary: true
+      mediaTypes: [application/yaml]
+    openapi_validation_report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: build
+  stages:
+    build:
+      objective: Build and validate an OpenAPI document from the source archive
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: artifact_builder@1
+          namespace: openapi
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          existing_openapi:
+            namespace: inputs
+            name: existing_openapi
+            required: false
+      result:
+        artifacts:
+          openapi:
+            required: true
+            mediaTypes: [application/yaml]
+            from: {namespace: openapi, name: openapi}
+          validation_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: openapi, name: validation}
+      workflowOutputs:
+        openapi: openapi
+        openapi_validation_report: validation_report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

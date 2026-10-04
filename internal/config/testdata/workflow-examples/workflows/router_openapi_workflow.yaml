@@ -1,0 +1,69 @@
+# configs/examples/router_openapi_workflow.yaml with its Planner policy,
+# instructions and both Agents retargeted to the core fixture's test-planner@1,
+# copy-planner instructions and artifact_builder@1.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: router-openapi
+  version: "2"
+
+spec:
+  parameters:
+    review_mode:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    document:
+      required: true
+      mediaTypes: [application/yaml, application/json]
+
+  executionConfig:
+    planner:
+      modelPolicy: test-planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: build
+  stages:
+    build:
+      objective: Build and review an OpenAPI document from the exact source archive
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: router@1
+      agents:
+        reviewer:
+          template: artifact_builder@1
+          namespace: review
+        builder:
+          template: artifact_builder@1
+          namespace: openapi
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          document:
+            required: true
+            mediaTypes: [application/yaml, application/json]
+            from: {namespace: openapi, name: openapi}
+      workflowOutputs:
+        document: document
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

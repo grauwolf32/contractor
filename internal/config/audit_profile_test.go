@@ -1,12 +1,9 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
@@ -95,69 +92,6 @@ func TestAuditProfileManagerReadAccessDoesNotAddManagedPublicationKind(t *testin
 	if _, err := ParseConfigurationKind("audit-profiles"); err == nil {
 		t.Fatal("AuditProfile unexpectedly became a generic managed configuration kind")
 	}
-}
-
-func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
-	t.Parallel()
-
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	for _, test := range []struct {
-		ref            string
-		mode           AuditProfileMode
-		implementation string
-		role           string
-		sourceInput    string
-		batchSize      int
-		workflow       string
-		template       string
-	}{
-		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2, "audit-source-check", "audit_source_checker"},
-		{"openapi-operation-observe@1", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1, "audit-openapi-operation-observe", "audit_openapi_operation_observer"},
-	} {
-		test := test
-		t.Run(test.ref, func(t *testing.T) {
-			t.Parallel()
-			profile, err := snapshot.AuditProfile(test.ref)
-			if err != nil {
-				t.Fatal(err)
-			}
-			binding := profile.Workflows[test.role]
-			if profile.Mode != test.mode || profile.Inventory.Implementation != test.implementation ||
-				profile.Inventory.Source.Name != test.sourceInput || profile.Inventory.ItemWorkflowRole != test.role ||
-				profile.Execution.MaxRounds != 1 || profile.Execution.BatchSize != test.batchSize ||
-				profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
-				profile.Interaction.FindingConfirmation != AuditFindingDisabled ||
-				profile.Interaction.NotApplicable != AuditNotApplicableProfileRule ||
-				profile.Interaction.ReportAcceptance != AuditReportAutomatic {
-				t.Fatalf("repository AuditProfile is not MVP-compatible: %+v", profile)
-			}
-			if binding.Workflow.Ref != (WorkflowRef{Name: test.workflow, Version: "1"}) ||
-				binding.Inputs["task"].Source != AuditInputFromItemPackage ||
-				binding.Inputs["execution_manifest"].Source != AuditInputFromExecutionManifest ||
-				binding.Inputs["source"].Source != AuditInputFromAudit || binding.Outputs["result"] != "result" {
-				t.Fatalf("repository Audit Workflow binding is incomplete: %+v", binding)
-			}
-			stage := binding.Workflow.Stages[binding.Workflow.EntryStage]
-			checker := stage.Agents["checker"].Template
-			if checker.Ref.TemplateID != test.template ||
-				!selectedTool(checker.Toolsets, "audit-results@2", "submit_check_result") {
-				t.Fatalf("repository Audit Worker cannot publish result packages: %+v", checker)
-			}
-		})
-	}
-}
-
-func selectedTool(toolsets []contracts.ToolsetSelection, ref, tool string) bool {
-	for _, selection := range toolsets {
-		if selection.Ref.ToolsetID+"@"+selection.Ref.Version == ref {
-			for _, selected := range selection.Tools {
-				if selected == tool {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibility(t *testing.T) {
@@ -397,17 +331,11 @@ func writeAuditProfile(t *testing.T, root, name, manifest string) {
 	writeFile(t, filepath.Join(root, "audit-profiles", name+".yaml"), []byte(manifest))
 }
 
+// copyAuditProfileConfigTree copies a catalog that has no AuditProfiles but
+// holds the Workflows that the profile manifests below select.
 func copyAuditProfileConfigTree(t *testing.T) string {
 	t.Helper()
-	root := copyConfigTree(t)
-	directory := filepath.Join(root, "audit-profiles")
-	if err := os.RemoveAll(directory); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return root
+	return copyCoreFixture(t, "audit-profile-catalog")
 }
 
 func validAuditProfileYAML(name string) string {

@@ -48,7 +48,7 @@ func TestFindingFacadesAndOperationSelection(t *testing.T) {
 }
 
 func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *testing.T) {
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyCoreFixture(t), MVPDescriptors())
 	for _, test := range []struct {
 		name  string
 		tools []string
@@ -63,7 +63,7 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 		{"both", []string{"finding", "list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{auditdomain.FindingCollectionMediaType}}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			workflow, err := snapshot.Workflow("openapi-from-workspace@7")
+			workflow, err := snapshot.Workflow("artifact-copy@1")
 			if err != nil {
 				t.Fatal(err)
 			}
