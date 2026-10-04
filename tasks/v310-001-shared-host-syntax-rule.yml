@@ -3,7 +3,7 @@ id: V310-001
 title: One host-syntax rule for HTTP, Caido and scanners
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V309-001]
 languages: [python]
 goal: Validate target host names with one rule that rejects percent-escapes and accepts docker-compose names everywhere.
