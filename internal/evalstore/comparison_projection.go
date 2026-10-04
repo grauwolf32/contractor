@@ -8,9 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// projectComparison retains safe pair rows and whole-cohort chart aggregates in
-// the same transaction as the member snapshot. HTTP reads never collect Runs.
-func (s *Store) projectComparison(ctx context.Context, id string, generation int64, view evaldomain.ComparisonView, verified bool) error {
+// projectComparison retains safe pair rows, with each side's collection
+// completeness, and whole-cohort chart aggregates in the same transaction as
+// the view generation. HTTP reads never collect Runs.
+func (s *Store) projectComparison(ctx context.Context, id string, generation int64, view evaldomain.ComparisonView, complete map[string]bool, verified bool) error {
 	rows := make([][]any, 0, len(view.Pairs))
 	suites := map[string][]evaldomain.Pair{"": view.Pairs}
 	for ordinal, pair := range view.Pairs {
@@ -24,9 +25,9 @@ func (s *Store) projectComparison(ctx context.Context, id string, generation int
 		if durationGap == "" {
 			durationA, durationB = da.Value, db.Value
 		}
-		rows = append(rows, []any{id, generation, ordinal, pair.ID, pair.SuiteID, bytesOf(pair), pair.Regression, len(pair.Exclusions) > 0, tokensA, tokensB, durationA, durationB})
+		rows = append(rows, []any{id, generation, ordinal, pair.ID, pair.SuiteID, bytesOf(pair), pair.Regression, len(pair.Exclusions) > 0, tokensA, tokensB, durationA, durationB, complete[pair.A.Member.ID], complete[pair.B.Member.ID]})
 	}
-	if _, err := s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_pairs"}, []string{"experiment_id", "generation", "ordinal", "pair_id", "suite_id", "document", "regression", "unresolved", "tokens_a", "tokens_b", "duration_a", "duration_b"}, pgx.CopyFromRows(rows)); err != nil {
+	if _, err := s.tx.CopyFrom(ctx, pgx.Identifier{"eval_view_pairs"}, []string{"experiment_id", "generation", "ordinal", "pair_id", "suite_id", "document", "regression", "unresolved", "tokens_a", "tokens_b", "duration_a", "duration_b", "complete_a", "complete_b"}, pgx.CopyFromRows(rows)); err != nil {
 		return err
 	}
 	charts := make([][]any, 0, len(suites)*2)

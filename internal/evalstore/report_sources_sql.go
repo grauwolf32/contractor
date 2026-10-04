@@ -3,16 +3,21 @@ package evalstore
 // SQL statements for report_sources.go.
 
 // viewSourcesSQL collects the distinct provenance of the result and assessment
-// records selected by members of the owner's view generation $3. Result
+// records selected by members of the owner's view generation $3, read from both
+// sides of its pairs. Result
 // sources are returned as stored; assessment sources are reduced to a system
 // and ID (producer ID, 'owner-review' or 'native-checks') with null revision
 // and digest. Ordered, limited to $4. Used by Store.ViewSources.
 var viewSourcesSQL = `
 WITH selected AS (
-    SELECT m.member_id, convert_from(m.document, 'UTF8')::jsonb AS document
-    FROM eval_view_members m
+    SELECT side.document #>> '{member,memberId}' AS member_id, side.document
+    FROM eval_view_pairs p
     JOIN eval_experiments e USING (experiment_id)
-    WHERE e.owner_id = $1 AND m.experiment_id = $2 AND m.generation = $3
+    CROSS JOIN LATERAL (VALUES
+        (convert_from(p.document, 'UTF8')::jsonb -> 'a'),
+        (convert_from(p.document, 'UTF8')::jsonb -> 'b')
+    ) AS side(document)
+    WHERE e.owner_id = $1 AND p.experiment_id = $2 AND p.generation = $3
 ), sources AS (
     SELECT r.kind, convert_from(r.document, 'UTF8')::jsonb -> 'source' AS source
     FROM selected m

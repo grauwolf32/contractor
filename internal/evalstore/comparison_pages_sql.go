@@ -27,24 +27,27 @@ WITH filtered AS MATERIALIZED (
 `
 
 // selectedMemberPageSQL is a template (%s verbs are the tokens or duration pair
-// columns) for the "filtered" CTE that readSelectedPage completes. It selects
-// eval_view_members of the owner's view generation $3 by suite $4, variant $5
-// and filter $6 (unresolved, failed, unscored, eligibility or conflicting), and
-// bins $7-$10 on the member's own side of its pair, which then needs both
-// measures; difference is NULL. Used by Store.SelectedMemberPage.
+// columns) for the "filtered" CTE that readSelectedPage completes. Every member
+// is one side of exactly one pair, so it unpacks both sides of the pairs in the
+// owner's view generation $3 and orders them by the member's frozen ordinal.
+// It filters by suite $4, variant $5 and filter $6 (unresolved, failed,
+// unscored, eligibility or conflicting), and bins $7-$10 on the member's own
+// side, which then needs both measures; difference is NULL.
+// Used by Store.SelectedMemberPage.
 var selectedMemberPageSQL = `
 WITH members AS (
-    SELECT m.ordinal, m.document, m.collection_complete,
-        convert_from(m.document, 'UTF8')::jsonb AS value,
-        CASE WHEN convert_from(m.document, 'UTF8')::jsonb #>> '{member,variantId}' =
-            convert_from(p.document, 'UTF8')::jsonb #>> '{a,member,variantId}'
-            THEN %s ELSE %s
-        END AS measure
-    FROM eval_view_members m
+    SELECT member.ordinal, convert_to(side.value::text, 'UTF8') AS document,
+        side.collection_complete, side.value,
+        CASE side.arm WHEN 'a' THEN %s ELSE %s END AS measure
+    FROM eval_view_pairs p
     JOIN eval_experiments e USING (experiment_id)
-    JOIN eval_view_pairs p ON p.experiment_id = m.experiment_id
-        AND p.generation = m.generation AND p.pair_id = m.pair_id
-    WHERE e.owner_id = $1 AND m.experiment_id = $2 AND m.generation = $3
+    CROSS JOIN LATERAL (VALUES
+        ('a', convert_from(p.document, 'UTF8')::jsonb -> 'a', p.complete_a),
+        ('b', convert_from(p.document, 'UTF8')::jsonb -> 'b', p.complete_b)
+    ) AS side(arm, value, collection_complete)
+    JOIN eval_members member ON member.experiment_id = p.experiment_id
+        AND member.member_id = side.value #>> '{member,memberId}'
+    WHERE e.owner_id = $1 AND p.experiment_id = $2 AND p.generation = $3
         AND ($4 = '' OR p.suite_id = $4)
         AND (%s IS NOT NULL AND %s IS NOT NULL OR NOT $7)
 ), filtered AS MATERIALIZED (
