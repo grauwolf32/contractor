@@ -3,7 +3,7 @@ id: V294-001
 title: Keep model replies when Gateway recovery bookkeeping fails
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Deliver a successful model reply and charge its usage even when the recovery bookkeeping write fails transiently.

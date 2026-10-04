@@ -3,7 +3,7 @@ id: V296-001
 title: Update Memory notes without loading the whole notebook
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Read only the target note when updating an existing Memory note.

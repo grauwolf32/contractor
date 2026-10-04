@@ -3,7 +3,7 @@ id: V295-001
 title: Give scan-planner completion writes the shared budget and retry
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Protect scan Stage completion from transient database waits like V226 did for passthrough and streamline, through one shared completion helper.
