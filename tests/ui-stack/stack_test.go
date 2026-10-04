@@ -670,8 +670,6 @@ func (s *uiStack) assertCredentialLifecycle() {
 	}
 	var safeRows string
 	if err := s.pool.QueryRow(s.ctx, `SELECT concat_ws(E'\n',
-  COALESCE((SELECT string_agg(concat_ws('|', kind, name, version, digest,
-    request_digest, idempotency_key_digest, actor_id), E'\n') FROM configuration_publications), ''),
   COALESCE((SELECT string_agg(concat_ws('|', operation_id, idempotency_key,
     request_hash, credential_id, operation_kind, phase, request::text), E'\n')
     FROM credential_operations), ''),

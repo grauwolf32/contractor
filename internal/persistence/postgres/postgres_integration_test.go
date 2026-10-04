@@ -69,7 +69,6 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_finding_assessments", "audit_finding_contributions", "audit_findings",
 		"audit_idempotency", "audit_items", "audit_proposal_items", "audit_report_candidates", "audit_review_decisions", "audit_review_requests",
 		"audit_rounds", "audits",
-		"configuration_publications",
 		"contractor_schema_migrations", "credential_operations",
 		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_project_dependencies", "eval_projection_queue", "eval_records", "eval_selection_history", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_generations", "eval_view_members", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
 		"gateway_allocation_routes", "gateway_recovery_failures", "gateway_recovery_routes", "gateway_recovery_waits", "gateway_run_routes",
@@ -91,25 +90,6 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 			t.Fatalf("durable Runtime Agent liveness table exists: %q", name)
 		}
 	}
-
-	_, err = first.Exec(ctx, `
-INSERT INTO configuration_publications (
-    kind, name, version, digest, request_digest,
-    idempotency_key_digest, actor_id, published_at
-) VALUES (
-    'model-policies', 'worker', '2',
-    'sha256:1111111111111111111111111111111111111111111111111111111111111111',
-    'sha256:2222222222222222222222222222222222222222222222222222222222222222',
-    'sha256:3333333333333333333333333333333333333333333333333333333333333333',
-    'user-1', clock_timestamp()
-)`)
-	if err != nil {
-		t.Fatalf("insert configuration publication audit: %v", err)
-	}
-	_, err = first.Exec(ctx, `
-UPDATE configuration_publications SET actor_id = 'another-user'
-WHERE kind = 'model-policies' AND name = 'worker' AND version = '2'`)
-	assertSQLState(t, err, "23514")
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (

@@ -557,8 +557,7 @@ For one publication Server:
    that never replaces an existing entry, removes the temporary name and flushes
    the parent directory; descriptor-relative `linkat`/`unlinkat` support Linux
    and macOS, and the managed filesystem must support hard links;
-4. atomically swaps the in-memory configuration snapshot;
-5. records non-authoritative audit metadata.
+4. atomically swaps the in-memory configuration snapshot.
 
 No successful response is returned before the file and in-memory snapshot are
 both published. A crash after file publication but before snapshot swap is
