@@ -142,7 +142,7 @@ func TestPostgresLargeDirectCollectionFinishesWithinDefaultTimeout(t *testing.T)
 	}
 	f.intake = actor
 	start := time.Now()
-	collectionCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	collectionCtx, cancel := context.WithTimeout(ctx, largeDirectCollectionTestTimeout)
 	defer cancel()
 	if err := collectFixtureProposals(collectionCtx, f); err != nil {
 		t.Fatalf("fresh 2,001-proposal collection: %v", err)
@@ -172,7 +172,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 		t.Fatalf("timed-out collection retained %d proposals", firstCount)
 	}
 	start := time.Now()
-	retryCtx, retryCancel := context.WithTimeout(ctx, 10*time.Second)
+	retryCtx, retryCancel := context.WithTimeout(ctx, largeDirectCollectionTestTimeout)
 	defer retryCancel()
 	if err := collectFixtureProposals(retryCtx, f); err != nil {
 		t.Fatalf("collection retry after %d holds: %v", firstCount, err)
