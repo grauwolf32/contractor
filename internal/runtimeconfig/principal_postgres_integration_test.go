@@ -12,7 +12,124 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
+
+type countingPrincipalQueryTx struct {
+	pgx.Tx
+	queries []string
+	args    [][]any
+}
+
+func (tx *countingPrincipalQueryTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	tx.queries = append(tx.queries, sql)
+	tx.args = append(tx.args, args)
+	return tx.Tx.Query(ctx, sql, args...)
+}
+
+func TestPostgresPrincipalAdapterPagesBatchAndPreserveSnapshot(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRuntimeConfigPool(t, ctx, databaseURL)
+	if _, err := persistencepostgres.ApplyMigrations(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	ref := BuiltInRunSnapshot().Default.Config
+	bindings := NewRepository(pool)
+	for _, label := range []string{"alpha", "beta", "gamma"} {
+		if _, err := bindings.CreateBinding(ctx, label, ref, "operator", time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids := []string{strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64), strings.Repeat("d", 64)}
+	labelSets := [][]string{{"alpha", "beta"}, {"beta"}, {"gamma"}, {}}
+	for index, id := range ids {
+		at := time.Now().UTC()
+		inserted, err := NewPrincipalRepository(pool).Insert(ctx, RuntimeAgentPrincipal{
+			RuntimeAgentID: id, Labels: labelSets[index], LabelRevision: 1,
+			CreatedBy: "operator", CreatedAt: at, UpdatedBy: "operator", UpdatedAt: at,
+		})
+		if err != nil || !inserted {
+			t.Fatalf("insert principal %s: inserted=%v error=%v", id, inserted, err)
+		}
+	}
+	service, err := NewPrincipalService(PrincipalServiceOptions{Pool: pool})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The visible principals share two bindings and one version. The third
+	// principal is only a pagination sentinel and its gamma binding is omitted.
+	read, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counted := &countingPrincipalQueryTx{Tx: read}
+	page, hasMore, err := listPrincipalAdapterPage(ctx, counted, "", 2)
+	if err != nil || !hasMore || len(page) != 2 || page[0].Principal.RuntimeAgentID != ids[0] || page[1].Principal.RuntimeAgentID != ids[1] {
+		t.Fatalf("first page = (%+v, %v, %v)", page, hasMore, err)
+	}
+	if len(counted.queries) != 3 {
+		t.Fatalf("first page ran %d catalog queries, want 3", len(counted.queries))
+	}
+	if labels, ok := counted.args[1][0].([]string); !ok || !slices.Equal(labels, []string{"alpha", "beta"}) {
+		t.Fatalf("first page requested bindings = %v", counted.args[1])
+	}
+	if refs, ok := counted.args[2][0].([]string); !ok || !slices.Equal(refs, []string{ref.Name}) {
+		t.Fatalf("first page requested versions = %v", counted.args[2])
+	}
+	for _, row := range page {
+		expected, err := service.RequiredRuntimeAdapters(ctx, row.Principal.Labels)
+		if err != nil || !slices.Equal(row.RequiredRuntimeAdapters, expected) {
+			t.Fatalf("adapter projection for %s = %v, want %v, error=%v", row.Principal.RuntimeAgentID, row.RequiredRuntimeAdapters, expected, err)
+		}
+	}
+	counted.queries, counted.args = nil, nil
+	fullPage, hasMore, err := listPrincipalAdapterPage(ctx, counted, "", 3)
+	if err != nil || !hasMore || len(fullPage) != 3 || len(counted.queries) != 3 {
+		t.Fatalf("three-row page = (%+v, %v, %v), queries=%d", fullPage, hasMore, err, len(counted.queries))
+	}
+	if refs, ok := counted.args[2][0].([]string); !ok || !slices.Equal(refs, []string{ref.Name}) {
+		t.Fatalf("shared version was not deduplicated: %v", counted.args[2])
+	}
+	if err := read.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	last, more, err := service.ListWithRequiredRuntimeAdapters(ctx, ids[2], 1)
+	if err != nil || more || len(last) != 1 || last[0].Principal.RuntimeAgentID != ids[3] || len(last[0].RequiredRuntimeAdapters) != 0 {
+		t.Fatalf("unlabeled final page = (%+v, %v, %v)", last, more, err)
+	}
+
+	// A repeatable-read list must see the same old label and binding even
+	// after another connection removes both in a newer transaction.
+	snapshot, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Rollback(context.Background())
+	var count int
+	if err := snapshot.QueryRow(ctx, `SELECT count(*) FROM runtime_agent_principals`).Scan(&count); err != nil || count != 4 {
+		t.Fatalf("establish principal snapshot: count=%d error=%v", count, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE runtime_agent_principals SET labels = '{}'::text[], label_revision = 2 WHERE runtime_agent_id = $1`, ids[2]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM runtime_label_bindings WHERE label = 'gamma'`); err != nil {
+		t.Fatal(err)
+	}
+	oldPage, more, err := listPrincipalAdapterPage(ctx, snapshot, ids[1], 1)
+	if err != nil || !more || len(oldPage) != 1 || !slices.Equal(oldPage[0].Principal.Labels, []string{"gamma"}) {
+		t.Fatalf("repeatable-read page after concurrent deletion = (%+v, %v, %v)", oldPage, more, err)
+	}
+	freshPage, more, err := service.ListWithRequiredRuntimeAdapters(ctx, ids[1], 1)
+	if err != nil || !more || len(freshPage) != 1 || len(freshPage[0].Principal.Labels) != 0 {
+		t.Fatalf("fresh page after concurrent deletion = (%+v, %v, %v)", freshPage, more, err)
+	}
+}
 
 func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")

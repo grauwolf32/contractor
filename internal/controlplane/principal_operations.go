@@ -78,7 +78,7 @@ func (p RuntimeAgentPrincipalProjection) Validate() error {
 
 type PrincipalCatalog interface {
 	Get(context.Context, string) (runtimeconfig.RuntimeAgentPrincipal, error)
-	List(context.Context, string, int) ([]runtimeconfig.RuntimeAgentPrincipal, error)
+	ListWithRequiredRuntimeAdapters(context.Context, string, int) ([]runtimeconfig.PrincipalAdapterRow, bool, error)
 	RequiredRuntimeAdapters(context.Context, []string) ([]string, error)
 	ReplaceLabelsIdempotent(context.Context, string, uint64, []string, string, string, time.Time) (runtimeconfig.PrincipalMutationResult, error)
 	DeleteIdempotent(context.Context, string, uint64, string, string, time.Time) (runtimeconfig.PrincipalMutationResult, error)
@@ -103,20 +103,20 @@ func NewPrincipalOperations(catalog PrincipalCatalog, registry PrincipalRegistry
 
 func (s *PrincipalOperations) List(
 	ctx context.Context, afterRuntimeAgentID string, limit int,
-) ([]RuntimeAgentPrincipalProjection, error) {
-	principals, err := s.catalog.List(ctx, afterRuntimeAgentID, limit)
+) ([]RuntimeAgentPrincipalProjection, bool, error) {
+	rows, hasMore, err := s.catalog.ListWithRequiredRuntimeAdapters(ctx, afterRuntimeAgentID, limit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	result := make([]RuntimeAgentPrincipalProjection, 0, len(principals))
-	for _, principal := range principals {
-		projection, err := s.project(ctx, principal)
+	result := make([]RuntimeAgentPrincipalProjection, 0, len(rows))
+	for _, row := range rows {
+		projection, err := s.projectWithRequired(row.Principal, row.RequiredRuntimeAdapters)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		result = append(result, projection)
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
 func (s *PrincipalOperations) Get(
@@ -202,6 +202,12 @@ func (s *PrincipalOperations) project(
 	if err != nil {
 		return RuntimeAgentPrincipalProjection{}, err
 	}
+	return s.projectWithRequired(principal, required)
+}
+
+func (s *PrincipalOperations) projectWithRequired(
+	principal runtimeconfig.RuntimeAgentPrincipal, required []string,
+) (RuntimeAgentPrincipalProjection, error) {
 	result := RuntimeAgentPrincipalProjection{
 		Principal: principal, RequiredRuntimeAdapters: append([]string{}, required...),
 		Availability: PrincipalOffline,
