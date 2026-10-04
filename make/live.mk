@@ -14,7 +14,7 @@ test-live-routing:
 	@test -n "$$CONTRACTOR_LIVE_LLM_MODEL" || (echo "CONTRACTOR_LIVE_LLM_MODEL is required" >&2; exit 1)
 	go test -v -count=1 -timeout=3m ./tests/integration/streamline -run '^TestLiveRouterWorkflow$$'
 
-UI_STACK_TEST := go test -tags=e2e -count=1 -timeout=26m ./tests/ui-stack
+UI_STACK_TEST := go test -json -tags=e2e -count=1 -timeout=26m ./tests/ui-stack
 
 test-ui-stack: ui-install ui-browser-install require-database runtime-venv
 	$(call run-family-test,$(UI_STACK_TEST))
