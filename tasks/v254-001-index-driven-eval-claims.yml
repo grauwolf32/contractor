@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V254-001
+title: Select Eval coordinator claims from actionable work
+milestone: eval-controller-efficiency-2026-10
+priority: P2
+status: completed
+implementation_commit: 3565c2a20a4c2248399978cfff7c009f077f57dc
+depends_on: []
+languages: [go, sql]
+goal: Keep idle paused Evals out of coordinator polls and avoid scanning retained terminal experiments.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/122
+  finding: Claim unconditionally selects paused experiments and scans the entire experiment table for commands and dirty projections.
+scope:
+  in:
+    - Select active, overdue paused, pending-command, and dirty-projection candidates through indexed branches.
+    - Preserve claim fairness and row-lock lease behavior.
+    - Verify overdue pauses, Resume and Cancel commands, and dirty projections remain actionable.
+    - Check the query plan with a large retained terminal population.
+  out:
+    - Change Eval lifecycle transitions or public contracts.
+acceptance_criteria:
+  - {id: A1, text: Idle future-deadline paused experiments do not consume claims and running work is selected each poll.}
+  - {id: A2, text: Overdue paused experiments and those with pending commands or dirty projections are selected.}
+  - {id: A3, text: A large terminal population is not scanned on each claim.}
+  - {id: A4, text: Existing Eval PostgreSQL tests pass.}
+tests:
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<postgres> go test -count=1 ./internal/evalstore ./internal/evalservice, covers: [A1, A2, A4]}
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<postgres> go test -count=1 ./internal/evalstore -run '^TestPostgresClaim', covers: [A3]}
+  - {command: make lint, covers: [A4]}

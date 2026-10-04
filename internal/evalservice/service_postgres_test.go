@@ -496,6 +496,41 @@ func TestPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
 	}
 }
 
+func TestPostgresExpiredPausedExperimentSettlesWhenClaimed(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	_, err := h.pool.Exec(ctx, `
+INSERT INTO eval_experiments
+  (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms,started_at,deadline_at)
+VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused',1,1000,
+        clock_timestamp()-interval '7 days',clock_timestamp()-interval '1 day')`,
+		h.scope.OwnerID, h.scope.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES ('expired-pause')`); err != nil {
+		t.Fatal(err)
+	}
+	store := evalstore.NewPostgresStore(h.pool)
+	claims, err := store.Claim(ctx, "expired-pause-controller", time.Minute, 1)
+	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "expired-pause" {
+		t.Fatalf("expired paused claim = %+v, %v", claims, err)
+	}
+	progressed, err := h.service.tickExecution(ctx, claims[0])
+	if err != nil || !progressed {
+		t.Fatalf("expired paused tick = %v, %v", progressed, err)
+	}
+	if state := h.get(t, "expired-pause").State; state != evaldomain.StateSettling {
+		t.Fatalf("expired pause state = %s, want settling", state)
+	}
+	if _, err := h.service.tickExecution(ctx, claims[0]); err != nil {
+		t.Fatal(err)
+	}
+	if state := h.get(t, "expired-pause").State; state != evaldomain.StateFinished {
+		t.Fatalf("expired pause state = %s, want finished", state)
+	}
+}
+
 func TestPostgresDeletedRunAfterResponseLossIsNeverRecreated(t *testing.T) {
 	h := newHarness(t)
 	e := h.prepared(t, "workflow")
