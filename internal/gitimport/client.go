@@ -263,19 +263,20 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 		return Snapshot{}, safeError(err)
 	}
 	negotiation.remaining = MaxReceivedBytes
-	pack, err := readBounded(ctx, upload, MaxReceivedBytes)
+	objects, err := decodePack(ctx, upload)
+	if errors.Is(err, ErrContent) {
+		// The old receive step observed transport and byte-budget failures even
+		// when the pack itself was malformed. Drain only that failure path with
+		// a fixed buffer so a fast parser rejection does not hide either class.
+		if _, drainErr := io.Copy(io.Discard, upload); drainErr != nil {
+			return Snapshot{}, safeError(drainErr)
+		}
+	}
+	if wire != nil && wire.exhausted.Load() {
+		return Snapshot{}, ErrBudget
+	}
 	if err != nil {
 		return Snapshot{}, safeError(err)
-	}
-	if wire != nil && wire.exhausted.Load() {
-		return Snapshot{}, ErrBudget
-	}
-	objects, err := decodePack(ctx, pack)
-	if wire != nil && wire.exhausted.Load() {
-		return Snapshot{}, ErrBudget
-	}
-	if err != nil {
-		return Snapshot{}, err
 	}
 	archive, commit, err := archiveSnapshot(ctx, objects, oid)
 	if err != nil {
@@ -346,26 +347,6 @@ func (c *Client) safeError(ctx context.Context, remote Remote, err error) error 
 			"scheme", remote.Scheme, "address", remote.Address, "error", logCause)
 	}
 	return ErrRemote
-}
-func readBounded(ctx context.Context, r io.Reader, maximum int64) ([]byte, error) {
-	var result bytes.Buffer
-	chunk := make([]byte, 32<<10)
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		n, err := r.Read(chunk)
-		if int64(result.Len()+n) > maximum {
-			return nil, ErrBudget
-		}
-		result.Write(chunk[:n])
-		if err == io.EOF {
-			return result.Bytes(), nil
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
 }
 func decodeAdvertisement(ctx context.Context, r io.Reader) (*packp.AdvRefs, error) {
 	// The byte reader stops at the advertisement's flush (important on SSH).
