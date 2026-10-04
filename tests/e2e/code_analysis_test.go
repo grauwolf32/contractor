@@ -215,7 +215,11 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 			}
 			for _, item := range items {
 				if len(runtimeToolset(item, "code-analysis@1").Tools) == len(completeCodeAnalysisTools) {
-					return item.SlotState == "idle" && item.ConfirmedLeaseUntil != nil
+					// The already queued graph Run can claim this slot before
+					// Operations observes it. This wait only verifies that
+					// registration published the complete graph capability;
+					// the Run below verifies that the slot becomes usable.
+					return true
 				}
 			}
 			return false

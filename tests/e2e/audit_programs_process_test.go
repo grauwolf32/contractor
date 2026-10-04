@@ -838,9 +838,11 @@ func waitForAuditProgram(
 	t.Helper()
 	ticker := time.NewTicker(150 * time.Millisecond)
 	defer ticker.Stop()
+	var lastAudit auditProgramAudit
 	for {
 		var audit auditProgramAudit
 		if auditProgramTryGET(ctx, client, baseURL+"/v1/audits/"+url.PathEscape(auditID), &audit) == nil {
+			lastAudit = audit
 			switch audit.State {
 			case "completed":
 				if audit.SubmittedRunCount != expectedRuns || audit.OutstandingRuns != 0 {
@@ -870,9 +872,11 @@ func waitForAuditProgram(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for Audit: %v\nserver:\n%s\nruntime:\n%s\ngateway: %v", ctx.Err(),
+			t.Fatalf("wait for Audit: %v; last state=%s submitted=%d outstanding=%d; gateway stages=%d failures=%v\nserver:\n%s\nruntime:\n%s", ctx.Err(),
+				lastAudit.State, lastAudit.SubmittedRunCount, lastAudit.OutstandingRuns,
+				gateway.CompletedStages(), gateway.Failures(),
 				server.logs.redacted(publicToken, llmGatewayToken),
-				runtimeProcess.logs.redacted(publicToken, llmGatewayToken), gateway.Failures())
+				runtimeProcess.logs.redacted(publicToken, llmGatewayToken))
 		case <-ticker.C:
 		}
 	}

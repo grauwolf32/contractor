@@ -817,7 +817,7 @@ class TrailmarkChildHost:
             self._stderr_observed = True
 
 
-async def probe_trailmark_child(scratch_root: Path, *, timeout_seconds: float = 5.0) -> bool:
+async def probe_trailmark_child(scratch_root: Path, *, timeout_seconds: float = 10.0) -> bool:
     """Run one finite offline build and always tear down its child/mirror."""
 
     if timeout_seconds <= 0:
