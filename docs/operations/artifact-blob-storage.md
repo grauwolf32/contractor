@@ -143,8 +143,13 @@ Before deploying, provide `contractor-database` (key `url`) and
 `ca.crt`, `control-plane.crt`, `control-plane.key`). Generate local authentication
 and PKI with the existing Server configuration tools; issue the Control Plane
 certificate for the advertised private Service DNS name. Replace the browser
-origin and image, and run `contractor server migrate` against the same database
-before starting the Deployment. Kubernetes projects Secret files as root-owned
+origin and image. For a forward-only upgrade, stop every Server replica first,
+run the new release's `contractor-server migrate` against the same database,
+then start the new replicas. `contractor-server serve` checks its embedded
+migrations against the database ledger before opening listeners; it refuses a
+missing, older or newer schema. Existing replicas are not rechecked, so do not
+run migrations while an old replica is still serving. Kubernetes projects
+Secret files as root-owned
 symlinks, so the Secret volume uses `fsGroup` 65532 with mode 0440 and a
 non-root init container copies each key into a 1 MiB memory `emptyDir` as a
 regular mode 0400 file owned by the Server UID, as the owner-only credential

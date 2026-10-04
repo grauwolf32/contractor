@@ -96,13 +96,6 @@ func runCLI(
 	if err != nil {
 		return err
 	}
-	profilingServer, err := configureProfiling(cfg)
-	if err != nil {
-		return err
-	}
-	if profilingServer != nil {
-		defer func() { _ = profilingServer.Close() }()
-	}
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return errors.New("database URL is required")
 	}
@@ -138,6 +131,16 @@ func runCLI(
 		return err
 	}
 	defer pool.Close()
+	if err := persistencepostgres.VerifyMigrations(ctx, pool); err != nil {
+		return fmt.Errorf("verify database migrations: %w", err)
+	}
+	profilingServer, err := configureProfiling(cfg)
+	if err != nil {
+		return err
+	}
+	if profilingServer != nil {
+		defer func() { _ = profilingServer.Close() }()
+	}
 	// Credential recovery, the process-local Runtime Agent Registry, Scheduler
 	// and private API must have one owner per database. A standby serves only
 	// health and unready status until the dedicated PostgreSQL session wins.
