@@ -12,8 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
-func TestOpenAPIScanDocumentedInputs(t *testing.T) {
-	root := "../../configs/scan/examples/audit-openapi-scan/"
+func TestOpenAPIScanFixtureInputsPrepareQueryURLAndRequest(t *testing.T) {
+	root := "../../testdata/configs-scan/audit-openapi-scan/"
 	source, err := os.ReadFile(root + "openapi.json")
 	if err != nil {
 		t.Fatal(err)
@@ -30,21 +30,21 @@ func TestOpenAPIScanDocumentedInputs(t *testing.T) {
 			input.Ref.Name = scanner + "-settings"
 			inventory, err := BuildOpenAPIScanInventory(source, "application/json", settings, input, options)
 			if err != nil || len(inventory.Tasks) != 1 {
-				t.Fatalf("documented inventory: %v", err)
+				t.Fatalf("fixture inventory: %v", err)
 			}
 			prepared, err := PrepareOpenAPIScanTask(inventory.Tasks[0].Document, source, settings)
 			if err != nil || !prepared.Runnable {
-				t.Fatalf("documented preparation: %v", err)
+				t.Fatalf("fixture preparation: %v", err)
 			}
 			wantURL := "http://127.0.0.1:8080/api/pets/7?search=Milo"
 			if scanner == "nuclei" {
 				if prepared.Target == nil || prepared.Target.URL != wantURL || prepared.RequestSet != nil {
-					t.Fatal("documented URL changed")
+					t.Fatal("fixture URL changed")
 				}
 			} else {
 				request := prepared.RequestSet.Requests[0].Request
 				if request.URL != wantURL || request.Method != "POST" || request.Body != `{"name":"Milo"}` {
-					t.Fatal("documented request changed")
+					t.Fatal("fixture request changed")
 				}
 			}
 		})
