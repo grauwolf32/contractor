@@ -33,7 +33,6 @@ func (s *Service) GetAuditReceipts(ctx context.Context, ownerID, auditID string,
 	rows, err := s.pool.Query(ctx, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN audits AS audit ON audit.audit_id = $2 AND audit.owner_id = $1
  WHERE receipt.receipt_id = ANY($3::text[]) AND receipt.owner_id = $1
    AND (receipt.audit_id = $2 OR EXISTS (

@@ -213,10 +213,6 @@ INSERT INTO finding_proposal_receipts (
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(ctx, `
-INSERT INTO finding_proposal_retention (receipt_id) VALUES ($1)`, receiptID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(ctx, `
 INSERT INTO finding_proposal_audit_holds (
     receipt_id, audit_id, project_id, proposal_ref, evidence
 ) VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`,

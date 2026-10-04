@@ -529,8 +529,9 @@ INSERT INTO finding_proposal_receipts (
           $4::jsonb, $1, 'application/json', 128, '[]'::jsonb)`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
-INSERT INTO finding_proposal_retention (receipt_id, state, source_run_deleted_at)
-VALUES ('receipt-decided', 'audit-held', clock_timestamp())`, nil},
+UPDATE finding_proposal_receipts
+   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
+ WHERE receipt_id = 'receipt-decided'`, nil},
 		{`
 INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
 VALUES ('receipt-decided', $1, $2,

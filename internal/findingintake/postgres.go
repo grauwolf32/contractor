@@ -32,7 +32,7 @@ receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
 receipt.audit_id, receipt.audit_execution_id, receipt.audit_role,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
-retention.state, retention.source_run_deleted_at, receipt.created_at`
+receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at`
 
 func readReceiptBySubmission(
 	ctx context.Context,
@@ -42,7 +42,6 @@ func readReceiptBySubmission(
 	return scanReceipt(ctx, db, db.QueryRow(ctx, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
  WHERE receipt.allocation_id = $1 AND receipt.invocation_id = $2
    AND receipt.submission_id = $3`, allocationID, invocationID, submissionID))
 }
@@ -51,7 +50,6 @@ func readReceiptByID(ctx context.Context, db querier, receiptID string) (Receipt
 	return scanReceipt(ctx, db, db.QueryRow(ctx, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
  WHERE receipt.receipt_id = $1`, receiptID))
 }
 
@@ -174,7 +172,6 @@ func (s *Service) listRunReceiptRows(
 	rows, err := s.pool.Query(ctx, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN workflow_runs AS run ON run.run_id = receipt.run_id
  WHERE receipt.owner_id = $1 AND receipt.run_id = $2 AND run.owner_id = $1
    AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
@@ -203,9 +200,8 @@ func (s *Service) ListAuditInbox(
 	return s.listAuditInbox(ctx, ownerID, auditID, query, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
  WHERE receipt.owner_id = $1
-   AND ((receipt.audit_id = $2 AND retention.source_run_deleted_at IS NULL) OR EXISTS (
+   AND ((receipt.audit_id = $2 AND receipt.source_run_deleted_at IS NULL) OR EXISTS (
        SELECT 1 FROM finding_proposal_audit_holds AS hold
         JOIN audits AS audit
           ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
@@ -229,7 +225,6 @@ func (s *Service) ListAuditHeldInbox(
 	return s.listAuditInbox(ctx, ownerID, auditID, query, `
 SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
-  JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN finding_proposal_audit_holds AS hold
     ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
   JOIN audits AS audit

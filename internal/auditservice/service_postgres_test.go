@@ -1351,9 +1351,9 @@ INSERT INTO finding_proposal_receipts (
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-INSERT INTO finding_proposal_retention (
-    receipt_id, state, source_run_deleted_at
-) VALUES ($1, 'audit-held', clock_timestamp())`, receiptID); err != nil {
+UPDATE finding_proposal_receipts
+   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
+ WHERE receipt_id = $1`, receiptID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

@@ -51,10 +51,6 @@ INSERT INTO finding_proposal_receipts (
 		f.run.WorkflowVersion, completionDigest(f.run.WorkflowSnapshot),
 		string(proposalRef), len(proposal))
 	mustCompletion(t, err)
-	_, err = f.pool.Exec(f.ctx, `
-INSERT INTO finding_proposal_retention (receipt_id, state)
-VALUES ($1, 'source-held')`, receiptID)
-	mustCompletion(t, err)
 
 	mustCompletion(t, f.artifacts.FreezeRunOutputs(f.ctx, f.run.RunID))
 	_, err = f.runs.TransitionRun(f.ctx, f.run.RunID, runstore.RunRunning,
@@ -90,7 +86,7 @@ SELECT disposition FROM audit_collection_receipts WHERE execution_id = $1`,
 	mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT state FROM finding_proposal_retention WHERE receipt_id = $1`, receiptID).Scan(&retention))
+SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
 	if retention != string(findingintake.RetentionAuditHeld) {
 		t.Fatalf("proposal retention after source Run deletion = %q", retention)
 	}
@@ -133,10 +129,6 @@ INSERT INTO finding_proposal_receipts (
     $2, 'application/json', 2, '[]'
 )`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID)
 		mustCompletion(t, err)
-		_, err = f.pool.Exec(f.ctx, `
-INSERT INTO finding_proposal_retention (receipt_id, state)
-VALUES ($1, 'source-held')`, id)
-		mustCompletion(t, err)
 	}
 	access, err := NewArtifactAccess(f.artifacts)
 	mustCompletion(t, err)
@@ -152,7 +144,8 @@ VALUES ($1, 'source-held')`, id)
 	}
 	var original []byte
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt_id)
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
+                 ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
 	mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	after, err := f.audits.Get(f.ctx, "owner", f.id)
@@ -163,18 +156,18 @@ FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(
 	var retained []byte
 	var discarded int
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt_id)
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
+                 ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&retained))
 	// jsonb has a canonical encoding, including the original exact refs.
 	if string(original) != string(retained) {
 		t.Fatal("Run deletion changed immutable receipt identity or source provenance")
 	}
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT count(*) FROM finding_proposal_retention AS retention
-JOIN finding_proposal_receipts AS receipt USING (receipt_id)
-WHERE receipt.run_id = $1 AND retention.state = 'discarded'
-  AND retention.source_run_deleted_at IS NOT NULL
-  AND retention.discarded_at IS NOT NULL`, f.run.RunID).Scan(&discarded))
+SELECT count(*) FROM finding_proposal_receipts AS receipt
+WHERE receipt.run_id = $1 AND receipt.retention_state = 'discarded'
+  AND receipt.source_run_deleted_at IS NOT NULL
+  AND receipt.discarded_at IS NOT NULL`, f.run.RunID).Scan(&discarded))
 	if discarded != 2 {
 		t.Fatalf("unheld native tombstones = %d, want 2", discarded)
 	}

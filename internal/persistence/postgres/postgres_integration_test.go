@@ -70,7 +70,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_idempotency", "audit_items", "audit_proposal_items", "audit_report_candidates", "audit_review_decisions", "audit_review_requests",
 		"audit_rounds", "audits",
 		"contractor_schema_migrations", "credential_operations",
-		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_projection_queue", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
+		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_projection_queue", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts",
 		"gateway_allocation_routes", "gateway_recovery_failures", "gateway_recovery_routes", "gateway_recovery_waits", "gateway_run_routes",
 		"git_ssh_keys", "llm_credentials", "owner_queue_controls",
 		"performance_minutes", "planner_execution_reports", "planner_sessions", "projects",

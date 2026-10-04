@@ -582,11 +582,6 @@ INSERT INTO finding_proposal_receipts (
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `
-INSERT INTO finding_proposal_retention (receipt_id)
-VALUES ('finding-receipt-one')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = pool.Exec(ctx, `
 INSERT INTO finding_proposal_audit_holds (
     receipt_id, audit_id, project_id, proposal_ref, evidence
 ) VALUES ('finding-receipt-one', $1, $2, $3::jsonb, '[]'::jsonb)`,

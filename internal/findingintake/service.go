@@ -340,9 +340,5 @@ func insertReceipt(
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO finding_proposal_retention (receipt_id) VALUES ($1)`, receiptID); err != nil {
-		return fmt.Errorf("insert finding proposal retention: %w", err)
-	}
 	return nil
 }
