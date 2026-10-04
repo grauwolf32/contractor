@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: artifact_builder
+  version: "1"
+
+spec:
+  description: Reads a declared input and writes the requested result
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  modelPolicy: test-worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools:
+        - list_artifacts
+        - read_artifact
+        - write_artifact
+  sandboxProfile: local-workdir@1
