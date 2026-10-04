@@ -4,7 +4,7 @@ import type { PublicAPI } from "./client";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { requireProjectID } from "./projects";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
+import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
 export const AUDIT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -86,7 +86,10 @@ function invalidAuditResponse(status: number): PublicAPIError {
 }
 
 function requireProfileIdentity(name: string, version: string): void {
-  if (!CONFIG_ID_PATTERN.test(name) || !CONFIG_VERSION_PATTERN.test(version)) {
+  if (
+    !CONFIG_NAME_PATTERN.test(name) ||
+    !CONFIG_VERSION_PATTERN.test(version)
+  ) {
     throw new TypeError("AuditProfile identity is invalid");
   }
 }
@@ -107,7 +110,7 @@ function safeProfile(profile: AuditProfile, status: number): AuditProfile {
   if (
     profile === null ||
     typeof profile !== "object" ||
-    !CONFIG_ID_PATTERN.test(profile.ref.name) ||
+    !CONFIG_NAME_PATTERN.test(profile.ref.name) ||
     !CONFIG_VERSION_PATTERN.test(profile.ref.version) ||
     typeof profile.ref.digest !== "string" ||
     !profile.ref.digest.startsWith("sha256:") ||

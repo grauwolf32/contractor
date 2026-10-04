@@ -177,21 +177,31 @@ func validateDraft(d Draft) error {
 	if members > d.Budgets.MaxMembers || members > MaxNativeMembers {
 		return Failure("eval_limit_exceeded")
 	}
-	// The native plan repeats the matrix as member objects and execution-order
-	// IDs. Its other fields repeat parts of the draft, especially comparison
-	// dimensions as two pin maps. Keep a generous allowance for those copies,
-	// fixed references and the bounded eligibility reasons. This intentionally
-	// rejects borderline drafts at authoring time before a frozen plan can fail.
-	raw, err := json.Marshal(d)
+	estimatedBytes, err := estimatedPlanBytes(d)
 	if err != nil {
 		return Failure("eval_invalid")
 	}
-	dimensions := len(d.Comparison.RequiredEqual) + len(d.Comparison.AllowedDifferences)
-	estimatedBytes := 3*len(raw) + 900*members + 128*dimensions + 32*1024
 	if estimatedBytes > MaxDocumentBytes {
 		return Failure("eval_limit_exceeded")
 	}
 	return nil
+}
+
+// estimatedPlanBytes bounds the native plan of a draft. The plan repeats the
+// matrix as member objects and execution-order IDs. Its other fields repeat
+// parts of the draft, especially comparison dimensions as two pin maps. Keep a
+// generous allowance for those copies, fixed references and the bounded
+// eligibility reasons. This intentionally rejects borderline drafts at
+// authoring time before a frozen plan can fail. The UI setup applies the same
+// estimate; api/testdata/evals/plan-size-cases.json holds both to it.
+func estimatedPlanBytes(d Draft) (int, error) {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		return 0, err
+	}
+	members := len(d.CaseIDs) * 2 * d.Repetitions
+	dimensions := len(d.Comparison.RequiredEqual) + len(d.Comparison.AllowedDifferences)
+	return 3*len(raw) + 900*members + 128*dimensions + 32*1024, nil
 }
 
 func validatePublicPlan(p PublicPlan) error {

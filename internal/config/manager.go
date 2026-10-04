@@ -385,9 +385,6 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 	if err := validatePublicationKey(request.IdempotencyKey); err != nil {
 		return publicationCandidate{}, err
 	}
-	if len(request.Name) > 128 || len(request.Version) > 64 {
-		return publicationCandidate{}, fmt.Errorf("%w: name or version exceeds the public contract", ErrInvalidPublication)
-	}
 	selector, err := validateMetadata(&metadataSource{Name: request.Name, Version: request.Version})
 	if err != nil {
 		return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)

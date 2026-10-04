@@ -6,17 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-)
-
-var (
-	runtimeAgentPrincipalPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation StageAllocation) error {
@@ -34,7 +29,7 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err := validateNamespace(allocation.Namespace); err != nil {
 		return err
 	}
-	if !runtimeAgentPrincipalPattern.MatchString(allocation.RuntimeAgentID) ||
+	if !contracts.ValidRuntimeAgentID(allocation.RuntimeAgentID) ||
 		allocation.RuntimeAgentLabelRevision == 0 || allocation.RuntimeConfiguration == nil ||
 		allocation.RuntimeConfigurationSchemaVersion != AllocationRuntimeConfigurationSchemaVersion {
 		return invalidf("Runtime Agent principal and configuration are required")
@@ -243,7 +238,7 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 		if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
 			return nil, fmt.Errorf("decode persisted allocation Runtime configuration: missing provenance")
 		}
-		if !runtimeAgentPrincipalPattern.MatchString(*runtimeAgentID) || *runtimeConfigurationVersion != AllocationRuntimeConfigurationSchemaVersion {
+		if !contracts.ValidRuntimeAgentID(*runtimeAgentID) || *runtimeConfigurationVersion != AllocationRuntimeConfigurationSchemaVersion {
 			return nil, fmt.Errorf("decode persisted allocation Runtime identity or schema version")
 		}
 		revision, parseErr := strconv.ParseUint(*runtimeAgentLabelRevision, 10, 64)

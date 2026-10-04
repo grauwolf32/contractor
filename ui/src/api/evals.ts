@@ -23,6 +23,29 @@ export type EvalReview = Schema["EvalReview"];
 export type EvalAssessment = Schema["EvalAssessmentInput"];
 export const EVAL_PAGE_SIZE = 50;
 export const EVAL_POLL_MS = 2000;
+// Managed Eval lifecycle states in list-filter order, and the terminal ones.
+// The OpenAPI enums and api/testdata/evals/lifecycle-states.json hold them to
+// the Server.
+export const EVAL_STATES = [
+  "draft",
+  "preparing",
+  "ready",
+  "running",
+  "settling",
+  "finished",
+  "pausing",
+  "paused",
+  "cancelling",
+  "cancelled",
+] as const satisfies readonly EvalExperiment["state"][];
+export const TERMINAL_EVAL_STATES = [
+  "finished",
+  "cancelled",
+] as const satisfies readonly EvalExperiment["state"][];
+
+export function isTerminalEvalState(state: EvalExperiment["state"]): boolean {
+  return (TERMINAL_EVAL_STATES as readonly string[]).includes(state);
+}
 
 export function evalNextPage(page: {
   hasMore: boolean;

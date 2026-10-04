@@ -49,6 +49,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 
 	implemented := make([]string, 0)
 	operationIDs := make(map[string]string)
+	withoutPostgreSQL := make(map[string]bool, len(operationsWithoutPostgreSQL))
 	for path, item := range document.Paths.Map() {
 		if !strings.HasPrefix(path, "/v1/") {
 			t.Errorf("public path %q is outside /v1", path)
@@ -72,6 +73,20 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 				operation.Responses.Status(http.StatusRequestEntityTooLarge) == nil {
 				t.Errorf("%s accepts a bounded JSON body but documents no 413 response", key)
 			}
+			// handleError maps definite PostgreSQL transaction conflicts to a
+			// retryable 503 for every operation that reaches the database.
+			unavailable := operation.Responses.Status(http.StatusServiceUnavailable)
+			if _, exempt := operationsWithoutPostgreSQL[key]; exempt {
+				withoutPostgreSQL[key] = true
+				if unavailable != nil {
+					t.Errorf("%s is listed as never reaching PostgreSQL but documents a 503 response", key)
+				}
+			} else if unavailable == nil || unavailable.Value == nil {
+				t.Errorf("%s can return a transaction-conflict 503 but documents none", key)
+			} else if description := unavailable.Value.Description; !strings.Contains(path, "/eval-") &&
+				(description == nil || !strings.Contains(*description, "database transaction conflict")) {
+				t.Errorf("%s documents a 503 response that omits the transaction conflict", key)
+			}
 			if previous, exists := operationIDs[operation.OperationID]; operation.OperationID == "" {
 				t.Errorf("%s has no operationId", key)
 			} else if exists {
@@ -79,6 +94,11 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 			} else {
 				operationIDs[operation.OperationID] = key
 			}
+		}
+	}
+	for key := range operationsWithoutPostgreSQL {
+		if !withoutPostgreSQL[key] {
+			t.Errorf("operation %s listed as never reaching PostgreSQL does not exist", key)
 		}
 	}
 	sort.Strings(implemented)
@@ -270,6 +290,29 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 			t.Fatalf("RunMetadataLabels schema accepted invalid value %#v", invalid)
 		}
 	}
+}
+
+// operationsWithoutPostgreSQL lists the operations whose handlers never pass a
+// PostgreSQL error to handleError, so they cannot return its transaction-conflict
+// 503; every other operation must document one.
+var operationsWithoutPostgreSQL = map[string]string{
+	"POST /v1/auth/login":                                     "process-local session authentication",
+	"GET /v1/auth/session":                                    "process-local session authentication",
+	"POST /v1/auth/logout":                                    "process-local session authentication",
+	"GET /v1/events/ws":                                       "process-local event Hub",
+	"GET /v1/workflows":                                       "in-memory configuration snapshot",
+	"GET /v1/workflows/{name}/versions/{version}":             "in-memory configuration snapshot",
+	"GET /v1/configurations/{kind}":                           "in-memory configuration snapshot",
+	"POST /v1/configurations/{kind}":                          "managed configuration files; the publication audit record is best-effort",
+	"GET /v1/configurations/{kind}/{name}/versions/{version}": "in-memory configuration snapshot",
+	"GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions":      "in-memory configuration snapshot",
+	"GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings": "in-memory configuration snapshot",
+	"GET /v1/audit-profiles":                           "in-memory AuditProfile catalog",
+	"GET /v1/audit-profiles/{name}/versions/{version}": "in-memory AuditProfile catalog",
+	"GET /v1/operations/snapshot":                      "in-memory Control Plane registry snapshot",
+	"GET /v1/operations/runtime-agents":                "in-memory Control Plane registry snapshot",
+	"GET /v1/operations/allocations":                   "in-memory Control Plane registry snapshot",
+	"GET /v1/operations/performance":                   "in-memory performance collector snapshot",
 }
 
 func TestPublicEventSchemaIsClosedAndExamplesValidate(t *testing.T) {

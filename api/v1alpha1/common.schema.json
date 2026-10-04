@@ -8,6 +8,7 @@
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "mediaType": {
       "type": "string",
+      "maxLength": 255,
       "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$",
       "not": {"pattern": "[^a-z0-9!#$&^_.+/-]"}
     },

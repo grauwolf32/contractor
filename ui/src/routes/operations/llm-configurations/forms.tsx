@@ -108,12 +108,12 @@ function identityErrors(identity: IdentityDraft): string[] {
   const errors: string[] = [];
   if (!MANAGED_CONFIG_NAME_PATTERN.test(identity.name)) {
     errors.push(
-      "Managed name must contain 1–128 letters, digits, dot, dash, or underscore.",
+      "Managed name must start with a lowercase letter and contain at most 128 lowercase letters, digits, dashes, or underscores.",
     );
   }
   if (!CONFIG_VERSION_PATTERN.test(identity.version)) {
     errors.push(
-      "Version must contain 1–64 letters, digits, dot, dash, or underscore.",
+      "Version must start with a letter or digit and contain at most 64 letters, digits, dots, plus signs, dashes, or underscores.",
     );
   }
   return errors;

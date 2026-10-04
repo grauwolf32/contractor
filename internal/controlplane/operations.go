@@ -25,8 +25,6 @@ const (
 var (
 	operationsResourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 	operationsConfigIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
-	softwareVersionPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
-	runtimeCapabilityRefPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
 
 type SlotState string
@@ -78,7 +76,7 @@ type MetricsSummary struct {
 	Truncated       bool  `json:"truncated"`
 }
 
-// AllocationExecutionConfig slices.Contains only exact, non-secret refs. It is
+// AllocationExecutionConfig contains only exact, non-secret refs. It is
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {
@@ -210,7 +208,7 @@ func (s OperationsSnapshot) Validate() error {
 
 func (o RuntimeAgentObservation) Validate() error {
 	if !operationsResourceIDPattern.MatchString(o.InstanceID) ||
-		!softwareVersionPattern.MatchString(o.SoftwareVersion) || o.LastAcceptedHeartbeat != nil &&
+		len(o.SoftwareVersion) > 128 || !contracts.ValidVersion(o.SoftwareVersion) || o.LastAcceptedHeartbeat != nil &&
 		o.LastAcceptedHeartbeat.IsZero() || o.ConfirmedLeaseUntil != nil && o.ConfirmedLeaseUntil.IsZero() {
 		return fmt.Errorf("invalid Runtime Agent observation identity or time")
 	}
@@ -296,7 +294,7 @@ func validUniqueCapabilityRefs(values []string) bool {
 }
 
 func validRuntimeCapabilityRef(value string) bool {
-	return len(value) <= 256 && runtimeCapabilityRefPattern.MatchString(value)
+	return len(value) <= 256 && contracts.ValidSelector(value)
 }
 
 func (o AllocationObservation) Validate() error {

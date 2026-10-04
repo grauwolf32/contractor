@@ -261,11 +261,7 @@ def _validate_metadata(value: dict[str, Any]) -> None:
             and re.fullmatch(r"sha256:[0-9a-f]{64}", document["digest"])
         )
         media_type = document["media_type"]
-        require(
-            isinstance(media_type, str)
-            and len(media_type) <= 127
-            and MEDIA_TYPE_PATTERN.fullmatch(media_type)
-        )
+        require(isinstance(media_type, str) and MEDIA_TYPE_PATTERN.fullmatch(media_type))
         size = document["size_bytes"]
         require(type(size) is int and 0 <= size <= MAX_ARCHIVE_BYTES)
         total += size

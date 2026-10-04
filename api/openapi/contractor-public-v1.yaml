@@ -3298,6 +3298,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     get:
       operationId: listProjects
       tags: [Projects]
@@ -3324,6 +3325,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}:
     parameters:
@@ -3347,6 +3349,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     patch:
       operationId: updateProject
       tags: [Projects]
@@ -3379,6 +3382,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteProject
       tags: [Projects]
@@ -3409,6 +3413,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/artifacts:
     parameters:
@@ -3436,6 +3441,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}:
     parameters:
@@ -3588,6 +3594,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions:
     parameters:
@@ -3613,6 +3620,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage:
     parameters:
@@ -3642,6 +3650,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/runs:
     parameters:
@@ -3715,6 +3724,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audit-profiles:
     get:
@@ -3776,6 +3786,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audit-standards/{scheme}/versions/{version}:
     parameters:
@@ -3804,6 +3815,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/projects/{projectId}/audits:
     parameters:
@@ -3841,6 +3853,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     get:
       operationId: listProjectAudits
       tags: [Projects, Audits]
@@ -3856,7 +3869,7 @@ paths:
         - name: profile
           in: query
           required: false
-          schema: {type: string, minLength: 3, maxLength: 257, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'}
+          schema: {$ref: '#/components/schemas/Selector'}
       responses:
         '200':
           description: Stable newest-first Audit page
@@ -3870,6 +3883,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}:
     parameters:
@@ -3893,6 +3907,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteAudit
       tags: [Audits]
@@ -3921,6 +3936,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/start:
     parameters:
@@ -3993,6 +4009,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/resume:
     parameters:
@@ -4064,6 +4081,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/items:
     parameters:
@@ -4101,6 +4119,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/coverage:
     parameters:
@@ -4130,6 +4149,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/report:
     parameters:
@@ -4153,6 +4173,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/finding-proposals:
     parameters:
@@ -4178,6 +4199,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/finding-proposal-imports:
     parameters:
@@ -4220,6 +4242,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/workspace:
     parameters:
@@ -4238,6 +4261,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/reviews/{requestId}:
     parameters:
@@ -4257,6 +4281,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/findings:
     parameters:
@@ -4283,6 +4308,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/findings/{findingId}:
     parameters:
@@ -4302,6 +4328,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/findings/{findingId}/provenance:
     parameters:
@@ -4327,6 +4354,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/findings/{findingId}/reviews:
     parameters:
@@ -4358,6 +4386,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/reviews:
     parameters:
@@ -4383,6 +4412,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/audits/{auditId}/reviews/{requestId}/decisions:
     parameters:
@@ -4414,6 +4444,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/queue:
     get:
@@ -4445,6 +4476,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/queue/control:
     get:
@@ -4469,6 +4501,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     put:
       operationId: putOwnerQueueControl
       tags: [Queue, Runs]
@@ -4503,6 +4536,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs:
     post:
@@ -4597,6 +4631,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}:
     parameters:
@@ -4618,6 +4653,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteRun
       tags: [Runs]
@@ -4638,6 +4674,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/repeat-draft:
     parameters:
@@ -4669,6 +4706,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/retry-gateway:
     parameters:
@@ -4706,6 +4744,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/resume:
     parameters:
@@ -4754,6 +4793,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
   /v1/runs/{runId}/cancel:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -4794,6 +4834,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/outputs/{slot}:
     parameters:
@@ -4839,6 +4880,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/finding-proposals:
     parameters:
@@ -4864,6 +4906,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/artifacts/{namespace}/{name}:
     parameters:
@@ -4987,6 +5030,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/artifacts/{namespace}/{name}/versions:
     parameters:
@@ -5013,6 +5057,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage:
     parameters:
@@ -5043,6 +5088,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/artifacts:
     get:
@@ -5071,6 +5117,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/artifacts/{namespace}/{name}:
     parameters:
@@ -5218,6 +5265,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/artifacts/{namespace}/{name}/versions:
     parameters:
@@ -5243,6 +5291,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/artifacts/{namespace}/{name}/lineage:
     parameters:
@@ -5271,6 +5320,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/configurations/{kind}:
     parameters:
@@ -5424,6 +5474,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     post:
       operationId: publishRuntimeConfig
       tags: [Operations]
@@ -5456,6 +5507,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-configs/{name}/versions/{version}:
     parameters:
@@ -5480,6 +5532,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-labels:
     get:
@@ -5502,6 +5555,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-labels/{label}:
     parameters:
@@ -5525,6 +5579,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     put:
       operationId: putRuntimeLabel
       tags: [Operations]
@@ -5554,6 +5609,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteRuntimeLabel
       tags: [Operations]
@@ -5573,6 +5629,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-credentials:
     get:
@@ -5595,6 +5652,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     post:
       operationId: createRuntimeCredential
       tags: [Operations]
@@ -5626,6 +5684,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-credentials/{credentialId}:
     parameters:
@@ -5648,6 +5707,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteRuntimeCredential
       tags: [Operations]
@@ -5670,6 +5730,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-agent-principals:
     get:
@@ -5692,6 +5753,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-agent-principals/{runtimeAgentId}:
     parameters:
@@ -5715,6 +5777,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     delete:
       operationId: deleteRuntimeAgentPrincipal
       tags: [Operations]
@@ -5734,6 +5797,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels:
     parameters:
@@ -5772,6 +5836,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/credentials:
     get:
@@ -5892,6 +5957,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
     put:
       operationId: putSchedulerSettings
       tags: [Operations]
@@ -5929,6 +5995,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '415': {$ref: '#/components/responses/UnsupportedMediaType'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/snapshot:
     get:
@@ -6023,6 +6090,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/allocation-history:
     get:
@@ -6054,6 +6122,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
   /v1/operations/allocations:
     get:
@@ -6156,7 +6225,7 @@ components:
       name: name
       in: path
       required: true
-      schema: {$ref: '#/components/schemas/ConfigId'}
+      schema: {$ref: '#/components/schemas/ConfigurationName'}
     ConfigVersion:
       name: version
       in: path
@@ -6299,7 +6368,7 @@ components:
       in: query
       required: false
       description: Exact configuration name filter for enumerating opaque versions.
-      schema: {$ref: '#/components/schemas/ConfigId'}
+      schema: {$ref: '#/components/schemas/ConfigurationName'}
 
   headers:
     ContractorAPIVersion:
@@ -6408,7 +6477,7 @@ components:
     UnsupportedMediaType: {$ref: '#/components/responses/Error415'}
     UnprocessableEntity: {$ref: '#/components/responses/Error422'}
     ArtifactUnavailable:
-      description: Transfer capacity exhausted (retryable) or stored content missing/corrupt (not automatically retryable).
+      description: Transfer capacity exhausted or a definite database transaction conflict exhausted retries (retryable), or stored content missing/corrupt (not automatically retryable).
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     PayloadTooLarge: {$ref: '#/components/responses/Error413'}
@@ -6447,7 +6516,7 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
     CredentialRecoveryRequired:
-      description: Credential lifecycle recovery has not completed; retry after it settles
+      description: Credential lifecycle recovery has not completed or a definite database transaction conflict exhausted retries; retry after it settles
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
       content:
@@ -6460,6 +6529,10 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
+    StorageTransactionConflict:
+      description: A definite database transaction conflict exhausted retries; retry the request
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     InternalError: {$ref: '#/components/responses/Error500'}
     Error400:
       description: Request does not satisfy the API contract
@@ -10861,7 +10934,7 @@ components:
       additionalProperties: false
       required: [name, version, digest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     AuditProfileSelector:
@@ -10869,7 +10942,7 @@ components:
       additionalProperties: false
       required: [name, version]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     AuditProfileMode:
       enum: [risk-assessment, requirements-verification, custom-checklist, operation-tracing, finding-verification]
@@ -11259,7 +11332,7 @@ components:
       additionalProperties: false
       required: [name, version, digest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     AuditPinnedRuntimeLabel:
@@ -11488,7 +11561,7 @@ components:
       additionalProperties: false
       required: [name, version, schemaVersion, configurationRef, closureDigest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         schemaVersion: {type: string, minLength: 1, maxLength: 128}
         configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
@@ -11550,7 +11623,7 @@ components:
         schema: {type: string, const: contractor.audit.item-origin.v1}
         sourceRef: {$ref: '#/components/schemas/ArtifactRef'}
         sourceContentDigest: {$ref: '#/components/schemas/Digest'}
-        sourceMediaType: {type: string, minLength: 1, maxLength: 256}
+        sourceMediaType: {type: string, minLength: 3, maxLength: 255, pattern: '^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$'}
         canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
         entryKey: {type: string, minLength: 1, maxLength: 256}
         entryVersion: {type: string, minLength: 1, maxLength: 256}
@@ -11910,7 +11983,7 @@ components:
       additionalProperties: false
       required: [name, version, schemaVersion, configurationRef, closureDigest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         schemaVersion: {type: string, minLength: 1, maxLength: 128}
         configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
@@ -12204,16 +12277,21 @@ components:
       minLength: 1
       maxLength: 128
       pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
+    ConfigurationName:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[a-z][a-z0-9_-]*$'
     ConfigVersion:
       type: string
       minLength: 1
       maxLength: 64
-      pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
     Selector:
       type: string
       minLength: 3
       maxLength: 193
-      pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*$'
+      pattern: '^[a-z][a-z0-9_-]{0,127}@[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'
     RuntimeCapabilityRef:
       type: string
       minLength: 3
@@ -12566,7 +12644,7 @@ components:
       additionalProperties: false
       required: [policyId, version, digest]
       properties:
-        policyId: {$ref: '#/components/schemas/ConfigId'}
+        policyId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     LLMGatewayConfigRef:
@@ -12574,7 +12652,7 @@ components:
       additionalProperties: false
       required: [gatewayId, version, digest]
       properties:
-        gatewayId: {$ref: '#/components/schemas/ConfigId'}
+        gatewayId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     RuntimeConfigRef:
@@ -12976,7 +13054,7 @@ components:
       additionalProperties: false
       required: [templateId, version, digest]
       properties:
-        templateId: {$ref: '#/components/schemas/ConfigId'}
+        templateId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     CredentialRef:
@@ -12990,7 +13068,7 @@ components:
       additionalProperties: false
       required: [configId, version, digest]
       properties:
-        configId: {$ref: '#/components/schemas/ConfigId'}
+        configId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     ConsumerExecutionConfig:
@@ -13414,7 +13492,7 @@ components:
       additionalProperties: false
       required: [name, version]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     WorkflowPresentation:
       type: object
@@ -13460,7 +13538,7 @@ components:
       additionalProperties: false
       required: [plannerId, version]
       properties:
-        plannerId: {$ref: '#/components/schemas/ConfigId'}
+        plannerId: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     WorkflowContextArtifact:
       type: object
@@ -13649,7 +13727,7 @@ components:
       required: [kind, name, version, digest]
       properties:
         kind: {$ref: '#/components/schemas/ConfigurationKind'}
-        name: {$ref: '#/components/schemas/ConfigId'}
+        name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
     ModelPolicyBody:
@@ -13853,14 +13931,14 @@ components:
           additionalProperties: false
           required: [name, version, modelPolicy]
           properties:
-            name: {$ref: '#/components/schemas/ConfigId'}
+            name: {$ref: '#/components/schemas/ConfigurationName'}
             version: {$ref: '#/components/schemas/ConfigVersion'}
             modelPolicy: {$ref: '#/components/schemas/ModelPolicyBody'}
         - type: object
           additionalProperties: false
           required: [name, version, llmGateway]
           properties:
-            name: {$ref: '#/components/schemas/ConfigId'}
+            name: {$ref: '#/components/schemas/ConfigurationName'}
             version: {$ref: '#/components/schemas/ConfigVersion'}
             llmGateway: {$ref: '#/components/schemas/LLMGatewayBody'}
 

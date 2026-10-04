@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import evalLifecycle from "../../../api/testdata/evals/lifecycle-states.json";
+
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
@@ -12,11 +14,16 @@ import {
   AUDIT_STANDARD_VERSION_PATTERN,
 } from "./audit-presets";
 import { AUDIT_ID_PATTERN } from "./audits";
+import { EVAL_STATES, TERMINAL_EVAL_STATES } from "./evals";
 import { BUDGET_DURATION_PATTERN, CONFIGURATION_KINDS } from "./operations";
 import { PROJECT_ID_PATTERN, PROJECT_REVISION_PATTERN } from "./projects";
 import { QUEUE_MEMBERSHIPS, QUEUE_STATES } from "./queue";
 import { RUN_ID_PATTERN, RUN_STATES, TERMINAL_RUN_STATES } from "./runs";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
+import {
+  CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+} from "./workflows";
 
 interface StringSchema {
   pattern?: string;
@@ -25,11 +32,16 @@ interface StringSchema {
   enum?: string[];
 }
 
-const schemas = (
-  parse(readFileSync("../api/openapi/contractor-public-v1.yaml", "utf8")) as {
-    components: { schemas: Record<string, unknown> };
-  }
-).components.schemas;
+const openapi = parse(
+  readFileSync("../api/openapi/contractor-public-v1.yaml", "utf8"),
+) as {
+  components: { schemas: Record<string, unknown> };
+  paths: Record<
+    string,
+    Record<string, { parameters?: { name: string; schema?: StringSchema }[] }>
+  >;
+};
+const schemas = openapi.components.schemas;
 
 // Resolve a dotted path such as "MediaType.oneOf.1" inside components.schemas.
 function schemaAt(path: string): StringSchema {
@@ -115,6 +127,7 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
       "Project.properties.revision",
     ],
     ["CONFIG_ID_PATTERN", CONFIG_ID_PATTERN, "ConfigId"],
+    ["CONFIG_NAME_PATTERN", CONFIG_NAME_PATTERN, "ConfigurationName"],
     ["CONFIG_VERSION_PATTERN", CONFIG_VERSION_PATTERN, "ConfigVersion"],
     [
       "BUDGET_DURATION_PATTERN",
@@ -135,9 +148,28 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     ["QUEUE_STATES", QUEUE_STATES, "NonTerminalWorkflowRunState"],
     ["QUEUE_MEMBERSHIPS", QUEUE_MEMBERSHIPS, "RunQueueMembership"],
     ["CONFIGURATION_KINDS", CONFIGURATION_KINDS, "ConfigurationKind"],
+    ["EVAL_STATES", EVAL_STATES, "EvalExperiment.properties.state"],
+    ["EVAL_STATES", EVAL_STATES, "EvalExperimentSummary.properties.state"],
+    ["EVAL_STATES", EVAL_STATES, "EvalExperimentReceipt.properties.state"],
   ])("%s lists every %s value", (_name, values, path) => {
     expect([...(values as readonly string[])].sort()).toEqual(
       [...(schemaAt(path as string).enum ?? [])].sort(),
+    );
+  });
+
+  it("EVAL_STATES lists every Eval list filter state", () => {
+    const filter = openapi.paths["/v1/eval-experiments"]?.[
+      "get"
+    ]?.parameters?.find((parameter) => parameter.name === "state");
+    expect([...EVAL_STATES].sort()).toEqual(
+      [...(filter?.schema?.enum ?? [])].sort(),
+    );
+  });
+
+  it("Eval state sets match the shared lifecycle cases", () => {
+    expect([...EVAL_STATES].sort()).toEqual([...evalLifecycle.states].sort());
+    expect([...TERMINAL_EVAL_STATES].sort()).toEqual(
+      [...evalLifecycle.terminal].sort(),
     );
   });
 

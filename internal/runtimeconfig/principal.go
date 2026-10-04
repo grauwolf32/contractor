@@ -4,19 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var runtimeAgentPrincipalIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 const (
 	principalLabelsReplaceOperation = "runtime-agent.labels-replace"
@@ -799,7 +797,7 @@ func agentLayerEntries(
 }
 
 func validateRuntimeAgentID(value string) error {
-	if !runtimeAgentPrincipalIDPattern.MatchString(value) {
+	if !contracts.ValidRuntimeAgentID(value) {
 		return invalid("Runtime Agent principal ID is invalid")
 	}
 	return nil

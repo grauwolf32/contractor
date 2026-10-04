@@ -8,7 +8,11 @@ import { safeRunMetadataLabels } from "./run-metadata-labels";
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
 export const CONFIG_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
-export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+// Configuration names and versions as in the public ConfigurationName and
+// ConfigVersion schemas; api/testdata/v1alpha1/config-identity-cases.json
+// holds them to the Server grammar.
+export const CONFIG_NAME_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
+export const CONFIG_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
 const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 
 export type WorkflowPage = components["schemas"]["WorkflowPage"];
@@ -34,7 +38,10 @@ export interface CatalogPageRequest extends PageRequest {
 }
 
 function requireWorkflowIdentity(name: string, version: string): void {
-  if (!CONFIG_ID_PATTERN.test(name) || !CONFIG_VERSION_PATTERN.test(version)) {
+  if (
+    !CONFIG_NAME_PATTERN.test(name) ||
+    !CONFIG_VERSION_PATTERN.test(version)
+  ) {
     throw new TypeError("Workflow identity is invalid");
   }
 }
@@ -103,7 +110,7 @@ function requireCatalogRequest(request: CatalogPageRequest): void {
   if (request.q !== undefined && Array.from(request.q).length > 200) {
     throw new TypeError("Catalog search exceeds 200 Unicode characters");
   }
-  if (request.name !== undefined && !CONFIG_ID_PATTERN.test(request.name)) {
+  if (request.name !== undefined && !CONFIG_NAME_PATTERN.test(request.name)) {
     throw new TypeError("Catalog exact name is invalid");
   }
 }

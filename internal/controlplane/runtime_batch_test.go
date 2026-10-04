@@ -518,3 +518,27 @@ func (*recordingAllocationRegistry) ReleaseLost(string) (bool, error) { return f
 func (r *recordingRuntime) String() string {
 	return fmt.Sprintf("prepared=%v aborted=%v released=%v", r.prepared, r.aborted, r.released)
 }
+
+func TestValidateReservationBatchNamesTheDuplicate(t *testing.T) {
+	t.Parallel()
+	reservation := func(allocationID, logicalName string) Reservation {
+		return Reservation{Grant: AllocationGrant{AllocationID: allocationID, LogicalAgentName: logicalName}}
+	}
+	for _, test := range []struct {
+		batch []Reservation
+		want  string
+	}{
+		{
+			batch: []Reservation{reservation("alloc-1", "worker"), reservation("alloc-1", "planner")},
+			want:  "allocation reservation batch contains duplicate allocation IDs",
+		},
+		{
+			batch: []Reservation{reservation("alloc-1", "worker"), reservation("alloc-2", "worker")},
+			want:  "allocation reservation batch contains duplicate logical Agent names",
+		},
+	} {
+		if err := validateReservationBatch(test.batch); err == nil || err.Error() != test.want {
+			t.Errorf("validateReservationBatch() = %v, want %q", err, test.want)
+		}
+	}
+}

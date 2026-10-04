@@ -398,10 +398,10 @@ func validateReservationBatch(reservations []Reservation) error {
 			return errors.New("allocation reservation is incomplete")
 		}
 		if _, duplicate := allocationIDs[reservation.Grant.AllocationID]; duplicate {
-			return errors.New("allocation reservation batch slices.Contains duplicate allocation IDs")
+			return errors.New("allocation reservation batch contains duplicate allocation IDs")
 		}
 		if _, duplicate := logicalNames[reservation.Grant.LogicalAgentName]; duplicate {
-			return errors.New("allocation reservation batch slices.Contains duplicate logical Agent names")
+			return errors.New("allocation reservation batch contains duplicate logical Agent names")
 		}
 		allocationIDs[reservation.Grant.AllocationID] = struct{}{}
 		logicalNames[reservation.Grant.LogicalAgentName] = struct{}{}

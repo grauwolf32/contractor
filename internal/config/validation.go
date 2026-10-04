@@ -4,16 +4,10 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-)
-
-var (
-	idPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-	versionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 )
 
 const maxJSONSafeInteger = 1<<53 - 1
@@ -24,10 +18,10 @@ func ParseSelector(raw string) (Selector, error) {
 		return Selector{}, fmt.Errorf("selector %q must use exact <id>@<version> syntax", raw)
 	}
 	id, version, _ := strings.Cut(raw, "@")
-	if !idPattern.MatchString(id) {
+	if !contracts.ValidConfigID(id) {
 		return Selector{}, fmt.Errorf("selector %q has invalid id", raw)
 	}
-	if !versionPattern.MatchString(version) {
+	if !contracts.ValidConfigVersion(version) {
 		return Selector{}, fmt.Errorf("selector %q has invalid version", raw)
 	}
 	return Selector{ID: id, Version: version}, nil
@@ -37,11 +31,13 @@ func validateMetadata(metadata *metadataSource) (Selector, error) {
 	if metadata == nil {
 		return Selector{}, fmt.Errorf("metadata is required")
 	}
-	if !idPattern.MatchString(metadata.Name) {
-		return Selector{}, fmt.Errorf("metadata.name %q does not match %s", metadata.Name, idPattern)
+	if !contracts.ValidConfigID(metadata.Name) {
+		return Selector{}, fmt.Errorf("metadata.name %q must match [a-z][a-z0-9_-]* and have at most %d characters",
+			metadata.Name, contracts.MaxConfigIDLength)
 	}
-	if !versionPattern.MatchString(metadata.Version) {
-		return Selector{}, fmt.Errorf("metadata.version %q does not match %s", metadata.Version, versionPattern)
+	if !contracts.ValidConfigVersion(metadata.Version) {
+		return Selector{}, fmt.Errorf("metadata.version %q must match [A-Za-z0-9][A-Za-z0-9._+-]* and have at most %d characters",
+			metadata.Version, contracts.MaxConfigVersionLength)
 	}
 	return Selector{ID: metadata.Name, Version: metadata.Version}, nil
 }

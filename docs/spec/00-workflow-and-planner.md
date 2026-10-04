@@ -388,7 +388,12 @@ version = [A-Za-z0-9][A-Za-z0-9._+-]*
 ```
 
 A selector contains exactly one `@`. Both parts are non-empty; whitespace and
-`/` are consequently invalid. Version comparison is opaque, case-sensitive
+`/` are consequently invalid. A configuration id has at most 128 characters and
+a version at most 64, as in the public `ConfigurationName`, `ConfigVersion` and
+`Selector` schemas; the Server, schemas, Runtime and UI share
+[these cases](../../api/testdata/v1alpha1/config-identity-cases.json). The
+version grammar keeps `+` because Audit standard versions, which AuditProfiles
+reference through it, allow it. Version comparison is opaque, case-sensitive
 exact equality: Contractor does not interpret semantic-version ordering.
 `latest`, version ranges and an omitted version are invalid. This selector is
 an authoring/API lookup value only, never the complete durable execution
@@ -833,7 +838,8 @@ Every artifact slot uses the same minimal payload contract:
 - `mediaTypes` is a mandatory, non-empty list of unique media types;
 - a media type is a canonical lowercase `type/subtype` without parameters,
   each part an RFC 6838 restricted name (a letter or digit followed by letters,
-  digits and `!#$&^_.+-`); the artifact store, schemas, Runtime and UI share
+  digits and `!#$&^_.+-`), at most 255 characters in total; the artifact store,
+  Audit packages, schemas, Runtime and UI share
   [these cases](../../api/testdata/v1alpha1/media-type-cases.json);
 - matching is exact, except that the single value `*/*` explicitly accepts any
   media type; other wildcards are invalid, and `*/*` cannot be combined with
