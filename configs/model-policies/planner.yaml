@@ -12,4 +12,4 @@ spec:
   maxModelCalls: 200
   maxWorkerCalls: 200
   maxTotalTokens: 2500000
-  temperature: 1.0
+  temperature: 0.6

@@ -10,4 +10,4 @@ spec:
   contextWindowTokens: 118000
   maxOutputTokens: 8192
   maxModelCalls: 1
-  temperature: 1.0
+  temperature: 0.6
