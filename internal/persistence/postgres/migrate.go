@@ -9,10 +9,12 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,9 +23,12 @@ const migrationLockPoll = 250 * time.Millisecond
 
 var (
 	// ErrMigrationDrift means an already-recorded version no longer matches the
-	// embedded migration name or checksum.
+	// embedded migration name or checksum, or is unknown to this binary.
 	ErrMigrationDrift = errors.New("PostgreSQL migration drift")
-	migrationName     = regexp.MustCompile(`^([0-9]{6})_([a-z0-9_]+)\.sql$`)
+	// ErrMigrationsPending means the database has no migration ledger or is
+	// missing one or more migrations embedded in this binary.
+	ErrMigrationsPending = errors.New("PostgreSQL migrations pending; run contractor server migrate (or contractor-server migrate)")
+	migrationName        = regexp.MustCompile(`^([0-9]{6})_([a-z0-9_]+)\.sql$`)
 )
 
 type MigrationResult struct {
@@ -75,23 +80,12 @@ CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
 		if err != nil {
 			return err
 		}
-		availableVersions := make(map[int64]struct{}, len(available))
-		for _, item := range available {
-			availableVersions[item.version] = struct{}{}
+		state, err := compareMigrationLedger(available, applied)
+		if err != nil {
+			return err
 		}
-		for version := range applied {
-			if _, exists := availableVersions[version]; !exists {
-				return fmt.Errorf("%w: database contains unknown version %06d", ErrMigrationDrift, version)
-			}
-		}
-		for _, item := range available {
-			if existing, ok := applied[item.version]; ok {
-				if existing.name != item.name || existing.checksum != item.checksum {
-					return fmt.Errorf("%w: version %06d differs from embedded %s", ErrMigrationDrift, item.version, item.name)
-				}
-				result.CurrentVersion = item.version
-				continue
-			}
+		result.CurrentVersion = state.currentVersion
+		for _, item := range state.pending {
 			if _, err := tx.Exec(ctx, string(item.contents)); err != nil {
 				return fmt.Errorf("apply migration %s: %w", item.name, err)
 			}
@@ -102,7 +96,9 @@ CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
 				return fmt.Errorf("record migration %s: %w", item.name, err)
 			}
 			result.AppliedVersions = append(result.AppliedVersions, item.version)
-			result.CurrentVersion = item.version
+			if item.version > result.CurrentVersion {
+				result.CurrentVersion = item.version
+			}
 		}
 		return nil
 	})
@@ -110,6 +106,67 @@ CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
 		return MigrationResult{}, err
 	}
 	return result, nil
+}
+
+// VerifyMigrations checks the committed ledger without changing the database.
+// The migrator commits schema and ledger updates together, so one ledger read
+// sees either the old complete version or the new complete version.
+func VerifyMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	available, err := loadMigrations()
+	if err != nil {
+		return err
+	}
+	applied, err := readAppliedMigrations(ctx, pool)
+	if err != nil {
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) && postgresError.Code == "42P01" {
+			return fmt.Errorf("%w: migration ledger contractor_schema_migrations is absent", ErrMigrationsPending)
+		}
+		return err
+	}
+	state, err := compareMigrationLedger(available, applied)
+	if err != nil {
+		return err
+	}
+	if len(state.pending) == 0 {
+		return nil
+	}
+	versions := make([]string, len(state.pending))
+	for index, item := range state.pending {
+		versions[index] = fmt.Sprintf("%06d", item.version)
+	}
+	return fmt.Errorf("%w: missing embedded versions %s", ErrMigrationsPending, strings.Join(versions, ", "))
+}
+
+type migrationLedgerState struct {
+	currentVersion int64
+	pending        []migration
+}
+
+// Both the mutating migrator and read-only startup check compare the same
+// embedded names and checksums before deciding whether any version is pending.
+func compareMigrationLedger(available []migration, applied map[int64]appliedMigration) (migrationLedgerState, error) {
+	state := migrationLedgerState{}
+	availableVersions := make(map[int64]struct{}, len(available))
+	for _, item := range available {
+		availableVersions[item.version] = struct{}{}
+	}
+	for version := range applied {
+		if _, exists := availableVersions[version]; !exists {
+			return migrationLedgerState{}, fmt.Errorf("%w: database contains unknown version %06d", ErrMigrationDrift, version)
+		}
+	}
+	for _, item := range available {
+		if existing, exists := applied[item.version]; exists {
+			if existing.name != item.name || existing.checksum != item.checksum {
+				return migrationLedgerState{}, fmt.Errorf("%w: version %06d differs from embedded %s", ErrMigrationDrift, item.version, item.name)
+			}
+			state.currentVersion = item.version
+			continue
+		}
+		state.pending = append(state.pending, item)
+	}
+	return state, nil
 }
 
 // A blocking advisory-lock call would inherit the much shorter DDL
@@ -140,8 +197,12 @@ type appliedMigration struct {
 	checksum [sha256.Size]byte
 }
 
-func readAppliedMigrations(ctx context.Context, tx pgx.Tx) (map[int64]appliedMigration, error) {
-	rows, err := tx.Query(ctx, `SELECT version, name, checksum FROM contractor_schema_migrations ORDER BY version`)
+type migrationRowsQuerier interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func readAppliedMigrations(ctx context.Context, querier migrationRowsQuerier) (map[int64]appliedMigration, error) {
+	rows, err := querier.Query(ctx, `SELECT version, name, checksum FROM contractor_schema_migrations ORDER BY version`)
 	if err != nil {
 		return nil, fmt.Errorf("read applied migrations: %w", err)
 	}

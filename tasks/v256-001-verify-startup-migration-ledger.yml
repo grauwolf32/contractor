@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V256-001
+title: Verify embedded migrations before Server startup
+milestone: database-schema-verification-2026-10
+priority: P1
+status: completed
+implementation_commit: ff34fc1953b808cfe58a4ab11406f36080dafac0
+depends_on: []
+languages: [go]
+goal: Refuse to serve traffic when the PostgreSQL migration ledger does not match this binary.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/140
+  finding: Server startup can report ready with a schema that is missing or ahead of its embedded migrations.
+scope:
+  in:
+    - Share migration-ledger comparison between migrate and a read-only startup verifier.
+    - Return typed pending and drift errors with actionable migration guidance.
+    - Verify the ledger before the Server acquires its Control Plane lease or starts listeners.
+    - Document the required multi-replica upgrade order.
+  out:
+    - Automatically apply migrations during serve.
+acceptance_criteria:
+  - {id: A1, text: Empty and behind databases fail startup with a pending error naming contractor-server migrate.}
+  - {id: A2, text: Unknown, renamed, or checksum-drifted ledgers fail with ErrMigrationDrift.}
+  - {id: A3, text: A matching ledger starts normally and the migration command shares the verifier comparison.}
+  - {id: A4, text: Unit and PostgreSQL integration tests cover the ledger states.}
+tests:
+  - {command: go test -count=1 ./internal/persistence/postgres ./internal/app, covers: [A1, A2, A3]}
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<postgres> go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/app, covers: [A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

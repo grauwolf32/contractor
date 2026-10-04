@@ -42,7 +42,20 @@ func TestConfigureProfilingDoesNotBindWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestRunCLIFailsSafelyWhenEnabledProfilingPortIsOccupied(t *testing.T) {
+func TestConfigureProfilingFailsSafelyWhenPortIsOccupied(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	address := listener.Addr().String()
+	_, err = configureProfiling(Config{Pprof: true, PprofListen: address, ShutdownTimeout: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "configure Go profiling") || strings.Contains(err.Error(), address) {
+		t.Fatalf("unsafe or missing occupied-listener error: %v", err)
+	}
+}
+
+func TestRunCLIValidatesDatabaseBeforeProfilingListener(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -55,32 +68,7 @@ func TestRunCLIFailsSafelyWhenEnabledProfilingPortIsOccupied(t *testing.T) {
 		func(string) string { return "" },
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
-	if err == nil || !strings.Contains(err.Error(), "configure Go profiling") || strings.Contains(err.Error(), address) {
-		t.Fatalf("unsafe or missing occupied-listener error: %v", err)
-	}
-}
-
-func TestRunCLICleansUpEarlyProfilingListenerAfterLaterStartupFailure(t *testing.T) {
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	address := probe.Addr().String()
-	if err := probe.Close(); err != nil {
-		t.Fatal(err)
-	}
-	err = RunCLI(
-		context.Background(),
-		[]string{"--pprof=true", "--pprof-listen=" + address},
-		func(string) string { return "" },
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
 	if err == nil || err.Error() != "database URL is required" {
-		t.Fatalf("later startup error = %v", err)
+		t.Fatalf("database validation error = %v", err)
 	}
-	reopened, err := net.Listen("tcp", address)
-	if err != nil {
-		t.Fatalf("profiling listener leaked after startup failure: %v", err)
-	}
-	reopened.Close()
 }
