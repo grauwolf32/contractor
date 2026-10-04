@@ -3,8 +3,8 @@ id: V275-001
 title: Split oversized public HTTP type declarations
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: aa95d592b00add1e53bca0b320c59419e284af49
 depends_on: []
 languages: [go]
 goal: Keep public HTTP contracts navigable without changing their behavior.
