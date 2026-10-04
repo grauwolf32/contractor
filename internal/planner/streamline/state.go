@@ -122,6 +122,17 @@ func (s *executionState) providerFailure() *planner.Error {
 	))
 }
 
+// rejectedGatewayRequest records a permanent Gateway failure, such as denied
+// access or an over-long prompt, which another Stage attempt would repeat.
+// code is the Gateway's safe classification.
+func (s *executionState) rejectedGatewayRequest(code string) *planner.Error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.setFailureLocked(planner.NewError(
+		"planner_gateway_rejected", "Planner Gateway rejected the request ("+code+")", false, nil,
+	))
+}
+
 func (s *executionState) rejectedGatewayResponse(rejected *gatewayResponseRejected) *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

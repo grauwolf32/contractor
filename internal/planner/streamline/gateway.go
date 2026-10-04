@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"iter"
 	"net/http"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -65,37 +65,23 @@ func (m *openAICompatibleModel) GenerateContent(
 		}
 		httpRequest.Header.Set("Content-Type", "application/json")
 		httpRequest.Header.Set(requestid.Header, requestid.Ensure(ctx))
+		// Both paths classify a failed model request with the Gateway's failure
+		// signatures; Recovery retries a transient one, and a reported failure
+		// is a *gatewayrecovery.FailureError.
+		var body []byte
 		if m.settings.Recovery != nil {
-			body, err := m.settings.Recovery.Do(httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-			result, err := decodeChatResponse(body)
-			yield(result, err)
-			return
+			body, err = m.settings.Recovery.Do(httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes)
+		} else {
+			body, err = gatewayrecovery.Send(
+				httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes, m.settings.FailureSignatures,
+			)
 		}
-		response, err := m.settings.HTTPClient.Do(httpRequest)
-		if err != nil {
-			yield(nil, fmt.Errorf("Planner Gateway request failed"))
-			return
-		}
-		defer response.Body.Close()
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxGatewayResponseBytes+1))
-		if readErr != nil || len(body) > maxGatewayResponseBytes {
-			yield(nil, fmt.Errorf("Planner Gateway response is unreadable or oversized"))
-			return
-		}
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			yield(nil, fmt.Errorf("Planner Gateway returned HTTP %d", response.StatusCode))
-			return
-		}
-		result, err := decodeChatResponse(body)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		yield(result, nil)
+		result, err := decodeChatResponse(body)
+		yield(result, err)
 	}
 }
 

@@ -36,22 +36,6 @@ func NewPostgresStore(pool *pgxpool.Pool) (*PostgresStore, error) {
 	return &PostgresStore{pool: pool}, nil
 }
 
-func (s *PostgresStore) List(
-	ctx context.Context,
-	binding Binding,
-) ([]artifacts.ArtifactRef, error) {
-	if !validBinding(binding) {
-		return nil, ErrAccessForbidden
-	}
-	return withActiveStage(ctx, s.pool, false, binding, nil, func(tx pgx.Tx) ([]artifacts.ArtifactRef, error) {
-		store, err := runArtifactStore(tx, binding.RunID)
-		if err != nil {
-			return nil, err
-		}
-		return store.ListPrefix(ctx, binding.Namespace, ArtifactNamePrefix, MaximumNotes+1)
-	})
-}
-
 func (s *PostgresStore) LoadAll(
 	ctx context.Context,
 	binding Binding,

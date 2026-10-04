@@ -12,6 +12,7 @@ const (
 	SQLStateSerializationFailure      = "40001"
 	SQLStateDeadlockDetected          = "40P01"
 	SQLStateInsufficientPrivilege     = "42501"
+	SQLStateTooManyConnections        = "53300"
 	SQLStateLockNotAvailable          = "55P03"
 	SQLStateQueryCanceled             = "57014"
 )

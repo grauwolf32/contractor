@@ -260,9 +260,11 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	}
 	slot := p.invocation.Stage.Result.Artifacts["report"].From
 	target := contracts.ArtifactRef{Namespace: slot.Namespace, Name: slot.Name + "." + stableHash(p.invocation.StageExecutionID)[:16]}
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
+	// Building the candidate has its own storage budget; recording it gets the
+	// shared completion budget and transient retry.
+	buildCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
 	defer cancel()
-	ref, err := p.factory.artifacts.Create(writeCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/json", Data: data})
+	ref, err := p.factory.artifacts.Create(buildCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {
 		return empty, scanError("scan_report_write_failed", err)
 	}
@@ -271,10 +273,10 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 		result.Outcome = contracts.StageFailed
 		result.Error = &contracts.TerminationError{Code: "scan_incomplete", Message: "The scan plan did not complete all selected jobs", Retryable: false}
 	}
-	if validation := planner.ValidateCandidate(writeCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); validation != nil {
+	if validation := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); validation != nil {
 		return empty, validation
 	}
-	if err := p.factory.sessions.CompleteScan(writeCtx, identity, planner.Completion{Result: &result}); err != nil {
+	if err := planner.CompleteScanSession(ctx, p.factory.sessions, identity, planner.Completion{Result: &result}); err != nil {
 		return empty, scanError("scan_completion_write_failed", err)
 	}
 	return result.Clone(), nil

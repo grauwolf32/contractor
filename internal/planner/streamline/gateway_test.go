@@ -3,6 +3,7 @@ package streamline
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -162,7 +165,9 @@ func TestOpenAICompatibleModelDoesNotFollowGatewayRedirect(t *testing.T) {
 	for _, currentErr := range llm.GenerateContent(t.Context(), request, false) {
 		gotErr = currentErr
 	}
-	if gotErr == nil || !strings.Contains(gotErr.Error(), "HTTP 307") || targetCalled {
+	var failure *gatewayrecovery.FailureError
+	if !errors.As(gotErr, &failure) || failure.Failure != (gatewayrecovery.Failure{Code: "gateway_request_rejected"}) ||
+		targetCalled {
 		t.Fatalf("redirect error=%v targetCalled=%v", gotErr, targetCalled)
 	}
 }
@@ -228,6 +233,12 @@ func TestPlannerChargesAndClassifiesRejectedGatewayResponses(t *testing.T) {
 			maxTokens: 80, wantCode: "planner_token_limit", wantInput: 40, wantOutput: 50},
 		{name: "HTTP status remains unavailable", status: http.StatusBadGateway,
 			wantCode: "planner_gateway_unavailable", wantInput: 10, wantOutput: 10},
+		{name: "rate limit remains unavailable", status: http.StatusTooManyRequests,
+			wantCode: "planner_gateway_unavailable", wantInput: 10, wantOutput: 10},
+		{name: "denied access is rejected", status: http.StatusUnauthorized,
+			wantCode: "planner_gateway_rejected", wantInput: 10, wantOutput: 10},
+		{name: "invalid request is rejected", status: http.StatusUnprocessableEntity,
+			wantCode: "planner_gateway_rejected", wantInput: 10, wantOutput: 10},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -290,6 +301,9 @@ func TestPlannerChargesAndClassifiesRejectedGatewayResponses(t *testing.T) {
 			}
 			_, err = instance.Run(t.Context())
 			assertPlannerCode(t, err, test.wantCode)
+			if retryable := planner.FailureFrom(err).Retryable; retryable == (test.wantCode == "planner_gateway_rejected") {
+				t.Fatalf("%s retryable = %t", test.wantCode, retryable)
+			}
 			report, ok := instance.(*streamlinePlanner).ExecutionReport()
 			if !ok || report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != 2 ||
 				report.Metrics.InputTokens == nil || *report.Metrics.InputTokens != test.wantInput ||
