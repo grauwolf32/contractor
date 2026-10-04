@@ -3,7 +3,8 @@ id: V288-001
 title: Tolerate transient Control Plane lease-session stalls
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: e578642a37faeb3dea95fb47dd95db01cd63cadc
 depends_on: []
 languages: [go]
 goal: Declare Control Plane lease loss only after a bounded outage, not after one slow ping.
