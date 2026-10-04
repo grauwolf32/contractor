@@ -389,8 +389,11 @@ workspace-provider initialization or capability discovery. Cleanup uncertainty
 fails startup instead of advertising idle capacity.
 
 Dedicated scratch/project roots retain `.contractor-podman-owner-v1`, outside
-the mounted content. A disabled or differently configured owner cannot silently
-delete those roots' predecessors. The marker is not automatically removed;
+the mounted content, next to the persistent Runtime work-root lock
+`contractor-runtime.lock` ([0700 root and lock rules](../docs/operations/runtime-configuration.md#label-driven-runtime-infrastructure)).
+Released allocations leave only these two files in scratch. A disabled or
+differently configured owner cannot silently delete those roots' predecessors.
+The marker is not automatically removed;
 changing owner or disabling this deployment on the same roots requires an
 operator migration after confirmed teardown. Embedders using built-in factories
 receive the same project-provider recovery gate. Manually constructed providers

@@ -91,7 +91,8 @@ class RootedLocalFilesystem:
         path = _path(path)
         with _safe_errors(), self._opened_root() as root:
             data = self._read(root, path, deadline)
-            assert data is not None
+            if data is None:
+                raise RuntimeError("unclassified local read returned no content")
             return data
 
     def read_classified(
@@ -217,7 +218,8 @@ class RootedLocalFilesystem:
                             raise
                 else:
                     data = self._read(root, item.path, deadline, expected=item)
-                    assert data is not None
+                    if data is None:
+                        raise RuntimeError("unclassified local read returned no content")
                     # Keep permission bits (e.g. executables), never set-id.
                     try:
                         self._write(

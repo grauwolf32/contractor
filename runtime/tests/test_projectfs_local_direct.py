@@ -6,6 +6,7 @@ import asyncio
 import errno
 import os
 import threading
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -722,3 +723,28 @@ def test_cancelled_hydration_joins_initial_scan_before_erasing_storage(
             await asyncio.gather(preparing, return_exceptions=True)
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["read", "copy"])
+def test_unclassified_reads_fail_explicitly_without_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    root = tmp_path / "content"
+    root.mkdir()
+    (root / "a.txt").write_bytes(b"a\n")
+    fs = RootedLocalFilesystem(
+        root,
+        WorkspaceLimits(
+            max_files=10, max_expanded_bytes=1024, max_managed_text_bytes=1024, max_file_bytes=1024
+        ),
+    )
+    # Only a classifying read may report binary content as None. The invariant
+    # is an explicit error, not an assert that python -O strips.
+    monkeypatch.setattr(RootedLocalFilesystem, "_read", lambda *_args, **_kwargs: None)
+    deadline = time.monotonic() + 5
+    with pytest.raises(RuntimeError, match="returned no content"):
+        if operation == "read":
+            fs.read("a.txt", deadline=deadline)
+        else:
+            fs.copy("a.txt", "b.txt", deadline=deadline)
+    assert sorted(path.name for path in root.iterdir()) == ["a.txt"]

@@ -86,8 +86,17 @@ Start the second process on another listen/advertised port with
 `agent-telemetry.{crt,key}` and a different `--work-root`. If local project
 workspaces are enabled, give it a different `--workspace-work-root` too. Each
 Runtime holds an exclusive lock on both roots while running; a second process
-using either root fails before startup cleanup can remove live files. Keep the
-scratch and project-workspace roots separate rather than nesting them.
+using either root fails with `work root in use` before startup cleanup can
+remove live files. Keep the scratch and project-workspace roots separate rather
+than nesting them.
+
+The Runtime creates a missing root with mode 0700. A root created in advance
+must be a directory owned by the Runtime user with mode 0700, for example
+`install -d -m 0700 .local/runtime/agent-proxy`; any other owner or mode fails
+startup with `work root unsafe` and the owner and mode found. The lock is the
+file `contractor-runtime.lock` (a single-link regular file, mode 0600) in each
+root. It stays after the Runtime stops and is not leftover work; do not delete
+it while any Runtime may use that root, or two processes can own the same root.
 Omit `--runtime-adapter` to probe all built-ins, or
 repeat it for an explicit subset. Startup labels seed only a previously unseen
 certificate principal; subsequent assignments use CAS on
