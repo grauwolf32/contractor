@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V262-001
+title: Coalesce Operations live snapshot and principal reads
+milestone: operations-live-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Keep Operations views current under frequent Runtime Agent heartbeats without starving reads or churning subscriptions.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/131
+  finding: Each live event cancels and restarts the snapshot query and each snapshot remounts the subscription.
+scope:
+  in:
+    - Coalesce snapshot and principal-list invalidations while retaining the latest event revision.
+    - Keep the subscription across same-generation snapshots and resume it after resync.
+    - Abort cancelled HTTP snapshot requests and back off repeated generation resyncs.
+    - Cover event bursts, in-flight requests, subscription frames, and backoff with UI tests.
+  out:
+    - Changing the Server event protocol or cross-replica registry.
+acceptance_criteria:
+  - {id: A1, text: A burst of 50 changes starts no more than two snapshot requests and applies the latest revision.}
+  - {id: A2, text: Events during a fetch do not abort it and trigger a follow-up only when needed.}
+  - {id: A3, text: Same-generation snapshots do not resubscribe; resync resumes after an authoritative snapshot.}
+  - {id: A4, text: Cancelled snapshot HTTP requests abort and repeated generation resyncs back off.}
+  - {id: A5, text: Principal-list reads occur at most about once per second under heartbeats.}
+tests:
+  - {command: corepack pnpm --dir ui exec vitest run src/routes/operations/operations.test.tsx src/events/run-events.test.ts src/api/operations.test.ts, covers: [A1, A2, A3, A4, A5]}
+  - {command: corepack pnpm --dir ui typecheck, covers: [A1, A2, A3, A4, A5]}
+  - {command: corepack pnpm --dir ui lint, covers: [A1, A2, A3, A4, A5]}
