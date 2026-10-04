@@ -208,7 +208,6 @@ FROM inserted_run`,
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
 	}
-	result.MetadataLabels = metadataLabels
 	return result, nil
 }
 
@@ -259,7 +258,6 @@ FROM inserted_run`,
 		encodedMetadataLabels,
 	))
 	if err == nil {
-		result.MetadataLabels = metadataLabels
 		return result, true, nil
 	}
 	if persistencepostgres.SQLState(err) == "55000" {
@@ -345,10 +343,6 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	}
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q: %w", runID, err)
-	}
-	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q metadata labels: %w", runID, err)
 	}
 	return result, nil
 }
@@ -464,10 +458,6 @@ func (s *PostgresStore) TransitionRun(
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("transition WorkflowRun %q from %s to %s: %w", runID, expected, next, err)
 	}
-	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("load transitioned WorkflowRun %q metadata labels: %w", runID, err)
-	}
 	return result, nil
 }
 
@@ -491,10 +481,6 @@ func (s *PostgresStore) RequestRunCancellation(
 		runID, contracts.APIVersion, encoded, cancellation.Reason,
 	))
 	if err == nil {
-		result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
-		if err != nil {
-			return WorkflowRun{}, fmt.Errorf("load cancelled WorkflowRun %q metadata labels: %w", runID, err)
-		}
 		return result, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -527,10 +513,6 @@ func (s *PostgresStore) ClaimRunnableRun(
 	}
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("claim runnable WorkflowRun: %w", err)
-	}
-	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, result.RunID)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("load claimed WorkflowRun metadata labels: %w", err)
 	}
 	return result, nil
 }
@@ -655,23 +637,6 @@ func encodeProjectHTTPTarget(target *contracts.HTTPOriginTargetRef) ([]byte, err
 		return nil, fmt.Errorf("create WorkflowRun: encode Project HTTP target snapshot: %w", err)
 	}
 	return encoded, nil
-}
-
-func (s *PostgresStore) loadRunMetadataLabels(
-	ctx context.Context, runID string,
-) (RunMetadataLabels, error) {
-	var encoded []byte
-	if err := s.db.QueryRow(ctx, `SELECT metadata_labels FROM workflow_runs WHERE run_id = $1`, runID).Scan(&encoded); err != nil {
-		return nil, err
-	}
-	result := make(RunMetadataLabels)
-	if err := json.Unmarshal(encoded, &result); err != nil {
-		return nil, fmt.Errorf("decode persisted Run metadata labels: %w", err)
-	}
-	if err := result.Validate(); err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 func validateIdempotencyKey(value string) error {

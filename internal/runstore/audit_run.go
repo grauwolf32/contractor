@@ -65,6 +65,5 @@ FROM inserted_run`,
 		}
 		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, err)
 	}
-	result.MetadataLabels = metadataLabels
 	return result, nil
 }

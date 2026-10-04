@@ -248,9 +248,9 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 			}
 			denied := get(batch, runID, "other-user")
 			deniedQueries := trace.take()
-			// GetRun includes the metadata-label read; related data must never
-			// be queried before the owner guard succeeds.
-			if denied.Code != http.StatusNotFound || len(deniedQueries) != 2 {
+			// GetRun reads the Run with its metadata labels in one query;
+			// related data must never be queried before the owner guard succeeds.
+			if denied.Code != http.StatusNotFound || len(deniedQueries) != 1 {
 				t.Fatalf("owner isolation: status=%d queries=%d", denied.Code, len(deniedQueries))
 			}
 			for _, query := range deniedQueries {
