@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
 import time
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -796,52 +798,65 @@ def test_encoded_result_limit_reduces_page_without_silent_truncation(
     asyncio.run(scenario())
 
 
-def test_large_search_page_fits_once_per_row_without_stalling_loop(
+def test_large_search_page_fits_off_loop_and_encodes_each_row_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Structural checks instead of an event-loop gap bound: a worker-thread
+    # garbage collection or Tree-sitter parse holds the GIL however page
+    # fitting is scheduled, so wall-clock gaps are not deterministic.
     body = "\n".join("    value = '" + ("x" * 350) + "'" for _ in range(12))
     source = "\n".join(f"def target():\n{body}" for _ in range(200)) + "\n"
 
     async def scenario() -> None:
         tools, _ = await _tools(MutableReader({"many.py": source}), tmp_path)
-        original = jcs.canonicalize
-        calls = 0
+        loop_thread = threading.get_ident()
+        original_canonicalize = jcs.canonicalize
+        original_fit = code_analysis._fit_result_page
+        row_encodings: Counter[int] = Counter()
+        encoding_threads: set[int] = set()
+        fit_threads: list[int] = []
 
-        def count_canonicalizations(value: Any) -> bytes:
-            nonlocal calls
-            calls += 1
-            return original(value)
+        def count_row_encodings(value: Any) -> bytes:
+            # Encoding an envelope encodes each of its items as well.
+            rows = value.get("items", ()) if isinstance(value, dict) else ()
+            if isinstance(value, dict) and "nodeType" in value:
+                rows = (value,)
+            for row in rows:
+                row_encodings[row["line"]] += 1
+                encoding_threads.add(threading.get_ident())
+            return original_canonicalize(value)
 
-        loop = asyncio.get_running_loop()
-        gaps: list[float] = []
-        running = True
+        def record_fit_thread(rows: list[Any], build_result: Any) -> dict[str, Any]:
+            fit_threads.append(threading.get_ident())
+            return original_fit(rows, build_result)
 
-        async def ticker() -> None:
-            previous = loop.time()
-            while running:
-                await asyncio.sleep(0.005)
-                current = loop.time()
-                gaps.append(current - previous)
-                previous = current
-
-        tick_task = asyncio.create_task(ticker())
-        await asyncio.sleep(0.01)
         try:
             with monkeypatch.context() as patch:
-                patch.setattr(jcs, "canonicalize", count_canonicalizations)
+                patch.setattr(jcs, "canonicalize", count_row_encodings)
+                patch.setattr(code_analysis, "_fit_result_page", record_fit_thread)
                 result = await tools["search_def"]("target", limit=200)
         finally:
-            running = False
-            await tick_task
             await tools["search_def"].close()
         assert result["observedTotal"] == 200
         assert 0 < len(result["items"]) < 200
         assert result["truncated"] and result["nextCursor"]
-        assert len(original(result)) <= MAX_RESULT_BYTES
-        assert calls <= 230
-        assert gaps and max(gaps) < 0.05
+        assert len(original_canonicalize(result)) <= MAX_RESULT_BYTES
+        assert len(fit_threads) == 1 and loop_thread not in fit_threads
+        assert encoding_threads and loop_thread not in encoding_threads
+        assert sorted(row_encodings) == [1 + 13 * index for index in range(200)]
+        assert set(row_encodings.values()) == {1}
 
     asyncio.run(scenario())
+
+
+def test_result_page_fitting_rejects_item_dependent_envelopes() -> None:
+    rows = [{"number": 1}, {"number": 2}]
+    for build in (
+        lambda _count, items: {"items": list(items)},
+        lambda _count, items: {"items": items, "first": items[:1]},
+    ):
+        with pytest.raises(CodeAnalysisError, match="code_analysis_engine_failed"):
+            code_analysis._fit_result_page(rows, build)
 
 
 @pytest.mark.parametrize("shape", ["shallow", "graph", "path"])

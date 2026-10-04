@@ -351,6 +351,15 @@ bounds one uninterrupted parser call. Budget exhaustion after that call returns
 explicit `deadline` coverage and retains no partial AST. Their cache may
 accelerate later calls but cannot change results or cursor ordering.
 
+Offloading a parse does not keep the event loop responsive during it: the
+pinned binding holds the GIL for the whole `Parser.parse` call, so the loop
+stalls for the full parse, which grows with file size and syntactic density
+(tens of milliseconds for a few MiB of long lines, around a second for 4 MiB of
+dense code on a loaded host). The per-file ceiling is the only bound on one
+stall. Result-page fitting also runs in a worker thread; it encodes each row
+once and only the small envelope per tried page size, so it keeps the loop
+running apart from interpreter pauses such as garbage collection.
+
 ## Trailmark graph surface
 
 ### Build boundary
