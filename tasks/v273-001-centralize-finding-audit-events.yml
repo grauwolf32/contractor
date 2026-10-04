@@ -3,8 +3,8 @@ id: V273-001
 title: Centralize finding-intake Audit event mutations
 milestone: code-reuse-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4dc5c535e47900cfa42985948fe2123516758098
 depends_on: []
 languages: [go]
 goal: Keep finding-intake Audit revisions, evidence quota, and events behind auditstore.
