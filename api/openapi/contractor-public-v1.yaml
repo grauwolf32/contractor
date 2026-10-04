@@ -11550,7 +11550,7 @@ components:
         schema: {type: string, const: contractor.audit.item-origin.v1}
         sourceRef: {$ref: '#/components/schemas/ArtifactRef'}
         sourceContentDigest: {$ref: '#/components/schemas/Digest'}
-        sourceMediaType: {type: string, minLength: 1, maxLength: 256}
+        sourceMediaType: {type: string, minLength: 3, maxLength: 255, pattern: '^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$'}
         canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
         entryKey: {type: string, minLength: 1, maxLength: 256}
         entryVersion: {type: string, minLength: 1, maxLength: 256}
