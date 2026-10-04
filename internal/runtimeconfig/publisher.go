@@ -124,19 +124,7 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 			if err := validateSpecLLMCredentialInTransaction(ctx, tx, version.Spec, p.llmCredentials); err != nil {
 				return err
 			}
-			_, insertErr := txRepository.InsertVersion(ctx, version)
-			if insertErr != nil {
-				if errors.Is(insertErr, ErrConflict) {
-					if replay, found, replayErr := lookupReplay(ctx, txRepository, keyDigest, prepared.RequestDigest()); replayErr != nil {
-						return replayErr
-					} else if found {
-						result = replay
-						return nil
-					}
-				}
-				return insertErr
-			}
-			inserted, insertErr := txRepository.InsertPublication(ctx, publication)
+			inserted, insertErr := txRepository.InsertPublishedVersion(ctx, version, publication)
 			if insertErr != nil {
 				return insertErr
 			}
