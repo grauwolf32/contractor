@@ -3,8 +3,8 @@ id: V263-001
 title: Batch Runtime Agent principal adapter projections
 milestone: principal-inventory-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1750fa47fce7e0c9f51cc50da274bae4fda6b310
 depends_on: []
 languages: [go, sql]
 goal: Bound Runtime Agent principal list reads regardless of the number of principals and labels.
