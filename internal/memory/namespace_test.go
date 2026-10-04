@@ -84,40 +84,65 @@ func TestNamespaceBatchStoreCallBudget(t *testing.T) {
 	}
 	for _, operation := range operations {
 		t.Run(operation.name, func(t *testing.T) {
-			store.loadCalls, store.listCalls, store.readCalls, store.writeCalls = 0, 0, 0, 0
+			store.loadCalls, store.readCalls, store.writeCalls = 0, 0, 0
 			if err := operation.run(); err != nil {
 				t.Fatal(err)
 			}
-			if store.loadCalls != 1 || store.listCalls != 0 || store.readCalls != 0 || store.writeCalls != 0 {
-				t.Fatalf("Store calls: LoadAll=%d List=%d Read=%d Write=%d", store.loadCalls, store.listCalls, store.readCalls, store.writeCalls)
+			if store.loadCalls != 1 || store.readCalls != 0 || store.writeCalls != 0 {
+				t.Fatalf("Store calls: LoadAll=%d Read=%d Write=%d", store.loadCalls, store.readCalls, store.writeCalls)
 			}
 		})
 	}
+}
 
-	createStore := newMemoryArtifactStore()
+func TestNamespaceWriteReadsWholeNotebookOnlyForCreation(t *testing.T) {
+	store := newMemoryArtifactStore()
 	for ordinal := 0; ordinal < MaximumNotes-1; ordinal++ {
-		createStore.seed(t, "analysis", "note_"+decimal(ordinal), "body", uint64(ordinal))
+		store.seed(t, "analysis", "note_"+decimal(ordinal), "body", uint64(ordinal))
 	}
-	createNamespace := mustNamespace(t, createStore)
-	if _, err := createNamespace.WriteMemory(t.Context(), "last", "body", "", nil); err != nil {
+	namespace := mustNamespace(t, store)
+	assertCalls := func(t *testing.T, operation string, load, read, write int) {
+		t.Helper()
+		if store.loadCalls != load || store.readCalls != read || store.writeCalls != write {
+			t.Fatalf("%s Store calls: LoadAll=%d Read=%d Write=%d, want %d/%d/%d",
+				operation, store.loadCalls, store.readCalls, store.writeCalls, load, read, write)
+		}
+		store.loadCalls, store.readCalls, store.writeCalls = 0, 0, 0
+	}
+
+	created, err := namespace.WriteMemory(t.Context(), "last", "body", "", nil)
+	if err != nil || created.Ordinal != MaximumNotes-1 {
+		t.Fatalf("create = (%+v, %v)", created, err)
+	}
+	assertCalls(t, "create", 1, 1, 1)
+	_, err = namespace.WriteMemory(t.Context(), "overflow", "body", "", nil)
+	assertToolError(t, err, CodeNamespaceFull, false)
+	assertCalls(t, "create at capacity", 1, 1, 0)
+	replaced, err := namespace.WriteMemory(t.Context(), "last", "replacement", "", nil)
+	if err != nil || replaced.Content != "replacement" || replaced.Ordinal != MaximumNotes-1 {
+		t.Fatalf("replace = (%+v, %v)", replaced, err)
+	}
+	assertCalls(t, "replace", 0, 1, 1)
+	if _, err := namespace.AppendMemory(t.Context(), "last", "appended"); err != nil {
 		t.Fatal(err)
 	}
-	if createStore.loadCalls != 1 || createStore.listCalls != 0 || createStore.readCalls != 0 || createStore.writeCalls != 1 {
-		t.Fatalf("create Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
+	assertCalls(t, "append", 0, 1, 1)
+}
+
+func TestNamespaceWriteReplacesNoteCreatedAfterTargetedRead(t *testing.T) {
+	store := newMemoryArtifactStore()
+	store.seed(t, "analysis", "first", "first body", 0)
+	store.seed(t, "analysis", "racing", "concurrent body", 1)
+	// The targeted read misses a note that another writer creates before the
+	// creation snapshot is taken.
+	store.readFaults = []error{artifacts.ErrArtifactNotFound}
+	written, err := mustNamespace(t, store).WriteMemory(t.Context(), "racing", "replacement", "", nil)
+	if err != nil || written.Content != "replacement" || written.Ordinal != 1 {
+		t.Fatalf("WriteMemory = (%+v, %v)", written, err)
 	}
-	createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls = 0, 0, 0, 0
-	if _, err := createNamespace.WriteMemory(t.Context(), "last", "replacement", "", nil); err != nil {
-		t.Fatal(err)
-	}
-	if createStore.listCalls != 0 || createStore.loadCalls != 1 || createStore.readCalls != 0 || createStore.writeCalls != 1 {
-		t.Fatalf("replace Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
-	}
-	createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls = 0, 0, 0, 0
-	if _, err := createNamespace.AppendMemory(t.Context(), "last", "appended"); err != nil {
-		t.Fatal(err)
-	}
-	if createStore.listCalls != 0 || createStore.loadCalls != 0 || createStore.readCalls != 1 || createStore.writeCalls != 1 {
-		t.Fatalf("append Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
+	if len(store.attempts) != 1 || store.attempts[0].expectedRevision == nil ||
+		store.content("analysis", ArtifactNamePrefix+"racing") != "replacement" {
+		t.Fatalf("write attempts = %+v", store.attempts)
 	}
 }
 
@@ -478,7 +503,6 @@ type memoryArtifactStore struct {
 	operationDelay time.Duration
 	readFaults     []error
 	loadOverride   []artifacts.ReadResult
-	listCalls      int
 	loadCalls      int
 	readCalls      int
 	writeCalls     int
@@ -486,26 +510,6 @@ type memoryArtifactStore struct {
 
 func newMemoryArtifactStore() *memoryArtifactStore {
 	return &memoryArtifactStore{bindings: map[string]storedMemoryArtifact{}}
-}
-
-func (s *memoryArtifactStore) List(
-	_ context.Context, binding Binding,
-) ([]artifacts.ArtifactRef, error) {
-	s.begin()
-	defer s.end()
-	s.listCalls++
-	if s.forbidden {
-		return nil, ErrAccessForbidden
-	}
-	result := make([]artifacts.ArtifactRef, 0, len(s.bindings))
-	for key := range s.bindings {
-		namespace, name, _ := strings.Cut(key, "/")
-		if namespace == binding.Namespace {
-			result = append(result, artifacts.ArtifactRef{Namespace: namespace, Name: name})
-		}
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result, nil
 }
 
 func (s *memoryArtifactStore) LoadAll(

@@ -562,25 +562,6 @@ func newPlannerMemoryArtifactStore() *plannerMemoryArtifactStore {
 	}
 }
 
-func (s *plannerMemoryArtifactStore) List(
-	_ context.Context,
-	binding plannermemory.Binding,
-) ([]artifacts.ArtifactRef, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	prefix := binding.RunID + "/" + binding.Namespace + "/"
-	result := make([]artifacts.ArtifactRef, 0)
-	for key := range s.bindings {
-		if strings.HasPrefix(key, prefix) {
-			result = append(result, artifacts.ArtifactRef{
-				Namespace: binding.Namespace, Name: strings.TrimPrefix(key, prefix),
-			})
-		}
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result, nil
-}
-
 func (s *plannerMemoryArtifactStore) LoadAll(
 	_ context.Context,
 	binding plannermemory.Binding,

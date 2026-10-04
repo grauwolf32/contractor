@@ -87,7 +87,6 @@ type Binding struct {
 // A production Write must check Stage authority and mutate the binding in one
 // transaction.
 type Store interface {
-	List(context.Context, Binding) ([]artifacts.ArtifactRef, error)
 	// LoadAll returns a bounded snapshot of current memory bindings with
 	// their payloads and metadata in one Store operation.
 	LoadAll(context.Context, Binding) ([]artifacts.ReadResult, error)
@@ -178,44 +177,42 @@ func (n *Namespace) WriteMemory(
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	snapshot, err := n.store.LoadAll(ctx, n.binding)
+	existing, err := n.readOptional(ctx, bindingName)
 	if err != nil {
-		return Note{}, mapStoreError(err)
-	}
-	var existing *loadedNote
-	for _, value := range snapshot {
-		if value.Ref.Name != bindingName {
-			continue
-		}
-		if existing != nil {
-			return Note{}, toolError(CodeUnavailable, true)
-		}
-		existing, err = decodeRead(n.binding.Namespace, bindingName, value)
-		if err != nil {
-			return Note{}, err
-		}
+		return Note{}, err
 	}
 	var ordinal uint64
-	var expectedRevision *string
 	if existing == nil {
-		current, err := n.decodeAll(snapshot)
+		// Only creation reads the whole notebook: its note count bounds the
+		// capacity and its ordinals select the next one. A note created since
+		// the targeted read is replaced like any other current note.
+		current, err := n.loadAll(ctx)
 		if err != nil {
 			return Note{}, err
 		}
-		if len(current) >= MaximumNotes {
-			return Note{}, toolError(CodeNamespaceFull, false)
-		}
-		var found bool
-		for _, item := range current {
-			if !found || item.note.Ordinal >= ordinal {
-				ordinal = item.note.Ordinal + 1
-				found = true
+		for index := range current {
+			if current[index].note.Name == name {
+				existing = &current[index]
 			}
 		}
-		if ordinal > MaximumExactOrdinal {
-			return Note{}, toolError(CodeNamespaceFull, false)
+		if existing == nil {
+			if len(current) >= MaximumNotes {
+				return Note{}, toolError(CodeNamespaceFull, false)
+			}
+			var found bool
+			for _, item := range current {
+				if !found || item.note.Ordinal >= ordinal {
+					ordinal = item.note.Ordinal + 1
+					found = true
+				}
+			}
+			if ordinal > MaximumExactOrdinal {
+				return Note{}, toolError(CodeNamespaceFull, false)
+			}
 		}
-	} else {
+	}
+	var expectedRevision *string
+	if existing != nil {
 		ordinal = existing.note.Ordinal
 		expectedRevision = stringPointer(existing.revision)
 	}
