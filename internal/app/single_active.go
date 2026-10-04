@@ -106,11 +106,15 @@ func (lease *controlPlaneLease) tryAcquire(ctx context.Context) (bool, error) {
 	return acquired, nil
 }
 
+// holderPID reports the session holding this database's lease. pg_locks lists
+// locks of every database in the cluster, and advisory locks are scoped per
+// database, so the same key may also be held for another database.
 func (lease *controlPlaneLease) holderPID(ctx context.Context) int32 {
 	var pid int32
 	_ = lease.conn.QueryRow(ctx, `
 SELECT pid FROM pg_locks
 WHERE locktype='advisory' AND granted AND objsubid=1
+  AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND classid::bigint = ($1::bigint >> 32)
   AND objid::bigint = ($1::bigint & 4294967295)
 ORDER BY pid LIMIT 1`, controlPlaneLeaseKey).Scan(&pid)
