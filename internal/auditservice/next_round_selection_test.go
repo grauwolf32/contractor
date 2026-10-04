@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -76,8 +77,8 @@ func TestProposalPageSelectionBoundaries(t *testing.T) {
 		t.Fatal("scan exceeded budget")
 	}
 	empty := proposalCheckAccumulator{budget: testNextRoundBudget(t, 0)}
-	if err := empty.addPage(audit, []findingintake.Receipt{invalid}, nil); err == nil {
-		t.Fatal("zero capacity bypassed exact hold check")
+	if err := empty.addPage(audit, []findingintake.Receipt{invalid}, nil); !errors.Is(err, ErrRoundPreparationInconsistent) {
+		t.Fatalf("zero capacity bypassed exact hold check: %v", err)
 	}
 }
 

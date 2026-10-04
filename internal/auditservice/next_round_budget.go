@@ -30,7 +30,7 @@ func newNextRoundBudget(
 ) (*auditdomain.FindingRoundBudget, error) {
 	binding, exists := profile.Workflows[profile.Inventory.ItemWorkflowRole]
 	if !exists {
-		return nil, fmt.Errorf("next Round item Workflow role is not pinned")
+		return nil, inconsistentRound("the next-Round item Workflow role is not pinned", nil)
 	}
 	sourceRef := contracts.ArtifactRef{
 		Namespace: namespace,

@@ -1246,8 +1246,14 @@ remain, the Audit finalizes with `proposal_inventory_limit_exceeded`, whose
 message names each skipped receipt and the limit it exceeds.
 
 If a retained proposal or materialized item fails deterministic next-Round
-validation, the Controller closes dispatch and moves the Audit to `finalizing`
-with `next_round_invalid`. Transient failures remain retryable.
+validation, including exact artifact bytes that fail their digest, the
+Controller closes dispatch and moves the Audit to `finalizing` with
+`next_round_invalid`. A preparation state that retained Audit data cannot
+reach, such as an undecodable pinned snapshot, a drifted proposal descriptor
+or a content-named artifact holding different bytes, finalizes it with
+`next_round_contract_invalid`; the stop reason names the violated invariant and
+the Controller logs the full error. Transient failures, including failed blob
+storage I/O, remain retryable.
 
 A claim alone does not authorize stale commits. Every mutation checks epoch or
 revision plus uniqueness constraints. No network/model call occurs under a DB

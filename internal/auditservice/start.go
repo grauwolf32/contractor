@@ -548,7 +548,7 @@ func writeTaskPackages(
 		}
 		if task.PackageDigest != auditdomain.DigestBytes(task.Package) || write.SizeBytes != int64(len(task.Package)) ||
 			write.MediaType != auditdomain.PackageMediaType {
-			return nil, auditdomain.ExecutionManifest{}, errors.New("stored Audit task package failed integrity validation")
+			return nil, auditdomain.ExecutionManifest{}, inconsistentRound("a stored Audit task package differs from its built bytes", nil)
 		}
 		result[index] = auditstore.ExactArtifact{
 			Ref: write.Ref, Digest: task.PackageDigest,
@@ -557,7 +557,7 @@ func writeTaskPackages(
 		manifest.Items[index].TaskRef = exactRefPointer(write.Ref)
 		binding, exists := profile.Workflows[task.Item.WorkflowRole]
 		if !exists {
-			return nil, auditdomain.ExecutionManifest{}, errors.New("Audit item names an unknown Workflow role")
+			return nil, auditdomain.ExecutionManifest{}, inconsistentRound("an Audit item names an unknown Workflow role", nil)
 		}
 		manifest.Items[index].Inputs = workflowInputs(binding, selection)
 	}
@@ -633,7 +633,7 @@ func writeRoundPackage(
 		return auditstore.ExactArtifact{}, err
 	}
 	if validated.Digest != auditdomain.DigestBytes(payload) || write.SizeBytes != int64(len(payload)) {
-		return auditstore.ExactArtifact{}, errors.New("stored Audit worklist package failed integrity validation")
+		return auditstore.ExactArtifact{}, inconsistentRound("a stored Audit worklist package differs from its built bytes", nil)
 	}
 	return auditstore.ExactArtifact{
 		Ref: write.Ref, Digest: validated.Digest,

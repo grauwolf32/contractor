@@ -107,7 +107,8 @@ func (selection *proposalCheckAccumulator) addPage(audit auditstore.Audit, recei
 		selection.scanned++
 		hold, found := exactAuditHold(receipt, audit.AuditID, audit.ProjectID)
 		if !found {
-			return fmt.Errorf("Audit inbox receipt %q has no exact hold", receipt.ReceiptID)
+			return inconsistentRound("an Audit inbox receipt has no exact hold",
+				fmt.Errorf("receipt %q", receipt.ReceiptID))
 		}
 		ordinals := make([]int, 0, len(receipt.Document.ProposedChecks))
 		for ordinal := range receipt.Document.ProposedChecks {
