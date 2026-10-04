@@ -259,6 +259,9 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	assertMetadataAbsentFromExecutionRetention(
 		t, ctx, pool, []string{runA.RunID, runB.RunID}, sharedLabels,
 	)
+	// Only one Server may own this database's Control Plane lease. Stop the
+	// original owner before checking the same Run through a foreign identity.
+	server.stop(t)
 	assertForeignOwnerCannotDiscoverMetadataRuns(
 		t, ctx, repositoryRoot, temporaryRoot, serverBinary, masterKeyFile,
 		serverEnvironment, publicClient, sharedLabels["eval.id"], runA.RunID,

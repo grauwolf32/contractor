@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V253-001
+title: Restore process e2e coverage after release-gate consolidation
+milestone: release-gate-test-dedup-2026-10
+priority: P1
+status: completed
+implementation_commit: f3d484922a33bf535d624b3cdab8cc2c4875bf31
+depends_on: []
+languages: [go]
+goal: Make retained process e2e assertions reflect current catalog ordering and single-active server behavior.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/304
+  finding: The first consolidated CI process pass exposed assertions that depend on database collation and a second active Server.
+scope:
+  in:
+    - Compare bundled Skill catalog entries by identity rather than their database collation order.
+    - Hand over the single active Server lease before testing a foreign owner's Run visibility.
+    - Accept accounted Audit Worker retries while rejecting duplicate successful dispatches.
+    - Keep ASVS Worker finding references within its assigned task and retain multi-reference coverage on the ordinary Run.
+    - Re-run affected process tests and inspect any remaining release-gate failures.
+  out:
+    - Weaken Skill catalog content validation or Run owner isolation.
+acceptance_criteria:
+  - {id: A1, text: The Skill catalog assertion accepts either database collation order but rejects missing, duplicate, or malformed entries.}
+  - {id: A2, text: The foreign-owner process becomes active before owner-isolation API checks.}
+  - {id: A3, text: A completed Audit accepts only counted retries after failed collection attempts.}
+  - {id: A4, text: Focused process e2e tests and relevant release graph checks pass.}
+tests:
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<postgres> go test -tags=e2e -count=1 ./tests/e2e -run 'TestAgentSkillsMVPProcesses|TestRunMetadataLabelsAcrossProcesses', covers: [A1, A2]}
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<postgres> go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$', covers: [A3]}
+  - {command: make lint, covers: [A4]}

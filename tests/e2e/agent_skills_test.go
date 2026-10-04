@@ -454,16 +454,24 @@ func assertAgentSkillCatalogAPI(
 	if len(page.Items) != len(bundledAgentSkillNames) {
 		t.Fatalf("bundled Skill Artifact list = %+v", page.Items)
 	}
+	expected := make(map[string]bool, len(bundledAgentSkillNames))
+	for _, bundledName := range bundledAgentSkillNames {
+		expected[bundledName] = true
+	}
 	var selected *artifacts.Metadata
 	for index := range page.Items {
 		item := &page.Items[index]
-		if item.Ref.Namespace != "skills" || item.Ref.Name != bundledAgentSkillNames[index] ||
+		if item.Ref.Namespace != "skills" || !expected[item.Ref.Name] ||
 			item.Ref.Revision == nil || item.MediaType != agentskills.MediaType || !item.Current {
 			t.Fatalf("bundled Skill Artifact %d = %+v", index, item)
 		}
+		delete(expected, item.Ref.Name)
 		if item.Ref.Name == name {
 			selected = item
 		}
+	}
+	if len(expected) != 0 {
+		t.Fatalf("bundled Skill Artifact list omits %v", expected)
 	}
 	if selected == nil {
 		t.Fatalf("bundled Skill Artifact list omits %q", name)
