@@ -73,7 +73,10 @@ pass `--managed-root` to match a different Server path.
 `make verify` runs formatting/lint checks, Go and Python tests, builds the
 commands, and generates, checks, tests and builds the UI. It does not require a
 running PostgreSQL database; database tests need the explicit test URL described
-in the [testing guide](testing/README.md).
+in the [testing guide](testing/README.md). The CI gate, `make release-verify`,
+runs the same checks first and then its heavier
+[stages](testing/README.md#release-gate-stages); CI runs each stage as a
+separate job.
 
 To work on one component:
 

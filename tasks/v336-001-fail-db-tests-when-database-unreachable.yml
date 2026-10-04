@@ -3,7 +3,8 @@ id: V336-001
 title: Fail Postgres-backed tests when the configured database is unreachable
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: 7d933af49ba68ff8c64bd4af28f972515cd50f48
 depends_on: []
 languages: [go]
 goal: Stop the gate from passing without a database.
@@ -22,3 +23,7 @@ acceptance_criteria:
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=postgres://invalid@127.0.0.1:1/x go test -count=1 ./internal/settingsstore ./internal/runservice", covers: [A1]}
   - {command: "make lint", covers: [A1]}
+verification:
+  - With CONTRACTOR_TEST_DATABASE_URL=postgres://invalid@127.0.0.1:1/x, go test -count=1 ./internal/settingsstore ./internal/runservice exits 1 with three runservice tests reporting the unreachable database. The settingsstore and auditcontroller database tests are integration-tagged and fail the same way with -tags=integration.
+  - The three packages and internal/persistence/postgres pass against a reachable PostgreSQL 17 with -tags=integration.
+  - make lint passes; its guard flags the three former skip-on-unreachable helpers and has unit tests for the rejected and allowed patterns.

@@ -21,6 +21,11 @@ import (
 const migrationLockKey int64 = 0x436f6e7472616374
 const migrationLockPoll = 250 * time.Millisecond
 
+// migrationLockKeySQL derives the advisory key from the schema migrations
+// write to. Migrators of one schema share one leader; isolated schemas in one
+// database, such as concurrent test schemas, migrate independently.
+const migrationLockKeySQL = `hashtextextended(current_schema(), $1)`
+
 var (
 	// ErrMigrationDrift means an already-recorded version no longer matches the
 	// embedded migration name or checksum, or is unknown to this binary.
@@ -43,8 +48,9 @@ type migration struct {
 	checksum [sha256.Size]byte
 }
 
-// ApplyMigrations serializes migrators with a transaction advisory lock,
-// verifies recorded checksums, and applies every pending embedded migration.
+// ApplyMigrations serializes migrators of the target schema with a
+// transaction advisory lock, verifies recorded checksums, and applies every
+// pending embedded migration.
 func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 	return ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{})
 }
@@ -177,9 +183,15 @@ func waitForMigrationLock(ctx context.Context, tx pgx.Tx) error {
 	ticker := time.NewTicker(migrationLockPoll)
 	defer ticker.Stop()
 	for {
+		var schema *string
 		var acquired bool
-		if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, migrationLockKey).Scan(&acquired); err != nil {
+		if err := tx.QueryRow(ctx, `
+SELECT current_schema(), coalesce(pg_try_advisory_xact_lock(`+migrationLockKeySQL+`), false)`,
+			migrationLockKey).Scan(&schema, &acquired); err != nil {
 			return fmt.Errorf("lock PostgreSQL migrations: %w", err)
+		}
+		if schema == nil {
+			return errors.New("lock PostgreSQL migrations: search_path names no existing schema")
 		}
 		if acquired {
 			return nil

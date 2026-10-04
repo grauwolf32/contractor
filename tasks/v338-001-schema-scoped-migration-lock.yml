@@ -3,7 +3,8 @@ id: V338-001
 title: Scope migration advisory locks to the target schema
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: ad1f53fbb10d1336f29c2705cbcc0b1101e427da
 depends_on: []
 languages: [go]
 goal: Let isolated test schemas migrate concurrently while one schema still has one migration leader.
@@ -24,3 +25,7 @@ acceptance_criteria:
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres", covers: [A1, A2]}
   - {command: "make lint", covers: [A1, A2]}
+verification:
+  - TestPostgresMigrationLeaderIsScopedToTargetSchema holds one schema's leader lock while two migrators of another schema finish (one applies every version) and a second migrator of the held schema waits until the leader releases. With the former database-wide key it fails after 60 s with "wait for PostgreSQL migration leader context deadline exceeded". TestPostgresMigrationRequiresAnExistingTargetSchema fails fast without a target schema.
+  - "Wall time, go test -count=1 -p 4 on the test database: projectstore, persistence/postgres, artifacts, runstore, scheduler and telemetry 95 s before and 45 s after (artifacts 94.5 to 44.4 s, scheduler 86.7 to 31.3 s, runstore 65.5 to 19.2 s, persistence/postgres 48.9 to 29.1 s, telemetry 15.2 to 6.6 s, with a higher load average after). projectstore with persistence/postgres alone stays at 26 to 29 s, bounded by the package's 11-second leader-wait test."
+  - make lint passes.

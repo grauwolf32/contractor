@@ -9,39 +9,91 @@ UI dependencies. Choose a check by the boundary you changed:
 | --- | --- | --- |
 | Formatting, language tests, builds and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
-| Runtime production dependency advisories | `make test-runtime-dependencies-audit` | uv and access to the PyPI advisory service |
+| Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
-| Aggregate deterministic release gate used by CI | `make release-verify` | All of the above |
+| Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries and a test database; no advisory service, host scanners or Podman |
 
 The aggregate targets and their exact dependencies are defined in the
 [Makefile](../../Makefile), which includes the grouped target files under
 [`make/`](../../make). Targets needing a test database declare
 `require-database`, and those reaching Python declare `runtime-venv`; both are
 prerequisites, so make prepares each at most once per invocation.
-The release gate also runs one deduplicated Go race pass, one process e2e pass,
-and a complete PostgreSQL-only integration-tagged race pass. Existing family
+Gate definitions describe what a command checks; completed results are
+recorded in the corresponding task files.
+
+## Release gate stages
+
+`make release-verify` runs the stages below in this order, cheapest first, so
+a lint, unit or UI failure is reported before the long suites start. Every
+stage is also a make target. [CI](../../.github/workflows/ci.yml) runs each
+stage as its own job against PostgreSQL 17: all jobs start together, a failing
+stage does not cancel the others, and the `release-verify` job passes only when
+every stage passed. Each job runs its stage with `make -k` and uploads its log,
+Playwright output and gate evidence as the `reports-<stage>` artifact, also
+when it fails. Locally, `make -k release-verify` likewise reports every
+failing stage in one run.
+
+| Stage | Runs |
+| --- | --- |
+| `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, and the command builds |
+| `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
+| `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
+| `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
+| `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
+| `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
+| `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
+| `release-verify-process` | The 19 process e2e tests; `make test-e2e` runs the same pass |
+
+Inside the stages, family targets skip their own Go suites and browser stack
+in favor of the race, integration, process and browser passes; running a
+family target directly still runs its focused suites. Every Go package with
+tests runs under the race detector in exactly one of the two race stages, or
+in the integration stage for tagged tests, unless
+[`scripts/release_race_packages.py`](../../scripts/release_race_packages.py)
+lists it as an exception with the reason. Existing family
 integration commands continue to run their focused untagged race checks.
-Running a family target directly still runs its focused Go suite. `make lint`
-checks the release graph against the original package and process-test inventory
-and discovers every integration-tagged test. New names enter the release pass
-automatically; tool-dependent exceptions must name an opt-in gate and reason in
+`make lint` checks the stage order, the CI jobs and this table against the
+Makefile, the race coverage of every package with tests, and the release graph
+against the original process-test inventory, and discovers every
+integration-tagged test. New names
+enter the release pass automatically; tool-dependent exceptions must name an
+opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).
-The release gate also audits the frozen production Runtime lock with a pinned
-`pip-audit` scanner; it fails when the advisory service reports a vulnerable
-dependency. Development-only packages are excluded from this shipped graph.
-[CI](../../.github/workflows/ci.yml) runs
-`make release-verify` with PostgreSQL 17. Gate definitions describe what a
-command checks; completed results are recorded in the corresponding task files.
+The guard also lists the real tests with `go test -list`: every `-run`
+alternative in release-verify and in the opt-in gates must select an existing
+test, and every e2e-tagged test must run in release-verify unless
+[`scripts/check_release_verify_graph.py`](../../scripts/check_release_verify_graph.py)
+allowlists it with its opt-in target and the reason (real scanners or Podman).
+
+## Advisory scans
+
+`make advisories` runs `govulncheck` over the production Go commands and audits
+the production Runtime graph: `uv export --locked` fails when `uv.lock` no
+longer matches `pyproject.toml`, development-only packages are excluded, and
+`pip-audit` is installed with its whole dependency closure from the
+hash-pinned
+[`scripts/pip-audit-requirements.txt`](../../scripts/pip-audit-requirements.txt).
+The audit first requires the scanner to report a known-vulnerable pin, so a
+scanner that silently reports nothing cannot pass, and then fails on any
+published advisory for the lock. A scan's verdict changes whenever upstream
+publishes an advisory, without a code change, so CI runs the scans in the
+separate `advisories` job, outside the required `release-verify` check. The
+release gate queries no advisory service; apart from downloading its pinned
+tools and locked dependencies it needs no network. All CI jobs run on the
+pinned `ubuntu-24.04` runner image.
 
 ## Database and process tests
 
 Provide an explicit disposable test database whose user may create and drop
 schemas. Process tests create isolated schemas and clean them up; PostgreSQL
-itself is supplied by the caller.
+itself is supplied by the caller. Database tests skip only while
+`CONTRACTOR_TEST_DATABASE_URL` is unset: once it is set, an unreachable server
+fails them, and `make lint` rejects helpers that skip after a failed connection.
 
 ```shell
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable'

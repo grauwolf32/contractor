@@ -3,7 +3,8 @@ id: V334-001
 title: Keep a verdict for every main push and run fast gates first
 milestone: review-process-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: ec9af537c8b3ba623b56f35f8b4b0310bfacb5cd
 depends_on: []
 languages: [yaml, make]
 goal: Make CI report on every merge and surface cheap failures within minutes.
@@ -26,3 +27,7 @@ acceptance_criteria:
 tests:
   - {command: "make -n release-verify", covers: [A2]}
   - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1, A2, A3]}
+verification:
+  - make -n release-verify runs lint and build, the unit suites and the UI checks (exactly make verify) before the families, browser, race, discovered race, integration and process stages; each stage is a target and a CI matrix job run with make -k, fail-fast off, reports uploaded and the Go cache saved on failure.
+  - python3 scripts/check_release_verify_graph.py passes inside and outside make; its unit tests reject a heavy stage before lint, a race suite in a fast stage, cancellation of pushes, a shared push concurrency group, a missing stage job, fail-fast, a reordered stage table in docs/testing/README.md and a nested make environment. actionlint 1.7.7 accepts the workflow.
+  - Per-push verdicts and stage durations become observable on GitHub after merge; requiring the release-verify check on main stays the owner action V347-001.

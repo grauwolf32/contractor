@@ -3,7 +3,8 @@ id: V340-001
 title: Run Eval and fault race suites in release verification
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: 7932eefeb6673e01d279a7ac84225029405d4a16
 depends_on: [V334-001]
 languages: [make, python]
 goal: Put every Go package with tests under the race detector in some release job.
@@ -21,3 +22,6 @@ acceptance_criteria:
   - {id: A1, text: "Every Go package with tests runs under -race in some release job or is allowlisted with a reason."}
 tests:
   - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1]}
+verification:
+  - python3 scripts/check_release_verify_graph.py evaluates both race commands as make would and reports 77 raced packages; every package with tests is raced once, or is one of the two exceptions with a reason, and unit tests reject unraced, doubly raced, unexplained and stale entries.
+  - All 41 newly raced packages pass under go test -race on PostgreSQL 17 (204 s wall at -p 2; slowest evalservice 78 s, evalstore 54 s, auditservice 45 s). The new release-verify-race-discovered CI job runs them at -p 1 within a 50-minute timeout, beside the longer process stage.

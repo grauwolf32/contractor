@@ -26,7 +26,7 @@ runtime-venv:
 # release gate runs their union once through dedicated aggregate targets.
 run-family-test = $(if $(filter 1,$(RELEASE_CONSOLIDATED)),:,$(1))
 
-include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk make/release.mk
+include make/dev.mk make/ui.mk make/podman.mk make/core.mk make/toolsets.mk make/platform.mk make/features.mk make/live.mk make/release.mk make/advisories.mk
 
 test: test-go test-runtime
 
@@ -36,4 +36,5 @@ build:
 
 verify: lint test build ui-verify
 
-release-verify: verify ui-browser-mocked verify-public-api-postgres test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e test-audit-completion-e2e test-performance-metrics
+# release-verify runs verify first and then the heavier stages; its stages
+# and their order are defined in make/release.mk.
