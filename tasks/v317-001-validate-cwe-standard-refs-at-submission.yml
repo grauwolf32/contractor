@@ -3,7 +3,8 @@ id: V317-001
 title: Validate CWE standard references before storing finding proposals
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6a0d508d79cd1709c18f841696f130412d9d72ec
 depends_on: []
 languages: [python]
 goal: Reject retired or unknown CWE references at submission, as V180 intended.

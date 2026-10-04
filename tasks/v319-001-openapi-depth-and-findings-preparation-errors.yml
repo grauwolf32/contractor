@@ -3,7 +3,8 @@ id: V319-001
 title: Bound OpenAPI seed nesting and keep findings errors non-retryable in preparation
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 47beabf3abf617aa313bf1fa18320430a1d23d66
 depends_on: []
 languages: [python]
 goal: Turn two internal failures into precise errors and remove a legacy LikeC4 input shape.

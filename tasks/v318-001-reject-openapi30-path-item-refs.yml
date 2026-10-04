@@ -3,7 +3,8 @@ id: V318-001
 title: Reject OpenAPI 3.0 Path Item references with guidance
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e5cebac98296efa5e258c99a6389cbc04e6e2376
 depends_on: []
 languages: [python]
 goal: Give the model an actionable error instead of an unpassable validation loop for 3.0 Path Item references.
