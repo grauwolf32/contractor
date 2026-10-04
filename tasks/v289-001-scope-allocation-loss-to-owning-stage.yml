@@ -3,7 +3,7 @@ id: V289-001
 title: Scope allocation-loss interrupts to the owning Stage
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Interrupt only the Stage whose allocation was lost.

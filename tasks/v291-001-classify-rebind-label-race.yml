@@ -3,7 +3,7 @@ id: V291-001
 title: Classify concurrent label removal during rebind as a precondition failure
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Return 412 when a label rebind races an unrelated label removal.

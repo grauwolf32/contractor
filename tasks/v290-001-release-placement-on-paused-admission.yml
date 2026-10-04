@@ -3,7 +3,7 @@ id: V290-001
 title: Release pinned placement when a paused owner blocks admission
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Ensure a paused owner pins no Runtime slot.

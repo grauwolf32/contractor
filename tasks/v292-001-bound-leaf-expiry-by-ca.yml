@@ -3,7 +3,7 @@ id: V292-001
 title: Bound local mTLS leaf expiry by the CA and warn on CA expiry
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: Never issue local mTLS leaves that outlive their CA and warn before the CA expires.
