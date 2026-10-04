@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V269-001
+title: Bound local-direct mutation reads with large binary trees
+milestone: runtime-projectfs-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 787623f56582abe610cd1ff70771ecfb53e83f28
+depends_on: []
+languages: [python]
+goal: Keep local-direct edits close to stat-scan cost while enforcing exact text and expanded-byte limits.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/169
+  finding: The first stat-only optimization still fell back to full content scans when binary bytes pushed physical size above the managed-text limit.
+scope:
+  in:
+    - Classify largest leaves until confirmed binary sizes reduce the text upper bound below its limit.
+    - Reuse classified target text and avoid a second full scan when known binary sizes explain physical bytes.
+    - Preserve quota failures when actual current text exceeds the limit.
+  out:
+    - Caching content classifications by file metadata.
+acceptance_criteria:
+  - {id: A1, text: Small physical trees read only selected mutation files.}
+  - {id: A2, text: Binary scans stop at the first invalid UTF-8 or NUL chunk.}
+  - {id: A3, text: Large binary trees permit bounded edits while excess managed text still fails.}
+  - {id: A4, text: External changes and expanded-byte quotas retain their behavior.}
+  - {id: A5, text: A 40000-text and 100-binary file benchmark has write cost close to stat-only scan.}
+tests:
+  - {command: cd runtime && uv run pytest -q tests/test_projectfs_*.py tests/test_workspace_auto_export.py tests/test_workspace_state.py, covers: [A1, A2, A3, A4]}
+  - {command: cd runtime && uv run ruff check . && uv run ruff format --check ., covers: [A1, A2, A3, A4]}
+verification:
+  benchmark: 40100 files; 245760000 text bytes and 1572864000 sparse binary bytes; stat-only scan 0.221 s, same-size write_text 0.433 s on local warm cache.

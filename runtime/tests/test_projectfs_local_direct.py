@@ -172,6 +172,59 @@ def test_mutation_preflight_reads_only_selected_files(
     asyncio.run(scenario())
 
 
+def test_large_binary_leaves_keep_mutation_preflight_metadata_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        limits = WorkspaceLimits(
+            max_files=10, max_file_bytes=100, max_expanded_bytes=100, max_managed_text_bytes=12
+        )
+        async with workspace(tmp_path, limits=limits) as (session, root):
+            (root / "large-binary").write_bytes(b"\x00" + b"x" * 39)
+            assert session._local is not None and session._local._filesystem is not None
+            filesystem = session._local._filesystem
+            original_scan = filesystem.scan
+            original_read = filesystem.read_classified
+            scans: list[bool] = []
+            reads: list[str] = []
+
+            def counted_scan(**kwargs: object):
+                scans.append(bool(kwargs.get("contents", True)))
+                return original_scan(**kwargs)
+
+            def counted_read(path: str, **kwargs: object):
+                reads.append(path)
+                return original_read(path, **kwargs)
+
+            monkeypatch.setattr(filesystem, "scan", counted_scan)
+            monkeypatch.setattr(filesystem, "read_classified", counted_read)
+            await session.write_text("src/a.txt", "edited\r\n")
+            assert scans == [False]
+            assert reads == ["large-binary", "src/a.txt"]
+            scans.clear()
+            reads.clear()
+            await session.make_directory("new-directory")
+            assert scans == [False]
+            assert reads == ["large-binary"]
+
+    asyncio.run(scenario())
+
+
+def test_large_binary_does_not_hide_excess_current_text(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        limits = WorkspaceLimits(
+            max_files=10, max_file_bytes=100, max_expanded_bytes=100, max_managed_text_bytes=12
+        )
+        async with workspace(tmp_path, limits=limits) as (session, root):
+            (root / "large-binary").write_bytes(b"\x00" + b"x" * 39)
+            (root / "too-much.txt").write_text("x" * 13)
+            with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+                await session.make_directory("not-created")
+            assert not (root / "not-created").exists()
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("marker", [b"\x00", b"\xff"])
 def test_content_scan_stops_after_first_binary_chunk(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, marker: bytes

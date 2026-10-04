@@ -100,47 +100,78 @@ class LocalDirectWorkspace:
     async def _mutate(self, plan: _Plan, *, inspect: _Inspect = lambda _: set()) -> None:
         def owned(fs: RootedLocalFilesystem, deadline: float) -> None:
             acquired = fs.scan(deadline=deadline, contents=False)
-            loaded: dict[str, str] | None = None
-            if acquired.expanded_bytes > self._limits.max_managed_text_bytes:
-                # Physical bytes no longer prove the text bound: classify the
-                # whole tree rather than guessing which bytes are binary.
-                acquired = fs.scan(deadline=deadline)
-                candidate = _managed(acquired)
-            else:
-                loaded = {}
-                for path in inspect(acquired):
-                    item = acquired.entries[path]
-                    text, unreadable = fs.read_classified(path, deadline=deadline, expected=item)
+            loaded: dict[str, str] = {}
+            possible_text_bytes = acquired.expanded_bytes
+            if possible_text_bytes > self._limits.max_managed_text_bytes:
+                confirmed_text_bytes = 0
+                # Classify the largest leaves first. A confirmed binary or
+                # unreadable leaf removes its whole stat size from the text
+                # upper bound, often after reading only one chunk. No file is
+                # trusted based on size or timestamps alone.
+                leaves = sorted(
+                    (
+                        item
+                        for item in acquired.entries.values()
+                        if not item.directory and not item.opaque
+                    ),
+                    key=lambda item: item.size,
+                    reverse=True,
+                )
+                for item in leaves:
+                    text, unreadable = fs.read_classified(
+                        item.path, deadline=deadline, expected=item
+                    )
                     if unreadable:
-                        acquired.entries[path] = replace(item, opaque=True)
-                        acquired.opaque_paths.add(path)
+                        acquired.entries[item.path] = replace(item, opaque=True)
+                        acquired.opaque_paths.add(item.path)
                         acquired.expanded_bytes -= item.size
+                        possible_text_bytes -= item.size
                     elif text is None:
-                        acquired.binary_paths.add(path)
+                        acquired.binary_paths.add(item.path)
+                        possible_text_bytes -= item.size
                     else:
-                        acquired.texts[path] = loaded[path] = text
-                candidate = _managed(acquired, metadata_only=True)
+                        confirmed_text_bytes += item.size
+                        if confirmed_text_bytes > self._limits.max_managed_text_bytes:
+                            raise WorkspaceStorageError("workspace_limit_exceeded")
+                        acquired.texts[item.path] = loaded[item.path] = text
+                    if possible_text_bytes <= self._limits.max_managed_text_bytes:
+                        break
+                if possible_text_bytes > self._limits.max_managed_text_bytes:
+                    raise WorkspaceStorageError("workspace_limit_exceeded")
+            for path in inspect(acquired):
+                if path in loaded or path in acquired.binary_paths:
+                    continue
+                item = acquired.entries[path]
+                text, unreadable = fs.read_classified(path, deadline=deadline, expected=item)
+                if unreadable:
+                    acquired.entries[path] = replace(item, opaque=True)
+                    acquired.opaque_paths.add(path)
+                    acquired.expanded_bytes -= item.size
+                elif text is None:
+                    acquired.binary_paths.add(path)
+                else:
+                    acquired.texts[path] = loaded[path] = text
+            candidate = _managed(acquired, metadata_only=True)
             opaque = frozenset(acquired.opaque_paths)
             mutation = plan(candidate, opaque)
-            encoded_lengths: dict[str, int] | None = {} if loaded is not None else None
+            encoded_lengths: dict[str, int] = {}
             managed_bytes = _validate_managed_tree(
                 candidate, self._limits, encoded_lengths=encoded_lengths
             )
-            if loaded is not None:
-                assert encoded_lengths is not None
-                expanded = _projected_bytes(candidate, acquired, loaded, encoded_lengths)
-                if expanded > self._limits.max_managed_text_bytes:
-                    actual = fs.scan(deadline=deadline)
-                    _materialize_unselected(candidate, acquired, actual, loaded)
-                    acquired = actual
-                    managed_bytes = _validate_managed_tree(candidate, self._limits)
-                    expanded = managed_bytes + sum(
-                        acquired.entries[path].size
-                        for path in candidate.binary_paths - acquired.opaque_paths
-                    )
-            else:
+            expanded = _projected_bytes(candidate, acquired, loaded, encoded_lengths)
+            known_binary_bytes = sum(
+                acquired.entries[path].size
+                for path in candidate.binary_paths - acquired.opaque_paths
+                if path in acquired.entries
+            )
+            if expanded - known_binary_bytes > self._limits.max_managed_text_bytes:
+                actual = fs.scan(deadline=deadline)
+                _materialize_unselected(candidate, acquired, actual, loaded)
+                acquired = actual
+                managed_bytes = _validate_managed_tree(candidate, self._limits)
                 expanded = managed_bytes + sum(
-                    acquired.entries[path].size for path in candidate.binary_paths - opaque
+                    acquired.entries[path].size
+                    for path in candidate.binary_paths - acquired.opaque_paths
                 )
             # Managed tree validation deliberately excludes binary bytes for
             # memory/overlay. Local direct counts every non-opaque physical
