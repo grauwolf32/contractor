@@ -3,6 +3,7 @@ import unittest
 from select_ci_stages import (
     BROWSER_A,
     BROWSER_B,
+    CAPABILITY_E2E,
     INTEGRATION,
     LINT,
     PROCESS_A,
@@ -30,7 +31,10 @@ class SelectCIStagesTest(unittest.TestCase):
         )
 
     def test_runtime_and_server_run_unit_and_integration(self):
-        self.assertEqual(stages_for_paths(["runtime/contractor/worker.py", "internal/httpapi/runs.go"]), [LINT, UNIT, INTEGRATION])
+        self.assertEqual(
+            stages_for_paths(["runtime/contractor/worker.py", "internal/httpapi/runs.go"]),
+            [LINT, UNIT, INTEGRATION, CAPABILITY_E2E],
+        )
 
     def test_e2e_tests_select_process_shards(self):
         self.assertEqual(stages_for_paths(["tests/e2e/stack_test.go"]), [LINT, UNIT, PROCESS_A, PROCESS_B])

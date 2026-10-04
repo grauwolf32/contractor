@@ -32,7 +32,7 @@ a lint, unit or UI failure is reported before the long suites start. Every
 stage is also a make target. [CI](../../.github/workflows/ci.yml) selects
 stages from the files changed by a PR. A `v*` release tag or a manual
 `workflow_dispatch` run on any branch selects the full gate. The selector
-is [checked with its mapping tests](../../scripts/select_ci_stages.py).
+is [checked with mapping tests](../../scripts/test_select_ci_stages.py).
 Selected jobs run concurrently against PostgreSQL 17; one failure does not
 cancel the others. `pr-verify` requires every selected PR job to pass, while
 `release-verify` requires every stage on a tag or manual run. Each stage
@@ -40,8 +40,9 @@ uses `make -k` and uploads its log and available evidence as a
 `reports-<stage>` artifact even when it fails. Locally,
 `make -k release-verify` reports every failing stage in one run.
 
-PR selection always includes lint. Server and Runtime changes add unit and
-integration checks; UI changes add UI checks and the affected browser stacks.
+PR selection always includes lint. Server and Runtime changes add unit,
+integration and focused cross-process capability checks; UI changes add UI
+checks and the affected browser stacks.
 Changes to `tests/e2e` add both process shards. Edits confined to
 `ui/e2e/stack.spec.ts` run the focused operations stack; other `ui/e2e`
 edits select the operations browser shard (both browser shards for the

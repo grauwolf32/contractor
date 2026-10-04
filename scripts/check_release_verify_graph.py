@@ -186,9 +186,12 @@ def check_ci_workflow(stages: list[str], text: str) -> None:
         raise SystemExit(
             f"PR selector and full release gate disagree: {list(selector.RELEASE_STAGE_TIMEOUTS)} versus {stages}"
         )
-    for target in selector.PR_STAGE_TIMEOUTS:
-        if not any("./tests/ui-stack" in command for command in dry_run(target)):
-            raise SystemExit(f"{name}: PR browser target {target} no longer runs the real stack")
+    for target, marker in (
+        ("test-ui-stack-operations", "./tests/ui-stack"),
+        ("test-capability-e2e", "TestHeterogeneousRuntimeCapabilityPlacement"),
+    ):
+        if target not in selector.PR_STAGE_TIMEOUTS or not any(marker in command for command in dry_run(target)):
+            raise SystemExit(f"{name}: PR target {target} no longer runs {marker}")
     triggers = top_level_block(text, "on")
     if (
         re.search(r"^\s+pull_request:\s*$", triggers, re.M) is None
