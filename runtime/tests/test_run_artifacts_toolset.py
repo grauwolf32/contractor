@@ -67,7 +67,7 @@ def test_read_artifact_pages_large_payloads() -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
         chunk = run_artifacts.MAX_READ_CHUNK_BYTES
-        client.read_data = bytes(range(256)) * (chunk // 256) * 2 + b"tail"
+        client.read_data = b"0123456789abcdef" * (chunk // 16) * 2 + b"tail"
         state = WorkerState()
         factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
         tools = await create_tools(factory, state, ["read_artifact"])
@@ -90,7 +90,7 @@ def test_read_artifact_pages_large_payloads() -> None:
         assert client.read_calls == 1
 
         window = await tools["read_artifact"]("inputs", "source", revision, offset=2, length=3)
-        assert base64.b64decode(window["dataBase64"]) == bytes([2, 3, 4])
+        assert base64.b64decode(window["dataBase64"]) == b"234"
         assert window["hasMore"]
         assert client.read_calls == 1
 
@@ -99,6 +99,22 @@ def test_read_artifact_pages_large_payloads() -> None:
                 await tools["read_artifact"]("inputs", "source", **arguments)
         with pytest.raises(ToolInputError, match="offset exceeds"):
             await tools["read_artifact"]("inputs", "source", offset=len(client.read_data) + 1)
+
+    asyncio.run(scenario())
+
+
+def test_read_artifact_rejects_binary_artifacts_without_returning_bytes() -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        client.read_data = b"PK\x03\x04\x14\x00\x00\x00\x08\x00\xff\xfe binary"
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(factory, state, ["read_artifact"])
+
+        with pytest.raises(ToolInputError, match="binary") as caught:
+            await tools["read_artifact"]("inputs", "source")
+        assert "filesystem or source tools" in str(caught.value)
+        assert "UEsDB" not in repr(state.metrics.tool_calls)
 
     asyncio.run(scenario())
 

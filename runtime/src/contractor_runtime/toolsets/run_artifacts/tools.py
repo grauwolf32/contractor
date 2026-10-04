@@ -103,7 +103,9 @@ class ReadArtifactTool(ArtifactTool):
     name = "read_artifact"
     description = """Read artifact bytes from this Workflow Run as base64, in pages.
 
-    Each call returns at most 256 KiB of decoded bytes. When hasMore is true,
+    Only UTF-8 text artifacts are returned; a binary artifact such as a source
+    archive is rejected, so read source code with the filesystem or source
+    tools. Each call returns at most 256 KiB of decoded bytes. When hasMore is true,
     call again with offset set to nextOffset and the same exact revision. Use
     read_text_artifact for a bounded UTF-8 text preview.
 
@@ -161,6 +163,15 @@ class ReadArtifactTool(ArtifactTool):
             value = await self._cache.read(
                 self._client, ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
+            try:
+                value.data.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                # Base64 of binary bytes is unreadable to the model and floods
+                # its context: a 70 KB source ZIP became about 68k prompt tokens.
+                raise ToolInputError(
+                    f"artifact is binary ({value.media_type}) and is not returned; "
+                    "read source code with the filesystem or source tools instead"
+                ) from None
             size = len(value.data)
             if offset > size:
                 raise ToolInputError("offset exceeds the artifact size")
