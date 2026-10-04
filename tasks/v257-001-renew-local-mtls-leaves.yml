@@ -3,8 +3,8 @@ id: V257-001
 title: Renew local mTLS leaves without changing Runtime principal
 milestone: local-pki-renewal-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4c493131a20b6ed0ec2d64e5e5a3ada46d613a57
 depends_on: []
 languages: [go, python]
 goal: Renew expiring deployment leaves using their existing keys and warn before expiry.
