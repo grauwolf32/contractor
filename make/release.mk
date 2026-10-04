@@ -3,15 +3,17 @@
 # every stage as its own job (.github/workflows/ci.yml) and make
 # release-verify runs them in this order; add -k to see every failing stage.
 # Family targets keep their focused Go suites when invoked directly. Inside a
-# stage RELEASE_CONSOLIDATED replaces them with the unions below, run once.
+# stage RELEASE_CONSOLIDATED replaces them with the unions below, with each
+# selected test run once.
 
 RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
 	release-verify-families release-verify-browser release-verify-race \
 	release-verify-race-discovered release-verify-integration \
-	release-verify-process
+	release-verify-process-a release-verify-process-b
 
 .PHONY: $(RELEASE_STAGES) test-release-go-race test-release-go-race-discovered \
-	test-release-process-e2e test-release-integration test-release-non-race \
+	test-release-process-e2e test-release-process-e2e-a test-release-process-e2e-b \
+	test-release-integration test-release-non-race \
 	test-release-ui-stack
 
 release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
@@ -42,7 +44,9 @@ release-verify-race-discovered: test-release-go-race-discovered
 
 release-verify-integration: test-release-integration test-release-non-race
 
-release-verify-process: test-release-process-e2e
+release-verify-process-a: test-release-process-e2e-a
+
+release-verify-process-b: test-release-process-e2e-b
 
 RELEASE_RACE_PATTERNS := \
 	./cmd/contractor-skill/... \
@@ -79,10 +83,18 @@ RELEASE_NON_RACE_PACKAGES := ./internal/findingintake
 test-release-non-race: require-database
 	go test -tags=integration -count=1 -timeout=10m $(RELEASE_NON_RACE_PACKAGES)
 
-RELEASE_E2E_TESTS := TestAgentSkillsMVPProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditProgramsAcrossProductionProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestProductionMemoryTemplatesAcrossProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestRoutingAndEscalationProductionBoundaries|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestSharedMemoryMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries
+RELEASE_E2E_TESTS_A := TestAgentSkillsMVPProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditProgramsAcrossProductionProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestLocalGoToPythonArtifactCopy
+RELEASE_E2E_TESTS_B := TestProductionMemoryTemplatesAcrossProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestRoutingAndEscalationProductionBoundaries|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestSharedMemoryMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries
+RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)
 
 test-release-process-e2e: require-database runtime-venv
 	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
+
+test-release-process-e2e-a: require-database runtime-venv
+	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_A))$$'
+
+test-release-process-e2e-b: require-database runtime-venv
+	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_B))$$'
 
 # Several families depend on test-ui-stack; the browser stage runs it once.
 test-release-ui-stack: ui-install ui-browser-install require-database runtime-venv

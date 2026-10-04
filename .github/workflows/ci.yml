@@ -40,7 +40,9 @@ jobs:
             timeout: 50
           - stage: release-verify-integration
             timeout: 45
-          - stage: release-verify-process
+          - stage: release-verify-process-a
+            timeout: 80
+          - stage: release-verify-process-b
             timeout: 80
     services:
       postgres:
