@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V350-001
+title: Index Eval claim candidates and batch collection updates
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V300-001, V304-001]
+languages: [go, sql]
+goal: Keep Eval coordinator claims and bulk experiment updates cheap at scale.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V300-001 and V304-001: the claim query still sequentially scans eval_controller_claims (one row per experiment, terminal ones included), and the UPDATE trigger eval_experiments_collection_update is still per row and quadratic on bulk updates: the Project deletion fence over 20k experiments takes 8.8 s, 6.8 s of it in that trigger."
+scope:
+  in:
+    - Index-driven access to actionable claims.
+    - Statement-level collection bump for bulk updates, like V304-001 did for INSERT and DELETE.
+    - Plan and count tests.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "The claim plan avoids a sequential scan of eval_controller_claims for a large terminal population."}
+  - {id: A2, text: "A bulk update touching 20k experiments bumps each affected collection once."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/evalservice ./internal/projectlifecycle", covers: [A1, A2]}

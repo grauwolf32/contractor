@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V359-001
+title: Isolate unreadable proposal documents during collection reads
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V282-001]
+languages: [go]
+goal: Extend V282's per-proposal isolation to documents that fail while being read.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V282-001: a missing or corrupt proposal document still fails the whole collection page while it is being read, before retention starts."
+scope:
+  in:
+    - Classify per-proposal read failures and reject that proposal alone.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "A page with one unreadable proposal document still collects the others."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake ./internal/auditimport", covers: [A1]}

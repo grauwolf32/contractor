@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V352-001
+title: Reject Runtime-unopenable Git snapshots and normalize dot config roots
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V332-001, V333-001]
+languages: [go]
+goal: Apply the source-bundle openability rules to Git import and make --root . create no nested managed root.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V332-001 and V333-001: Git import still accepts binary-only snapshots that the Runtime rejects at Run time, and --root . still derives a child managed root (it fails the overlap check and now creates nothing)."
+scope:
+  in:
+    - Share the openability check with Git import.
+    - Derive the default managed root for '.' outside the operator root.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "A binary-only Git snapshot is rejected at import."}
+  - {id: A2, text: "config validate --root . and serve with '.' use a sibling managed root."}
+tests:
+  - {command: "go test -count=1 ./internal/gitimport ./internal/sourcebundle ./internal/app", covers: [A1, A2]}

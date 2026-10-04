@@ -14,9 +14,11 @@ disposable PostgreSQL where feasible; line numbers refer to `347b790e`.
   `go test` including PostgreSQL packages, ruff, pytest 3276 passed / 39
   skipped, UI generate:check/lint/typecheck/vitest/build). One pytest test is
   flaky under load (V316-001).
-- GitHub CI `release-verify` has never passed since it was created on
+- GitHub CI `release-verify` had never passed since it was created on
   2026-05-29 and `main` is not protected, so every merge in the range was
-  ungated by CI (V334-001, V347-001).
+  ungated by CI (V334-001, V347-001). After the review, run 37186027201 on
+  `bc7d5f37` passed in 85m43s once #537 raised the job timeout to 150 minutes
+  (recorded by V155-001).
 - 28 of 127 completed tasks in the range were partial or introduced a
   regression: V159, V161, V162, V173, V174, V177, V179-002/005/008/009, V180,
   V188, V194, V205, V210, V211, V221, V234, V235 (broke V165), V237, V240,
@@ -27,6 +29,34 @@ disposable PostgreSQL where feasible; line numbers refer to `347b790e`.
 
 Each finding is recorded as a task with its location, failure scenario and
 acceptance criteria.
+
+## Fix status
+
+All defect and gate tasks V278-001..V340-001 are completed on branch
+`review/2026-10-04-fixes`, one implementation commit per task with a
+regression test that fails without the fix. Sixteen work areas were fixed in
+parallel branches and merged without conflicts beyond one spec paragraph.
+
+Decisions taken while fixing:
+
+- V309-001 scrubs only credentials the Runtime injected and secrets it holds;
+  values set by the model or other proxy users stay visible. The remaining
+  Caido search oracle over stored requests is an accepted risk (see the task).
+- V323-001 keeps `+` in configuration versions (spec 00 and Audit standard
+  versions use it) and aligns Go, Python, schemas, OpenAPI and the UI to one
+  grammar with shared fixtures.
+- V304-001 confirmed that PR #536 misread a quadratic per-row trigger as a
+  slow CI runner: a 20k-row insert spent 9.4 of 10.7 s in the trigger and now
+  takes about 1 s.
+
+Measured effects: schema-scoped migration locks (V338-001) halve the
+PostgreSQL test packages' wall time and remove the parallel-load timeouts
+(`internal/artifacts` 240-600 s -> 44 s); trusted plan reads (V302-001) cut a
+1,000-member Eval tick from 3.3 s to 0.2-0.6 s; view-generation pruning
+(V303-001) keeps one generation instead of ten per lifecycle.
+
+Follow-ups found while fixing are recorded as V349-001..V363-001; V341-001
+to V347-001 remain open (V347-001 is a repository setting for the owner).
 
 ## High defects
 
@@ -123,6 +153,21 @@ acceptance criteria.
 | V344-001 | Follow-up | [Deduplicate PKI CLI command tables](../../tasks/v344-001-deduplicate-pki-cli-commands.yml) |
 | V345-001 | Follow-up | [Remove fsspec and test-only overlay APIs from projectfs](../../tasks/v345-001-projectfs-dead-surface.yml) |
 | V346-001 | Follow-up | [Bound tree-sitter parse stalls for large files](../../tasks/v346-001-bound-tree-sitter-parse-stalls.yml) |
+| V349-001 | Follow-up | [Bound OpenAPI mutation nesting before deep copies](../../tasks/v349-001-bound-openapi-mutation-nesting.yml) |
+| V350-001 | Follow-up | [Index Eval claim candidates and batch collection updates](../../tasks/v350-001-eval-claims-and-update-trigger.yml) |
+| V351-001 | Follow-up | [Read Eval plan digests without fetching whole documents](../../tasks/v351-001-lighter-eval-plan-reads.yml) |
+| V352-001 | Follow-up | [Reject Runtime-unopenable Git snapshots and normalize dot config roots](../../tasks/v352-001-git-import-openability-and-root-dot.yml) |
+| V353-001 | Follow-up | [Bound overlay diff CPU under the session lock](../../tasks/v353-001-bound-overlay-diff-cpu.yml) |
+| V354-001 | Follow-up | [Back off failed Operations snapshot reads triggered by live events](../../tasks/v354-001-back-off-live-event-snapshot-reads.yml) |
+| V355-001 | Follow-up | [Index the RESTRICT keys of Audit finding assessments](../../tasks/v355-001-index-assessment-restrict-keys.yml) |
+| V356-001 | Follow-up | [Accept underscore hosts in Go scan planning](../../tasks/v356-001-underscore-hosts-in-scan-planning.yml) |
+| V357-001 | Follow-up | [Apply the shared redaction policy to OTLP span attributes](../../tasks/v357-001-otlp-redaction-policy.yml) |
+| V358-001 | Follow-up | [Align finding-verification association limits](../../tasks/v358-001-align-verification-association-limits.yml) |
+| V359-001 | Follow-up | [Isolate unreadable proposal documents during collection reads](../../tasks/v359-001-isolate-unreadable-proposal-documents.yml) |
+| V360-001 | Follow-up | [Label the new Audit stop codes in the UI](../../tasks/v360-001-label-new-audit-stop-codes.yml) |
+| V361-001 | Follow-up | [Bound receipt hydration batches by bytes](../../tasks/v361-001-bound-receipt-hydration-batches.yml) |
+| V362-001 | Follow-up | [Align Eval selector, media and 503 contracts with the shared rules](../../tasks/v362-001-eval-contracts-follow-config-grammar.yml) |
+| V363-001 | Follow-up | [Use exact configuration-name patterns in UI route pre-checks](../../tasks/v363-001-exact-config-name-route-checks.yml) |
 
 ## Test infrastructure notes
 

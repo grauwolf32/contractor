@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V363-001
+title: Use exact configuration-name patterns in UI route pre-checks
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V323-001]
+languages: [typescript]
+goal: Make UI routes reject configuration names exactly like the API modules.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V323-001: route pre-checks in workflows/detail, catalog/agent-detail, catalog/audit-preset-detail, llm-configurations/detail, projects/workflow-run and runs/output-model still use the looser CONFIG_ID_PATTERN; the API modules enforce the exact name grammar only before sending a request."
+scope:
+  in:
+    - Use CONFIG_NAME_PATTERN in route pre-checks.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Invalid configuration names are rejected at route level."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run", covers: [A1]}

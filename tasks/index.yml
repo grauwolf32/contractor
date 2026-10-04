@@ -326,7 +326,7 @@ milestones:
     exit_task: V348-001
     outcome: CI reports a verdict for every main push, gates are complete and the task index is consistent.
   - id: review-followups-2026-10-04
-    exit_task: V346-001
+    exit_task: V363-001
     outcome: Follow-up cleanups from the 2026-10-04 review are complete.
   - id: review-defects-2026-10-04
     exit_task: V333-001
@@ -3157,6 +3157,21 @@ tasks:
   - {id: V346-001, file: v346-001-bound-tree-sitter-parse-stalls.yml}
   - {id: V347-001, file: v347-001-protect-main-branch.yml}
   - {id: V348-001, file: v348-001-repair-task-index-and-records.yml}
+  - {id: V349-001, file: v349-001-bound-openapi-mutation-nesting.yml}
+  - {id: V350-001, file: v350-001-eval-claims-and-update-trigger.yml}
+  - {id: V351-001, file: v351-001-lighter-eval-plan-reads.yml}
+  - {id: V352-001, file: v352-001-git-import-openability-and-root-dot.yml}
+  - {id: V353-001, file: v353-001-bound-overlay-diff-cpu.yml}
+  - {id: V354-001, file: v354-001-back-off-live-event-snapshot-reads.yml}
+  - {id: V355-001, file: v355-001-index-assessment-restrict-keys.yml}
+  - {id: V356-001, file: v356-001-underscore-hosts-in-scan-planning.yml}
+  - {id: V357-001, file: v357-001-otlp-redaction-policy.yml}
+  - {id: V358-001, file: v358-001-align-verification-association-limits.yml}
+  - {id: V359-001, file: v359-001-isolate-unreadable-proposal-documents.yml}
+  - {id: V360-001, file: v360-001-label-new-audit-stop-codes.yml}
+  - {id: V361-001, file: v361-001-bound-receipt-hydration-batches.yml}
+  - {id: V362-001, file: v362-001-eval-contracts-follow-config-grammar.yml}
+  - {id: V363-001, file: v363-001-exact-config-name-route-checks.yml}
   - {id: V220-001, file: v220-001-align-katana-lock-deadline.yml}
   - {id: V219-001, file: v219-001-offload-filesystem-scans.yml}
   - {id: V218-001, file: v218-001-cache-exact-artifact-pages.yml}

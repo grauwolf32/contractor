@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V355-001
+title: Index the RESTRICT keys of Audit finding assessments
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V278-001]
+languages: [sql]
+goal: Keep Audit purge from scanning audit_finding_assessments for every RESTRICT check.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V278-001: audit_finding_assessments has no index on collection_receipt_id or (execution_item_id, item_id), so the RESTRICT checks during purge scan the whole table."
+scope:
+  in:
+    - Add the indexes in a migration.
+    - Plan test.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Purge RESTRICT checks use index scans."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/persistence/postgres", covers: [A1]}

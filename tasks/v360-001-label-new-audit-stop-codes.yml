@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V360-001
+title: Label the new Audit stop codes in the UI
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V283-001, V284-001]
+languages: [typescript]
+goal: Show readable labels for the stop codes V283-001 and V284-001 introduced.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V283-001 and V284-001: the UI has no labels for proposal_inventory_limit_exceeded and next_round_contract_invalid and falls back to the server message."
+scope:
+  in:
+    - Add labels and guidance for both codes.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Both stop codes render with specific labels."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run src/routes/projects", covers: [A1]}

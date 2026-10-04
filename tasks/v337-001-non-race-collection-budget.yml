@@ -3,7 +3,8 @@ id: V337-001
 title: Enforce the production collection budget outside the race detector
 milestone: review-process-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 94fa1c58ab332993af8af4810d148fa60735c1d9
 depends_on: []
 languages: [go, make]
 goal: Make the 10 s finding-collection budget test run somewhere.
@@ -22,10 +23,11 @@ acceptance_criteria:
   - {id: A2, text: "The timed-out-attempt test does not depend on collection speed."}
 tests:
   - {command: "make -n release-verify", covers: [A1]}
-  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake -run Budget", covers: [A1, A2]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake -run TestPostgresLargeDirectCollection", covers: [A1, A2]}
 progress_note: >-
   A1 is implemented in 94fa1c58ab332993af8af4810d148fa60735c1d9: the integration stage runs the whole
   findingintake package with the integration tag and without -race (passes locally in 45 s), and the
   guard requires such a pass for every package with race-constrained test files. A2 changes the
   findingintake budget test contents, which the audit-collection fixes (V281-001) own. The listed
-  '-run Budget' selects no test at HEAD; the budget tests are named TestPostgresLargeDirectCollection*.
+  '-run TestPostgresLargeDirectCollection' selects no test at HEAD; the budget tests are named TestPostgresLargeDirectCollection*.
+completion_note: "A1 by 94fa1c58; A2 by V281-001 (62235607), whose timed-out-attempt test now ends the attempt after its first committed transaction instead of depending on collection speed. The original -run Budget filter selected no test."

@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V361-001
+title: Bound receipt hydration batches by bytes
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V283-001]
+languages: [go]
+goal: Keep next-Round preparation from retrying forever on a batch of large proposals.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "Found while fixing V283-001: findingintake receipt hydration reads 32 proposals per batch and rejects the batch with ErrPayloadTooLarge once the total passes 64 MiB, so nine or more proposals of about 8 MiB in one batch make next-Round preparation fail and retry forever."
+scope:
+  in:
+    - Batch hydration by bytes as well as count.
+    - Test with several large proposals.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "Nine 8 MiB proposals hydrate across batches and the next Round is prepared."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/findingintake ./internal/auditservice", covers: [A1]}

@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V349-001
+title: Bound OpenAPI mutation nesting before deep copies
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V319-001]
+languages: [python]
+goal: Reject over-deep model-supplied OpenAPI fragments with the depth input error instead of an internal RecursionError.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found while fixing V319-001: a model-supplied path_item nested about 600 levels deep still raises RecursionError in copy.deepcopy or _deep_merge on the OpenAPI mutation path (runtime/src/contractor_runtime/toolsets/openapi/tools.py) before the depth check runs."
+scope:
+  in:
+    - Check nesting depth before copying or merging mutation input.
+    - Regression test with a deeply nested path_item.
+  out:
+    - Unrelated refactors.
+acceptance_criteria:
+  - {id: A1, text: "A deeply nested mutation fragment returns the depth ToolInputError."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_openapi_toolset.py", covers: [A1]}
