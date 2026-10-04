@@ -14,7 +14,11 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.security_findings.classification import cwe_reference
+from contractor_runtime.toolsets.security_findings.classification import (
+    CWEReferenceError,
+    check_cwe_reference,
+    cwe_reference,
+)
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingsToolsetFactory
 from contractor_runtime.toolsets.security_findings.locations import ExactEvidenceRef
 from contractor_runtime.workspace import AllocationWorkspace
@@ -60,6 +64,33 @@ def test_cwe_reference_uses_the_bundled_classification() -> None:
 def test_cwe_reference_rejects_deprecated_v420_weaknesses(cwe: str) -> None:
     with pytest.raises(ToolInputError, match="pinned CWE catalog"):
         cwe_reference(cwe)
+
+
+def test_cwe_standard_reference_check_matches_the_pinned_catalog() -> None:
+    check_cwe_reference({"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-639"})
+    # Other schemes are Audit standards, checked against assigned tasks instead.
+    check_cwe_reference({"scheme": "OWASP-ASVS", "version": "4.9", "requirement_id": "CWE-534"})
+    for reference, reason in (
+        (
+            {"scheme": "CWE", "version": "4.9", "requirement_id": "CWE-79"},
+            "Use version 4.20 of the pinned CWE catalog, or pass the weakness ID as cwe.",
+        ),
+        (
+            {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-534"},
+            "Use a non-deprecated weakness ID from the pinned CWE catalog, "
+            "or omit the CWE reference.",
+        ),
+        (
+            {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-999999"},
+            "Use a non-deprecated weakness ID from the pinned CWE catalog, "
+            "or omit the CWE reference.",
+        ),
+    ):
+        with pytest.raises(CWEReferenceError) as error:
+            check_cwe_reference(reference)
+        assert error.value.reason == reason
+        assert str(error.value) == f"standard_refs: {reason}"
+        assert isinstance(error.value, ToolInputError) and not error.value.retryable
 
 
 def test_finding_uses_runtime_identity_and_exact_evidence() -> None:

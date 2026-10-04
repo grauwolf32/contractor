@@ -25,7 +25,10 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _requested_coverage,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.security_findings.classification import cwe_reference
+from contractor_runtime.toolsets.security_findings.classification import (
+    CWEReferenceError,
+    check_cwe_reference,
+)
 from contractor_runtime.worker.completion import WorkerCompletionError
 
 
@@ -141,13 +144,9 @@ class InvocationAuditCollector:
             refs.add(identity)
             if reference["scheme"] == "CWE":
                 try:
-                    valid = cwe_reference(reference["requirement_id"])
-                except ToolInputError:
-                    valid = []
-                if valid != [reference]:
-                    raise AuditCollectionError(
-                        "standard_refs", "Use a weakness from the bundled CWE catalog."
-                    )
+                    check_cwe_reference(reference)
+                except CWEReferenceError as error:
+                    raise AuditCollectionError("standard_refs", error.reason) from None
             elif identity not in self._assigned_refs:
                 raise AuditCollectionError(
                     "standard_refs",

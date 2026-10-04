@@ -12,7 +12,10 @@ from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
-from contractor_runtime.toolsets.security_findings.classification import cwe_reference
+from contractor_runtime.toolsets.security_findings.classification import (
+    check_cwe_reference,
+    cwe_reference,
+)
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
 from contractor_runtime.toolsets.security_findings.locations import (
     StandardReference,
@@ -96,6 +99,11 @@ class FindingPublisher:
                 audit_collector.check_proposal_refs(
                     context.invocation_id, proposal["standard_refs"]
                 )
+            # Audit import refuses CWE references outside the pinned catalog, so
+            # reject them before intake. An Audit preflight above reports the
+            # same problem as its own field error.
+            for reference in proposal["standard_refs"]:
+                check_cwe_reference(reference)
             receipt = await self.client.submit_finding_proposal(request)
             if audit_collector is not None:
                 await audit_collector.register_proposal(

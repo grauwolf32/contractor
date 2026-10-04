@@ -40,7 +40,9 @@ async def prepare_reader(
     except ArtifactResponseLimitError as error:
         raise FindingsError("findings_limit_exceeded") from error
     except (ArtifactAPIError, ArtifactTransportError) as error:
-        raise FindingsError("findings_collection_unavailable") from error
+        raise FindingsError(
+            "findings_collection_unavailable", retryable=_retryable(error)
+        ) from error
     require(source.media_type == COLLECTION_MEDIA_TYPE)
     # Validate every member before creating any destination or exposing any tool.
     collection = decode_collection(source.data)
@@ -109,7 +111,9 @@ async def prepare_reader(
             except ArtifactResponseLimitError as error:
                 raise FindingsError("findings_limit_exceeded") from error
             except (ArtifactAPIError, ArtifactTransportError) as error:
-                raise FindingsError("findings_document_unavailable") from error
+                raise FindingsError(
+                    "findings_document_unavailable", retryable=_retryable(error)
+                ) from error
         else:
             raise FindingsError("findings_document_unavailable")
         documents[document["id"]] = {
@@ -288,6 +292,11 @@ class ListFindingsTool:
             return after
         except (ValueError, TypeError, KeyError) as error:
             raise FindingsError("findings_cursor_invalid") from error
+
+
+def _retryable(error: ArtifactAPIError | ArtifactTransportError) -> bool:
+    # A lost transport may be transient; the Artifact API states its own retryability.
+    return not isinstance(error, ArtifactAPIError) or error.retryable
 
 
 def _preview(text: str, limit: int) -> dict[str, Any]:
