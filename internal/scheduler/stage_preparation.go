@@ -164,8 +164,9 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if errors.Is(err, errControlPlaneAllocationLost) {
 		cleanupContext, cancelCleanup := claimCleanupContext(ctx)
 		defer cancelCleanup()
+		code, message := allocationLossFailure(err)
 		return nil, s.beginAbort(cleanupContext, run, workflow, execution, reservations, planner.Failure{
-			Code: "control_lease_expired", Message: "Runtime Agent allocation control lease was lost", Retryable: true,
+			Code: code, Message: message, Retryable: true,
 		})
 	}
 	if err != nil {

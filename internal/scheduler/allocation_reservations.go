@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -31,12 +32,18 @@ func (s *Scheduler) liveOrNewReservations(
 	}
 	if len(recorded) > 0 {
 		lost := false
+		var lossReason controlplane.AllocationLossReason
 		for _, allocation := range recorded {
 			grant, grantErr := s.allocator.GetGrant(allocation.AllocationID)
 			if grantErr != nil || grant.StageExecutionID != execution.StageExecutionID {
 				return nil, false, errControlPlaneStateLost
 			}
-			lost = lost || grant.Lost
+			if grant.Lost {
+				lost = true
+				if grant.LossReason != "" {
+					lossReason = grant.LossReason
+				}
+			}
 		}
 		if lost {
 			reservations, reserveErr := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
@@ -45,9 +52,9 @@ func (s *Scheduler) liveOrNewReservations(
 				Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 			})
 			if reserveErr != nil {
-				return nil, false, errControlPlaneAllocationLost
+				return nil, false, &allocationLostError{reason: lossReason}
 			}
-			return reservations, false, errControlPlaneAllocationLost
+			return reservations, false, &allocationLostError{reason: lossReason}
 		}
 	}
 	if len(recorded) == 0 && execution.AdmittedAt == nil && run.State == runstore.RunPending {
@@ -79,10 +86,26 @@ func (s *Scheduler) liveOrNewReservations(
 	}
 	for _, reservation := range reservations {
 		if reservation.Grant.Lost {
-			return reservations, false, errControlPlaneAllocationLost
+			return reservations, false, &allocationLostError{reason: reservation.Grant.LossReason}
 		}
 	}
 	return reservations, len(recorded) == 0, nil
+}
+
+// allocationLossFailure maps a lost-allocation error to a Stage termination
+// code and message, preferring the specific loss reason over the generic
+// control-lease code.
+func allocationLossFailure(err error) (string, string) {
+	code := string(controlplane.LossControlLeaseExpired)
+	var lost *allocationLostError
+	if errors.As(err, &lost) && lost.reason != "" {
+		code = string(lost.reason)
+	}
+	message := "Runtime Agent allocation control lease was lost"
+	if code == string(controlplane.LossRuntimeMismatch) {
+		message = "Runtime Agent reported state inconsistent with its allocation"
+	}
+	return code, message
 }
 
 func (s *Scheduler) requireOwnerQueueRunning(ctx context.Context, ownerID string) error {

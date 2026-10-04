@@ -150,7 +150,15 @@ lanes. Each lane repeatedly:
 
 The registration is keyed by the exact claim: once released, another lane of
 the same process may claim the Run, and the finishing lane can neither shadow
-nor remove that lane's cancellation or allocation-loss interrupt.
+nor remove that lane's cancellation or allocation-loss interrupt. The
+registration also tracks the StageExecution the lane is currently progressing,
+so an allocation loss interrupts the lane only when the loss names that exact
+StageExecution. A loss for an already-finished Stage, whose owner stopped after
+completion but before its release succeeded while the Run advanced to a later
+Stage, interrupts nothing; its fenced grant is reclaimed by terminal release
+recovery. The resulting interrupted StageTermination records the specific loss
+reason (for example `control_lease_expired` or `runtime_state_mismatch`) rather
+than collapsing every loss into one code.
 
 Cancelling Planner execution does not cancel claim renewal: the same lane owns
 the Run throughout cancellation and allocation-loss cleanup. Losing the claim
