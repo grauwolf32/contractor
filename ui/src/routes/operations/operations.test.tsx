@@ -256,7 +256,17 @@ describe("Operations routes", () => {
         },
       }),
     );
-    await waitFor(() => expect(snapshotReads).toBe(2));
+    await waitFor(() => expect(snapshotReads).toBe(2), { timeout: 2_500 });
+    expect(
+      socket?.sent
+        .map((frame) => JSON.parse(frame) as { type: string })
+        .filter((frame) => frame.type === "subscribe"),
+    ).toHaveLength(1);
+    expect(
+      socket?.sent
+        .map((frame) => JSON.parse(frame) as { type: string })
+        .filter((frame) => frame.type === "unsubscribe"),
+    ).toHaveLength(0);
   });
 
   it("clones and publishes a new exact ModelPolicy without rendering unknown data", async () => {

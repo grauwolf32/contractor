@@ -887,9 +887,13 @@ export async function replaceSchedulerSettings(
 
 export async function getOperationsSnapshot(
   api: PublicAPI,
+  signal?: AbortSignal,
 ): Promise<OperationsSnapshot> {
   const result = await api.request((client) =>
-    client.GET("/v1/operations/snapshot"),
+    client.GET(
+      "/v1/operations/snapshot",
+      signal === undefined ? {} : { signal },
+    ),
   );
   const snapshot = requireData(result);
   if (!validOperationsCursor(snapshot.cursor)) {
