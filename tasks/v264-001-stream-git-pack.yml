@@ -3,8 +3,8 @@ id: V264-001
 title: Stream Git pack import without whole-pack buffering
 milestone: git-import-memory-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d94366abe22b4c6780ddc54f16ff3a8b9d341862
 depends_on: []
 languages: [go]
 goal: Decode bounded Git packs directly from the transport while preserving content and transport error classification.
@@ -27,5 +27,5 @@ acceptance_criteria:
 tests:
   - {command: go test ./internal/gitimport, covers: [A1, A2, A3]}
   - {command: go test -tags=integration ./internal/gitimport, covers: [A4]}
-  - {command: make test-git-artifacts, covers: [A4, A5]}
+  - {command: go test -tags=e2e ./tests/e2e -run '^TestGitArtifactsProductionContainers$', covers: [A4, A5]}
   - {command: make lint, covers: [A1, A2, A3, A4]}
