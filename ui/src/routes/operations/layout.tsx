@@ -1,7 +1,7 @@
 import "./layout.css";
 import { useDocumentTitle } from "../../app/document-title";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
@@ -21,6 +21,7 @@ import type {
 import { QueryView } from "../../app/query-view";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
+import { OperationsLiveRefresh } from "./live-refresh";
 
 const navigation = [
   { to: "/operations", label: "Overview", end: true },
@@ -53,17 +54,39 @@ function OperationsLiveSubscription({
 }) {
   const events = useRunEvents();
   const queryClient = useQueryClient();
+  const refresher = useRef<OperationsLiveRefresh | null>(null);
+  const [initialCursor] = useState(() => snapshot.cursor);
 
   useEffect(() => {
-    const invalidateSnapshot = () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.operations.snapshot,
-      });
     const invalidateSchedulerSettings = () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.operations.schedulerSettings,
-      });
-    const changed = (resource: OperationsEventData["resource"]) => {
+      queryClient.invalidateQueries(
+        { queryKey: queryKeys.operations.schedulerSettings },
+        { cancelRefetch: false },
+      );
+    const updates = new OperationsLiveRefresh({
+      initial: initialCursor,
+      refreshSnapshot: async () => {
+        await queryClient.invalidateQueries(
+          { queryKey: queryKeys.operations.snapshot },
+          { cancelRefetch: false },
+        );
+        return queryClient.getQueryData<OperationsSnapshot>(
+          queryKeys.operations.snapshot,
+        )?.cursor;
+      },
+      refreshPrincipals: () =>
+        queryClient.invalidateQueries(
+          { queryKey: queryKeys.operations.runtimeAgentPrincipals.all },
+          { cancelRefetch: false },
+        ),
+      resume: (cursor) => subscription.resume(cursor),
+    });
+    refresher.current = updates;
+    const changed = (event: {
+      cursor: { generation: string; sequence: string };
+      data: OperationsEventData;
+    }) => {
+      const resource = event.data.resource;
       if (resource === "configuration") {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.configurations.all,
@@ -83,25 +106,20 @@ function OperationsLiveSubscription({
           queryKey: queryKeys.operations.runtimeCredentials.all,
         });
       }
-      if (resource === "runtimeAgent") {
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
-        });
-      }
       if (resource === "schedulerSettings") {
         void invalidateSchedulerSettings();
       }
-      void invalidateSnapshot();
+      updates.event(
+        { generation: event.cursor.generation, revision: event.data.revision },
+        resource,
+      );
     };
-    const subscription = events.subscribeOperations(snapshot.cursor, {
-      onOperationsEvent: (event) => changed(event.data.resource),
+    const subscription = events.subscribeOperations(initialCursor, {
+      onOperationsEvent: changed,
       onResync: (reason) => {
         onResync(reason);
-        void invalidateSnapshot();
+        updates.resync(reason);
         void invalidateSchedulerSettings();
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
-        });
       },
       onStateChange: (state) => {
         onConnection(state);
@@ -111,8 +129,15 @@ function OperationsLiveSubscription({
       },
       onError: (message) => onError(message),
     });
-    return () => subscription.unsubscribe();
-  }, [events, onConnection, onError, onResync, queryClient, snapshot]);
+    return () => {
+      updates.dispose();
+      subscription.unsubscribe();
+      refresher.current = null;
+    };
+  }, [events, initialCursor, onConnection, onError, onResync, queryClient]);
+  useEffect(() => {
+    refresher.current?.snapshot(snapshot.cursor);
+  }, [snapshot.cursor]);
   return null;
 }
 
@@ -159,7 +184,7 @@ export function OperationsLayoutRoute() {
   }, []);
   const query = useQuery({
     queryKey: queryKeys.operations.snapshot,
-    queryFn: () => getOperationsSnapshot(api),
+    queryFn: ({ signal }) => getOperationsSnapshot(api, signal),
     enabled: authorized && !independentRead,
   });
   const refresh = () => {
@@ -188,10 +213,7 @@ export function OperationsLayoutRoute() {
     );
   }
 
-  const liveKey =
-    query.data === undefined
-      ? "none"
-      : `${query.data.cursor.generation}:${query.data.cursor.revision}:${query.dataUpdatedAt}`;
+  const liveKey = query.data?.cursor.generation ?? "none";
   return (
     <section className="route-page operations-page">
       <header className="route-header-row">

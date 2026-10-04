@@ -116,6 +116,27 @@ describe("Operations API", () => {
     ]);
   });
 
+  it("passes cancellation through to the snapshot HTTP request", async () => {
+    let request: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn((input) => {
+        request = input instanceof Request ? input : new Request(input);
+        return new Promise<Response>((_resolve, reject) => {
+          request?.signal.addEventListener("abort", () => {
+            reject(new DOMException("Request aborted", "AbortError"));
+          });
+        });
+      }),
+    );
+    const controller = new AbortController();
+    const pending = getOperationsSnapshot(api, controller.signal);
+    await vi.waitFor(() => expect(request).toBeDefined());
+    controller.abort();
+    expect(request?.signal.aborted).toBe(true);
+    await expect(pending).rejects.toBeDefined();
+  });
+
   it("copies, validates, and normalizes Runtime Agent capabilities", async () => {
     const api = new PublicAPI(
       runtimeConfig,

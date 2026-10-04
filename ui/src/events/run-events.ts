@@ -116,6 +116,7 @@ export interface OperationsSnapshotCursor {
 
 export interface OperationsEventSubscription {
   unsubscribe(): void;
+  resume(after: OperationsSnapshotCursor): void;
 }
 
 type WebSocketFactory = new (
@@ -975,6 +976,26 @@ export class RunEventsManager {
         }
         active = false;
         this.#unsubscribe(record);
+      },
+      resume: (after) => {
+        if (
+          !active ||
+          record.phase !== "waiting" ||
+          this.#subscriptions.get(record.id) !== record
+        )
+          return;
+        const cursor = {
+          generation: after.generation,
+          sequence: after.revision,
+        };
+        validateCursor(cursor);
+        record.cursor = cursor;
+        record.phase = "pending";
+        callbacks.onStateChange("connecting");
+        this.#ensureConnection();
+        if (this.#connection?.socket.readyState === 1) {
+          this.#sendSubscription(record);
+        }
       },
     };
   }

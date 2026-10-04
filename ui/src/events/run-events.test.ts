@@ -425,6 +425,68 @@ describe("RunEventsManager", () => {
     expect(run.states).toEqual(["connecting", "live"]);
   });
 
+  it("resumes an Operations subscription only after a new REST baseline", () => {
+    FakeWebSocket.instances = [];
+    const operations = operationsCallbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    const subscription = manager.subscribeOperations(
+      { generation: "operations-generation-1", revision: "7" },
+      operations.value,
+    );
+    const socket = FakeWebSocket.instances[0];
+    socket?.open();
+    socket?.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: "operations-ui-1",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "7" },
+    });
+    socket?.message({
+      version: "contractor.events.v1",
+      type: "resync_required",
+      subscriptionId: "operations-ui-1",
+      stream: { kind: "operations" },
+      reason: "sequence_gap",
+    });
+    expect(operations.resyncs).toEqual(["sequence_gap"]);
+    expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toMatchObject({
+      type: "unsubscribe",
+      subscriptionId: "operations-ui-1",
+    });
+    subscription.resume({
+      generation: "operations-generation-1",
+      revision: "9",
+    });
+    const sentAfterResume = socket?.sent.length;
+    expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toMatchObject({
+      type: "subscribe",
+      subscriptionId: "operations-ui-2",
+      after: { generation: "operations-generation-1", sequence: "9" },
+    });
+    subscription.resume({
+      generation: "operations-generation-1",
+      revision: "9",
+    });
+    expect(socket?.sent).toHaveLength(sentAfterResume ?? 0);
+    socket?.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: "operations-ui-2",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "9" },
+    });
+    expect(operations.states).toEqual([
+      "connecting",
+      "live",
+      "resyncing",
+      "connecting",
+      "live",
+    ]);
+  });
+
   it("resynchronizes only the affected projection on generation mismatch", () => {
     FakeWebSocket.instances = [];
     const current = callbacks();
