@@ -2,7 +2,7 @@
 # Gateway, or the production Node UI served next to the Go API.
 
 .PHONY: test-project-workflows-live test-live-routing \
-	test-ui-stack
+	test-ui-stack test-ui-stack-operations
 
 test-project-workflows-live: require-database runtime-venv
 	@test -n "$$CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL" || (echo "CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL is required" >&2; exit 1)
@@ -19,3 +19,8 @@ UI_STACK_TEST := $(UI_STACK_TEST_FLAGS) ./tests/ui-stack
 
 test-ui-stack: ui-install ui-browser-install require-database runtime-venv
 	$(call run-family-test,$(UI_STACK_TEST))
+
+# Focused PR check for the operations browser journey. The full release gate
+# continues to run every browser stack test through its two shards.
+test-ui-stack-operations: ui-install ui-browser-install require-database runtime-venv
+	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^TestBrowserOperationsStack$$'

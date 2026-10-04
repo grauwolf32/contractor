@@ -7,25 +7,34 @@ from pathlib import Path
 from unittest import mock
 
 import check_release_verify_graph as guard
+import select_ci_stages as selector
 
 STAGES = list(guard.FAST_STAGES) + ["release-verify-race"]
+CI_STAGES = list(selector.RELEASE_STAGE_TIMEOUTS)
 WORKFLOW = """name: CI
+on:
+  pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  select:
+    steps:
+      - name: Select checks
+        run: python3 scripts/select_ci_stages.py
   stage:
+    needs: select
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - stage: release-verify-lint
-          - stage: release-verify-unit
-          - stage: release-verify-ui
-          - stage: release-verify-race
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - run: |
           make -k ${{ matrix.stage }} 2>&1 | tee log
+  pr-verify:
+    needs: stage
   release-verify:
     needs: stage
 """
@@ -69,7 +78,7 @@ class StageOrderTest(unittest.TestCase):
 
 class WorkflowTest(unittest.TestCase):
     def test_complete_workflow_passes(self) -> None:
-        guard.check_ci_workflow(STAGES, WORKFLOW)
+        guard.check_ci_workflow(CI_STAGES, WORKFLOW)
 
     def test_cancelling_pushes_is_rejected(self) -> None:
         workflow = WORKFLOW.replace(
@@ -77,22 +86,27 @@ class WorkflowTest(unittest.TestCase):
             "cancel-in-progress: true",
         )
         with self.assertRaisesRegex(SystemExit, "only for pull requests"):
-            guard.check_ci_workflow(STAGES, workflow)
+            guard.check_ci_workflow(CI_STAGES, workflow)
 
     def test_shared_push_group_is_rejected(self) -> None:
         workflow = WORKFLOW.replace("github.run_id", "github.ref")
         with self.assertRaisesRegex(SystemExit, "only for pull requests"):
-            guard.check_ci_workflow(STAGES, workflow)
+            guard.check_ci_workflow(CI_STAGES, workflow)
 
-    def test_missing_stage_job_is_rejected(self) -> None:
-        workflow = WORKFLOW.replace("          - stage: release-verify-race\n", "")
-        with self.assertRaisesRegex(SystemExit, "runs stages"):
-            guard.check_ci_workflow(STAGES, workflow)
+    def test_missing_selector_matrix_is_rejected(self) -> None:
+        workflow = WORKFLOW.replace("matrix: ${{ fromJSON(needs.select.outputs.matrix) }}", "matrix: {}")
+        with self.assertRaisesRegex(SystemExit, "selector matrix"):
+            guard.check_ci_workflow(CI_STAGES, workflow)
 
     def test_fail_fast_is_rejected(self) -> None:
         workflow = WORKFLOW.replace("fail-fast: false", "fail-fast: true")
         with self.assertRaisesRegex(SystemExit, "must not cancel"):
-            guard.check_ci_workflow(STAGES, workflow)
+            guard.check_ci_workflow(CI_STAGES, workflow)
+
+    def test_missing_manual_full_gate_is_rejected(self) -> None:
+        workflow = WORKFLOW.replace("  workflow_dispatch:\n", "")
+        with self.assertRaisesRegex(SystemExit, "full gate only"):
+            guard.check_ci_workflow(CI_STAGES, workflow)
 
 
 ADVISORIES = ["go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./cmd/...", "python3 scripts/audit_runtime_dependencies.py"]

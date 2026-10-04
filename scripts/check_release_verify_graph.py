@@ -168,8 +168,8 @@ def top_level_block(text: str, key: str) -> str:
 
 def check_ci_workflow(stages: list[str], text: str) -> None:
     name = CI_WORKFLOW.relative_to(ROOT)
-    # Only a pull request cancels its superseded run; every push to main keeps
-    # its own concurrency group, so no merge loses its verdict.
+    # Only a pull request cancels its superseded run; release tags and manual
+    # runs keep independent verdicts.
     concurrency = top_level_block(text, "concurrency")
     group = re.search(r"^\s+group:\s*(.+)$", concurrency, re.M)
     cancel = re.search(r"^\s+cancel-in-progress:\s*(.+)$", concurrency, re.M)
@@ -181,13 +181,30 @@ def check_ci_workflow(stages: list[str], text: str) -> None:
         or "github.run_id" not in group.group(1)
     ):
         raise SystemExit(f"{name} must cancel superseded runs only for pull requests")
-    ci_stages = re.findall(r"^\s+- stage: (\S+)\s*$", text, re.M)
-    if ci_stages != stages:
-        raise SystemExit(f"{name} runs stages {ci_stages}, release-verify runs {stages}")
+    selector = load_script("scripts/select_ci_stages.py")
+    if list(selector.RELEASE_STAGE_TIMEOUTS) != stages:
+        raise SystemExit(
+            f"PR selector and full release gate disagree: {list(selector.RELEASE_STAGE_TIMEOUTS)} versus {stages}"
+        )
+    for target in selector.PR_STAGE_TIMEOUTS:
+        if not any("./tests/ui-stack" in command for command in dry_run(target)):
+            raise SystemExit(f"{name}: PR browser target {target} no longer runs the real stack")
+    triggers = top_level_block(text, "on")
+    if (
+        re.search(r"^\s+pull_request:\s*$", triggers, re.M) is None
+        or re.search(r"^\s+tags:\s*\[.v\*.\]\s*$", triggers, re.M) is None
+        or re.search(r"^\s+workflow_dispatch:\s*$", triggers, re.M) is None
+        or re.search(r"^\s+branches:\s*\[main\]\s*$", triggers, re.M) is not None
+    ):
+        raise SystemExit(f"{name} must run selected PR checks and the full gate only on v* tags or manual dispatch")
     for required, reason in (
         (r"^\s+fail-fast: false\s*$", "one failing stage must not cancel the others"),
+        (r"^\s+matrix: \$\{\{ fromJSON\(needs\.select\.outputs\.matrix\) \}\}\s*$", "CI must use the selector matrix"),
+        (r"^\s+run: python3 scripts/select_ci_stages\.py\s*$", "CI must invoke the PR stage selector"),
         (r"^\s+make -k \$\{\{ matrix\.stage \}\}", "each job must run its stage with make -k"),
-        (r"^\s+needs: stage\s*$", "the release-verify job must aggregate every stage"),
+        (r"^  pr-verify:\s*$", "PRs need their own selected-check verdict"),
+        (r"^  release-verify:\s*$", "tags and manual runs need a full-gate verdict"),
+        (r"^\s+needs: stage\s*$", "verdict jobs must aggregate selected stages"),
     ):
         if re.search(required, text, re.M) is None:
             raise SystemExit(f"{name}: {reason}")

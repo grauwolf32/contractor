@@ -1,51 +1,42 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
 
-# A pull request keeps only its newest run. Every push to main gets its own
-# group, so a later merge never cancels or supersedes an earlier verdict.
+# A pull request keeps only its newest selected run. Tags and manual runs each
+# keep their own full-gate verdict.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # One job per make/release.mk stage. All stages start together and
-  # fail-fast is off: the lint, unit and UI stages report within minutes and
-  # one run shows every failing stage. make -k keeps a stage going past its
-  # first failing target.
+  select:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.stages.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select checks from PR paths or the full release gate
+        id: stages
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/select_ci_stages.py
+
+  # PRs run only stages affected by their changed paths. A release tag or
+  # manual dispatch selects every make/release.mk stage.
   stage:
     name: ${{ matrix.stage }}
+    needs: select
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - stage: release-verify-lint
-            timeout: 30
-          - stage: release-verify-unit
-            timeout: 45
-          - stage: release-verify-ui
-            timeout: 30
-          - stage: release-verify-families
-            timeout: 60
-          - stage: release-verify-browser-a
-            timeout: 60
-          - stage: release-verify-browser-b
-            timeout: 60
-          - stage: release-verify-race
-            timeout: 45
-          - stage: release-verify-race-discovered
-            timeout: 50
-          - stage: release-verify-integration
-            timeout: 45
-          - stage: release-verify-process-a
-            timeout: 80
-          - stage: release-verify-process-b
-            timeout: 80
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     services:
       postgres:
         image: postgres:17
@@ -109,7 +100,7 @@ jobs:
         run: cd ui && corepack pnpm install --frozen-lockfile
 
       - name: Install Chromium and host libraries
-        if: startsWith(matrix.stage, 'release-verify-browser-')
+        if: startsWith(matrix.stage, 'release-verify-browser-') || matrix.stage == 'test-ui-stack-operations'
         run: cd ui && corepack pnpm exec playwright install --with-deps chromium
 
       - name: Check UI image dependency layer
@@ -144,9 +135,17 @@ jobs:
             ~/go/pkg/mod
           key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
-  # The single check to require on main: green only when every stage passed.
+  # Distinct verdicts make a selected PR pass distinct from the full gate.
+  pr-verify:
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
+    needs: stage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every selected PR stage
+        run: test "${{ needs.stage.result }}" = success
+
   release-verify:
-    if: ${{ !cancelled() }}
+    if: ${{ always() && !cancelled() && github.event_name != 'pull_request' }}
     needs: stage
     runs-on: ubuntu-24.04
     steps:
@@ -156,6 +155,7 @@ jobs:
   # Live advisory scans query databases that change without a code change, so
   # they report here instead of failing the deterministic release-verify check.
   advisories:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

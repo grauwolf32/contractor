@@ -29,13 +29,25 @@ recorded in the corresponding task files.
 
 `make release-verify` runs the stages below in this order, cheapest first, so
 a lint, unit or UI failure is reported before the long suites start. Every
-stage is also a make target. [CI](../../.github/workflows/ci.yml) runs each
-stage as its own job against PostgreSQL 17: all jobs start together, a failing
-stage does not cancel the others, and the `release-verify` job passes only when
-every stage passed. Each job runs its stage with `make -k` and uploads its log,
-Playwright output and gate evidence as the `reports-<stage>` artifact, also
-when it fails. Locally, `make -k release-verify` likewise reports every
-failing stage in one run.
+stage is also a make target. [CI](../../.github/workflows/ci.yml) selects
+stages from the files changed by a PR. A `v*` release tag or a manual
+`workflow_dispatch` run on any branch selects the full gate. The selector
+is [checked with its mapping tests](../../scripts/select_ci_stages.py).
+Selected jobs run concurrently against PostgreSQL 17; one failure does not
+cancel the others. `pr-verify` requires every selected PR job to pass, while
+`release-verify` requires every stage on a tag or manual run. Each stage
+uses `make -k` and uploads its log and available evidence as a
+`reports-<stage>` artifact even when it fails. Locally,
+`make -k release-verify` reports every failing stage in one run.
+
+PR selection always includes lint. Server and Runtime changes add unit and
+integration checks; UI changes add UI checks and the affected browser stacks.
+Changes to `tests/e2e` add both process shards. Edits confined to
+`ui/e2e/stack.spec.ts` run the focused operations stack; other `ui/e2e`
+edits select the operations browser shard (both browser shards for the
+managed-Evals stack). Shared API and configuration changes select Go, UI,
+browser and integration checks. Release-only race and family passes remain
+available through a tag or a manual full-gate run before a PR is merged.
 
 | Stage | Runs |
 | --- | --- |
@@ -89,7 +101,8 @@ The audit first requires the scanner to report a known-vulnerable pin, so a
 scanner that silently reports nothing cannot pass, and then fails on any
 published advisory for the lock. A scan's verdict changes whenever upstream
 publishes an advisory, without a code change, so CI runs the scans in the
-separate `advisories` job, outside the required `release-verify` check. The
+separate `advisories` job on release tags and manual runs, outside the
+`release-verify` check. The
 release gate queries no advisory service; apart from downloading its pinned
 tools and locked dependencies it needs no network. All CI jobs run on the
 pinned `ubuntu-24.04` runner image.
