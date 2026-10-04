@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -163,12 +164,7 @@ WHERE run_id = $1 AND owner_id = $2`, runID, ownerID)
 	// While finalizing, UpdatedAt is also the frozen report's generatedFrom.
 	// Keep it stable so a retry after a failed revision CAS reuses the exact
 	// immutable report bytes; Run availability is absent from that payload.
-	if _, err := tx.Exec(ctx, `
-UPDATE audits
-   SET revision = revision + 1,
-       updated_at = CASE WHEN state = 'finalizing' THEN updated_at
-           ELSE GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') END
- WHERE audit_id = ANY($1::text[])`, auditIDs); err != nil {
+	if err := auditstore.NewPostgresStore(tx).InvalidateDeletedRunProjections(ctx, auditIDs); err != nil {
 		return fmt.Errorf("invalidate deleted WorkflowRun %q Audit projections: %w", runID, err)
 	}
 	return nil
