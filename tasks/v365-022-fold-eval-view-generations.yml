@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V365-022
+title: "Fold eval_view_generations into eval_projection_queue"
+milestone: schema-reduction-2026-10
+priority: P2
+status: pending
+depends_on: [V365-003, V365-010]
+languages: [go, sql]
+goal: "Remove eval_view_generations (one row per experiment since migration 000078) by storing its data on the parent row."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+scope:
+  in:
+    - "Store the current snapshot summary, suites, pins and content digest on eval_projection_queue."
+    - "View tables keep the generation number as their snapshot key."
+  out:
+    - "Changing public API, CLI or UI behaviour."
+acceptance_criteria:
+  - {id: A1, text: "The migration moves existing rows of eval_view_generations without loss and drops the merged table(s)."}
+  - {id: A2, text: "Every API, CLI and UI read and write that used the merged table(s) returns the same results."}
+  - {id: A3, text: "No Go code or specification references the dropped table(s)."}
+tests:
+  - {command: "go build ./... && go vet ./...", covers: [A1]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/evalstore/... ./internal/evalservice/... ./internal/httpapi/public/...", covers: [A1, A2, A3]}

@@ -322,6 +322,9 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: schema-reduction-2026-10
+    exit_task: V365-022
+    outcome: The schema drops from 91 to 70 tables without behaviour changes, and SQL statements of 10 or more lines live in commented *_sql.go files.
   - id: review-process-2026-10-04
     exit_task: V348-001
     outcome: CI reports a verdict for every main push, gates are complete and the task index is consistent.
@@ -3173,6 +3176,28 @@ tasks:
   - {id: V362-001, file: v362-001-eval-contracts-follow-config-grammar.yml}
   - {id: V363-001, file: v363-001-exact-config-name-route-checks.yml}
   - {id: V364-001, file: v364-001-lease-holder-current-database.yml}
+  - {id: V365-001, file: v365-001-audit-sql-files.yml}
+  - {id: V365-002, file: v365-002-run-execution-sql-files.yml}
+  - {id: V365-003, file: v365-003-eval-sql-files.yml}
+  - {id: V365-004, file: v365-004-remaining-sql-files-and-guard.yml}
+  - {id: V365-005, file: v365-005-drop-stage-execution-reports.yml}
+  - {id: V365-006, file: v365-006-drop-planner-events.yml}
+  - {id: V365-007, file: v365-007-drop-configuration-publications.yml}
+  - {id: V365-008, file: v365-008-drop-eval-selection-history.yml}
+  - {id: V365-009, file: v365-009-drop-artifact-pins.yml}
+  - {id: V365-010, file: v365-010-drop-eval-view-members.yml}
+  - {id: V365-011, file: v365-011-fold-runtime-credential-side-tables.yml}
+  - {id: V365-012, file: v365-012-fold-runtime-config-publications.yml}
+  - {id: V365-013, file: v365-013-fold-llm-credential-side-tables.yml}
+  - {id: V365-014, file: v365-014-fold-artifact-git-sources.yml}
+  - {id: V365-015, file: v365-015-fold-run-metadata-labels.yml}
+  - {id: V365-016, file: v365-016-fold-planner-execution-reports.yml}
+  - {id: V365-017, file: v365-017-fold-audit-collection-receipts.yml}
+  - {id: V365-018, file: v365-018-fold-audit-item-side-tables.yml}
+  - {id: V365-019, file: v365-019-fold-audit-report-candidates.yml}
+  - {id: V365-020, file: v365-020-fold-finding-proposal-retention.yml}
+  - {id: V365-021, file: v365-021-fold-eval-project-dependencies.yml}
+  - {id: V365-022, file: v365-022-fold-eval-view-generations.yml}
   - {id: V220-001, file: v220-001-align-katana-lock-deadline.yml}
   - {id: V219-001, file: v219-001-offload-filesystem-scans.yml}
   - {id: V218-001, file: v218-001-cache-exact-artifact-pages.yml}

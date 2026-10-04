@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V365-017
+title: "Fold audit_collection_receipts into audit_executions"
+milestone: schema-reduction-2026-10
+priority: P2
+status: pending
+depends_on: [V365-001, V365-002]
+languages: [go, sql]
+goal: "Remove audit_collection_receipts (1:1 with the execution) by storing its data on the parent row."
+context:
+  review: docs/research/2026-10-03-database-schema-review.md
+  plan: docs/plans/2026-10-04-schema-reduction.md
+scope:
+  in:
+    - "Add the collection outcome columns to audit_executions and move existing rows."
+    - "Collection replay, report counts, run-deletion gates and the assessment foreign key use audit_executions."
+  out:
+    - "Changing public API, CLI or UI behaviour."
+acceptance_criteria:
+  - {id: A1, text: "The migration moves existing rows of audit_collection_receipts without loss and drops the merged table(s)."}
+  - {id: A2, text: "Every API, CLI and UI read and write that used the merged table(s) returns the same results."}
+  - {id: A3, text: "No Go code or specification references the dropped table(s)."}
+tests:
+  - {command: "go build ./... && go vet ./...", covers: [A1]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/... ./internal/auditstore/... ./internal/auditservice/... ./internal/findingintake/... ./internal/runstore/...", covers: [A1, A2, A3]}
