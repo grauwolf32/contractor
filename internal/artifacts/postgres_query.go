@@ -31,7 +31,6 @@ JOIN artifact_binding_revisions AS revision
  AND revision.name = binding.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND binding.namespace = $3 AND binding.name = $4
   AND (($5::text IS NULL AND revision.revision = binding.current_revision)
@@ -72,7 +71,6 @@ JOIN artifact_binding_revisions AS revision
  AND revision.revision = binding.current_revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
@@ -123,7 +121,6 @@ JOIN artifact_bindings AS binding
  AND binding.name = revision.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
-LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE revision.scope_kind = $1 AND revision.scope_id = $2
   AND revision.namespace = $3 AND revision.name = $4
   AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
