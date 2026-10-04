@@ -3,7 +3,8 @@ id: V323-001
 title: One configuration ID and version grammar across languages
 milestone: review-defects-2026-10-04
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 1dcadfc526055b36baea167977235921a735e086
 depends_on: []
 languages: [go, python, typescript]
 decision: >-

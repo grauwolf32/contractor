@@ -3,7 +3,8 @@ id: V326-001
 title: Restore error wording damaged by the slices.Contains replacement
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 78401b1ec441101b22f6b79048a11d0a436a5ecf
 depends_on: []
 languages: [go]
 goal: Undo text damage from a mechanical replacement in V179-003.
