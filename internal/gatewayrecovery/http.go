@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
@@ -59,14 +60,47 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 		if failure != nil {
 			update.Code = failure.Code
 		}
-		if _, err := p.Update(request.Context(), update); err != nil {
+		err = p.record(request.Context(), update)
+		if failure != nil && failure.Retryable {
+			// The route must record the failure before the request is resent.
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		// A reply or permanent rejection ends the call, and a transient failure
+		// to record it must not discard it: the route and the Run's waits
+		// reconcile on a later update, the probe lease expiry or the Stage end.
+		if err != nil && (request.Context().Err() != nil || !persistencepostgres.IsTransientFailure(err)) {
 			return nil, err
 		}
-		if failure == nil {
-			return body, nil
-		}
-		if !failure.Retryable {
+		if failure != nil {
 			return nil, &FailureError{Failure: *failure}
+		}
+		return body, nil
+	}
+}
+
+// maxRecordAttempts bounds the bookkeeping of one observed outcome. Each
+// attempt is itself bounded by the database acquire and lock budgets.
+const maxRecordAttempts = 3
+
+// record reports an observed outcome and retries a transient database failure.
+// Repeating an update for the same request ID is idempotent, including after
+// an unacknowledged commit.
+func (p *Participant) record(ctx context.Context, update Request) error {
+	for attempt := 1; ; attempt++ {
+		_, err := p.Update(ctx, update)
+		if err == nil || attempt == maxRecordAttempts || ctx.Err() != nil ||
+			!persistencepostgres.IsTransientFailure(err) {
+			return err
+		}
+		timer := time.NewTimer(time.Duration(attempt) * 50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return err
+		case <-timer.C:
 		}
 	}
 }

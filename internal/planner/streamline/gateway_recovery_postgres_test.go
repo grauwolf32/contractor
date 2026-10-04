@@ -94,6 +94,74 @@ WHERE r.run_id='run-gateway'`).Scan(&blocked, &state); err != nil || blocked || 
 	}
 }
 
+func TestPostgresGatewayRecoveryKeepsOutcomeWhenBookkeepingWaits(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		status   int
+		wantCode string
+		wantUsed int64
+	}{
+		// One allowed model call: the delivered reply is charged, then the
+		// call budget ends the invocation.
+		{name: "reply", status: http.StatusOK, wantCode: "planner_model_call_limit", wantUsed: 70},
+		{name: "permanent rejection", status: http.StatusUnauthorized, wantCode: "planner_gateway_rejected"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			defer cancel()
+			pool := isolatedStreamlinePool(t, ctx)
+			config := pool.Config()
+			config.ConnConfig.RuntimeParams["lock_timeout"] = "200"
+			budgeted, err := pgxpool.NewWithConfig(ctx, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(budgeted.Close)
+			holders := make(chan pgx.Tx, 1)
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				// The request was admitted. Hold the Run row lock that recording
+				// its outcome needs until the planner has returned.
+				holder, err := pool.Begin(ctx)
+				if err == nil {
+					_, err = holder.Exec(ctx, `SELECT 1 FROM workflow_runs WHERE run_id='run-bookkeeping' FOR UPDATE`)
+					holders <- holder
+				}
+				if err != nil {
+					t.Errorf("hold Run lock: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(test.status)
+				_, _ = w.Write([]byte(`{
+  "model":"planner-model",
+  "choices":[{"finish_reason":"stop","message":{"content":"still planning"}}],
+  "usage":{"prompt_tokens":30,"completion_tokens":40,"total_tokens":70}
+}`))
+			}))
+			t.Cleanup(server.Close)
+			participant := admittedPlannerParticipant(t, ctx, budgeted, "run-bookkeeping")
+			instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 1)
+
+			_, runErr := instance.Run(ctx)
+			select {
+			case holder := <-holders:
+				if err := holder.Rollback(ctx); err != nil {
+					t.Fatal(err)
+				}
+			default:
+				t.Fatal("Gateway request did not hold the Run lock")
+			}
+			assertPlannerCode(t, runErr, test.wantCode)
+			report, _ := instance.(planner.ReportProvider).ExecutionReport()
+			if report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != 1 ||
+				report.Metrics.TotalTokens == nil || *report.Metrics.TotalTokens != test.wantUsed || calls.Load() != 1 {
+				t.Fatalf("report metrics=%+v Gateway calls=%d", report.Metrics, calls.Load())
+			}
+		})
+	}
+}
+
 // admittedPlannerParticipant binds a planner invocation of one admitted,
 // running Run to the production recovery authority.
 func admittedPlannerParticipant(

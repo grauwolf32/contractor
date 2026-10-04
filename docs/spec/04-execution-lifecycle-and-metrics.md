@@ -42,6 +42,12 @@ attempt abandoned before any outcome reports `released`, which relinquishes the
 probe without reopening the blocked route or resetting its retry window.
 `finished` is reserved for an observed non-retryable response. Cancellation
 before a grant is known sends nothing and leaves an unknown lease to its expiry.
+A Server-side Planner retries a transient database failure while recording an
+observed outcome a bounded number of times. A model reply or permanent
+rejection is kept, and its usage charged, even when that recording still
+fails: the route and waits reconcile on a later update, the probe lease expiry
+or the end of the Stage. A retryable failure must be recorded before its
+request is resent.
 This does not persist or restore an ADK session after Runtime process loss.
 
 Failure classification has two layers. Status rules belong to the
