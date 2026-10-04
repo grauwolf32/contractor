@@ -3,8 +3,8 @@ id: V276-001
 title: Share bounded source ZIP encoding
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 233c4b0dd87fded95989d2c318a51447be4ddc95
 depends_on: []
 languages: [go]
 goal: Encode local bundles and Git snapshots with one bounded deterministic source ZIP writer.
