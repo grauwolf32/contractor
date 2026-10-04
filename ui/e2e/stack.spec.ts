@@ -485,7 +485,6 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   // request.response() resolves at the headers. Keep the route active until
   // Chromium has received the body consumed by createRun's fetch.
   expect(await acceptedResponse?.finished()).toBeNull();
-  await page.unroute("**/v1/runs");
   expect(submittedBody).not.toBeNull();
   const body = JSON.parse(submittedBody ?? "null");
   const exactSource = body.artifacts.source;
@@ -514,6 +513,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     });
     throw error;
   }
+  // Removing a route updates Chromium's interception patterns. Do that only
+  // after the lazy Run route has completed navigation.
+  await page.unroute("**/v1/runs");
   const streamlineRunID = new URL(page.url()).pathname.split("/").at(-1)!;
   // Replay the same accepted request against the real Server: it must return
   // the existing Run, even while execution is progressing.
