@@ -91,7 +91,10 @@ Absent or empty holds encode by omitting the member.
 `retention` captures the existing receipt state: `source-held`, `audit-held` or
 `discarded`. It never substitutes for package byte availability. A discarded
 receipt can be included only if all selected exact bytes remain available through
-an authorized retained copy; otherwise publication fails.
+an authorized retained copy; otherwise publication fails. After its source Run
+is deleted, a receipt is read from the retained copy of an Audit source that
+selected it (the lowest such Audit ID holding one), never from another
+destination's copy; without such a copy publication fails.
 
 Review `revision` is an integer in 1–9007199254740991. `state` is `proposed`,
 `confirmed`, `rejected`, `duplicate` or `needs-evidence`. IDs are copied only when

@@ -1600,22 +1600,13 @@ func (f *fakeFindingRetention) ListAuditCollection(
 	return result, nil
 }
 
-func (f *fakeFindingRetention) RetainAuditCollection(
-	_ context.Context, request findingintake.ImportRequest,
-) (findingintake.AuditHold, bool, error) {
-	f.imports = append(f.imports, request)
-	if f.retainErr != nil {
-		return findingintake.AuditHold{}, false, f.retainErr
-	}
-	return findingintake.AuditHold{AuditID: request.AuditID}, false, nil
-}
-
 func (f *fakeFindingRetention) RetainAuditCollectionBatch(
-	ctx context.Context, requests []findingintake.ImportRequest,
+	_ context.Context, requests []findingintake.ImportRequest,
 ) error {
 	for _, request := range requests {
-		if _, _, err := f.RetainAuditCollection(ctx, request); err != nil {
-			return err
+		f.imports = append(f.imports, request)
+		if f.retainErr != nil {
+			return f.retainErr
 		}
 	}
 	return nil

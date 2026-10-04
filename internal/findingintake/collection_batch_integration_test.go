@@ -5,6 +5,7 @@ package findingintake
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -62,12 +64,13 @@ func TestPostgresRunProposalPagesUseBatchedReadsAndSkipRetainedDocuments(t *test
 		t.Fatal("batched Run page omitted proposal documents")
 	}
 	start := time.Now()
-	for _, receipt := range page {
-		request := f.request
-		request.Proposal = receipt.Proposal.Ref
-		if _, _, err := f.intake.RetainAuditCollection(ctx, request); err != nil {
-			t.Fatal(err)
-		}
+	requests := make([]ImportRequest, len(page))
+	for index, receipt := range page {
+		requests[index] = f.request
+		requests[index].Proposal = receipt.Proposal.Ref
+	}
+	if err := f.intake.RetainAuditCollectionBatch(ctx, requests); err != nil {
+		t.Fatal(err)
 	}
 	t.Logf("retained 200 proposals in %s", time.Since(start))
 	trace.count.Store(0)
@@ -428,5 +431,183 @@ func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourc
 		}
 		last := page[len(page)-1].Receipt
 		query.AfterCreatedAt, query.AfterReceiptID = &last.CreatedAt, last.ReceiptID
+	}
+}
+
+// A proposal whose own evidence cannot be retained is rejected alone: one
+// with a missing evidence revision and one whose evidence no longer matches
+// its receipt leave the other proposals of the page collectable.
+func TestPostgresCollectionRejectsOnlyUnretainableProposals(t *testing.T) {
+	f := newDeletionImportFixture(t)
+	evidence := writeFixtureEvidence(t, f, 2)
+	missingRevision := "missing-revision"
+	missing := evidence[1]
+	missing.Ref.Revision = &missingRevision
+	corrupt := evidence[1]
+	corrupt.SizeBytes++
+	unretainable := map[string]string{
+		insertAuditChildReceiptWithEvidence(t, f, "missing-evidence", []ExactArtifact{evidence[0], missing}).ReceiptID: "finding-proposal-artifact-missing",
+		insertAuditChildReceiptWithEvidence(t, f, "corrupt-evidence", []ExactArtifact{evidence[0], corrupt}).ReceiptID: "finding-proposal-artifact-invalid",
+	}
+	for i := range 3 {
+		insertAuditChildReceiptWithEvidence(t, f, fmt.Sprintf("valid-candidate-%d", i), evidence)
+	}
+	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
+		t.Fatalf("collection with unretainable proposals: %v", err)
+	}
+	assertFixtureHolds(t, f, 4)
+	rows, err := f.pool.Query(f.ctx, `
+SELECT entity_id, summary ->> 'reason' FROM audit_events
+ WHERE audit_id = $1 AND kind = 'finding.proposal_rejected'`, f.request.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected := map[string]string{}
+	for rows.Next() {
+		var receiptID, reason string
+		if err := rows.Scan(&receiptID, &reason); err != nil {
+			t.Fatal(err)
+		}
+		rejected[receiptID] = reason
+	}
+	if err := rows.Err(); err != nil || len(rejected) != len(unretainable) {
+		t.Fatalf("rejected proposals = %v, %v; want %v", rejected, err, unretainable)
+	}
+	for receiptID, reason := range unretainable {
+		if rejected[receiptID] != reason {
+			t.Fatalf("rejected proposals = %v, want %v", rejected, unretainable)
+		}
+	}
+	page, err := f.intake.ListAuditCollection(f.ctx, f.request.OwnerID, f.request.AuditID, f.request.RunID, ListQuery{Limit: 200})
+	if err != nil || len(page) != 6 {
+		t.Fatalf("collection page = %d receipts, %v", len(page), err)
+	}
+	for _, candidate := range page {
+		if candidate.NeedsRetention(false) {
+			t.Fatalf("receipt %s still needs retention: %+v", candidate.Receipt.ReceiptID, candidate)
+		}
+	}
+	// A replay over the settled page changes nothing.
+	audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
+	if err != nil || replayed.Revision != audit.Revision {
+		t.Fatalf("collection replay changed the Audit: %+v, %v", replayed, err)
+	}
+}
+
+// Rejecting a proposal replays the transaction that failed on it. Direct
+// assessments that fit the evidence budget in that rolled-back transaction
+// must still be accepted by the replay.
+func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) {
+	f := newDirectCollectionFixture(t)
+	evidence := writeFixtureEvidence(t, f, 1)
+	missingRevision := "missing-revision"
+	missing := evidence[0]
+	missing.Ref.Revision = &missingRevision
+	keys := []string{"direct-0", "direct-1", "direct-2", "missing-evidence", "direct-3"}
+	verifications := make([]auditdomain.DirectVerificationResult, len(keys))
+	var rejectedID string
+	for index, key := range keys {
+		cited := []ExactArtifact{}
+		if key == "missing-evidence" {
+			cited = []ExactArtifact{missing}
+		}
+		receipt := insertAuditChildReceiptWithEvidence(t, f, key, cited)
+		if key == "missing-evidence" {
+			rejectedID = receipt.ReceiptID
+		}
+		verifications[index] = auditdomain.DirectVerificationResult{
+			InvocationID: key + "-invocation", ClientKey: key,
+			Assessment: "supported", Summary: "Verified exact candidate.", EvidenceIDs: []string{},
+		}
+	}
+	sort.Slice(verifications, func(i, j int) bool { return verifications[i].ClientKey < verifications[j].ClientKey })
+	encoded, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
+		Schema: auditdomain.DirectVerificationsSchema, Verifications: verifications,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
+	runArtifacts, err := artifactService.Run(f.request.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := runArtifacts.Write(f.ctx,
+		artifacts.ArtifactRef{Namespace: "builder", Name: "direct-result"},
+		artifacts.Payload{MediaType: auditdomain.DirectVerificationsMediaType, Data: encoded}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactService.BindOutputExact(f.ctx, f.request.RunID, "result", output.Ref, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := artifactService.FreezeRunOutputs(f.ctx, f.request.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runstore.NewPostgresStore(f.pool).TransitionRun(f.ctx, f.request.RunID,
+		runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "collection_fixture_succeeded"}); err != nil {
+		t.Fatal(err)
+	}
+	// Admit exactly two direct assessments: the third verified proposal finds
+	// the budget exhausted before the transaction fails on the missing evidence.
+	base, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := prepareDirectVerification(f.ctx, tx, artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+		directVerificationInput{
+			AuditID: f.request.AuditID, ProjectID: "delete-project", RunID: f.request.RunID,
+			WorkflowClosureDigest: base.Origin.Workflow.ClosureDigest,
+		})
+	if rollbackErr := tx.Rollback(f.ctx); err != nil || rollbackErr != nil || prepared == nil {
+		t.Fatalf("prepare direct verification = (%+v, %v, %v)", prepared, err, rollbackErr)
+	}
+	charge := prepared.descriptor.Size + int64(len(prepared.contractBytes))
+	if _, err := f.pool.Exec(f.ctx, `UPDATE audits SET max_evidence_bytes = $2 WHERE audit_id = $1`,
+		f.request.AuditID, 2*charge+charge/2); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := collectFixtureProposals(f.ctx, f, true); err != nil {
+		t.Fatalf("collection with one unretainable proposal: %v", err)
+	}
+	assertFixtureHolds(t, f, len(keys))
+	rows, err := f.pool.Query(f.ctx, `
+SELECT receipt.client_key
+  FROM audit_finding_assessments AS assessment
+  JOIN finding_proposal_receipts AS receipt USING (receipt_id)
+ WHERE assessment.audit_id = $1 AND assessment.direct_verification
+ ORDER BY receipt.client_key`, f.request.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessed := []string{}
+	for rows.Next() {
+		var clientKey string
+		if err := rows.Scan(&clientKey); err != nil {
+			t.Fatal(err)
+		}
+		assessed = append(assessed, clientKey)
+	}
+	if err := rows.Err(); err != nil || strings.Join(assessed, ",") != "direct-0,direct-1" {
+		t.Fatalf("direct assessments = %v, %v; want direct-0 and direct-1", assessed, err)
+	}
+	var rejected bool
+	if err := f.pool.QueryRow(f.ctx, `
+SELECT EXISTS (SELECT 1 FROM audit_events
+ WHERE audit_id = $1 AND kind = 'finding.proposal_rejected' AND entity_id = $2)`,
+		f.request.AuditID, rejectedID).Scan(&rejected); err != nil || !rejected {
+		t.Fatalf("missing-evidence proposal rejection = (%t, %v)", rejected, err)
 	}
 }

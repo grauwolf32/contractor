@@ -1647,7 +1647,10 @@ For an Audit child Run, collection accounts for every committed proposal
 receipt before making the Run deletable: an allowed proposal receives an exact
 Audit-owned inbox link/hold, while a profile with finding production disabled
 treats an unexpected proposal result as invalid rather than silently admitting
-it. Source-Run pins may be released only after that durable disposition.
+it. A proposal whose own proposal or evidence revision is missing or no longer
+matches its receipt can never be retained; collection records it as rejected,
+like a proposal with invalid standard references, and keeps collecting the
+others. Source-Run pins may be released only after that durable disposition.
 
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,

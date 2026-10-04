@@ -272,6 +272,8 @@ func (i *Importer) collectSucceededRole(
 // safely. Retention is admitted while the Audit finalizes or cancels, so a
 // closing Audit still keeps every proposal its children found. A Run can fail after committing a proposal; technical failure must
 // not erase that candidate or silently promote it to a confirmed finding.
+// The batch itself rejects a proposal whose own exact data can never be
+// retained, so one corrupt proposal cannot keep the execution collecting.
 func (i *Importer) retainFindingProposals(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
