@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -14,6 +18,8 @@ import {
 import { queryKeys } from "../../../api/query-keys";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
+import { LoadMoreButton } from "../../../app/load-more";
+import { nextPageCursor } from "../../../app/pagination";
 import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
 import { compactDigest } from "../../../app/format";
@@ -35,13 +41,27 @@ export function CredentialCreateForm() {
     () =>
       new MutationDraftKeyring<CreateCredentialRequest>("create-credential"),
   );
-  const gateways = useQuery({
-    queryKey: queryKeys.configurations.picker("llm-gateways"),
-    queryFn: () => listConfigurations(api, "llm-gateways"),
+  const gateways = useInfiniteQuery({
+    queryKey: queryKeys.configurations.infinitePicker("llm-gateways"),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      listConfigurations(
+        api,
+        "llm-gateways",
+        pageParam === null ? { signal } : { cursor: pageParam, signal },
+      ),
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
-  const policies = useQuery({
-    queryKey: queryKeys.configurations.picker("model-policies"),
-    queryFn: () => listConfigurations(api, "model-policies"),
+  const policies = useInfiniteQuery({
+    queryKey: queryKeys.configurations.infinitePicker("model-policies"),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      listConfigurations(
+        api,
+        "model-policies",
+        pageParam === null ? { signal } : { cursor: pageParam, signal },
+      ),
+    getNextPageParam: (page) => nextPageCursor(page.page),
   });
   const [credentialId, setCredentialId] = useState("");
   const [label, setLabel] = useState("");
@@ -55,10 +75,14 @@ export function CredentialCreateForm() {
   const [errors, setErrors] = useState<string[]>([]);
 
   const managedGateways = useMemo(
-    () => (gateways.data?.items ?? []).filter(hasCredentialManager),
+    () =>
+      (gateways.data?.pages.flatMap((page) => page.items) ?? []).filter(
+        hasCredentialManager,
+      ),
     [gateways.data],
   );
-  const modelPolicies = policies.data?.items ?? [];
+  const modelPolicies =
+    policies.data?.pages.flatMap((page) => page.items) ?? [];
   const mutation = useMutation({
     mutationFn: (request: CreateCredentialRequest) =>
       createCredential(api, request, keyring.keyFor(request)),
@@ -103,9 +127,7 @@ export function CredentialCreateForm() {
       nextErrors.push("Select a Gateway with LiteLLM credential management.");
     }
     if (selectedPolicies.length !== policyKeys.length) {
-      nextErrors.push(
-        "One selected ModelPolicy is no longer published in this page.",
-      );
+      nextErrors.push("One selected ModelPolicy is no longer available.");
     }
     if (
       budgetDuration !== "" &&
@@ -215,11 +237,12 @@ export function CredentialCreateForm() {
           </select>
         </label>
       </div>
+      <LoadMoreButton query={gateways} label="Load more Gateways" />
       <fieldset className="policy-selection">
         <legend>Allowed ModelPolicies</legend>
         {modelPolicies.length === 0 ? (
           <p className="compact-empty">
-            No ModelPolicy is available on this page.
+            No ModelPolicy is available in loaded pages.
           </p>
         ) : (
           modelPolicies.map((resource) => {
@@ -240,6 +263,7 @@ export function CredentialCreateForm() {
           })
         )}
       </fieldset>
+      <LoadMoreButton query={policies} label="Load more ModelPolicies" />
       <details className="optional-settings">
         <summary>Optional settings</summary>
         <div>
