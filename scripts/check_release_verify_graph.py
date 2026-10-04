@@ -10,53 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from release_integration_tests import BUILD_TAG, EXCEPTIONS, TEST, discover
+from release_race_packages import EXCEPTIONS as RACE_EXCEPTIONS
+from release_race_packages import packages_with_tests
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "github.com/grauwolf32/contractor/"
-
-# Union of the untagged race packages selected by release-verify before V155.
-EXPECTED_RACE_PACKAGES = {
-    MODULE + relative
-    for relative in (
-        "cmd/contractor-skill",
-        "internal/agentskills",
-        "internal/app",
-        "internal/artifactpolicy",
-        "internal/artifacts",
-        "internal/config",
-        "internal/contracts",
-        "internal/controlplane",
-        "internal/credentials",
-        "internal/credentials/litellm",
-        "internal/httpapi",
-        "internal/httpapi/artifacttransfer",
-        "internal/httpapi/httpx",
-        "internal/httpapi/privateartifacts",
-        "internal/httpapi/public",
-        "internal/httpapi/public/events",
-        "internal/memory",
-        "internal/mtls",
-        "internal/performance",
-        "internal/persistence/postgres",
-        "internal/planner",
-        "internal/planner/a2a",
-        "internal/planner/router",
-        "internal/planner/scan",
-        "internal/planner/session",
-        "internal/planner/stateview",
-        "internal/planner/streamline",
-        "internal/profiling",
-        "internal/projectlifecycle",
-        "internal/projectstore",
-        "internal/runstore",
-        "internal/runtimeconfig",
-        "internal/scheduler",
-        "internal/telemetry",
-        "tests/integration/lease",
-        "tools/performancebench",
-    )
-}
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
@@ -243,7 +202,7 @@ def check_documented_stages(stages: list[str], text: str) -> None:
         )
 
 
-def check_release_graph() -> None:
+def check_release_graph() -> list[str]:
     commands = dry_run("release-verify")
     races: list[str] = []
     process_tests: Counter[str] = Counter()
@@ -269,25 +228,8 @@ def check_release_graph() -> None:
     stacks = [command for command in commands if "go test" in command and "./tests/ui-stack" in command]
     if len(stacks) != 1:
         raise SystemExit(f"release gate runs the browser stack {len(stacks)} times, want once")
-    if len(races) != 1:
-        raise SystemExit(f"release gate has {len(races)} untagged race commands, want one")
-    patterns = re.search(r"\$\(go list (.*?) \| sort -u\)", races[0])
-    if patterns is None or "-count=1" not in shlex.split(races[0]):
-        raise SystemExit("release race command must deduplicate go list packages and disable cache")
-    listed = subprocess.run(
-        ["go", "list", *patterns.group(1).split()],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    packages = set(listed.stdout.splitlines())
-    if packages != EXPECTED_RACE_PACKAGES:
-        raise SystemExit(
-            "release race package set changed: "
-            f"missing={sorted(EXPECTED_RACE_PACKAGES - packages)}, "
-            f"added={sorted(packages - EXPECTED_RACE_PACKAGES)}"
-        )
+    if len(races) != 2:
+        raise SystemExit(f"release gate has {len(races)} untagged race commands, want the explicit and discovered passes")
     if process_commands != 1 or set(process_tests) != EXPECTED_PROCESS_TESTS or any(
         count != 1 for count in process_tests.values()
     ):
@@ -307,6 +249,65 @@ def check_release_graph() -> None:
             f"missing={sorted(EXPECTED_CONFIG_TESTS - set(config_tests))}, "
             f"added={sorted(set(config_tests) - EXPECTED_CONFIG_TESTS)}"
         )
+    return races
+
+
+def substitution(command: str) -> str:
+    """The first $(...) command substitution of a dry-run command."""
+    start = command.index("$(")
+    depth = 0
+    for index in range(start + 1, len(command)):
+        depth += {"(": 1, ")": -1}.get(command[index], 0)
+        if depth == 0:
+            return command[start + 2 : index]
+    raise SystemExit(f"unbalanced command substitution: {command}")
+
+
+def substituted_packages(command: str) -> set[str]:
+    """Evaluate a race command's package list exactly as make's shell would."""
+    result = subprocess.run(["sh", "-c", substitution(command)], cwd=ROOT, capture_output=True, text=True, check=True)
+    return set(result.stdout.split())
+
+
+def check_race_coverage(
+    raced: list[set[str]],
+    with_tests: set[str],
+    tagged_only: set[str],
+    integration_raced: set[str],
+    exceptions: dict[str, str],
+) -> int:
+    """Every package with tests runs under -race in some release stage, once,
+    unless it is an exception with a reason."""
+    counts = Counter(package for packages in raced for package in packages)
+    problems = [f"{package} is raced by {count} release passes" for package, count in sorted(counts.items()) if count > 1]
+    excepted = {MODULE + package: reason for package, reason in exceptions.items()}
+    for package in sorted(with_tests - counts.keys() - excepted.keys()):
+        problems.append(f"{package} has tests but runs under -race in no release stage")
+    for package in sorted(tagged_only - integration_raced - excepted.keys()):
+        problems.append(f"{package} has only tagged tests and none run under -race")
+    for package, reason in sorted(excepted.items()):
+        if not reason:
+            problems.append(f"race exception {package} has no reason")
+        if package not in with_tests | tagged_only:
+            problems.append(f"race exception {package} has no tests")
+        if package in counts or package in integration_raced:
+            problems.append(f"race exception {package} runs under -race; remove the exception")
+    if problems:
+        raise SystemExit(
+            "release race coverage is incomplete (see scripts/release_race_packages.py):\n  "
+            + "\n  ".join(problems)
+        )
+    return len(counts)
+
+
+def race_command_packages(races: list[str]) -> list[set[str]]:
+    raced = []
+    for command in races:
+        tokens = shlex.split(command)
+        if "-count=1" not in tokens or "-run" in tokens:
+            raise SystemExit(f"release race passes must race whole packages without the test cache: {command}")
+        raced.append(substituted_packages(command))
+    return raced
 
 
 def check_family_entry_points() -> None:
@@ -722,7 +723,11 @@ if __name__ == "__main__":
     check_ci_workflow(stages, CI_WORKFLOW.read_text())
     check_documented_stages(stages, TESTING_GUIDE.read_text())
     check_advisories_outside_release(dry_run("release-verify"), dry_run("advisories"), CI_WORKFLOW.read_text())
-    check_release_graph()
+    races = check_release_graph()
+    with_tests = packages_with_tests()
+    tagged_only = (packages_with_tests("integration") | packages_with_tests("e2e")) - with_tests
+    integration_raced = {MODULE + package.removeprefix("./") for package in discover()}
+    raced = check_race_coverage(race_command_packages(races), with_tests, tagged_only, integration_raced, RACE_EXCEPTIONS)
     check_family_entry_points()
     inventory = Inventory()
     release = selections("release-verify")
@@ -733,7 +738,7 @@ if __name__ == "__main__":
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
-        f"release graph: {len(stages)} stages in CI order, 36 race packages, 19 process tests, "
+        f"release graph: {len(stages)} stages in CI order, {raced} race packages, 19 process tests, "
         f"6 fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
         f"({len(OPT_IN_E2E_TESTS)} opt-in) and {count} integration tests covered"
     )

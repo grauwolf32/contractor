@@ -227,6 +227,49 @@ class NonRacePassTest(unittest.TestCase):
             self.check(guard.GoTest("x", frozenset({"integration"}), ("./internal/findingintake",), "Budget"))
 
 
+M = guard.MODULE
+
+
+class RaceCoverageTest(unittest.TestCase):
+    WITH_TESTS = {M + "internal/a", M + "internal/b", M + "tests/faults"}
+    TAGGED_ONLY = {M + "tests/ui-stack", M + "internal/tagged"}
+
+    def check(self, raced, exceptions=None, integration=frozenset({M + "internal/tagged"})) -> int:
+        return guard.check_race_coverage(
+            raced, self.WITH_TESTS, self.TAGGED_ONLY, set(integration),
+            {"tests/ui-stack": "browser process tests"} if exceptions is None else exceptions,
+        )
+
+    def test_complete_coverage_passes(self) -> None:
+        self.assertEqual(self.check([{M + "internal/a"}, {M + "internal/b", M + "tests/faults"}]), 3)
+
+    def test_unraced_package_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "tests/faults has tests but runs under -race in no release stage"):
+            self.check([{M + "internal/a"}, {M + "internal/b"}])
+
+    def test_tagged_only_package_needs_a_race_pass_or_exception(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "ui-stack has only tagged tests"):
+            self.check([{M + "internal/a", M + "internal/b", M + "tests/faults"}], exceptions={})
+
+    def test_package_raced_twice_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "raced by 2 release passes"):
+            self.check([{M + "internal/a", M + "internal/b"}, {M + "internal/b", M + "tests/faults"}])
+
+    def test_exceptions_need_a_reason_and_must_stay_unraced(self) -> None:
+        raced = [{M + "internal/a", M + "internal/b", M + "tests/faults"}]
+        with self.assertRaisesRegex(SystemExit, "has no reason"):
+            self.check(raced, exceptions={"tests/ui-stack": ""})
+        with self.assertRaisesRegex(SystemExit, "remove the exception"):
+            self.check(raced, exceptions={"tests/ui-stack": "x", "internal/a": "slow"})
+        with self.assertRaisesRegex(SystemExit, "has no tests"):
+            self.check(raced, exceptions={"tests/ui-stack": "x", "internal/gone": "removed"})
+
+    def test_substitution_is_evaluated_like_make(self) -> None:
+        command = "go test -p 1 -race -count=1 $(printf '%s\\n' b a | sort -u)"
+        self.assertEqual(guard.substitution(command), "printf '%s\\n' b a | sort -u")
+        self.assertEqual(guard.substituted_packages(command), {"a", "b"})
+
+
 class DatabaseSkipGuardTest(unittest.TestCase):
     def test_skip_after_failed_ping_is_rejected(self) -> None:
         source = """

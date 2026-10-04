@@ -44,17 +44,23 @@ failing stage in one run.
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |
 | `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
-| `release-verify-race` | One deduplicated Go race pass |
+| `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
+| `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
 | `release-verify-process` | The 19 process e2e tests; `make test-e2e` runs the same pass |
 
 Inside the stages, family targets skip their own Go suites and browser stack
-in favor of the single race, integration, process and browser passes; running a
-family target directly still runs its focused suites. Existing family
+in favor of the race, integration, process and browser passes; running a
+family target directly still runs its focused suites. Every Go package with
+tests runs under the race detector in exactly one of the two race stages, or
+in the integration stage for tagged tests, unless
+[`scripts/release_race_packages.py`](../../scripts/release_race_packages.py)
+lists it as an exception with the reason. Existing family
 integration commands continue to run their focused untagged race checks.
 `make lint` checks the stage order, the CI jobs and this table against the
-Makefile, checks the release graph against the original package and
-process-test inventory, and discovers every integration-tagged test. New names
+Makefile, the race coverage of every package with tests, and the release graph
+against the original process-test inventory, and discovers every
+integration-tagged test. New names
 enter the release pass automatically; tool-dependent exceptions must name an
 opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).

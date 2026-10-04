@@ -36,6 +36,8 @@ jobs:
             timeout: 60
           - stage: release-verify-race
             timeout: 45
+          - stage: release-verify-race-discovered
+            timeout: 50
           - stage: release-verify-integration
             timeout: 45
           - stage: release-verify-process
