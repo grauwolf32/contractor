@@ -52,14 +52,19 @@ func (s *Service) PrepareNextRound(
 		snapshot.Audit.AuditID).Scan(&totalItems); err != nil {
 		return auditstore.AcceptRoundParams{}, nil, fmt.Errorf("count Audit items: %w", err)
 	}
-	remainingTotal := snapshot.Audit.Limits.MaxItemsTotal - totalItems
-	capacity := snapshot.Audit.Limits.MaxItemsPerRound
-	if remainingTotal < capacity {
-		capacity = remainingTotal
-	}
-	proposalSelection, err := s.selectNextProposalChecks(
-		ctx, snapshot.Audit, capacity,
+	capacity := roundItemCapacity(
+		snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, totalItems,
 	)
+	roundOrdinal := snapshot.Round.Ordinal + 1
+	approval := nextRoundApproval(profile)
+	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
+	budget, err := newNextRoundBudget(
+		snapshot.Audit.AuditID, namespace, roundOrdinal, capacity, profile, baseline, selection, approval,
+	)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
+	proposalSelection, err := s.selectNextProposalChecks(ctx, snapshot.Audit, budget)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
@@ -85,7 +90,6 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
-	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	sourceArtifact, err := writeImmutableArtifact(
 		ctx, projectArtifacts,
 		contracts.ArtifactRef{
@@ -97,20 +101,9 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
-	approval := auditdomain.ApprovalNone
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
-		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
-		// Proposed-check methods are operator/model data, not a safe classifier.
-		// Requiring approval for the whole later-round set is conservative and
-		// cannot weaken a profile that requests an active-check gate.
-		approval = auditdomain.ApprovalActiveCheck
-	}
-	roundOrdinal := snapshot.Round.Ordinal + 1
-	inventory, err := auditdomain.BuildFindingInventory(sourceBytes, auditdomain.InventoryOptions{
-		Round: roundOrdinal, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
-		SourceInputName: "proposal_inventory", SourceRef: sourceArtifact.Ref,
-		Scope: baseline.Scope.Values(), ApprovalRequirement: approval,
-	})
+	inventory, err := auditdomain.BuildFindingInventory(sourceBytes, nextRoundInventoryOptions(
+		roundOrdinal, profile, baseline, approval, sourceArtifact.Ref,
+	))
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
@@ -213,6 +206,9 @@ func nextRoundStopReason(selection proposalCheckSelection, roundOrdinal, maxRoun
 			Code:    "proposal_scan_budget_exhausted",
 			Message: "The bounded finding inbox scan ended before more schedulable work could be established.",
 		}
+	}
+	if !hasWork && len(selection.Unschedulable) != 0 {
+		return unschedulableStopReason(selection.Unschedulable)
 	}
 	return nil
 }

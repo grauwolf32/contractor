@@ -13,21 +13,25 @@ import (
 func (s *Service) selectNextProposalChecks(
 	ctx context.Context,
 	audit auditstore.Audit,
-	capacity int,
+	budget *auditdomain.FindingRoundBudget,
 ) (proposalCheckSelection, error) {
 	return selectNextProposalChecksFromInbox(
-		ctx, audit, capacity, s.findings.ListAuditHeldInbox, s.scheduledProposalChecks,
+		ctx, audit, budget, s.findings.ListAuditHeldInbox, s.scheduledProposalChecks,
 	)
 }
 
+// selectNextProposalChecksFromInbox admits unscheduled proposal checks in
+// inbox order until the Round budget is full. A proposal whose first check
+// cannot fit even an empty Round is reported as unschedulable instead of
+// counting as schedulable work.
 func selectNextProposalChecksFromInbox(
 	ctx context.Context,
 	audit auditstore.Audit,
-	capacity int,
+	budget *auditdomain.FindingRoundBudget,
 	list func(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error),
 	scheduled func(context.Context, string, []string) (map[string]bool, error),
 ) (proposalCheckSelection, error) {
-	selection := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal)}
+	selection := proposalCheckAccumulator{budget: budget}
 	query := findingintake.ListQuery{}
 	for selection.scanned < maxNextRoundInboxScan {
 		query.Limit = min(nextRoundInboxPage, maxNextRoundInboxScan-selection.scanned)
@@ -46,13 +50,14 @@ func selectNextProposalChecksFromInbox(
 		if err != nil {
 			return proposalCheckSelection{}, err
 		}
-		if err := selection.addPage(audit, receipts, used, capacity); err != nil {
+		if err := selection.addPage(audit, receipts, used); err != nil {
 			return proposalCheckSelection{}, err
 		}
 		last := receipts[len(receipts)-1]
 		query.AfterCreatedAt, query.AfterReceiptID = &last.CreatedAt, last.ReceiptID
-		if len(receipts) < query.Limit || (selection.selectedCount >= capacity && capacity > 0) ||
-			(selection.eligible && capacity <= 0) {
+		// A full Round with admitted checks is complete. Without capacity,
+		// one schedulable check proves that work remains.
+		if len(receipts) < query.Limit || budget.Full() && (budget.Checks() > 0 || selection.eligible) {
 			break
 		}
 	}
@@ -67,60 +72,88 @@ func selectNextProposalChecksFromInbox(
 		}
 		scanExhausted = len(more) != 0
 	}
-	result := make([]auditdomain.FindingInventoryProposal, 0, len(selection.selected))
-	for _, proposal := range selection.selected {
-		result = append(result, proposal)
-	}
+	result := selection.selected
 	sort.Slice(result, func(i, j int) bool { return result[i].ReceiptID < result[j].ReceiptID })
-	return proposalCheckSelection{Proposals: result, Eligible: selection.eligible, ScanExhausted: scanExhausted}, nil
+	return proposalCheckSelection{
+		Proposals: result, Eligible: selection.eligible, ScanExhausted: scanExhausted,
+		Unschedulable: selection.unschedulable,
+	}, nil
 }
 
 type proposalCheckSelection struct {
 	Proposals     []auditdomain.FindingInventoryProposal
 	Eligible      bool
 	ScanExhausted bool
+	Unschedulable []unschedulableProposal
+}
+
+// unschedulableProposal is a held proposal whose first unscheduled check
+// exceeds Limit even in an otherwise empty Round.
+type unschedulableProposal struct {
+	ReceiptID string
+	Limit     string
 }
 
 type proposalCheckAccumulator struct {
-	selected      map[string]auditdomain.FindingInventoryProposal
-	selectedCount int
+	budget        *auditdomain.FindingRoundBudget
+	selected      []auditdomain.FindingInventoryProposal
+	unschedulable []unschedulableProposal
 	eligible      bool
 	scanned       int
 }
 
-func (selection *proposalCheckAccumulator) addPage(audit auditstore.Audit, receipts []findingintake.Receipt, used map[string]bool, capacity int) error {
+func (selection *proposalCheckAccumulator) addPage(audit auditstore.Audit, receipts []findingintake.Receipt, used map[string]bool) error {
 	for _, receipt := range receipts {
 		selection.scanned++
 		hold, found := exactAuditHold(receipt, audit.AuditID, audit.ProjectID)
 		if !found {
 			return fmt.Errorf("Audit inbox receipt %q has no exact hold", receipt.ReceiptID)
 		}
+		ordinals := make([]int, 0, len(receipt.Document.ProposedChecks))
 		for ordinal := range receipt.Document.ProposedChecks {
-			if used[auditdomain.ReceiptCheckIdentity(receipt.ReceiptID, ordinal)] {
-				continue
+			if !used[auditdomain.ReceiptCheckIdentity(receipt.ReceiptID, ordinal)] {
+				ordinals = append(ordinals, ordinal)
 			}
-			selection.eligible = true
-			if capacity <= 0 || selection.selectedCount >= capacity {
-				continue
+		}
+		if len(ordinals) != 0 {
+			if err := selection.admit(receipt, hold, ordinals); err != nil {
+				return err
 			}
-			candidate, exists := selection.selected[receipt.ReceiptID]
-			if !exists {
-				candidate = auditdomain.FindingInventoryProposal{
-					ReceiptID: receipt.ReceiptID,
-					Proposal: auditdomain.FindingInventoryArtifact{
-						Ref: hold.Proposal.Ref, Digest: hold.Proposal.Digest,
-						MediaType: hold.Proposal.MediaType, SizeBytes: hold.Proposal.SizeBytes,
-					},
-					Document: receipt.Document, SelectedCheckOrdinals: []int{},
-				}
-			}
-			candidate.SelectedCheckOrdinals = append(candidate.SelectedCheckOrdinals, ordinal)
-			selection.selected[receipt.ReceiptID] = candidate
-			selection.selectedCount++
 		}
 		if selection.scanned >= maxNextRoundInboxScan {
 			break
 		}
+	}
+	return nil
+}
+
+func (selection *proposalCheckAccumulator) admit(
+	receipt findingintake.Receipt, hold findingintake.AuditHold, ordinals []int,
+) error {
+	if selection.budget.Full() {
+		selection.eligible = true
+		return nil
+	}
+	admission, err := selection.budget.Admit(auditdomain.FindingInventoryProposal{
+		ReceiptID: receipt.ReceiptID,
+		Proposal: auditdomain.FindingInventoryArtifact{
+			Ref: hold.Proposal.Ref, Digest: hold.Proposal.Digest,
+			MediaType: hold.Proposal.MediaType, SizeBytes: hold.Proposal.SizeBytes,
+		},
+		Document: receipt.Document, SelectedCheckOrdinals: ordinals,
+	})
+	if err != nil {
+		return err
+	}
+	if admission.Unschedulable != "" {
+		selection.unschedulable = append(selection.unschedulable, unschedulableProposal{
+			ReceiptID: receipt.ReceiptID, Limit: admission.Unschedulable,
+		})
+		return nil
+	}
+	selection.eligible = true
+	if admission.Checks != 0 {
+		selection.selected = append(selection.selected, admission.Proposal)
 	}
 	return nil
 }

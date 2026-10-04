@@ -1232,6 +1232,19 @@ The next-Round builder scans at most 10,000 held finding receipts per pass.
 Reaching that count is a scan-budget stop only when another receipt exists;
 a fully scanned inbox with no unscheduled checks completes the Round.
 
+Start, input preview and the next-Round builder share one per-Round item
+budget: the profile's per-Round limit and the Audit's remaining total, never
+more than the 4,096 inventory items of §7. The builder admits unscheduled
+proposal checks in inbox order only while the Round also stays within every
+byte, JSON-node and nesting limit of the documents it derives: the proposal
+inventory, its canonical inventory, the coverage, worklist and execution
+documents and their Round package, and the generated item-task packages.
+Checks that do not fit wait for a later Round, so one proposal's checks may
+span Rounds. A proposal whose first unscheduled check cannot fit even an empty
+Round is skipped rather than failing the Round; when only such proposals
+remain, the Audit finalizes with `proposal_inventory_limit_exceeded`, whose
+message names each skipped receipt and the limit it exceeds.
+
 If a retained proposal or materialized item fails deterministic next-Round
 validation, the Controller closes dispatch and moves the Audit to `finalizing`
 with `next_round_invalid`. Transient failures remain retryable.
