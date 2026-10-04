@@ -861,25 +861,10 @@ func appendAuditReviewEvent(
 	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string,
 	entityRevision *uint64, summary map[string]any,
 ) error {
-	var sequence int64
-	if err := tx.QueryRow(ctx, `
-UPDATE audits
-   SET revision = revision + 1, next_event_sequence = next_event_sequence + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1
-RETURNING next_event_sequence - 1`, auditID).Scan(&sequence); err != nil {
-		return err
-	}
-	encoded, _ := json.Marshal(summary)
-	var revision any
-	if entityRevision != nil {
-		revision = int64(*entityRevision)
-	}
-	_, err := tx.Exec(ctx, `
-INSERT INTO audit_events (
-    audit_id, sequence_number, kind, entity_id, entity_revision, summary
-) VALUES ($1, $2, $3, $4, $5, $6)`, auditID, sequence, kind, entityID, revision, encoded)
-	return err
+	return auditstore.NewPostgresStore(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
+		AuditID: auditID, Kind: kind, EntityID: entityID,
+		EntityRevision: entityRevision, Summary: summary,
+	})
 }
 
 func validateFindingList(params FindingListParams) error {
