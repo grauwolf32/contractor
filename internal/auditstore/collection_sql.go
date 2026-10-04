@@ -124,8 +124,11 @@ WITH collection_input AS MATERIALIZED (
        AND member.state = 'collecting'
     RETURNING member.execution_item_id, member.item_id, member.item_attempt
 ), settled_items AS (
+    -- One update per item row: the item settles only while it is still
+    -- collecting, and its coverage always records the collected attempt.
     UPDATE audit_items AS item
        SET state = CASE
+               WHEN item.state <> 'collecting' THEN item.state
                WHEN input.retryable
                 AND attempt.item_attempt < advanced.max_item_run_attempts
                 AND input.disposition NOT IN ('accepted-result', 'execution-cancelled')
@@ -133,19 +136,39 @@ WITH collection_input AS MATERIALIZED (
                ELSE 'settled'
            END,
            final_disposition = CASE
+               WHEN item.state <> 'collecting' THEN item.final_disposition
                WHEN input.retryable
                 AND attempt.item_attempt < advanced.max_item_run_attempts
                 AND input.disposition NOT IN ('accepted-result', 'execution-cancelled')
                  THEN NULL
                ELSE input.final_disposition
            END,
-           accepted_result_ref = CASE WHEN input.disposition = 'accepted-result' THEN input.result_ref ELSE NULL END,
-           accepted_result_digest = CASE WHEN input.disposition = 'accepted-result' THEN input.result_digest ELSE NULL END,
-           updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
+           accepted_result_ref = CASE
+               WHEN item.state <> 'collecting' THEN item.accepted_result_ref
+               WHEN input.disposition = 'accepted-result' THEN input.result_ref ELSE NULL END,
+           accepted_result_digest = CASE
+               WHEN item.state <> 'collecting' THEN item.accepted_result_digest
+               WHEN input.disposition = 'accepted-result' THEN input.result_digest ELSE NULL END,
+           updated_at = CASE
+               WHEN item.state <> 'collecting' THEN item.updated_at
+               ELSE GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond') END,
+           coverage_status = input.status,
+           coverage_requested = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN item.coverage_requested ELSE input.requested END,
+           coverage_completed = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN item.coverage_completed ELSE input.completed END,
+           coverage_gaps = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN CASE WHEN item.coverage_gaps ? 'collection-contract-invalid'
+                   THEN item.coverage_gaps
+                   ELSE item.coverage_gaps || jsonb_build_array('collection-contract-invalid') END
+               ELSE input.gaps END,
+           coverage_rationale = input.rationale,
+           coverage_result_ref = input.result_ref, coverage_result_digest = input.result_digest,
+           coverage_updated_at = clock_timestamp()
       FROM settled_attempts AS attempt
       JOIN collection_input AS input USING (execution_item_id)
       CROSS JOIN advanced_audit AS advanced
-     WHERE item.item_id = attempt.item_id AND item.state = 'collecting'
+     WHERE item.item_id = attempt.item_id
 ), inserted_finding_assessments AS (
     INSERT INTO audit_finding_assessments (
         assessment_id, finding_id, audit_id, receipt_id, item_id,
@@ -190,24 +213,6 @@ WITH collection_input AS MATERIALIZED (
       FROM current_finding_assessments AS assessment
      WHERE finding.finding_id = assessment.finding_id
        AND finding.audit_id = assessment.audit_id
-), updated_coverage AS (
-    UPDATE audit_coverage_rows AS coverage
-       SET status = input.status,
-           requested = CASE WHEN input.disposition = 'collection-contract-invalid'
-               THEN coverage.requested ELSE input.requested END,
-           completed = CASE WHEN input.disposition = 'collection-contract-invalid'
-               THEN coverage.completed ELSE input.completed END,
-           gaps = CASE WHEN input.disposition = 'collection-contract-invalid'
-               THEN CASE WHEN coverage.gaps ? 'collection-contract-invalid'
-                   THEN coverage.gaps
-                   ELSE coverage.gaps || jsonb_build_array('collection-contract-invalid') END
-               ELSE input.gaps END,
-           rationale = input.rationale,
-           result_ref = input.result_ref, result_digest = input.result_digest,
-           updated_at = clock_timestamp()
-      FROM settled_attempts AS attempt
-      JOIN collection_input AS input USING (execution_item_id)
-     WHERE coverage.item_id = attempt.item_id
 ), link_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($11::jsonb) AS link(
         logical_key text, artifact_ref jsonb, artifact_digest text,

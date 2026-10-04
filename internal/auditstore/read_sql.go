@@ -22,18 +22,17 @@ SELECT member.execution_item_id, member.execution_id, member.item_id,
  ORDER BY member.item_id, member.item_attempt, member.execution_item_id
  LIMIT $4`
 
-// listCoverageSQL pages the coverage rows of round $2 in Audit $1 together with
-// each item's ordinal and task, keyset-paginated by item ordinal after $3 and
-// limited to $4 rows. Used by PostgresStore.ListCoverage.
+// listCoverageSQL pages the coverage of round $2's items in Audit $1 together
+// with each item's ordinal and task, keyset-paginated by item ordinal after $3
+// and limited to $4 rows. Used by PostgresStore.ListCoverage.
 var listCoverageSQL = `
-SELECT coverage.audit_id, coverage.round_id, coverage.item_id, item.ordinal,
-       coverage.item_key, coverage.subject_key, coverage.status,
-       coverage.requested, coverage.completed, coverage.gaps,
-       coverage.rationale, coverage.result_ref, coverage.result_digest,
-       coverage.updated_at, item.task_ref, item.task_digest
-  FROM audit_coverage_rows AS coverage
-  JOIN audit_items AS item USING (item_id, audit_id, round_id)
- WHERE coverage.audit_id = $1 AND coverage.round_id = $2
+SELECT item.audit_id, item.round_id, item.item_id, item.ordinal,
+       item.item_key, item.subject_key, item.coverage_status,
+       item.coverage_requested, item.coverage_completed, item.coverage_gaps,
+       item.coverage_rationale, item.coverage_result_ref, item.coverage_result_digest,
+       item.coverage_updated_at, item.task_ref, item.task_digest
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.round_id = $2
    AND item.ordinal > $3
  ORDER BY item.ordinal, item.item_id LIMIT $4`
 

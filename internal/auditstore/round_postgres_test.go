@@ -117,9 +117,9 @@ func TestPostgresAcceptNextRoundIsAtomicReplaySafeAndConsumeOnce(t *testing.T) {
 	}
 	var sourceCount int
 	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM audit_proposal_items
- WHERE audit_id = $1 AND receipt_id = 'proposal-receipt-one'
-   AND proposed_check_ordinal = 0`, audit.AuditID).Scan(&sourceCount); err != nil || sourceCount != 1 {
+SELECT count(*) FROM audit_items
+ WHERE audit_id = $1 AND proposal_receipt_id = 'proposal-receipt-one'
+   AND proposal_check_ordinal = 0`, audit.AuditID).Scan(&sourceCount); err != nil || sourceCount != 1 {
 		t.Fatalf("durable proposal consume fence = (%d, %v)", sourceCount, err)
 	}
 

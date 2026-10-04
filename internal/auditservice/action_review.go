@@ -231,24 +231,15 @@ UPDATE audit_items
 		tag, err := tx.Exec(ctx, `
 UPDATE audit_items
    SET state = 'settled', final_disposition = 'not-applicable',
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID)
+       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
+       coverage_status = 'not-applicable', coverage_completed = '[]'::jsonb,
+       coverage_gaps = '[]'::jsonb, coverage_rationale = $3,
+       coverage_updated_at = GREATEST(clock_timestamp(), coverage_updated_at + interval '1 microsecond')
+ WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID, rationale)
 		if err != nil {
 			return err
 		}
 		if tag.RowsAffected() != 1 {
-			return auditstore.ErrPrecondition
-		}
-		coverageTag, err := tx.Exec(ctx, `
-UPDATE audit_coverage_rows
-   SET status = 'not-applicable', completed = '[]'::jsonb, gaps = '[]'::jsonb,
-       rationale = $3,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND item_id = $2`, auditID, itemID, rationale)
-		if err != nil {
-			return err
-		}
-		if coverageTag.RowsAffected() != 1 {
 			return auditstore.ErrPrecondition
 		}
 		return nil
@@ -256,26 +247,14 @@ UPDATE audit_coverage_rows
 	if action != ReviewReject {
 		return auditstore.ErrInvalid
 	}
-	tag, err := tx.Exec(ctx, `
-UPDATE audit_items
-   SET state = 'settled', final_disposition = 'excluded',
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-	WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID)
+	tag, err := tx.Exec(ctx, rejectAwaitingItemSQL, auditID, itemID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() != 1 {
 		return auditstore.ErrPrecondition
 	}
-	_, err = tx.Exec(ctx, `
-UPDATE audit_coverage_rows
-   SET status = 'excluded',
-       gaps = CASE WHEN gaps ? 'human-approval-rejected' THEN gaps
-                   ELSE gaps || '["human-approval-rejected"]'::jsonb END,
-       rationale = 'The exact proposed action was rejected by its owner.',
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND item_id = $2`, auditID, itemID)
-	return err
+	return nil
 }
 
 // validateAndApplyReportDecision applies the owner's decision on the exact

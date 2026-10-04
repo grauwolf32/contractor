@@ -102,23 +102,17 @@ INSERT INTO audit_rounds (
 		if _, err := pool.Exec(ctx, `
 INSERT INTO audit_items (
     item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state, final_disposition
-) VALUES (
-    $1, $2, 'round-unassessed', $3, $4, 'check', $5,
-    $6::jsonb, $7, $8::jsonb, 'check-role', 'settled', $9
-)`, itemID, auditID, "check-"+item.key, ordinal, "subject-"+item.key,
-			taskRef, serviceTestDigest("task-"+item.key), origin, string(item.final)); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, `
-INSERT INTO audit_proposal_items (
-    audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
-    proposal_ref, proposal_digest
+    task_ref, task_digest, origin, workflow_role, state, final_disposition,
+    coverage_status, coverage_requested, coverage_completed, coverage_gaps,
+    proposal_receipt_id, proposal_check_ordinal, proposal_ref, proposal_digest
 )
-SELECT audit_id, receipt_id, $3, 'round-unassessed', $4,
-       proposal_ref->'ref', proposal_ref->>'digest'
-  FROM finding_proposal_audit_holds
- WHERE audit_id = $1 AND receipt_id = $2`, auditID, "receipt-unassessed", ordinal, itemID); err != nil {
+SELECT $1, $2, 'round-unassessed', $3, $4, 'check', $5,
+       $6::jsonb, $7, $8::jsonb, 'check-role', 'settled', $9,
+       'not-tested', '[]', '[]', '[]',
+       hold.receipt_id, $4, hold.proposal_ref->'ref', hold.proposal_ref->>'digest'
+  FROM finding_proposal_audit_holds AS hold
+ WHERE hold.audit_id = $2 AND hold.receipt_id = $10`, itemID, auditID, "check-"+item.key, ordinal, "subject-"+item.key,
+			taskRef, serviceTestDigest("task-"+item.key), origin, string(item.final), "receipt-unassessed"); err != nil {
 			t.Fatal(err)
 		}
 	}

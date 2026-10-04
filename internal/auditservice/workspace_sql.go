@@ -10,11 +10,11 @@ package auditservice
 var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
        audit.state, audit.outstanding_run_count,
-       (SELECT count(*) FROM audit_coverage_rows WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id),
-       (SELECT count(*) FROM audit_coverage_rows WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND status IN ('satisfied', 'violated', 'traced-complete', 'not-applicable', 'excluded')),
-       (SELECT count(*) FROM audit_coverage_rows WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND status = 'violated'),
-       (SELECT count(*) FROM audit_coverage_rows WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND status IN ('inconclusive', 'blocked', 'traced-partial', 'unmapped')),
-       (SELECT count(*) FROM audit_coverage_rows WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND status = 'not-tested'),
+       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id),
+       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status IN ('satisfied', 'violated', 'traced-complete', 'not-applicable', 'excluded')),
+       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status = 'violated'),
+       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status IN ('inconclusive', 'blocked', 'traced-partial', 'unmapped')),
+       (SELECT count(*) FROM audit_items WHERE audit_id = audit.audit_id AND round_id = audit.current_round_id AND coverage_status = 'not-tested'),
        (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id),
        (SELECT count(*) FROM audit_findings WHERE audit_id = audit.audit_id AND current_decision_id IS NULL),
        (SELECT count(*) FROM audit_review_requests WHERE audit_id = audit.audit_id AND state = 'pending')

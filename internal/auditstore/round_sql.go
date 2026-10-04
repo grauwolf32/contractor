@@ -52,26 +52,18 @@ WITH project_gate AS MATERIALIZED (
     INSERT INTO audit_items (
         item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
         task_ref, task_digest, origin, workflow_role, state,
-        approval_kind, approval_subject_digest
+        approval_kind, approval_subject_digest,
+        coverage_status, coverage_requested, coverage_completed, coverage_gaps, coverage_rationale
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
            item.task_ref, item.task_digest, item.origin, item.workflow_role,
            item.initial_state, item.approval_kind,
-           NULLIF(item.approval_digest, '')
+           NULLIF(item.approval_digest, ''),
+           item.status, item.requested, item.completed, item.gaps, item.rationale
       FROM inserted_round AS round CROSS JOIN item_input AS item
     RETURNING item_id, audit_id, round_id, item_key, subject_key,
               approval_kind, approval_subject_digest
-), inserted_coverage AS (
-    INSERT INTO audit_coverage_rows (
-        audit_id, round_id, item_id, item_key, subject_key,
-        status, requested, completed, gaps, rationale
-    )
-    SELECT stored.audit_id, stored.round_id, stored.item_id,
-           stored.item_key, stored.subject_key,
-           source.status, source.requested, source.completed, source.gaps, source.rationale
-      FROM inserted_items AS stored
-      JOIN item_input AS source USING (item_id)
 ), inserted_reviews AS (
     INSERT INTO audit_review_requests (
         request_id, audit_id, finding_id, subject_kind, subject_id, kind,
@@ -162,9 +154,9 @@ WITH live_claim AS MATERIALIZED (
         ON source_audit.audit_id = hold.audit_id
        AND source_audit.project_id = hold.project_id
      WHERE NOT EXISTS (
-         SELECT 1 FROM audit_proposal_items AS used
-          WHERE used.audit_id = $1 AND used.receipt_id = source.receipt_id
-            AND used.proposed_check_ordinal = source.proposed_check_ordinal
+         SELECT 1 FROM audit_items AS used
+          WHERE used.audit_id = $1 AND used.proposal_receipt_id = source.receipt_id
+            AND used.proposal_check_ordinal = source.proposed_check_ordinal
      )
 ), audit_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.max_items_per_round, audit.max_items_total,
@@ -208,25 +200,22 @@ WITH live_claim AS MATERIALIZED (
     INSERT INTO audit_items (
         item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
         task_ref, task_digest, origin, workflow_role, state,
-        approval_kind, approval_subject_digest
+        approval_kind, approval_subject_digest,
+        coverage_status, coverage_requested, coverage_completed, coverage_gaps, coverage_rationale,
+        proposal_receipt_id, proposal_check_ordinal, proposal_ref, proposal_digest
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
            item.task_ref, item.task_digest, item.origin, item.workflow_role,
            item.initial_state, item.approval_kind,
-           NULLIF(item.approval_digest, '')
+           NULLIF(item.approval_digest, ''),
+           item.status, item.requested, item.completed, item.gaps, item.rationale,
+           source.receipt_id, source.proposed_check_ordinal,
+           source.proposal->'ref', source.proposal->>'digest'
       FROM inserted_round AS round CROSS JOIN item_input AS item
+      LEFT JOIN source_input AS source USING (item_id)
     RETURNING item_id, audit_id, round_id, item_key, subject_key,
               approval_kind, approval_subject_digest
-), inserted_coverage AS (
-    INSERT INTO audit_coverage_rows (
-        audit_id, round_id, item_id, item_key, subject_key,
-        status, requested, completed, gaps, rationale
-    )
-    SELECT stored.audit_id, stored.round_id, stored.item_id,
-           stored.item_key, stored.subject_key, source.status,
-           source.requested, source.completed, source.gaps, source.rationale
-      FROM inserted_items AS stored JOIN item_input AS source USING (item_id)
 ), inserted_reviews AS (
     INSERT INTO audit_review_requests (
         request_id, audit_id, finding_id, subject_kind, subject_id, kind,
@@ -244,15 +233,6 @@ WITH live_claim AS MATERIALIZED (
       FROM inserted_items AS item JOIN advanced USING (audit_id)
      WHERE item.approval_kind <> 'none'
     RETURNING request_id
-), inserted_sources AS (
-    INSERT INTO audit_proposal_items (
-        audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
-        proposal_ref, proposal_digest
-    )
-    SELECT stored.audit_id, source.receipt_id, source.proposed_check_ordinal,
-           stored.round_id, stored.item_id, source.proposal->'ref',
-           source.proposal->>'digest'
-      FROM inserted_items AS stored JOIN source_input AS source USING (item_id)
 ), event_row AS (
     INSERT INTO audit_events (
         audit_id, sequence_number, kind, entity_id, entity_revision, summary

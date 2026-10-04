@@ -167,9 +167,9 @@ func (s *Service) scheduledProposalChecks(
 		return result, nil
 	}
 	rows, err := s.pool.Query(ctx, `
-SELECT receipt_id, proposed_check_ordinal
-  FROM audit_proposal_items
- WHERE audit_id = $1 AND receipt_id = ANY($2::text[])`, auditID, receiptIDs)
+SELECT proposal_receipt_id, proposal_check_ordinal
+  FROM audit_items
+ WHERE audit_id = $1 AND proposal_receipt_id = ANY($2::text[])`, auditID, receiptIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list scheduled Audit proposal checks: %w", err)
 	}

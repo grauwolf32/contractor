@@ -180,7 +180,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	}{
 		{"not-tested", 0, 0, 0, 1}, {"blocked", 0, 0, 1, 0}, {"violated", 1, 1, 0, 0}, {"satisfied", 1, 0, 0, 0}, {"traced-partial", 0, 0, 1, 0}, {"not-applicable", 1, 0, 0, 0},
 	} {
-		if _, err := pool.Exec(ctx, `UPDATE audit_coverage_rows SET status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
+		if _, err := pool.Exec(ctx, `UPDATE audit_items SET coverage_status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
 			t.Fatal(err)
 		}
 		summary, err := service.GetWorkspace(ctx, project.OwnerID, draft.AuditID)
@@ -1169,10 +1169,12 @@ INSERT INTO audit_rounds (
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_items (
     item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state
+    task_ref, task_digest, origin, workflow_role, state,
+    coverage_status, coverage_requested, coverage_completed, coverage_gaps
 ) VALUES (
     'item-finding-attempts', $1, 'round-finding-attempts', 'check-one', 0,
-    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready'
+    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
+    'not-tested', '[]', '[]', '[]'
 )`, auditID, taskRef, digest("task"), origin); err != nil {
 			return err
 		}

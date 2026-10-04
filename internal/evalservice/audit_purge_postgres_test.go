@@ -122,9 +122,11 @@ INSERT INTO audit_rounds (
 		{`
 INSERT INTO audit_items (
     item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state
+    task_ref, task_digest, origin, workflow_role, state,
+    coverage_status, coverage_requested, coverage_completed, coverage_gaps
 ) VALUES ('item-decided', $1, 'round-decided', 'check-decided', 0, 'check',
-          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready')`,
+          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
+          'not-tested', '[]', '[]', '[]')`,
 			[]any{audit.AuditID, taskRef, digest, origin}},
 		{`
 INSERT INTO audit_executions (

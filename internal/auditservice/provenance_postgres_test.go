@@ -62,8 +62,10 @@ func TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt(t *testing.T) {
 				}
 				if kind == "item" {
 					_, err = tx.Exec(ctx, `INSERT INTO audit_items (
-item_id,audit_id,round_id,item_key,ordinal,kind,subject_key,task_ref,task_digest,origin,workflow_role,state)
-SELECT 'historical-item',audit_id,round_id,'historical',10,kind,subject_key,task_ref,task_digest,$1::jsonb,workflow_role,'ready'
+item_id,audit_id,round_id,item_key,ordinal,kind,subject_key,task_ref,task_digest,origin,workflow_role,state,
+coverage_status,coverage_requested,coverage_completed,coverage_gaps)
+SELECT 'historical-item',audit_id,round_id,'historical',10,kind,subject_key,task_ref,task_digest,$1::jsonb,workflow_role,'ready',
+coverage_status,coverage_requested,coverage_completed,coverage_gaps
 FROM audit_items WHERE item_id=$2`, encoded, items[0].ItemID)
 				} else {
 					_, err = tx.Exec(ctx, `INSERT INTO audit_executions (
