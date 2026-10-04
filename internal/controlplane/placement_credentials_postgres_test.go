@@ -3,6 +3,7 @@ package controlplane
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -47,13 +48,14 @@ func TestPlacementManagedCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 				Envelope:  envelope,
 				CreatedAt: time.Now().UTC(),
 			}
-			if _, err := pool.Exec(setupCtx, `
-INSERT INTO credential_operations (
-    operation_id, idempotency_key, request_hash, credential_id, operation_kind, phase,
-    request_schema_version, request, created_at, updated_at
-) VALUES ('create:'||$1, 'reserve-'||$1, 'sha256:'||repeat('f',64), $1, 'create', 'prepared',
-    'contractor.credentials/v1', jsonb_build_object('credentialId', $1::text), now(), now())`,
-				selection.Credential.CredentialID); err != nil {
+			credentialID := selection.Credential.CredentialID
+			if err := credentials.NewRepository(pool).InsertOperation(setupCtx, credentials.Operation{
+				OperationID: "create:" + credentialID, IdempotencyKey: "reserve-" + credentialID,
+				RequestHash: "sha256:" + strings.Repeat("f", 64), CredentialID: credentialID,
+				Kind: credentials.OperationCreate, Phase: credentials.OperationPrepared,
+				Request:   json.RawMessage(`{"credentialId":"` + credentialID + `"}`),
+				CreatedAt: record.CreatedAt, UpdatedAt: record.CreatedAt,
+			}); err != nil {
 				t.Fatal(err)
 			}
 			if err := credentials.NewRepository(pool).InsertCredential(setupCtx, record); err != nil {
