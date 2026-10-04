@@ -12,8 +12,6 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-const repositoryConfigRoot = "../../configs"
-
 // coreFixtureRoot is the frozen catalog that behavioral tests load or copy. On
 // a copy, configtest adds its test-* policies, artifact builder and
 // artifact-copy Workflow; testdata/<topic> directories add focused slices.
@@ -1084,11 +1082,6 @@ func equalStrings(left, right []string) bool {
 		}
 	}
 	return true
-}
-
-func copyConfigTree(t *testing.T) string {
-	t.Helper()
-	return configtest.CopyWithPolicies(t, repositoryConfigRoot)
 }
 
 // copyCoreFixture copies the core fixture catalog with the shared test

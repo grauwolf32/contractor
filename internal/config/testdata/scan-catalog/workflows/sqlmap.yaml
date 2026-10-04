@@ -1,0 +1,30 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: sqlmap-request, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    request:
+      required: true
+      mediaTypes: [application/json, application/vnd.contractor.http-request+json]
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Check the supplied HTTP request for SQL injection
+      instructions: {ref: instructions/scan.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: sqlmap-scan@1}
+      context:
+        artifacts:
+          request: {namespace: inputs, name: request, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

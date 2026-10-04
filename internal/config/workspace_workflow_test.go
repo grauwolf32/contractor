@@ -163,7 +163,7 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
 	replaceFile(t, path, `    - ref: run-artifacts@1
       tools:
@@ -181,7 +181,7 @@ func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
 func TestWorkflowPublicationRequiresWorkspaceForTaintAnnotations(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
 	replaceFile(t, path, `    - ref: run-artifacts@1
       tools:
