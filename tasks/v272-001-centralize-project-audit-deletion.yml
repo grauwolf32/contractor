@@ -3,8 +3,8 @@ id: V272-001
 title: Centralize Project-owned Audit deletion transitions
 milestone: code-reuse-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 0714c96a89a6768d8055a9d8f6ae5d9e9d086a45
 depends_on: []
 languages: [go]
 goal: Keep Project-triggered Audit state changes behind the auditstore boundary.
