@@ -3,7 +3,7 @@ id: V287-001
 title: Separate storage budgets from transfer socket deadlines
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V286-001]
 languages: [go]
 goal: Keep artifact storage work from being cancelled by the client I/O deadline introduced by V234.
