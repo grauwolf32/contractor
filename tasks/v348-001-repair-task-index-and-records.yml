@@ -3,7 +3,8 @@ id: V348-001
 title: Repair the task index and task records
 milestone: review-process-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ddb2d532dd63bc564567d4b03d68f4f8743273c3
 depends_on: []
 languages: [yaml]
 goal: Make tasks/index.yml and the task records consistent again.
