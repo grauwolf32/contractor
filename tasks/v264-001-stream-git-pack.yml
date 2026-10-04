@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V264-001
+title: Stream Git pack import without whole-pack buffering
+milestone: git-import-memory-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Decode bounded Git packs directly from the transport while preserving content and transport error classification.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/127
+  finding: Fetch retains a full pack buffer beside decoded objects, raising peak Server memory.
+scope:
+  in:
+    - Stream the pack through the scanner with a bounded reader and a rolling checksum-trailer window.
+    - Preserve rejection of trailing bytes and distinguish remote failures, budgets, and cancellation.
+    - Re-measure the production Git artifacts gate and update its documented memory observation.
+  out:
+    - Changing imported archive semantics or Git protocol negotiation.
+acceptance_criteria:
+  - {id: A1, text: No whole-pack readBounded buffer remains in Fetch.}
+  - {id: A2, text: Trailing bytes 00, 80, 70, and 60 are rejected as invalid content.}
+  - {id: A3, text: Truncated transport, over-budget pack, and cancellation retain their error classes.}
+  - {id: A4, text: Existing unit and real HTTPS/SSH integration tests pass.}
+  - {id: A5, text: Production Git artifacts memory measurement is updated in the guide.}
+tests:
+  - {command: go test ./internal/gitimport, covers: [A1, A2, A3]}
+  - {command: go test -tags=integration ./internal/gitimport, covers: [A4]}
+  - {command: make test-git-artifacts, covers: [A4, A5]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
