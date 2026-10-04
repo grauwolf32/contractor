@@ -1,6 +1,11 @@
 import "../configuration-reading.css";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useRef, useState } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { runtimeConfigVersionPath } from "../../../app/navigation";
@@ -34,7 +39,12 @@ import {
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
-import { useCursorStack } from "../../../app/pagination";
+import {
+  nextPageCursor,
+  type CursorStackControls,
+  useCursorStack,
+} from "../../../app/pagination";
+import { LoadMoreButton } from "../../../app/load-more";
 import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
@@ -317,17 +327,30 @@ function buildDocument(
 
 function RuntimeConfigPublishForm({
   configs,
-  gateways,
   onClose,
 }: {
   configs: RuntimeConfigResource[];
-  gateways: ConfigurationResource[];
   onClose: () => void;
 }) {
   const heading = useId();
   const initialFocus = useRef<HTMLInputElement>(null);
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const gatewayInventory = useInfiniteQuery({
+    queryKey: queryKeys.configurations.infinitePicker("llm-gateways"),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      listConfigurations(
+        api,
+        "llm-gateways",
+        pageParam === null ? { signal } : { cursor: pageParam, signal },
+      ),
+    getNextPageParam: (page) => nextPageCursor(page.page),
+  });
+  const gateways = useMemo(
+    () => gatewayInventory.data?.pages.flatMap((page) => page.items) ?? [],
+    [gatewayInventory.data],
+  );
   const [draft, setDraft] = useState(emptyConfigDraft);
   const [errors, setErrors] = useState<string[]>([]);
   const [published, setPublished] = useState<RuntimeConfigResource>();
@@ -464,6 +487,7 @@ function RuntimeConfigPublishForm({
               />
             </label>
           </div>
+          <LoadMoreButton query={gatewayInventory} label="Load more Gateways" />
         </fieldset>
 
         {(
@@ -667,6 +691,9 @@ function RuntimeConfigPublishForm({
           errors={errors}
           mutationError={mutation.error}
         />
+        {gatewayInventory.error === null ? null : (
+          <ErrorNotice error={gatewayInventory.error} />
+        )}
         {published === undefined ? null : (
           <div className="notice notice-success" role="status">
             Published {published.ref.name}@{published.ref.version}. Bind a label
@@ -1349,9 +1376,11 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
 
 function RuntimeCredentialList({
   credentials,
+  controls,
   onCreate,
 }: {
   credentials: RuntimeCredentialMetadata[];
+  controls: CursorStackControls;
   onCreate: () => void;
 }) {
   const api = usePublicAPI();
@@ -1379,7 +1408,7 @@ function RuntimeCredentialList({
           <h3>Runtime credentials</h3>
         </div>
         <div className="runtime-library-actions">
-          <span>{credentials.length} loaded</span>
+          <span>{credentials.length} on this page</span>
           <button
             className="secondary-button icon-button"
             type="button"
@@ -1437,6 +1466,7 @@ function RuntimeCredentialList({
           </table>
         </div>
       )}
+      <CursorControls label="Runtime credential pages" {...controls} />
       {confirmRemoval ? (
         <ConfirmRemovalDialog
           title={`Delete Runtime credential ${confirmRemoval.credentialId}?`}
@@ -1508,7 +1538,9 @@ export function RuntimeConfigurationRoute() {
   const [createDialog, setCreateDialog] = useState<"config" | "credential">();
   const [bindingTarget, setBindingTarget] = useState<RuntimeConfigResource>();
   const configPages = useCursorStack();
+  const credentialPages = useCursorStack();
   const configCursor = configPages.cursor;
+  const credentialCursor = credentialPages.cursor;
   const configs = useQuery({
     queryKey: queryKeys.operations.runtimeConfigs.list(configCursor),
     queryFn: () =>
@@ -1522,16 +1554,15 @@ export function RuntimeConfigurationRoute() {
     queryFn: () => listAllRuntimeLabels(api),
   });
   const credentials = useQuery({
-    queryKey: queryKeys.operations.runtimeCredentials.list(),
-    queryFn: () => listRuntimeCredentials(api),
-  });
-  const gateways = useQuery({
-    queryKey: queryKeys.configurations.picker("llm-gateways"),
-    queryFn: () => listConfigurations(api, "llm-gateways"),
+    queryKey: queryKeys.operations.runtimeCredentials.list(credentialCursor),
+    queryFn: () =>
+      listRuntimeCredentials(
+        api,
+        credentialCursor === undefined ? {} : { cursor: credentialCursor },
+      ),
   });
   const loadedConfigs = configs.data?.items ?? [];
-  const inventoryError =
-    configs.error ?? labels.error ?? credentials.error ?? gateways.error;
+  const inventoryError = configs.error ?? labels.error ?? credentials.error;
   return (
     <>
       {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
@@ -1649,6 +1680,7 @@ export function RuntimeConfigurationRoute() {
       </div>
       <RuntimeCredentialList
         credentials={credentials.data?.items ?? []}
+        controls={credentialPages.controls(credentials.data?.page)}
         onCreate={() => setCreateDialog("credential")}
       />
       {createDialog === "credential" ? (
@@ -1659,7 +1691,6 @@ export function RuntimeConfigurationRoute() {
       {createDialog === "config" ? (
         <RuntimeConfigPublishForm
           configs={loadedConfigs}
-          gateways={gateways.data?.items ?? []}
           onClose={() => setCreateDialog(undefined)}
         />
       ) : null}
