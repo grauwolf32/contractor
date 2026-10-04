@@ -163,6 +163,55 @@ SELECT request_id, round_id, subject_revision, subject_digest,
 	return result, nil
 }
 
+// reportReviewSelectionCTEs locks the pending report-acceptance review of the
+// Audit row in the named CTE while that row is in waiting_review. A report
+// review can be decided only there, so every other way out of that state
+// closes it: owner transitions and owner or Project deletion use these CTEs,
+// while a decision or ExpireReportReview records its own outcome. A report
+// review starts with dispatch closed and every item settled, so the
+// Controller's deadline pause and item-review activation never leave
+// waiting_review while one is pending. The statement changes at most that one
+// Audit, adds report_review_count.expired to its revision and next event
+// sequence, records its own event at next_event_sequence - 1 - expired, and
+// follows its changed CTE with reportReviewClosureCTEs.
+func reportReviewSelectionCTEs(audit string) string {
+	return `report_review AS MATERIALIZED (
+    SELECT review.request_id, review.audit_id
+      FROM ` + audit + ` AS leaving
+      JOIN audit_report_candidates AS report USING (audit_id)
+      JOIN audit_review_requests AS review
+        ON review.request_id = report.request_id
+       AND review.audit_id = report.audit_id
+     WHERE leaving.state = 'waiting_review' AND review.state = 'pending'
+     FOR UPDATE OF review
+), report_review_count AS MATERIALIZED (
+    SELECT count(*)::bigint AS expired FROM report_review
+)`
+}
+
+// reportReviewClosureCTEs expires the reviews reportReviewSelectionCTEs locked
+// for the Audit the changed CTE returns, numbering one review.expired event per
+// review after the statement's own event.
+const reportReviewClosureCTEs = `expired_report_review AS (
+    UPDATE audit_review_requests AS review
+       SET state = 'expired', revision = review.revision + 1,
+           updated_at = GREATEST(clock_timestamp(), review.updated_at + interval '1 microsecond')
+      FROM report_review, changed
+     WHERE review.request_id = report_review.request_id
+       AND review.audit_id = changed.audit_id AND review.state = 'pending'
+    RETURNING review.request_id, review.audit_id, review.revision
+), expired_report_event AS (
+    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
+    SELECT review.audit_id,
+           changed.next_event_sequence - 1 - report_review_count.expired
+               + row_number() OVER (ORDER BY review.request_id),
+           'review.expired', review.request_id, review.revision,
+           jsonb_build_object('subjectKind', 'audit-report', 'kind', 'report-acceptance')
+      FROM expired_report_review AS review
+      JOIN changed USING (audit_id)
+      CROSS JOIN report_review_count
+)`
+
 // ExpireReportReview deterministically closes an Audit whose immutable report
 // candidate was not accepted within its bounded review window. The Controller
 // calls it only under a live claim; the SQL rechecks database time so process

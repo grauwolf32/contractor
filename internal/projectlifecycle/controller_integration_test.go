@@ -416,6 +416,228 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 	}
 }
 
+// TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments finishes a
+// Project whose Audit holds an owner decision and a collected finding
+// assessment, rows that outlive the Audit's deleted child Runs.
+func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool := isolatedPool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-decided-audit", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Decided Audit", IdempotencyKey: "create-project",
+		RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	audits := auditstore.NewPostgresStore(pool)
+	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: "decided-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile: auditstore.ProfileIdentity{
+			Name: "checklist", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+		},
+		ProfileSnapshot: json.RawMessage(`{"ref":{"name":"checklist","version":"1"}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
+		},
+		IdempotencyKey: "create-audit", RequestDigest: "sha256:" + strings.Repeat("c", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedDecidedAuditHistory(t, ctx, pool, audit)
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	controller := newTestController(t, pool, runstore.NewPostgresStore(pool), &recordingNotifier{}, "decided")
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("request Project-owned Audit deletion = (%t, %v)", worked, err)
+	}
+	claims, err := audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "audit-controller", Lease: time.Minute, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim deleting Audit = (%+v, %v)", claims, err)
+	}
+	if err := audits.PurgeClaimed(ctx, claims[0], auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
+		t.Fatalf("purge Audit with decided review and assessment: %v", err)
+	}
+	for iteration := 0; iteration < 4; iteration++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("Project cleanup %d = (%t, %v)", iteration, worked, err)
+		}
+	}
+	if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); !errors.Is(err, projectstore.ErrNotFound) {
+		t.Fatalf("Project did not finish deletion: %v", err)
+	}
+	var decisions, assessments int
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM audit_review_decisions),
+       (SELECT count(*) FROM audit_finding_assessments)`).Scan(&decisions, &assessments); err != nil ||
+		decisions != 0 || assessments != 0 {
+		t.Fatalf("Audit decisions/assessments after Project deletion = (%d, %d, %v)", decisions, assessments, err)
+	}
+}
+
+// seedDecidedAuditHistory records the rows an Audit keeps after its child Run
+// is deleted: a collected attempt whose result assessed a retained finding,
+// and the owner's decision confirming that finding.
+func seedDecidedAuditHistory(t *testing.T, ctx context.Context, pool *pgxpool.Pool, audit auditstore.Audit) {
+	t.Helper()
+	digest := "sha256:" + strings.Repeat("d", 64)
+	sourceRevision := "checks-r1"
+	origin, err := json.Marshal(auditstore.ItemOrigin{
+		Schema: auditstore.ItemOriginSchema, EntryKey: "check-decided",
+		SourceRef:           &contracts.ArtifactRef{Namespace: "inputs", Name: "checks", Revision: &sourceRevision},
+		SourceContentDigest: digest, SourceMediaType: "application/json",
+		CanonicalInventoryDigest: digest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := &auditstore.WorkflowProvenance{
+		Name: "check", Version: "1", SchemaVersion: contracts.APIVersion, ClosureDigest: digest,
+	}
+	workflow.ConfigurationRef.Name, workflow.ConfigurationRef.Version = workflow.Name, workflow.Version
+	runProvenance, err := json.Marshal(auditstore.RunProvenance{
+		Schema: "contractor.audit.run-provenance.v1", RunID: "deleted-run-decided", Workflow: workflow,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposalRef := `{"namespace":"audit-finding-proposals","name":"candidate-decided","revision":"proposal-r1"}`
+	taskRef := `{"namespace":"audit-task-packages","name":"check-decided","revision":"task-r1"}`
+	resultRef := `{"namespace":"audit-results","name":"check-decided","revision":"result-r1"}`
+	statements := []struct {
+		sql  string
+		args []any
+	}{
+		{`
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id,
+    runtime_instance_id, stage_execution_id, logical_agent_name,
+    invocation_id, submission_id, client_key, request_digest,
+    run_id, owner_id, project_id,
+    workflow_name, workflow_version, workflow_schema_version,
+    workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type,
+    proposal_size_bytes, evidence
+) VALUES ('receipt-decided', 'proposal-decided', 'allocation-decided', 'runtime-decided',
+          'instance-decided', 'stage-decided', 'worker', 'invocation-decided',
+          'submission-decided', 'candidate-decided', $1, 'deleted-run-decided', $2, $3,
+          'finding-source', '1', 'contractor/v1alpha1',
+          '{"name":"finding-source","version":"1"}'::jsonb, $1,
+          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb)`,
+			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
+		{`
+INSERT INTO finding_proposal_retention (receipt_id, state, source_run_deleted_at)
+VALUES ('receipt-decided', 'audit-held', clock_timestamp())`, nil},
+		{`
+INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
+VALUES ('receipt-decided', $1, $2,
+        jsonb_build_object('ref', $3::jsonb, 'digest', $4::text,
+                           'mediaType', 'application/json', 'sizeBytes', 128),
+        '[]'::jsonb)`, []any{audit.AuditID, audit.ProjectID, proposalRef, digest}},
+		{`
+INSERT INTO audit_rounds (
+    round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
+) VALUES ('round-decided', $1, 1,
+          '{"namespace":"audit-rounds","name":"round-decided","revision":"round-r1"}'::jsonb,
+          $2, 'closed', 1)`, []any{audit.AuditID, digest}},
+		{`
+INSERT INTO audit_items (
+    item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
+    task_ref, task_digest, origin, workflow_role, state
+) VALUES ('item-decided', $1, 'round-decided', 'check-decided', 0, 'check',
+          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready')`,
+			[]any{audit.AuditID, taskRef, digest, origin}},
+		{`
+INSERT INTO audit_executions (
+    execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
+    submission_key, request_digest, run_id, state, terminal_outcome,
+    terminal_run_generation, terminal_run_sequence, terminal_observed_at,
+    run_provenance, run_deleted_at
+) VALUES ('execution-decided', $1, 'round-decided', 'check', 'check-role',
+          '{"namespace":"audit-executions","name":"check-decided","revision":"execution-r1"}'::jsonb,
+          $2, 'submission-decided', $2, 'deleted-run-decided', 'collected', 'succeeded',
+          'generation-one', 1, clock_timestamp(), $3::jsonb, clock_timestamp())`,
+			[]any{audit.AuditID, digest, runProvenance}},
+		{`
+INSERT INTO audit_execution_items (
+    execution_item_id, execution_id, audit_id, round_id, item_id,
+    batch_ordinal, item_attempt, task_ref, task_digest, input_refs,
+    state, collection_disposition, result_ref, result_digest, collected_at
+) VALUES ('execution-item-decided', 'execution-decided', $1, 'round-decided', 'item-decided',
+          0, 1, $2::jsonb, $3, '[]'::jsonb, 'settled', 'accepted-result',
+          $4::jsonb, $3, clock_timestamp())`, []any{audit.AuditID, taskRef, digest, resultRef}},
+		{`
+INSERT INTO audit_collection_receipts (
+    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
+    terminal_run_generation, terminal_run_sequence, disposition,
+    source_output_ref, source_output_digest, retained_refs, request_digest
+) VALUES ('collection-decided', $1, 'execution-decided', 'deleted-run-decided', 'succeeded',
+          'generation-one', 1, 'accepted-result', $2::jsonb, $3, '[]'::jsonb, $3)`,
+			[]any{audit.AuditID, resultRef, digest}},
+		{`
+INSERT INTO audit_finding_assessments (
+    assessment_id, finding_id, audit_id, receipt_id, item_id,
+    execution_item_id, collection_receipt_id, semantic_assessment,
+    result_ref, result_digest
+)
+SELECT 'assessment-decided', finding_id, audit_id, first_receipt_id,
+       'item-decided', 'execution-item-decided', 'collection-decided', 'supported',
+       $2::jsonb, $3
+  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, resultRef, digest}},
+		{`
+UPDATE audit_items
+   SET state = 'settled', final_disposition = 'accepted-result',
+       accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
+       last_execution_item_id = 'execution-item-decided'
+ WHERE audit_id = $1 AND item_id = 'item-decided'`, []any{audit.AuditID, resultRef, digest}},
+		{`
+INSERT INTO audit_review_requests (
+    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+    subject_revision, subject_digest, requested_actions, state,
+    idempotency_key, request_digest
+)
+SELECT 'review-decided', audit_id, finding_id, 'finding', finding_id,
+       'finding-triage', 1, $2, '["true_positive","false_positive"]'::jsonb, 'decided',
+       'review-decided', $2
+  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, digest}},
+		{`
+INSERT INTO audit_review_decisions (
+    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict,
+    severity, rationale, subject_revision, subject_digest, idempotency_key, request_digest
+)
+SELECT 'decision-decided', 'review-decided', audit_id, finding_id, $2,
+       'true_positive', 'true_positive', 'high', 'Confirmed before deletion.',
+       1, $3, 'decision-decided', $3
+  FROM audit_findings WHERE audit_id = $1`, []any{audit.AuditID, audit.OwnerID, digest}},
+		{`
+UPDATE audit_findings
+   SET state = 'confirmed', current_decision_id = 'decision-decided',
+       current_assessment_id = 'assessment-decided', revision = revision + 1
+ WHERE audit_id = $1`, []any{audit.AuditID}},
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		for _, statement := range statements {
+			if _, err := tx.Exec(ctx, statement.sql, statement.args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // delayedPurgeRuns makes one Run purge outlast an ordinary operation budget.
 type delayedPurgeRuns struct {
 	*runstore.PostgresStore

@@ -1325,7 +1325,10 @@ the Audit completed; rejection or bounded expiry records a stable terminal
 reason. Each is an ordinary revisioned Audit transition: acceptance records
 the same `audit.report_committed` event as an automatic report commit,
 rejection records `audit.state_changed` to `failed`, and the owner's decision
-then records `review.decided`. A non-expired report request is excluded from Controller claims, while
+then records `review.decided`. Every other exit from `waiting_review` (owner
+cancellation, owner deletion or deletion of the owning Project) expires the
+pending request in the same Audit transition and records one `review.expired`
+event after the lifecycle event. A non-expired report request is excluded from Controller claims, while
 an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity
@@ -1644,7 +1647,10 @@ it. Source-Run pins may be released only after that durable disposition.
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,
 releases evidence/accepted-proposal holds, and only then purges Audit-managed
-Project bindings and domain rows. Project deletion adds an
+Project bindings and domain rows. Purge removes every row the Audit owns,
+including immutable review decisions and finding assessments that outlive the
+deleted child Runs; their restricting keys protect them only outside a purge.
+Project deletion adds an
 earlier Audit-cancellation/drain phase before its existing Run and ProjectScope
 purge. No Audit work starts in a deleting Project and no Audit hold survives a
 completed Project purge. Cleanup runs regardless of owner/Audit queue pause.

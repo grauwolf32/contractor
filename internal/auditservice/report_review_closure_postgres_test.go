@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,10 +12,22 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// TestAuditReportReviewExpiresOnCancelOrDelete closes a pending report review
+// whenever owner cancellation, owner deletion or Project deletion moves its
+// Audit out of waiting_review: the request expires and one review.expired
+// event follows the lifecycle event within the same Audit transition.
 func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
-	for _, action := range []string{"cancel", "delete"} {
+	for _, test := range []struct {
+		action, eventKind, eventSummary string
+	}{
+		{"cancel", "audit.state_changed", `{"from":"waiting_review","to":"cancelling"}`},
+		{"delete", "audit.delete_requested", `{"state":"cancelling"}`},
+		{"project-delete", "audit.delete_requested", `{"state":"cancelling","source":"project-deletion"}`},
+	} {
+		action := test.action
 		t.Run(action, func(t *testing.T) {
 			databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 			if databaseURL == "" {
@@ -55,88 +68,8 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			revision := "r1"
-			audit, _, err = store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-				OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
-				RoundID: "round-report-close", RoundOrdinal: 1,
-				Manifest: auditstore.ExactArtifact{
-					Ref: contracts.ArtifactRef{
-						Namespace: "audit-reports", Name: "worklist", Revision: &revision,
-					},
-					Digest: serviceTestDigest("worklist"),
-				},
-				BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
-				DeadlineAt:       time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{},
-				IdempotencyKey: "start", RequestDigest: serviceTestDigest("start"),
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			claims, err := store.Claim(ctx, auditstore.ClaimParams{
-				HolderID: "report-close-controller", Lease: time.Minute, Limit: 1,
-			})
-			if err != nil || len(claims) != 1 {
-				t.Fatalf("claim Audit = (%+v, %v)", claims, err)
-			}
-			claim := claims[0]
-			finalizing, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			waiting, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: finalizing.Revision,
-				ExpectedState: auditstore.AuditFinalizing, TargetState: auditstore.AuditWaitingReview,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			requestID := "review-report-close-" + action
-			digest := serviceTestDigest("report-candidate")
-			link := func(key, name, media string) json.RawMessage {
-				encoded, err := json.Marshal(auditstore.ArtifactLink{
-					LogicalKey: key,
-					Artifact: auditstore.ExactArtifact{
-						Ref: contracts.ArtifactRef{
-							Namespace: "audit-reports", Name: name, Revision: &revision,
-						},
-						Digest: serviceTestDigest(name), MediaType: media, SizeBytes: 16,
-					},
-					SourceProvenance: json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`),
-				})
-				if err != nil {
-					t.Fatal(err)
-				}
-				return encoded
-			}
-			if _, err := pool.Exec(ctx, `
-INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
-    subject_revision, subject_digest, requested_actions, state,
-    expires_at, idempotency_key, request_digest
-) VALUES (
-    $1, $2, NULL, 'audit-report', $2, 'report-acceptance',
-    $3, $4, '["approve","reject"]'::jsonb, 'pending',
-    clock_timestamp() + interval '30 days', 'report-review', $4
-)`, requestID, audit.AuditID, finalizing.Revision, digest); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := pool.Exec(ctx, `
-INSERT INTO audit_report_candidates (
-    audit_id, request_id, round_id, subject_revision, subject_digest,
-    machine_link, summary_link
-) VALUES ($1, $2, 'round-report-close', $3, $4, $5::jsonb, $6::jsonb)`,
-				audit.AuditID, requestID, finalizing.Revision, digest,
-				link(auditstore.ReportMachineLogicalKey, "report.json", "application/json"),
-				link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")); err != nil {
-				t.Fatal(err)
-			}
-			candidate, err := store.GetReportCandidate(ctx, audit.AuditID)
-			if err != nil || candidate.RequestID != requestID {
-				t.Fatalf("report candidate = (%+v, %v)", candidate, err)
-			}
+			waiting, candidate, claim := proposeReportForTest(t, ctx, pool, store, audit, "close-"+action)
+			requestID := candidate.RequestID
 			intake, err := findingintake.New(pool)
 			if err != nil {
 				t.Fatal(err)
@@ -152,10 +85,13 @@ INSERT INTO audit_report_candidates (
 				RequestDigest: serviceTestDigest(action),
 			}
 			var result MutationResult
-			if action == "cancel" {
+			switch action {
+			case "cancel":
 				result, err = service.Cancel(ctx, mutation)
-			} else {
+			case "delete":
 				result, err = service.Delete(ctx, mutation)
+			case "project-delete":
+				result.Audit, err = requestProjectOwnedDeletionForTest(t, ctx, pool, store, project, audit.AuditID)
 			}
 			if err != nil || result.Audit.State != auditstore.AuditCancelling ||
 				result.Audit.Revision != waiting.Revision+2 ||
@@ -166,18 +102,25 @@ INSERT INTO audit_report_candidates (
 			if err != nil || review.State != ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
-			events, err := store.ListEvents(ctx, audit.AuditID, 0, auditstore.MaxPageSize)
-			if err != nil {
-				t.Fatal(err)
+			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, auditstore.MaxPageSize)
+			if err != nil || len(events) != 2 {
+				t.Fatalf("events after closing report review = (%+v, %v)", events, err)
 			}
-			expired := 0
-			for _, event := range events {
-				if event.Kind == "review.expired" && event.EntityID == requestID {
-					expired++
-				}
+			lifecycle, expiry := events[0], events[1]
+			if lifecycle.Kind != test.eventKind || lifecycle.Sequence != waiting.EventSequence+1 ||
+				lifecycle.EntityID != audit.AuditID || lifecycle.EntityRevision == nil ||
+				*lifecycle.EntityRevision != result.Audit.Revision ||
+				!sameJSONObject(t, lifecycle.Summary, test.eventSummary) {
+				t.Fatalf("lifecycle event = %+v (%s)", lifecycle, lifecycle.Summary)
 			}
-			if expired != 1 {
-				t.Fatalf("report review expiry events = %d, want 1", expired)
+			if expiry.Kind != "review.expired" || expiry.Sequence != waiting.EventSequence+2 ||
+				expiry.EntityID != requestID || expiry.EntityRevision == nil || *expiry.EntityRevision != 2 ||
+				!sameJSONObject(t, expiry.Summary, `{"subjectKind":"audit-report","kind":"report-acceptance"}`) {
+				t.Fatalf("report review expiry event = %+v (%s)", expiry, expiry.Summary)
+			}
+			after, err := service.GetWorkspace(ctx, audit.OwnerID, audit.AuditID)
+			if err != nil || after.PendingReviews != 0 {
+				t.Fatalf("workspace after closing report review = (%+v, %v)", after, err)
 			}
 			if action == "cancel" {
 				terminal, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
@@ -214,4 +157,139 @@ INSERT INTO audit_report_candidates (
 			}
 		})
 	}
+}
+
+// proposeReportForTest finalizes a draft Audit through an empty Round into a
+// human report review of a frozen candidate. The returned claim stays live.
+func proposeReportForTest(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstore.PostgresStore,
+	audit auditstore.Audit, suffix string,
+) (auditstore.Audit, auditstore.ReportCandidate, auditstore.ControllerClaim) {
+	t.Helper()
+	revision := "r1"
+	roundID := "round-report-" + suffix
+	audit, _, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		RoundID: roundID, RoundOrdinal: 1,
+		Manifest: auditstore.ExactArtifact{
+			Ref: contracts.ArtifactRef{
+				Namespace: "audit-reports", Name: "worklist", Revision: &revision,
+			},
+			Digest: serviceTestDigest("worklist"),
+		},
+		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
+		DeadlineAt:       time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{},
+		IdempotencyKey: "start", RequestDigest: serviceTestDigest("start"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "report-" + suffix + "-controller", Lease: time.Minute, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	finalizing, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+		Claim: claim, ExpectedRevision: audit.Revision,
+		ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+		Claim: claim, ExpectedRevision: finalizing.Revision,
+		ExpectedState: auditstore.AuditFinalizing, TargetState: auditstore.AuditWaitingReview,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestID := "review-report-" + suffix
+	digest := serviceTestDigest("report-candidate")
+	link := func(key, name, media string) json.RawMessage {
+		encoded, err := json.Marshal(auditstore.ArtifactLink{
+			LogicalKey: key,
+			Artifact: auditstore.ExactArtifact{
+				Ref: contracts.ArtifactRef{
+					Namespace: "audit-reports", Name: name, Revision: &revision,
+				},
+				Digest: serviceTestDigest(name), MediaType: media, SizeBytes: 16,
+			},
+			SourceProvenance: json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return encoded
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO audit_review_requests (
+    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+    subject_revision, subject_digest, requested_actions, state,
+    expires_at, idempotency_key, request_digest
+) VALUES (
+    $1, $2, NULL, 'audit-report', $2, 'report-acceptance',
+    $3, $4, '["approve","reject"]'::jsonb, 'pending',
+    clock_timestamp() + interval '30 days', 'report-review', $4
+)`, requestID, audit.AuditID, finalizing.Revision, digest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO audit_report_candidates (
+    audit_id, request_id, round_id, subject_revision, subject_digest,
+    machine_link, summary_link
+) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)`,
+		audit.AuditID, requestID, roundID, finalizing.Revision, digest,
+		link(auditstore.ReportMachineLogicalKey, "report.json", "application/json"),
+		link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := store.GetReportCandidate(ctx, audit.AuditID)
+	if err != nil || candidate.RequestID != requestID {
+		t.Fatalf("report candidate = (%+v, %v)", candidate, err)
+	}
+	return waiting, candidate, claim
+}
+
+// requestProjectOwnedDeletionForTest begins deletion of the Audit's Project
+// and applies the deletion claim's Audit fence as the Project lifecycle
+// controller does.
+func requestProjectOwnedDeletionForTest(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstore.PostgresStore,
+	project projectstore.Project, auditID string,
+) (auditstore.Audit, error) {
+	t.Helper()
+	if _, _, err := projectstore.NewPostgresStore(pool).BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE projects
+   SET deletion_claim_id = 'claim-report-close', deletion_claimed_at = clock_timestamp(),
+       deletion_claim_expires_at = clock_timestamp() + interval '1 minute'
+ WHERE project_id = $1`, project.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := store.RequestProjectOwnedDeletion(ctx, auditstore.ProjectDeletionClaim{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID,
+		ClaimID: "claim-report-close", Phase: string(projectstore.DeletionCancelling),
+	})
+	if err != nil || !changed {
+		t.Fatalf("Project-owned Audit deletion = (%t, %v)", changed, err)
+	}
+	return store.Get(ctx, project.OwnerID, auditID)
+}
+
+func sameJSONObject(t *testing.T, raw json.RawMessage, want string) bool {
+	t.Helper()
+	var got, expected map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(want), &expected); err != nil {
+		t.Fatal(err)
+	}
+	return reflect.DeepEqual(got, expected)
 }
