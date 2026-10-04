@@ -198,27 +198,30 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	batch, _, err := auditdomain.BuildPackage("task-set", auditdomain.PackageKindTaskSet, "", members)
 	mustCompletion(t, err)
 	f.taskSet = write("tasks", "application/zip", batch)
-	// Load a temporary authored closure so its digest is verified by the importer.
-	// Remove only the fixture's unused source-analysis Skill dependency.
+	// Load a temporary copy of the shared catalog fixture so its digest is
+	// verified by the importer. Remove only the fixture's unused source-analysis
+	// Skill dependency.
 	catalogRoot := t.TempDir()
-	mustCompletion(t, os.CopyFS(catalogRoot, os.DirFS("../../configs")))
+	mustCompletion(t, os.CopyFS(catalogRoot, os.DirFS("../../testdata/configs")))
 	for _, name := range []string{
 		"agent-templates/audit_source_checker.yaml",
-		"workflows/audit_source_check.yaml",
-		"audit-profiles/source_checklist.yaml",
-		"model-policies/audit_completion_worker.yaml",
-		"instructions/audit-source-checker-worker.md",
+		"audit-profiles/source-checklist.yaml",
 	} {
-		data, err := os.ReadFile(filepath.Join("../../configs", name))
+		path := filepath.Join(catalogRoot, name)
+		data, err := os.ReadFile(path)
 		mustCompletion(t, err)
 		if strings.HasPrefix(name, "agent-templates/") {
-			data = bytes.ReplaceAll(data, []byte("  skills:\n    - namespace: skills\n      name: trace\n"), nil)
+			edited := bytes.ReplaceAll(data, []byte("  skills:\n    - namespace: skills\n      name: trace\n"), nil)
+			if bytes.Equal(edited, data) {
+				t.Fatal("catalog fixture no longer selects the unused trace Skill")
+			}
+			data = edited
 		}
 		if strings.HasPrefix(name, "audit-profiles/") {
 			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))
 			data = bytes.ReplaceAll(data, []byte("findingConfirmation: disabled"), []byte("findingConfirmation: "+findingConfirmation))
 		}
-		mustCompletion(t, os.WriteFile(filepath.Join(catalogRoot, name), data, 0600))
+		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
 	catalog, err := config.Load(catalogRoot, config.MVPDescriptors())
 	mustCompletion(t, err)

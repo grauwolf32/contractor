@@ -7,11 +7,25 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 )
 
-func TestPreparationIsCatalogValidButCannotStartOrPreview(t *testing.T) {
-	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
+// The catalog fixture is a frozen copy of the profiles, Workflows and WSTG
+// standard these tests exercise. Expectations come from it, never from the
+// operator-editable configs/ tree.
+const (
+	auditServiceCatalogFixture = "testdata/catalog"
+	openAPIScanInputFixture    = "testdata/audit-openapi-scan"
+)
+
+func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
+	t.Helper()
+	snapshot, err := config.Load(auditServiceCatalogFixture, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
+	return snapshot
+}
+
+func TestPreparationIsCatalogValidButCannotStartOrPreview(t *testing.T) {
+	snapshot := loadAuditServiceCatalog(t)
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
 		t.Fatal(err)
