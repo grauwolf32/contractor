@@ -65,6 +65,7 @@ class Settings:
     shutdown_grace_seconds: float = 10.0
     work_root: Path = Path(".local/runtime/work")
     log_level: str = "info"
+    certificate_expiry_warning_days: float = 30.0
 
     @property
     def listen_address(self) -> str:
@@ -86,6 +87,11 @@ def parse_settings(
     parser.add_argument("--ca-file", default=values.get("CONTRACTOR_CA_FILE"))
     parser.add_argument("--certificate-file", default=values.get("CONTRACTOR_CERTIFICATE_FILE"))
     parser.add_argument("--private-key-file", default=values.get("CONTRACTOR_PRIVATE_KEY_FILE"))
+    parser.add_argument(
+        "--cert-expiry-warning-days",
+        type=float,
+        default=values.get("CONTRACTOR_CERT_EXPIRY_WARNING_DAYS", "30"),
+    )
     parser.add_argument("--initial-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
     parser.add_argument("--allowed-target-network", action="append", default=None)
@@ -173,6 +179,11 @@ def parse_settings(
 
     request_timeout = _positive(parser, "--request-timeout-seconds", args.request_timeout_seconds)
     shutdown_grace = _positive(parser, "--shutdown-grace-seconds", args.shutdown_grace_seconds)
+    certificate_expiry_warning_days = _positive(
+        parser, "--cert-expiry-warning-days", args.cert_expiry_warning_days
+    )
+    if certificate_expiry_warning_days > 3650:
+        parser.error("--cert-expiry-warning-days must be at most 3650")
     work_root = Path(args.work_root).expanduser().resolve()
     if work_root == Path(work_root.anchor):
         parser.error("--work-root must not be a filesystem root")
@@ -202,6 +213,7 @@ def parse_settings(
         shutdown_grace_seconds=shutdown_grace,
         work_root=work_root,
         log_level=args.log_level,
+        certificate_expiry_warning_days=certificate_expiry_warning_days,
     )
 
 

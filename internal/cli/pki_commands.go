@@ -15,7 +15,7 @@ type pkiResult struct {
 
 func (c *CLI) runPKI(args []string, printer *Printer) error {
 	if len(args) == 0 {
-		return &UsageError{Message: "pki requires init-ca, issue-control-plane, or issue-runtime"}
+		return &UsageError{Message: "pki requires init-ca, issue-control-plane, issue-runtime, renew-control-plane, or renew-runtime"}
 	}
 	var paths localpki.Paths
 	var caCertificate string
@@ -83,6 +83,39 @@ func (c *CLI) runPKI(args []string, printer *Printer) error {
 			return err
 		}
 		paths, err = (localpki.Generator{}).IssueAgent(root, name, leaf)
+		if err != nil {
+			return err
+		}
+		caCertificate = localpki.CAPaths(root).Certificate
+	case "renew-control-plane":
+		var root string
+		flags, err := parseFlags("contractor pki renew-control-plane", c.stderr, args[1:], func(flags *flag.FlagSet) {
+			flags.StringVar(&root, "root", localpki.DefaultRoot, "local PKI directory")
+		})
+		if err != nil || flags == nil {
+			return err
+		}
+		if _, err := requirePositionals(flags, 0, 0, "usage: contractor pki renew-control-plane [--root DIR]"); err != nil {
+			return err
+		}
+		paths, err = (localpki.Generator{}).RenewControlPlane(root)
+		if err != nil {
+			return err
+		}
+		caCertificate = localpki.CAPaths(root).Certificate
+	case "renew-runtime", "renew-agent":
+		var root, name string
+		flags, err := parseFlags("contractor pki renew-runtime", c.stderr, args[1:], func(flags *flag.FlagSet) {
+			flags.StringVar(&root, "root", localpki.DefaultRoot, "local PKI directory")
+			flags.StringVar(&name, "name", "runtime-local", "Runtime certificate name")
+		})
+		if err != nil || flags == nil {
+			return err
+		}
+		if _, err := requirePositionals(flags, 0, 0, "usage: contractor pki renew-runtime [--name NAME] [--root DIR]"); err != nil {
+			return err
+		}
+		paths, err = (localpki.Generator{}).RenewAgent(root, name)
 		if err != nil {
 			return err
 		}

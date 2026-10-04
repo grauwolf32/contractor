@@ -2,11 +2,41 @@
 
 from __future__ import annotations
 
+import logging
+import math
 import ssl
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from os import PathLike
+from pathlib import Path
+
+from cryptography import x509
 
 CONTROL_PLANE_URI_PREFIX = "urn:contractor:control-plane:"
+logger = logging.getLogger(__name__)
+
+
+def log_runtime_certificate_expiry(
+    certificate_file: str | PathLike[str],
+    *,
+    warning_days: float,
+    now: datetime | None = None,
+) -> datetime:
+    """Log the Runtime leaf's expiry and warn within the selected window."""
+
+    if not math.isfinite(warning_days) or not 0 < warning_days <= 3650:
+        raise ValueError("certificate expiry warning days must be between 0 and 3650")
+    certificate = x509.load_pem_x509_certificate(Path(certificate_file).read_bytes())
+    expires = certificate.not_valid_after_utc
+    current = now or datetime.now(UTC)
+    logger.info("runtime agent mTLS certificate expires at %s", expires.isoformat())
+    if expires <= current + timedelta(days=warning_days):
+        logger.warning(
+            "runtime agent mTLS certificate expires within %.1f days: %s",
+            warning_days,
+            expires.isoformat(),
+        )
+    return expires
 
 
 def runtime_agent_client_context(

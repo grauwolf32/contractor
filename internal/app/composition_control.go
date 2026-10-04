@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
+	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -31,6 +33,7 @@ func configureControlPlane(
 	cfg Config,
 	credentialSet credentialServices,
 	plannerTelemetryRegistry *telemetry.PlannerAdapterRegistry,
+	logger *slog.Logger,
 ) (controlServices, error) {
 	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool,
@@ -60,6 +63,10 @@ func configureControlPlane(
 	privateTLS, err := mtls.ControlPlaneServerConfig(files)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure private mTLS server: %w", err)
+	}
+	if err := logControlPlaneCertificateExpiry(logger, cfg.CertificateFile,
+		cfg.CertificateExpiryWarningWindow, time.Now); err != nil {
+		return controlServices{}, err
 	}
 	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
 	if err != nil {

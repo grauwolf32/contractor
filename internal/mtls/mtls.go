@@ -7,12 +7,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -24,6 +26,28 @@ type Files struct {
 	Certificate string
 	PrivateKey  string
 	CA          string
+}
+
+// LeafExpiry reports when the configured leaf expires and whether it falls
+// within the caller's warning window. The clock is supplied by the caller so
+// startup diagnostics can be tested without waiting for real time to pass.
+func LeafExpiry(certificatePath string, now time.Time, warningWindow time.Duration) (time.Time, bool, error) {
+	if warningWindow <= 0 {
+		return time.Time{}, false, errors.New("certificate expiry warning window must be positive")
+	}
+	encoded, err := os.ReadFile(certificatePath)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("read TLS leaf certificate: %w", err)
+	}
+	block, _ := pem.Decode(encoded)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return time.Time{}, false, errors.New("TLS leaf certificate is not PEM encoded")
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("parse TLS leaf certificate: %w", err)
+	}
+	return certificate.NotAfter, !now.Add(warningWindow).Before(certificate.NotAfter), nil
 }
 
 // ControlPlaneServerConfig authenticates every private client against the

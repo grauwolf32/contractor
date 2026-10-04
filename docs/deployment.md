@@ -69,6 +69,27 @@ The PKI files live under `.local/pki`; keep the CA private key and leaf keys
 protected. Password hashing reads the password from the terminal and stores
 only its hash. Perform this bootstrap once for a fresh installation.
 
+The Control Plane and Runtime Agent leaf certificates are valid for 365 days.
+Both processes log their certificate expiry at startup and warn during the last
+30 days. Set the Server's `--cert-expiry-warning-window` (or
+`CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW`, for example `720h`) and the Runtime's
+`--cert-expiry-warning-days` (or `CONTRACTOR_CERT_EXPIRY_WARNING_DAYS`) to change
+that lead time. Before expiry, stop the affected processes, renew their leaves,
+then restart them so their in-memory TLS contexts load the new certificates:
+
+```shell
+contractor pki renew-control-plane
+contractor pki renew-runtime --name runtime-local
+```
+
+Renewal reuses each existing private key and preserves its DNS, IP and URI SANs.
+The Runtime Agent therefore keeps the same principal and Operations-assigned
+labels. The standalone `contractor-pki` tool offers `renew-control-plane` and
+`renew-agent --name ...` for the same operation. Re-issuing with `--force`
+generates a new key and changes the Runtime principal; use that only for an
+intentional key rotation. The deployment CA has a separate ten-year validity
+period and is not renewed by these leaf commands.
+
 Create `.local/server.yaml` with non-secret process settings. Relative paths
 are resolved from that file, so this example uses `../configs` for the catalog:
 

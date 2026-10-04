@@ -50,6 +50,28 @@ func TestRoleSpecificTLSHandshakes(t *testing.T) {
 	}
 }
 
+func TestLeafExpiryUsesSelectedWarningWindow(t *testing.T) {
+	files := generateFiles(t, "expiry")
+	certificate := parseCertificate(t, files.controlPlane.Certificate)
+	for _, test := range []struct {
+		name    string
+		now     time.Time
+		window  time.Duration
+		warning bool
+	}{
+		{name: "outside window", now: certificate.NotAfter.Add(-31 * 24 * time.Hour), window: 30 * 24 * time.Hour},
+		{name: "inside window", now: certificate.NotAfter.Add(-29 * 24 * time.Hour), window: 30 * 24 * time.Hour, warning: true},
+		{name: "expired", now: certificate.NotAfter.Add(time.Second), window: 30 * 24 * time.Hour, warning: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			expires, warning, err := LeafExpiry(files.controlPlane.Certificate, test.now, test.window)
+			if err != nil || !expires.Equal(certificate.NotAfter) || warning != test.warning {
+				t.Fatalf("expires=%s warning=%v err=%v", expires, warning, err)
+			}
+		})
+	}
+}
+
 func TestRuntimeAgentRejectsCAValidPeerWithoutControlPlaneURI(t *testing.T) {
 	files := generateFiles(t, "deployment")
 	server, err := ControlPlaneServerConfig(files.agent)

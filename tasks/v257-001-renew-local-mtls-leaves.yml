@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V257-001
+title: Renew local mTLS leaves without changing Runtime principal
+milestone: local-pki-renewal-2026-10
+priority: P1
+status: completed
+implementation_commit: 4c493131a20b6ed0ec2d64e5e5a3ada46d613a57
+depends_on: []
+languages: [go, python]
+goal: Renew expiring deployment leaves using their existing keys and warn before expiry.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/139
+  finding: Re-issuing a Runtime leaf with --force rotates its key and loses the stable Runtime Agent principal.
+scope:
+  in:
+    - Add same-key Runtime and Control Plane leaf renewal to both PKI CLIs.
+    - Preserve leaf SANs, EKUs and key files while replacing certificates atomically.
+    - Reject mismatched leaf pairs or invalid CA material before writing.
+    - Log leaf expiry and warn on near expiry at Server and Runtime startup.
+    - Document the one-year validity and renewal procedure.
+  out:
+    - Hot-reload renewed certificates without restarting processes.
+acceptance_criteria:
+  - {id: A1, text: Renewal extends NotAfter while preserving leaf SPKI, key bytes, SANs, EKUs and RuntimeAgentID.}
+  - {id: A2, text: Mismatched leaf pairs and invalid CA material fail without modifying certificate or key files.}
+  - {id: A3, text: Server and Runtime startup log expiry and warn within the selected warning window.}
+  - {id: A4, text: Operator docs describe same-key renewal and the identity effect of --force key rotation.}
+tests:
+  - {command: go test -count=1 ./internal/localpki ./internal/mtls ./internal/cli ./cmd/contractor-pki ./internal/app, covers: [A1, A2, A3]}
+  - {command: cd runtime && uv run pytest tests/test_mtls.py, covers: [A3]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

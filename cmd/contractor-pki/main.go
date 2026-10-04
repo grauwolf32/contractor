@@ -18,7 +18,7 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("expected init-ca, issue-control-plane, or issue-agent")
+		return fmt.Errorf("expected init-ca, issue-control-plane, issue-agent, renew-control-plane, or renew-agent")
 	}
 	switch args[0] {
 	case "init-ca":
@@ -73,6 +73,31 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		_, _ = fmt.Fprintf(stdout, "created Runtime Agent certificate %s and private key %s\n", paths.Certificate, paths.PrivateKey)
+		return nil
+	case "renew-control-plane":
+		flags := newFlagSet("renew-control-plane", stderr)
+		root := flags.String("root", localpki.DefaultRoot, "local PKI directory")
+		if err := parseFlags(flags, args[1:]); err != nil {
+			return err
+		}
+		paths, err := (localpki.Generator{}).RenewControlPlane(*root)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(stdout, "renewed Control Plane certificate %s using existing private key %s\n", paths.Certificate, paths.PrivateKey)
+		return nil
+	case "renew-agent", "renew-runtime":
+		flags := newFlagSet("renew-agent", stderr)
+		root := flags.String("root", localpki.DefaultRoot, "local PKI directory")
+		name := flags.String("name", "agent-local", "Runtime Agent certificate name")
+		if err := parseFlags(flags, args[1:]); err != nil {
+			return err
+		}
+		paths, err := (localpki.Generator{}).RenewAgent(*root, *name)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(stdout, "renewed Runtime Agent certificate %s using existing private key %s\n", paths.Certificate, paths.PrivateKey)
 		return nil
 	default:
 		return fmt.Errorf("unknown operation %q", args[0])

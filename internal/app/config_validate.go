@@ -49,6 +49,9 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if c.shutdownTimeout <= 0 {
 		return Config{}, errors.New("shutdown timeout must be positive")
 	}
+	if c.certificateExpiryWarningWindow <= 0 {
+		return Config{}, errors.New("certificate expiry warning window must be positive")
+	}
 	if c.runtimeRequestTimeout < time.Second || c.runtimeRequestTimeout%time.Second != 0 {
 		return Config{}, errors.New("runtime request timeout must be positive whole seconds")
 	}
@@ -108,5 +111,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		InsecureLoopbackCookie: c.insecureLoopbackCookie,
 		TrustedProxies:         append([]string(nil), c.trustedProxies.values...),
 		PerformanceMetrics:     metricsEnabled, Pprof: pprofEnabled, PprofListen: c.pprofListen,
+
+		CertificateExpiryWarningWindow: c.certificateExpiryWarningWindow,
 	}, nil
 }

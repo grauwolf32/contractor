@@ -39,6 +39,8 @@ const (
 	defaultDevelopmentLLMGateway = "local-litellm@1"
 )
 
+const defaultCertificateExpiryWarningWindow = 30 * 24 * time.Hour
+
 // ParseConfig parses the serve command without reading global process state,
 // which keeps tests isolated and prevents accidental environment logging.
 func ParseConfig(args []string, getenv func(string) string) (Config, error) {

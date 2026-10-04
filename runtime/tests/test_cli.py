@@ -45,6 +45,7 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
             "runtime_agent_server_context",
             lambda **_: ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER),
         )
+        monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
 
         task = asyncio.create_task(
             runtime_cli.serve(

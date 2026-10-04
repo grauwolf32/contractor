@@ -191,4 +191,30 @@ func TestPKICommandsIssueRuntimeCertificateWithoutServerContext(t *testing.T) {
 	if !strings.Contains(output.String(), fmt.Sprintf(`"caCertificate": %q`, localpki.CAPaths(root).Certificate)) {
 		t.Fatalf("JSON output has no CA path: %s", output.String())
 	}
+	beforeCertificate, err := os.ReadFile(paths.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeKey, err := os.ReadFile(paths.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	if err := command.Run(context.Background(), []string{
+		"--output", "name", "pki", "renew-runtime", "--root", root, "--name", "worker-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	afterCertificate, err := os.ReadFile(paths.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterKey, err := os.ReadFile(paths.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(beforeCertificate, afterCertificate) || !bytes.Equal(beforeKey, afterKey) ||
+		output.String() != paths.Certificate+"\n" {
+		t.Fatalf("Runtime renewal changed the key or did not replace the certificate: %q", output.String())
+	}
 }
