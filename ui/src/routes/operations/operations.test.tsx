@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
 import type {
@@ -91,6 +91,41 @@ class OperationsWebSocket {
   }
 }
 
+interface ClientFrame {
+  type: string;
+  subscriptionId: string;
+  after?: { generation: string; sequence: string };
+}
+
+function sentFrames(
+  socket: OperationsWebSocket | undefined,
+  type: string,
+): ClientFrame[] {
+  return (socket?.sent ?? [])
+    .map((frame) => JSON.parse(frame) as ClientFrame)
+    .filter((frame) => frame.type === type);
+}
+
+function subscribedFrame(frame: ClientFrame | undefined) {
+  return {
+    version: "contractor.events.v1",
+    type: "subscribed",
+    subscriptionId: frame?.subscriptionId,
+    stream: { kind: "operations" },
+    cursor: frame?.after,
+  };
+}
+
+function cursorUnavailableFrame(frame: ClientFrame | undefined) {
+  return {
+    version: "contractor.events.v1",
+    type: "resync_required",
+    subscriptionId: frame?.subscriptionId,
+    stream: { kind: "operations" },
+    reason: "cursor_unavailable",
+  };
+}
+
 function renderOperations(api: PublicAPI, path: string) {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
@@ -117,6 +152,8 @@ function sessionResponse(request: Request): Response | undefined {
 beforeEach(() => {
   OperationsWebSocket.instances = [];
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe("Operations routes", () => {
   it("lists the readiness shortcuts as separate links", async () => {
@@ -267,6 +304,140 @@ describe("Operations routes", () => {
         .map((frame) => JSON.parse(frame) as { type: string })
         .filter((frame) => frame.type === "unsubscribe"),
     ).toHaveLength(0);
+  });
+
+  it("backs off failed resync baselines instead of resuming the cached cursor", async () => {
+    let snapshotReads = 0;
+    let snapshotAvailable = true;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+          snapshotReads += 1;
+          if (!snapshotAvailable) {
+            return apiResponse(
+              {
+                error: {
+                  code: "unavailable",
+                  message: "Operations snapshot is unavailable",
+                },
+              },
+              503,
+            );
+          }
+          return apiResponse(snapshot(snapshotReads === 1 ? "7" : "12"));
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations");
+    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(1));
+    const socket = OperationsWebSocket.instances[0];
+    if (socket === undefined) throw new Error("Operations socket is missing");
+    act(() => socket.open());
+    act(() =>
+      socket.message(subscribedFrame(sentFrames(socket, "subscribe")[0])),
+    );
+    expect(
+      await screen.findByText(/Operations events: live/),
+    ).toBeInTheDocument();
+
+    vi.useFakeTimers();
+    // The Server no longer retains revision 7 and answers every subscription
+    // from it with another resync request, as the real event hub does.
+    socket.send = (value: string) => {
+      OperationsWebSocket.prototype.send.call(socket, value);
+      const frame = JSON.parse(value) as ClientFrame;
+      if (frame.type !== "subscribe") return;
+      setTimeout(
+        () =>
+          socket.message(
+            frame.after?.sequence === "7"
+              ? cursorUnavailableFrame(frame)
+              : subscribedFrame(frame),
+          ),
+        1,
+      );
+    };
+    snapshotAvailable = false;
+    await act(async () => {
+      socket.message(
+        cursorUnavailableFrame(sentFrames(socket, "subscribe")[0]),
+      );
+      await vi.advanceTimersByTimeAsync(499);
+    });
+    // One immediate baseline attempt; the failed read keeps the resync
+    // pending instead of resuming from the cached revision 7.
+    expect(snapshotReads).toBe(2);
+    expect(sentFrames(socket, "subscribe")).toHaveLength(1);
+    // Jittered backoff: the next attempt follows after 0.5-1 s, the one
+    // after it 1-2 s later.
+    await act(() => vi.advanceTimersByTimeAsync(501));
+    expect(snapshotReads).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(499));
+    expect(snapshotReads).toBe(3);
+    await act(() => vi.advanceTimersByTimeAsync(1_501));
+    expect(snapshotReads).toBe(4);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(snapshotReads).toBeLessThanOrEqual(10);
+    expect(sentFrames(socket, "subscribe")).toHaveLength(1);
+
+    snapshotAvailable = true;
+    const failedReads = snapshotReads;
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(snapshotReads).toBe(failedReads + 1);
+    expect(
+      sentFrames(socket, "subscribe").map((frame) => frame.after?.sequence),
+    ).toEqual(["7", "12"]);
+    expect(screen.getByText(/Operations events: live/)).toBeInTheDocument();
+  });
+
+  it("recreates a subscription the Server closed with 1008 on Refresh", async () => {
+    let snapshotReads = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+          snapshotReads += 1;
+          return apiResponse(snapshot(snapshotReads === 1 ? "7" : "9"));
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    const user = userEvent.setup();
+    renderOperations(api, "/operations");
+    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(1));
+    const refused = OperationsWebSocket.instances[0];
+    act(() => refused?.open());
+    act(() =>
+      refused?.message(subscribedFrame(sentFrames(refused, "subscribe")[0])),
+    );
+    act(() => refused?.close(1008));
+    expect(
+      await screen.findByText("Live event session is no longer authorized"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(OperationsWebSocket.instances).toHaveLength(2));
+    const recreated = OperationsWebSocket.instances[1];
+    act(() => recreated?.open());
+    const subscriptions = sentFrames(recreated, "subscribe");
+    expect(subscriptions.map((frame) => frame.after)).toEqual([
+      { generation: "operations-generation-1", sequence: "9" },
+    ]);
+    act(() => recreated?.message(subscribedFrame(subscriptions[0])));
+    expect(
+      await screen.findByText(/Operations events: live/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Live event session is no longer authorized"),
+    ).not.toBeInTheDocument();
   });
 
   it("clones and publishes a new exact ModelPolicy without rendering unknown data", async () => {

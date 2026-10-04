@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
+import type { PublicAPI } from "../../api/client";
 import { usePublicAPI } from "../../api/context";
 import {
   getOperationsSnapshot,
@@ -41,6 +42,14 @@ const navigation = [
 /** First tab of the Setup group; a divider and label precede it. */
 const SETUP_GROUP_START = navigation.find((item) => "setup" in item)?.to;
 
+function snapshotQuery(api: PublicAPI) {
+  return {
+    queryKey: queryKeys.operations.snapshot,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      getOperationsSnapshot(api, signal),
+  };
+}
+
 function OperationsLiveSubscription({
   snapshot,
   onConnection,
@@ -52,6 +61,7 @@ function OperationsLiveSubscription({
   onError: (message?: string) => void;
   onResync: (reason: RunResyncReason) => void;
 }) {
+  const api = usePublicAPI();
   const events = useRunEvents();
   const queryClient = useQueryClient();
   const refresher = useRef<OperationsLiveRefresh | null>(null);
@@ -65,15 +75,11 @@ function OperationsLiveSubscription({
       );
     const updates = new OperationsLiveRefresh({
       initial: initialCursor,
-      refreshSnapshot: async () => {
-        await queryClient.invalidateQueries(
-          { queryKey: queryKeys.operations.snapshot },
-          { cancelRefetch: false },
-        );
-        return queryClient.getQueryData<OperationsSnapshot>(
-          queryKeys.operations.snapshot,
-        )?.cursor;
-      },
+      // Always reads the Server (joining a read in flight) and rejects when
+      // the read fails, so a resync never resumes from the cached cursor.
+      refreshSnapshot: async () =>
+        (await queryClient.query({ ...snapshotQuery(api), staleTime: 0 }))
+          .cursor,
       refreshPrincipals: () =>
         queryClient.invalidateQueries(
           { queryKey: queryKeys.operations.runtimeAgentPrincipals.all },
@@ -134,7 +140,15 @@ function OperationsLiveSubscription({
       subscription.unsubscribe();
       refresher.current = null;
     };
-  }, [events, initialCursor, onConnection, onError, onResync, queryClient]);
+  }, [
+    api,
+    events,
+    initialCursor,
+    onConnection,
+    onError,
+    onResync,
+    queryClient,
+  ]);
   useEffect(() => {
     refresher.current?.snapshot(snapshot.cursor);
   }, [snapshot.cursor]);
@@ -183,12 +197,19 @@ export function OperationsLayoutRoute() {
     setLiveError(undefined);
   }, []);
   const query = useQuery({
-    queryKey: queryKeys.operations.snapshot,
-    queryFn: ({ signal }) => getOperationsSnapshot(api, signal),
+    ...snapshotQuery(api),
     enabled: authorized && !independentRead,
   });
+  // Bumped to recreate the live subscription, otherwise keyed by generation.
+  const [liveEpoch, setLiveEpoch] = useState(0);
   const refresh = () => {
-    void query.refetch();
+    // The event manager stops without a resync request after the Server
+    // refuses the live session (close 1008). Refresh then subscribes again
+    // from the new snapshot.
+    const recreate = connection === "error";
+    void query.refetch().then((result) => {
+      if (recreate && result.isSuccess) setLiveEpoch((epoch) => epoch + 1);
+    });
     for (const queryKey of [
       queryKeys.operations.runtimeAgentPrincipals.all,
       queryKeys.operations.runtimeConfigs.all,
@@ -213,7 +234,7 @@ export function OperationsLayoutRoute() {
     );
   }
 
-  const liveKey = query.data?.cursor.generation ?? "none";
+  const liveKey = `${query.data?.cursor.generation ?? "none"}:${liveEpoch}`;
   return (
     <section className="route-page operations-page">
       <header className="route-header-row">
