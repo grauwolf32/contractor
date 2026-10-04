@@ -22,11 +22,11 @@ from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGra
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
-from contractor_runtime.redaction import MIN_PRIVATE_SUBSTRING_BYTES, REDACTED
+from contractor_runtime.redaction import REDACTED, runtime_secrets, substring_values
 from contractor_runtime.toolsets.common.artifact_visibility import (
     ArtifactObservingTool,
 )
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.credentials import (
     RUNTIME_CREDENTIAL,
     RUNTIME_TARGET_CREDENTIAL,
@@ -148,14 +148,10 @@ class _CaidoRedaction:
             credentials[_credential_key(value.encode())] = marker.encode()
             # The complete header value and, for Basic, its base64 credential.
             derived.extend((value, value.partition(" ")[2]))
-        substrings = {
-            value
-            for value in (*runtime_secrets(settings), *derived)
-            if len(value.encode()) >= MIN_PRIVATE_SUBSTRING_BYTES
-        }
-        # Longest first, so a secret containing another one is replaced whole.
-        ordered = sorted(substrings, key=lambda value: (-len(value.encode()), value))
-        return cls(credentials=MappingProxyType(credentials), substrings=tuple(ordered))
+        return cls(
+            credentials=MappingProxyType(credentials),
+            substrings=substring_values((*runtime_secrets(settings), *derived)),
+        )
 
     def message(self, raw: bytes) -> bytes:
         """Scrub one raw HTTP message, or other bytes returned by Caido."""

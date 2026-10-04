@@ -1,5 +1,6 @@
 """audit-results@2 tools bound to the trusted active invocation collector."""
 
+import asyncio
 import time
 from collections.abc import Callable
 from types import MappingProxyType
@@ -30,7 +31,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
-from contractor_runtime.toolsets.common.metrics import ToolMetrics, elapsed_ms
+from contractor_runtime.toolsets.common.metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 
 
 def _text(value, field, key):
@@ -139,6 +140,9 @@ class ReadAuditTaskTool:
         except AuditCollectionError as error:
             failure = error
             result = {"status": "error", "error": error.as_dict()}
+        except asyncio.CancelledError:
+            _record_cancelled(self._metrics, self.name, started)
+            raise
         self._metrics.record_tool_call(
             self.name,
             arguments={},
@@ -294,6 +298,9 @@ class SubmitCheckResultTool:
         except (AuditCollectionError, AuditArgumentError) as error:
             failure = error
             result = {"status": "error", "error": error.as_dict()}
+        except asyncio.CancelledError:
+            _record_cancelled(self._metrics, self.name, started)
+            raise
         # Neither submitted text nor raw invalid arguments enter diagnostics.
         self._metrics.record_tool_call(
             self.name,
@@ -304,6 +311,17 @@ class SubmitCheckResultTool:
             duration_ms=elapsed_ms(started),
         )
         return result
+
+
+def _record_cancelled(metrics: ToolMetrics, name: str, started: int) -> None:
+    # A cancelled call is recorded like every other tool call.
+    metrics.record_tool_call(
+        name,
+        arguments={},
+        error=ToolCallCancelled(),
+        secrets=(),
+        duration_ms=elapsed_ms(started),
+    )
 
 
 class AuditResultsToolsetFactory:

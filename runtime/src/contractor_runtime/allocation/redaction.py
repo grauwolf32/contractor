@@ -1,48 +1,10 @@
-"""Values and URL hosts used to redact allocation observations."""
+"""URL hosts and Agent Card text used to check allocation observations."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlsplit
-
-from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.redaction import MIN_PRIVATE_SUBSTRING_BYTES
-from contractor_runtime.toolsets.common.artifacts import runtime_secrets
-
-
-def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
-    """Every private RuntimeSettings value: credentials, endpoints, CA bundles."""
-
-    values = [settings.llm_gateway_url, settings.artifact_api_url]
-    if settings.telemetry is not None:
-        values.append(settings.telemetry.endpoint)
-    if settings.http_proxy is not None:
-        values.append(settings.http_proxy.proxy_url)
-        if settings.http_proxy.ca_bundle_pem is not None:
-            values.append(settings.http_proxy.ca_bundle_pem)
-    if settings.caido is not None:
-        values.append(settings.caido.endpoint)
-        if settings.caido.ca_bundle_pem is not None:
-            values.append(settings.caido.ca_bundle_pem)
-    values.extend(runtime_secrets(settings))
-    return tuple(value for value in values if value)
-
-
-def _substring_values(values: Iterable[str]) -> tuple[str, ...]:
-    return tuple(
-        value for value in values if len(value.encode("utf-8")) >= MIN_PRIVATE_SUBSTRING_BYTES
-    )
-
-
-def _contains_private_value(text: str, values: Iterable[str]) -> bool:
-    """Whether text exposes a private value under the shared matching policy."""
-
-    return any(
-        value == text
-        or (len(value.encode("utf-8")) >= MIN_PRIVATE_SUBSTRING_BYTES and value in text)
-        for value in values
-    )
 
 
 def _url_hosts(urls: Sequence[str]) -> tuple[str, ...]:

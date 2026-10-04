@@ -11,6 +11,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
     allocation_artifact_read_cache,
@@ -21,7 +22,6 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _reject_unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError

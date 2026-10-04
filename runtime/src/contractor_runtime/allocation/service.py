@@ -24,12 +24,7 @@ from contractor_runtime.allocation.cleanup import (
 from contractor_runtime.allocation.context import AllocationSnapshot, _AllocationContext
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
 from contractor_runtime.allocation.identity import _spec_fingerprint
-from contractor_runtime.allocation.redaction import (
-    _contains_private_value,
-    _runtime_setting_values,
-    _untrusted_agent_card_strings,
-    _url_hosts,
-)
+from contractor_runtime.allocation.redaction import _untrusted_agent_card_strings, _url_hosts
 from contractor_runtime.allocation.reports import _build_report
 from contractor_runtime.allocation.validation import validate_spec
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -59,6 +54,7 @@ from contractor_runtime.projectfs import (
     WorkspaceStorageError,
     hydrate_workspace,
 )
+from contractor_runtime.redaction import contains_private_value, runtime_setting_values
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
@@ -1150,8 +1146,8 @@ class AllocationService:
             version=spec.agent_template.ref.version,
             endpoint=endpoint,
         )
-        private_values = _runtime_setting_values(spec.runtime_settings)
-        leaked = any(_contains_private_value(value, private_values) for value in card_strings)
+        private_values = runtime_setting_values(spec.runtime_settings)
+        leaked = any(contains_private_value(value, private_values) for value in card_strings)
         if leaked or str(workspace.path) in encoded:
             raise AllocationError(
                 "unsafe_worker_handle",

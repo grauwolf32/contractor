@@ -605,7 +605,17 @@ map without exposing it to either model.
   result size and stable error code may remain. Instructions, resource/package
   bytes, extracted paths and generated context are always dropped under [09](09-agent-skills.md).
 - RuntimeSettings tokens and other known deployment secrets are always removed,
-  even if a tool argument or error accidentally contains them.
+  even if a tool argument or error accidentally contains them. One policy
+  applies to metrics, allocation checks and Worker results: a secret of at
+  least 16 UTF-8 bytes is replaced by `[REDACTED]` wherever it occurs, while a
+  shorter one (a proxy username, a short header value) replaces only a complete
+  string, so it never garbles ordinary text. Tool names and error codes are
+  Runtime vocabulary and are never redacted; an error code that is not an
+  identifier, or that contains a long secret, is recorded as `tool_call_failed`.
+- Every started tool call is recorded exactly once. A call cancelled while it
+  runs, including an Agent Skill or `audit-results@2` call and a call still
+  pending when the Worker closes, fails with the retryable
+  `tool_call_cancelled` unless its toolset records a domain error.
 - Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by
   trusted Server provenance. Counters are non-negative and saturating;
   `flush_*` is absent for adapters without a flush operation. Error codes are a

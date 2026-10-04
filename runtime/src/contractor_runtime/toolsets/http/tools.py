@@ -39,8 +39,9 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics, elapsed_ms
