@@ -1254,6 +1254,11 @@ candidate: Planner returns a stable safe error and Scheduler enters bounded
 Every successful Planner Gateway response must include non-negative prompt,
 completion and total token usage; missing or inconsistent usage is a retryable
 invalid-response failure rather than a way to bypass the cumulative budget.
+A request the Gateway permanently rejects, for example with HTTP 401 or a
+declared permanent code such as `context_length_exceeded`, ends the
+invocation without a candidate with the non-retryable Planner error
+`planner_gateway_rejected`; the Planner Gateway error table is in
+[04](04-execution-lifecycle-and-metrics.md#run-admission-and-model-recovery).
 
 The Planner model alias comes from that ModelPolicy. Gateway URL/protocol and
 the non-secret credential reference come from the Planner's independently

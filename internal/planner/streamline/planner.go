@@ -12,6 +12,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -308,10 +309,14 @@ func (p *streamlinePlanner) newRootAgent(
 					return nil, providerErr
 				}
 				var rejected *gatewayResponseRejected
+				var gatewayFailure *gatewayrecovery.FailureError
 				var failure *planner.Error
-				if errors.As(providerErr, &rejected) {
+				switch {
+				case errors.As(providerErr, &rejected):
 					failure = state.rejectedGatewayResponse(rejected)
-				} else {
+				case errors.As(providerErr, &gatewayFailure) && !gatewayFailure.Failure.Retryable:
+					failure = state.rejectedGatewayRequest(gatewayFailure.Failure.Code)
+				default:
 					failure = state.providerFailure()
 				}
 				endModelSpan("failed", planner.FailureFrom(failure).Code, nil)

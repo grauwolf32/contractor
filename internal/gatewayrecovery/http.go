@@ -15,8 +15,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
+// FailureError reports a classified model request failure. Its text names only
+// the safe classification code, never provider response content.
+type FailureError struct {
+	Failure Failure
+}
+
+func (e *FailureError) Error() string {
+	return "Planner Gateway request failed (" + e.Failure.Code + ")"
+}
+
 // Do retries the same serialized model request inside a planner invocation.
 // Context cancellation remains authoritative over all waits and network calls.
+// A non-retryable failure ends the call as a *FailureError.
 func (p *Participant) Do(request *http.Request, client *http.Client, maxResponseBytes int64) ([]byte, error) {
 	for {
 		requestID, err := newRequestID()
@@ -55,9 +66,22 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 			return body, nil
 		}
 		if !failure.Retryable {
-			return nil, fmt.Errorf("Planner Gateway request failed (%s)", failure.Code)
+			return nil, &FailureError{Failure: *failure}
 		}
 	}
+}
+
+// Send performs one model request without a recovery authority. A failure is
+// classified exactly as Do classifies it and returned as a *FailureError.
+func Send(
+	request *http.Request, client *http.Client, maxResponseBytes int64, signatures contracts.GatewayFailureSignatures,
+) ([]byte, error) {
+	response, sendErr := client.Do(request)
+	body, failure, _ := readResponse(response, sendErr, maxResponseBytes, signatures)
+	if failure != nil {
+		return nil, &FailureError{Failure: *failure}
+	}
+	return body, nil
 }
 
 func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, error) {

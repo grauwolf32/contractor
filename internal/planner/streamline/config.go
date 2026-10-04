@@ -64,13 +64,16 @@ func normalizeLimits(value Limits) (Limits, error) {
 }
 
 type GatewaySettings struct {
-	Recovery        *gatewayrecovery.Participant
-	URL             string
-	Token           contracts.SecretString
-	Model           string
-	MaxOutputTokens int
-	RequestTimeout  time.Duration
-	HTTPClient      *http.Client
+	Recovery *gatewayrecovery.Participant
+	// FailureSignatures classify failures of a request sent without Recovery;
+	// a Recovery participant applies the set it was bound with.
+	FailureSignatures contracts.GatewayFailureSignatures
+	URL               string
+	Token             contracts.SecretString
+	Model             string
+	MaxOutputTokens   int
+	RequestTimeout    time.Duration
+	HTTPClient        *http.Client
 }
 
 func normalizeGatewaySettings(settings GatewaySettings) (GatewaySettings, error) {
@@ -82,6 +85,9 @@ func normalizeGatewaySettings(settings GatewaySettings) (GatewaySettings, error)
 	}
 	if strings.TrimSpace(settings.Model) == "" {
 		return GatewaySettings{}, fmt.Errorf("Planner LLM Gateway model is required")
+	}
+	if err := settings.FailureSignatures.Validate(); err != nil {
+		return GatewaySettings{}, fmt.Errorf("Planner LLM Gateway failure signatures are invalid")
 	}
 	if settings.MaxOutputTokens == 0 {
 		settings.MaxOutputTokens = defaultMaxOutputTokens

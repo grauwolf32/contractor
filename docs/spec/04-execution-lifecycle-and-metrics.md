@@ -61,6 +61,22 @@ Runtime Workers apply the same effective set, and one shared fixture
 (`api/testdata/v1alpha1/gateway-failure-classification-cases.json`) keeps the
 two classifiers identical.
 
+A modeled Server-side Planner retries a transient failure inside its
+invocation as described above, so only a permanent classification ends it.
+That ends the invocation with the non-retryable Planner error
+`planner_gateway_rejected`, whose message names only the safe classification
+code (for example `gateway_access_denied` or a declared permanent code such
+as `context_length_exceeded`). Scheduler records it as an interrupted
+StageTermination with `retryable: false`, so a `retry` action does not repeat
+a revoked credential, an exhausted quota or an over-long prompt. The Planner
+Gateway errors are:
+
+| Code | Retryable | Meaning |
+| --- | --- | --- |
+| `planner_gateway_rejected` | no | Permanent classification: HTTP 401/403 or another permanent 4xx, a declared permanent provider code, an `x-should-retry: false` hint or an oversized response |
+| `planner_gateway_unavailable` | yes | Any other failed model request, such as a transient failure sent without a recovery authority or an unavailable recovery authority |
+| `planner_gateway_invalid_response` | yes | An HTTP 2xx reply without a usable choice or valid token usage; its valid usage is still charged |
+
 Public `RunStatus.recovery` contains safe cause/timing and whether a manual retry
 is required. `POST /v1/runs/{runId}/retry-gateway` is owner-scoped and preserves the
 current invocation. See [local recovery settings](../guides/local-stack.md#model-availability-and-queued-runs).
