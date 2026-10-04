@@ -79,7 +79,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"runtime_agent_principals", "runtime_config_publications", "runtime_config_versions",
 		"runtime_credential_creations", "runtime_credential_tombstones", "runtime_credentials",
 		"runtime_label_bindings", "runtime_management_operations", "scheduler_settings", "stage_allocations",
-		"stage_execution_reports", "stage_executions", "stage_metrics",
+		"stage_executions", "stage_metrics",
 		"stage_transition_decisions", "workflow_run_events", "workflow_run_metadata_labels",
 		"workflow_run_output_publications", "workflow_runs",
 	}

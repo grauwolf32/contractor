@@ -552,11 +552,11 @@ INSERT INTO stage_allocations (
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-INSERT INTO stage_execution_reports (
-    stage_execution_id, allocation_id, logical_agent_name, report_schema_version, report
-) VALUES ($1, $2, 'builder', $3, $4::jsonb)`,
+INSERT INTO allocation_execution_reports (
+    report_id, stage_execution_id, allocation_id, logical_agent_name, report_schema_version, report
+) VALUES ('report-run-delete', $1, $2, 'builder', $3, $4::jsonb)`,
 		execution.StageExecutionID, "allocation-run-delete", contracts.APIVersion,
-		`{"allocationId":"allocation-run-delete","startedAt":"2026-09-05T08:00:00Z","finishedAt":"2026-09-05T08:01:00Z","complete":true,"counters":{},"errors":[],"truncated":false}`,
+		`{"reportId":"report-run-delete","allocationId":"allocation-run-delete","worker":{"complete":true},"runtime":{"complete":true}}`,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	}
 	var reportCount int
 	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM stage_execution_reports
+SELECT count(*) FROM allocation_execution_reports
 WHERE stage_execution_id = 'stage-run-delete'`).Scan(&reportCount); err != nil || reportCount != 0 {
 		t.Errorf("Execution reports after deletion = %d, error %v", reportCount, err)
 	}
