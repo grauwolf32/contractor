@@ -26,7 +26,7 @@ type recoveryFixture struct {
 func newRecoveryFixture(t *testing.T) recoveryFixture {
 	t.Helper()
 	pool := isolatedSchedulerPool(t, t.Context())
-	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestGatewayRecoveryAcrossLanesPreservesQueueAndIndependentRoutes(t *testing
 func TestGatewayRecoveryDropsPreviousStageRoutesOnProgression(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedSchedulerPool(t, ctx)
-	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +425,7 @@ func TestGatewayRecoveryRequestRetryHintAndFailureReplay(t *testing.T) {
 func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedSchedulerPool(t, ctx)
-	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,11 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | ServerConfig path | Default | Scope |
 | --- | --- | --- |
 | `runtimeRequestTimeout` | `30s` | One private Runtime or A2A HTTP request |
+| `workerRequestTimeout` | `180s` | One Worker invocation request; also bounds each Worker model request |
+| `plannerTimeout` | `30m` | One modeled planner invocation; also bounds each planner model request |
+| `llmRecovery.initialDelay` | `1s` | First delay between model recovery probes |
+| `llmRecovery.maxDelay` | `30s` | Largest delay between model recovery probes |
+| `llmRecovery.automaticWindow` | `5m` | Automatic probing before a Run requires manual retry |
 | `scheduler.operationTimeout` | `30s` | One Scheduler persistence, prepare or reconciliation operation |
 | `scheduler.finalizationTimeout` | `10s` | Absolute finalization deadline recorded with the Stage candidate |
 | `scheduler.abortTimeout` | `10s` | Absolute abort deadline recorded with the termination transition |

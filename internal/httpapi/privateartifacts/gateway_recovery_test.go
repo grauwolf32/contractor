@@ -19,7 +19,7 @@ func (r *recordingRecovery) Update(
 	_ context.Context, _ string, request gatewayrecovery.Request,
 ) (gatewayrecovery.Decision, error) {
 	r.requests = append(r.requests, request)
-	return gatewayrecovery.Decision{Allowed: true, RequestTimeoutSeconds: 30}, nil
+	return gatewayrecovery.Decision{Allowed: true}, nil
 }
 
 func newRecoveryTestHandler(recovery gatewayRecoveryUpdater) http.Handler {

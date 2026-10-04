@@ -69,7 +69,6 @@ type CredentialManagementSettings struct {
 
 type operationalSpec struct {
 	LLMRecovery struct {
-		RequestTimeout  *string `yaml:"requestTimeout"`
 		InitialDelay    *string `yaml:"initialDelay"`
 		MaxDelay        *string `yaml:"maxDelay"`
 		AutomaticWindow *string `yaml:"automaticWindow"`
@@ -159,7 +158,6 @@ type operationalDuration struct {
 
 func (s *OperationalSettings) durations(spec operationalSpec) []operationalDuration {
 	return []operationalDuration{
-		{"llmRecovery.requestTimeout", "llm-recovery-request-timeout", &s.LLMRecovery.RequestTimeout, spec.LLMRecovery.RequestTimeout},
 		{"llmRecovery.initialDelay", "llm-recovery-initial-delay", &s.LLMRecovery.InitialDelay, spec.LLMRecovery.InitialDelay},
 		{"llmRecovery.maxDelay", "llm-recovery-max-delay", &s.LLMRecovery.MaxDelay, spec.LLMRecovery.MaxDelay},
 		{"llmRecovery.automaticWindow", "llm-recovery-automatic-window", &s.LLMRecovery.AutomaticWindow, spec.LLMRecovery.AutomaticWindow},

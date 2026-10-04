@@ -76,7 +76,7 @@ func (p *Participant) Update(ctx context.Context, request Request) (Decision, er
 }
 
 func (s *Service) update(ctx context.Context, runID, participantID, key string, request Request) (Decision, error) {
-	result := Decision{RequestTimeoutSeconds: s.policy.RequestTimeout.Seconds(), RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
+	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := lockRun(ctx, tx, runID); err != nil {
 			return err
@@ -145,7 +145,7 @@ WHERE route_key=$1`, key, request.Code, now, now.Add(s.policy.AutomaticWindow), 
 			}
 			_, err = tx.Exec(ctx, `
 UPDATE gateway_recovery_routes SET probe_id=$2,probe_run_id=$3,probe_until=$4
-WHERE route_key=$1`, key, request.RequestID, runID, now.Add(s.policy.RequestTimeout+s.policy.InitialDelay))
+WHERE route_key=$1`, key, request.RequestID, runID, now.Add(s.requestTimeout+s.policy.InitialDelay))
 			result.Allowed = err == nil
 			return err
 		case "succeeded", "finished":

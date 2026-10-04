@@ -60,6 +60,9 @@ class GatewayRequestError(RuntimeError):
         self.provider_error_type = provider_error_type
         self.retryable = retryable
         self.transport_retry_allowed = True
+        # The Gateway received the request but did not answer in time; see
+        # _abandoned_request_error.
+        self.abandoned = False
         self.failure = failure
         self.retry_after_seconds = retry_after_seconds
         super().__init__(f"LLM gateway request failed ({provider_error_type})")
@@ -127,12 +130,16 @@ class GatewayClientHandle:
             retry_after: float | None = None
             try:
                 response = await client.send(request)
-            except httpx.TimeoutException:
+            except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.WriteTimeout):
+                # The Gateway never received the whole request.
                 error = GatewayRequestError(
                     "APITimeoutError",
                     retryable=True,
                     failure=GatewayFailure("gateway_timeout", True),
                 )
+            except httpx.TimeoutException:
+                error = _abandoned_request_error()
+                should_retry = False
             except Exception:
                 # Includes allocation proxy failures; cancellation is a
                 # BaseException and propagates without another attempt.
@@ -193,20 +200,20 @@ class GatewayClientHandle:
                 error = None
                 try:
                     try:
-                        async with asyncio.timeout(decision.request_timeout_seconds):
+                        async with asyncio.timeout(self.request_timeout_seconds):
                             result = await self._complete_transport(
-                                payload, 0, decision.request_timeout_seconds
+                                payload, 0, self.request_timeout_seconds
                             )
                     except GatewayRequestError as caught:
                         error = caught
                     except TimeoutError:
-                        error = GatewayRequestError(
-                            "APITimeoutError",
-                            retryable=True,
-                            failure=GatewayFailure("gateway_timeout", True),
-                        )
+                        error = _abandoned_request_error()
                     if error is None:
                         terminal = ("succeeded", None, 0)
+                    elif error.abandoned:
+                        # No model result was observed: a slow model is not an
+                        # outage, so neither block nor reopen the route.
+                        terminal = ("released", None, 0)
                     elif error.retryable and error.transport_retry_allowed:
                         failure = error.failure or GatewayFailure("gateway_unavailable", True)
                         terminal = ("failed", failure.code, error.retry_after_seconds)
@@ -220,7 +227,7 @@ class GatewayClientHandle:
                     raise
                 if error is None:
                     return result
-                if terminal[0] == "finished":
+                if terminal[0] != "failed":
                     raise error from None
                 request_id = uuid.uuid4().hex
         except RecoveryStoppedError:
@@ -245,6 +252,23 @@ class GatewayClientHandle:
             return
         if owns_http_client:
             await client.aclose()
+
+
+def _abandoned_request_error() -> GatewayRequestError:
+    """Fail a request the Gateway received but did not answer in time.
+
+    The failure is transient, so the invocation may be retried as a whole. The
+    request itself is not resent: an OpenAI-compatible proxy does not cancel
+    upstream inference when its client disconnects, so a local model would keep
+    generating the abandoned answer and queue every resend behind it.
+    """
+
+    error = GatewayRequestError(
+        "APITimeoutError", retryable=True, failure=GatewayFailure("gateway_timeout", True)
+    )
+    error.transport_retry_allowed = False
+    error.abandoned = True
+    return error
 
 
 async def _release_probe(

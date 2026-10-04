@@ -137,7 +137,7 @@ def test_gateway_exhausts_bounded_attempts_without_retaining_provider_data(
             if failure == "connect":
                 raise httpx.ConnectError(SECRET, request=request)
             if failure == "timeout":
-                raise httpx.ReadTimeout(SECRET, request=request)
+                raise httpx.ConnectTimeout(SECRET, request=request)
             return httpx.Response(503, json={"error": {"message": SECRET}})
 
         async def wait(seconds: float) -> None:
@@ -166,6 +166,40 @@ def test_gateway_exhausts_bounded_attempts_without_retaining_provider_data(
             )
             assert captured.value.retryable
             assert captured.value.__cause__ is None
+            assert captured.value.__context__ is None
+            assert SECRET not in repr(captured.value.__dict__)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+def test_gateway_does_not_resend_a_request_it_stopped_waiting_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def gateway(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            raise httpx.ReadTimeout(SECRET, request=request)
+
+        async def wait(_seconds: float) -> None:
+            pytest.fail("an unanswered request was scheduled for another attempt")
+
+        monkeypatch.setattr("contractor_runtime.llm.client.sleep", wait)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            with pytest.raises(GatewayRequestError) as captured:
+                await handle.complete(PAYLOAD)
+            assert calls == 1
+            assert captured.value.provider_error_type == "APITimeoutError"
+            assert captured.value.retryable
             assert captured.value.__context__ is None
             assert SECRET not in repr(captured.value.__dict__)
             await handle.close()

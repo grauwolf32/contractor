@@ -32,7 +32,7 @@ spec:
   projectLifecycle: {operationTimeout: 19s, claimDuration: 71s, purgeTimeout: 5m}
   auditController: {pollInterval: 3s, claimLease: 45s, operationTimeout: 12s, claimBatch: 9}
   database: {connectTimeout: 4s, acquireTimeout: 3s, queryTimeout: 23s, statementTimeout: 16s, lockTimeout: 4s, idleTransactionTimeout: 31s}
-  llmRecovery: {requestTimeout: 75s, initialDelay: 2s, maxDelay: 40s, automaticWindow: 6m}
+  llmRecovery: {initialDelay: 2s, maxDelay: 40s, automaticWindow: 6m}
   a2a: {pollInterval: 250ms}
   credentialManagement: {connectTimeout: 2s, requestTimeout: 14s}
 `)
@@ -41,7 +41,7 @@ spec:
 		t.Fatal(err)
 	}
 	want := OperationalSettings{
-		LLMRecovery:          gatewayrecovery.Policy{RequestTimeout: 75 * time.Second, InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
+		LLMRecovery:          gatewayrecovery.Policy{InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
 		Scheduler:            SchedulerSettings{37 * time.Second, 13 * time.Second, 11 * time.Second},
 		RuntimeLifecycle:     RuntimeLifecycleSettings{17 * time.Second},
 		ProjectLifecycle:     ProjectLifecycleSettings{19 * time.Second, 71 * time.Second, 5 * time.Minute},
@@ -105,6 +105,8 @@ spec:
 		"projectLifecycle: {operationTimeout: 1ns, claimDuration: 2ns}",
 		"projectLifecycle: {purgeTimeout: 0s}",
 		"credentialManagement: {connectTimeout: 61s}", "credentialManagement: {requestTimeout: 121s}",
+		// Model requests keep their worker/planner timeouts; recovery has none.
+		"llmRecovery: {requestTimeout: 60s}",
 	} {
 		t.Run(spec, func(t *testing.T) {
 			writeServerConfigTestFile(t, path, "apiVersion: contractor/v1alpha1\nkind: ServerConfig\nspec:\n  "+spec+"\n")
