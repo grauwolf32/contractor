@@ -181,7 +181,7 @@ export async function listArtifacts(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 /**

@@ -434,7 +434,7 @@ export async function listRunArtifacts(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getRunArtifactMetadata(

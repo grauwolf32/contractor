@@ -226,9 +226,10 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts");
+    // Library rows open the current binding, not the listed revision.
     expect(
       await screen.findByRole("link", { name: "projects/existing" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("href", "/artifacts/projects/existing");
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));

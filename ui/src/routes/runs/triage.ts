@@ -13,10 +13,12 @@ const MODEL_INFRASTRUCTURE_ISSUE_CODES = new Set([
   "gateway_unavailable",
   "planner_execution_config_unavailable",
   "planner_gateway_invalid_response",
+  "planner_gateway_rejected",
   "planner_gateway_unavailable",
   "runtime_config_gateway_mismatch",
   "runtime_credential_kind_mismatch",
   "worker_execution_config_unavailable",
+  "worker_gateway_invalid_request",
   "worker_gateway_unavailable",
 ]);
 

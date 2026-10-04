@@ -150,7 +150,10 @@ export function ArtifactListRoute() {
               items={queryData.items}
               returnLabel="Artifacts"
               detailPath={(item) =>
-                artifactDetailPath(USER_SCOPE, item.artifact)
+                artifactDetailPath(USER_SCOPE, {
+                  namespace: item.artifact.namespace,
+                  name: item.artifact.name,
+                })
               }
             />
           )}
