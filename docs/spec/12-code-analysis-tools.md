@@ -411,6 +411,13 @@ IDs fail validation, and the key is erased on close. All graph results expose
 only this ID, symbol name, kind and normalized relative source location; they
 never expose the mirror, workspace-provider or Runtime host path.
 
+Trailmark names a root `__init__.py` module after its parse-root directory,
+which is the randomly named mirror. The child therefore rewrites that module,
+the definitions below it and the proxy nodes of its unresolved calls to the
+`__init__` package (`__init__:print` for a builtin call), so their upstream IDs,
+names and `symbolId` values stay identical when the same digest is rebuilt
+after an invalidation or query timeout.
+
 `find_symbol` is the only name-to-ID operation. Every relationship/path tool
 requires an exact `symbolId`; it never chooses the first equal bare name. An ID
 from an older digest fails with `code_analysis_stale_symbol`.
