@@ -47,7 +47,13 @@ func TestPlacementManagedCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 				Envelope:  envelope,
 				CreatedAt: time.Now().UTC(),
 			}
-			if _, err := pool.Exec(setupCtx, `INSERT INTO llm_credential_identities (credential_id, reserved_at) VALUES ($1, now())`, selection.Credential.CredentialID); err != nil {
+			if _, err := pool.Exec(setupCtx, `
+INSERT INTO credential_operations (
+    operation_id, idempotency_key, request_hash, credential_id, operation_kind, phase,
+    request_schema_version, request, created_at, updated_at
+) VALUES ('create:'||$1, 'reserve-'||$1, 'sha256:'||repeat('f',64), $1, 'create', 'prepared',
+    'contractor.credentials/v1', jsonb_build_object('credentialId', $1::text), now(), now())`,
+				selection.Credential.CredentialID); err != nil {
 				t.Fatal(err)
 			}
 			if err := credentials.NewRepository(pool).InsertCredential(setupCtx, record); err != nil {

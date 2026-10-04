@@ -109,12 +109,6 @@ type Record struct {
 	CreatedAt       time.Time                     `json:"createdAt"`
 }
 
-type Tombstone struct {
-	CredentialID string    `json:"credentialId"`
-	ActorID      string    `json:"actorId"`
-	DeletedAt    time.Time `json:"deletedAt"`
-}
-
 type OperationKind string
 
 const (

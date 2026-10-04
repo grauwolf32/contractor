@@ -662,7 +662,8 @@ func (s *uiStack) assertCredentialLifecycle() {
 	var active, tombstones int
 	if err := s.pool.QueryRow(s.ctx, `SELECT
   (SELECT count(*) FROM llm_credentials WHERE credential_id = 'ui-stack-key'),
-  (SELECT count(*) FROM llm_credential_tombstones WHERE credential_id = 'ui-stack-key')`).Scan(&active, &tombstones); err != nil {
+  (SELECT count(*) FROM credential_operations
+    WHERE credential_id = 'ui-stack-key' AND operation_kind = 'delete' AND phase = 'completed')`).Scan(&active, &tombstones); err != nil {
 		s.t.Fatal(err)
 	}
 	if active != 0 || tombstones != 1 {
@@ -672,9 +673,7 @@ func (s *uiStack) assertCredentialLifecycle() {
 	if err := s.pool.QueryRow(s.ctx, `SELECT concat_ws(E'\n',
   COALESCE((SELECT string_agg(concat_ws('|', operation_id, idempotency_key,
     request_hash, credential_id, operation_kind, phase, request::text), E'\n')
-    FROM credential_operations), ''),
-  COALESCE((SELECT string_agg(concat_ws('|', credential_id, actor_id), E'\n')
-    FROM llm_credential_tombstones), ''))`).Scan(&safeRows); err != nil {
+    FROM credential_operations), ''))`).Scan(&safeRows); err != nil {
 		s.t.Fatal(err)
 	}
 	if containsAny(safeRows, s.secrets) {

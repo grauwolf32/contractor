@@ -29,9 +29,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 	pool := isolatedCredentialPool(t, ctx, databaseURL)
 	record, _ := sealedTestRecord(t, "transaction-worker", "secret-not-used-by-pinning")
 	repository := NewRepository(pool)
-	if err := repository.ReserveCredentialID(ctx, record.CredentialID, record.CreatedAt); err != nil {
-		t.Fatal(err)
-	}
+	reserveTestCredential(t, ctx, repository, record.CredentialID, record.CreatedAt)
 	if err := repository.InsertCredential(ctx, record); err != nil {
 		t.Fatal(err)
 	}

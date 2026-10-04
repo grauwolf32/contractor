@@ -120,25 +120,6 @@ LIMIT $2`, afterCredentialID, limit)
 	return result, nil
 }
 
-func (r *Repository) ReserveCredentialID(
-	ctx context.Context, credentialID string, reservedAt time.Time,
-) error {
-	if err := validateCredentialID(credentialID); err != nil || reservedAt.IsZero() {
-		return fmt.Errorf("%w: credential reservation is invalid", ErrInvalid)
-	}
-	command, err := r.db.Exec(ctx, `
-INSERT INTO llm_credential_identities (credential_id, reserved_at)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING`, credentialID, persistencepostgres.Timestamp(reservedAt))
-	if err != nil {
-		return classifyRepositoryWrite(err)
-	}
-	if command.RowsAffected() != 1 {
-		return ErrConflict
-	}
-	return nil
-}
-
 func (r *Repository) InsertCredential(ctx context.Context, record Record) error {
 	policy, err := encodeRecord(record)
 	if err != nil {
@@ -181,52 +162,6 @@ func (r *Repository) DeleteCredential(ctx context.Context, credentialID string) 
 		return ErrNotFound
 	}
 	return nil
-}
-
-func (r *Repository) InsertTombstone(ctx context.Context, tombstone Tombstone) error {
-	if err := validateCredentialID(tombstone.CredentialID); err != nil ||
-		strings.TrimSpace(tombstone.ActorID) == "" || len(tombstone.ActorID) > 256 ||
-		tombstone.DeletedAt.IsZero() {
-		return fmt.Errorf("%w: credential tombstone is invalid", ErrInvalid)
-	}
-	command, err := r.db.Exec(ctx, `
-INSERT INTO llm_credential_tombstones (credential_id, actor_id, deleted_at)
-VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING`, tombstone.CredentialID, tombstone.ActorID, persistencepostgres.Timestamp(tombstone.DeletedAt))
-	if err != nil {
-		return classifyRepositoryWrite(err)
-	}
-	if command.RowsAffected() == 1 {
-		return nil
-	}
-	existing, getErr := r.GetTombstone(ctx, tombstone.CredentialID)
-	if getErr == nil && existing.CredentialID == tombstone.CredentialID &&
-		existing.ActorID == tombstone.ActorID &&
-		persistencepostgres.Timestamp(existing.DeletedAt).Equal(persistencepostgres.Timestamp(tombstone.DeletedAt)) {
-		return nil
-	}
-	return ErrConflict
-}
-
-func (r *Repository) GetTombstone(ctx context.Context, credentialID string) (Tombstone, error) {
-	if err := validateCredentialID(credentialID); err != nil {
-		return Tombstone{}, err
-	}
-	var result Tombstone
-	err := r.db.QueryRow(ctx, `
-SELECT credential_id, actor_id, deleted_at
-FROM llm_credential_tombstones
-WHERE credential_id = $1`, credentialID).Scan(
-		&result.CredentialID, &result.ActorID, &result.DeletedAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Tombstone{}, ErrNotFound
-	}
-	if err != nil {
-		return Tombstone{}, persistencepostgres.WrapError("read credential tombstone", err)
-	}
-	result.DeletedAt = result.DeletedAt.UTC()
-	return result, nil
 }
 
 func (r *Repository) ListActiveRuntimeBindingLabelsByCredential(

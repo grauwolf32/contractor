@@ -287,11 +287,9 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 		return CreateResult{}, err
 	}
 	if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		repository := NewRepository(tx)
-		if err := repository.ReserveCredentialID(ctx, normalized.CredentialID, operation.CreatedAt); err != nil {
-			return err
-		}
-		return repository.InsertOperation(ctx, operation)
+		// The create operation reserves the ID forever: a unique index admits one
+		// create per credential ID, and operations are never deleted.
+		return NewRepository(tx).InsertOperation(ctx, operation)
 	}); err != nil {
 		return CreateResult{}, err
 	}
@@ -338,7 +336,8 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if existing.RequestHash != requestHash || existing.CredentialID != request.CredentialID {
 			return DeleteResult{}, ErrConflict
 		}
-		if _, tombstoneErr := s.repository.GetTombstone(ctx, request.CredentialID); tombstoneErr != nil {
+		// A completed delete operation is the credential's tombstone.
+		if existing.Phase != OperationCompleted {
 			return DeleteResult{}, ErrConflict
 		}
 		s.deleteDirty = false
@@ -603,11 +602,8 @@ func (s *Service) executeDelete(
 		if err := repository.DeleteCredential(ctx, request.CredentialID); err != nil {
 			return err
 		}
-		if err := repository.InsertTombstone(ctx, Tombstone{
-			CredentialID: request.CredentialID, ActorID: request.ActorID, DeletedAt: request.DeletedAt,
-		}); err != nil {
-			return err
-		}
+		// Completing the operation records the tombstone: its request keeps the
+		// actor and deletion time.
 		return repository.CompleteOperation(ctx, operation.OperationID, operationCompletionTime(operation, s.now()))
 	})
 }
