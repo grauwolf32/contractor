@@ -53,7 +53,7 @@ func (s *Store) SelectRecords(ctx context.Context, scope Scope, id, actor string
 			return nil, err
 		}
 		for _, entry := range input.Selections {
-			if err = s.selectRecord(ctx, e, actor, e.Revision+1, entry); err != nil {
+			if err = s.selectRecord(ctx, e, actor, entry); err != nil {
 				return nil, err
 			}
 		}
@@ -69,7 +69,7 @@ SET view_generation = view_generation + 1,
 		return json.Marshal(map[string]any{"revision": e.Revision + 1, "viewSnapshot": nil})
 	})
 }
-func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, experimentRevision int64, entry evaldomain.SelectionEntry) error {
+func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, entry evaldomain.SelectionEntry) error {
 	if actor == "" {
 		return evaldomain.Failure("eval_invalid")
 	}
@@ -89,8 +89,7 @@ func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, ex
 			return evaldomain.Failure("eval_member_conflict")
 		}
 	}
-	var revision int64
-	err := s.db.QueryRow(ctx, `
+	_, err := s.db.Exec(ctx, `
 INSERT INTO eval_selections(experiment_id, member_id, result_sha256, assessment_sha256, actor_id)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (experiment_id, member_id) DO UPDATE SET
@@ -98,19 +97,8 @@ ON CONFLICT (experiment_id, member_id) DO UPDATE SET
     assessment_sha256 = EXCLUDED.assessment_sha256,
     actor_id = EXCLUDED.actor_id,
     revision = eval_selections.revision + 1
-RETURNING revision
-`, e.ID, entry.MemberID, entry.ResultSHA256, entry.AssessmentSHA256, actor).Scan(&revision)
-	if err != nil {
-		return normalize(err)
-	}
-	_, err = s.db.Exec(ctx, `
-INSERT INTO eval_selection_history(
-    experiment_id, member_id, experiment_revision, selection_revision,
-    result_sha256, assessment_sha256, actor_id
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-`, e.ID, entry.MemberID, experimentRevision, revision, entry.ResultSHA256, entry.AssessmentSHA256, actor)
-	return err
+`, e.ID, entry.MemberID, entry.ResultSHA256, entry.AssessmentSHA256, actor)
+	return normalize(err)
 }
 
 // SelectFirstNative records a system selection without consuming user CAS. The
@@ -148,7 +136,7 @@ func (s *Store) SelectFirstNative(ctx context.Context, scope Scope, id, member s
 		}
 		entry.AssessmentSHA256 = &a.SHA256
 	}
-	if err = s.selectRecord(ctx, e, evaldomain.NativeCollectorActor, e.Revision, entry); err != nil {
+	if err = s.selectRecord(ctx, e, evaldomain.NativeCollectorActor, entry); err != nil {
 		return err
 	}
 	_, err = s.db.Exec(ctx, `
