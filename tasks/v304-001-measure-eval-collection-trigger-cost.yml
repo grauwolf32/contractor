@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V304-001
+title: Measure and fix per-row eval_collections upserts on bulk experiment inserts
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: Find the real cause of the 20k-row claim-plan fixture timeout and fix it if it is the trigger.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "PR #536 explained V254's 20k-row fixture hitting the 10 s statement_timeout as a busy CI runner and raised the fixture limit, but the INSERT fires the per-row trigger eval_experiments_collection (internal/persistence/migrations/000066_foreign_key_indexes.sql:44), which upserts the same two eval_collections rows 40,000 times in one transaction (plausible, unmeasured)."
+scope:
+  in:
+    - Measure the insert with and without the trigger.
+    - If confirmed, make the trigger statement-level or otherwise avoid per-row hot-row upserts and restore the normal fixture budget.
+  out:
+    - Changing collection semantics.
+acceptance_criteria:
+  - {id: A1, text: "The measurement is recorded in the task file."}
+  - {id: A2, text: "If confirmed, bulk inserts stay within budget without the CI-runner exception."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore -run 'Claim|Plan'", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

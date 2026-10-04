@@ -1,0 +1,22 @@
+schema_version: '1.0'
+id: V347-001
+title: Protect main with a required check
+milestone: review-process-2026-10-04
+priority: P1
+status: pending
+depends_on: [V334-001]
+languages: [yaml]
+goal: Stop merging changes that have not passed CI.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: "GET /branches/main returns protected:false with no required status checks and no rulesets; PRs #512, #534 and #536 were merged 19-25 s after opening and #518 was merged while its PR run was still running (that run failed). Combined with a release gate that has never passed, every merge since 2026-05-29 is effectively ungated."
+scope:
+  in:
+    - Repository owner enables branch protection with the release check required (or a merge queue) once V334-001 makes the check reliable.
+  out:
+    - Code changes.
+acceptance_criteria:
+  - {id: A1, text: "main requires a passing CI check before merge."}
+tests:
+  - {command: "GitHub repository settings review", covers: [A1]}

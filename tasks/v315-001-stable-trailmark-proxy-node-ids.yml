@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V315-001
+title: Keep Trailmark proxy node IDs stable for root packages
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: "Finish V194: no symbol or proxy ID may depend on the random mirror directory name."
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: V194 (93cd9b42) rewrites only IDs equal to or prefixed by root_id (runtime/src/contractor_runtime/toolsets/code_analysis/trailmark_child.py:616-641). Any builtin call creates proxy.unresolved:code-analysis-mirror-<hex>:print with that string as its name, so after an invalidate and rebuild (any query timeout triggers one) old proxy IDs return code_analysis_symbol_not_found and names expose the mirror path. V194 A1 and A3 fail.
+scope:
+  in:
+    - "Rewrite proxy.*:<root_id>: IDs and names."
+    - Test with a builtin call across a rebuild.
+  out:
+    - Changing ID formats for non-root packages.
+acceptance_criteria:
+  - {id: A1, text: "Proxy node IDs and names are identical across rebuilds and contain no mirror name."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_trailmark_child.py tests/test_code_analysis_graph.py", covers: [A1]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1]}

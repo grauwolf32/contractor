@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V321-001
+title: Validate overlay delete and mkdir by delta off the event loop
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: [V320-001]
+languages: [python]
+goal: "Finish V265: overlay delete and mkdir validate only changed entries and run off the loop."
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Inherited delete_path and make_directory (runtime/src/contractor_runtime/projectfs/storage.py:349-392; overlay.py:231-234,562-581) clone the whole tree and _commit_candidate re-validates all text on the loop: 248 ms and 226 ms stalls on 40k files / 160 MiB, against 6 ms for offloaded write_text. V265's tests cover only update, copy and move."
+scope:
+  in:
+    - Delta validation like _copy_move_candidate, run in a thread.
+    - Tests for delete and mkdir.
+  out:
+    - Memory-direct providers.
+acceptance_criteria:
+  - {id: A1, text: "delete and mkdir validate only changed entries off the event loop."}
+tests:
+  - {command: "cd runtime && uv run pytest tests -k 'projectfs or workspace'", covers: [A1]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1]}

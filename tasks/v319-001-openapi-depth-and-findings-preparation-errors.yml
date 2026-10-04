@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V319-001
+title: Bound OpenAPI seed nesting and keep findings errors non-retryable in preparation
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: Turn two internal failures into precise errors and remove a legacy LikeC4 input shape.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: A 4 KB OpenAPI seed with 2000 nested [ raises an internal RecursionError (runtime/src/contractor_runtime/toolsets/openapi/tools.py:1151-1157). allocation/service.py:427-442 turns a non-retryable FindingsError such as findings_document_conflict into retryable allocation_preparation_failed and loses its code. likec4/tools.py:582 still accepts a legacy bare-list CLI JSON shape.
+scope:
+  in:
+    - Catch RecursionError and raise the depth ToolInputError.
+    - Propagate FindingsError code and retryability.
+    - Remove legacy bare-list parsing.
+  out:
+    - Other preparation errors.
+acceptance_criteria:
+  - {id: A1, text: "Deep nesting yields a depth input error."}
+  - {id: A2, text: "A non-retryable FindingsError during preparation stays non-retryable with its code."}
+  - {id: A3, text: "Only the current LikeC4 JSON shape is accepted."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_openapi_toolset.py tests/test_allocation.py tests/test_likec4_toolset.py", covers: [A1, A2, A3]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2, A3]}

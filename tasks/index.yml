@@ -322,6 +322,228 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: review-process-2026-10-04
+    exit_task: V348-001
+    outcome: CI reports a verdict for every main push, gates are complete and the task index is consistent.
+  - id: review-followups-2026-10-04
+    exit_task: V346-001
+    outcome: Follow-up cleanups from the 2026-10-04 review are complete.
+  - id: review-defects-2026-10-04
+    exit_task: V333-001
+    outcome: Every defect recorded by the 2026-10-04 review is fixed with a regression test.
+  - id: code-reuse-2026-10
+    exit_task: V277-001
+    outcome: Keep Audit HTTP request handling, response contracts, and read models independently navigable.
+  - id: runtime-projectfs-reliability-2026-10
+    exit_task: V269-001
+    outcome: Keep local-direct edits close to stat-scan cost while enforcing exact text and expanded-byte limits.
+  - id: release-gate-2026-10
+    exit_task: V268-001
+    outcome: Finish the remaining help-path failure and verify the earlier CLI and deployment corrections.
+  - id: git-import-memory-2026-10
+    exit_task: V264-001
+    outcome: Decode bounded Git packs directly from the transport while preserving content and transport error classification.
+  - id: principal-inventory-2026-10
+    exit_task: V263-001
+    outcome: Bound Runtime Agent principal list reads regardless of the number of principals and labels.
+  - id: operations-live-2026-10
+    exit_task: V262-001
+    outcome: Keep Operations views current under frequent Runtime Agent heartbeats without starving reads or churning subscriptions.
+  - id: operations-pagination-2026-10
+    exit_task: V260-001
+    outcome: Make configuration pickers and Runtime credentials usable beyond their first 50 results.
+  - id: eval-coordinator-throughput-2026-10
+    exit_task: V259-001
+    outcome: Fill native Eval execution capacity without one-member-per-poll pacing.
+  - id: runtime-work-root-isolation-2026-10
+    exit_task: V258-001
+    outcome: Prevent one Runtime process from deleting another process's live scratch or project workspace.
+  - id: local-pki-renewal-2026-10
+    exit_task: V257-001
+    outcome: Renew expiring deployment leaves using their existing keys and warn before expiry.
+  - id: database-schema-verification-2026-10
+    exit_task: V256-001
+    outcome: Refuse to serve traffic when the PostgreSQL migration ledger does not match this binary.
+  - id: cli-reliability-2026-10
+    exit_task: V255-001
+    outcome: Retry only replay-safe public calls and preserve the request key needed after uncertain create outcomes.
+  - id: eval-controller-efficiency-2026-10
+    exit_task: V254-001
+    outcome: Keep idle paused Evals out of coordinator polls and avoid scanning retained terminal experiments.
+  - id: release-gate-test-dedup-2026-10
+    exit_task: V253-001
+    outcome: Make retained process e2e assertions reflect current catalog ordering and single-active server behavior.
+  - id: memory-query-efficiency-2026-10
+    exit_task: V252-001
+    outcome: Read a full Planner Memory notebook in one bounded Store call and avoid row locks on read-only paths.
+  - id: placement-query-cost-2026-10
+    exit_task: V251-001
+    outcome: Keep optimistic placement query cost bounded by distinct pins, labels, and credentials instead of candidate count.
+  - id: runtime-dependency-hygiene-2026-10
+    exit_task: V250-001
+    outcome: Keep the shipped Runtime dependency lock free of known vulnerabilities.
+  - id: release-gate-integration-coverage-2026-10
+    exit_task: V249-001
+    outcome: Ensure every integration-tagged regression has a reachable release-gate owner or an explicit tool-dependent exception.
+  - id: runtime-projectfs-2026-10
+    exit_task: V247-001
+    outcome: Keep local direct mutations bounded by metadata and changed paths when workspace limits permit.
+  - id: go-maintenance-2026-10
+    exit_task: V246-001
+    outcome: Keep published code and regression tests focused on behavior the server actually uses.
+  - id: eval-maintenance-2026-10
+    exit_task: V245-001
+    outcome: Keep managed Eval lifecycle, persistence, API, UI, and specification aligned with states the coordinator can actually enter.
+  - id: runtime-maintenance-2026-10
+    exit_task: V244-001
+    outcome: Keep Eval tests on the SQL paging and lifecycle paths used by the public API.
+  - id: security-maintenance-2026-10
+    exit_task: V216-001
+    outcome: Keep security-sensitive exported APIs limited to production behavior while preserving role-check tests.
+  - id: audit-maintenance-2026-10
+    exit_task: V215-001
+    outcome: Remove Audit Controller paths that have no production callers while preserving periodic reconciliation.
+  - id: configuration-maintenance-2026-10
+    exit_task: V214-001
+    outcome: Remove unused exported configuration accessors while retaining typed loader coverage.
+  - id: server-maintenance-2026-10
+    exit_task: V213-001
+    outcome: Make server tests exercise production composition and remove misleading unused helpers.
+  - id: openapi-reliability-2026-10
+    exit_task: V211-001
+    outcome: Preserve valid OpenAPI 3.0 reference objects while checking source provenance where the format permits it.
+  - id: configuration-reliability-2026-10
+    exit_task: V210-001
+    outcome: Make config validate reject configuration trees that the Server cannot start from.
+  - id: audit-round-reliability-2026-10
+    exit_task: V209-001
+    outcome: Prevent later Audit Rounds from admitting tasks that their Workflow executor cannot run.
+  - id: run-creation-reliability-2026-10
+    exit_task: V207-001
+    outcome: Let public Run creation recover from definite serialization and deadlock aborts with fresh pins.
+  - id: queue-control-consistency-2026-10
+    exit_task: V206-001
+    outcome: Keep scheduler Stage admission from changing the owner's public Queue pause control.
+  - id: audit-review-lifecycle-2026-10
+    exit_task: V205-001
+    outcome: Prevent item and report review requests from remaining pending after their Audit work closes.
+  - id: audit-provenance-truth-2026-10
+    exit_task: V204-001
+    outcome: Show every attempt of a proposal-derived verification item even when no result was accepted.
+  - id: audit-coverage-truth-2026-10
+    exit_task: V203-001
+    outcome: Keep the last collected attempt's coverage when an Audit settles an undispatched retry.
+  - id: artifact-transfer-reliability-2026-10
+    exit_task: V202-001
+    outcome: Prevent Planner Memory and finding proposal writes from losing transfer capacity after filesystem bytes are staged.
+  - id: runtime-telemetry-2026-10
+    exit_task: V201-001
+    outcome: Make model and tool count attributes on each A2A task span describe that task only.
+  - id: run-recovery-ui-2026-10
+    exit_task: V200-001
+    outcome: Keep the Run detail query refreshing until automatic recovery ends even if its status remains unchanged.
+  - id: sourcebundle-validation-2026-10
+    exit_task: V199-001
+    outcome: Treat duplicate Git index stages as one working-tree path while retaining Unicode collision detection.
+  - id: allocation-release-recovery-2026-10
+    exit_task: V197-001
+    outcome: Let terminal Stage release converge when the owning Runtime lease has expired and its HTTP release can never succeed.
+  - id: controlplane-registry-cleanup-2026-10
+    exit_task: V196-001
+    outcome: Match allocation loss reasons and tests to the current lease-expiry admission policy.
+  - id: audit-dispatch-correctness-2026-10
+    exit_task: V195-001
+    outcome: Avoid repeated submission work under a full Run window and remove definitely unpublished blob candidates.
+  - id: code-analysis-identity-2026-10
+    exit_task: V194-001
+    outcome: Prevent temporary mirror names from changing root-package symbol identities and projections.
+  - id: audit-collection-correctness-2026-10
+    exit_task: V193-001
+    outcome: Keep valid high-ordinal Audit checks collectable and resumable when more than 200 items remain unsettled.
+  - id: persistence-api-cleanup-2026-10
+    exit_task: V192-001
+    outcome: Make store API declarations and transaction ownership match production behavior.
+  - id: eval-admission-recovery-2026-10
+    exit_task: V191-001
+    outcome: Let Eval experiments drain when a configuration dependency disappears after preparation.
+  - id: audit-finding-retention-2026-10
+    exit_task: V190-001
+    outcome: Preserve every allowed child-Run finding proposal before a contract-invalid collection receipt permits Run deletion.
+  - id: planner-dispatch-cleanup-2026-10
+    exit_task: V189-001
+    outcome: Keep the Planner controller API aligned with the claim-first dispatch contract.
+  - id: planner-session-state-cleanup-2026-10
+    exit_task: V188-001
+    outcome: Stop persisting unused cumulative token counts without losing old Planner sessions.
+  - id: a2a-mtls-cleanup-2026-10
+    exit_task: V187-001
+    outcome: Ensure the production A2A invoker constructs only principal-bound transports.
+  - id: gateway-signature-parity-2026-10
+    exit_task: V186-001
+    outcome: Reject Gateway signatures at publish time whenever Runtime would reject them.
+  - id: telemetry-json-size-parity-2026-10
+    exit_task: V185-001
+    outcome: Accept Runtime reports whose compact UTF-8 JSON fits the published limits.
+  - id: code-analysis-tool-guidance-2026-10
+    exit_task: V184-001
+    outcome: Tell Workers that find_symbol resolves names rather than opaque symbol IDs.
+  - id: projectfs-dead-state-2026-10
+    exit_task: V183-001
+    outcome: Make the project workspace storage paths reflect active behavior.
+  - id: runtime-test-parity-2026-10
+    exit_task: V182-001
+    outcome: Keep security and concurrency tests aligned with the current Runtime interfaces.
+  - id: finding-collection-preparation-2026-10
+    exit_task: V181-001
+    outcome: Use authoritative create receipts and reconcile only ambiguous document writes.
+  - id: cwe-catalog-deprecation-2026-10
+    exit_task: V180-001
+    outcome: Reject retired CWE classifications before a finding proposal is stored.
+  - id: taint-symbol-resolution-2026-10
+    exit_task: V178-001
+    outcome: Give the Worker accurate structural symbol guidance and deterministic miss errors.
+  - id: git-host-key-trust-2026-10
+    exit_task: V177-001
+    outcome: Import from multi-key SSH servers when a genuine single-type host key is pinned.
+  - id: sandbox-contract-cleanup-2026-10
+    exit_task: V176-001
+    outcome: Make sandbox contracts and docs describe the wired lifecycle and reachable errors.
+  - id: runtime-server-timing-2026-10
+    exit_task: V175-001
+    outcome: Make registration response the Runtime Agent authority for heartbeat and confirmed-lease timing.
+  - id: runtime-label-errors-2026-10
+    exit_task: V174-001
+    outcome: Return HTTP errors for the resource actually missing in Runtime label mutations.
+  - id: code-analysis-headers-2026-10
+    exit_task: V173-001
+    outcome: Preserve C and C++ header symbols and graph calls with truthful coverage.
+  - id: worker-output-limit-2026-10
+    exit_task: V172-001
+    outcome: Report output-token limits consistently and never accept truncated terminal summaries.
+  - id: worker-budget-instrumentation-2026-10
+    exit_task: V171-001
+    outcome: Make Worker model error spans reflect errors those hooks can actually receive.
+  - id: audit-results-cleanup-2026-10
+    exit_task: V170-001
+    outcome: Keep only the authoritative Audit results value contracts and package builder behavior.
+  - id: planner-artifact-metadata-2026-10
+    exit_task: V169-001
+    outcome: Keep Planner artifact validation independent of blob transfer slots and full-content reads.
+  - id: review-defects-2026-10
+    exit_task: V168-001
+    outcome: Let a standby Server take over within about half a minute when the active Server host disappears without closing its lease session.
+  - id: code-analysis-symbol-names-2026-10
+    exit_task: V161-001
+    outcome: Keep anonymous arrow callbacks out of definition search and resolve initialized C/C++ declarations by identifier.
+  - id: gateway-error-body-parity-2026-10
+    exit_task: V160-001
+    outcome: Make Planner Gateway failure classification match Runtime for common OpenAI-compatible error bodies.
+  - id: worker-handle-secret-collisions-2026-10
+    exit_task: V159-001
+    outcome: Let short valid telemetry and basic-auth values coexist with fixed Agent Card strings while retaining checks for actual leaks.
+  - id: replayed-prepare-lease-2026-10
+    exit_task: V158-001
+    outcome: Let a Stage resume preparation after its original confirmed lease expires while refusing allocations whose owning Agent actually lost its lease.
   - id: bundled-catalog-missing-blob-recovery-2026-10
     exit_task: V103-001
     outcome: >-
@@ -1447,9 +1669,15 @@ v8_v12_spec_review:
     - make release-verify passes against PostgreSQL with every Runtime/configuration, browser, Memory, Skill and HTTP/Caido process gate.
 
 current_checkpoint:
-  completed_through: V18-003
-  next_task: V19-001
+  completed_through: V277-001
+  next_task: V278-001
   summary: >-
+    Tasks through V277-001 are complete except V261-001, which stays
+    in_progress until CI passes. The 2026-10-04 review recorded V278-001 to
+    V347-001 (see docs/research/2026-10-04-code-review.md); V348-001 repaired
+    the index, milestones and invalid task records. Earlier checkpoint text
+    follows unchanged.
+
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
     rewritten after user synchronization. V11-001 strict cross-language
@@ -2821,6 +3049,114 @@ tasks:
   - {id: V238-001, file: v238-001-cover-real-next-round-builder.yml}
   - {id: V239-001, file: v239-001-bound-native-eval-plan-size.yml}
   - {id: V240-001, file: v240-001-batch-audit-finding-collection.yml}
+  - {id: V241-001, file: v241-001-remove-unused-whole-document-preparation.yml}
+  - {id: V242-001, file: v242-001-refresh-trace-skill-digest.yml}
+  - {id: V243-001, file: v243-001-remove-test-only-runtimeconfig-mutators.yml}
+  - {id: V244-001, file: v244-001-remove-unused-evalstore-helpers.yml}
+  - {id: V245-001, file: v245-001-remove-unreachable-eval-interrupted-state.yml}
+  - {id: V246-001, file: v246-001-remove-unused-go-symbols-and-test-copies.yml}
+  - {id: V247-001, file: v247-001-avoid-full-local-direct-content-scans.yml}
+  - {id: V248-001, file: v248-001-stabilize-credential-binding-delete-race.yml}
+  - {id: V249-001, file: v249-001-cover-integration-tests-in-release-gate.yml}
+  - {id: V250-001, file: v250-001-upgrade-urllib3-and-audit-runtime-lock.yml}
+  - {id: V251-001, file: v251-001-cache-optimistic-placement-catalogs.yml}
+  - {id: V252-001, file: v252-001-batch-planner-memory-reads.yml}
+  - {id: V253-001, file: v253-001-stabilize-release-process-e2e.yml}
+  - {id: V254-001, file: v254-001-index-driven-eval-claims.yml}
+  - {id: V255-001, file: v255-001-public-cli-retry-recovery.yml}
+  - {id: V256-001, file: v256-001-verify-startup-migration-ledger.yml}
+  - {id: V257-001, file: v257-001-renew-local-mtls-leaves.yml}
+  - {id: V258-001, file: v258-001-exclusive-runtime-work-roots.yml}
+  - {id: V259-001, file: v259-001-batch-eval-admissions.yml}
+  - {id: V260-001, file: v260-001-operations-inventory-pagination.yml}
+  - {id: V261-001, file: v261-001-stabilize-release-gate-process-tests.yml}
+  - {id: V262-001, file: v262-001-coalesce-operations-live-reads.yml}
+  - {id: V263-001, file: v263-001-batch-principal-adapters.yml}
+  - {id: V264-001, file: v264-001-stream-git-pack.yml}
+  - {id: V265-001, file: v265-001-offload-overlay-export.yml}
+  - {id: V266-001, file: v266-001-mocked-browser-release-gate.yml}
+  - {id: V267-001, file: v267-001-e2e-test-gate-coverage.yml}
+  - {id: V268-001, file: v268-001-complete-cli-build-deploy-review.yml}
+  - {id: V269-001, file: v269-001-bound-local-direct-mutation-reads.yml}
+  - {id: V270-001, file: v270-001-centralize-audit-review-event-writes.yml}
+  - {id: V271-001, file: v271-001-stabilize-eval-policy-pins.yml}
+  - {id: V272-001, file: v272-001-centralize-project-audit-deletion.yml}
+  - {id: V273-001, file: v273-001-centralize-finding-audit-events.yml}
+  - {id: V274-001, file: v274-001-centralize-run-deletion-audit-invalidation.yml}
+  - {id: V275-001, file: v275-001-split-public-http-types.yml}
+  - {id: V276-001, file: v276-001-share-source-zip-writer.yml}
+  - {id: V277-001, file: v277-001-split-audit-http-handlers.yml}
+  - {id: V278-001, file: v278-001-purge-audits-with-reviews-and-assessments.yml}
+  - {id: V279-001, file: v279-001-close-report-reviews-on-project-deletion.yml}
+  - {id: V280-001, file: v280-001-collect-co-batched-verification-checks.yml}
+  - {id: V281-001, file: v281-001-bound-finding-collection-transactions.yml}
+  - {id: V282-001, file: v282-001-isolate-retention-failures-per-proposal.yml}
+  - {id: V283-001, file: v283-001-respect-inventory-limits-in-next-round.yml}
+  - {id: V284-001, file: v284-001-classify-next-round-preparation-failures.yml}
+  - {id: V285-001, file: v285-001-renew-resume-item-reviews-through-auditstore.yml}
+  - {id: V286-001, file: v286-001-release-transfer-slots-before-archive-writes.yml}
+  - {id: V287-001, file: v287-001-separate-storage-budget-from-socket-deadlines.yml}
+  - {id: V288-001, file: v288-001-tolerate-transient-lease-session-stalls.yml}
+  - {id: V289-001, file: v289-001-scope-allocation-loss-to-owning-stage.yml}
+  - {id: V290-001, file: v290-001-release-placement-on-paused-admission.yml}
+  - {id: V291-001, file: v291-001-classify-rebind-label-race.yml}
+  - {id: V292-001, file: v292-001-bound-leaf-expiry-by-ca.yml}
+  - {id: V293-001, file: v293-001-non-retryable-permanent-planner-gateway-failures.yml}
+  - {id: V294-001, file: v294-001-keep-replies-when-recovery-bookkeeping-fails.yml}
+  - {id: V295-001, file: v295-001-scan-planner-completion-budget.yml}
+  - {id: V296-001, file: v296-001-update-memory-notes-without-full-load.yml}
+  - {id: V297-001, file: v297-001-remove-legacy-session-token-decode.yml}
+  - {id: V298-001, file: v298-001-eval-member-errors-do-not-block-admission.yml}
+  - {id: V299-001, file: v299-001-clear-stop-intents-rejected-with-409.yml}
+  - {id: V300-001, file: v300-001-stable-timestamp-in-paused-eval-claims.yml}
+  - {id: V301-001, file: v301-001-detect-batch-admission-overfill.yml}
+  - {id: V302-001, file: v302-001-trust-stored-frozen-eval-plans.yml}
+  - {id: V303-001, file: v303-001-bound-eval-view-generations.yml}
+  - {id: V304-001, file: v304-001-measure-eval-collection-trigger-cost.yml}
+  - {id: V305-001, file: v305-001-back-off-failed-operations-snapshots.yml}
+  - {id: V306-001, file: v306-001-show-artifact-upload-conflicts.yml}
+  - {id: V307-001, file: v307-001-correct-paged-states-links-and-triage.yml}
+  - {id: V308-001, file: v308-001-remove-ui-compatibility-paths.yml}
+  - {id: V309-001, file: v309-001-scrub-target-credentials-from-caido.yml}
+  - {id: V310-001, file: v310-001-shared-host-syntax-rule.yml}
+  - {id: V311-001, file: v311-001-single-redaction-policy.yml}
+  - {id: V312-001, file: v312-001-scan-agent-card-keys-for-secrets.yml}
+  - {id: V313-001, file: v313-001-name-cpp-reference-declarations.yml}
+  - {id: V314-001, file: v314-001-single-header-language-resolver.yml}
+  - {id: V315-001, file: v315-001-stable-trailmark-proxy-node-ids.yml}
+  - {id: V316-001, file: v316-001-structural-search-page-test.yml}
+  - {id: V317-001, file: v317-001-validate-cwe-standard-refs-at-submission.yml}
+  - {id: V318-001, file: v318-001-reject-openapi30-path-item-refs.yml}
+  - {id: V319-001, file: v319-001-openapi-depth-and-findings-preparation-errors.yml}
+  - {id: V320-001, file: v320-001-overlay-diff-off-event-loop.yml}
+  - {id: V321-001, file: v321-001-overlay-delete-mkdir-delta-validation.yml}
+  - {id: V322-001, file: v322-001-work-root-lock-in-podman-e2e-and-errors.yml}
+  - {id: V323-001, file: v323-001-single-config-version-grammar.yml}
+  - {id: V324-001, file: v324-001-single-media-type-length.yml}
+  - {id: V325-001, file: v325-001-python-fixture-index-coverage.yml}
+  - {id: V326-001, file: v326-001-restore-contains-wording.yml}
+  - {id: V327-001, file: v327-001-eval-state-and-plan-size-conformance.yml}
+  - {id: V328-001, file: v328-001-document-transaction-retry-503.yml}
+  - {id: V329-001, file: v329-001-untrusted-ssh-host-without-pinned-type.yml}
+  - {id: V330-001, file: v330-001-fail-reload-on-missing-managed-subtree.yml}
+  - {id: V331-001, file: v331-001-enforce-source-member-sizes-while-writing.yml}
+  - {id: V332-001, file: v332-001-reject-runtime-unopenable-bundles.yml}
+  - {id: V333-001, file: v333-001-normalize-config-roots-and-group-help.yml}
+  - {id: V334-001, file: v334-001-ci-verdict-per-push-and-fast-first-gate.yml}
+  - {id: V335-001, file: v335-001-e2e-gate-real-selection.yml}
+  - {id: V336-001, file: v336-001-fail-db-tests-when-database-unreachable.yml}
+  - {id: V337-001, file: v337-001-non-race-collection-budget.yml}
+  - {id: V338-001, file: v338-001-schema-scoped-migration-lock.yml}
+  - {id: V339-001, file: v339-001-advisory-scans-outside-deterministic-gate.yml}
+  - {id: V340-001, file: v340-001-race-coverage-for-evals-and-faults.yml}
+  - {id: V341-001, file: v341-001-investigate-ci-tolerance-bumps.yml}
+  - {id: V342-001, file: v342-001-replace-runtime-production-asserts.yml}
+  - {id: V343-001, file: v343-001-audit-review-writes-into-auditstore.yml}
+  - {id: V344-001, file: v344-001-deduplicate-pki-cli-commands.yml}
+  - {id: V345-001, file: v345-001-projectfs-dead-surface.yml}
+  - {id: V346-001, file: v346-001-bound-tree-sitter-parse-stalls.yml}
+  - {id: V347-001, file: v347-001-protect-main-branch.yml}
+  - {id: V348-001, file: v348-001-repair-task-index-and-records.yml}
   - {id: V220-001, file: v220-001-align-katana-lock-deadline.yml}
   - {id: V219-001, file: v219-001-offload-filesystem-scans.yml}
   - {id: V218-001, file: v218-001-cache-exact-artifact-pages.yml}

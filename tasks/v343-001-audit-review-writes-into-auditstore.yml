@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V343-001
+title: Move remaining raw Audit review writes into auditstore
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V278-001, V279-001, V285-001]
+languages: [go, sql]
+goal: Finish issue 87 and share one live item authority predicate.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: auditservice still issues about 27 raw writes to review requests, decisions, items, coverage and findings (action_review.go, finding_review.go, resume.go), with 9 variants of the expire-review UPDATE; finding_review.go:87 emits no event and skips the GREATEST updated_at guard. The live item authority predicate has four copies (auditstore/claims.go:54-91, item_review_renewal.go:75-114, auditservice/resume.go:128, execution_intent_sql.go:55-72). The next_event_sequence arithmetic is repeated in lifecycle, transition, deletion and collection SQL.
+scope:
+  in:
+    - Move the writes behind auditstore primitives.
+    - One predicate (SQL function or view).
+    - An N-event sequence allocator generalizing AppendReviewEvent.
+  out:
+    - Changing review semantics.
+acceptance_criteria:
+  - {id: A1, text: "auditservice issues no raw writes to review tables."}
+  - {id: A2, text: "One live item authority predicate."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditservice ./internal/auditcontroller", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

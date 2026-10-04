@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V345-001
+title: Remove fsspec and test-only overlay APIs from projectfs
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: [V320-001, V321-001]
+languages: [python]
+goal: Shrink projectfs to the paths production uses.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: After V224 the memory provider (projectfs/provider.py:169-219,338-340) never writes through fsspec, and local hydration and _materialize_state could use the descriptor-relative local_io primitives; commit_checkpoint, export_state and session changed_paths (overlay.py:254-265,337-348) are test-only; managed-tree helpers are duplicated between storage.py and overlay.py.
+scope:
+  in:
+    - Drop fsspec and the content_root argument for memory and overlay sessions.
+    - Remove test-only APIs.
+    - Merge duplicated helpers.
+  out:
+    - Behaviour changes.
+acceptance_criteria:
+  - {id: A1, text: "fsspec is no longer a dependency and no test-only API remains."}
+tests:
+  - {command: "cd runtime && uv run pytest && uv run ruff check .", covers: [A1]}

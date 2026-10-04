@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V340-001
+title: Run Eval and fault race suites in release verification
+milestone: review-process-2026-10-04
+priority: P2
+status: pending
+depends_on: [V334-001]
+languages: [make, python]
+goal: Put every Go package with tests under the race detector in some release job.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "check_release_verify_graph.py:16-57 pins the race package union to the pre-V155 set: 32 of 76 Go packages with tests never run under -race in release-verify, including evalcoordinator, evalstore, evalservice, runservice, gatewayrecovery, sourcebundle, tests/faults and tests/integration/streamline, although V233, V235, V239, V254 and V259 changed Eval concurrency."
+scope:
+  in:
+    - Add the missing packages (or test-evals and the race test-faults) to the race pass within the CI time budget.
+    - Allowlist exceptions with reasons.
+  out:
+    - Lengthening the critical path beyond the CI budget (depends on V334-001's job split).
+acceptance_criteria:
+  - {id: A1, text: "Every Go package with tests runs under -race in some release job or is allowlisted with a reason."}
+tests:
+  - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1]}

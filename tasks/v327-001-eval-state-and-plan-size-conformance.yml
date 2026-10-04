@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V327-001
+title: Check Eval state sets and plan-size estimates across Go, OpenAPI and UI
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go, typescript]
+goal: Catch drift in Eval state sets and the native plan-size estimate automatically.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: No conformance test covers the UI Eval state sets (EVAL_STATES in ui/src/routes/evals/list.tsx and the polling and status sets), so removals like V245's can drift silently. The native plan-size estimate is duplicated in ui/src/routes/evals/setup-model.ts:136-151 and internal/evaldomain/authoring_validation.go without a shared fixture, and the UI computes it over EvalDraft while Go uses Draft.
+scope:
+  in:
+    - Extend openapi-conformance.test.ts to the Eval state sets.
+    - A shared Go/TS plan-size fixture in api/testdata consumed by both suites.
+  out:
+    - Changing limits.
+acceptance_criteria:
+  - {id: A1, text: "UI Eval state sets equal the OpenAPI enums."}
+  - {id: A2, text: "Go and TS plan-size estimates agree on the shared cases."}
+tests:
+  - {command: "go test -count=1 ./internal/evaldomain", covers: [A1, A2]}
+  - {command: "cd ui && corepack pnpm exec vitest run src/api src/routes/evals", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

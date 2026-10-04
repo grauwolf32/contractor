@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V348-001
+title: Repair the task index and task records
+milestone: review-process-2026-10-04
+priority: P2
+status: in_progress
+depends_on: []
+languages: [yaml]
+goal: Make tasks/index.yml and the task records consistent again.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: tasks/index.yml omits all tasks V241-001..V277-001, current_checkpoint still says completed_through V18-003, none of the 71 milestones used by V158-V277 is declared, tasks/v136-001-audit-api-route-table.yml is invalid YAML at line 21 (an unquoted brace in a flow mapping) and V191-001 references the non-existent docs/spec/15-managed-evaluations.md.
+scope:
+  in:
+    - Index V241-V348.
+    - Declare every milestone used since V158.
+    - Update current_checkpoint.
+    - Fix v136 YAML and the V191 specification path.
+  out:
+    - Changing task content.
+acceptance_criteria:
+  - {id: A1, text: "Every task file is listed in tasks/index.yml and every listed file exists."}
+  - {id: A2, text: "Every task file parses as YAML."}
+  - {id: A3, text: "Every milestone used by a task since V158 is declared."}
+tests:
+  - {command: "python3 -c 'import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob(\"tasks/*.yml\")]'", covers: [A2]}
+  - {command: "index consistency script in the lead commit", covers: [A1, A3]}

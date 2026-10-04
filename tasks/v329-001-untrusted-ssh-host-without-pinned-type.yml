@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V329-001
+title: Report untrusted SSH hosts that offer no pinned key type
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: Keep host-trust failures classified as git_host_untrusted when negotiation fails for lack of a pinned key type.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: V177 (cbbb351b) limits HostKeyAlgorithms to the pinned types plus certificate types (internal/gitimport/client.go:487,508,514-516). A host or MITM that offers only other types fails key exchange with 'no common algorithm for host key' before HostKeyCallback runs; safeError maps it to ErrRemote, so the public API answers 422 git_remote_unavailable (git_import_handlers.go:94-95) instead of ErrTrust/git_host_untrusted. This breaks V177 A4 and its rule not to change public Git error codes. Reproduced with an in-process ECDSA-only server and an Ed25519 pin.
+scope:
+  in:
+    - When pinned algorithms are set and negotiation fails for lack of a common host-key algorithm, return ErrTrust through a typed check.
+    - Unit and integration tests.
+  out:
+    - Changing pinned negotiation.
+acceptance_criteria:
+  - {id: A1, text: "A host offering none of the pinned types yields git_host_untrusted."}
+  - {id: A2, text: "Pinned negotiation still works."}
+tests:
+  - {command: "go test -count=1 ./internal/gitimport", covers: [A1, A2]}
+  - {command: "go test -count=1 -tags integration ./internal/gitimport", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

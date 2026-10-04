@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V308-001
+title: Remove UI compatibility paths and duplicated helpers
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [typescript]
+goal: Remove compatibility code the pre-production project does not need and reuse shared helpers.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: ui/src/api/projects.ts:128-141 keeps the V97 legacy target readback and /runs/configuration redirects remain (ui/src/app/navigation.ts:50-57, ui/src/routes/runs/index.tsx:62-64, router.tsx:203). evals/artifact-picker.tsx:44-53 builds download URLs by hand and its 'My artifacts' list does not exclude the skills namespace; workflows/run-form.tsx:86-94 shadows the shared artifactDetailPath; isTerminalRunState (ui/src/api/runs.ts:151-153) duplicates TERMINAL_RUN_STATES.
+scope:
+  in:
+    - Remove the readback and redirects with strict validation.
+    - Use scopedArtifactAPI download and exclude skills in the picker.
+    - Use the shared artifactDetailPath and derive isTerminalRunState.
+  out:
+    - Changing routes other than the compatibility redirects.
+acceptance_criteria:
+  - {id: A1, text: "No legacy readback or redirect remains and invalid stored targets surface as errors."}
+  - {id: A2, text: "The picker uses the shared artifact API."}
+tests:
+  - {command: "cd ui && corepack pnpm exec vitest run", covers: [A1, A2]}
+  - {command: "cd ui && corepack pnpm typecheck && corepack pnpm lint && corepack pnpm build", covers: [A1, A2]}

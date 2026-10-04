@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V314-001
+title: Resolve C-family header language once for shallow, graph and taint
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: [V313-001]
+languages: [python]
+goal: Make shallow analysis, graph coverage and taint annotation agree on the language of every C-family file.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "Shallow analysis parses every .h as C++ when any C++ file exists (code_analysis/tools.py:894), while taint tries C first and switches to C++ only on a zero-error parse (taint_annotations/tools.py:200,749-759). Header macros such as NOEXCEPT or APP_EXPORT cause errors in both grammars, so taint keeps C: search_def finds include/handler.h:3 but annotate_trace returns non-retryable taint_annotation_target_not_found (V178 made it non-retryable). A C project with one vendored .cc gets spurious C++ errors. Admission lower-cases suffixes but Trailmark's walk is case-sensitive (trailmark_host.py:946), so Tool.PY, foo.C and foo.H count as analyzed with incomplete=False yet are never parsed. A dead PHP arrow_function NodeSpec remains."
+scope:
+  in:
+    - One header-language resolver in languages.py used by shallow, graph coverage and taint.
+    - "Consistent extension case handling: parse upper-case extensions or report them as not analyzed."
+    - Remove the dead NodeSpec.
+  out:
+    - Adding new languages.
+acceptance_criteria:
+  - {id: A1, text: "A symbol that search_def finds in a header can be annotated."}
+  - {id: A2, text: "Upper-case-extension files are either parsed or reported as not analyzed."}
+tests:
+  - {command: "cd runtime && uv run pytest tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_trailmark_probe.py", covers: [A1, A2]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2]}

@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V337-001
+title: Enforce the production collection budget outside the race detector
+milestone: review-process-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go, make]
+goal: Make the 10 s finding-collection budget test run somewhere.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "PR #534 split the budget by build tag (internal/findingintake/collection_budget_test.go:8 is !race with 10 s; collection_budget_race_test.go:10 is race with 20 s), but every gate that runs these integration tests uses -race (make/release.mk:35, make/platform.mk:129-131), so the 10 s production deadline (auditcontroller defaultOperationTimeout) is enforced nowhere. ...FinishesAfterTimedOutAttempt requires a 3 s attempt not to finish, so it fails if collection gets about 2.3 times faster."
+scope:
+  in:
+    - A non-race pass for the budget tests in release-verify.
+    - Make the timed-out-attempt test independent of collection speed (coordinate with V281-001).
+  out:
+    - Changing the production timeout.
+acceptance_criteria:
+  - {id: A1, text: "The 10 s budget test runs in release-verify without -race."}
+  - {id: A2, text: "The timed-out-attempt test does not depend on collection speed."}
+tests:
+  - {command: "make -n release-verify", covers: [A1]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake -run Budget", covers: [A1, A2]}

@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V322-001
+title: Account for the Runtime work-root lock in Podman e2e and diagnostics
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: Make the Podman release gate pass with V258's lock file and make work-root errors actionable.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: V258 creates <work-root>/contractor-runtime.lock and never deletes it by design (runtime/src/contractor_runtime/work_root_lock.py:47-49; sandbox/podman/ownership.py release never unlinks). tests/e2e/podman_sandbox_test.go:165-172 fails on any scratch entry other than .contractor-podman-owner-v1, so make test-podman-e2e and test-podman-release always fail; runtime/PODMAN.md:391 is stale. An operator-created root with mode 0755 now fails with 'scratch work root in use or unsafe' because contention and unsafe owner/mode collapse into one message (work_root_lock.py:46-51; ownership.py:56-58), and the 0700 requirement is undocumented. V247 added production asserts in projectfs/local_io.py:94,220.
+scope:
+  in:
+    - Allow contractor-runtime.lock in the Podman scratch check (or reuse workRootEmpty) and update PODMAN.md and the runtime-configuration docs (0700).
+    - Distinct errors for lock contention and unsafe owner or mode.
+    - Replace the two asserts with explicit errors.
+  out:
+    - Changing the lock design.
+acceptance_criteria:
+  - {id: A1, text: "The Podman e2e scratch check passes with the lock file present."}
+  - {id: A2, text: "Contention and unsafe-mode errors are distinguishable."}
+  - {id: A3, text: "local_io contains no assert."}
+tests:
+  - {command: "go vet -tags e2e ./tests/e2e", covers: [A1]}
+  - {command: "cd runtime && uv run pytest tests/test_work_root_lock.py tests/test_projectfs_local_direct.py tests/test_cli.py", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

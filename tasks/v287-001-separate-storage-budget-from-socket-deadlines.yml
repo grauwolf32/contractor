@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V287-001
+title: Separate storage budgets from transfer socket deadlines
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: [V286-001]
+languages: [go]
+goal: Keep artifact storage work from being cancelled by the client I/O deadline introduced by V234.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: artifacttransfer.Bound (internal/httpapi/artifacttransfer/deadline.go:29-37) sets a context deadline that handlers pass to PreparePayload and store Write/Read; a small PUT gets about 6 s in total for blob preparation and PostgreSQL work although DB budgets allow 2 s acquire plus 20 s per query. Under DB pressure the Server cancels its own write mid-statement; the client gets 500 while an autocommit write may already have committed, so a retried non-CAS PUT can create a duplicate revision (plausible). Public and private readArtifactBody grow io.ReadAll buffers to about twice the body per slot.
+scope:
+  in:
+    - Apply transfer deadlines only to socket I/O and give storage work its own budget.
+    - Preallocate request bodies from the bounded Content-Length.
+  out:
+    - Changing transfer limits.
+acceptance_criteria:
+  - {id: A1, text: "A slow database within its budgets does not fail an artifact PUT whose client I/O finished."}
+  - {id: A2, text: "Client stalls still trip the socket deadline."}
+  - {id: A3, text: "Body reads allocate at most the declared bound."}
+tests:
+  - {command: "go test -count=1 ./internal/httpapi/... ./internal/artifacts", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V316-001
+title: Replace the V221 wall-clock stall test with structural checks
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: Make the search page-fitting test deterministic and make each row's size be computed once.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: test_large_search_page_fits_once_per_row_without_stalling_loop (runtime/tests/test_code_analysis_shallow.py:681-725) asserts a maximum event-loop gap below 50 ms. It failed in 4 of 5 runs under load because a gen-2 garbage collection inside the worker thread holds the GIL for about 48 ms; with gc.freeze it passed 7 of 7. `calls <= 230` does not discriminate (the old algorithm needs about 139) and rows are canonicalized up to three times (code_analysis/tools.py:1416-1456), so V221 A1 is not literally met. tree-sitter Parser.parse also holds the GIL for the whole parse (about 63 ms for 3.5 MB).
+scope:
+  in:
+    - Assert that _fit_result_page runs off the event-loop thread and count per-row canonicalizations.
+    - Compute per-row sizes once and skip the full-page attempt.
+    - Document the parse GIL limit in the code analysis notes.
+  out:
+    - Changing page limits.
+acceptance_criteria:
+  - {id: A1, text: "The test passes deterministically under load (10 consecutive runs)."}
+  - {id: A2, text: "Each row is canonicalized once per page."}
+tests:
+  - {command: "cd runtime && for i in $(seq 10); do uv run pytest -q tests/test_code_analysis_shallow.py || exit 1; done", covers: [A1, A2]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2]}

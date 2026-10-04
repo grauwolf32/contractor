@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V294-001
+title: Keep model replies when Gateway recovery bookkeeping fails
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Deliver a successful model reply and charge its usage even when the recovery bookkeeping write fails transiently.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: After a 2xx, Participant.Do calls p.Update(...,'succeeded'), which locks the workflow_runs row with the 2 s lock timeout (internal/gatewayrecovery/http.go:51-53; requests.go:80-84). On 55P03 or a pool-acquire timeout Do returns the DB error and drops the body, so the Planner fails as retryable planner_gateway_unavailable and the reply's usage is never charged to the budget or report.
+scope:
+  in:
+    - Retry the bookkeeping update for transient DB errors within a bound, or charge usage and return a distinct DB failure code.
+    - Test it.
+  out:
+    - Changing recovery admission.
+acceptance_criteria:
+  - {id: A1, text: "A transient bookkeeping failure after a 2xx still delivers the reply or fails with a DB-specific code, and usage is charged."}
+tests:
+  - {command: "go test -count=1 ./internal/gatewayrecovery ./internal/planner/streamline", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

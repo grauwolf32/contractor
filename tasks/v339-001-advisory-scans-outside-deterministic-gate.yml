@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V339-001
+title: Move live advisory scans out of the deterministic gate
+milestone: review-process-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [yaml, make, python]
+goal: Keep the release gate deterministic and the dependency audit trustworthy.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: release-verify runs uvx pip-audit==2.10.1 (make/release.mk:12-13) and CI runs govulncheck; both need the network and a new upstream advisory turns main red without a code change. pip-audit's own dependencies are unpinned, uv export --frozen does not check that the lock matches pyproject, and V250 A3 (fails for a vulnerable lock) was never demonstrated. ubuntu-latest moves to Ubuntu 26 on 2026-10-19.
+scope:
+  in:
+    - A separate advisory job.
+    - "--locked export and a hashed scanner requirements file."
+    - An offline test with a known-vulnerable pin.
+    - Pin the runner image.
+  out:
+    - Dropping the audits.
+acceptance_criteria:
+  - {id: A1, text: "The deterministic gate passes offline."}
+  - {id: A2, text: "The advisory job fails on a known-vulnerable pin."}
+tests:
+  - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1, A2]}
+  - {command: "make -n release-verify", covers: [A1]}

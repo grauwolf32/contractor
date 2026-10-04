@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V303-001
+title: Bound Eval view generation growth
+milestone: review-followups-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: Create view generations only for visible changes and prune superseded ones.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: Every publish copies all member rows into a new immutable view generation (internal/evalstore/projections.go:242-275). SourceRevision is part of the snapshot identity, so any dirty event creates a generation, and nothing prunes them until purge. A full 8-member lifecycle produced 6 generations and 48 member rows; growth is O(members x publishing ticks), roughly 10^5-10^6 rows for a 1,000-member experiment. Migration 000070 already removed idle churn.
+scope:
+  in:
+    - Skip a new generation when member documents and the summary are unchanged.
+    - Prune superseded generations no reader can reference (reserved migration numbers 000078-000079 if needed).
+    - Tests.
+  out:
+    - Changing the public view contract.
+acceptance_criteria:
+  - {id: A1, text: "Publishing without document changes creates no generation."}
+  - {id: A2, text: "Superseded generations are pruned while the current one stays readable."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/evalservice ./internal/httpapi/public -run Eval", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

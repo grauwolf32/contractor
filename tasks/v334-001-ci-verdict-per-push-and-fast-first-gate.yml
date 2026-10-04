@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V334-001
+title: Keep a verdict for every main push and run fast gates first
+milestone: review-process-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [yaml, make]
+goal: Make CI report on every merge and surface cheap failures within minutes.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: The CI release-verify job has never passed since 2026-05-29. concurrency cancel-in-progress (.github/workflows/ci.yml:8-10) cancelled 44 of 58 main runs in one day, so most merges get no verdict. The Makefile includes make/release.mk before release-verify's own prerequisites, so make -n release-verify runs the race pass, the 19-test process pass (-timeout=50m) and the integration pass before lint, unit and UI checks, and make runs without -k, so each run reports one failure 50-70 minutes in. docs/testing/release-gates.md:117-118 claims the opposite order, docs/testing/README.md:18 overstates the requirements and make test-e2e omits 3 of the 19 release process tests. setup-go saves its cache only on success, so every red run cold-builds.
+scope:
+  in:
+    - cancel-in-progress only for pull_request events.
+    - Run verify (lint, unit, UI) first and fail fast there; split heavy stages into separate jobs or use per-stage reports so one run shows every failing stage.
+    - Upload test reports as artifacts and save the Go cache on failure.
+    - Fix the docs.
+  out:
+    - Repository branch protection (owner action, V347-001).
+acceptance_criteria:
+  - {id: A1, text: "Every push to main gets a completed run."}
+  - {id: A2, text: "Lint, unit and UI failures surface within minutes."}
+  - {id: A3, text: "The docs match the actual order."}
+tests:
+  - {command: "make -n release-verify", covers: [A2]}
+  - {command: "python3 scripts/check_release_verify_graph.py", covers: [A1, A2, A3]}

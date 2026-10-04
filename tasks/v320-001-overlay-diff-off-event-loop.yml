@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V320-001
+title: Compute overlay diffs off the event loop
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: Keep the Runtime event loop responsive while the model pages through large workspace diffs.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: medium
+  finding: "The model-facing diff tool (runtime/src/contractor_runtime/toolsets/workspace_changes/tools.py:116-131) calls overlay diff() and _workspace_diff, which runs difflib.unified_diff on the event loop while holding the session lock (projectfs/overlay.py:282-302,665-742); each page recomputes the whole diff because the cursor skips output bytes only. Measured with max_bytes=4096: a 1.0 MB rewritten file stalls the loop 1.5 s and 2.1 MB stalls it 7.1 s (about n^2). Overlay allows 16 MiB files, so heartbeats and the lease watchdog can miss the 60 s confirmed lease and the allocation gets fenced. V265 offloaded the same function only for prepare_export."
+scope:
+  in:
+    - Run the diff through to_thread_until_done.
+    - Cache the rendered diff per (generation, path) so pages reuse it, with a memory bound.
+    - Tests that assert the off-loop thread and page reuse.
+  out:
+    - Changing diff output format.
+acceptance_criteria:
+  - {id: A1, text: "diff never runs difflib on the event-loop thread."}
+  - {id: A2, text: "Paging a large diff computes it once per generation."}
+tests:
+  - {command: "cd runtime && uv run pytest tests -k 'projectfs or workspace'", covers: [A1, A2]}
+  - {command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2]}

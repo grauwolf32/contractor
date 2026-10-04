@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V338-001
+title: Scope migration advisory locks to the target schema
+milestone: review-process-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Let isolated test schemas migrate concurrently while one schema still has one migration leader.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "ApplyMigrations polls pg_try_advisory_xact_lock(migrationLockKey) (internal/persistence/postgres/migrate.go:173-195), a database-wide key, while tests isolate by schema and apply all 76 migrations per test. Every parallel test serializes on one lock: internal/artifacts takes 240 s on an idle machine and timed out after 600 s under parallel load, and several packages failed with 'wait for PostgreSQL migration leader: context deadline exceeded'."
+scope:
+  in:
+    - Derive the lock key from the target schema (for example hashtextextended(current_schema(), key)) while keeping one leader per schema.
+    - Test concurrent migrations in two schemas and in one schema.
+    - Optionally reuse a migrated template for tests.
+  out:
+    - Changing migration contents.
+acceptance_criteria:
+  - {id: A1, text: "Migrations in different schemas proceed concurrently and the same schema still serializes."}
+  - {id: A2, text: "DB test wall time drops measurably (recorded in the task)."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres", covers: [A1, A2]}
+  - {command: "make lint", covers: [A1, A2]}

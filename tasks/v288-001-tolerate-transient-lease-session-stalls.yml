@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V288-001
+title: Tolerate transient Control Plane lease-session stalls
+milestone: review-defects-2026-10-04
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: Declare Control Plane lease loss only after a bounded outage, not after one slow ping.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: high
+  finding: "watch() pings the lease session every second with a 1 s timeout and cancels the Server on the first failure (internal/app/single_active.go:22,95-115). pgx closes the connection when a ping hits its deadline, so the advisory lock really is released, the process exits, the in-memory Registry is lost and the replacement Server aborts every running Stage with control_plane_state_lost (internal/scheduler/allocation_reservations.go:33-38). Reproduced by pausing server-to-client traffic for 1.5 s through a TCP proxy. Standby has the same flaw: a 1 s tryAcquire timeout exits the process (single_active.go:194-198). PostgreSQL keeps the session about 25-30 s after client loss (V168 keepalives), so roughly 10 s of client tolerance is safe."
+scope:
+  in:
+    - Treat lease loss as consecutive ping failures spanning a bounded window below the server-side keepalive bound, with pings that do not themselves drop the session (or confirm loss through pg_locks for the session pid on a fresh connection).
+    - Apply the same tolerance to standby acquisition.
+    - Proxy-based tests for a 1.5 s stall (no loss) and a sustained outage (loss within the bound); update the spec text.
+  out:
+    - Changing the single-active topology.
+acceptance_criteria:
+  - {id: A1, text: "A 1.5 s stall on the lease session does not stop the Server."}
+  - {id: A2, text: "A sustained outage still stops the Server before another Server could acquire the lease."}
+  - {id: A3, text: "Standby survives a transient acquisition timeout."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/app", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

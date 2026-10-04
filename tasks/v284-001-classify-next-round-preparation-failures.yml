@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V284-001
+title: Classify next-Round preparation failures
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Distinguish impossible states and blob I/O failures from deterministic validation failures in Audit Round progression.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: PrepareNextRound returns plain errors for impossible states such as a drifted proposal descriptor, a non-finding item or task integrity (internal/auditservice/next_round.go:148-153, start.go:550-561), which the Controller retries forever. nextRoundValidationError treats artifacts.ErrArtifactIntegrity as deterministic, but FilesystemBlobStore.Read maps any io.ReadFull failure to ErrArtifactIntegrity, so a transient read error finalizes the Audit.
+scope:
+  in:
+    - Sentinel errors for impossible preparation states that the Controller classifies and stops retrying.
+    - Separate blob I/O failures from integrity and validation failures.
+    - Tests for each class.
+  out:
+    - Changing Round selection.
+acceptance_criteria:
+  - {id: A1, text: "An impossible-state error stops retrying with a diagnostic."}
+  - {id: A2, text: "A transient blob read failure is retried, not finalized."}
+  - {id: A3, text: "A real digest mismatch still finalizes as invalid."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditservice ./internal/auditcontroller ./internal/artifacts", covers: [A1, A2, A3]}
+  - {command: "make lint", covers: [A1, A2, A3]}

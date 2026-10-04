@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V291-001
+title: Classify concurrent label removal during rebind as a precondition failure
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Return 412 when a label rebind races an unrelated label removal.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: Rebind locks the other labels of optimistically listed principals; when one was removed and deleted concurrently, LockBindingsForUpdate returns a raw ErrNotFound (internal/runtimeconfig/management.go:158-189) that propagates unchanged, and the public handler answers 400 runtime_label_unknown for a request that selected no such label (plausible).
+scope:
+  in:
+    - Return ErrPrecondition for that miss and test it.
+  out:
+    - Changing V174 classification for missing path or body labels.
+acceptance_criteria:
+  - {id: A1, text: "A concurrent removal of an unrelated label during rebind yields 412."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runtimeconfig ./internal/httpapi/public -run 'Label|Rebind'", covers: [A1]}
+  - {command: "make lint", covers: [A1]}

@@ -18,7 +18,7 @@ scope:
   out:
     - Change router or public API behavior.
 acceptance_criteria:
-  - {id: A1, text: No stale /v1/audits/{auditId}/imports path remains.}
+  - {id: A1, text: "No stale /v1/audits/{auditId}/imports path remains."}
   - {id: A2, text: Every registered Audit route and method appears in the spec table and OpenAPI.}
 tests:
-  - {command: route-table comparison against internal/httpapi/public/routes_audit.go and api/openapi/contractor-public-v1.yaml, covers: [A1, A2]}
+  - {command: "route-table comparison against internal/httpapi/public/routes_audit.go and api/openapi/contractor-public-v1.yaml", covers: [A1, A2]}

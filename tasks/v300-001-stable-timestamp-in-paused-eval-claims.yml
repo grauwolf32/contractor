@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V300-001
+title: Use a stable timestamp in the paused Eval claim branch
+milestone: review-defects-2026-10-04
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Let the V254 paused-deadline index serve the claim query as a range.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "The paused branch compares deadline_at <= clock_timestamp() (internal/evalstore/claims.go:24). clock_timestamp() is volatile, so the partial index from 000076_eval_claim_candidates.sql:8-10 is never used as a range and every poll reads every paused row: EXPLAIN shows a bitmap scan of the whole index with 2000 rows removed by filter at 2k paused, and a sequential scan of eval_experiments at 20k paused. statement_timestamp() yields an Index Cond."
+scope:
+  in:
+    - Use statement_timestamp(), now() or a bound parameter.
+    - Plan test with a large paused population.
+  out:
+    - Changing claim fairness.
+acceptance_criteria:
+  - {id: A1, text: "EXPLAIN for a large paused population uses an index condition on deadline_at."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore -run Claim", covers: [A1]}
+  - {command: "make lint", covers: [A1]}
