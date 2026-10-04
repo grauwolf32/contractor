@@ -77,8 +77,8 @@ test-faults: require-database
 	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/runstore ./internal/scheduler ./internal/telemetry
 	cd runtime && uv run pytest -W error tests
 
-test-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=35m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSummarizerProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses)$$'
+# The same process pass as release-verify's process stage.
+test-e2e: test-release-process-e2e
 
 test-capability-e2e: require-database runtime-venv
 	go test -tags=e2e -count=1 -timeout=3m ./tests/e2e -run '^TestHeterogeneousRuntimeCapabilityPlacement$$'

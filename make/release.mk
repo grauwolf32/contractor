@@ -1,11 +1,45 @@
-# The release gate reuses each family's non-Go checks but runs Go race and
-# process suites once across their union. Target-specific variables propagate
-# to prerequisites; direct family invocations keep their original recipes.
+# The release gate runs in stages, cheapest first, so a lint, unit or UI
+# failure surfaces within minutes instead of after the long suites. CI runs
+# every stage as its own job (.github/workflows/ci.yml) and make
+# release-verify runs them in this order; add -k to see every failing stage.
+# Family targets keep their focused Go suites when invoked directly. Inside a
+# stage RELEASE_CONSOLIDATED replaces them with the unions below, run once.
 
-.PHONY: test-release-go-race test-release-process-e2e test-release-integration test-runtime-dependencies-audit
+RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
+	release-verify-families release-verify-browser release-verify-race \
+	release-verify-integration release-verify-process
 
-release-verify: RELEASE_CONSOLIDATED := 1
-release-verify: test-release-go-race test-release-process-e2e test-release-integration test-runtime-dependencies-audit
+.PHONY: $(RELEASE_STAGES) test-release-go-race test-release-process-e2e \
+	test-release-integration test-release-ui-stack \
+	test-runtime-dependencies-audit
+
+release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
+release-verify: $(RELEASE_STAGES)
+
+# The first three stages are exactly make verify.
+release-verify-lint: lint build
+
+release-verify-unit: test
+
+release-verify-ui: ui-verify
+
+release-verify-families: ui-install verify-public-api-postgres \
+	test-runtime-configuration-e2e test-run-metadata-labels-e2e \
+	test-shared-memory-hardening test-agent-skills-hardening \
+	test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e \
+	test-worker-observations-e2e test-worker-summarizer-e2e \
+	test-worker-session-modes-e2e test-project-workspaces-release \
+	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
+	test-audit-program-library-e2e test-audit-completion-e2e \
+	test-performance-metrics test-runtime-dependencies-audit
+
+release-verify-browser: ui-browser-mocked test-release-ui-stack
+
+release-verify-race: test-release-go-race
+
+release-verify-integration: test-release-integration
+
+release-verify-process: test-release-process-e2e
 
 # Audit exactly the frozen production Runtime graph. The scanner runs outside
 # the shipped Runtime environment and is pinned for repeatable CI behavior.
@@ -38,3 +72,7 @@ RELEASE_E2E_TESTS := TestAgentSkillsMVPProcesses|TestAuditProgramCatalogReplacem
 
 test-release-process-e2e: require-database runtime-venv
 	go test -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
+
+# Several families depend on test-ui-stack; the browser stage runs it once.
+test-release-ui-stack: ui-install ui-browser-install require-database runtime-venv
+	$(UI_STACK_TEST)

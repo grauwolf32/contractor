@@ -94,11 +94,103 @@ EXPECTED_SCAN_TESTS = {
 }
 
 
-def dry_run(target: str) -> list[str]:
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
+TESTING_GUIDE = ROOT / "docs/testing/README.md"
+# make verify, split so CI reports lint, unit and UI failures separately.
+FAST_STAGES = ("release-verify-lint", "release-verify-unit", "release-verify-ui")
+
+
+def dry_run(*targets: str) -> list[str]:
     result = subprocess.run(
-        ["make", "-n", target], cwd=ROOT, capture_output=True, text=True, check=True
+        ["make", "-n", *targets], cwd=ROOT, capture_output=True, text=True, check=True
     )
     return result.stdout.splitlines()
+
+
+def make_prerequisites(target: str) -> list[str]:
+    # -q exits 1 for an out-of-date goal; the printed database is complete.
+    result = subprocess.run(["make", "-pq", target], cwd=ROOT, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise SystemExit(f"make -pq {target} failed: {result.stderr.strip()}")
+    for line in result.stdout.splitlines():
+        name, separator, rest = line.partition(":")
+        if separator and name == target and "=" not in rest:
+            return rest.split("|", 1)[0].split()
+    raise SystemExit(f"make defines no rule for {target}")
+
+
+def is_heavy(command: str) -> bool:
+    """Race, integration, process, browser-stack and script-gate suites."""
+    if "./tests/ui-stack" in command or "scripts/test-" in command:
+        return True
+    if "go test" not in command:
+        return False
+    tokens = shlex.split(command)
+    if "-race" in tokens or any(token.startswith("-tags=") and "integration" in token for token in tokens):
+        return True
+    if "-tags=e2e" in tokens and "-run" in tokens:
+        names = set(re.findall(r"Test[A-Za-z0-9_]+", tokens[tokens.index("-run") + 1]))
+        return not names <= EXPECTED_CONFIG_TESTS
+    return False
+
+
+def check_stage_order() -> list[str]:
+    stages = make_prerequisites("release-verify")
+    if tuple(stages[: len(FAST_STAGES)]) != FAST_STAGES:
+        raise SystemExit(f"release-verify must start with {FAST_STAGES}, got {stages}")
+    fast = [target for stage in FAST_STAGES for target in make_prerequisites(stage)]
+    if sorted(fast) != sorted(make_prerequisites("verify")):
+        raise SystemExit(f"fast release stages run {fast}, not exactly make verify")
+    fast_commands = dry_run(*FAST_STAGES)
+    heavy = [command for command in fast_commands if is_heavy(command)]
+    if heavy:
+        raise SystemExit(f"fast release stages run heavy suites: {heavy}")
+    if dry_run("release-verify")[: len(fast_commands)] != fast_commands:
+        raise SystemExit("release-verify no longer runs lint, unit and UI checks before other stages")
+    return stages
+
+
+def top_level_block(text: str, key: str) -> str:
+    match = re.search(rf"^{key}:\n((?:[ #].*\n|\n)*)", text, re.M)
+    if match is None:
+        raise SystemExit(f"CI workflow has no top-level {key}")
+    return match.group(1)
+
+
+def check_ci_workflow(stages: list[str], text: str) -> None:
+    name = CI_WORKFLOW.relative_to(ROOT)
+    # Only a pull request cancels its superseded run; every push to main keeps
+    # its own concurrency group, so no merge loses its verdict.
+    concurrency = top_level_block(text, "concurrency")
+    group = re.search(r"^\s+group:\s*(.+)$", concurrency, re.M)
+    cancel = re.search(r"^\s+cancel-in-progress:\s*(.+)$", concurrency, re.M)
+    if (
+        group is None
+        or cancel is None
+        or cancel.group(1).strip() != "${{ github.event_name == 'pull_request' }}"
+        or "github.event_name == 'pull_request' && github.ref" not in group.group(1)
+        or "github.run_id" not in group.group(1)
+    ):
+        raise SystemExit(f"{name} must cancel superseded runs only for pull requests")
+    ci_stages = re.findall(r"^\s+- stage: (\S+)\s*$", text, re.M)
+    if ci_stages != stages:
+        raise SystemExit(f"{name} runs stages {ci_stages}, release-verify runs {stages}")
+    for required, reason in (
+        (r"^\s+fail-fast: false\s*$", "one failing stage must not cancel the others"),
+        (r"^\s+make -k \$\{\{ matrix\.stage \}\}", "each job must run its stage with make -k"),
+        (r"^\s+needs: stage\s*$", "the release-verify job must aggregate every stage"),
+    ):
+        if re.search(required, text, re.M) is None:
+            raise SystemExit(f"{name}: {reason}")
+
+
+def check_documented_stages(stages: list[str], text: str) -> None:
+    documented = re.findall(r"^\| `(release-verify-[a-z0-9-]+)` \|", text, re.M)
+    if documented != stages:
+        raise SystemExit(
+            f"{TESTING_GUIDE.relative_to(ROOT)} documents stages {documented}, "
+            f"release-verify runs {stages}"
+        )
 
 
 def check_release_graph() -> None:
@@ -124,6 +216,9 @@ def check_release_graph() -> None:
                 process_commands += 1
                 process_tests.update(names)
 
+    stacks = [command for command in commands if "go test" in command and "./tests/ui-stack" in command]
+    if len(stacks) != 1:
+        raise SystemExit(f"release gate runs the browser stack {len(stacks)} times, want once")
     if len(races) != 1:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want one")
     patterns = re.search(r"\$\(go list (.*?) \| sort -u\)", races[0])
@@ -178,6 +273,7 @@ def check_family_entry_points() -> None:
         ("test-worker-session-modes-hardening", "go test -race -count=1"),
         ("test-project-workspaces-e2e", "go test -tags=e2e -count=1"),
         ("test-agent-skills-races", "go test -race -count=1"),
+        ("test-ui-stack", "./tests/ui-stack"),
     ):
         if not any(marker in command for command in dry_run(target)):
             raise SystemExit(f"{target} lost its focused Go suite")
@@ -309,9 +405,16 @@ def check_integration_graph() -> int:
 
 
 if __name__ == "__main__":
+    stages = check_stage_order()
+    check_ci_workflow(stages, CI_WORKFLOW.read_text())
+    check_documented_stages(stages, TESTING_GUIDE.read_text())
     check_release_graph()
     check_family_entry_points()
     tagged = check_tagged_e2e_inventory()
     count = check_integration_graph()
     check_database_tests_fail_closed()
-    print(f"release graph: 36 race packages, 19 process tests, 6 fixture tests, 2 opt-in scanner tests, {tagged} tagged e2e tests and {count} integration tests covered")
+    print(
+        f"release graph: {len(stages)} stages in CI order, 36 race packages, 19 process tests, "
+        f"6 fixture tests, 2 opt-in scanner tests, {tagged} tagged e2e tests and "
+        f"{count} integration tests covered"
+    )

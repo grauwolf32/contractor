@@ -15,27 +15,52 @@ UI dependencies. Choose a check by the boundary you changed:
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
-| Aggregate deterministic release gate used by CI | `make release-verify` | All of the above |
+| Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries, a test database, and network access for the pinned `pip-audit` scanner and LikeC4 CLI; no host scanners or Podman |
 
 The aggregate targets and their exact dependencies are defined in the
 [Makefile](../../Makefile), which includes the grouped target files under
 [`make/`](../../make). Targets needing a test database declare
 `require-database`, and those reaching Python declare `runtime-venv`; both are
 prerequisites, so make prepares each at most once per invocation.
-The release gate also runs one deduplicated Go race pass, one process e2e pass,
-and a complete PostgreSQL-only integration-tagged race pass. Existing family
+Gate definitions describe what a command checks; completed results are
+recorded in the corresponding task files.
+
+## Release gate stages
+
+`make release-verify` runs the stages below in this order, cheapest first, so
+a lint, unit or UI failure is reported before the long suites start. Every
+stage is also a make target. [CI](../../.github/workflows/ci.yml) runs each
+stage as its own job against PostgreSQL 17: all jobs start together, a failing
+stage does not cancel the others, and the `release-verify` job passes only when
+every stage passed. Each job runs its stage with `make -k` and uploads its log,
+Playwright output and gate evidence as the `reports-<stage>` artifact, also
+when it fails. Locally, `make -k release-verify` likewise reports every
+failing stage in one run.
+
+| Stage | Runs |
+| --- | --- |
+| `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, and the command builds |
+| `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
+| `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
+| `release-verify-families` | The feature families' Runtime, UI and matrix checks, the Audit completion gate and the Runtime dependency audit |
+| `release-verify-browser` | The API-mocked browser journeys and the production browser stack in `tests/ui-stack` |
+| `release-verify-race` | One deduplicated Go race pass |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector |
+| `release-verify-process` | The 19 process e2e tests; `make test-e2e` runs the same pass |
+
+Inside the stages, family targets skip their own Go suites and browser stack
+in favor of the single race, integration, process and browser passes; running a
+family target directly still runs its focused suites. Existing family
 integration commands continue to run their focused untagged race checks.
-Running a family target directly still runs its focused Go suite. `make lint`
-checks the release graph against the original package and process-test inventory
-and discovers every integration-tagged test. New names enter the release pass
-automatically; tool-dependent exceptions must name an opt-in gate and reason in
+`make lint` checks the stage order, the CI jobs and this table against the
+Makefile, checks the release graph against the original package and
+process-test inventory, and discovers every integration-tagged test. New names
+enter the release pass automatically; tool-dependent exceptions must name an
+opt-in gate and reason in
 [`scripts/release_integration_tests.py`](../../scripts/release_integration_tests.py).
-The release gate also audits the frozen production Runtime lock with a pinned
+The families stage also audits the frozen production Runtime lock with a pinned
 `pip-audit` scanner; it fails when the advisory service reports a vulnerable
 dependency. Development-only packages are excluded from this shipped graph.
-[CI](../../.github/workflows/ci.yml) runs
-`make release-verify` with PostgreSQL 17. Gate definitions describe what a
-command checks; completed results are recorded in the corresponding task files.
 
 ## Database and process tests
 

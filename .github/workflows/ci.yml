@@ -5,14 +5,41 @@ on:
     branches: [main]
   pull_request:
 
+# A pull request keeps only its newest run. Every push to main gets its own
+# group, so a later merge never cancels or supersedes an earlier verdict.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  release-verify:
+  # One job per make/release.mk stage. All stages start together and
+  # fail-fast is off: the lint, unit and UI stages report within minutes and
+  # one run shows every failing stage. make -k keeps a stage going past its
+  # first failing target.
+  stage:
+    name: ${{ matrix.stage }}
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - stage: release-verify-lint
+            timeout: 30
+          - stage: release-verify-unit
+            timeout: 45
+          - stage: release-verify-ui
+            timeout: 30
+          - stage: release-verify-families
+            timeout: 60
+          - stage: release-verify-browser
+            timeout: 60
+          - stage: release-verify-race
+            timeout: 45
+          - stage: release-verify-integration
+            timeout: 45
+          - stage: release-verify-process
+            timeout: 80
     services:
       postgres:
         image: postgres:17
@@ -29,18 +56,33 @@ jobs:
           --health-retries 12
     env:
       CONTRACTOR_TEST_DATABASE_URL: postgres://postgres:contractor@127.0.0.1:5432/contractor?sslmode=disable
+      CONTRACTOR_UI_EVIDENCE_DIR: ${{ github.workspace }}/reports/ui-stack
     steps:
       - uses: actions/checkout@v4
 
+      # setup-go saves its cache only after a successful job; restore and
+      # save explicitly so failing runs still warm the next one.
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
+
+      - name: Restore Go build and module caches
+        id: go-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ matrix.stage }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ matrix.stage }}-
 
       - name: Confirm Go toolchain
         run: go version
 
       - name: Scan production Go commands for vulnerabilities
+        if: matrix.stage == 'release-verify-lint'
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           "$(go env GOPATH)/bin/govulncheck" ./cmd/...
@@ -62,14 +104,50 @@ jobs:
       - name: Enable pinned pnpm
         run: corepack enable
 
+      - name: Install UI dependencies
+        run: cd ui && corepack pnpm install --frozen-lockfile
+
       - name: Install Chromium and host libraries
-        run: |
-          cd ui
-          corepack pnpm install --frozen-lockfile
-          corepack pnpm exec playwright install --with-deps chromium
+        if: matrix.stage == 'release-verify-browser'
+        run: cd ui && corepack pnpm exec playwright install --with-deps chromium
 
       - name: Check UI image dependency layer
+        if: matrix.stage == 'release-verify-ui'
         run: python3 scripts/check_ui_container_install.py
 
-      - name: Full deterministic release gate
-        run: make release-verify
+      - name: Run ${{ matrix.stage }}
+        shell: bash
+        run: |
+          mkdir -p reports
+          make -k ${{ matrix.stage }} 2>&1 | tee "reports/${{ matrix.stage }}.log"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.stage }}
+          path: |
+            reports/
+            ui/test-results/
+            .local/audit-completion-gate/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Save Go build and module caches
+        if: always() && steps.go-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
+
+  # The single check to require on main: green only when every stage passed.
+  release-verify:
+    if: ${{ !cancelled() }}
+    needs: stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release stage
+        run: test "${{ needs.stage.result }}" = success
