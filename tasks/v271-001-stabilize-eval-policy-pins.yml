@@ -3,8 +3,8 @@ id: V271-001
 title: Stabilize built-in Eval policy pins
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8c09550dc891835e01df4b9e25cc98b9105e99fa
 depends_on: []
 languages: [go]
 goal: Keep built-in Eval policy pins stable across source-only changes.
