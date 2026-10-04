@@ -3,7 +3,8 @@ id: V365-014
 title: "Fold artifact_git_sources into artifact_versions"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: e415ae380cbec7f5c3e6097402a2bb48625fa1f9
 depends_on: [V365-004]
 languages: [go, sql]
 goal: "Remove artifact_git_sources (0..1 extension of a version) by storing its data on the parent row."
