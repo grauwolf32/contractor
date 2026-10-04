@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -723,7 +724,13 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
     asyncio.run(scenario())
 
 
-def test_openapi_30_component_aliases_and_path_refs_mutate_and_validate(
+PATH_ITEM_REF_GUIDANCE = (
+    "OpenAPI 3.0 Path Item $ref is not supported; inline the Path Item with its own "
+    "operations and unique operationIds at path"
+)
+
+
+def test_openapi_30_component_aliases_mutate_and_path_item_refs_are_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def scenario() -> None:
@@ -747,14 +754,25 @@ def test_openapi_30_component_aliases_and_path_refs_mutate_and_validate(
             assert (await tools["get_openapi_component"](section, "Alias"))["component"] == alias
 
         await tools["upsert_openapi_path"]("/health", valid_path_item(), ["src/app.py"])
-        await tools["upsert_openapi_path"]("/alias", {"$ref": "#/paths/~1health"}, ["src/app.py"])
-        assert (await tools["get_openapi_path"]("/alias"))["pathItem"] == {
-            "$ref": "#/paths/~1health",
-            "x-path-files": ["src/app.py"],
-        }
         assert (await tools["validate_openapi"]())["valid"]
+        health = (await tools["get_openapi_path"]("/health"))["pathItem"]
 
         writes = client.write_count
+        # A new alias, a merge that turns an existing Path Item into one, and
+        # a path long enough that the bounded model reply truncates it.
+        for path in ("/alias", "/health", "/" + "p" * 2000):
+            with pytest.raises(ToolInputError) as rejected:
+                await tools["upsert_openapi_path"](
+                    path, {"$ref": "#/paths/~1health"}, ["src/app.py"]
+                )
+            assert str(rejected.value) == f"{PATH_ITEM_REF_GUIDANCE} {path}"
+            reply = _safe_tool_response("upsert_openapi_path", rejected.value)["error"]
+            assert reply["code"] == "tool_input_invalid" and reply["retryable"] is False
+            assert reply["message"].startswith(PATH_ITEM_REF_GUIDANCE)
+        assert client.write_count == writes
+        assert (await tools["list_openapi_paths"]())["paths"] == ["/health"]
+        assert (await tools["get_openapi_path"]("/health"))["pathItem"] == health
+
         invalid_path = valid_path_item("#/components/schemas/User")
         invalid_path["get"]["responses"]["200"]["content"]["application/json"]["schema"][
             "description"
@@ -787,10 +805,6 @@ def test_seeded_openapi_30_aliases_validate_and_missing_provenance_names_entry(
         monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
         document = minimal_document("Seeded aliases")
         document["paths"]["/health"] = valid_path_item() | {"x-path-files": ["src/app.py"]}
-        document["paths"]["/alias"] = {
-            "$ref": "#/paths/~1health",
-            "x-path-files": ["src/app.py"],
-        }
         document["components"] = {
             "schemas": {
                 "User": {"type": "object", "x-component-files": ["src/app.py"]},
@@ -813,16 +827,101 @@ def test_seeded_openapi_30_aliases_validate_and_missing_provenance_names_entry(
         assert (await validate_seed(document))["valid"]
 
         no_path_source = copy.deepcopy(document)
-        del no_path_source["paths"]["/alias"]["x-path-files"]
+        del no_path_source["paths"]["/health"]["x-path-files"]
         path_error = await validate_seed(no_path_source)
         assert not path_error["valid"]
-        assert "path /alias" in path_error["structuralErrors"][0]
+        assert "path /health" in path_error["structuralErrors"][0]
 
         no_component_source = copy.deepcopy(document)
         del no_component_source["components"]["responses"]["User"]["x-component-files"]
         component_error = await validate_seed(no_component_source)
         assert not component_error["valid"]
         assert "component responses.User" in component_error["structuralErrors"][0]
+
+        for alias in (
+            {"$ref": "#/paths/~1health"},
+            {"$ref": "#/paths/~1health", "x-path-files": ["src/app.py"]},
+        ):
+            path_ref = copy.deepcopy(document)
+            path_ref["paths"]["/alias"] = alias
+            with pytest.raises(ToolInputError, match=re.escape(PATH_ITEM_REF_GUIDANCE)):
+                await validate_seed(path_ref)
+
+        # OpenAPI 3.1 Path Item references are unchanged.
+        version_31 = minimal_document("Seeded 3.1 path alias") | {"openapi": "3.1.0"}
+        version_31["paths"] = {
+            "/health": valid_path_item() | {"x-path-files": ["src/app.py"]},
+            "/alias": {"$ref": "#/paths/~1health", "x-path-files": ["src/app.py"]},
+        }
+        assert (await validate_seed(version_31))["valid"]
+
+    asyncio.run(scenario())
+
+
+def test_openapi_30_path_item_ref_guidance_holds_against_real_vacuum(tmp_path: Path) -> None:
+    if openapi_module.shutil.which("vacuum") is None:
+        pytest.skip("Vacuum executable is unavailable")
+
+    def operation(operation_id: str, summary: str, schema: str) -> dict[str, Any]:
+        return {
+            "summary": summary,
+            "description": f"{summary}.",
+            "operationId": operation_id,
+            "tags": ["health"],
+            "responses": {
+                "200": {
+                    "description": "Service is healthy.",
+                    "content": {
+                        "application/json": {"schema": {"$ref": f"#/components/schemas/{schema}"}}
+                    },
+                }
+            },
+        }
+
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
+        tools = await make_tools(
+            tmp_path, MemoryArtifactClient(), WorkerState(), namespace="openapi"
+        )
+        await tools["initialize_openapi"]("Health Service", description="HTTP health endpoint")
+        await tools["set_openapi_servers"]([{"url": ".", "description": "Current origin"}])
+        await tools["set_openapi_tags"]([{"name": "health", "description": "Health operations"}])
+        health = {
+            "type": "object",
+            "description": "Service health.",
+            "properties": {"ok": {"type": "boolean", "example": True}},
+            "example": {"ok": True},
+        }
+        await tools["upsert_openapi_component"]("schemas", "Health", health, ["src/app.py"])
+        alias = {"$ref": "#/components/schemas/Health"}
+        await tools["upsert_openapi_component"]("schemas", "HealthAlias", alias, ["src/app.py"])
+        await tools["upsert_openapi_path"](
+            "/health", {"get": operation("getHealth", "Read health", "Health")}, ["src/app.py"]
+        )
+        with pytest.raises(ToolInputError, match=re.escape(PATH_ITEM_REF_GUIDANCE)):
+            await tools["upsert_openapi_path"](
+                "/alias", {"$ref": "#/paths/~1health"}, ["src/app.py"]
+            )
+
+        # Vacuum rejects the refused shape whether or not provenance sits beside $ref.
+        document = yaml.safe_load((await tools["read_openapi_document"]())["document"])
+        document["paths"]["/alias"] = {"$ref": "#/paths/~1health", "x-path-files": ["src/app.py"]}
+        sourced = await _run_vacuum(openapi_module._dump_document(document).decode())
+        assert {"no-$ref-siblings", "operation-operationId-unique"} <= {
+            issue["code"] for issue in sourced["issues"]
+        }
+        del document["paths"]["/alias"]["x-path-files"]
+        bare = await _run_vacuum(openapi_module._dump_document(document).decode())
+        assert "operation-operationId-unique" in {issue["code"] for issue in bare["issues"]}
+
+        # Following the guidance keeps the component alias and validates cleanly.
+        inline = operation("getHealthAlias", "Read health by alias", "HealthAlias")
+        await tools["upsert_openapi_path"]("/alias", {"get": inline}, ["src/app.py"])
+        validation = await tools["validate_openapi"]()
+        assert validation["valid"], validation
+        assert validation["issues"] == []
 
     asyncio.run(scenario())
 
