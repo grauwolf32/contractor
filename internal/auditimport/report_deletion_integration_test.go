@@ -251,7 +251,7 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		}
 		assertReportDeletionSourceIntact(t, f, before)
 		var receipts int
-		mustCompletion(t, pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_collection_receipts WHERE audit_id = $1`, f.id).Scan(&receipts))
+		mustCompletion(t, pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_executions WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL`, f.id).Scan(&receipts))
 		if receipts != 0 {
 			t.Fatal("rejected source deletion invented a collection receipt")
 		}

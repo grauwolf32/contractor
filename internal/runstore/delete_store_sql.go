@@ -3,19 +3,16 @@ package runstore
 // SQL statements for delete_store.go.
 
 // runAuditCollectedSQL reports whether AuditExecution $1 of Run $2 is
-// 'collected' with Run provenance and a matching collection receipt, i.e.
-// whether the Audit-managed Run may be deleted.
+// 'collected' with Run provenance and a collection receipt, i.e. whether the
+// Audit-managed Run may be deleted.
 // Used by deleteReleasedTerminalRun.
 var runAuditCollectedSQL = `
 SELECT EXISTS (
     SELECT 1
       FROM audit_executions AS execution
-      JOIN audit_collection_receipts AS receipt
-        ON receipt.execution_id = execution.execution_id
-       AND receipt.audit_id = execution.audit_id
-       AND receipt.run_id = execution.run_id
      WHERE execution.execution_id = $1 AND execution.run_id = $2
        AND execution.state = 'collected' AND execution.run_provenance IS NOT NULL
+       AND execution.collection_receipt_id IS NOT NULL
 )`
 
 // markAuditRunDeletedSQL stamps run_deleted_at (first value kept) on the
@@ -28,12 +25,7 @@ UPDATE audit_executions
        updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
  WHERE execution_id = $1 AND run_id = $2 AND state = 'collected'
    AND run_provenance IS NOT NULL
-   AND EXISTS (
-       SELECT 1 FROM audit_collection_receipts AS receipt
-        WHERE receipt.execution_id = audit_executions.execution_id
-          AND receipt.audit_id = audit_executions.audit_id
-          AND receipt.run_id = audit_executions.run_id
-   )`
+   AND collection_receipt_id IS NOT NULL`
 
 // markProposalSourceRunDeletedSQL tombstones the retention state of every
 // finding proposal received from Run $1: it sets source_run_deleted_at and
@@ -91,14 +83,11 @@ SELECT run.state,
        run.publication_mode = 'audit-managed' AND NOT EXISTS (
            SELECT 1
              FROM audit_executions AS audit_execution
-             JOIN audit_collection_receipts AS receipt
-               ON receipt.execution_id = audit_execution.execution_id
-              AND receipt.audit_id = audit_execution.audit_id
-              AND receipt.run_id = run.run_id
             WHERE audit_execution.execution_id = run.audit_execution_id
               AND audit_execution.run_id = run.run_id
               AND audit_execution.state = 'collected'
               AND audit_execution.run_provenance IS NOT NULL
+              AND audit_execution.collection_receipt_id IS NOT NULL
        )
   FROM workflow_runs AS run
  WHERE run.run_id = $1 AND run.owner_id = $2`

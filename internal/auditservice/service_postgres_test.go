@@ -1232,15 +1232,12 @@ INSERT INTO audit_execution_items (
 			}
 		}
 		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_collection_receipts (
-    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
-    terminal_run_generation, terminal_run_sequence, disposition,
-    source_output_ref, source_output_digest, retained_refs, request_digest
-) VALUES (
-    'collection-attempt-two', $1, 'execution-attempt-two',
-    'deleted-run-attempt-two', 'succeeded', 'generation-one', 2,
-    'accepted-result', $2::jsonb, $3, '[]'::jsonb, $4
-)`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
+UPDATE audit_executions
+   SET collection_receipt_id = 'collection-attempt-two', collection_disposition = 'accepted-result',
+       collection_source_output_ref = $2::jsonb, collection_source_output_digest = $3,
+       collection_retained_refs = '[]'::jsonb, collection_request_digest = $4,
+       collected_at = clock_timestamp()
+ WHERE audit_id = $1 AND execution_id = 'execution-attempt-two'`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `

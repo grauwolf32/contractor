@@ -124,7 +124,7 @@ func TestOpenAPIAuditScanAcrossProductionProcesses(t *testing.T) {
 	})
 	t.Run("publication_and_collection_faults_survive_restart", func(t *testing.T) {
 		installScanFault(t, h, "scan_publication", "artifact_bindings", "INSERT", `IF NEW.scope_kind = 'run' AND NEW.namespace = 'scan-results' AND NEW.name LIKE 'audit-result.%' THEN RAISE EXCEPTION 'controlled result publication failure'; END IF;`)
-		removeReceiptFault := installScanFault(t, h, "scan_collection", "audit_collection_receipts", "INSERT", `RAISE EXCEPTION 'controlled collection commit failure';`)
+		removeReceiptFault := installScanFault(t, h, "scan_collection", "audit_executions", "UPDATE OF collection_receipt_id", `RAISE EXCEPTION 'controlled collection commit failure';`)
 		audit := startOpenAPIScanAudit(t, h, "nuclei", "", nil)
 		waitScanCondition(t, h, "uncommitted retained recovery package", func() bool {
 			var count int
@@ -137,7 +137,7 @@ func TestOpenAPIAuditScanAcrossProductionProcesses(t *testing.T) {
 				return false
 			}
 			var receipts int
-			if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_collection_receipts WHERE audit_id=$1`, audit.AuditID).Scan(&receipts); err != nil {
+			if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_executions WHERE audit_id=$1 AND collection_receipt_id IS NOT NULL`, audit.AuditID).Scan(&receipts); err != nil {
 				t.Fatal(err)
 			}
 			if receipts != 0 {
@@ -335,7 +335,7 @@ func assertScanAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPr
 		t.Fatalf("unexpected Audit item attempts: %+v", item)
 	}
 	var retained []byte
-	if err := h.pool.QueryRow(h.ctx, `SELECT retained_refs FROM audit_collection_receipts WHERE audit_id = $1 ORDER BY created_at DESC LIMIT 1`, audit.AuditID).Scan(&retained); err != nil {
+	if err := h.pool.QueryRow(h.ctx, `SELECT collection_retained_refs FROM audit_executions WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL ORDER BY collected_at DESC LIMIT 1`, audit.AuditID).Scan(&retained); err != nil {
 		t.Fatal(err)
 	}
 	var links []auditstore.ArtifactLink
@@ -434,7 +434,7 @@ func assertScanAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPr
 		t.Fatal("Run deletion changed report or repeated scanner action")
 	}
 	var receipts int
-	if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_collection_receipts WHERE audit_id=$1`, audit.AuditID).Scan(&receipts); err != nil || receipts != runs {
+	if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_executions WHERE audit_id=$1 AND collection_receipt_id IS NOT NULL`, audit.AuditID).Scan(&receipts); err != nil || receipts != runs {
 		t.Fatalf("collection receipts=%d want %d: %v", receipts, runs, err)
 	}
 	return pkg

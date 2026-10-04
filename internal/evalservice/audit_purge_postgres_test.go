@@ -146,12 +146,12 @@ INSERT INTO audit_execution_items (
           0, 1, $2::jsonb, $3, '[]'::jsonb, 'settled', 'accepted-result',
           $4::jsonb, $3, clock_timestamp())`, []any{audit.AuditID, taskRef, digest, resultRef}},
 		{`
-INSERT INTO audit_collection_receipts (
-    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
-    terminal_run_generation, terminal_run_sequence, disposition,
-    source_output_ref, source_output_digest, retained_refs, request_digest
-) VALUES ('collection-decided', $1, 'execution-decided', 'deleted-run-decided', 'succeeded',
-          'generation-one', 1, 'accepted-result', $2::jsonb, $3, '[]'::jsonb, $3)`,
+UPDATE audit_executions
+   SET collection_receipt_id = 'collection-decided', collection_disposition = 'accepted-result',
+       collection_source_output_ref = $2::jsonb, collection_source_output_digest = $3,
+       collection_retained_refs = '[]'::jsonb, collection_request_digest = $3,
+       collected_at = clock_timestamp()
+ WHERE audit_id = $1 AND execution_id = 'execution-decided'`,
 			[]any{audit.AuditID, resultRef, digest}},
 		{`
 INSERT INTO audit_finding_assessments (

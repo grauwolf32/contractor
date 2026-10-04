@@ -64,7 +64,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"allocation_execution_reports",
 		"artifact_binding_revisions", "artifact_bindings", "artifact_blob_settings", "artifact_blobs",
 		"artifact_lineage", "artifact_scopes", "artifact_versions",
-		"audit_artifact_links", "audit_collection_receipts", "audit_controller_claims",
+		"audit_artifact_links", "audit_controller_claims",
 		"audit_coverage_rows", "audit_events", "audit_execution_items", "audit_executions",
 		"audit_finding_assessments", "audit_finding_contributions", "audit_findings",
 		"audit_idempotency", "audit_items", "audit_proposal_items", "audit_report_candidates", "audit_review_decisions", "audit_review_requests",

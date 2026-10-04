@@ -78,7 +78,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var disposition string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT disposition FROM audit_collection_receipts WHERE execution_id = $1`,
+SELECT collection_disposition FROM audit_executions WHERE execution_id = $1`,
 		execution.ExecutionID).Scan(&disposition))
 	if disposition != string(auditstore.CollectionContractInvalid) {
 		t.Fatalf("collection disposition = %q", disposition)

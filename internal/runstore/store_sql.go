@@ -95,14 +95,11 @@ WITH page AS (
                OR EXISTS (
                    SELECT 1
                      FROM audit_executions AS audit_execution
-                     JOIN audit_collection_receipts AS receipt
-                       ON receipt.execution_id = audit_execution.execution_id
-                      AND receipt.audit_id = audit_execution.audit_id
-                      AND receipt.run_id = workflow_runs.run_id
                     WHERE audit_execution.execution_id = workflow_runs.audit_execution_id
                       AND audit_execution.run_id = workflow_runs.run_id
                       AND audit_execution.state = 'collected'
                       AND audit_execution.run_provenance IS NOT NULL
+                      AND audit_execution.collection_receipt_id IS NOT NULL
                )
            ) AS deletable
     FROM workflow_runs

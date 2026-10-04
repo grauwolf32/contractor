@@ -90,8 +90,9 @@ func (s *PostgresStore) lookupReceiptReplay(
 	ctx context.Context, auditID, executionID, digest string,
 ) (CollectionReceipt, bool, error) {
 	receipt, err := scanReceipt(s.db.QueryRow(ctx, `
-SELECT `+receiptColumns+` FROM audit_collection_receipts
- WHERE execution_id = $1`, executionID))
+SELECT `+collectionReceiptProjection("execution")+`
+  FROM audit_executions AS execution
+ WHERE execution_id = $1 AND collection_receipt_id IS NOT NULL`, executionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CollectionReceipt{}, false, nil
 	}

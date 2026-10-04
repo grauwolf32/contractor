@@ -102,18 +102,17 @@ WITH collection_input AS MATERIALIZED (
     RETURNING audit.audit_id, audit.max_item_run_attempts,
               audit.next_event_sequence - 1 - stale.expired AS collected_sequence
 ), inserted_receipt AS (
-    INSERT INTO audit_collection_receipts (
-        receipt_id, audit_id, execution_id, run_id,
-        terminal_outcome, terminal_run_generation, terminal_run_sequence,
-        disposition, source_output_ref, source_output_digest, retained_refs,
-        error_code, request_digest
-    )
-    SELECT $5, execution.audit_id, execution.execution_id, execution.run_id,
-           execution.terminal_outcome, execution.terminal_run_generation,
-           execution.terminal_run_sequence, $6, $7::jsonb, $8,
-           $9::jsonb, $13, $14
-      FROM execution_gate AS execution JOIN advanced_audit USING (audit_id)
-    RETURNING *
+    -- Collecting records the receipt on the execution and moves it to
+    -- 'collected' in one row update.
+    UPDATE audit_executions AS execution
+       SET state = 'collected', updated_at = clock_timestamp(),
+           collection_receipt_id = $5, collection_disposition = $6,
+           collection_source_output_ref = $7::jsonb, collection_source_output_digest = $8,
+           collection_retained_refs = $9::jsonb, collection_error_code = $13,
+           collection_request_digest = $14, collected_at = clock_timestamp()
+      FROM execution_gate AS gate JOIN advanced_audit USING (audit_id)
+     WHERE execution.execution_id = gate.execution_id AND execution.state = 'collecting'
+    RETURNING ` + collectionReceiptProjection("execution") + `
 ), settled_attempts AS (
     UPDATE audit_execution_items AS member
        SET state = 'settled', collection_disposition = input.disposition,
@@ -223,12 +222,6 @@ WITH collection_input AS MATERIALIZED (
            link.artifact_digest, link.media_type, link.size_bytes,
            link.source_provenance, link.display_ref
       FROM inserted_receipt AS receipt CROSS JOIN link_input AS link
-), collected_execution AS (
-    UPDATE audit_executions AS execution
-       SET state = 'collected', updated_at = clock_timestamp()
-      FROM inserted_receipt AS receipt
-     WHERE execution.execution_id = receipt.execution_id
-       AND execution.state = 'collecting'
 ), event_row AS (
     INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
     SELECT receipt.audit_id, advanced.collected_sequence,
