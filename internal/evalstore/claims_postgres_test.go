@@ -90,12 +90,25 @@ func TestPostgresClaimPlanSkipsRetainedTerminalExperiments(t *testing.T) {
 	pool := testPool(t)
 	scope := setupProject(t, pool, "claim-plan-owner", "claim-plan-project")
 	ctx := t.Context()
-	_, err := pool.Exec(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	// The large fixture can exceed the pool's 10-second statement budget on
+	// a busy CI runner. Keep the larger budget local to fixture construction.
+	if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = '60s'`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, `
 INSERT INTO eval_experiments
   (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms)
 SELECT 'finished-'||n, $1, $2, 'finished-'||n, 'external', 'finished fixture', 'finished', 1, 1000
 FROM generate_series(1,20000) AS n`, scope.OwnerID, scope.ProjectID)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `INSERT INTO eval_experiments
