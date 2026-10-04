@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -41,20 +42,15 @@ func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, ta
 
 // readArtifactBody deliberately differs from the public adapter: it also
 // rejects negative lengths other than "unknown" and hides the read cause.
-func readArtifactBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	if r.ContentLength < -1 || r.ContentLength > artifacts.MaxPayloadSize {
+func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
+	if r.ContentLength < -1 {
 		return nil, artifacts.ErrPayloadTooLarge
 	}
-	body := http.MaxBytesReader(w, r.Body, artifacts.MaxPayloadSize)
-	data, err := io.ReadAll(body)
-	if err != nil {
-		var maximum *http.MaxBytesError
-		if errors.As(err, &maximum) {
-			return nil, artifacts.ErrPayloadTooLarge
-		}
+	data, err := transfer.ReadBody(r, artifacts.MaxPayloadSize)
+	if err != nil && !errors.Is(err, artifacts.ErrPayloadTooLarge) {
 		return nil, errors.New("read private artifact body")
 	}
-	return data, nil
+	return data, err
 }
 
 func artifactWritePrecondition(r *http.Request) (expectedRevision *string, create bool, err error) {

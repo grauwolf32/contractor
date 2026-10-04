@@ -74,16 +74,9 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+// getArtifact takes a transfer slot only after the request and the allocation
+// grant are accepted, and holds it while the payload is read and written.
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
-	r, deadline := artifacttransfer.Bound(w, r, artifacts.MaxPayloadSize)
-	defer deadline.Close()
 	query, err := exactQuery(r.URL.RawQuery, "revision")
 	if err != nil {
 		h.handleError(w, err)
@@ -106,12 +99,21 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
-	result, err := store.Read(r.Context(), ref)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	deadline.LimitWrite(int64(len(result.Payload.Data)))
+	defer transfer.Close()
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	result, err := store.Read(ctx, ref)
+	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
+		h.handleError(w, err)
+		return
+	}
+	transfer.BoundWrite(int64(len(result.Payload.Data)))
 	w.Header().Set("Content-Type", result.Payload.MediaType)
 	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
@@ -121,16 +123,9 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(result.Payload.Data)
 }
 
+// putArtifact takes a transfer slot after the request and allocation checks,
+// before buffering the body, and releases it before writing the small result.
 func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
-	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
-	defer deadline.Close()
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -156,19 +151,29 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
-	payload, err := readArtifactBody(w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
 	allocationID := r.PathValue("allocationID")
 	identity, ok := r.Context().Value(authenticatedRuntimeContextKey{}).(authenticatedRuntime)
 	if !ok {
 		h.handleError(w, errArtifactAccessDenied)
 		return
 	}
-	preparedPayload, err := artifacts.PreparePayload(r.Context(), artifacts.Payload{MediaType: mediaType, Data: payload})
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	defer transfer.Close()
+	payload, err := readArtifactBody(r, transfer)
+	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
+		h.handleError(w, err)
+		return
+	}
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: mediaType, Data: payload})
+	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
 		return
 	}
@@ -181,7 +186,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 				return storeErr
 			}
 			result, storeErr = store.Write(
-				r.Context(),
+				ctx,
 				contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
 				preparedPayload,
 				expectedRevision,
@@ -189,6 +194,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 			return storeErr
 		},
 	)
+	transfer.ReleaseBeforeWrite(0)
 	if err != nil {
 		h.handleError(w, err)
 		return

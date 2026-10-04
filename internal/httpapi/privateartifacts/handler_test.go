@@ -873,7 +873,7 @@ func (m *memoryRepository) current(runID, namespace, name string) (storedArtifac
 }
 
 func (m *memoryRepository) Write(
-	_ context.Context,
+	ctx context.Context,
 	scope artifacts.Scope,
 	target artifacts.ArtifactRef,
 	payload artifacts.Payload,
@@ -884,7 +884,12 @@ func (m *memoryRepository) Write(
 	m.writeCalls++
 	if m.writeStarted != nil {
 		m.writeStartOnce.Do(func() { close(m.writeStarted) })
-		<-m.continueWrite
+		// A held write fails like a database statement when its context ends.
+		select {
+		case <-m.continueWrite:
+		case <-ctx.Done():
+			return artifacts.WriteResult{}, ctx.Err()
+		}
 	}
 	key := artifactKey(string(scope.Kind()), scope.ID(), target.Namespace, target.Name)
 	current, exists := m.bindings[key]

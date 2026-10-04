@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -100,19 +101,12 @@ func requestMediaType(r *http.Request) (string, error) {
 
 // readArtifactBody deliberately differs from the private adapter: it keeps
 // the read cause and does not special-case negative lengths.
-func readArtifactBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	if r.ContentLength > artifacts.MaxPayloadSize {
-		return nil, artifacts.ErrPayloadTooLarge
-	}
-	body := http.MaxBytesReader(w, r.Body, artifacts.MaxPayloadSize)
-	data, err := io.ReadAll(body)
-	if err != nil {
-		if exceedsBodyLimit(err) {
-			return nil, artifacts.ErrPayloadTooLarge
-		}
+func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
+	data, err := transfer.ReadBody(r, artifacts.MaxPayloadSize)
+	if err != nil && !errors.Is(err, artifacts.ErrPayloadTooLarge) {
 		return nil, fmt.Errorf("read artifact body: %w", err)
 	}
-	return data, nil
+	return data, err
 }
 
 func artifactWritePrecondition(r *http.Request) (*string, error) {

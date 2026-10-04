@@ -5,9 +5,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
-	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -48,15 +45,6 @@ func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
-	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
-	defer deadline.Close()
 	store, _, err := h.ownedActiveProjectArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -83,26 +71,7 @@ func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	payload, err := readArtifactBody(w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	result, err := store.Write(r.Context(), contracts.ArtifactRef{
-		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"),
-	}, artifacts.Payload{MediaType: mediaType, Data: payload}, expectedRevision)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	status := http.StatusCreated
-	if expectedRevision != nil {
-		status = http.StatusOK
-	}
-	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
-	writeJSON(w, status, artifactWriteResponse{
-		Artifact: result.Ref, MediaType: result.MediaType, Size: result.Size,
-	})
+	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)
 }
 
 func (h *handler) ownedActiveProjectArtifactStore(
