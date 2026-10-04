@@ -102,7 +102,10 @@ observations (including admission, settlement, token usage, first native
 selection and execution tombstones) update progress and `updatedAt` without
 consuming that authority revision. A previously read ETag therefore remains
 valid for Pause or Cancel until another authority mutation occurs. Content
-hashes are SHA-256 over exact retained bytes. Secret values do not enter public
+hashes are SHA-256 over exact retained bytes. A frozen plan or registration is
+schema-validated once before it is stored; reads trust the immutable row and its
+database-generated digest instead of revalidating up to 1 MiB on every coordinator
+tick, admission or collection. Secret values do not enter public
 DTOs, logs, cursors or error text. Objects/arrays remain bounded by spec 26;
 DTO schema validation is closed, with explicitly versioned extensions only.
 

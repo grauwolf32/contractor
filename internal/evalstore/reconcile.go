@@ -44,22 +44,28 @@ ORDER BY c.created_at, c.command_id LIMIT 100
 	return out, rows.Err()
 }
 
-func (s *Store) Member(ctx context.Context, owner, id, member string) (Member, error) {
+const memberColumns = `m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256`
+
+func scanMember(row pgx.Row) (Member, error) {
 	var m Member
 	var raw []byte
-	err := s.db.QueryRow(ctx, `
-SELECT m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256
+	if err := row.Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &raw, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256); err != nil {
+		return m, err
+	}
+	err := json.Unmarshal(raw, &m.Recipe)
+	return m, err
+}
+
+func (s *Store) Member(ctx context.Context, owner, id, member string) (Member, error) {
+	m, err := scanMember(s.db.QueryRow(ctx, `
+SELECT `+memberColumns+`
 FROM eval_members m
 JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id=$1
     AND e.experiment_id=$2
     AND m.member_id=$3
-`, owner, id, member).Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &raw, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256)
-	if err != nil {
-		return m, normalize(err)
-	}
-	err = json.Unmarshal(raw, &m.Recipe)
-	return m, err
+`, owner, id, member))
+	return m, normalize(err)
 }
 
 // NextMembers returns the next eligible, unsubmitted members in frozen order.
@@ -69,7 +75,7 @@ func (s *Store) NextMembers(ctx context.Context, owner, id string, limit int) ([
 		return nil, evaldomain.Failure("eval_invalid")
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT m.member_id
+SELECT `+memberColumns+`
 FROM eval_members m
 JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id=$1
@@ -84,26 +90,17 @@ ORDER BY m.ordinal LIMIT $3
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]string, 0, limit)
+	defer rows.Close()
+	members := make([]Member, 0, limit)
 	for rows.Next() {
-		var memberID string
-		if err = rows.Scan(&memberID); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		ids = append(ids, memberID)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	members := make([]Member, 0, len(ids))
-	for _, memberID := range ids {
-		member, err := s.Member(ctx, owner, id, memberID)
+		member, err := scanMember(rows)
 		if err != nil {
 			return nil, err
 		}
 		members = append(members, member)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 	return members, nil
 }

@@ -25,7 +25,9 @@ labels never establish membership. `Settle` observes authoritative terminal stat
 and resolves every suboperation before decrementing outstanding once. A cancelled
 intent with no possible execution creation can settle without inventing a Run.
 
-Datasets and plans retain byte payloads with database-computed SHA-256. External
+Datasets and plans retain byte payloads with database-computed SHA-256. Only
+`Freeze` output reaches the immutable plan row, so `FrozenPlan` restores the
+stored bytes and generated digest without validating the schema again. External
 registration has its own stored document digest, separate from `Plan.SHA256`,
 which preserves the attributed source plan identity used by the producer. Native
 `Plan.SHA256` is the exact portable plan digest. Preparation in V38-004 owns
