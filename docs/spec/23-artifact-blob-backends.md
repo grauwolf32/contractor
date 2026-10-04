@@ -100,11 +100,15 @@ public/internal APIs still materialize `[]byte` or decoded buffers.
 Bound simultaneous full-payload transfers per Server process; the initial
 budget is four active operations, acquired before body buffering or blob reads.
 Saturation fails promptly with a retryable capacity error instead of accepting
-an unbounded queue of bodies. Nested trusted calls share the outer operation's
-budget rather than reacquiring it. Use the same budget for public/private
-transfers and trusted full-content reads/writes; metadata-only queries and
-forks do not consume it. Account for driver/serialization buffers when sizing
-container memory; four 64 MiB payloads are not a 256 MiB process-memory cap.
+an unbounded queue of bodies. Every client socket read or write performed while
+an HTTP handler holds a slot has its own deadline, and a response that no
+longer needs the payload (an upload result, archive preview or error) is
+written only after the slot is released. Nested trusted calls share the outer
+operation's budget rather than reacquiring it. Use the same budget for
+public/private transfers and trusted full-content reads/writes; metadata-only
+queries and forks do not consume it. Account for driver/serialization buffers
+when sizing container memory; four 64 MiB payloads are not a 256 MiB
+process-memory cap.
 
 Kubernetes examples require no PVC. Read-only root filesystem with PostgreSQL
 blob storage must work without a blob/tmp volume. Existing mutable managed

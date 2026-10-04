@@ -10,10 +10,12 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"golang.org/x/crypto/ssh"
@@ -54,6 +56,58 @@ func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
 	}
 	if response.Code != http.StatusRequestEntityTooLarge || body.Code != "git_import_limit" {
 		t.Fatalf("oversized Git import = %d %+v", response.Code, body)
+	}
+}
+
+// respondingGitImports answers like an importer that still holds both
+// admission slots while its metadata response is written.
+type respondingGitImports struct{}
+
+func (respondingGitImports) DoImport(_ context.Context, request gitimport.ImportRequest, respond func(gitimport.ImportResult)) error {
+	revision := "revision-1"
+	respond(gitimport.ImportResult{
+		Artifact:  artifacts.ArtifactRef{Namespace: request.Target.Namespace, Name: request.Target.Name, Revision: &revision},
+		MediaType: "application/zip",
+	})
+	return nil
+}
+
+// writeDeadlineRecorder records the socket write deadline in force when the
+// response body is first written.
+type writeDeadlineRecorder struct {
+	*httptest.ResponseRecorder
+	writeDeadline, deadlineAtWrite, wroteAt time.Time
+}
+
+func (w *writeDeadlineRecorder) SetReadDeadline(time.Time) error { return nil }
+func (w *writeDeadlineRecorder) SetWriteDeadline(deadline time.Time) error {
+	w.writeDeadline = deadline
+	return nil
+}
+func (w *writeDeadlineRecorder) Write(data []byte) (int, error) {
+	if w.wroteAt.IsZero() {
+		w.wroteAt, w.deadlineAtWrite = time.Now(), w.writeDeadline
+	}
+	return w.ResponseRecorder.Write(data)
+}
+
+// Admission is held through the metadata response, so its write is bounded
+// from the write itself, not by the remainder of the 120-second import.
+func TestGitImportResponseWriteHasItsOwnDeadline(t *testing.T) {
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(d *Dependencies) { d.GitImports = respondingGitImports{} })
+	body, _ := json.Marshal(map[string]string{"repositoryUrl": "https://example.test/first.git"})
+	request := authenticatedRequest(http.MethodPost, "/v1/artifacts/source/repository/git-import", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("If-None-Match", "*")
+	response := &writeDeadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("Git import = %d %s", response.Code, response.Body)
+	}
+	if response.deadlineAtWrite.IsZero() || response.deadlineAtWrite.After(response.wroteAt.Add(artifacttransfer.TransferGrace)) {
+		t.Fatalf("Git import response deadline = %s after the write, want at most %s",
+			response.deadlineAtWrite.Sub(response.wroteAt), artifacttransfer.TransferGrace)
 	}
 }
 

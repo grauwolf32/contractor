@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
@@ -66,6 +67,9 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 	err = h.dependencies.GitImports.DoImport(r.Context(), gitimport.ImportRequest{
 		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"), Target: artifacts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}, ExpectedRevision: expected, RepositoryURL: body.RepositoryURL, Ref: ref,
 	}, func(result gitimport.ImportResult) {
+		// Import admission is still held here; bound this write from now, not
+		// from the start of the 120-second import.
+		artifacttransfer.BoundWrite(w, 0)
 		status := http.StatusCreated
 		if expected != nil {
 			status = http.StatusOK

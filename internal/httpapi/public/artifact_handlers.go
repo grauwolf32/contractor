@@ -431,15 +431,6 @@ func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 }
 
 func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
-	r, deadline := artifacttransfer.Bound(w, r, r.ContentLength)
-	defer deadline.Close()
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -462,34 +453,48 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	payload, err := readArtifactBody(w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
 	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	result, err := store.Write(r.Context(), contracts.ArtifactRef{
-		Namespace: r.PathValue("namespace"),
-		Name:      r.PathValue("name"),
-	}, artifacts.Payload{MediaType: mediaType, Data: payload}, expectedRevision)
+	h.writeArtifactUpload(w, r, store, mediaType, expectedRevision)
+}
+
+// writeArtifactUpload holds one of the four per-process transfer slots from
+// before the body is buffered until the payload is stored. Requests rejected
+// by validation or ownership never take one, and the small result is written
+// after the slot is released.
+func (h *handler) writeArtifactUpload(
+	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, mediaType string, expectedRevision *string,
+) {
+	r, transfer, err := artifacttransfer.Acquire(w, r, r.ContentLength)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-
+	defer transfer.Close()
+	payload, err := readArtifactBody(w, r)
+	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
+		h.handleError(w, err)
+		return
+	}
+	result, err := store.Write(r.Context(), contracts.ArtifactRef{
+		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"),
+	}, artifacts.Payload{MediaType: mediaType, Data: payload}, expectedRevision)
+	transfer.ReleaseBeforeWrite(0)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	status := http.StatusCreated
 	if expectedRevision != nil {
 		status = http.StatusOK
 	}
 	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	writeJSON(w, status, artifactWriteResponse{
-		Artifact:  result.Ref,
-		MediaType: result.MediaType,
-		Size:      result.Size,
+		Artifact: result.Ref, MediaType: result.MediaType, Size: result.Size,
 	})
 }
 
@@ -521,20 +526,19 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 func (h *handler) writeArtifactRead(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, ref contracts.ArtifactRef,
 ) {
-	ctx, releaseTransfer, err := artifacts.AcquireTransfer(r.Context())
+	r, transfer, err := artifacttransfer.Acquire(w, r, artifacts.MaxPayloadSize)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	defer releaseTransfer()
-	r, deadline := artifacttransfer.Bound(w, r.WithContext(ctx), artifacts.MaxPayloadSize)
-	defer deadline.Close()
+	defer transfer.Close()
 	result, err := store.Read(r.Context(), ref)
 	if err != nil {
+		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
 		return
 	}
-	deadline.LimitWrite(int64(len(result.Payload.Data)))
+	transfer.BoundWrite(int64(len(result.Payload.Data)))
 	writeArtifactBytes(w, result)
 }
 
