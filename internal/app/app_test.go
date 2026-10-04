@@ -595,7 +595,7 @@ func TestParseConfigReadsConfigurationRootsAndDerivesManagedFlagDefault(t *testi
 
 func TestDevelopmentCredentialsBindNamedTokensToPinnedLocalGateway(t *testing.T) {
 	t.Parallel()
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -651,7 +651,7 @@ func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	err := RunCLI(
 		context.Background(),
-		[]string{"config", "validate", "--root", "../../configs"},
+		[]string{"config", "validate", "--root", "../../testdata/configs"},
 		func(string) string { panic("config validate must not read serve environment") },
 		logger,
 	)
