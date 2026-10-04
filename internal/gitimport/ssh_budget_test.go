@@ -3,7 +3,9 @@ package gitimport
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -44,7 +46,13 @@ func (repeatedByteReader) Read(p []byte) (int, error) {
 
 func serveBudgetSSH(t *testing.T, owner ssh.Signer, payloadBytes int64) (Remote, string) {
 	t.Helper()
-	host := testSSHSigner(t)
+	return serveBudgetSSHWithHost(t, owner, testSSHSigner(t), payloadBytes)
+}
+
+// serveBudgetSSHWithHost serves a fake upload-pack with only the given host
+// key and pins that key in a fresh known_hosts file.
+func serveBudgetSSHWithHost(t *testing.T, owner, host ssh.Signer, payloadBytes int64) (Remote, string) {
+	t.Helper()
 	config := &ssh.ServerConfig{PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 		if !bytes.Equal(key.Marshal(), owner.PublicKey().Marshal()) {
 			return nil, errors.New("unauthorized")
@@ -173,5 +181,37 @@ func TestSSHInvalidPackAndAuthFailureKeepTheirErrors(t *testing.T) {
 	}
 	if _, err := client.Fetch(context.Background(), remote, "", testSSHSigner(t)); !errors.Is(err, ErrRemote) {
 		t.Fatalf("genuine authentication failure: %v", err)
+	}
+}
+
+func TestSSHHostOfferingNoPinnedKeyTypeIsUntrusted(t *testing.T) {
+	owner := testSSHSigner(t)
+	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecdsaHost, err := ssh.NewSignerFromKey(ecdsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote, known := serveBudgetSSHWithHost(t, owner, ecdsaHost, 0)
+	client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}, KnownHostsFile: known}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.allowLoopback = true
+	// The genuine ECDSA pin negotiates its own type and reaches the fake pack.
+	if _, err := client.Fetch(t.Context(), remote, "", owner); !errors.Is(err, ErrContent) {
+		t.Fatalf("pinned ECDSA host: got %v, want ErrContent from the fake pack", err)
+	}
+	// An Ed25519 pin restricts negotiation to a type this host never offers,
+	// so the handshake fails before the host key callback can run.
+	if err := os.WriteFile(known, []byte(knownhosts.Line([]string{remote.Address}, testSSHSigner(t).PublicKey())+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, signer := range []ssh.Signer{owner, testSSHSigner(t)} {
+		if _, err := client.Fetch(t.Context(), remote, "", signer); !errors.Is(err, ErrTrust) {
+			t.Fatalf("host without the pinned key type: got %v, want ErrTrust", err)
+		}
 	}
 }

@@ -60,6 +60,25 @@ func TestGlobalHelpPrintsOnceWithoutConfiguration(t *testing.T) {
 	}
 }
 
+func TestServerGroupHelpPrintsUsageWithoutConfiguration(t *testing.T) {
+	for _, args := range [][]string{
+		{"server", "--help"}, {"server", "-h"}, {"server", "config", "--help"}, {"server", "auth", "-h"},
+	} {
+		var stderr bytes.Buffer
+		command := New(strings.NewReader(""), io.Discard, &stderr, func(string) string { return "" })
+		if err := command.Run(context.Background(), args); err != nil {
+			t.Fatalf("%v = %v, want usage and success", args, err)
+		}
+		if args[1] == "--help" && !strings.Contains(stderr.String(), "config validate") {
+			t.Fatalf("server usage = %q", stderr.String())
+		}
+	}
+	command := New(strings.NewReader(""), io.Discard, io.Discard, func(string) string { return "" })
+	if err := command.Run(context.Background(), []string{"server", "config"}); err == nil {
+		t.Fatal("server config without validate succeeded")
+	}
+}
+
 func TestSourcePushPackagesDirectoryAndCreatesArtifact(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "source tree")
 	if err := os.Mkdir(source, 0o755); err != nil {
@@ -153,6 +172,47 @@ func TestSourcePushRejectsEmptyBundleBeforeArtifactRequest(t *testing.T) {
 			})
 			if err == nil || !strings.Contains(err.Error(), "no files to package") || requests.Load() != 0 {
 				t.Fatalf("empty source push = %v, Artifact requests = %d", err, requests.Load())
+			}
+		})
+	}
+}
+
+func TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"binary and ignored only", map[string]string{"assets/logo.png": "png", "node_modules/pkg/index.js": "js"}, "no file the Runtime can read"},
+		{"file and directory collide after NFC", map[string]string{"cafe\u0301": "file", "caf\u00e9/notes.txt": "nested"}, "is both a file and a directory"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := t.TempDir()
+			for path, content := range test.files {
+				target := filepath.Join(source, filepath.FromSlash(path))
+				if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+					t.Skipf("filesystem cannot hold the fixture names: %v", err)
+				}
+				if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
+					t.Skipf("filesystem cannot hold the fixture names: %v", err)
+				}
+			}
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				requests.Add(1)
+			}))
+			defer server.Close()
+			command := New(strings.NewReader(""), io.Discard, io.Discard, func(name string) string {
+				if name == "CONTRACTOR_API_TOKEN" {
+					return "secret"
+				}
+				return ""
+			})
+			err := command.Run(context.Background(), []string{
+				"--server", server.URL, "source", "push", source, "--name", "repo", "--include-ignored",
+			})
+			if err == nil || !strings.Contains(err.Error(), test.want) || requests.Load() != 0 {
+				t.Fatalf("source push = %v, Artifact requests = %d; want %q before any request", err, requests.Load(), test.want)
 			}
 		})
 	}

@@ -43,24 +43,34 @@ type manifestFile struct {
 	source   ConfigurationSource
 }
 
+// loadOptions selects how strictly one load treats the filesystem.
+type loadOptions struct {
+	// allowMissingManagedSubtrees treats an absent managed subtree as empty.
+	// Only offline validation sets it: the Server creates every managed
+	// subtree at startup, so a later absence must fail the load.
+	allowMissingManagedSubtrees bool
+}
+
 // Load validates the complete configuration root and publishes one immutable
 // snapshot. On any error the returned Snapshot is nil.
 func Load(root string, descriptors Descriptors) (*Snapshot, error) {
-	return loadConfigurationRoots([]configurationRoot{{path: root, source: ConfigurationSourceOperator}}, descriptors, false)
+	return loadConfigurationRoots([]configurationRoot{{path: root, source: ConfigurationSourceOperator}}, descriptors, loadOptions{})
 }
 
 // LoadUnion validates operator and managed roots as one namespace. Duplicate
 // manifest identities, logical paths, and any symlink below a fixed subtree
-// reject the complete snapshot; neither root has precedence.
+// reject the complete snapshot; neither root has precedence. Every managed
+// subtree must exist, so a reload after one is removed or unmounted fails and
+// the caller keeps its current snapshot.
 func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors) (*Snapshot, error) {
 	return loadConfigurationRoots([]configurationRoot{
 		{path: operatorRoot, source: ConfigurationSourceOperator},
 		{path: managedRoot, source: ConfigurationSourceManaged},
-	}, descriptors, true)
+	}, descriptors, loadOptions{})
 }
 
 func loadConfigurationRoots(
-	roots []configurationRoot, descriptors Descriptors, allowMissingManagedSubtrees bool,
+	roots []configurationRoot, descriptors Descriptors, options loadOptions,
 ) (*Snapshot, error) {
 	normalizedDescriptors, err := normalizeDescriptors(descriptors)
 	if err != nil {
@@ -99,7 +109,7 @@ func loadConfigurationRoots(
 
 	current := &loader{
 		roots:                       resolvedRoots,
-		allowMissingManagedSubtrees: allowMissingManagedSubtrees,
+		allowMissingManagedSubtrees: options.allowMissingManagedSubtrees,
 		descriptors:                 normalizedDescriptors,
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),

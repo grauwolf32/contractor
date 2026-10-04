@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import stat
+import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -29,14 +30,47 @@ from contractor_runtime.workspace import AllocationWorkspace
 SECRET = "source-tool-recognizable-secret"
 
 
-def test_source_member_paths_match_producer_fixture() -> None:
+def producer_fixture() -> dict:
     fixture = Path(__file__).resolve().parents[2] / "testdata/source_member_paths.json"
-    cases = json.loads(fixture.read_text(encoding="utf-8"))
+    return json.loads(fixture.read_text(encoding="utf-8"))
+
+
+def test_source_member_paths_match_producer_fixture() -> None:
+    cases = producer_fixture()
     for path in cases["valid"]:
         assert source_tools_module._validated_member_path(path) == path
     for path in cases["invalid"]:
         with pytest.raises(ValueError):
             source_tools_module._validated_member_path(path)
+
+
+def test_source_readability_lists_match_producer_fixture() -> None:
+    cases = producer_fixture()
+    assert sorted(source_tools_module.IGNORED_DIRECTORY_NAMES) == sorted(
+        cases["ignoredDirectoryNames"]
+    )
+    assert sorted(source_tools_module.BINARY_EXTENSIONS) == sorted(cases["binaryExtensions"])
+
+
+def test_source_bundle_openability_matches_producer_fixture(tmp_path: Path) -> None:
+    errors = {
+        "unreadable": "no readable UTF-8 files",
+        "nested": "nests an entry below a regular file",
+    }
+    for index, bundle in enumerate(producer_fixture()["bundles"]):
+        non_utf8 = set(bundle.get("nonUtf8", []))
+        # The Go producer stores member names NFC-normalized.
+        members: dict[str, str | bytes] = {
+            unicodedata.normalize("NFC", path): b"\xff\xfe\n" if path in non_utf8 else "text\n"
+            for path in bundle["files"]
+        }
+        staging = tmp_path / f"bundle-{index}"
+        if bundle["openable"]:
+            files, _, _ = source_tools_module._extract_archive(make_zip(members), staging)
+            assert files, bundle["name"]
+        else:
+            with pytest.raises(ValueError, match=errors[bundle["reason"]]):
+                source_tools_module._extract_archive(make_zip(members), staging)
 
 
 def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) -> None:

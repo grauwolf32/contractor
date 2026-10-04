@@ -387,6 +387,15 @@ func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The server offers P-256, so a P-384 pin leaves no common host key type.
+	unofferedKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unofferedHost, err := ssh.NewSignerFromKey(unofferedKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	negotiated := make(chan string, 2)
 	address, ed25519Host := serveGitSSHRecording(t, repo, owner, negotiated, ecdsaHost, rsaHost)
 	known := filepath.Join(t.TempDir(), "known_hosts")
@@ -407,6 +416,7 @@ func TestRealSSHSingleTypePinsOnMultiKeyHost(t *testing.T) {
 		{"ed25519 pin", address, ssh.KeyAlgoED25519, ed25519Host.PublicKey(), false},
 		{"rsa pin", address, "rsa-sha2-", rsaHost.PublicKey(), false},
 		{"wrong ed25519 material", address, "", newSigner(t).PublicKey(), true},
+		{"pinned type not offered", address, "", unofferedHost.PublicKey(), true},
 		{"unknown host", "other.example:22", "", ed25519Host.PublicKey(), true},
 	} {
 		t.Run(test.name, func(t *testing.T) {

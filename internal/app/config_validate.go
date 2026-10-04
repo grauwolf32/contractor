@@ -14,6 +14,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
+// defaultManagedConfigRoot derives the sibling managed-configs directory from
+// the cleaned operator root, so "configs/" and "configs" share one parent.
+func defaultManagedConfigRoot(operatorRoot string) string {
+	return filepath.Join(filepath.Dir(filepath.Clean(operatorRoot)), "managed-configs")
+}
+
 // effectiveConfig applies derived defaults and validates the final flag-overridden
 // values. Deferred booleans are intentionally parsed here, after CLI overrides.
 func (c *serveConfigInputs) effectiveConfig() (Config, error) {
@@ -32,7 +38,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		return Config{}, errors.New("pprof-listen must be a numeric loopback IP and TCP port between 1 and 65535")
 	}
 	if c.managedConfigRoot == "" {
-		c.managedConfigRoot = filepath.Join(filepath.Dir(c.operatorConfigRoot), "managed-configs")
+		c.managedConfigRoot = defaultManagedConfigRoot(c.operatorConfigRoot)
 	}
 	if c.listenAddress == "" {
 		return Config{}, errors.New("listen address must not be empty")

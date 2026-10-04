@@ -20,6 +20,10 @@ type blobCleanupConfig struct {
 }
 
 func parseBlobCleanupConfig(args []string, getenv func(string) string) (cfg blobCleanupConfig, err error) {
+	if err = commandGroupHelp(args, "blobs",
+		[2]string{"cleanup", "report or remove filesystem Artifact blobs that PostgreSQL no longer references"}); err != nil {
+		return cfg, err
+	}
 	if len(args) == 0 || args[0] != "cleanup" {
 		return cfg, errors.New("expected blobs cleanup")
 	}

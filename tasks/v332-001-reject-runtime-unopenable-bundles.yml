@@ -3,7 +3,8 @@ id: V332-001
 title: Reject source bundles the Runtime cannot open
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: 1f209187a3638638b44684a02288614634dfefa2
 depends_on: []
 languages: [go, python]
 goal: "Finish V198: Go accepts only bundles the Runtime can open."
