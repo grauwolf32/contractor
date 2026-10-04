@@ -127,7 +127,7 @@ func (c *CLI) listRuns(ctx context.Context, client *publicclient.Client, printer
 	return printRunPage(printer, page)
 }
 
-func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {
+func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) (resultErr error) {
 	var projectID, requestFile, key string
 	var parameters, artifactValues, labels, runtimeLabels stringList
 	flags, err := parseFlags("contractor run create", c.stderr, args, func(flags *flag.FlagSet) {
@@ -208,9 +208,17 @@ func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printe
 	if strings.TrimSpace(body.Workflow) == "" {
 		return &UsageError{Message: "Run request requires workflow"}
 	}
+	generatedKey := key == ""
 	key, err = idempotencyKey(key)
 	if err != nil {
 		return err
+	}
+	if generatedKey {
+		defer func() {
+			if resultErr != nil {
+				_, _ = fmt.Fprintf(c.stderr, "Retry the create request with --idempotency-key %s\n", key)
+			}
+		}()
 	}
 	var created *publicapi.CreateRunResponse
 	if projectID != "" {
@@ -289,7 +297,16 @@ func (c *CLI) watchRun(ctx context.Context, client *publicclient.Client, printer
 	for {
 		status, getErr := getRunStatus(ctx, client, runID)
 		if getErr != nil {
-			return getErr
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if !publicclient.IsTransient(getErr) {
+				return getErr
+			}
+			if err := waitForWatchPoll(ctx, interval); err != nil {
+				return err
+			}
+			continue
 		}
 		state := stringValue(status.State)
 		if state != lastState {
@@ -305,13 +322,20 @@ func (c *CLI) watchRun(ctx context.Context, client *publicclient.Client, printer
 			}
 			return nil
 		}
-		timer := time.NewTimer(interval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
+		if err := waitForWatchPoll(ctx, interval); err != nil {
+			return err
 		}
+	}
+}
+
+func waitForWatchPoll(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 

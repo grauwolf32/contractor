@@ -74,10 +74,10 @@ func New(options Options) (*Client, error) {
 		origin:    origin,
 		token:     options.Token,
 		userAgent: options.UserAgent,
+		timeout:   timeout,
 	}
 	httpClient := &http.Client{
 		Transport: roundTripper,
-		Timeout:   timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return errors.New("Contractor public API redirects are not allowed")
 		},
@@ -140,25 +140,19 @@ type checkedTransport struct {
 	origin    string
 	token     string
 	userAgent string
+	timeout   time.Duration
 }
 
-func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if request.URL == nil || request.URL.Scheme+"://"+request.URL.Host != t.origin ||
-		!strings.HasPrefix(request.URL.EscapedPath(), "/v1/") {
-		return nil, errors.New("public API request escaped the configured Server boundary")
-	}
-	// A RoundTripper must not modify the caller's request; add the
-	// credentials and fixed headers to a clone instead.
-	request = request.Clone(request.Context())
-	request.Header.Set("Authorization", "Bearer "+t.token)
-	request.Header.Set("Accept", "application/json")
-	if t.userAgent != "" {
-		request.Header.Set("User-Agent", t.userAgent)
-	}
+func (t *checkedTransport) roundTripOnce(request *http.Request, cancel func()) (*http.Response, error) {
 	response, err := t.base.RoundTrip(request)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
+	if response.Body == nil {
+		response.Body = http.NoBody
+	}
+	response.Body = &cancelOnClose{ReadCloser: response.Body, cancel: cancel}
 	versions := response.Header.Values(APIVersionHeader)
 	if len(versions) == 0 && response.StatusCode >= http.StatusBadRequest {
 		if response.Body != nil {

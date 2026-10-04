@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V255-001
+title: Recover public CLI calls from transient failures
+milestone: cli-reliability-2026-10
+priority: P1
+status: completed
+implementation_commit: c10e6ba3f697e332ed4e383761a2987f4a259ac8
+depends_on: []
+languages: [go]
+goal: Retry only replay-safe public calls and preserve the request key needed after uncertain create outcomes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/145
+  finding: Transient proxy and transport failures can duplicate creates or abort a long-running watch.
+scope:
+  in:
+    - Retry GETs and requests with an Idempotency-Key and replayable body with bounded context-aware backoff.
+    - Retry transient transport errors, 502/503/504 responses, and retryable API envelopes.
+    - Show generated request keys when Run or Project creation fails.
+    - Keep Run watch polling through transient errors until its deadline.
+    - Preserve version-compatibility failures for invalid successful responses.
+  out:
+    - Retry unsafe Artifact uploads without an Idempotency-Key.
+acceptance_criteria:
+  - {id: A1, text: Timed-out and proxy-failed creates retry with identical keys and bodies.}
+  - {id: A2, text: A failed generated-key create tells the operator the exact key to reuse.}
+  - {id: A3, text: Run watch survives transient failures and stops on 401, 404, or its deadline.}
+  - {id: A4, text: Unsafe calls are not retried and success responses still require the API version.}
+tests:
+  - {command: go test -count=1 ./internal/publicclient ./internal/cli, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
