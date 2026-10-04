@@ -61,7 +61,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # setup-go saves its cache only after a successful job; restore and
-      # save explicitly so failing runs still warm the next one.
+      # save explicitly so failing runs still warm the next one. A cancelled
+      # run may have built little, so it saves nothing.
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -129,7 +130,7 @@ jobs:
           retention-days: 14
 
       - name: Save Go build and module caches
-        if: always() && steps.go-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.go-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
