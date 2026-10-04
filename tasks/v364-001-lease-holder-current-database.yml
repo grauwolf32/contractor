@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V364-001
+title: Report the Control Plane lease holder of the current database only
+milestone: review-defects-2026-10-04
+priority: P2
+status: completed
+implementation_commit: c22cd0489c33d956adde56b246342f39a31d9d5b
+depends_on: []
+languages: [go]
+goal: Make the standby's lease-holder diagnostic and its test independent of other databases on the same PostgreSQL server.
+context:
+  review: docs/research/2026-10-04-code-review.md
+  severity: low
+  finding: "Found during integration verification of the 2026-10-04 fixes: holderPID (internal/app/single_active.go) queried pg_locks for the lease key without a database filter. pg_locks covers the whole cluster and advisory locks are per database, so the standby could log another database's holder, and TestPostgresControlPlaneLeaseStandbyAndTakeover failed while a Server for another database held the same key."
+scope:
+  in:
+    - Filter the lookup by the current database.
+    - Regression test with the key held in a temporary sibling database.
+  out:
+    - Changing the lease key.
+acceptance_criteria:
+  - {id: A1, text: "holderPID returns this database's holder while another database holds the same key."}
+  - {id: A2, text: "Existing lease tests pass."}
+tests:
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/app -run ControlPlaneLease", covers: [A1, A2]}
