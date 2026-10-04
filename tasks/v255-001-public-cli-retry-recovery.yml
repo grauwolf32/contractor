@@ -3,8 +3,8 @@ id: V255-001
 title: Recover public CLI calls from transient failures
 milestone: cli-reliability-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c10e6ba3f697e332ed4e383761a2987f4a259ac8
 depends_on: []
 languages: [go]
 goal: Retry only replay-safe public calls and preserve the request key needed after uncertain create outcomes.
