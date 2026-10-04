@@ -3,7 +3,7 @@ id: V285-001
 title: Renew expired item reviews on Resume through auditstore
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: Make Resume renew expired item reviews with the same events and revision bumps as the Controller path.

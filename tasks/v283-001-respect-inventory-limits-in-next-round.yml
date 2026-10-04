@@ -3,7 +3,7 @@ id: V283-001
 title: Respect inventory limits when selecting the next Audit Round
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Split oversized next-Round selections instead of finalizing the Audit with next_round_invalid.
