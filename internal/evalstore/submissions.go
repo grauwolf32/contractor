@@ -127,21 +127,7 @@ func (s *Store) RegisterExecutionProject(ctx context.Context, scope Scope, id, m
 		return err
 	}
 	var ok bool
-	err := s.db.QueryRow(ctx, `
-SELECT true
-FROM projects
-WHERE owner_id=$1
-    AND project_id=$2
-    AND kind='project'
-    AND lifecycle_state='active'
-    AND request_idempotency_key=$3
-    AND request_digest=(SELECT request_sha256
-    FROM eval_suboperations
-    WHERE experiment_id=$4
-        AND member_id=$5
-        AND kind='project-create')
-FOR SHARE
-`, scope.OwnerID, projectID, creationKey, id, member).Scan(&ok)
+	err := s.db.QueryRow(ctx, registerExecutionProjectSQL, scope.OwnerID, projectID, creationKey, id, member).Scan(&ok)
 	if err != nil {
 		return normalize(err)
 	}
@@ -306,20 +292,7 @@ SELECT EXISTS(SELECT 1
         AND publication_mode='ordinary')
 `, executionID, scope.OwnerID, scope.ProjectID, key, digest).Scan(&verified)
 	} else {
-		err = s.db.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1
-    FROM audits a
-    JOIN audit_idempotency i USING(audit_id)
-    JOIN eval_project_dependencies d ON d.project_id=a.project_id
-    WHERE a.audit_id=$1
-        AND a.owner_id=$2
-        AND d.experiment_id=$3
-        AND d.member_id=$4
-        AND i.owner_id=$2
-        AND i.operation='audit.create'
-        AND i.idempotency_key=$5
-        AND i.request_digest=$6)
-`, executionID, scope.OwnerID, id, member, key, digest).Scan(&verified)
+		err = s.db.QueryRow(ctx, bindExecutionSQL, executionID, scope.OwnerID, id, member, key, digest).Scan(&verified)
 	}
 	if err != nil {
 		return err
@@ -404,23 +377,7 @@ WHERE owner_id=$1
 		state = "terminal"
 	} else {
 		var rejected bool
-		err = s.db.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1
-    FROM eval_execution_tombstones
-    WHERE experiment_id=$1
-        AND member_id=$2
-        AND never_started) OR (NOT EXISTS(SELECT 1
-        FROM eval_suboperations
-        WHERE experiment_id=$1
-            AND member_id=$2
-            AND kind IN ('run-create', 'audit-create')
-            AND state IN ('intent', 'succeeded'))
-        AND ($3 OR EXISTS(SELECT 1
-            FROM eval_suboperations
-            WHERE experiment_id=$1
-                AND member_id=$2
-                AND state='rejected')))
-`, id, member, e.State == evaldomain.StateCancelling).Scan(&rejected)
+		err = s.db.QueryRow(ctx, settleSubmissionSQL, id, member, e.State == evaldomain.StateCancelling).Scan(&rejected)
 		if err != nil {
 			return err
 		}

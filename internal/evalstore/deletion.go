@@ -97,18 +97,7 @@ func (s *Store) PurgeProject(ctx context.Context, scope Scope) error {
 	// Final purge is invoked in the Project controller's transaction, after its
 	// row lock and ordinary Run/Audit drain. All experiments are already fenced.
 	var unsafe bool
-	err = s.db.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1
-    FROM eval_experiments
-    WHERE owner_id=$1
-        AND project_id=$2
-        AND deletion_requested_at IS NULL) OR EXISTS(SELECT 1
-    FROM eval_suboperations op
-    JOIN eval_experiments e USING(experiment_id)
-    WHERE e.owner_id=$1
-        AND e.project_id=$2
-        AND op.state='intent')
-`, scope.OwnerID, scope.ProjectID).Scan(&unsafe)
+	err = s.db.QueryRow(ctx, purgeProjectSQL, scope.OwnerID, scope.ProjectID).Scan(&unsafe)
 	if err != nil {
 		return err
 	}

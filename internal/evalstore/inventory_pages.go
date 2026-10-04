@@ -21,29 +21,7 @@ func (s *Store) InventoryPage(ctx context.Context, owner, id, member, after stri
 	var parentID, state *string
 	var available, closed bool
 	var unresolved, deleted int
-	err := s.db.QueryRow(ctx, `
-SELECT p.revision, m.execution_kind, sub.execution_id, COALESCE(r.state, a.state),
-    r.run_id IS NOT NULL OR a.audit_id IS NOT NULL,
-    COALESCE(a.dispatch_state = 'closed', TRUE),
-    (SELECT count(*) FROM audit_executions x
-        WHERE m.execution_kind = 'audit' AND x.audit_id = sub.execution_id
-            AND (x.state <> 'collected'
-                OR (x.run_id IS NULL AND x.terminal_outcome IS DISTINCT FROM 'submission-failed'))),
-    (SELECT count(*) FROM audit_executions x
-        WHERE m.execution_kind = 'audit' AND x.audit_id = sub.execution_id
-            AND x.run_id IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM workflow_runs child
-                WHERE child.run_id = x.run_id AND child.owner_id = e.owner_id))
-FROM eval_members m
-JOIN eval_experiments e USING (experiment_id)
-JOIN eval_member_projections p USING (experiment_id, member_id)
-LEFT JOIN eval_submissions sub USING (experiment_id, member_id)
-LEFT JOIN workflow_runs r ON m.execution_kind = 'run'
-    AND r.run_id = sub.execution_id AND r.owner_id = e.owner_id
-LEFT JOIN audits a ON m.execution_kind = 'audit'
-    AND a.audit_id = sub.execution_id AND a.owner_id = e.owner_id
-WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
-`, owner, id, member).Scan(&out.Revision, &kind, &parentID, &state, &available, &closed, &unresolved, &deleted)
+	err := s.db.QueryRow(ctx, inventoryPageMemberSQL, owner, id, member).Scan(&out.Revision, &kind, &parentID, &state, &available, &closed, &unresolved, &deleted)
 	if err != nil {
 		return out, normalize(err)
 	}
@@ -79,20 +57,7 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 	if kind != "audit" {
 		return out, nil
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT x.execution_id,x.run_id,x.role,round.ordinal,r.state,r.run_id IS NOT NULL,x.terminal_outcome
-FROM audit_executions x
-JOIN audits a USING(audit_id)
-LEFT JOIN audit_rounds round ON round.audit_id = x.audit_id
-AND round.round_id = x.round_id
-LEFT JOIN workflow_runs r ON r.run_id = x.run_id
-AND r.owner_id = a.owner_id
-WHERE a.owner_id = $1
-    AND x.audit_id = $2
-    AND '1' || x.execution_id > $3
-ORDER BY x.execution_id
-LIMIT $4
-`, owner, *parentID, after, limit-len(out.Items)+1)
+	rows, err := s.db.Query(ctx, inventoryPageAuditExecutionsSQL, owner, *parentID, after, limit-len(out.Items)+1)
 	if err != nil {
 		return out, err
 	}
