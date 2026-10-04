@@ -41,19 +41,23 @@ blob directory alone does not make active replicas supported.
 
 Each Server process admits four concurrent full-payload transfers. Saturation
 returns 503 with retryable `artifact_transfer_capacity`. Requests rejected by
-validation or ownership checks never take a slot. HTTP uploads have five
-seconds of grace plus one second per started MiB of payload (minimum throughput:
-1 MiB/s). Unknown-length uploads use the 64 MiB maximum, so their deadline is
-69 seconds. Downloads start with a 69-second cap; once the payload is loaded,
-its socket write gets the same size-based budget, measured from the start of
-the write. Upload results, archive previews and error responses do not need
-the payload: the slot is released before they are written, each under its own
-size-based write deadline, so a client that stops reading them never holds
-transfer capacity. A Git import keeps its slot through its small metadata
-response, whose write gets the five-second minimum. Stalled client reads or
-writes end at the applicable deadline and release the slot. Memory also
-includes request, driver and serialization buffers; four slots are not a total
-process RAM cap.
+route, ownership, media type or precondition checks never take a slot. Socket
+deadlines bound only client I/O. Reading an upload body has five seconds of
+grace plus one second per started MiB of declared payload (minimum throughput:
+1 MiB/s), measured from the start of the read. Unknown-length uploads use the
+64 MiB maximum, so their deadline is 69 seconds. A download's payload write
+gets the same size-based budget, measured from the start of the write. Upload
+results, archive previews and error responses do not need the payload: the
+slot is released before they are written, each under its own size-based write
+deadline, so a client that stops reading them never holds transfer capacity.
+A Git import keeps its slot through its small metadata response, whose write
+gets the five-second minimum. Stalled client reads or writes end at the
+applicable deadline and release the slot. Blob preparation and PostgreSQL work
+have their own 60-second storage budget per transfer, inside which the
+database acquire and query budgets still apply; once the body has arrived, a
+client deadline never cancels storage. A declared upload length is allocated
+once; an unknown length grows to at most 64 MiB. Memory also includes request,
+driver and serialization buffers; four slots are not a total process RAM cap.
 PostgreSQL mode needs no local artifact scratch directory.
 
 Filesystem publication makes a complete file visible before committing its

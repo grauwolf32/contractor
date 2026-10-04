@@ -103,7 +103,8 @@ Saturation fails promptly with a retryable capacity error instead of accepting
 an unbounded queue of bodies. Every client socket read or write performed while
 an HTTP handler holds a slot has its own deadline, and a response that no
 longer needs the payload (an upload result, archive preview or error) is
-written only after the slot is released. Nested trusted calls share the outer
+written only after the slot is released. Socket deadlines never cancel storage
+work, which has its own budget. Nested trusted calls share the outer
 operation's budget rather than reacquiring it. Use the same budget for
 public/private transfers and trusted full-content reads/writes; metadata-only
 queries and forks do not consume it. Account for driver/serialization buffers

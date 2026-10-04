@@ -109,7 +109,7 @@ func (h *handler) getArtifactArchive(w http.ResponseWriter, r *http.Request, res
 	if !ok {
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r, artifacts.MaxPayloadSize)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return

@@ -126,6 +126,51 @@ func TestPublicArtifactStalledDownloadsReleaseTransferSlots(t *testing.T) {
 	}
 }
 
+// Once the client has sent the whole body, storage work keeps its own budget:
+// a slow database within it must not fail the upload at the client deadline.
+// An empty body is read before the handler runs, so net/http is already
+// watching the idle connection when the body deadline is armed.
+func TestPublicArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	slow := artifacttransfer.Duration(2) + time.Second
+	fixture.repository.beforeWrite = func(ctx context.Context) error {
+		select {
+		case <-time.After(slow):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	server, _ := publicTransferServerForHandler(t, fixture.handler)
+	upload := func(name string, body []byte) string {
+		request, err := http.NewRequest(http.MethodPut, server.URL+"/v1/artifacts/projects/"+name, bytes.NewReader(body))
+		if err != nil {
+			return err.Error()
+		}
+		request.Header.Set("Authorization", "Bearer "+testBearerToken)
+		request.Header.Set("Content-Type", "text/plain")
+		request.Header.Set("If-None-Match", "*")
+		response, err := (&http.Client{Timeout: slow + 10*time.Second}).Do(request)
+		if err != nil {
+			return err.Error()
+		}
+		defer response.Body.Close()
+		payload, _ := io.ReadAll(response.Body)
+		if response.StatusCode != http.StatusCreated {
+			return fmt.Sprintf("%d %s", response.StatusCode, payload)
+		}
+		return ""
+	}
+	empty := make(chan string, 1)
+	go func() { empty <- upload("slow_empty", nil) }()
+	if failure := upload("slow_storage", []byte("ok")); failure != "" {
+		t.Errorf("upload with slow storage = %s, want 201", failure)
+	}
+	if failure := <-empty; failure != "" {
+		t.Errorf("empty upload with slow storage = %s, want 201", failure)
+	}
+}
+
 // An archive listing reaches several MiB after JSON escaping. Clients that
 // stop reading it must not keep transfer slots: the listing is built while the
 // payload is held, and the slot is released before the response is written.

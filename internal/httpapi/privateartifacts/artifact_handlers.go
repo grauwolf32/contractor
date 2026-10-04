@@ -99,13 +99,15 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r, artifacts.MaxPayloadSize)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	defer transfer.Close()
-	result, err := store.Read(r.Context(), ref)
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	result, err := store.Read(ctx, ref)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
@@ -155,19 +157,21 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errArtifactAccessDenied)
 		return
 	}
-	r, transfer, err := artifacttransfer.Acquire(w, r, r.ContentLength)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	defer transfer.Close()
-	payload, err := readArtifactBody(w, r)
+	payload, err := readArtifactBody(r, transfer)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
 		return
 	}
-	preparedPayload, err := artifacts.PreparePayload(r.Context(), artifacts.Payload{MediaType: mediaType, Data: payload})
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: mediaType, Data: payload})
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
@@ -182,7 +186,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 				return storeErr
 			}
 			result, storeErr = store.Write(
-				r.Context(),
+				ctx,
 				contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
 				preparedPayload,
 				expectedRevision,

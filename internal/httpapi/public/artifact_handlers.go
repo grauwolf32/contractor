@@ -468,19 +468,21 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 func (h *handler) writeArtifactUpload(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, mediaType string, expectedRevision *string,
 ) {
-	r, transfer, err := artifacttransfer.Acquire(w, r, r.ContentLength)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	defer transfer.Close()
-	payload, err := readArtifactBody(w, r)
+	payload, err := readArtifactBody(r, transfer)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)
 		return
 	}
-	result, err := store.Write(r.Context(), contracts.ArtifactRef{
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	result, err := store.Write(ctx, contracts.ArtifactRef{
 		Namespace: r.PathValue("namespace"), Name: r.PathValue("name"),
 	}, artifacts.Payload{MediaType: mediaType, Data: payload}, expectedRevision)
 	transfer.ReleaseBeforeWrite(0)
@@ -526,13 +528,15 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 func (h *handler) writeArtifactRead(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, ref contracts.ArtifactRef,
 ) {
-	r, transfer, err := artifacttransfer.Acquire(w, r, artifacts.MaxPayloadSize)
+	r, transfer, err := artifacttransfer.Acquire(w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	defer transfer.Close()
-	result, err := store.Read(r.Context(), ref)
+	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	defer cancel()
+	result, err := store.Read(ctx, ref)
 	if err != nil {
 		transfer.ReleaseBeforeWrite(0)
 		h.handleError(w, err)

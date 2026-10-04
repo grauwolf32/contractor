@@ -11,6 +11,11 @@ const (
 	// MinimumThroughput is the documented floor for a full-size transfer.
 	MinimumThroughput = 1 << 20 // 1 MiB/s
 	TransferGrace     = 5 * time.Second
+	// StorageBudget bounds blob preparation and registry work for one transfer,
+	// independent of payload size and client throughput. It exceeds the default
+	// database budgets (2 s acquire, 20 s per query), which still bound each
+	// operation inside it.
+	StorageBudget = time.Minute
 )
 
 // Duration is the socket budget for size bytes at MinimumThroughput. A missing
