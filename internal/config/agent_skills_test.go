@@ -12,14 +12,14 @@ import (
 )
 
 func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
-	baseline := mustLoad(t, copyConfigTree(t), MVPDescriptors())
+	baseline := mustLoad(t, agentSkillsFixtureRoot, MVPDescriptors())
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
 	const fixtureWithoutSkillsDigest = "sha256:76879d45aef4c7b7900341ed7ff0b9de5ea9d7a41c6921d304a1c80a2bd2e9d0"
 	if baselineTemplate.Ref.Digest != fixtureWithoutSkillsDigest {
 		t.Fatalf("test fixture AgentTemplate digest changed: %s", baselineTemplate.Ref.Digest)
 	}
 
-	emptyRoot := copyConfigTree(t)
+	emptyRoot := copyAgentSkillsFixture(t)
 	addTemplateSkills(t, emptyRoot, "  skills: []\n")
 	empty := mustLoad(t, emptyRoot, MVPDescriptors())
 	emptyTemplate, _ := empty.AgentTemplate("artifact_builder@1")
@@ -27,9 +27,9 @@ func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 		t.Fatalf("omitted/empty Skill normalization changed digest: %s != %s", baselineTemplate.Ref.Digest, emptyTemplate.Ref.Digest)
 	}
 
-	firstRoot := copyConfigTree(t)
+	firstRoot := copyAgentSkillsFixture(t)
 	addTemplateSkills(t, firstRoot, "  skills:\n    - {namespace: skills, name: beta}\n    - {namespace: skills, name: alpha2}\n")
-	secondRoot := copyConfigTree(t)
+	secondRoot := copyAgentSkillsFixture(t)
 	addTemplateSkills(t, secondRoot, "  skills:\n    - {namespace: skills, name: alpha2}\n    - {namespace: skills, name: beta}\n")
 	first := mustLoad(t, firstRoot, MVPDescriptors())
 	second := mustLoad(t, secondRoot, MVPDescriptors())
@@ -79,7 +79,7 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyAgentSkillsFixture(t)
 			addTemplateSkills(t, root, test.yaml)
 			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
@@ -88,7 +88,7 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 		})
 	}
 
-	root := copyConfigTree(t)
+	root := copyAgentSkillsFixture(t)
 	var over strings.Builder
 	over.WriteString("  skills:\n")
 	for index := range contracts.MaxAgentTemplateSkills + 1 {
@@ -103,7 +103,7 @@ func TestAgentTemplateSkillRefsAreStrict(t *testing.T) {
 
 func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T) {
 	t.Run("reserved collision", func(t *testing.T) {
-		root := copyConfigTree(t)
+		root := copyAgentSkillsFixture(t)
 		addTemplateSkills(t, root, "  skills: [{namespace: skills, name: review}]\n")
 		path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
 		replaceFile(t, path, "        - list_artifacts", "        - load_skill")
@@ -118,7 +118,7 @@ func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T)
 	})
 
 	t.Run("Skill-only Worker", func(t *testing.T) {
-		root := copyConfigTree(t)
+		root := copyAgentSkillsFixture(t)
 		writeFile(t, filepath.Join(root, "model-policies/test-skill-worker.yaml"), []byte(`apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata: {name: test-skill-worker, version: "1"}
@@ -146,8 +146,11 @@ spec:
 }
 
 func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T) {
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	template, _ := snapshot.AgentTemplate("artifact_builder@2")
+	snapshot := mustLoad(t, agentSkillsFixtureRoot, MVPDescriptors())
+	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	workflow := ResolvedWorkflow{Stages: make(map[string]ResolvedStage)}
 	for stageIndex := range 5 {
 		variant := template
@@ -166,6 +169,19 @@ func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T
 		!strings.Contains(err.Error(), "at most 128") {
 		t.Fatalf("WorkflowSkillRefs() = (%v, %v)", refs, err)
 	}
+}
+
+// agentSkillsFixtureRoot is a frozen catalog holding only the Skill-free
+// artifact_builder@1 AgentTemplate and its dependencies.
+const agentSkillsFixtureRoot = "testdata/agent-skills"
+
+func copyAgentSkillsFixture(t *testing.T) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "configs")
+	if err := os.CopyFS(root, os.DirFS(agentSkillsFixtureRoot)); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func addTemplateSkills(t *testing.T, root, skillsYAML string) {

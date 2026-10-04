@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: shared_memory_worker
+  version: "1"
+
+spec:
+  description: Coordinates bounded Run-scoped notes with its Planner
+  runtime: adk@1
+  instructions:
+    ref: instructions/shared-memory-worker.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+  sandboxProfile: local-workdir@1
