@@ -231,6 +231,8 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 		}
 		return encoded
 	}
+	machine := link(ReportMachineLogicalKey, "report.json", "application/json")
+	summary := link(ReportSummaryLogicalKey, "report.md", "text/markdown")
 	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, request := range []struct {
 			id, findingID, subjectKind, subjectID, kind, actions string
@@ -244,22 +246,17 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 INSERT INTO audit_review_requests (
     request_id, audit_id, finding_id, subject_kind, subject_id, kind,
     subject_revision, subject_digest, requested_actions, state,
-    idempotency_key, request_digest
-) VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, 1, $7, $8::jsonb, 'decided', $1, $7)`,
+    idempotency_key, request_digest,
+    report_round_id, report_machine_link, report_summary_link
+) VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, 1, $7, $8::jsonb, 'decided', $1, $7,
+          CASE WHEN $4 = 'audit-report' THEN $9 END,
+          CASE WHEN $4 = 'audit-report' THEN $10::jsonb END,
+          CASE WHEN $4 = 'audit-report' THEN $11::jsonb END)`,
 				request.id, f.audit.AuditID, request.findingID, request.subjectKind,
-				request.subjectID, request.kind, digest, request.actions); err != nil {
+				request.subjectID, request.kind, digest, request.actions,
+				*f.audit.CurrentRoundID, machine, summary); err != nil {
 				return err
 			}
-		}
-		if _, err := tx.Exec(f.ctx, `
-INSERT INTO audit_report_candidates (
-    audit_id, request_id, round_id, subject_revision, subject_digest,
-    machine_link, summary_link
-) VALUES ($1, 'review-purge-report', $2, 1, $3, $4::jsonb, $5::jsonb)`,
-			f.audit.AuditID, *f.audit.CurrentRoundID, digest,
-			link(ReportMachineLogicalKey, "report.json", "application/json"),
-			link(ReportSummaryLogicalKey, "report.md", "text/markdown")); err != nil {
-			return err
 		}
 		for _, decision := range []struct {
 			id, requestID, findingID, action, verdict, severity, duplicateTarget string

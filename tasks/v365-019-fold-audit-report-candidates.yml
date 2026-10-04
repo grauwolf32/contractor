@@ -12,7 +12,7 @@ context:
   plan: docs/plans/2026-10-04-schema-reduction.md
 scope:
   in:
-    - "Store candidate links under report-candidate/* keys and find the request by subject."
+    - "Store the candidate round and report links on its report-acceptance review request (not audit_artifact_links, which Eval evidence and projections read) and find the request by subject."
     - "Report propose, accept, reject, expiry and claim wake-ups behave as before."
   out:
     - "Changing public API, CLI or UI behaviour."

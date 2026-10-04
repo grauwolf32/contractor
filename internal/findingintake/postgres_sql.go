@@ -21,11 +21,9 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    AND audit.state = ANY($5::text[])
    AND NOT EXISTS (
        SELECT 1
-         FROM audit_report_candidates AS candidate
-         JOIN audit_review_requests AS review
-           ON review.request_id = candidate.request_id
-          AND review.audit_id = candidate.audit_id
-        WHERE candidate.audit_id = audit.audit_id AND review.state = 'pending'
+         FROM audit_review_requests AS review
+        WHERE review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
+          AND review.state = 'pending'
    )
    AND audit.profile_snapshot #>> '{interaction,findingConfirmation}' = 'human-required'
  FOR UPDATE OF receipt, audit`

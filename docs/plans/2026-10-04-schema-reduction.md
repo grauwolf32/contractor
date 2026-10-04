@@ -51,10 +51,18 @@ the new files instead of moving them twice.
 | V365-016 | Deferred: `planner_execution_reports` holds several immutable reports per stage; `stage_metrics` is derived | 78 |
 | V365-017 | Fold `audit_collection_receipts` into `audit_executions` | 77 |
 | V365-018 | Fold `audit_coverage_rows` and `audit_proposal_items` into `audit_items` | 75 |
-| V365-019 | Fold `audit_report_candidates` into `audit_artifact_links` and the review request | 74 |
+| V365-019 | Fold `audit_report_candidates` into its report-acceptance review request | 74 |
 | V365-020 | Fold `finding_proposal_retention` into `finding_proposal_receipts` | 73 |
 | V365-021 | Fold `eval_project_dependencies` into `eval_submissions` | 72 |
 | V365-022 | Fold `eval_view_generations` into `eval_projection_queue` | 71 |
+
+The counts above are against the 91 tables of the starting schema. Upstream
+added `allocation_execution_reports` while the work was in progress, so the
+schema ends with 72 tables, `contractor_schema_migrations` included.
+
+V365-019 keeps the frozen report links off `audit_artifact_links`: Eval
+evidence binding and the Eval output projection read every link there, so an
+unaccepted report would look published.
 
 Each schema task adds one forward migration that moves existing rows before it
 drops a table, so an existing database upgrades in place. Where a whole-row

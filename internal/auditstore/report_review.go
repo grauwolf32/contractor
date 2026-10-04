@@ -69,10 +69,10 @@ func (s *PostgresStore) GetReportCandidate(
 	var revision int64
 	var machine, summary []byte
 	err := s.db.QueryRow(ctx, `
-SELECT request_id, round_id, subject_revision, subject_digest,
-       machine_link, summary_link, created_at
-  FROM audit_report_candidates
- WHERE audit_id = $1`, auditID).Scan(
+SELECT request_id, report_round_id, subject_revision, subject_digest,
+       report_machine_link, report_summary_link, created_at
+  FROM audit_review_requests
+ WHERE audit_id = $1 AND subject_kind = 'audit-report'`, auditID).Scan(
 		&result.RequestID, &result.RoundID, &revision, &result.SubjectDigest,
 		&machine, &summary, &result.CreatedAt,
 	)
@@ -107,10 +107,8 @@ func reportReviewSelectionCTEs(audit string) string {
 	return `report_review AS MATERIALIZED (
     SELECT review.request_id, review.audit_id
       FROM ` + audit + ` AS leaving
-      JOIN audit_report_candidates AS report USING (audit_id)
       JOIN audit_review_requests AS review
-        ON review.request_id = report.request_id
-       AND review.audit_id = report.audit_id
+        ON review.audit_id = leaving.audit_id AND review.subject_kind = 'audit-report'
      WHERE leaving.state = 'waiting_review' AND review.state = 'pending'
      FOR UPDATE OF review
 ), report_review_count AS MATERIALIZED (

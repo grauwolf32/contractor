@@ -70,7 +70,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 		return MutationResult{}, auditstore.ErrPrecondition
 	}
 	var candidate bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_report_candidates WHERE audit_id=$1)`, audit.AuditID).Scan(&candidate); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_review_requests WHERE audit_id=$1 AND subject_kind='audit-report')`, audit.AuditID).Scan(&candidate); err != nil {
 		return MutationResult{}, err
 	}
 	if candidate {

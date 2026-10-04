@@ -227,20 +227,14 @@ func proposeReportForTest(
 INSERT INTO audit_review_requests (
     request_id, audit_id, finding_id, subject_kind, subject_id, kind,
     subject_revision, subject_digest, requested_actions, state,
-    expires_at, idempotency_key, request_digest
+    expires_at, idempotency_key, request_digest,
+    report_round_id, report_machine_link, report_summary_link
 ) VALUES (
     $1, $2, NULL, 'audit-report', $2, 'report-acceptance',
     $3, $4, '["approve","reject"]'::jsonb, 'pending',
-    clock_timestamp() + interval '30 days', 'report-review', $4
-)`, requestID, audit.AuditID, finalizing.Revision, digest); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `
-INSERT INTO audit_report_candidates (
-    audit_id, request_id, round_id, subject_revision, subject_digest,
-    machine_link, summary_link
-) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)`,
-		audit.AuditID, requestID, roundID, finalizing.Revision, digest,
+    clock_timestamp() + interval '30 days', 'report-review', $4,
+    $5, $6::jsonb, $7::jsonb
+)`, requestID, audit.AuditID, finalizing.Revision, digest, roundID,
 		link(auditstore.ReportMachineLogicalKey, "report.json", "application/json"),
 		link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")); err != nil {
 		t.Fatal(err)

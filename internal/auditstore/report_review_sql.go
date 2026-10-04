@@ -2,8 +2,8 @@ package auditstore
 
 // SQL statements for report_review.go.
 
-// proposeReportSQL freezes report links $9/$10 as the candidate of a 30-day
-// review request $7 under the live controller claim ($1-$3). The Audit at
+// proposeReportSQL freezes report links $9/$10 of round $5 on a 30-day
+// report-acceptance review request $7 under the live controller claim ($1-$3). The Audit at
 // revision $4 must be finalizing with round $5 closed at revision $6, no
 // outstanding Runs, all items settled, all executions collected and no report
 // links; it moves to waiting_review and appends review.requested. The caller
@@ -43,29 +43,22 @@ WITH live_claim AS MATERIALIZED (
     INSERT INTO audit_review_requests (
         request_id, audit_id, finding_id, subject_kind, subject_id, kind,
         subject_revision, subject_digest, requested_actions, state,
-        expires_at, idempotency_key, request_digest
+        expires_at, idempotency_key, request_digest,
+        report_round_id, report_machine_link, report_summary_link
     )
     SELECT $7, audit_id, NULL, 'audit-report', audit_id,
            'report-acceptance', $4, $8, '["approve","reject"]'::jsonb,
            'pending', clock_timestamp() + interval '30 days',
-           'auto-report:' || substr($8, 8, 64), $8
+           'auto-report:' || substr($8, 8, 64), $8,
+           $5, $9::jsonb, $10::jsonb
       FROM gate
     RETURNING request_id, audit_id
-), inserted_candidate AS (
-    INSERT INTO audit_report_candidates (
-        audit_id, request_id, round_id, subject_revision, subject_digest,
-        machine_link, summary_link
-    )
-    SELECT request.audit_id, request.request_id, $5, $4, $8,
-           $9::jsonb, $10::jsonb
-      FROM inserted_request AS request
-    RETURNING audit_id
 ), changed AS (
     UPDATE audits AS audit
        SET state = 'waiting_review', revision = audit.revision + 1,
            next_event_sequence = audit.next_event_sequence + 1,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM inserted_candidate AS candidate
+      FROM inserted_request AS candidate
      WHERE audit.audit_id = candidate.audit_id
     RETURNING audit.*
 ), event_row AS (
@@ -99,10 +92,8 @@ WITH live_claim AS MATERIALIZED (
            review.state AS review_state
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
-      JOIN audit_report_candidates AS candidate USING (audit_id)
       JOIN audit_review_requests AS review
-        ON review.request_id = candidate.request_id
-       AND review.audit_id = candidate.audit_id
+        ON review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
      WHERE audit.audit_id = $1 AND audit.revision = $4
        AND audit.state = 'waiting_review'
        AND (
@@ -144,8 +135,8 @@ WITH live_claim AS MATERIALIZED (
 SELECT EXISTS (SELECT 1 FROM terminal)`
 
 // acceptReportCandidateSQL publishes an accepted report candidate: with Audit
-// $1 in waiting_review at revision $2 and its candidate matching request $3 and
-// digest $4 (both locked), it inserts the two report links from $5, completes
+// $1 in waiting_review at revision $2 and its report review matching request
+// $3 and digest $4 (both locked), it inserts the two report links from $5, completes
 // the Audit with dispatch closed and hold released, and appends
 // audit.report_committed; the caller completes the trailing SELECT.
 // Used by PostgresStore.AcceptReportCandidate.
@@ -158,7 +149,8 @@ WITH link_input AS MATERIALIZED (
 ), gate AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit
-      JOIN audit_report_candidates AS candidate USING (audit_id)
+      JOIN audit_review_requests AS candidate
+        ON candidate.audit_id = audit.audit_id AND candidate.subject_kind = 'audit-report'
      WHERE audit.audit_id = $1 AND audit.revision = $2
        AND audit.state = 'waiting_review'
        AND candidate.request_id = $3 AND candidate.subject_digest = $4
@@ -202,7 +194,7 @@ WITH link_input AS MATERIALIZED (
 SELECT `
 
 // rejectReportCandidateSQL fails Audit $1 when it is in waiting_review at
-// revision $2 and its report candidate matches request $3, subject revision $4
+// revision $2 and its report review matches request $3, subject revision $4
 // and digest $5 (both rows locked): dispatch closes, the hold is released, stop
 // reason report_rejected is set and audit.state_changed is appended. The caller
 // completes the trailing SELECT. Used by PostgresStore.RejectReportCandidate.
@@ -210,7 +202,8 @@ var rejectReportCandidateSQL = `
 WITH gate AS MATERIALIZED (
     SELECT audit.audit_id
       FROM audits AS audit
-      JOIN audit_report_candidates AS candidate USING (audit_id)
+      JOIN audit_review_requests AS candidate
+        ON candidate.audit_id = audit.audit_id AND candidate.subject_kind = 'audit-report'
      WHERE audit.audit_id = $1 AND audit.revision = $2
        AND audit.state = 'waiting_review'
        AND candidate.request_id = $3 AND candidate.subject_revision = $4

@@ -29,17 +29,16 @@ WITH candidates AS (
                        (
                            audit.deadline_at <= clock_timestamp()
                            AND NOT EXISTS (
-                               SELECT 1 FROM audit_report_candidates AS report
+                               SELECT 1 FROM audit_review_requests AS report
                                 WHERE report.audit_id = audit.audit_id
+                                  AND report.subject_kind = 'audit-report'
                            )
                        )
                        OR EXISTS (
                            SELECT 1
-                             FROM audit_report_candidates AS report
-                             JOIN audit_review_requests AS review
-                               ON review.request_id = report.request_id
-                              AND review.audit_id = report.audit_id
-                            WHERE report.audit_id = audit.audit_id
+                             FROM audit_review_requests AS review
+                            WHERE review.audit_id = audit.audit_id
+                              AND review.subject_kind = 'audit-report'
                               AND (
                                   review.state = 'expired'
                                   OR (review.state = 'pending' AND review.expires_at <= clock_timestamp())
