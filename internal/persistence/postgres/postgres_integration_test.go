@@ -79,7 +79,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"runtime_credentials",
 		"runtime_label_bindings", "runtime_management_operations", "scheduler_settings", "stage_allocations",
 		"stage_executions", "stage_metrics",
-		"stage_transition_decisions", "workflow_run_events", "workflow_run_metadata_labels",
+		"stage_transition_decisions", "workflow_run_events",
 		"workflow_run_output_publications", "workflow_runs",
 	}
 	if strings.Join(tables, ",") != strings.Join(wantTables, ",") {

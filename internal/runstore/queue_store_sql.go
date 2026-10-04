@@ -13,7 +13,7 @@ WITH page AS (
            project.kind AS project_kind, run.workflow_name,
            run.workflow_version, run.state, run.run_event_generation,
            run.next_run_event_sequence - 1 AS event_sequence,
-           run.created_at, run.updated_at
+           run.created_at, run.updated_at, run.metadata_labels
     FROM workflow_runs AS run
     LEFT JOIN projects AS project
       ON project.project_id = run.project_id
@@ -31,19 +31,9 @@ WITH page AS (
     ORDER BY run.created_at, run.run_id
     LIMIT $6
 )
-SELECT page.run_id, page.project_id, page.project_name, page.project_kind,
-       page.workflow_name, page.workflow_version, page.state,
-       page.run_event_generation, page.event_sequence,
-       page.created_at, page.updated_at,
-       COALESCE(
-           jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
-               FILTER (WHERE labels.label_key IS NOT NULL),
-           '{}'::jsonb
-       )
+SELECT run_id, project_id, project_name, project_kind,
+       workflow_name, workflow_version, state,
+       run_event_generation, event_sequence,
+       created_at, updated_at, metadata_labels
 FROM page
-LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
-GROUP BY page.run_id, page.project_id, page.project_name, page.project_kind,
-         page.workflow_name, page.workflow_version, page.state,
-         page.run_event_generation, page.event_sequence,
-         page.created_at, page.updated_at
-ORDER BY page.created_at, page.run_id`
+ORDER BY created_at, run_id`

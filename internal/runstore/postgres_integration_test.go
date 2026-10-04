@@ -385,37 +385,40 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 	}
 
 	_, err = pool.Exec(ctx, `
-UPDATE workflow_run_metadata_labels SET label_value = 'b'
-WHERE run_id = $1 AND label_key = 'eval.leg'`, created.RunID)
+UPDATE workflow_runs SET metadata_labels = metadata_labels || '{"eval.leg":"b"}'
+WHERE run_id = $1`, created.RunID)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("direct metadata-label update SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
-DELETE FROM workflow_run_metadata_labels
-WHERE run_id = $1 AND label_key = 'eval.leg'`, created.RunID)
+UPDATE workflow_runs SET metadata_labels = metadata_labels - 'eval.leg'
+WHERE run_id = $1`, created.RunID)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("direct metadata-label delete SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
-	_, err = pool.Exec(ctx, `
-INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-VALUES ($1, 4, 'eval.id', 'different')`, created.RunID)
-	if persistencepostgres.SQLState(err) != "23505" {
-		t.Fatalf("duplicate metadata-label SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	for labels, valid := range map[string]bool{
+		`{"eval.id":"eval_01","debug":""}`:               true,
+		`{"Eval":"x"}`:                                   false,
+		`{"contractor.owner":"x"}`:                       false,
+		`{"eval.id":1}`:                                  false,
+		`{"eval.id":"` + strings.Repeat("v", 257) + `"}`: false,
+	} {
+		var accepted bool
+		if err := pool.QueryRow(ctx, `SELECT contractor_valid_run_metadata_labels($1::jsonb)`, labels).Scan(&accepted); err != nil || accepted != valid {
+			t.Fatalf("metadata labels %s accepted = %t (%v), want %t", labels, accepted, err, valid)
+		}
 	}
-	_, err = pool.Exec(ctx, `
-INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-VALUES ($1, 33, 'extra', 'value')`, created.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
-		t.Fatalf("metadata-label count bound SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	for count, valid := range map[int]bool{32: true, 33: false} {
+		var accepted bool
+		if err := pool.QueryRow(ctx, `
+SELECT contractor_valid_run_metadata_labels(jsonb_object_agg('label' || index, 'value'))
+FROM generate_series(1, $1) AS index`, count).Scan(&accepted); err != nil || accepted != valid {
+			t.Fatalf("%d metadata labels accepted = %t (%v), want %t", count, accepted, err, valid)
+		}
 	}
 
 	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id = $1`, created.RunID); err != nil {
 		t.Fatalf("parent retention delete: %v", err)
-	}
-	var remaining int
-	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM workflow_run_metadata_labels WHERE run_id = $1`, created.RunID).Scan(&remaining); err != nil || remaining != 0 {
-		t.Fatalf("retained metadata-label rows = %d, error = %v", remaining, err)
 	}
 }
 

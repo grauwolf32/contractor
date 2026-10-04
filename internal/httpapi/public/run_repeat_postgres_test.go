@@ -39,7 +39,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 		t.Helper()
 		result := make(map[string]string)
 		for _, table := range []string{
-			"workflow_runs", "workflow_run_events", "workflow_run_metadata_labels", "projects",
+			"workflow_runs", "workflow_run_events", "projects",
 			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions",
 			"artifact_bindings", "artifact_lineage",
 		} {

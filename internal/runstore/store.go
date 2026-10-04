@@ -660,28 +660,13 @@ func encodeProjectHTTPTarget(target *contracts.HTTPOriginTargetRef) ([]byte, err
 func (s *PostgresStore) loadRunMetadataLabels(
 	ctx context.Context, runID string,
 ) (RunMetadataLabels, error) {
-	rows, err := s.db.Query(ctx, `
-SELECT label_key, label_value
-FROM workflow_run_metadata_labels
-WHERE run_id = $1
-ORDER BY ordinal`, runID)
-	if err != nil {
+	var encoded []byte
+	if err := s.db.QueryRow(ctx, `SELECT metadata_labels FROM workflow_runs WHERE run_id = $1`, runID).Scan(&encoded); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	result := make(RunMetadataLabels)
-	for rows.Next() {
-		var key, value string
-		if err := rows.Scan(&key, &value); err != nil {
-			return nil, err
-		}
-		if _, duplicate := result[key]; duplicate {
-			return nil, fmt.Errorf("duplicate persisted Run metadata label %q", key)
-		}
-		result[key] = value
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		return nil, fmt.Errorf("decode persisted Run metadata labels: %w", err)
 	}
 	if err := result.Validate(); err != nil {
 		return nil, err
