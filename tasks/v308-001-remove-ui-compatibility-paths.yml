@@ -3,7 +3,7 @@ id: V308-001
 title: Remove UI compatibility paths and duplicated helpers
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: Remove compatibility code the pre-production project does not need and reuse shared helpers.

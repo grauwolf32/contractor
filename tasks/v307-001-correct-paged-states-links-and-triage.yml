@@ -3,7 +3,7 @@ id: V307-001
 title: Correct paged inventory states, library links and triage codes
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: Fix several small UI regressions found by the review.
