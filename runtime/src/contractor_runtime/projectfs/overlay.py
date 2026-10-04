@@ -226,6 +226,84 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             raise WorkspaceStorageError("workspace_limit_exceeded")
         return candidate, total
 
+    async def make_directory(self, path: str, *, parents: bool = False) -> None:
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            edit = await to_thread_until_done(
+                self._directory_candidate, normalized, parents, name="workspace-path-edit"
+            )
+            if edit is None:
+                return
+            candidate, total = edit
+            self._tree = candidate
+            self._text_bytes = (candidate, total)
+            self._generation += 1
+
+    def _directory_candidate(
+        self, path: str, parents: bool
+    ) -> tuple[ManagedWorkspaceTree, int] | None:
+        original = self._tree
+        existing = original.kind(path)
+        if existing == "directory":
+            return None
+        if existing is not None:
+            raise WorkspaceStorageError("workspace_type_conflict")
+        ancestors = parent_paths(path)
+        missing = [parent for parent in ancestors if original.kind(parent) is None]
+        if missing and not parents:
+            raise WorkspaceStorageError("workspace_not_found")
+        if any(original.kind(parent) not in {None, "directory"} for parent in ancestors):
+            raise WorkspaceStorageError("workspace_type_conflict")
+        # The effective tree is always valid, so only the created directories
+        # can break an invariant; managed text is unchanged.
+        created = [*missing, path]
+        if any(_normalized_path(item) != item for item in created):
+            raise WorkspaceStorageError("workspace_path_invalid")
+        count = len(original.directories) + len(original.text_files) + len(original.binary_paths)
+        if count + len(created) > self._limits.max_files:
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        candidate = original.clone()
+        candidate.directories.update(created)
+        return candidate, self._managed_text_bytes()
+
+    async def delete_path(self, path: str, *, recursive: bool = False) -> None:
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            candidate, total = await to_thread_until_done(
+                self._delete_candidate, normalized, recursive, name="workspace-path-edit"
+            )
+            self._tree = candidate
+            self._text_bytes = (candidate, total)
+            self._generation += 1
+
+    def _delete_candidate(self, path: str, recursive: bool) -> tuple[ManagedWorkspaceTree, int]:
+        original = self._tree
+        kind = original.kind(path)
+        if kind is None:
+            raise WorkspaceStorageError("workspace_not_found")
+        # Only a directory has descendants; avoid scanning the whole tree.
+        selected = (
+            {candidate for candidate in original.paths() if _within(candidate, path)}
+            if kind == "directory"
+            else {path}
+        )
+        if not selected.isdisjoint(original.binary_paths):
+            raise WorkspaceStorageError("binary_file_unsupported")
+        if len(selected) > 1 and not recursive:
+            raise WorkspaceStorageError("workspace_type_conflict")
+        # Removing a whole subtree cannot break an invariant; only the removed
+        # text leaves the byte account.
+        total = self._managed_text_bytes()
+        candidate = original.clone()
+        candidate.directories.difference_update(selected)
+        for removed in selected:
+            text = candidate.text_files.pop(removed, None)
+            if text is not None:
+                total -= len(text.encode("utf-8"))
+        return candidate, total
+
     def _managed_text_bytes(self) -> int:
         if self._text_bytes is None or self._text_bytes[0] is not self._tree:
             # Hydration and every mutation validate the effective tree. This
@@ -233,11 +311,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             total = sum(len(text.encode("utf-8")) for text in self._tree.text_files.values())
             self._text_bytes = (self._tree, total)
         return self._text_bytes[1]
-
-    def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
-        _validate_tree(candidate, self._limits)
-        self._tree = candidate
-        self._generation += 1
 
     async def import_state(self, payload: bytes) -> None:
         async with self._lock:
