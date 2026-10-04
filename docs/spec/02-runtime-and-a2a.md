@@ -411,8 +411,9 @@ for continued Planner execution.
 This design enforces one active Control Plane instance per PostgreSQL database.
 The Server acquires a session-level advisory lease before starting credential
 recovery, the Scheduler and private API. A standby has only public health and
-503 readiness until it wins that lease; loss of the active lease session stops
-its listeners and Scheduler. Multiple active Control Plane replicas, shared
+503 readiness until it wins that lease; loss of the active lease session, a
+liveness probe failing within a bounded tolerance window that absorbs transient
+stalls, stops its listeners and Scheduler. Multiple active Control Plane replicas, shared
 fleet coordination and durable liveness state are deferred together; they must
 not be approximated by sharing an unfenced `runtime_agents` table. Durable
 certificate principals and their label assignments under

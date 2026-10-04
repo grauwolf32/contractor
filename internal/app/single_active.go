@@ -21,14 +21,26 @@ import (
 const controlPlaneLeaseKey int64 = 0x636f6e7472616374
 const controlPlaneLeasePoll = time.Second
 
+// controlPlaneLeaseTolerance bounds how long a single liveness probe may run
+// before the lease is declared lost. A probe that merely stalls (no bytes for
+// a short while) completes late instead of being cancelled, so a transient
+// client-to-database stall does not cancel the Server. It is kept well below
+// the server-side keepalive bound (tcp_user_timeout 30 s) so a genuinely
+// disconnected active Server stops before PostgreSQL releases the advisory
+// lock and a standby can acquire it.
+const controlPlaneLeaseTolerance = 10 * time.Second
+
 var errControlPlaneLeaseLost = errors.New("Control Plane lease session lost")
 
 type controlPlaneLease struct {
-	conn    *pgx.Conn
-	mu      sync.Mutex
-	private net.Listener
-	lost    bool
-	close   sync.Once
+	pool      *pgxpool.Pool
+	poll      time.Duration
+	tolerance time.Duration
+	conn      *pgx.Conn
+	mu        sync.Mutex
+	private   net.Listener
+	lost      bool
+	close     sync.Once
 }
 
 // PostgreSQL keeps a session advisory lock until it notices the session is
@@ -44,6 +56,16 @@ SELECT set_config('tcp_keepalives_idle', '10', false),
        set_config('tcp_user_timeout', '30000', false)`
 
 func openControlPlaneLease(ctx context.Context, pool *pgxpool.Pool) (*controlPlaneLease, error) {
+	conn, err := dialControlPlaneLeaseSession(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	return &controlPlaneLease{
+		pool: pool, poll: controlPlaneLeasePoll, tolerance: controlPlaneLeaseTolerance, conn: conn,
+	}, nil
+}
+
+func dialControlPlaneLeaseSession(ctx context.Context, pool *pgxpool.Pool) (*pgx.Conn, error) {
 	conn, err := pgx.ConnectConfig(ctx, pool.Config().ConnConfig.Copy())
 	if err != nil {
 		return nil, fmt.Errorf("connect Control Plane lease session: %w", err)
@@ -52,7 +74,27 @@ func openControlPlaneLease(ctx context.Context, pool *pgxpool.Pool) (*controlPla
 		_ = conn.Close(context.Background())
 		return nil, fmt.Errorf("configure Control Plane lease session keepalives: %w", err)
 	}
-	return &controlPlaneLease{conn: conn}, nil
+	return conn, nil
+}
+
+// reconnect replaces the lease session connection. It is only safe before the
+// advisory lock is held: a session advisory lock is bound to the exact backend
+// session, so a reconnected session never inherits a lock the old one held.
+// The standby acquisition loop uses it to survive a transient acquisition
+// stall that drops its not-yet-locking probe connection.
+func (lease *controlPlaneLease) reconnect(ctx context.Context) error {
+	_ = lease.conn.Close(context.Background())
+	// Bound the reconnect so a sustained stall does not block the polling loop;
+	// a failed reconnect leaves the closed connection in place and the next
+	// poll retries.
+	dialCtx, cancel := context.WithTimeout(ctx, lease.tolerance)
+	defer cancel()
+	conn, err := dialControlPlaneLeaseSession(dialCtx, lease.pool)
+	if err != nil {
+		return err
+	}
+	lease.conn = conn
+	return nil
 }
 
 func (lease *controlPlaneLease) tryAcquire(ctx context.Context) (bool, error) {
@@ -90,7 +132,7 @@ func (lease *controlPlaneLease) watch(ctx context.Context, cancel context.Cancel
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(controlPlaneLeasePoll)
+		ticker := time.NewTicker(lease.poll)
 		defer ticker.Stop()
 		for {
 			select {
@@ -98,7 +140,15 @@ func (lease *controlPlaneLease) watch(ctx context.Context, cancel context.Cancel
 				return
 			case <-ticker.C:
 			}
-			pingCtx, stopPing := context.WithTimeout(ctx, controlPlaneLeasePoll)
+			// A single probe may run up to the tolerance window. A transient
+			// stall then resolves late instead of cancelling the probe and
+			// dropping the lock-holding session, so it does not stop the
+			// Server. A genuinely lost session fails within the window, which
+			// stays below the server-side keepalive bound, so the Server stops
+			// before PostgreSQL releases the lock to a standby. The lock is
+			// bound to this exact session, so a failed probe is unrecoverable:
+			// the session is declared lost rather than reconnected.
+			pingCtx, stopPing := context.WithTimeout(ctx, lease.tolerance)
 			err := lease.conn.Ping(pingCtx)
 			stopPing()
 			if err == nil || ctx.Err() != nil {
@@ -162,7 +212,7 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 		stopStandby()
 		return <-done
 	}
-	ticker := time.NewTicker(controlPlaneLeasePoll)
+	ticker := time.NewTicker(lease.poll)
 	defer ticker.Stop()
 	for {
 		select {
@@ -175,9 +225,7 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 			}
 			return nil, fmt.Errorf("standby readiness listener stopped: %w", serveErr)
 		case <-ticker.C:
-			pollCtx, cancel := context.WithTimeout(ctx, controlPlaneLeasePoll)
-			acquired, err = lease.tryAcquire(pollCtx)
-			cancel()
+			acquired, err = lease.acquireOrReconnect(ctx, logger)
 			if err != nil {
 				return nil, errors.Join(err, stop())
 			}
@@ -191,4 +239,26 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 			}
 		}
 	}
+}
+
+// acquireOrReconnect attempts one bounded standby acquisition. A transient
+// stall can cancel the probe and drop this not-yet-locking connection; because
+// the standby holds no lock, it reconnects and reports no acquisition rather
+// than failing, so a single acquisition timeout never exits the process. It
+// returns an error only when the outer context is done.
+func (lease *controlPlaneLease) acquireOrReconnect(ctx context.Context, logger *slog.Logger) (bool, error) {
+	pollCtx, cancel := context.WithTimeout(ctx, lease.tolerance)
+	acquired, err := lease.tryAcquire(pollCtx)
+	cancel()
+	if err == nil {
+		return acquired, nil
+	}
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	logger.Warn("Control Plane lease acquisition attempt failed; retrying", "error", err)
+	if reconnectErr := lease.reconnect(ctx); reconnectErr != nil && ctx.Err() == nil {
+		logger.Warn("Control Plane lease session reconnect failed; retrying", "error", reconnectErr)
+	}
+	return false, nil
 }

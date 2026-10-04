@@ -11,8 +11,13 @@ until it acquires the Control Plane lease; the Kubernetes example uses a
 `Recreate` update to avoid overlapping active pods.
 The lease uses a dedicated PostgreSQL session, so connect directly to
 PostgreSQL or through a session-pooling proxy, not transaction-mode pooling.
-The active Server checks that session every second; if it is lost, the Server
-closes both listeners and stops the Scheduler immediately.
+The active Server probes that session every second; a single probe may run up
+to a ten-second tolerance window, so a brief client-to-database stall does not
+stop the Server. Once a probe fails within that window, the Server closes both
+listeners and stops the Scheduler. The window stays below the server-side
+keepalive bound, so the Server stops before PostgreSQL releases the lock to a
+standby. A standby that hits a transient acquisition stall reconnects and keeps
+polling rather than exiting.
 
 ## Install the release
 

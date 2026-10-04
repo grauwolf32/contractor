@@ -295,12 +295,20 @@ holds a session-level PostgreSQL advisory lease on a dedicated connection. A
 second Server serves `/healthz` but returns 503 from `/readyz` and has no
 private API until it acquires that lease. The active Server closes its listeners
 and cancels the Scheduler when it detects lease-session loss; the standby then
-takes over. The lease session sets server-side TCP keepalives (10 s idle, 5 s
-interval, 3 probes, 30 s user timeout), so PostgreSQL releases the lease within
-about half a minute when the active Server's host disappears without closing
-the connection. The dedicated connection requires direct PostgreSQL or session
-pooling, not transaction-mode pooling; behind a session pooler, the pooler's own
-client keepalive settings bound how long a vanished Server keeps the lease.
+takes over. Loss is a single liveness probe that fails within a bounded
+tolerance window (ten seconds): a probe may run that long so a transient
+client-to-database stall completes late instead of being cancelled and dropping
+the lock-holding session, but a genuinely lost session fails within the window.
+The lease session sets server-side TCP keepalives (10 s idle, 5 s interval, 3
+probes, 30 s user timeout), so PostgreSQL releases the lease within about half a
+minute when the active Server's host disappears without closing the connection.
+Because the tolerance window stays below that keepalive bound, a disconnected
+active Server stops before PostgreSQL releases the lock to a standby. A standby
+whose acquisition probe hits a transient stall reconnects its (lock-free)
+session and keeps polling rather than exiting the process. The dedicated
+connection requires direct PostgreSQL or session pooling, not transaction-mode
+pooling; behind a session pooler, the pooler's own client keepalive settings
+bound how long a vanished Server keeps the lease.
 
 The example Deployment uses one replica and `Recreate` updates. Active-active
 Server replicas are unsupported: two independently active Schedulers would each
