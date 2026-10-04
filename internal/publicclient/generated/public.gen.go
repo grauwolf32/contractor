@@ -7001,6 +7001,9 @@ type RunCreationUnavailable = Error
 // RuntimeLabelWritten defines model for RuntimeLabelWritten.
 type RuntimeLabelWritten = RuntimeLabelBinding
 
+// StorageTransactionConflict defines model for StorageTransactionConflict.
+type StorageTransactionConflict = Error
+
 // ListArtifactsParams defines parameters for ListArtifacts.
 type ListArtifactsParams struct {
 	Limit     *Limit        `form:"limit,omitempty" json:"limit,omitempty"`
@@ -26918,6 +26921,11 @@ type ListArtifactsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListArtifactsResponse503Headers the declared response headers of an HTTP 503 response for ListArtifacts
+type ListArtifactsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListArtifactsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -26929,6 +26937,8 @@ type ListArtifactsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListArtifactsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -26937,6 +26947,8 @@ type ListArtifactsResponse struct {
 	Headers401 *ListArtifactsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListArtifactsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListArtifactsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -26957,6 +26969,11 @@ func (r ListArtifactsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListArtifactsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListArtifactsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -27828,6 +27845,11 @@ type GetArtifactLineageResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetArtifactLineageResponse503Headers the declared response headers of an HTTP 503 response for GetArtifactLineage
+type GetArtifactLineageResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetArtifactLineageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27841,6 +27863,8 @@ type GetArtifactLineageResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetArtifactLineageResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -27851,6 +27875,8 @@ type GetArtifactLineageResponse struct {
 	Headers404 *GetArtifactLineageResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetArtifactLineageResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetArtifactLineageResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -27876,6 +27902,11 @@ func (r GetArtifactLineageResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetArtifactLineageResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetArtifactLineageResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -27934,6 +27965,11 @@ type GetArtifactMetadataResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetArtifactMetadataResponse503Headers the declared response headers of an HTTP 503 response for GetArtifactMetadata
+type GetArtifactMetadataResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetArtifactMetadataResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27947,6 +27983,8 @@ type GetArtifactMetadataResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetArtifactMetadataResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -27957,6 +27995,8 @@ type GetArtifactMetadataResponse struct {
 	Headers404 *GetArtifactMetadataResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetArtifactMetadataResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetArtifactMetadataResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -27982,6 +28022,11 @@ func (r GetArtifactMetadataResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetArtifactMetadataResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetArtifactMetadataResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28040,6 +28085,11 @@ type ListArtifactVersionsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListArtifactVersionsResponse503Headers the declared response headers of an HTTP 503 response for ListArtifactVersions
+type ListArtifactVersionsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListArtifactVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28053,6 +28103,8 @@ type ListArtifactVersionsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListArtifactVersionsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28063,6 +28115,8 @@ type ListArtifactVersionsResponse struct {
 	Headers404 *ListArtifactVersionsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListArtifactVersionsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListArtifactVersionsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -28088,6 +28142,11 @@ func (r ListArtifactVersionsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListArtifactVersionsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListArtifactVersionsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28340,6 +28399,11 @@ type ListAuditStandardsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditStandardsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditStandards
+type ListAuditStandardsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditStandardsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28351,6 +28415,8 @@ type ListAuditStandardsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditStandardsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28359,6 +28425,8 @@ type ListAuditStandardsResponse struct {
 	Headers401 *ListAuditStandardsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditStandardsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditStandardsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -28379,6 +28447,11 @@ func (r ListAuditStandardsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditStandardsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditStandardsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28437,6 +28510,11 @@ type GetAuditStandardResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditStandardResponse503Headers the declared response headers of an HTTP 503 response for GetAuditStandard
+type GetAuditStandardResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditStandardResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28450,6 +28528,8 @@ type GetAuditStandardResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditStandardResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28460,6 +28540,8 @@ type GetAuditStandardResponse struct {
 	Headers404 *GetAuditStandardResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditStandardResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditStandardResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -28485,6 +28567,11 @@ func (r GetAuditStandardResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditStandardResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditStandardResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28561,6 +28648,11 @@ type DeleteAuditResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteAuditResponse503Headers the declared response headers of an HTTP 503 response for DeleteAudit
+type DeleteAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteAuditResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28580,6 +28672,8 @@ type DeleteAuditResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers202 the parsed response headers for an HTTP 202 response
 	Headers202 *DeleteAuditResponse202Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28596,6 +28690,8 @@ type DeleteAuditResponse struct {
 	Headers412 *DeleteAuditResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteAuditResponse503Headers
 }
 
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
@@ -28636,6 +28732,11 @@ func (r DeleteAuditResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteAuditResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28696,6 +28797,11 @@ type GetAuditResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditResponse503Headers the declared response headers of an HTTP 503 response for GetAudit
+type GetAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28709,6 +28815,8 @@ type GetAuditResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28719,6 +28827,8 @@ type GetAuditResponse struct {
 	Headers404 *GetAuditResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -28744,6 +28854,11 @@ func (r GetAuditResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28820,6 +28935,11 @@ type CancelAuditResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// CancelAuditResponse503Headers the declared response headers of an HTTP 503 response for CancelAudit
+type CancelAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CancelAuditResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28839,6 +28959,8 @@ type CancelAuditResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers202 the parsed response headers for an HTTP 202 response
 	Headers202 *CancelAuditResponse202Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28855,6 +28977,8 @@ type CancelAuditResponse struct {
 	Headers412 *CancelAuditResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CancelAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CancelAuditResponse503Headers
 }
 
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
@@ -28895,6 +29019,11 @@ func (r CancelAuditResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CancelAuditResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CancelAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -28954,6 +29083,11 @@ type ListAuditCoverageResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditCoverageResponse503Headers the declared response headers of an HTTP 503 response for ListAuditCoverage
+type ListAuditCoverageResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditCoverageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28967,6 +29101,8 @@ type ListAuditCoverageResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditCoverageResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -28977,6 +29113,8 @@ type ListAuditCoverageResponse struct {
 	Headers404 *ListAuditCoverageResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditCoverageResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditCoverageResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29002,6 +29140,11 @@ func (r ListAuditCoverageResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditCoverageResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditCoverageResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29082,6 +29225,11 @@ type ImportAuditFindingProposalResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ImportAuditFindingProposalResponse503Headers the declared response headers of an HTTP 503 response for ImportAuditFindingProposal
+type ImportAuditFindingProposalResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ImportAuditFindingProposalResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29103,6 +29251,8 @@ type ImportAuditFindingProposalResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ImportAuditFindingProposalResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -29121,6 +29271,8 @@ type ImportAuditFindingProposalResponse struct {
 	Headers413 *ImportAuditFindingProposalResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ImportAuditFindingProposalResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ImportAuditFindingProposalResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29166,6 +29318,11 @@ func (r ImportAuditFindingProposalResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ImportAuditFindingProposalResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ImportAuditFindingProposalResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29225,6 +29382,11 @@ type ListAuditFindingProposalsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditFindingProposalsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditFindingProposals
+type ListAuditFindingProposalsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditFindingProposalsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29238,6 +29400,8 @@ type ListAuditFindingProposalsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditFindingProposalsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29248,6 +29412,8 @@ type ListAuditFindingProposalsResponse struct {
 	Headers404 *ListAuditFindingProposalsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditFindingProposalsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditFindingProposalsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29273,6 +29439,11 @@ func (r ListAuditFindingProposalsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditFindingProposalsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditFindingProposalsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29337,6 +29508,11 @@ type ListAuditFindingsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditFindingsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditFindings
+type ListAuditFindingsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditFindingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29352,6 +29528,8 @@ type ListAuditFindingsResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditFindingsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29364,6 +29542,8 @@ type ListAuditFindingsResponse struct {
 	Headers409 *ListAuditFindingsResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditFindingsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditFindingsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29394,6 +29574,11 @@ func (r ListAuditFindingsResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditFindingsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditFindingsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29454,6 +29639,11 @@ type GetAuditFindingResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditFindingResponse503Headers the declared response headers of an HTTP 503 response for GetAuditFinding
+type GetAuditFindingResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditFindingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29467,6 +29657,8 @@ type GetAuditFindingResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditFindingResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29477,6 +29669,8 @@ type GetAuditFindingResponse struct {
 	Headers404 *GetAuditFindingResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditFindingResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditFindingResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29502,6 +29696,11 @@ func (r GetAuditFindingResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditFindingResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditFindingResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29566,6 +29765,11 @@ type ListAuditFindingProvenanceResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditFindingProvenanceResponse503Headers the declared response headers of an HTTP 503 response for ListAuditFindingProvenance
+type ListAuditFindingProvenanceResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditFindingProvenanceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29581,6 +29785,8 @@ type ListAuditFindingProvenanceResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditFindingProvenanceResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29593,6 +29799,8 @@ type ListAuditFindingProvenanceResponse struct {
 	Headers409 *ListAuditFindingProvenanceResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditFindingProvenanceResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditFindingProvenanceResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29623,6 +29831,11 @@ func (r ListAuditFindingProvenanceResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditFindingProvenanceResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditFindingProvenanceResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29704,6 +29917,11 @@ type CreateAuditFindingReviewResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// CreateAuditFindingReviewResponse503Headers the declared response headers of an HTTP 503 response for CreateAuditFindingReview
+type CreateAuditFindingReviewResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CreateAuditFindingReviewResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29725,6 +29943,8 @@ type CreateAuditFindingReviewResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateAuditFindingReviewResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29743,6 +29963,8 @@ type CreateAuditFindingReviewResponse struct {
 	Headers413 *CreateAuditFindingReviewResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateAuditFindingReviewResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateAuditFindingReviewResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -29788,6 +30010,11 @@ func (r CreateAuditFindingReviewResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CreateAuditFindingReviewResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateAuditFindingReviewResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29847,6 +30074,11 @@ type ListAuditItemsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditItemsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditItems
+type ListAuditItemsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditItemsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29860,6 +30092,8 @@ type ListAuditItemsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditItemsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -29870,6 +30104,8 @@ type ListAuditItemsResponse struct {
 	Headers404 *ListAuditItemsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditItemsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditItemsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -29895,6 +30131,11 @@ func (r ListAuditItemsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditItemsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditItemsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -29971,6 +30212,11 @@ type PauseAuditResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// PauseAuditResponse503Headers the declared response headers of an HTTP 503 response for PauseAudit
+type PauseAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type PauseAuditResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -29990,6 +30236,8 @@ type PauseAuditResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PauseAuditResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -30006,6 +30254,8 @@ type PauseAuditResponse struct {
 	Headers412 *PauseAuditResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *PauseAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PauseAuditResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -30046,6 +30296,11 @@ func (r PauseAuditResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r PauseAuditResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PauseAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -30110,6 +30365,11 @@ type GetAuditReportResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditReportResponse503Headers the declared response headers of an HTTP 503 response for GetAuditReport
+type GetAuditReportResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditReportResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30125,6 +30385,8 @@ type GetAuditReportResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditReportResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -30137,6 +30399,8 @@ type GetAuditReportResponse struct {
 	Headers409 *GetAuditReportResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditReportResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditReportResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -30167,6 +30431,11 @@ func (r GetAuditReportResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditReportResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditReportResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -30410,6 +30679,11 @@ type ListAuditReviewsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditReviewsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditReviews
+type ListAuditReviewsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAuditReviewsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30425,6 +30699,8 @@ type ListAuditReviewsResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAuditReviewsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -30437,6 +30713,8 @@ type ListAuditReviewsResponse struct {
 	Headers409 *ListAuditReviewsResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditReviewsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditReviewsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -30467,6 +30745,11 @@ func (r ListAuditReviewsResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAuditReviewsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditReviewsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -30527,6 +30810,11 @@ type GetAuditReviewResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditReviewResponse503Headers the declared response headers of an HTTP 503 response for GetAuditReview
+type GetAuditReviewResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditReviewResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30540,6 +30828,8 @@ type GetAuditReviewResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditReviewResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -30550,6 +30840,8 @@ type GetAuditReviewResponse struct {
 	Headers404 *GetAuditReviewResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditReviewResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditReviewResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -30575,6 +30867,11 @@ func (r GetAuditReviewResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditReviewResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditReviewResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -30656,6 +30953,11 @@ type DecideAuditReviewResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DecideAuditReviewResponse503Headers the declared response headers of an HTTP 503 response for DecideAuditReview
+type DecideAuditReviewResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DecideAuditReviewResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30677,6 +30979,8 @@ type DecideAuditReviewResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *DecideAuditReviewResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -30695,6 +30999,8 @@ type DecideAuditReviewResponse struct {
 	Headers413 *DecideAuditReviewResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DecideAuditReviewResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DecideAuditReviewResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -30740,6 +31046,11 @@ func (r DecideAuditReviewResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DecideAuditReviewResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DecideAuditReviewResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -30992,6 +31303,11 @@ type GetAuditWorkspaceResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetAuditWorkspaceResponse503Headers the declared response headers of an HTTP 503 response for GetAuditWorkspace
+type GetAuditWorkspaceResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetAuditWorkspaceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -31005,6 +31321,8 @@ type GetAuditWorkspaceResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetAuditWorkspaceResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -31015,6 +31333,8 @@ type GetAuditWorkspaceResponse struct {
 	Headers404 *GetAuditWorkspaceResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetAuditWorkspaceResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditWorkspaceResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -31040,6 +31360,11 @@ func (r GetAuditWorkspaceResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetAuditWorkspaceResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditWorkspaceResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -35660,6 +35985,11 @@ type ListAllocationResourceHistoryResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListAllocationResourceHistoryResponse503Headers the declared response headers of an HTTP 503 response for ListAllocationResourceHistory
+type ListAllocationResourceHistoryResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListAllocationResourceHistoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -35673,6 +36003,8 @@ type ListAllocationResourceHistoryResponse struct {
 	JSON403 *Forbidden
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListAllocationResourceHistoryResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -35683,6 +36015,8 @@ type ListAllocationResourceHistoryResponse struct {
 	Headers403 *ListAllocationResourceHistoryResponse403Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAllocationResourceHistoryResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAllocationResourceHistoryResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -35708,6 +36042,11 @@ func (r ListAllocationResourceHistoryResponse) GetJSON403() *Forbidden {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListAllocationResourceHistoryResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAllocationResourceHistoryResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36522,6 +36861,11 @@ type GetPerformanceHistoryResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetPerformanceHistoryResponse503Headers the declared response headers of an HTTP 503 response for GetPerformanceHistory
+type GetPerformanceHistoryResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetPerformanceHistoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36535,6 +36879,8 @@ type GetPerformanceHistoryResponse struct {
 	JSON403 *Forbidden
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetPerformanceHistoryResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36545,6 +36891,8 @@ type GetPerformanceHistoryResponse struct {
 	Headers403 *GetPerformanceHistoryResponse403Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetPerformanceHistoryResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetPerformanceHistoryResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -36570,6 +36918,11 @@ func (r GetPerformanceHistoryResponse) GetJSON403() *Forbidden {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetPerformanceHistoryResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetPerformanceHistoryResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36624,6 +36977,11 @@ type ListRuntimeAgentPrincipalsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRuntimeAgentPrincipalsResponse503Headers the declared response headers of an HTTP 503 response for ListRuntimeAgentPrincipals
+type ListRuntimeAgentPrincipalsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRuntimeAgentPrincipalsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36635,6 +36993,8 @@ type ListRuntimeAgentPrincipalsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRuntimeAgentPrincipalsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36643,6 +37003,8 @@ type ListRuntimeAgentPrincipalsResponse struct {
 	Headers401 *ListRuntimeAgentPrincipalsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRuntimeAgentPrincipalsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRuntimeAgentPrincipalsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -36663,6 +37025,11 @@ func (r ListRuntimeAgentPrincipalsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRuntimeAgentPrincipalsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRuntimeAgentPrincipalsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36736,6 +37103,11 @@ type DeleteRuntimeAgentPrincipalResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteRuntimeAgentPrincipalResponse503Headers the declared response headers of an HTTP 503 response for DeleteRuntimeAgentPrincipal
+type DeleteRuntimeAgentPrincipalResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteRuntimeAgentPrincipalResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36753,6 +37125,8 @@ type DeleteRuntimeAgentPrincipalResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRuntimeAgentPrincipalResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36769,6 +37143,8 @@ type DeleteRuntimeAgentPrincipalResponse struct {
 	Headers412 *DeleteRuntimeAgentPrincipalResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteRuntimeAgentPrincipalResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteRuntimeAgentPrincipalResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -36804,6 +37180,11 @@ func (r DeleteRuntimeAgentPrincipalResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteRuntimeAgentPrincipalResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteRuntimeAgentPrincipalResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36864,6 +37245,11 @@ type GetRuntimeAgentPrincipalResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRuntimeAgentPrincipalResponse503Headers the declared response headers of an HTTP 503 response for GetRuntimeAgentPrincipal
+type GetRuntimeAgentPrincipalResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRuntimeAgentPrincipalResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36877,6 +37263,8 @@ type GetRuntimeAgentPrincipalResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRuntimeAgentPrincipalResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36887,6 +37275,8 @@ type GetRuntimeAgentPrincipalResponse struct {
 	Headers404 *GetRuntimeAgentPrincipalResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRuntimeAgentPrincipalResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRuntimeAgentPrincipalResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -36912,6 +37302,11 @@ func (r GetRuntimeAgentPrincipalResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRuntimeAgentPrincipalResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRuntimeAgentPrincipalResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36993,6 +37388,11 @@ type ReplaceRuntimeAgentPrincipalLabelsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ReplaceRuntimeAgentPrincipalLabelsResponse503Headers the declared response headers of an HTTP 503 response for ReplaceRuntimeAgentPrincipalLabels
+type ReplaceRuntimeAgentPrincipalLabelsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ReplaceRuntimeAgentPrincipalLabelsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37014,6 +37414,8 @@ type ReplaceRuntimeAgentPrincipalLabelsResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ReplaceRuntimeAgentPrincipalLabelsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37032,6 +37434,8 @@ type ReplaceRuntimeAgentPrincipalLabelsResponse struct {
 	Headers413 *ReplaceRuntimeAgentPrincipalLabelsResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ReplaceRuntimeAgentPrincipalLabelsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ReplaceRuntimeAgentPrincipalLabelsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -37077,6 +37481,11 @@ func (r ReplaceRuntimeAgentPrincipalLabelsResponse) GetJSON413() *PayloadTooLarg
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ReplaceRuntimeAgentPrincipalLabelsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ReplaceRuntimeAgentPrincipalLabelsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37237,6 +37646,11 @@ type ListRuntimeConfigsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRuntimeConfigsResponse503Headers the declared response headers of an HTTP 503 response for ListRuntimeConfigs
+type ListRuntimeConfigsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRuntimeConfigsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37248,6 +37662,8 @@ type ListRuntimeConfigsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRuntimeConfigsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37256,6 +37672,8 @@ type ListRuntimeConfigsResponse struct {
 	Headers401 *ListRuntimeConfigsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRuntimeConfigsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRuntimeConfigsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -37276,6 +37694,11 @@ func (r ListRuntimeConfigsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRuntimeConfigsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRuntimeConfigsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37347,6 +37770,11 @@ type PublishRuntimeConfigResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// PublishRuntimeConfigResponse503Headers the declared response headers of an HTTP 503 response for PublishRuntimeConfig
+type PublishRuntimeConfigResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type PublishRuntimeConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37364,6 +37792,8 @@ type PublishRuntimeConfigResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *PublishRuntimeConfigResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37378,6 +37808,8 @@ type PublishRuntimeConfigResponse struct {
 	Headers413 *PublishRuntimeConfigResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *PublishRuntimeConfigResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PublishRuntimeConfigResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -37413,6 +37845,11 @@ func (r PublishRuntimeConfigResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r PublishRuntimeConfigResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PublishRuntimeConfigResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37473,6 +37910,11 @@ type GetRuntimeConfigResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRuntimeConfigResponse503Headers the declared response headers of an HTTP 503 response for GetRuntimeConfig
+type GetRuntimeConfigResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRuntimeConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37486,6 +37928,8 @@ type GetRuntimeConfigResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRuntimeConfigResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37496,6 +37940,8 @@ type GetRuntimeConfigResponse struct {
 	Headers404 *GetRuntimeConfigResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRuntimeConfigResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRuntimeConfigResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -37521,6 +37967,11 @@ func (r GetRuntimeConfigResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRuntimeConfigResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRuntimeConfigResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37575,6 +38026,11 @@ type ListRuntimeCredentialsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRuntimeCredentialsResponse503Headers the declared response headers of an HTTP 503 response for ListRuntimeCredentials
+type ListRuntimeCredentialsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRuntimeCredentialsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37586,6 +38042,8 @@ type ListRuntimeCredentialsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRuntimeCredentialsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37594,6 +38052,8 @@ type ListRuntimeCredentialsResponse struct {
 	Headers401 *ListRuntimeCredentialsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRuntimeCredentialsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRuntimeCredentialsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -37614,6 +38074,11 @@ func (r ListRuntimeCredentialsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRuntimeCredentialsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRuntimeCredentialsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37684,6 +38149,11 @@ type CreateRuntimeCredentialResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// CreateRuntimeCredentialResponse503Headers the declared response headers of an HTTP 503 response for CreateRuntimeCredential
+type CreateRuntimeCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CreateRuntimeCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37701,6 +38171,8 @@ type CreateRuntimeCredentialResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateRuntimeCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37715,6 +38187,8 @@ type CreateRuntimeCredentialResponse struct {
 	Headers413 *CreateRuntimeCredentialResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateRuntimeCredentialResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateRuntimeCredentialResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -37750,6 +38224,11 @@ func (r CreateRuntimeCredentialResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CreateRuntimeCredentialResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37818,6 +38297,11 @@ type DeleteRuntimeCredentialResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteRuntimeCredentialResponse503Headers the declared response headers of an HTTP 503 response for DeleteRuntimeCredential
+type DeleteRuntimeCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteRuntimeCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37833,6 +38317,8 @@ type DeleteRuntimeCredentialResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRuntimeCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37847,6 +38333,8 @@ type DeleteRuntimeCredentialResponse struct {
 	Headers409 *DeleteRuntimeCredentialResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteRuntimeCredentialResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteRuntimeCredentialResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -37877,6 +38365,11 @@ func (r DeleteRuntimeCredentialResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteRuntimeCredentialResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -37936,6 +38429,11 @@ type GetRuntimeCredentialResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRuntimeCredentialResponse503Headers the declared response headers of an HTTP 503 response for GetRuntimeCredential
+type GetRuntimeCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRuntimeCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -37949,6 +38447,8 @@ type GetRuntimeCredentialResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRuntimeCredentialResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -37959,6 +38459,8 @@ type GetRuntimeCredentialResponse struct {
 	Headers404 *GetRuntimeCredentialResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRuntimeCredentialResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRuntimeCredentialResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -37984,6 +38486,11 @@ func (r GetRuntimeCredentialResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRuntimeCredentialResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRuntimeCredentialResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38038,6 +38545,11 @@ type ListRuntimeLabelsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRuntimeLabelsResponse503Headers the declared response headers of an HTTP 503 response for ListRuntimeLabels
+type ListRuntimeLabelsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRuntimeLabelsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38049,6 +38561,8 @@ type ListRuntimeLabelsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRuntimeLabelsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38057,6 +38571,8 @@ type ListRuntimeLabelsResponse struct {
 	Headers401 *ListRuntimeLabelsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRuntimeLabelsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRuntimeLabelsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38077,6 +38593,11 @@ func (r ListRuntimeLabelsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRuntimeLabelsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRuntimeLabelsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38150,6 +38671,11 @@ type DeleteRuntimeLabelResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteRuntimeLabelResponse503Headers the declared response headers of an HTTP 503 response for DeleteRuntimeLabel
+type DeleteRuntimeLabelResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteRuntimeLabelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38167,6 +38693,8 @@ type DeleteRuntimeLabelResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRuntimeLabelResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38183,6 +38711,8 @@ type DeleteRuntimeLabelResponse struct {
 	Headers412 *DeleteRuntimeLabelResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteRuntimeLabelResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteRuntimeLabelResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -38218,6 +38748,11 @@ func (r DeleteRuntimeLabelResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteRuntimeLabelResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteRuntimeLabelResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38278,6 +38813,11 @@ type GetRuntimeLabelResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRuntimeLabelResponse503Headers the declared response headers of an HTTP 503 response for GetRuntimeLabel
+type GetRuntimeLabelResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRuntimeLabelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38291,6 +38831,8 @@ type GetRuntimeLabelResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRuntimeLabelResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38301,6 +38843,8 @@ type GetRuntimeLabelResponse struct {
 	Headers404 *GetRuntimeLabelResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRuntimeLabelResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRuntimeLabelResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38326,6 +38870,11 @@ func (r GetRuntimeLabelResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRuntimeLabelResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRuntimeLabelResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38415,6 +38964,11 @@ type PutRuntimeLabelResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// PutRuntimeLabelResponse503Headers the declared response headers of an HTTP 503 response for PutRuntimeLabel
+type PutRuntimeLabelResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type PutRuntimeLabelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38438,6 +38992,8 @@ type PutRuntimeLabelResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutRuntimeLabelResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -38458,6 +39014,8 @@ type PutRuntimeLabelResponse struct {
 	Headers413 *PutRuntimeLabelResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *PutRuntimeLabelResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PutRuntimeLabelResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38508,6 +39066,11 @@ func (r PutRuntimeLabelResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r PutRuntimeLabelResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PutRuntimeLabelResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38568,6 +39131,11 @@ type GetSchedulerSettingsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetSchedulerSettingsResponse503Headers the declared response headers of an HTTP 503 response for GetSchedulerSettings
+type GetSchedulerSettingsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetSchedulerSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38581,6 +39149,8 @@ type GetSchedulerSettingsResponse struct {
 	JSON403 *Forbidden
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetSchedulerSettingsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38591,6 +39161,8 @@ type GetSchedulerSettingsResponse struct {
 	Headers403 *GetSchedulerSettingsResponse403Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetSchedulerSettingsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetSchedulerSettingsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38616,6 +39188,11 @@ func (r GetSchedulerSettingsResponse) GetJSON403() *Forbidden {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetSchedulerSettingsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetSchedulerSettingsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38691,6 +39268,11 @@ type PutSchedulerSettingsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// PutSchedulerSettingsResponse503Headers the declared response headers of an HTTP 503 response for PutSchedulerSettings
+type PutSchedulerSettingsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type PutSchedulerSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38710,6 +39292,8 @@ type PutSchedulerSettingsResponse struct {
 	JSON415 *UnsupportedMediaType
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutSchedulerSettingsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38726,6 +39310,8 @@ type PutSchedulerSettingsResponse struct {
 	Headers415 *PutSchedulerSettingsResponse415Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *PutSchedulerSettingsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PutSchedulerSettingsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38766,6 +39352,11 @@ func (r PutSchedulerSettingsResponse) GetJSON415() *UnsupportedMediaType {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r PutSchedulerSettingsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PutSchedulerSettingsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -38925,6 +39516,11 @@ type ListProjectsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListProjectsResponse503Headers the declared response headers of an HTTP 503 response for ListProjects
+type ListProjectsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListProjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -38936,6 +39532,8 @@ type ListProjectsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListProjectsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -38944,6 +39542,8 @@ type ListProjectsResponse struct {
 	Headers401 *ListProjectsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListProjectsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -38964,6 +39564,11 @@ func (r ListProjectsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListProjectsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -39035,6 +39640,11 @@ type CreateProjectResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// CreateProjectResponse503Headers the declared response headers of an HTTP 503 response for CreateProject
+type CreateProjectResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CreateProjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -39052,6 +39662,8 @@ type CreateProjectResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateProjectResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39066,6 +39678,8 @@ type CreateProjectResponse struct {
 	Headers413 *CreateProjectResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateProjectResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateProjectResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -39101,6 +39715,11 @@ func (r CreateProjectResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CreateProjectResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateProjectResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -39171,6 +39790,11 @@ type DeleteProjectResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteProjectResponse503Headers the declared response headers of an HTTP 503 response for DeleteProject
+type DeleteProjectResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteProjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -39188,6 +39812,8 @@ type DeleteProjectResponse struct {
 	JSON412 *PreconditionFailed
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers202 the parsed response headers for an HTTP 202 response
 	Headers202 *DeleteProjectResponse202Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39202,6 +39828,8 @@ type DeleteProjectResponse struct {
 	Headers412 *DeleteProjectResponse412Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteProjectResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteProjectResponse503Headers
 }
 
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
@@ -39237,6 +39865,11 @@ func (r DeleteProjectResponse) GetJSON412() *PreconditionFailed {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteProjectResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteProjectResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -39297,6 +39930,11 @@ type GetProjectResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetProjectResponse503Headers the declared response headers of an HTTP 503 response for GetProject
+type GetProjectResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetProjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -39310,6 +39948,8 @@ type GetProjectResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetProjectResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39320,6 +39960,8 @@ type GetProjectResponse struct {
 	Headers404 *GetProjectResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetProjectResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -39345,6 +39987,11 @@ func (r GetProjectResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetProjectResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -39425,6 +40072,11 @@ type UpdateProjectResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// UpdateProjectResponse503Headers the declared response headers of an HTTP 503 response for UpdateProject
+type UpdateProjectResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type UpdateProjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -39446,6 +40098,8 @@ type UpdateProjectResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *UpdateProjectResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39464,6 +40118,8 @@ type UpdateProjectResponse struct {
 	Headers413 *UpdateProjectResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *UpdateProjectResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *UpdateProjectResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -39509,6 +40165,11 @@ func (r UpdateProjectResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r UpdateProjectResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r UpdateProjectResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -39567,6 +40228,11 @@ type ListProjectArtifactsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListProjectArtifactsResponse503Headers the declared response headers of an HTTP 503 response for ListProjectArtifacts
+type ListProjectArtifactsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListProjectArtifactsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -39580,6 +40246,8 @@ type ListProjectArtifactsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListProjectArtifactsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -39590,6 +40258,8 @@ type ListProjectArtifactsResponse struct {
 	Headers404 *ListProjectArtifactsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListProjectArtifactsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectArtifactsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -39615,6 +40285,11 @@ func (r ListProjectArtifactsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListProjectArtifactsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectArtifactsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -40500,6 +41175,11 @@ type GetProjectArtifactLineageResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetProjectArtifactLineageResponse503Headers the declared response headers of an HTTP 503 response for GetProjectArtifactLineage
+type GetProjectArtifactLineageResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetProjectArtifactLineageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -40513,6 +41193,8 @@ type GetProjectArtifactLineageResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetProjectArtifactLineageResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40523,6 +41205,8 @@ type GetProjectArtifactLineageResponse struct {
 	Headers404 *GetProjectArtifactLineageResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetProjectArtifactLineageResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectArtifactLineageResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -40548,6 +41232,11 @@ func (r GetProjectArtifactLineageResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetProjectArtifactLineageResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectArtifactLineageResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -40606,6 +41295,11 @@ type GetProjectArtifactMetadataResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetProjectArtifactMetadataResponse503Headers the declared response headers of an HTTP 503 response for GetProjectArtifactMetadata
+type GetProjectArtifactMetadataResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetProjectArtifactMetadataResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -40619,6 +41313,8 @@ type GetProjectArtifactMetadataResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetProjectArtifactMetadataResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40629,6 +41325,8 @@ type GetProjectArtifactMetadataResponse struct {
 	Headers404 *GetProjectArtifactMetadataResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetProjectArtifactMetadataResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectArtifactMetadataResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -40654,6 +41352,11 @@ func (r GetProjectArtifactMetadataResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetProjectArtifactMetadataResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectArtifactMetadataResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -40712,6 +41415,11 @@ type ListProjectArtifactVersionsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListProjectArtifactVersionsResponse503Headers the declared response headers of an HTTP 503 response for ListProjectArtifactVersions
+type ListProjectArtifactVersionsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListProjectArtifactVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -40725,6 +41433,8 @@ type ListProjectArtifactVersionsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListProjectArtifactVersionsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40735,6 +41445,8 @@ type ListProjectArtifactVersionsResponse struct {
 	Headers404 *ListProjectArtifactVersionsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListProjectArtifactVersionsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectArtifactVersionsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -40760,6 +41472,11 @@ func (r ListProjectArtifactVersionsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListProjectArtifactVersionsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectArtifactVersionsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -40819,6 +41536,11 @@ type ListProjectAuditsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListProjectAuditsResponse503Headers the declared response headers of an HTTP 503 response for ListProjectAudits
+type ListProjectAuditsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListProjectAuditsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -40832,6 +41554,8 @@ type ListProjectAuditsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListProjectAuditsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40842,6 +41566,8 @@ type ListProjectAuditsResponse struct {
 	Headers404 *ListProjectAuditsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListProjectAuditsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectAuditsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -40867,6 +41593,11 @@ func (r ListProjectAuditsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListProjectAuditsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectAuditsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -40943,6 +41674,11 @@ type CreateAuditResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// CreateAuditResponse503Headers the declared response headers of an HTTP 503 response for CreateAudit
+type CreateAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CreateAuditResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -40962,6 +41698,8 @@ type CreateAuditResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateAuditResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -40978,6 +41716,8 @@ type CreateAuditResponse struct {
 	Headers413 *CreateAuditResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CreateAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateAuditResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -41018,6 +41758,11 @@ func (r CreateAuditResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CreateAuditResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -41822,6 +42567,11 @@ type ListProjectRunsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListProjectRunsResponse503Headers the declared response headers of an HTTP 503 response for ListProjectRuns
+type ListProjectRunsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListProjectRunsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -41835,6 +42585,8 @@ type ListProjectRunsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListProjectRunsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -41845,6 +42597,8 @@ type ListProjectRunsResponse struct {
 	Headers404 *ListProjectRunsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListProjectRunsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListProjectRunsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -41870,6 +42624,11 @@ func (r ListProjectRunsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListProjectRunsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListProjectRunsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42086,6 +42845,11 @@ type ListRunQueueResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRunQueueResponse503Headers the declared response headers of an HTTP 503 response for ListRunQueue
+type ListRunQueueResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRunQueueResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42097,6 +42861,8 @@ type ListRunQueueResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRunQueueResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42105,6 +42871,8 @@ type ListRunQueueResponse struct {
 	Headers401 *ListRunQueueResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRunQueueResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRunQueueResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42125,6 +42893,11 @@ func (r ListRunQueueResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRunQueueResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRunQueueResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42180,6 +42953,11 @@ type GetOwnerQueueControlResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetOwnerQueueControlResponse503Headers the declared response headers of an HTTP 503 response for GetOwnerQueueControl
+type GetOwnerQueueControlResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetOwnerQueueControlResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42191,6 +42969,8 @@ type GetOwnerQueueControlResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetOwnerQueueControlResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42199,6 +42979,8 @@ type GetOwnerQueueControlResponse struct {
 	Headers401 *GetOwnerQueueControlResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetOwnerQueueControlResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetOwnerQueueControlResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42219,6 +43001,11 @@ func (r GetOwnerQueueControlResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetOwnerQueueControlResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetOwnerQueueControlResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42289,6 +43076,11 @@ type PutOwnerQueueControlResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// PutOwnerQueueControlResponse503Headers the declared response headers of an HTTP 503 response for PutOwnerQueueControl
+type PutOwnerQueueControlResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type PutOwnerQueueControlResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42306,6 +43098,8 @@ type PutOwnerQueueControlResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutOwnerQueueControlResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42320,6 +43114,8 @@ type PutOwnerQueueControlResponse struct {
 	Headers413 *PutOwnerQueueControlResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *PutOwnerQueueControlResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PutOwnerQueueControlResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42355,6 +43151,11 @@ func (r PutOwnerQueueControlResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r PutOwnerQueueControlResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PutOwnerQueueControlResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42408,6 +43209,11 @@ type ListRunsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRunsResponse503Headers the declared response headers of an HTTP 503 response for ListRuns
+type ListRunsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRunsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42419,6 +43225,8 @@ type ListRunsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRunsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42427,6 +43235,8 @@ type ListRunsResponse struct {
 	Headers401 *ListRunsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRunsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRunsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42447,6 +43257,11 @@ func (r ListRunsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRunsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRunsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42678,6 +43493,11 @@ type DeleteRunResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteRunResponse503Headers the declared response headers of an HTTP 503 response for DeleteRun
+type DeleteRunResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42693,6 +43513,8 @@ type DeleteRunResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteRunResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42707,6 +43529,8 @@ type DeleteRunResponse struct {
 	Headers409 *DeleteRunResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *DeleteRunResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteRunResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -42737,6 +43561,11 @@ func (r DeleteRunResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r DeleteRunResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteRunResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42795,6 +43624,11 @@ type GetRunResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRunResponse503Headers the declared response headers of an HTTP 503 response for GetRun
+type GetRunResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42808,6 +43642,8 @@ type GetRunResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRunResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42818,6 +43654,8 @@ type GetRunResponse struct {
 	Headers404 *GetRunResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRunResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42843,6 +43681,11 @@ func (r GetRunResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRunResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -42901,6 +43744,11 @@ type ListRunArtifactsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRunArtifactsResponse503Headers the declared response headers of an HTTP 503 response for ListRunArtifacts
+type ListRunArtifactsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRunArtifactsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -42914,6 +43762,8 @@ type ListRunArtifactsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRunArtifactsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -42924,6 +43774,8 @@ type ListRunArtifactsResponse struct {
 	Headers404 *ListRunArtifactsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRunArtifactsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRunArtifactsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -42949,6 +43801,11 @@ func (r ListRunArtifactsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRunArtifactsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRunArtifactsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -43450,6 +44307,11 @@ type GetRunArtifactLineageResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRunArtifactLineageResponse503Headers the declared response headers of an HTTP 503 response for GetRunArtifactLineage
+type GetRunArtifactLineageResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRunArtifactLineageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -43463,6 +44325,8 @@ type GetRunArtifactLineageResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRunArtifactLineageResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -43473,6 +44337,8 @@ type GetRunArtifactLineageResponse struct {
 	Headers404 *GetRunArtifactLineageResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRunArtifactLineageResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunArtifactLineageResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -43498,6 +44364,11 @@ func (r GetRunArtifactLineageResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRunArtifactLineageResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunArtifactLineageResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -43556,6 +44427,11 @@ type GetRunArtifactMetadataResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRunArtifactMetadataResponse503Headers the declared response headers of an HTTP 503 response for GetRunArtifactMetadata
+type GetRunArtifactMetadataResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRunArtifactMetadataResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -43569,6 +44445,8 @@ type GetRunArtifactMetadataResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRunArtifactMetadataResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -43579,6 +44457,8 @@ type GetRunArtifactMetadataResponse struct {
 	Headers404 *GetRunArtifactMetadataResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRunArtifactMetadataResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunArtifactMetadataResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -43604,6 +44484,11 @@ func (r GetRunArtifactMetadataResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRunArtifactMetadataResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunArtifactMetadataResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -43662,6 +44547,11 @@ type ListRunArtifactVersionsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRunArtifactVersionsResponse503Headers the declared response headers of an HTTP 503 response for ListRunArtifactVersions
+type ListRunArtifactVersionsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRunArtifactVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -43675,6 +44565,8 @@ type ListRunArtifactVersionsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRunArtifactVersionsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -43685,6 +44577,8 @@ type ListRunArtifactVersionsResponse struct {
 	Headers404 *ListRunArtifactVersionsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRunArtifactVersionsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRunArtifactVersionsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -43710,6 +44604,11 @@ func (r ListRunArtifactVersionsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRunArtifactVersionsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRunArtifactVersionsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -43788,6 +44687,11 @@ type CancelRunResponse2500Headers struct {
 	XRequestID RequestId
 }
 
+// CancelRunResponse2503Headers the declared response headers of an HTTP 503 response for CancelRun
+type CancelRunResponse2503Headers struct {
+	XRequestID RequestId
+}
+
 type CancelRunResponse2 struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -43809,6 +44713,8 @@ type CancelRunResponse2 struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *CancelRunResponse2200Headers
 	// Headers202 the parsed response headers for an HTTP 202 response
@@ -43827,6 +44733,8 @@ type CancelRunResponse2 struct {
 	Headers413 *CancelRunResponse2413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *CancelRunResponse2500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CancelRunResponse2503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -43872,6 +44780,11 @@ func (r CancelRunResponse2) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r CancelRunResponse2) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CancelRunResponse2) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -43931,6 +44844,11 @@ type ListRunFindingProposalsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListRunFindingProposalsResponse503Headers the declared response headers of an HTTP 503 response for ListRunFindingProposals
+type ListRunFindingProposalsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListRunFindingProposalsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -43944,6 +44862,8 @@ type ListRunFindingProposalsResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListRunFindingProposalsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -43954,6 +44874,8 @@ type ListRunFindingProposalsResponse struct {
 	Headers404 *ListRunFindingProposalsResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListRunFindingProposalsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListRunFindingProposalsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -43979,6 +44901,11 @@ func (r ListRunFindingProposalsResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListRunFindingProposalsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListRunFindingProposalsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -44160,6 +45087,11 @@ type GetRunRepeatDraftResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetRunRepeatDraftResponse503Headers the declared response headers of an HTTP 503 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetRunRepeatDraftResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -44175,6 +45107,8 @@ type GetRunRepeatDraftResponse struct {
 	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRunRepeatDraftResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -44187,6 +45121,8 @@ type GetRunRepeatDraftResponse struct {
 	Headers409 *GetRunRepeatDraftResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetRunRepeatDraftResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunRepeatDraftResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -44217,6 +45153,11 @@ func (r GetRunRepeatDraftResponse) GetJSON409() *Conflict {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetRunRepeatDraftResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -44285,6 +45226,11 @@ type ResumeRunResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ResumeRunResponse503Headers the declared response headers of an HTTP 503 response for ResumeRun
+type ResumeRunResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ResumeRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -44308,6 +45254,8 @@ type ResumeRunResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers400 the parsed response headers for an HTTP 400 response
 	Headers400 *ResumeRunResponse400Headers
 	// Headers401 the parsed response headers for an HTTP 401 response
@@ -44322,6 +45270,8 @@ type ResumeRunResponse struct {
 	Headers413 *ResumeRunResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ResumeRunResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ResumeRunResponse503Headers
 }
 
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
@@ -44366,6 +45316,11 @@ func (r ResumeRunResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ResumeRunResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ResumeRunResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -44434,6 +45389,11 @@ type RetryRunGatewayResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// RetryRunGatewayResponse503Headers the declared response headers of an HTTP 503 response for RetryRunGateway
+type RetryRunGatewayResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type RetryRunGatewayResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -44455,6 +45415,8 @@ type RetryRunGatewayResponse struct {
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
 	// Headers400 the parsed response headers for an HTTP 400 response
 	Headers400 *RetryRunGatewayResponse400Headers
 	// Headers401 the parsed response headers for an HTTP 401 response
@@ -44469,6 +45431,8 @@ type RetryRunGatewayResponse struct {
 	Headers413 *RetryRunGatewayResponse413Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *RetryRunGatewayResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *RetryRunGatewayResponse503Headers
 }
 
 // GetJSON202 returns the response for an HTTP 202 `application/json` response
@@ -44511,6 +45475,11 @@ func (r RetryRunGatewayResponse) GetJSON413() *PayloadTooLarge {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r RetryRunGatewayResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -47452,6 +48421,13 @@ func ParseListArtifactsResponse(rsp *http.Response) (*ListArtifactsResponse, err
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -47509,6 +48485,16 @@ func ParseListArtifactsResponse(rsp *http.Response) (*ListArtifactsResponse, err
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListArtifactsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -48568,6 +49554,13 @@ func ParseGetArtifactLineageResponse(rsp *http.Response) (*GetArtifactLineageRes
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -48635,6 +49628,16 @@ func ParseGetArtifactLineageResponse(rsp *http.Response) (*GetArtifactLineageRes
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetArtifactLineageResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -48688,6 +49691,13 @@ func ParseGetArtifactMetadataResponse(rsp *http.Response) (*GetArtifactMetadataR
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -48756,6 +49766,16 @@ func ParseGetArtifactMetadataResponse(rsp *http.Response) (*GetArtifactMetadataR
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetArtifactMetadataResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -48809,6 +49829,13 @@ func ParseListArtifactVersionsResponse(rsp *http.Response) (*ListArtifactVersion
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -48877,6 +49904,16 @@ func ParseListArtifactVersionsResponse(rsp *http.Response) (*ListArtifactVersion
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListArtifactVersionsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49156,6 +50193,13 @@ func ParseListAuditStandardsResponse(rsp *http.Response) (*ListAuditStandardsRes
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -49213,6 +50257,16 @@ func ParseListAuditStandardsResponse(rsp *http.Response) (*ListAuditStandardsRes
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditStandardsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49266,6 +50320,13 @@ func ParseGetAuditStandardResponse(rsp *http.Response) (*GetAuditStandardRespons
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -49334,6 +50395,16 @@ func ParseGetAuditStandardResponse(rsp *http.Response) (*GetAuditStandardRespons
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditStandardResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49408,6 +50479,13 @@ func ParseDeleteAuditResponse(rsp *http.Response) (*DeleteAuditResponse, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -49527,6 +50605,16 @@ func ParseDeleteAuditResponse(rsp *http.Response) (*DeleteAuditResponse, error) 
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49580,6 +50668,13 @@ func ParseGetAuditResponse(rsp *http.Response) (*GetAuditResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -49662,6 +50757,16 @@ func ParseGetAuditResponse(rsp *http.Response) (*GetAuditResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49736,6 +50841,13 @@ func ParseCancelAuditResponse(rsp *http.Response) (*CancelAuditResponse, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -49855,6 +50967,16 @@ func ParseCancelAuditResponse(rsp *http.Response) (*CancelAuditResponse, error) 
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CancelAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -49908,6 +51030,13 @@ func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageRespo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -49983,6 +51112,16 @@ func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditCoverageResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50064,6 +51203,13 @@ func ParseImportAuditFindingProposalResponse(rsp *http.Response) (*ImportAuditFi
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50186,6 +51332,16 @@ func ParseImportAuditFindingProposalResponse(rsp *http.Response) (*ImportAuditFi
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ImportAuditFindingProposalResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50239,6 +51395,13 @@ func ParseListAuditFindingProposalsResponse(rsp *http.Response) (*ListAuditFindi
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50314,6 +51477,16 @@ func ParseListAuditFindingProposalsResponse(rsp *http.Response) (*ListAuditFindi
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditFindingProposalsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50374,6 +51547,13 @@ func ParseListAuditFindingsResponse(rsp *http.Response) (*ListAuditFindingsRespo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50459,6 +51639,16 @@ func ParseListAuditFindingsResponse(rsp *http.Response) (*ListAuditFindingsRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditFindingsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50512,6 +51702,13 @@ func ParseGetAuditFindingResponse(rsp *http.Response) (*GetAuditFindingResponse,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50594,6 +51791,16 @@ func ParseGetAuditFindingResponse(rsp *http.Response) (*GetAuditFindingResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditFindingResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50654,6 +51861,13 @@ func ParseListAuditFindingProvenanceResponse(rsp *http.Response) (*ListAuditFind
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50739,6 +51953,16 @@ func ParseListAuditFindingProvenanceResponse(rsp *http.Response) (*ListAuditFind
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditFindingProvenanceResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -50820,6 +52044,13 @@ func ParseCreateAuditFindingReviewResponse(rsp *http.Response) (*CreateAuditFind
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -50949,6 +52180,16 @@ func ParseCreateAuditFindingReviewResponse(rsp *http.Response) (*CreateAuditFind
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateAuditFindingReviewResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -51002,6 +52243,13 @@ func ParseListAuditItemsResponse(rsp *http.Response) (*ListAuditItemsResponse, e
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -51077,6 +52325,16 @@ func ParseListAuditItemsResponse(rsp *http.Response) (*ListAuditItemsResponse, e
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditItemsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -51151,6 +52409,13 @@ func ParsePauseAuditResponse(rsp *http.Response) (*PauseAuditResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -51270,6 +52535,16 @@ func ParsePauseAuditResponse(rsp *http.Response) (*PauseAuditResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PauseAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -51330,6 +52605,13 @@ func ParseGetAuditReportResponse(rsp *http.Response) (*GetAuditReportResponse, e
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -51415,6 +52697,16 @@ func ParseGetAuditReportResponse(rsp *http.Response) (*GetAuditReportResponse, e
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditReportResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -51703,6 +52995,13 @@ func ParseListAuditReviewsResponse(rsp *http.Response) (*ListAuditReviewsRespons
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -51787,6 +53086,16 @@ func ParseListAuditReviewsResponse(rsp *http.Response) (*ListAuditReviewsRespons
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditReviewsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -51840,6 +53149,13 @@ func ParseGetAuditReviewResponse(rsp *http.Response) (*GetAuditReviewResponse, e
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -51922,6 +53238,16 @@ func ParseGetAuditReviewResponse(rsp *http.Response) (*GetAuditReviewResponse, e
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditReviewResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -52003,6 +53329,13 @@ func ParseDecideAuditReviewResponse(rsp *http.Response) (*DecideAuditReviewRespo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -52132,6 +53465,16 @@ func ParseDecideAuditReviewResponse(rsp *http.Response) (*DecideAuditReviewRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DecideAuditReviewResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -52430,6 +53773,13 @@ func ParseGetAuditWorkspaceResponse(rsp *http.Response) (*GetAuditWorkspaceRespo
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -52504,6 +53854,16 @@ func ParseGetAuditWorkspaceResponse(rsp *http.Response) (*GetAuditWorkspaceRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditWorkspaceResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -58287,6 +59647,13 @@ func ParseListAllocationResourceHistoryResponse(rsp *http.Response) (*ListAlloca
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -58354,6 +59721,16 @@ func ParseListAllocationResourceHistoryResponse(rsp *http.Response) (*ListAlloca
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAllocationResourceHistoryResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -59290,6 +60667,13 @@ func ParseGetPerformanceHistoryResponse(rsp *http.Response) (*GetPerformanceHist
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -59357,6 +60741,16 @@ func ParseGetPerformanceHistoryResponse(rsp *http.Response) (*GetPerformanceHist
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetPerformanceHistoryResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -59403,6 +60797,13 @@ func ParseListRuntimeAgentPrincipalsResponse(rsp *http.Response) (*ListRuntimeAg
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -59468,6 +60869,16 @@ func ParseListRuntimeAgentPrincipalsResponse(rsp *http.Response) (*ListRuntimeAg
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRuntimeAgentPrincipalsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -59538,6 +60949,13 @@ func ParseDeleteRuntimeAgentPrincipalResponse(rsp *http.Response) (*DeleteRuntim
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -59636,6 +61054,16 @@ func ParseDeleteRuntimeAgentPrincipalResponse(rsp *http.Response) (*DeleteRuntim
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteRuntimeAgentPrincipalResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -59689,6 +61117,13 @@ func ParseGetRuntimeAgentPrincipalResponse(rsp *http.Response) (*GetRuntimeAgent
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -59771,6 +61206,16 @@ func ParseGetRuntimeAgentPrincipalResponse(rsp *http.Response) (*GetRuntimeAgent
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRuntimeAgentPrincipalResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -59852,6 +61297,13 @@ func ParseReplaceRuntimeAgentPrincipalLabelsResponse(rsp *http.Response) (*Repla
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -59981,6 +61433,16 @@ func ParseReplaceRuntimeAgentPrincipalLabelsResponse(rsp *http.Response) (*Repla
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ReplaceRuntimeAgentPrincipalLabelsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60149,6 +61611,13 @@ func ParseListRuntimeConfigsResponse(rsp *http.Response) (*ListRuntimeConfigsRes
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -60213,6 +61682,16 @@ func ParseListRuntimeConfigsResponse(rsp *http.Response) (*ListRuntimeConfigsRes
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRuntimeConfigsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60280,6 +61759,13 @@ func ParsePublishRuntimeConfigResponse(rsp *http.Response) (*PublishRuntimeConfi
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -60389,6 +61875,16 @@ func ParsePublishRuntimeConfigResponse(rsp *http.Response) (*PublishRuntimeConfi
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PublishRuntimeConfigResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60442,6 +61938,13 @@ func ParseGetRuntimeConfigResponse(rsp *http.Response) (*GetRuntimeConfigRespons
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -60524,6 +62027,16 @@ func ParseGetRuntimeConfigResponse(rsp *http.Response) (*GetRuntimeConfigRespons
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRuntimeConfigResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60570,6 +62083,13 @@ func ParseListRuntimeCredentialsResponse(rsp *http.Response) (*ListRuntimeCreden
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -60635,6 +62155,16 @@ func ParseListRuntimeCredentialsResponse(rsp *http.Response) (*ListRuntimeCreden
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRuntimeCredentialsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60702,6 +62232,13 @@ func ParseCreateRuntimeCredentialResponse(rsp *http.Response) (*CreateRuntimeCre
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -60804,6 +62341,16 @@ func ParseCreateRuntimeCredentialResponse(rsp *http.Response) (*CreateRuntimeCre
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateRuntimeCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -60867,6 +62414,13 @@ func ParseDeleteRuntimeCredentialResponse(rsp *http.Response) (*DeleteRuntimeCre
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -60955,6 +62509,16 @@ func ParseDeleteRuntimeCredentialResponse(rsp *http.Response) (*DeleteRuntimeCre
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteRuntimeCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61008,6 +62572,13 @@ func ParseGetRuntimeCredentialResponse(rsp *http.Response) (*GetRuntimeCredentia
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61083,6 +62654,16 @@ func ParseGetRuntimeCredentialResponse(rsp *http.Response) (*GetRuntimeCredentia
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRuntimeCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61129,6 +62710,13 @@ func ParseListRuntimeLabelsResponse(rsp *http.Response) (*ListRuntimeLabelsRespo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61194,6 +62782,16 @@ func ParseListRuntimeLabelsResponse(rsp *http.Response) (*ListRuntimeLabelsRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRuntimeLabelsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61264,6 +62862,13 @@ func ParseDeleteRuntimeLabelResponse(rsp *http.Response) (*DeleteRuntimeLabelRes
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61362,6 +62967,16 @@ func ParseDeleteRuntimeLabelResponse(rsp *http.Response) (*DeleteRuntimeLabelRes
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteRuntimeLabelResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61415,6 +63030,13 @@ func ParseGetRuntimeLabelResponse(rsp *http.Response) (*GetRuntimeLabelResponse,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61497,6 +63119,16 @@ func ParseGetRuntimeLabelResponse(rsp *http.Response) (*GetRuntimeLabelResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRuntimeLabelResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61585,6 +63217,13 @@ func ParsePutRuntimeLabelResponse(rsp *http.Response) (*PutRuntimeLabelResponse,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61745,6 +63384,16 @@ func ParsePutRuntimeLabelResponse(rsp *http.Response) (*PutRuntimeLabelResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PutRuntimeLabelResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61798,6 +63447,13 @@ func ParseGetSchedulerSettingsResponse(rsp *http.Response) (*GetSchedulerSetting
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -61880,6 +63536,16 @@ func ParseGetSchedulerSettingsResponse(rsp *http.Response) (*GetSchedulerSetting
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetSchedulerSettingsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -61954,6 +63620,13 @@ func ParsePutSchedulerSettingsResponse(rsp *http.Response) (*PutSchedulerSetting
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -62066,6 +63739,16 @@ func ParsePutSchedulerSettingsResponse(rsp *http.Response) (*PutSchedulerSetting
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PutSchedulerSettingsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -62234,6 +63917,13 @@ func ParseListProjectsResponse(rsp *http.Response) (*ListProjectsResponse, error
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -62291,6 +63981,16 @@ func ParseListProjectsResponse(rsp *http.Response) (*ListProjectsResponse, error
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -62358,6 +64058,13 @@ func ParseCreateProjectResponse(rsp *http.Response) (*CreateProjectResponse, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -62467,6 +64174,16 @@ func ParseCreateProjectResponse(rsp *http.Response) (*CreateProjectResponse, err
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateProjectResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -62534,6 +64251,13 @@ func ParseDeleteProjectResponse(rsp *http.Response) (*DeleteProjectResponse, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -62636,6 +64360,16 @@ func ParseDeleteProjectResponse(rsp *http.Response) (*DeleteProjectResponse, err
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteProjectResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -62689,6 +64423,13 @@ func ParseGetProjectResponse(rsp *http.Response) (*GetProjectResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -62771,6 +64512,16 @@ func ParseGetProjectResponse(rsp *http.Response) (*GetProjectResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -62852,6 +64603,13 @@ func ParseUpdateProjectResponse(rsp *http.Response) (*UpdateProjectResponse, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -62974,6 +64732,16 @@ func ParseUpdateProjectResponse(rsp *http.Response) (*UpdateProjectResponse, err
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers UpdateProjectResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -63027,6 +64795,13 @@ func ParseListProjectArtifactsResponse(rsp *http.Response) (*ListProjectArtifact
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -63095,6 +64870,16 @@ func ParseListProjectArtifactsResponse(rsp *http.Response) (*ListProjectArtifact
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectArtifactsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -64171,6 +65956,13 @@ func ParseGetProjectArtifactLineageResponse(rsp *http.Response) (*GetProjectArti
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -64238,6 +66030,16 @@ func ParseGetProjectArtifactLineageResponse(rsp *http.Response) (*GetProjectArti
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectArtifactLineageResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -64291,6 +66093,13 @@ func ParseGetProjectArtifactMetadataResponse(rsp *http.Response) (*GetProjectArt
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -64359,6 +66168,16 @@ func ParseGetProjectArtifactMetadataResponse(rsp *http.Response) (*GetProjectArt
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectArtifactMetadataResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -64412,6 +66231,13 @@ func ParseListProjectArtifactVersionsResponse(rsp *http.Response) (*ListProjectA
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -64480,6 +66306,16 @@ func ParseListProjectArtifactVersionsResponse(rsp *http.Response) (*ListProjectA
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectArtifactVersionsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -64533,6 +66369,13 @@ func ParseListProjectAuditsResponse(rsp *http.Response) (*ListProjectAuditsRespo
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -64608,6 +66451,16 @@ func ParseListProjectAuditsResponse(rsp *http.Response) (*ListProjectAuditsRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectAuditsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -64682,6 +66535,13 @@ func ParseCreateAuditResponse(rsp *http.Response) (*CreateAuditResponse, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -64801,6 +66661,16 @@ func ParseCreateAuditResponse(rsp *http.Response) (*CreateAuditResponse, error) 
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -65793,6 +67663,13 @@ func ParseListProjectRunsResponse(rsp *http.Response) (*ListProjectRunsResponse,
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -65860,6 +67737,16 @@ func ParseListProjectRunsResponse(rsp *http.Response) (*ListProjectRunsResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListProjectRunsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66103,6 +67990,13 @@ func ParseListRunQueueResponse(rsp *http.Response) (*ListRunQueueResponse, error
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -66160,6 +68054,16 @@ func ParseListRunQueueResponse(rsp *http.Response) (*ListRunQueueResponse, error
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRunQueueResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66206,6 +68110,13 @@ func ParseGetOwnerQueueControlResponse(rsp *http.Response) (*GetOwnerQueueContro
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -66278,6 +68189,16 @@ func ParseGetOwnerQueueControlResponse(rsp *http.Response) (*GetOwnerQueueContro
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetOwnerQueueControlResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66345,6 +68266,13 @@ func ParsePutOwnerQueueControlResponse(rsp *http.Response) (*PutOwnerQueueContro
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -66447,6 +68375,16 @@ func ParsePutOwnerQueueControlResponse(rsp *http.Response) (*PutOwnerQueueContro
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PutOwnerQueueControlResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66493,6 +68431,13 @@ func ParseListRunsResponse(rsp *http.Response) (*ListRunsResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -66551,6 +68496,16 @@ func ParseListRunsResponse(rsp *http.Response) (*ListRunsResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRunsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66811,6 +68766,13 @@ func ParseDeleteRunResponse(rsp *http.Response) (*DeleteRunResponse, error) {
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -66898,6 +68860,16 @@ func ParseDeleteRunResponse(rsp *http.Response) (*DeleteRunResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteRunResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -66951,6 +68923,13 @@ func ParseGetRunResponse(rsp *http.Response) (*GetRunResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -67019,6 +68998,16 @@ func ParseGetRunResponse(rsp *http.Response) (*GetRunResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -67072,6 +69061,13 @@ func ParseListRunArtifactsResponse(rsp *http.Response) (*ListRunArtifactsRespons
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -67140,6 +69136,16 @@ func ParseListRunArtifactsResponse(rsp *http.Response) (*ListRunArtifactsRespons
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRunArtifactsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -67745,6 +69751,13 @@ func ParseGetRunArtifactLineageResponse(rsp *http.Response) (*GetRunArtifactLine
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -67812,6 +69825,16 @@ func ParseGetRunArtifactLineageResponse(rsp *http.Response) (*GetRunArtifactLine
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunArtifactLineageResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -67865,6 +69888,13 @@ func ParseGetRunArtifactMetadataResponse(rsp *http.Response) (*GetRunArtifactMet
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -67933,6 +69963,16 @@ func ParseGetRunArtifactMetadataResponse(rsp *http.Response) (*GetRunArtifactMet
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunArtifactMetadataResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -67986,6 +70026,13 @@ func ParseListRunArtifactVersionsResponse(rsp *http.Response) (*ListRunArtifactV
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -68054,6 +70101,16 @@ func ParseListRunArtifactVersionsResponse(rsp *http.Response) (*ListRunArtifactV
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRunArtifactVersionsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -68135,6 +70192,13 @@ func ParseCancelRunResponse2(rsp *http.Response) (*CancelRunResponse2, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -68243,6 +70307,16 @@ func ParseCancelRunResponse2(rsp *http.Response) (*CancelRunResponse2, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CancelRunResponse2503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -68296,6 +70370,13 @@ func ParseListRunFindingProposalsResponse(rsp *http.Response) (*ListRunFindingPr
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -68371,6 +70452,16 @@ func ParseListRunFindingProposalsResponse(rsp *http.Response) (*ListRunFindingPr
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListRunFindingProposalsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -68591,6 +70682,13 @@ func ParseGetRunRepeatDraftResponse(rsp *http.Response) (*GetRunRepeatDraftRespo
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -68675,6 +70773,16 @@ func ParseGetRunRepeatDraftResponse(rsp *http.Response) (*GetRunRepeatDraftRespo
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunRepeatDraftResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -68753,6 +70861,13 @@ func ParseResumeRunResponse(rsp *http.Response) (*ResumeRunResponse, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -68841,6 +70956,16 @@ func ParseResumeRunResponse(rsp *http.Response) (*ResumeRunResponse, error) {
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ResumeRunResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -68917,6 +71042,13 @@ func ParseRetryRunGatewayResponse(rsp *http.Response) (*RetryRunGatewayResponse,
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -69005,6 +71137,16 @@ func ParseRetryRunGatewayResponse(rsp *http.Response) (*RetryRunGatewayResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers RetryRunGatewayResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil

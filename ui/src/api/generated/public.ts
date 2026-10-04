@@ -5798,7 +5798,7 @@ export interface components {
             };
             content?: never;
         };
-        /** @description Transfer capacity exhausted (retryable) or stored content missing/corrupt (not automatically retryable). */
+        /** @description Transfer capacity exhausted or a definite database transaction conflict exhausted retries (retryable), or stored content missing/corrupt (not automatically retryable). */
         ArtifactUnavailable: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -5858,7 +5858,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Credential lifecycle recovery has not completed; retry after it settles */
+        /** @description Credential lifecycle recovery has not completed or a definite database transaction conflict exhausted retries; retry after it settles */
         CredentialRecoveryRequired: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -5870,6 +5870,16 @@ export interface components {
         };
         /** @description Credential recovery is in progress or a definite database transaction conflict exhausted retries; retry with the same Idempotency-Key */
         RunCreationUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description A definite database transaction conflict exhausted retries; retry the request */
+        StorageTransactionConflict: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 [name: string]: unknown;
@@ -7897,6 +7907,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createProject: {
@@ -7944,6 +7955,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getProject: {
@@ -7973,6 +7985,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteProject: {
@@ -8010,6 +8023,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     updateProject: {
@@ -8053,6 +8067,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listProjectArtifacts: {
@@ -8084,6 +8099,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     downloadProjectArtifact: {
@@ -8247,6 +8263,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listProjectArtifactVersions: {
@@ -8279,6 +8296,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getProjectArtifactLineage: {
@@ -8312,6 +8330,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listProjectRuns: {
@@ -8346,6 +8365,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createProjectRun: {
@@ -8468,6 +8488,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAuditStandard: {
@@ -8496,6 +8517,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listProjectAudits: {
@@ -8529,6 +8551,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createAudit: {
@@ -8572,6 +8595,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAudit: {
@@ -8601,6 +8625,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteAudit: {
@@ -8641,6 +8666,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     startAudit: {
@@ -8728,6 +8754,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     resumeAudit: {
@@ -8814,6 +8841,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditItems: {
@@ -8848,6 +8876,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditCoverage: {
@@ -8880,6 +8909,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAuditReport: {
@@ -8909,6 +8939,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditFindingProposals: {
@@ -8940,6 +8971,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     importAuditFindingProposal: {
@@ -8991,6 +9023,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAuditWorkspace: {
@@ -9019,6 +9052,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAuditReview: {
@@ -9049,6 +9083,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditFindings: {
@@ -9086,6 +9121,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getAuditFinding: {
@@ -9116,6 +9152,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditFindingProvenance: {
@@ -9151,6 +9188,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createAuditFindingReview: {
@@ -9197,6 +9235,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAuditReviews: {
@@ -9233,6 +9272,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     decideAuditReview: {
@@ -9279,6 +9319,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRunQueue: {
@@ -9308,6 +9349,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getOwnerQueueControl: {
@@ -9334,6 +9376,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     putOwnerQueueControl: {
@@ -9373,6 +9416,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRuns: {
@@ -9405,6 +9449,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createRun: {
@@ -9505,6 +9550,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteRun: {
@@ -9530,6 +9576,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRunRepeatDraft: {
@@ -9559,6 +9606,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     retryRunGateway: {
@@ -9599,6 +9647,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     resumeRun: {
@@ -9643,6 +9692,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     cancelRun: {
@@ -9697,6 +9747,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     downloadRunOutput: {
@@ -9748,6 +9799,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRunFindingProposals: {
@@ -9779,6 +9831,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     downloadRunArtifact: {
@@ -9906,6 +9959,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRunArtifactVersions: {
@@ -9938,6 +9992,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRunArtifactLineage: {
@@ -9971,6 +10026,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listArtifacts: {
@@ -10001,6 +10057,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     downloadArtifact: {
@@ -10158,6 +10215,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listArtifactVersions: {
@@ -10189,6 +10247,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getArtifactLineage: {
@@ -10221,6 +10280,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listConfigurations: {
@@ -10414,6 +10474,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     publishRuntimeConfig: {
@@ -10454,6 +10515,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRuntimeConfig: {
@@ -10484,6 +10546,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRuntimeLabels: {
@@ -10512,6 +10575,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRuntimeLabel: {
@@ -10541,6 +10605,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     putRuntimeLabel: {
@@ -10576,6 +10641,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteRuntimeLabel: {
@@ -10604,6 +10670,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRuntimeCredentials: {
@@ -10632,6 +10699,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     createRuntimeCredential: {
@@ -10671,6 +10739,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRuntimeCredential: {
@@ -10699,6 +10768,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteRuntimeCredential: {
@@ -10726,6 +10796,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listRuntimeAgentPrincipals: {
@@ -10754,6 +10825,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getRuntimeAgentPrincipal: {
@@ -10783,6 +10855,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     deleteRuntimeAgentPrincipal: {
@@ -10811,6 +10884,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     replaceRuntimeAgentPrincipalLabels: {
@@ -10856,6 +10930,7 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listCredentials: {
@@ -11007,6 +11082,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     putSchedulerSettings: {
@@ -11047,6 +11123,7 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     getOperationsSnapshot: {
@@ -11154,6 +11231,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAllocationResourceHistory: {
@@ -11184,6 +11262,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
         };
     };
     listAllocations: {
