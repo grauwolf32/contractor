@@ -3,7 +3,8 @@ id: V365-006
 title: "Drop the write-only planner_events table"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 915c2a516dbddc1adec5c163682c486bf67bb8ff
 depends_on: [V365-002]
 languages: [go, sql]
 goal: "Stop writing a Planner journal that nothing reads; workflow_run_events stays the replay authority."
