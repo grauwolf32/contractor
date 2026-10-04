@@ -14,16 +14,13 @@ import (
 )
 
 func TestWSTGStandardInventoryRequiresActiveApprovalForEveryItem(t *testing.T) {
-	root := filepath.Join("..", "..", "configs")
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	profile, err := loadAuditServiceCatalog(t).AuditProfile("owasp-wstg-4-2-active-http@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("owasp-wstg-4-2-active-http@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, pkg, err := auditstandards.PackageDirectory(filepath.Join(root, "audit-standards", "owasp-wstg-4.2-http.1"))
+	_, pkg, err := auditstandards.PackageDirectory(
+		filepath.Join(auditServiceCatalogFixture, "audit-standards", "owasp-wstg-4.2-http.1"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +33,7 @@ func TestWSTGStandardInventoryRequiresActiveApprovalForEveryItem(t *testing.T) {
 	inventory, err := buildInventory(profile, DraftSelection{Scope: Scope{
 		Target: "https://example.test", AuthorizationScope: "Approved disposable HTTP test environment",
 	}}, nil, []auditstandards.ResolvedPackage{standard})
-	if err != nil || len(inventory.Tasks) != 94 {
+	if err != nil || len(inventory.Tasks) == 0 || len(inventory.Tasks) != len(pkg.Document.Mappings) {
 		t.Fatalf("active WSTG inventory: %d tasks, %v", len(inventory.Tasks), err)
 	}
 	for _, task := range inventory.Tasks {
