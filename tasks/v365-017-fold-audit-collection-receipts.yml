@@ -3,7 +3,8 @@ id: V365-017
 title: "Fold audit_collection_receipts into audit_executions"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: b97fa2b61271743b066c735ae7dfb0fda3ce9756
 depends_on: [V365-001, V365-002]
 languages: [go, sql]
 goal: "Remove audit_collection_receipts (1:1 with the execution) by storing its data on the parent row."
