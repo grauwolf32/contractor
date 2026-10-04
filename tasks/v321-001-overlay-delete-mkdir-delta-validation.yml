@@ -3,7 +3,7 @@ id: V321-001
 title: Validate overlay delete and mkdir by delta off the event loop
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V320-001]
 languages: [python]
 goal: "Finish V265: overlay delete and mkdir validate only changed entries and run off the loop."

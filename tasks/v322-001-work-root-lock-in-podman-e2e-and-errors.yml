@@ -3,7 +3,7 @@ id: V322-001
 title: Account for the Runtime work-root lock in Podman e2e and diagnostics
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: Make the Podman release gate pass with V258's lock file and make work-root errors actionable.
