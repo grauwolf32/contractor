@@ -3,7 +3,7 @@ id: V314-001
 title: Resolve C-family header language once for shallow, graph and taint
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V313-001]
 languages: [python]
 goal: Make shallow analysis, graph coverage and taint annotation agree on the language of every C-family file.

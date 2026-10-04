@@ -3,7 +3,7 @@ id: V313-001
 title: Name C++ declarations that return references
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: Keep C++ functions and methods that return references in shallow symbol listings and searches.
