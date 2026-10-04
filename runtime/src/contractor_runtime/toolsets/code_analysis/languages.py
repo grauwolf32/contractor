@@ -80,11 +80,17 @@ EXTENSION_LANGUAGES = MappingProxyType(
     }
 )
 
-CPP_HEADER_CONTEXT_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
+# A ".h" header is valid C and C++ alike; header_language() picks one grammar
+# for all of a snapshot's headers from its unambiguous C and C++ files.
+HEADER_EXTENSION = ".h"
+C_SOURCE_EXTENSIONS = frozenset({".c"})
+CPP_SOURCE_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
 
 # Reviewed extension table for Trailmark 0.5.0 auto-detection plus parser-walk
-# headers. Its C and Objective-C parsers both walk .h after another source
-# activates them. An isolated .h does not activate either parser.
+# headers. Its parser walk matches these suffixes case-sensitively. Its C and
+# Objective-C parsers both walk .h after a source with one of the
+# GRAPH_HEADER_PARSER_EXTENSIONS activates them, always with their own
+# grammar. An isolated .h does not activate either parser.
 GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
     {
         ".py": "python",
@@ -133,6 +139,8 @@ GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
         ".sql": "sql",
     }
 )
+
+GRAPH_HEADER_PARSER_EXTENSIONS = frozenset({".c", ".m", ".mm"})
 
 # Extensions recognized by the pinned graph engine but not by the shallow v1
 # surface. They are reported as unsupported instead of being mistaken for
@@ -308,7 +316,6 @@ NODE_SPECS = MappingProxyType(
             NodeSpec("interface_declaration", "name"),
             NodeSpec("trait_declaration", "name"),
             NodeSpec("enum_declaration", "name"),
-            NodeSpec("arrow_function", ""),
         ),
         Language.SCALA: (
             NodeSpec("function_definition", "name"),
@@ -400,17 +407,43 @@ class ParseResult:
     long_names_skipped: bool = False
 
 
-def detect_language(path: str, *, cpp_headers: bool = False) -> Language | None:
+def detect_language(path: str, *, header: Language) -> Language | None:
+    """Return the shallow language of ``path``; a ``.h`` header uses ``header``.
+
+    Suffixes match case-insensitively, so ``Tool.PY`` is Python source.
+    """
+
     suffix = PurePosixPath(path).suffix.lower()
-    if suffix == ".h" and cpp_headers:
-        return Language.CPP
+    if suffix == HEADER_EXTENSION:
+        return header
     return EXTENSION_LANGUAGES.get(suffix)
 
 
-def cpp_header_context(paths: Iterable[str]) -> bool:
-    return any(
-        PurePosixPath(path).suffix.lower() in CPP_HEADER_CONTEXT_EXTENSIONS for path in paths
-    )
+def is_header(path: str) -> bool:
+    return PurePosixPath(path).suffix.lower() == HEADER_EXTENSION
+
+
+def header_language(paths: Iterable[str]) -> Language:
+    """Return the one grammar for every ``.h`` header of a snapshot.
+
+    Shallow analysis, graph admission and taint annotation all call this with
+    the snapshot's managed text paths, so they agree on every header. Headers
+    are C++ when the snapshot has at least as many unambiguous C++ files as C
+    sources, so a C project with a vendored C++ file keeps C. Ties favor C++:
+    its grammar parses nearly every C header, while the C grammar rejects
+    every class, namespace, template and reference. Without either kind of
+    file, headers are C.
+    """
+
+    c_files = 0
+    cpp_files = 0
+    for path in paths:
+        suffix = PurePosixPath(path).suffix.lower()
+        if suffix in C_SOURCE_EXTENSIONS:
+            c_files += 1
+        elif suffix in CPP_SOURCE_EXTENSIONS:
+            cpp_files += 1
+    return Language.CPP if cpp_files and cpp_files >= c_files else Language.C
 
 
 def graph_only_source(path: str) -> bool:
@@ -517,9 +550,9 @@ def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str |
     if preferred:
         return preferred
 
-    # The binding's variable_declarator supplies an arrow's name. An unnamed
-    # function expression has no definition name of its own either.
-    if node.type in {"arrow_function", "function_expression"}:
+    # An unnamed function expression has no definition name of its own; a
+    # binding's variable_declarator supplies it.
+    if node.type == "function_expression":
         return None
 
     if node.type == "call" and node.child_count >= 2:

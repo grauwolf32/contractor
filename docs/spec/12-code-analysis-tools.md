@@ -298,6 +298,15 @@ if the fixed set cannot be honored, both shallow operations are omitted rather
 than advertising an unexpressed language subset. Runtime startup never
 downloads grammars.
 
+Extensions match case-insensitively, so `Tool.PY` is Python source. A `.h`
+header is valid C and C++ alike, so one snapshot-wide rule picks its grammar
+for shallow analysis, graph admission and `taint-annotations@1`: C++ when the
+snapshot holds at least as many unambiguous C++ files (`.cpp`, `.cc`, `.cxx`,
+`.hpp`, `.hh`, `.hxx`) as C sources (`.c`), otherwise C. A C project with a
+vendored C++ file therefore keeps C headers, and a tie favors C++, whose
+grammar parses nearly every C header while the C grammar rejects every class,
+namespace, template and reference.
+
 ### `search_def`
 
 ```text
@@ -406,7 +415,11 @@ its pinned public API: Python, JavaScript, TypeScript/TSX, PHP, Ruby, C, C++,
 C#, Java, Go, Rust, Solidity, Cairo, Circom, Haskell, Erlang, MASM, Swift,
 Objective-C, Kotlin, Dart, Move, Tact, FunC, Sway, Rego, Protobuf, Thrift,
 GraphQL and SQL. A shallow-supported language outside this set is counted as
-unsupported for graph coverage.
+unsupported for graph coverage. So is a recognized source whose suffix differs
+in case from the pinned walk, which matches suffixes case-sensitively and never
+parses `Tool.PY`, and a `.h` header that resolves to C++: Trailmark parses
+headers only with its C and Objective-C grammars, after a `.c`, `.m` or `.mm`
+source activates one of them.
 
 ### Stable symbol identity
 

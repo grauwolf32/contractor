@@ -891,12 +891,12 @@ class _CodeAnalysisSession:
         coverage = _Coverage(
             binary_files=sum(1 for item in snapshot.binary_paths if _under_path(item, path))
         )
-        cpp_headers = language_support.cpp_header_context(item.path for item in snapshot.files)
+        header = language_support.header_language(item.path for item in snapshot.files)
         candidates: list[tuple[WorkspaceTextFile, Language]] = []
         for item in sorted(snapshot.files, key=lambda value: value.path):
             if not _under_path(item.path, path):
                 continue
-            language = language_support.detect_language(item.path, cpp_headers=cpp_headers)
+            language = language_support.detect_language(item.path, header=header)
             if language is None:
                 if language_support.graph_only_source(item.path):
                     coverage.unsupported_source_files += 1

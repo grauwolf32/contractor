@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets.code_analysis.languages import (
     GRAPH_EXCLUDED_DIRECTORIES,
     GRAPH_EXTENSION_LANGUAGES,
+    GRAPH_HEADER_PARSER_EXTENSIONS,
     graph_walk_excluded,
 )
 from contractor_runtime.toolsets.code_analysis.tools import (
@@ -57,6 +59,29 @@ def test_reviewed_graph_walk_exclusions_match_pinned_parser_walk() -> None:
         assert graph_walk_excluded(f"pkg/{name}/deep/module.py") is should_skip_dir(name)
     assert graph_walk_excluded(".hidden.py") is False
     assert graph_walk_excluded("pkg/.eslintrc.js") is False
+
+
+def test_reviewed_header_activation_and_case_sensitive_walk_match_pinned_engine(
+    tmp_path: Path,
+) -> None:
+    # Test-only reach into the pinned engine: the Runtime keeps reviewed copies.
+    from trailmark.parse import _LANGUAGE_EXTENSIONS, _PARSER_MAP
+    from trailmark.parsers._common import walk_source_files
+
+    header_walkers = {
+        language
+        for language, (module, _) in _PARSER_MAP.items()
+        if ".h" in importlib.import_module(f"{module}.parser")._EXTENSIONS
+    }
+    assert header_walkers == {"c", "objc"}
+    activating = {
+        extension for language in header_walkers for extension in _LANGUAGE_EXTENSIONS[language]
+    }
+    assert activating == GRAPH_HEADER_PARSER_EXTENSIONS
+    for name in ("upper.PY", "lower.py", "mixed.Py"):
+        (tmp_path / name).write_text("value = 1\n", encoding="utf-8")
+    walked = [Path(path).name for path in walk_source_files(str(tmp_path), (".py",))]
+    assert walked == ["lower.py"]
 
 
 def test_local_probe_atomically_advertises_the_complete_graph_subset(tmp_path: Path) -> None:

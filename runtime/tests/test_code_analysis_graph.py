@@ -81,6 +81,83 @@ def test_c_header_definition_is_mirrored_only_with_an_activating_source(tmp_path
     asyncio.run(scenario())
 
 
+def test_graph_admits_headers_only_when_they_resolve_to_c(tmp_path: Path) -> None:
+    header = "static inline int helper(int x) { return x + 1; }\n"
+
+    async def scenario() -> None:
+        # Shallow analysis and taint annotation parse these headers as C++,
+        # which Trailmark's activated C parser must not contradict.
+        cpp, _, _ = await _tools(
+            tmp_path / "cpp",
+            MutableReader(
+                {
+                    "include/util.h": header,
+                    "src/a.c": "int c_main(void) { return 0; }\n",
+                    "src/b.cpp": "int b() { return 1; }\n",
+                    "src/c.cpp": "int c() { return 2; }\n",
+                }
+            ),
+        )
+        summary = await cpp["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 3
+        assert summary["coverage"]["unsupportedSourceFiles"] == 1
+        assert (await cpp["find_symbol"]("helper"))["items"] == []
+        await _close(cpp)
+
+        c_tools, _, _ = await _tools(
+            tmp_path / "c",
+            MutableReader(
+                {
+                    "include/util.h": header,
+                    "src/a.c": '#include "include/util.h"\nint main(void) { return helper(2); }\n',
+                    "src/b.c": "int other(void) { return 1; }\n",
+                    "third_party/lib.cc": "int lib() { return 3; }\n",
+                }
+            ),
+        )
+        summary = await c_tools["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 4
+        assert summary["coverage"]["unsupportedSourceFiles"] == 0
+        helper = (await c_tools["find_symbol"]("helper"))["items"]
+        assert any(item["path"] == "include/util.h" and item["kind"] != "proxy" for item in helper)
+        await _close(c_tools)
+
+    asyncio.run(scenario())
+
+
+def test_graph_reports_case_variant_extensions_as_unsupported(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(
+            tmp_path,
+            MutableReader(
+                {
+                    "Tool.PY": "def upper_tool():\n    return 1\n",
+                    "app.py": "def lower_app():\n    return upper_tool()\n",
+                    "native/impl.C": "int upper_c(void) { return 3; }\n",
+                    "native/impl.H": "int upper_h(void);\n",
+                    "contracts/Token.SOL": "contract Token {}\n",
+                }
+            ),
+        )
+        summary = await tools["graph_summary"]()
+        assert summary["languages"] == ["python"]
+        assert summary["coverage"]["analyzedFiles"] == 1
+        assert summary["coverage"]["unsupportedSourceFiles"] == 4
+        assert summary["coverage"]["incomplete"] is False
+        found = (await tools["find_symbol"]("upper_tool"))["items"]
+        assert found and all(item["kind"] == "proxy" for item in found)
+        mirrors = list(scratch.glob("code-analysis-mirror-*"))
+        assert len(mirrors) == 1
+        assert sorted(
+            path.relative_to(mirrors[0]).as_posix()
+            for path in mirrors[0].rglob("*")
+            if path.is_file()
+        ) == [".trailmark/entrypoints.toml", "app.py"]
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
 def test_core_graph_tools_expose_duplicate_identity_and_exact_relationships(
     tmp_path: Path,
 ) -> None:

@@ -334,6 +334,91 @@ def test_c_family_headers_keep_the_snapshot_language(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [
+        ((), Language.C),
+        (("include/a.h", "README.md"), Language.C),
+        (("src/main.c", "include/a.h"), Language.C),
+        (("src/main.cpp", "include/a.h"), Language.CPP),
+        (("src/a.c", "src/b.c", "src/c.c", "vendor/lib.cc"), Language.C),
+        (("src/a.c", "src/b.cc"), Language.CPP),
+        (("src/a.c", "include/b.hpp", "include/c.hh"), Language.CPP),
+        (("SRC/MAIN.CPP", "src/x.c"), Language.CPP),
+    ],
+)
+def test_header_language_follows_the_snapshot_c_family_majority(
+    paths: tuple[str, ...], expected: Language
+) -> None:
+    assert code_analysis_languages.header_language(paths) is expected
+    assert code_analysis_languages.detect_language("a/b.H", header=expected) is expected
+
+
+def test_c_project_with_a_vendored_cpp_file_keeps_c_headers(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    # typeof is valid C but not C++ syntax.
+                    "include/util.h": (
+                        "static inline int twice(int value) {\n"
+                        "  typeof(value) doubled = value * 2;\n  return doubled;\n}\n"
+                    ),
+                    "src/a.c": "int main(void) { return twice(2); }\n",
+                    "src/b.c": "int other(void) { return 1; }\n",
+                    "third_party/lib.cc": "int lib() { return 3; }\n",
+                }
+            ),
+            tmp_path,
+        )
+        listed = await tools["list_symbols"](path="include", node_type="function_definition")
+        assert listed["coverage"]["parseErrors"] == 0
+        assert [(item["name"], item["language"]) for item in listed["items"]] == [("twice", "c")]
+
+    asyncio.run(scenario())
+
+
+def test_case_variant_extensions_are_parsed_or_reported(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await _tools(
+            MutableReader(
+                {
+                    "Tool.PY": "def upper_tool():\n    return 1\n",
+                    "native/impl.C": "int upper_c(void) { return 3; }\n",
+                    "native/impl.H": "int upper_h(void);\n",
+                    "contracts/Token.SOL": "contract Token {}\n",
+                }
+            ),
+            tmp_path,
+        )
+        listed = await tools["list_symbols"]()
+        assert {(item["path"], item["name"], item["language"]) for item in listed["items"]} == {
+            ("Tool.PY", "upper_tool", "python"),
+            ("native/impl.C", "upper_c", "c"),
+            ("native/impl.H", "upper_h", "c"),
+        }
+        assert listed["coverage"]["unsupportedSourceFiles"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_php_arrow_functions_are_not_structural_definitions() -> None:
+    assert all(
+        spec.node_type != "arrow_function"
+        for specs in code_analysis_languages.NODE_SPECS.values()
+        for spec in specs
+    )
+    parsed = parse_symbols(
+        load_parser(Language.PHP),
+        b"<?php\n$double = fn($x) => $x * 2;\nfunction named($y) { return $y; }\n",
+        "src/app.php",
+        Language.PHP,
+        100,
+    )
+    assert not parsed.parse_error
+    assert [item.name for item in parsed.symbols] == ["named"]
+
+
 def test_extension_registry_retains_the_v1_surface() -> None:
     expected = {
         ".bash",

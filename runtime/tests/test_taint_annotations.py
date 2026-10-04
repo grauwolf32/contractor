@@ -15,8 +15,10 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
+from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.languages import Language
+from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
@@ -200,6 +202,96 @@ def test_cpp_header_inline_method_is_annotatable_and_parse_failures_are_final(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("files", "path", "symbol", "language"),
+    [
+        (
+            {
+                # The NOEXCEPT macro is a syntax error for both grammars, so a
+                # clean parse cannot decide the language.
+                "include/handler.h": (
+                    "namespace app {\nclass Handler {\npublic:\n"
+                    "  int count() const NOEXCEPT { return 1; }\n};\n}\n"
+                ),
+                "src/main.cpp": "int main() { return 0; }\n",
+            },
+            "include/handler.h",
+            "count",
+            "cpp",
+        ),
+        (
+            {
+                "include/util.h": (
+                    "static inline int twice(int value) {\n"
+                    "  typeof(value) doubled = value * 2;\n  return doubled;\n}\n"
+                ),
+                "src/a.c": "int main(void) { return twice(2); }\n",
+                "src/b.c": "int other(void) { return 1; }\n",
+                "third_party/lib.cc": "int lib() { return 3; }\n",
+            },
+            "include/util.h",
+            "twice",
+            "c",
+        ),
+    ],
+    ids=["cpp-project-macros", "c-project-vendored-cpp"],
+)
+def test_header_definitions_found_by_search_def_are_annotatable(
+    tmp_path: Path, files: dict[str, str], path: str, symbol: str, language: str
+) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive({name: text.encode() for name, text in files.items()}),
+                )
+            ]
+        )
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="header-agreement",
+            timeout_seconds=5,
+        )
+        search_tools = await CodeAnalysisToolsetFactory().create_selected(
+            selected=("search_def",),
+            allocation_id="header-agreement",
+            run_id="annotation-run",
+            namespace="analysis",
+            runtime_settings=RuntimeSettings(
+                llmGatewayUrl="https://llm.example/v1",
+                llmGatewayToken="secret-token",
+                artifactApiUrl="https://server.example/private/v1",
+                requestTimeoutSeconds=30,
+            ),
+            workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+            state=SimpleNamespace(metrics=MetricsState()),
+            project_workspace=session.reader_view(),
+        )
+        annotation_tools, _ = await make_tools(tmp_path, session.writer_view())
+        try:
+            found = await search_tools["search_def"](symbol)
+            assert [(item["path"], item["language"]) for item in found["items"]] == [
+                (path, language)
+            ]
+            result = await annotation_tools["annotate_trace"](
+                path, symbol, target="test", definition_line=found["items"][0]["line"]
+            )
+            assert result["changed"] is True
+            assert "// @trace target=test\n" in await session.read_text(path)
+        finally:
+            await search_tools["search_def"].close()
+            await annotation_tools["annotate_trace"].close()
+            await session.close()
+            await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
 def test_canonical_order_replay_and_trace_target_conflict(tmp_path: Path) -> None:
     async def scenario() -> None:
         writer = MemoryWriter({"app.py": "def handler(req):\n    return req\n"})
@@ -295,7 +387,7 @@ def test_method_name_and_parse_error_misses_are_deterministic(tmp_path: Path) ->
     async def scenario() -> None:
         source = "class Handler:\n    def get(self):\n        return 1\n"
         broken = source + "\ndef broken(:\n"
-        parsed, _ = _parse_target_file(broken.encode(), Language.PYTHON, "broken.py")
+        parsed = _parse_target_file(broken.encode(), Language.PYTHON)
         assert parsed.parse_error
         writer = MemoryWriter({"clean.py": source, "broken.py": broken})
         tools, _ = await make_tools(tmp_path, writer)
@@ -654,6 +746,12 @@ class MemoryWriter:
     async def update_text(self, path: str, transform: Any) -> None:
         async with self.lock:
             self.files[path] = transform(self.files[path])
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        async with self.lock:
+            return WorkspaceObservationMetadata(
+                digest="sha256:" + "0" * 64, managed_text_paths=tuple(sorted(self.files))
+            )
 
 
 class RacingWriter(MemoryWriter):

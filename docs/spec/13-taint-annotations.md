@@ -173,7 +173,9 @@ assigned variable name.
 The resolver parses only the named current UTF-8 managed-text file. It finds
 all exact structural matches, folds parser wrapper nodes belonging to one real
 declaration, and applies `definition_line` only after that deduplication. It
-never selects the first ambiguous result.
+never selects the first ambiguous result. A `.h` header uses the snapshot-wide
+C or C++ grammar rule of the shallow code-analysis surface, so a function
+definition `search_def` returns from a header resolves here too.
 
 Line numbers, both the `definition_line` selector and the returned
 `annotationLine`/`definitionLine`, use `filesystem@1/read_file` boundaries:
