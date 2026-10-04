@@ -3,7 +3,8 @@ id: V304-001
 title: Measure and fix per-row eval_collections upserts on bulk experiment inserts
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: ed3f53c9e9323f17cc5fb80fbbb82b0d4d758649
 depends_on: []
 languages: [go, sql]
 goal: Find the real cause of the 20k-row claim-plan fixture timeout and fix it if it is the trigger.
@@ -23,3 +24,29 @@ acceptance_criteria:
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore -run 'Claim|Plan'", covers: [A1, A2]}
   - {command: "make lint", covers: [A1, A2]}
+measurement:
+  method: >-
+    EXPLAIN (ANALYZE, FORMAT JSON) of the claim-plan fixture statement in a freshly
+    migrated schema on the review PostgreSQL 17.10 (shared 8-core host), with
+    pg_stat_xact_user_tables counts of eval_collections writes. Wall times are
+    noisy; trigger calls and write counts are exact.
+  before:
+    - "INSERT 2,500 experiments: 228 ms; eval_experiments_collection 2,500 calls, 133 ms; 4,998 collection updates."
+    - "INSERT 5,000: 712 ms; trigger 491 ms; 9,998 updates."
+    - "INSERT 10,000: 2,339 ms; trigger 1,862 ms; 19,998 updates."
+    - "INSERT 20,000: 10,686 ms, over the 10 s test statement_timeout; trigger 9,398 ms; 39,998 updates."
+    - "INSERT 20,000 with the trigger disabled: 993 ms."
+    - "DELETE 20,000 (Project purge shape): 11,107 ms, trigger 9,943 ms; 891 ms with it disabled."
+  conclusion: >-
+    Confirmed: the trigger, not the CI runner, caused the timeout. Its time grows
+    quadratically (about 4x per doubling) because every upsert of the same two
+    eval_collections rows walks the row versions its own transaction cannot prune.
+  after:
+    - "INSERT 20,000: 0.84-1.49 s; eval_experiments_collection_insert 1 call, 13-22 ms; 2 collection writes."
+    - "DELETE 20,000: 0.67-0.69 s; eval_experiments_collection_delete 1 call, 13-17 ms."
+    - "TestPostgresClaimPlanSkipsRetainedTerminalExperiments without the 60 s fixture budget: 2.8-3.3 s (10.1 s before)."
+  remaining: >-
+    The separate per-row UPDATE trigger eval_experiments_collection_update has the
+    same pattern: a 20,000-row state UPDATE (the Project deletion fence shape) took
+    8,841 ms, 6,762 ms of it in that trigger and 1,909 ms with it disabled. It is
+    outside this task's bulk-insert scope and left for a follow-up.

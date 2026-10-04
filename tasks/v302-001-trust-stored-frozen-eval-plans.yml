@@ -3,7 +3,8 @@ id: V302-001
 title: Stop re-validating frozen Eval plans on every read
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: completed
+implementation_commit: b3d1359c73155291e44dfd257978b909b26ef0a3
 depends_on: []
 languages: [go]
 goal: Keep Eval coordinator ticks cheap for large native plans.

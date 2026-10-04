@@ -128,6 +128,13 @@ func Freeze(kind string, data []byte) (Frozen, error) {
 	return Frozen{kind: kind, raw: bytes.Clone(data), sha256: Digest(data)}, nil
 }
 
+// Restore rebuilds a document that Freeze accepted before it was stored,
+// without walking its schema again. Only rows that are written from Freeze
+// output, reject later changes and carry a database-generated digest qualify.
+func Restore(kind string, data []byte, digest string) Frozen {
+	return Frozen{kind: kind, raw: bytes.Clone(data), sha256: digest}
+}
+
 func (f Frozen) Kind() string { return f.kind }
 
 func (f Frozen) Digest() string { return f.sha256 }

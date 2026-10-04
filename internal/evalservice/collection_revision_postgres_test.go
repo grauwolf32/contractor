@@ -193,7 +193,8 @@ FROM eval_projection_queue WHERE experiment_id=$1`, e.ID).Scan(
 	}
 	tick(t, c)
 	changed := state()
-	if changed.generations <= after.generations || changed.snapshot == after.snapshot || changed.revision != changed.published {
+	// Publication prunes the replaced generation, so only the new one remains.
+	if changed.generations != 1 || changed.snapshot == after.snapshot || changed.revision != changed.published {
 		t.Fatalf("Run state change did not publish a current view: before=%+v after=%+v", after, changed)
 	}
 }

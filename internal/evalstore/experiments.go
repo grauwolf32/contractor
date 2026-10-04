@@ -140,21 +140,23 @@ type Plan struct {
 	Setup    json.RawMessage   `json:"-"`
 }
 
+// FrozenPlan trusts the stored document: persistPlan writes only Freeze output,
+// eval_plans_immutable rejects every later change and document_sha256 is
+// generated from the stored bytes, so ticks never revalidate up to 1 MiB.
 func (s *Store) FrozenPlan(ctx context.Context, owner, id string) (Plan, error) {
-	var kind, identity string
+	var kind, digest, identity string
 	var raw, setup []byte
 	err := s.db.QueryRow(ctx, `
-SELECT p.document_kind, p.document, p.setup, p.plan_sha256
+SELECT p.document_kind, p.document, p.document_sha256, p.setup, p.plan_sha256
 FROM eval_frozen_plans p
 JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id=$1
     AND e.experiment_id=$2
-`, owner, id).Scan(&kind, &raw, &setup, &identity)
+`, owner, id).Scan(&kind, &raw, &digest, &setup, &identity)
 	if err != nil {
 		return Plan{}, normalize(err)
 	}
-	doc, err := evaldomain.Freeze(kind, raw)
-	return Plan{Document: doc, Setup: setup, SHA256: identity}, err
+	return Plan{Document: evaldomain.Restore(kind, raw, digest), Setup: setup, SHA256: identity}, nil
 }
 
 // FreezePrepared is called after read-only preparation, under the coordinator's
