@@ -4,10 +4,12 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,18 +45,37 @@ func TestBuildIsDeterministicAndUsesDirectoryContentsAsRoot(t *testing.T) {
 	}
 }
 
-func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
+// runtimeFixture is the source ZIP contract shared with the runtime
+// source_analysis tests.
+type runtimeFixture struct {
+	Valid                 []string `json:"valid"`
+	Invalid               []string `json:"invalid"`
+	IgnoredDirectoryNames []string `json:"ignoredDirectoryNames"`
+	BinaryExtensions      []string `json:"binaryExtensions"`
+	Bundles               []struct {
+		Name     string   `json:"name"`
+		Files    []string `json:"files"`
+		NonUTF8  []string `json:"nonUtf8"`
+		Openable bool     `json:"openable"`
+		Reason   string   `json:"reason"`
+	} `json:"bundles"`
+}
+
+func readRuntimeFixture(t *testing.T) runtimeFixture {
+	t.Helper()
 	encoded, err := os.ReadFile(filepath.Join("..", "..", "testdata", "source_member_paths.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var paths struct {
-		Valid   []string `json:"valid"`
-		Invalid []string `json:"invalid"`
-	}
-	if err := json.Unmarshal(encoded, &paths); err != nil {
+	var fixture runtimeFixture
+	if err := json.Unmarshal(encoded, &fixture); err != nil {
 		t.Fatal(err)
 	}
+	return fixture
+}
+
+func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
+	paths := readRuntimeFixture(t)
 	for _, path := range paths.Valid {
 		if _, err := portablePath(path); err != nil {
 			t.Errorf("valid runtime path %q: %v", path, err)
@@ -64,6 +85,78 @@ func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
 		if _, err := portablePath(path); err == nil {
 			t.Errorf("runtime rejects path %q but sourcebundle accepts it", path)
 		}
+	}
+}
+
+func TestRuntimeReadabilityListsAgreeWithFixture(t *testing.T) {
+	fixture := readRuntimeFixture(t)
+	for name, test := range map[string]struct {
+		got  map[string]bool
+		want []string
+	}{
+		"ignored directories": {runtimeIgnoredDirectories, fixture.IgnoredDirectoryNames},
+		"binary extensions":   {runtimeBinaryExtensions, fixture.BinaryExtensions},
+	} {
+		got := make([]string, 0, len(test.got))
+		for value := range test.got {
+			got = append(got, value)
+		}
+		sort.Strings(got)
+		want := append([]string(nil), test.want...)
+		sort.Strings(want)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %v, want the runtime fixture %v", name, got, want)
+		}
+	}
+}
+
+func TestBuildAcceptsOnlyRuntimeOpenableFixtureBundles(t *testing.T) {
+	for _, bundle := range readRuntimeFixture(t).Bundles {
+		t.Run(bundle.Name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, path := range bundle.Files {
+				content := "text\n"
+				if slices.Contains(bundle.NonUTF8, path) {
+					content = "\xff\xfe\n"
+				}
+				target := filepath.Join(root, filepath.FromSlash(path))
+				if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+					t.Skipf("filesystem cannot hold %q beside the other fixture names: %v", path, err)
+				}
+				if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
+					t.Skipf("filesystem cannot hold %q beside the other fixture names: %v", path, err)
+				}
+			}
+			written := 0
+			if err := filepath.WalkDir(root, func(_ string, entry os.DirEntry, err error) error {
+				if err == nil && entry.Type().IsRegular() {
+					written++
+				}
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if written != len(bundle.Files) {
+				t.Skip("filesystem normalizes distinct fixture names")
+			}
+			_, err := Build(root, Options{IncludeIgnored: true})
+			switch {
+			case bundle.Openable:
+				if err != nil {
+					t.Fatalf("Build rejected a bundle the runtime opens: %v", err)
+				}
+			case bundle.Reason == "unreadable":
+				if !errors.Is(err, errNoRuntimeText) {
+					t.Fatalf("Build error = %v, want the no-readable-file rejection", err)
+				}
+			case bundle.Reason == "nested":
+				if err == nil || !strings.Contains(err.Error(), "is both a file and a directory") {
+					t.Fatalf("Build error = %v, want the file and directory collision", err)
+				}
+			default:
+				t.Fatalf("fixture reason %q is unknown", bundle.Reason)
+			}
+		})
 	}
 }
 
@@ -178,7 +271,7 @@ func TestCopyRegularFileCannotEscapeAfterParentChanges(t *testing.T) {
 		t.Skipf("symlink unavailable: %v", err)
 	}
 	var copied bytes.Buffer
-	if err := copyRegularFile(&copied, sourceRoot, files[0]); err == nil || copied.Len() != 0 {
+	if _, err := copyRegularFile(&copied, sourceRoot, files[0]); err == nil || copied.Len() != 0 {
 		t.Fatalf("copy after parent swap = %q, %v; want no outside bytes", copied.String(), err)
 	}
 }

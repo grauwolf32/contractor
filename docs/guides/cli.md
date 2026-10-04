@@ -92,10 +92,14 @@ exclude. The bundle matches the runtime source limits: at most 10,000 files,
 bounded by the Server's 64 MiB Artifact limit. A file that changes size while
 it is packaged, such as an active log, fails the push; exclude it with
 `.contractorignore` or retry once it is stable. Source paths must be relative
-and cannot contain `:`, `\\`, or empty, `.` or `..` components. Exclude a
-non-portable path with `.contractorignore`. The bundle must contain at least
-one file after ignore filtering. If the binding exists, the command reads its
-current revision and performs a CAS update.
+and cannot contain `:`, `\\`, or empty, `.` or `..` components. Names are
+stored NFC-normalized, so names that collide after normalization, including a
+file and a directory, are rejected. Exclude a non-portable path with
+`.contractorignore`. The bundle must contain at least one file that the
+runtime source tools can read: strict UTF-8 content, no binary extension such
+as `.png` or `.zip`, and no parent directory they ignore, such as
+`node_modules`, `vendor`, `build` or `dist`. If the binding exists, the command
+reads its current revision and performs a CAS update.
 
 Artifact commands work with UserScope by default. Select ProjectScope or
 RunScope with `--project` or `--run`:

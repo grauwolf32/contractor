@@ -158,6 +158,47 @@ func TestSourcePushRejectsEmptyBundleBeforeArtifactRequest(t *testing.T) {
 	}
 }
 
+func TestSourcePushRejectsRuntimeUnopenableBundleBeforeArtifactRequest(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{"binary and ignored only", map[string]string{"assets/logo.png": "png", "node_modules/pkg/index.js": "js"}, "no file the Runtime can read"},
+		{"file and directory collide after NFC", map[string]string{"cafe\u0301": "file", "caf\u00e9/notes.txt": "nested"}, "is both a file and a directory"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := t.TempDir()
+			for path, content := range test.files {
+				target := filepath.Join(source, filepath.FromSlash(path))
+				if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+					t.Skipf("filesystem cannot hold the fixture names: %v", err)
+				}
+				if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
+					t.Skipf("filesystem cannot hold the fixture names: %v", err)
+				}
+			}
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				requests.Add(1)
+			}))
+			defer server.Close()
+			command := New(strings.NewReader(""), io.Discard, io.Discard, func(name string) string {
+				if name == "CONTRACTOR_API_TOKEN" {
+					return "secret"
+				}
+				return ""
+			})
+			err := command.Run(context.Background(), []string{
+				"--server", server.URL, "source", "push", source, "--name", "repo", "--include-ignored",
+			})
+			if err == nil || !strings.Contains(err.Error(), test.want) || requests.Load() != 0 {
+				t.Fatalf("source push = %v, Artifact requests = %d; want %q before any request", err, requests.Load(), test.want)
+			}
+		})
+	}
+}
+
 func TestPKICommandsIssueRuntimeCertificateWithoutServerContext(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "pki")
 	var output bytes.Buffer

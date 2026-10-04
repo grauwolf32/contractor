@@ -14,5 +14,114 @@
     "/absolute",
     "x\\y",
     "."
+  ],
+  "ignoredDirectoryNames": [
+    ".git",
+    ".hg",
+    ".idea",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor"
+  ],
+  "binaryExtensions": [
+    ".7z",
+    ".a",
+    ".avi",
+    ".bin",
+    ".bmp",
+    ".class",
+    ".db",
+    ".dll",
+    ".dylib",
+    ".eot",
+    ".exe",
+    ".gif",
+    ".gz",
+    ".ico",
+    ".jar",
+    ".jpeg",
+    ".jpg",
+    ".lockb",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".o",
+    ".otf",
+    ".pdf",
+    ".png",
+    ".pyc",
+    ".so",
+    ".sqlite",
+    ".tar",
+    ".tiff",
+    ".ttf",
+    ".wav",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".xz",
+    ".zip"
+  ],
+  "bundles": [
+    {
+      "name": "source file",
+      "files": ["src/main.go"],
+      "openable": true
+    },
+    {
+      "name": "text beside binary and ignored files",
+      "files": ["README", "assets/logo.png", "node_modules/pkg/index.js"],
+      "openable": true
+    },
+    {
+      "name": "files named like ignored directories",
+      "files": ["build", "src/vendor"],
+      "openable": true
+    },
+    {
+      "name": "names whose dots begin no extension",
+      "files": [".png", "notes."],
+      "openable": true
+    },
+    {
+      "name": "suffix with a dotted capital I",
+      "files": ["notes.\u0130CO"],
+      "openable": true
+    },
+    {
+      "name": "only binary extensions",
+      "files": ["assets/logo.png", "bin/app.EXE", "bun.loc\u212ab", "dist.tar.gz"],
+      "openable": false,
+      "reason": "unreadable"
+    },
+    {
+      "name": "only Runtime-ignored directories",
+      "files": ["node_modules/pkg/index.js", "src/build/out.js", "vendor/lib/lib.go"],
+      "openable": false,
+      "reason": "unreadable"
+    },
+    {
+      "name": "only non-UTF-8 content",
+      "files": ["data.txt", "assets/logo.png"],
+      "nonUtf8": ["data.txt"],
+      "openable": false,
+      "reason": "unreadable"
+    },
+    {
+      "name": "file and directory names collide after NFC normalization",
+      "files": ["cafe\u0301", "caf\u00e9/notes.txt"],
+      "openable": false,
+      "reason": "nested"
+    }
   ]
 }

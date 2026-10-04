@@ -33,6 +33,30 @@ const (
 
 var ErrArchiveTooLarge = errors.New("source ZIP exceeds the 64 MiB Artifact limit")
 
+// The runtime source_analysis toolset skips files below these directories or
+// with these extensions (IGNORED_DIRECTORY_NAMES and BINARY_EXTENSIONS), and
+// files that are not strict UTF-8. It cannot open a bundle with no other
+// file. testdata/source_member_paths.json pins both lists in Go and Python.
+var (
+	runtimeIgnoredDirectories = map[string]bool{
+		".git": true, ".hg": true, ".idea": true, ".mypy_cache": true, ".pytest_cache": true,
+		".ruff_cache": true, ".svn": true, ".tox": true, ".venv": true, "__pycache__": true,
+		"build": true, "coverage": true, "dist": true, "node_modules": true, "target": true,
+		"vendor": true,
+	}
+	runtimeBinaryExtensions = map[string]bool{
+		".7z": true, ".a": true, ".avi": true, ".bin": true, ".bmp": true, ".class": true,
+		".db": true, ".dll": true, ".dylib": true, ".eot": true, ".exe": true, ".gif": true,
+		".gz": true, ".ico": true, ".jar": true, ".jpeg": true, ".jpg": true, ".lockb": true,
+		".mov": true, ".mp3": true, ".mp4": true, ".o": true, ".otf": true, ".pdf": true,
+		".png": true, ".pyc": true, ".so": true, ".sqlite": true, ".tar": true, ".tiff": true,
+		".ttf": true, ".wav": true, ".webp": true, ".woff": true, ".woff2": true, ".xz": true,
+		".zip": true,
+	}
+	errNoRuntimeText = errors.New("source has no file the Runtime can read: every file is binary by " +
+		"extension or content, or lies below a directory it ignores such as node_modules, vendor or build")
+)
+
 type Options struct {
 	IncludeIgnored bool
 }
@@ -368,8 +392,45 @@ func inspectFiles(root *os.Root, paths []string) ([]sourceFile, int64, error) {
 		expanded += info.Size()
 		files = append(files, sourceFile{relativePath: relativePath, path: portable, info: info})
 	}
+	// Distinct raw names can normalize to a file path that is also another
+	// member's parent directory, which the Runtime rejects.
+	members := make(map[string]bool, len(files))
+	for _, file := range files {
+		members[file.path] = true
+	}
+	for _, file := range files {
+		for index, character := range file.path {
+			if character == '/' && members[file.path[:index]] {
+				return nil, 0, fmt.Errorf("source paths collide after normalization: %s is both a file and a directory; rename or exclude one with .contractorignore", file.path[:index])
+			}
+		}
+	}
 	sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
 	return files, expanded, nil
+}
+
+// runtimeTextPath reports whether the Runtime reads a member at path as
+// source text when its content is strict UTF-8.
+func runtimeTextPath(path string) bool {
+	parts := strings.Split(path, "/")
+	for _, part := range parts[:len(parts)-1] {
+		if runtimeIgnoredDirectories[part] {
+			return false
+		}
+	}
+	return !runtimeBinaryExtensions[runtimeSuffix(parts[len(parts)-1])]
+}
+
+// runtimeSuffix matches Python's PurePosixPath(name).suffix.lower(): a dot that
+// starts or ends the name does not begin an extension.
+func runtimeSuffix(name string) string {
+	index := strings.LastIndexByte(name, '.')
+	if index <= 0 || index == len(name)-1 {
+		return ""
+	}
+	// Python lowercases U+0130 to "i" plus a combining dot above; Go's simple
+	// mapping drops the dot and would make ".\u0130CO" the binary ".ico".
+	return strings.ToLower(strings.ReplaceAll(name[index:], "\u0130", "i\u0307"))
 }
 
 func containsGitComponent(path string) bool {
@@ -410,14 +471,25 @@ func portablePath(value string) (string, error) {
 	return value, nil
 }
 
-// encodeFiles archives inspected files with the sizes inspectFiles checked.
+// encodeFiles archives inspected files with the sizes inspectFiles checked and
+// requires at least one member the Runtime can read as source text.
 func encodeFiles(root *os.Root, files []sourceFile) ([]byte, error) {
+	candidates := false
+	for _, file := range files {
+		candidates = candidates || runtimeTextPath(file.path)
+	}
+	if !candidates {
+		return nil, errNoRuntimeText
+	}
+	readable := false
 	members := make([]sourcezip.Member, len(files))
 	for index, file := range files {
 		members[index] = sourcezip.Member{
 			Name: file.path, Size: file.info.Size(),
 			Write: func(destination io.Writer) error {
-				return copyRegularFile(destination, root, file)
+				text, err := copyRegularFile(destination, root, file)
+				readable = readable || text && runtimeTextPath(file.path)
+				return err
 			},
 		}
 	}
@@ -425,34 +497,38 @@ func encodeFiles(root *os.Root, files []sourceFile) ([]byte, error) {
 	if err != nil {
 		return nil, archiveError(err)
 	}
+	if !readable {
+		return nil, errNoRuntimeText
+	}
 	return payload, nil
 }
 
-// copyRegularFile copies exactly the inspected size of file. A file that grew
-// after inspection, such as an appended log, fails instead of exceeding the
-// declared size or the per-file limit that inspection enforced.
-func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) error {
+// copyRegularFile copies exactly the inspected size of file and reports whether
+// those bytes are strict UTF-8. A file that grew after inspection, such as an
+// appended log, fails instead of exceeding the declared size or the per-file
+// limit that inspection enforced.
+func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) (bool, error) {
 	source, err := root.Open(file.relativePath)
 	if err != nil {
-		return fmt.Errorf("open source member %s: %w", file.path, err)
+		return false, fmt.Errorf("open source member %s: %w", file.path, err)
 	}
 	defer source.Close()
 	opened, err := source.Stat()
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(file.info, opened) {
-		return fmt.Errorf("source member %s changed while packaging", file.path)
+		return false, fmt.Errorf("source member %s changed while packaging", file.path)
 	}
 	// One byte past the inspected size distinguishes growth from an exact match.
 	data, err := io.ReadAll(io.LimitReader(source, file.info.Size()+1))
 	if err != nil {
-		return fmt.Errorf("read source member %s: %w", file.path, err)
+		return false, fmt.Errorf("read source member %s: %w", file.path, err)
 	}
 	if int64(len(data)) != file.info.Size() {
-		return fmt.Errorf("source member %s changed while packaging", file.path)
+		return false, fmt.Errorf("source member %s changed while packaging", file.path)
 	}
 	if _, err := destination.Write(data); err != nil {
-		return archiveError(err)
+		return false, archiveError(err)
 	}
-	return nil
+	return utf8.Valid(data), nil
 }
 
 func archiveError(err error) error {
