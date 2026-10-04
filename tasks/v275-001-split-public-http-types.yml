@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V275-001
+title: Split oversized public HTTP type declarations
+milestone: code-reuse-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Keep public HTTP contracts navigable without changing their behavior.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: internal/httpapi/public/types.go exceeded 1000 lines and mixed dependencies with Run, Project, configuration, operations, workflow, and error models.
+scope:
+  in:
+    - Separate dependency interfaces from Run/Project, configuration, and operations/workflow types.
+    - Preserve every declaration and JSON contract.
+  out:
+    - Handler refactors and request behavior changes.
+acceptance_criteria:
+  - {id: A1, text: types.go contains only dependency interfaces and shared error sentinels.}
+  - {id: A2, text: All request and response declarations remain available to the same package.}
+  - {id: A3, text: Public HTTP package tests pass without contract changes.}
+tests:
+  - {command: go test ./internal/httpapi/public, covers: [A1, A2, A3]}
