@@ -3,7 +3,8 @@ id: V284-001
 title: Classify next-Round preparation failures
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5a799a6472b20d3eb4519bfd3ecd59141899b1db
 depends_on: []
 languages: [go]
 goal: Distinguish impossible states and blob I/O failures from deterministic validation failures in Audit Round progression.
