@@ -3,7 +3,8 @@ id: V311-001
 title: One redaction policy for metrics and results
 milestone: review-defects-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 42bedf61289e4b2b71b638cade552fe0341ddd03
 depends_on: []
 languages: [python]
 goal: Redact secrets consistently without garbling tool names and record cancelled tool calls for every toolset.
