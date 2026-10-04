@@ -3,7 +3,8 @@ id: V365-020
 title: "Fold finding_proposal_retention into finding_proposal_receipts"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 43e25e7159f0dbe5ac186a27c1383fcf51417c7d
 depends_on: [V365-001, V365-002]
 languages: [go, sql]
 goal: "Remove finding_proposal_retention (1:1 mutable state of a receipt) by storing its data on the parent row."
