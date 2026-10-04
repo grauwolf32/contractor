@@ -3,7 +3,7 @@ id: V303-001
 title: Bound Eval view generation growth
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: Create view generations only for visible changes and prune superseded ones.

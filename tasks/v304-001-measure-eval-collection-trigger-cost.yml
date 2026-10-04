@@ -3,7 +3,7 @@ id: V304-001
 title: Measure and fix per-row eval_collections upserts on bulk experiment inserts
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: Find the real cause of the 20k-row claim-plan fixture timeout and fix it if it is the trigger.
