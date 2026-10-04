@@ -21,6 +21,7 @@ RELEASE_STAGE_TIMEOUTS = {
     "release-verify-integration": 45,
     "release-verify-process-a": 80,
     "release-verify-process-b": 80,
+    "release-verify-process-c": 80,
 }
 PR_STAGE_TIMEOUTS = {
     "test-ui-stack-operations": 30,
@@ -36,6 +37,7 @@ BROWSER_B = "release-verify-browser-b"
 INTEGRATION = "release-verify-integration"
 PROCESS_A = "release-verify-process-a"
 PROCESS_B = "release-verify-process-b"
+PROCESS_C = "release-verify-process-c"
 UI_STACK_OPERATIONS = "test-ui-stack-operations"
 CAPABILITY_E2E = "test-capability-e2e"
 
@@ -58,7 +60,7 @@ def stages_for_paths(paths: list[str]) -> list[str]:
         elif path.startswith("tests/ui-stack/"):
             selected.update((BROWSER_A, BROWSER_B))
         elif path.startswith("tests/e2e/"):
-            selected.update((UNIT, PROCESS_A, PROCESS_B))
+            selected.update((UNIT, PROCESS_A, PROCESS_B, PROCESS_C))
         elif path.startswith(("runtime/", "cmd/", "internal/")):
             selected.update((UNIT, INTEGRATION, CAPABILITY_E2E))
         elif path.startswith(("tests/integration/", "tests/eval/", "tools/")):
@@ -66,7 +68,7 @@ def stages_for_paths(paths: list[str]) -> list[str]:
         elif path.startswith(("api/", "configs/")):
             selected.update((UNIT, UI, BROWSER_A, BROWSER_B, INTEGRATION, CAPABILITY_E2E))
         elif path in {"go.mod", "go.sum"}:
-            selected.update((UNIT, INTEGRATION, PROCESS_A, PROCESS_B))
+            selected.update((UNIT, INTEGRATION, PROCESS_A, PROCESS_B, PROCESS_C))
         elif path.startswith(("docs/", ".github/", "make/", "scripts/", "deploy/")) or path in {
             "Makefile",
             ".gitignore",

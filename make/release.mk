@@ -1,7 +1,7 @@
 # The release gate runs in stages, cheapest first, so a lint, unit or UI
 # failure surfaces within minutes instead of after the long suites. CI runs
-# every stage as its own job (.github/workflows/ci.yml) and make
-# release-verify runs them in this order; add -k to see every failing stage.
+# selected stages for PRs and every stage for release tags or manual dispatch.
+# make release-verify runs them in this order; add -k to see every failure.
 # Family targets keep their focused Go suites when invoked directly. Inside a
 # stage RELEASE_CONSOLIDATED replaces them with the unions below, with each
 # selected test run once.
@@ -9,10 +9,10 @@
 RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
 	release-verify-families release-verify-browser-a release-verify-browser-b release-verify-race \
 	release-verify-race-discovered release-verify-integration \
-	release-verify-process-a release-verify-process-b
+	release-verify-process-a release-verify-process-b release-verify-process-c
 
 .PHONY: $(RELEASE_STAGES) test-release-go-race test-release-go-race-discovered \
-	test-release-process-e2e test-release-process-e2e-a test-release-process-e2e-b \
+	test-release-process-e2e test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c \
 	test-release-integration test-release-non-race \
 	test-release-ui-stack-a test-release-ui-stack-b
 
@@ -50,6 +50,8 @@ release-verify-process-a: test-release-process-e2e-a
 
 release-verify-process-b: test-release-process-e2e-b
 
+release-verify-process-c: test-release-process-e2e-c
+
 RELEASE_RACE_PATTERNS := \
 	./cmd/contractor-skill/... \
 	./internal/agentskills/... ./internal/app/... ./internal/artifactpolicy/... \
@@ -85,9 +87,12 @@ RELEASE_NON_RACE_PACKAGES := ./internal/findingintake
 test-release-non-race: require-database
 	go test -tags=integration -count=1 -timeout=10m $(RELEASE_NON_RACE_PACKAGES)
 
-RELEASE_E2E_TESTS_A := TestAgentSkillsMVPProcesses|TestAuditProgramCatalogReplacementRestartsServer|TestAuditProgramsAcrossProductionProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestLocalGoToPythonArtifactCopy
-RELEASE_E2E_TESTS_B := TestProductionMemoryTemplatesAcrossProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestRoutingAndEscalationProductionBoundaries|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestSharedMemoryMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSessionModesAcrossProductionProcesses|TestWorkerSummarizerProductionBoundaries
-RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)
+# Shards are balanced from uncached CI test durations; all three run on
+# separate runners. Keep the full local test-e2e command below.
+RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy
+RELEASE_E2E_TESTS_B := TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
+RELEASE_E2E_TESTS_C := TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses
+RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E_TESTS_C)
 
 test-release-process-e2e: require-database runtime-venv
 	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
@@ -97,6 +102,9 @@ test-release-process-e2e-a: require-database runtime-venv
 
 test-release-process-e2e-b: require-database runtime-venv
 	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_B))$$'
+
+test-release-process-e2e-c: require-database runtime-venv
+	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_C))$$'
 
 # The two browser stages run independently in CI. Each tagged stack test runs
 # once. Keep the small helper tests in the first shard too.

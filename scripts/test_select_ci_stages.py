@@ -8,6 +8,7 @@ from select_ci_stages import (
     LINT,
     PROCESS_A,
     PROCESS_B,
+    PROCESS_C,
     UI,
     UI_STACK_OPERATIONS,
     UNIT,
@@ -37,7 +38,7 @@ class SelectCIStagesTest(unittest.TestCase):
         )
 
     def test_e2e_tests_select_process_shards(self):
-        self.assertEqual(stages_for_paths(["tests/e2e/stack_test.go"]), [LINT, UNIT, PROCESS_A, PROCESS_B])
+        self.assertEqual(stages_for_paths(["tests/e2e/stack_test.go"]), [LINT, UNIT, PROCESS_A, PROCESS_B, PROCESS_C])
 
     def test_gate_and_docs_only_stay_fast(self):
         self.assertEqual(stages_for_paths([".github/workflows/ci.yml", "make/release.mk", "docs/testing/README.md"]), [LINT])

@@ -43,7 +43,7 @@ uses `make -k` and uploads its log and available evidence as a
 PR selection always includes lint. Server and Runtime changes add unit,
 integration and focused cross-process capability checks; UI changes add UI
 checks and the affected browser stacks.
-Changes to `tests/e2e` add both process shards. Edits confined to
+Changes to `tests/e2e` add all three process shards. Edits confined to
 `ui/e2e/stack.spec.ts` run the focused operations stack; other `ui/e2e`
 edits select the operations browser shard (both browser shards for the
 managed-Evals stack). Shared API and configuration changes select Go, UI,
@@ -63,6 +63,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test under the race detector, and a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline |
 | `release-verify-process-a` | The first shard of the 19 process e2e tests |
 | `release-verify-process-b` | The second shard of the 19 process e2e tests |
+| `release-verify-process-c` | The third shard of the 19 process e2e tests |
 
 The process and browser shards run on separate CI runners. `make test-e2e`
 still runs all 19 process tests in one local command, and `make test-ui-stack`
