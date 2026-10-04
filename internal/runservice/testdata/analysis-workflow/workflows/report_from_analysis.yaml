@@ -1,0 +1,81 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+# The input contract mirrors a Workflow that reuses precomputed analysis
+# reports: every report is an explicit, required, Markdown-only input.
+metadata:
+  name: report-from-analysis
+  version: "1"
+
+spec:
+  parameters:
+    objective:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    dependency_report:
+      required: true
+      mediaTypes: [text/markdown]
+    project_report:
+      required: true
+      mediaTypes: [text/markdown]
+    existing_report:
+      required: false
+      mediaTypes: [text/markdown]
+
+  outputs:
+    report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: build
+  stages:
+    build:
+      objective: Build a report from the caller-selected analysis reports
+      instructions:
+        ref: instructions/analysis-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: artifact_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+          dependency_report:
+            namespace: inputs
+            name: dependency_report
+            required: true
+          project_report:
+            namespace: inputs
+            name: project_report
+            required: true
+          existing_report:
+            namespace: inputs
+            name: existing_report
+            required: false
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: builder, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

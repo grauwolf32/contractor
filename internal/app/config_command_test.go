@@ -177,12 +177,12 @@ func TestConfigValidateChecksBundledStandardSelections(t *testing.T) {
 	for _, test := range []struct {
 		name, from, to, want string
 	}{
-		{"unknown entry", "- v5.0.0-1.2.1", "- v5.0.0-1.2.0", "standard selection"},
-		{"database-only standard", "5.0.0-l1-source.1", "9.9.9", "is not bundled"},
+		{"unknown entry", "- v5.0.0-1.2.4", "- v5.0.0-1.2.0", "standard selection"},
+		{"database-only standard", `version: "5.0.0"`, `version: "9.9.9"`, "is not bundled"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			operator := copyConfigValidationTree(t)
-			profilePath := filepath.Join(operator, "audit-profiles", "owasp_asvs_5_0_l1_source_review.yaml")
+			profilePath := filepath.Join(operator, "audit-profiles", "owasp_asvs_5_0_l1_source_pilot.yaml")
 			original, err := os.ReadFile(profilePath)
 			if err != nil {
 				t.Fatal(err)
@@ -202,11 +202,16 @@ func TestConfigValidateChecksBundledStandardSelections(t *testing.T) {
 	}
 }
 
+// copyConfigValidationTree builds a mutable operator root from the shared
+// Server test catalog plus this package's bundled ASVS pilot standard and the
+// AuditProfile that selects it.
 func copyConfigValidationTree(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "configs")
-	if err := os.CopyFS(root, os.DirFS("../../configs")); err != nil {
-		t.Fatal(err)
+	for _, fixture := range []string{"../../testdata/configs", "testdata/config-validation"} {
+		if err := os.CopyFS(root, os.DirFS(fixture)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return root
 }

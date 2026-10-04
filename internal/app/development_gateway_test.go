@@ -45,7 +45,7 @@ func TestDevelopmentGatewayPrecedenceAndExactSelector(t *testing.T) {
 
 func TestDevelopmentCredentialsUseSelectedGatewayWithoutChangingManagedCredentials(t *testing.T) {
 	root := t.TempDir()
-	if err := os.CopyFS(root, os.DirFS("../../configs")); err != nil {
+	if err := os.CopyFS(root, os.DirFS("../../testdata/configs")); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "llm-gateways/local_litellm.yaml"))

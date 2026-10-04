@@ -1,7 +1,9 @@
-"""Repository sample resolved for a deterministic ADK model and Artifact peer.
+"""Frozen Podman sample resolved for a deterministic ADK model and Artifact peer.
 
-No host command execution. Real-host tests replace only the model and remote
-Control Plane/Artifact peers, keeping production allocation and Podman ownership.
+The Workflow, AgentTemplate, ModelPolicy, instructions and sample project live in
+``tests/fixtures/podman-python-check``. No host command execution. Real-host tests
+replace only the model and remote Control Plane/Artifact peers, keeping production
+allocation and Podman ownership.
 """
 
 from __future__ import annotations
@@ -38,13 +40,14 @@ from contractor_runtime.state import ProcessState
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 
-CONFIGS = Path(__file__).resolve().parents[3] / "configs"
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "podman-python-check"
+PROJECT = FIXTURE / "project"
 EXPECTED_REPORT = b'{"passed": 3, "status": "ok"}\n'
 COMMAND = "python3 -B check.py"
 
 
 def document(path):
-    return yaml.safe_load((CONFIGS / path).read_text())
+    return yaml.safe_load((FIXTURE / path).read_text())
 
 
 def source_archive():
@@ -53,7 +56,7 @@ def source_archive():
         for name in ("calculator.py", "check.py"):
             info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
             info.external_attr = 0o100644 << 16
-            bundle.writestr(info, (CONFIGS / "fixtures/podman-python-check" / name).read_bytes())
+            bundle.writestr(info, (PROJECT / name).read_bytes())
     return output.getvalue()
 
 
@@ -119,7 +122,7 @@ def sample_spec(peer):
     spec.agent_template.ref.template_id = template["metadata"]["name"]
     spec.agent_template.ref.version = template["metadata"]["version"]
     spec.agent_template.description = authored["description"]
-    text = (CONFIGS / authored["instructions"]["ref"]).read_text()
+    text = (FIXTURE / authored["instructions"]["ref"]).read_text()
     spec.agent_template.instructions = ResolvedInstructions(
         ref=authored["instructions"]["ref"], text=text, digest=sha256_digest(text.encode())
     )
@@ -154,7 +157,7 @@ def sample_spec(peer):
         apiVersion=API_VERSION,
         subtaskId="0",
         objective=stage["objective"],
-        instructions=(CONFIGS / stage["instructions"]["ref"]).read_text(),
+        instructions=(FIXTURE / stage["instructions"]["ref"]).read_text(),
         parameters={},
         artifacts={"source": peer.source_ref},
         resultArtifacts={
@@ -229,9 +232,7 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
         assert context.worker_state.metrics.counters.get("sandbox.completed_zero", 0) == 1
         assert await session.read_text("report.json") == EXPECTED_REPORT.decode()
         assert "return a + b" in await session.read_text("calculator.py")
-        assert (await session.read_text("check.py")).encode() == (
-            CONFIGS / "fixtures/podman-python-check/check.py"
-        ).read_bytes()
+        assert (await session.read_text("check.py")).encode() == (PROJECT / "check.py").read_bytes()
         assert context.worker_state.metrics.counters["tool_calls.exec_command"] == 1
         if publish:
             assert "report" in completion.result.artifacts
@@ -283,9 +284,7 @@ class Commands:
         assert (root / "calculator.py").read_text() == "def add(a, b):\n    return a + b\n"
         assert (
             hashlib.sha256((root / "check.py").read_bytes()).digest()
-            == hashlib.sha256(
-                (CONFIGS / "fixtures/podman-python-check/check.py").read_bytes()
-            ).digest()
+            == hashlib.sha256((PROJECT / "check.py").read_bytes()).digest()
         )
         (root / "report.json").write_bytes(EXPECTED_REPORT)
         return CommandCapture(0, b"", b"", 0, 0)

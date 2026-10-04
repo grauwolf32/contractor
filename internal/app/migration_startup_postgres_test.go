@@ -205,7 +205,7 @@ func migrationStartupEnvironment(t *testing.T, databaseURL string) (map[string]s
 	}
 	publicAddress := startupFreeAddress(t)
 	privateAddress := startupFreeAddress(t)
-	configRoot, err := filepath.Abs("../../configs")
+	configRoot, err := filepath.Abs("../../testdata/configs")
 	if err != nil {
 		t.Fatal(err)
 	}

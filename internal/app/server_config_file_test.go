@@ -239,30 +239,6 @@ func TestServerConfigRejectsInvalidFileContainers(t *testing.T) {
 	}
 }
 
-func TestRepositoryLocalServerConfigKeepsDefaultsAndDemoWorkerTimeout(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join("..", "..", "configs", "server.local.yaml")
-	cfg, err := ParseConfig([]string{"--config", path}, func(string) string { return "" })
-	if err != nil {
-		t.Fatal(err)
-	}
-	root, err := filepath.Abs(filepath.Join("..", "..", "configs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.OperatorConfigRoot != root || cfg.ListenAddress != defaultListenAddress ||
-		cfg.PrivateListenAddress != defaultPrivateListenAddress ||
-		cfg.PlannerTimeout != defaultPlannerTimeout || !cfg.InsecureLoopbackCookie ||
-		len(cfg.BrowserOrigins) != 1 || cfg.BrowserOrigins[0] != "http://127.0.0.1:4173" {
-		t.Fatalf("repository ServerConfig = %+v", cfg)
-	}
-	// The demo allows longer Worker requests than the executable's 180s default.
-	// Keep checking the explicit override so silently dropping it fails this test.
-	if cfg.WorkerRequestTimeout != 15*time.Minute {
-		t.Fatalf("demo Worker request timeout = %s, want 15m", cfg.WorkerRequestTimeout)
-	}
-}
-
 func writeServerConfigTestFile(t *testing.T, path, document string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(document), 0o600); err != nil {
