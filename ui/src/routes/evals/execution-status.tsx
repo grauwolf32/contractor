@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
-import { listEvalMembers, type EvalExperiment } from "../../api/evals";
+import {
+  isTerminalEvalState,
+  listEvalMembers,
+  type EvalExperiment,
+} from "../../api/evals";
 import { EvalError } from "./common";
 import { queryKeys } from "../../api/query-keys";
 
@@ -17,7 +21,7 @@ export function EvalExecutionStatus({
   const terminal = total("terminal");
   const failed = terminal - total("executionSucceeded");
   const excluded = total("unsupported") + total("blocked");
-  const finished = ["finished", "cancelled"].includes(experiment.state);
+  const finished = isTerminalEvalState(experiment.state);
   const base = `/evals/experiments/${encodeURIComponent(experiment.experimentId)}`;
 
   if (experiment.state === "paused" || experiment.state === "pausing") {

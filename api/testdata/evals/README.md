@@ -13,6 +13,11 @@ live execution. All IDs, hashes, credentials and timestamps are illustrative.
 - `audit-accounting.json`: one parent Audit, check retry, discovery and assessment
   Runs, repeated identical observations and overlapping child lifetimes. Expected
   totals are 100 tokens, four model calls and 2000 ms parent wall time.
+- `lifecycle-states.json`: experiment lifecycle states and the terminal subset that
+  Go, the managed schema, the public OpenAPI and the UI state sets share.
+- `plan-size-cases.json`: native plan-size estimates of drafts that the Server's
+  authoring validation and the UI setup must both reproduce, including the 1 MiB
+  boundary.
 
 The trace-small fixture has eight expected members: A passes 3/4, B 2/4;
 conditional assessment quality is 3/3 and 2/3. Terminal/quality/token paired

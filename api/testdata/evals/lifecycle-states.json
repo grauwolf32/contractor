@@ -1,0 +1,5 @@
+{
+  "description": "Managed Eval experiment lifecycle states and their terminal subset. Go evaldomain, the managed schema, the public OpenAPI and the UI state sets must agree with them.",
+  "states": ["draft", "preparing", "ready", "running", "settling", "finished", "pausing", "paused", "cancelling", "cancelled"],
+  "terminal": ["finished", "cancelled"]
+}
