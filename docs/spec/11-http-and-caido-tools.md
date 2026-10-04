@@ -135,8 +135,9 @@ invalid or oversized stored bodies fail with non-retryable `http_body_not_found`
   send, including redirects and retries. A URL that grows past 8192 UTF-8
   bytes after encoding, contains a backslash or has an invalid percent escape
   fails `http_request_invalid` before that hop is sent.
-  Raw control characters and invalid IDNA hosts are also invalid input;
-  neither direct nor proxy routes retry them as transport failures.
+  Raw control characters and hosts outside the shared host rule (see
+  [Target policy](#target-policy)) are also invalid input; neither direct nor
+  proxy routes resolve, forward or retry them as transport failures.
 
 A response with a status outside 100..599 or headers that the finding-evidence
 contract cannot retain (including a block over 64 KiB) fails
@@ -161,6 +162,21 @@ routing, not a hint; failure never falls back to direct network.
 
 `http-tools@1`, every `scan@1` operation and request-bound `caido@1` actions share one Runtime target policy
 (`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
+
+Every host first passes one shared syntax rule: `http_request` URLs and each
+redirect hop, Caido raw and captured Replay, Automate and active-workflow
+connection hosts, and every scanner URL or host argument. A host is an IP
+literal (a Caido connection host may bracket an IPv6 literal) or a name of
+ASCII labels made of letters, digits, `_` and `-`, each 1..63 bytes and not
+starting with `-`, with at most 253 bytes in total plus an optional final dot.
+Docker-compose service names such as `juice_shop` therefore work everywhere. A
+Unicode name must IDNA-encode, and httpx sends and Katana canonicalizes its
+A-label; an `xn--` label must decode. Percent-escapes (`%6c%6fcalhost`),
+sub-delimiters (`a!b$c.example`) and IPv6 zone identifiers are rejected as
+non-retryable invalid input (`http_request_invalid`, `caido_request_invalid` or
+the scanner's input error) before any resolver, proxy or GraphQL call, because
+resolvers and forward proxies disagree about them.
+
 A literal host is first normalized the way resolvers read it: shortened,
 single-number, octal and hexadecimal IPv4 forms (`127.1`, `2130706433`,
 `0x7f000001`, `0`), IPv4-mapped IPv6 and the NAT64 well-known prefix

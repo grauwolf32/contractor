@@ -13,6 +13,7 @@ from contractor_runtime.strict_json import (
     strict_json_loads,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.target_policy import validate_host_syntax
 
 MAX_REQUEST_ARTIFACT_BYTES = 256 * 1024
 MAX_BODY_BYTES = 64 * 1024
@@ -28,7 +29,6 @@ _FIELDS = {"schemaVersion", "method", "url", "headers", "body", "testParameters"
 _METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 _HEADER_NAME = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", re.ASCII)
 _PARAMETER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\[\]-]*", re.ASCII)
-_DNS_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", re.ASCII)
 _UNSUPPORTED_HEADERS = {
     "connection",
     "content-encoding",
@@ -91,10 +91,11 @@ def _url(value: object) -> tuple[str, str]:
             raise HTTPRequestInputError("request url has an invalid host") from None
         if not re.fullmatch(r"\[[0-9A-Fa-f:.]+\](?::[0-9]+)?", parts.netloc):
             raise HTTPRequestInputError("request url has an invalid authority")
-    elif len(hostname) > 253 or any(
-        not _DNS_LABEL.fullmatch(label) for label in hostname.removesuffix(".").split(".")
-    ):
-        raise HTTPRequestInputError("request url has an invalid host")
+    else:
+        try:
+            validate_host_syntax(hostname)
+        except ValueError:
+            raise HTTPRequestInputError("request url has an invalid host") from None
     return url, parts.netloc
 
 

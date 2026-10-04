@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import ipaddress
 import json
 import math
 import secrets
@@ -39,6 +40,7 @@ from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     TargetPolicy,
     TargetPolicyConfig,
+    validate_host_syntax,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -2009,9 +2011,17 @@ def _request_number(value: object, *, minimum: float, maximum: float) -> float:
 
 
 def _connection_host(value: object) -> str:
-    selected = _request_text(value, maximum=253)
-    if any(character.isspace() for character in selected) or "://" in selected:
-        raise CaidoToolError("caido_request_invalid")
+    selected = _request_text(value, maximum=MAX_SHORT_TEXT_BYTES)
+    # A connection host may be an IPv6 literal in brackets; the address inside
+    # follows the shared host rule like every other host.
+    bracketed = selected.startswith("[") and selected.endswith("]")
+    host = selected[1:-1] if bracketed else selected
+    try:
+        validate_host_syntax(host)
+        if bracketed:
+            ipaddress.IPv6Address(host)
+    except ValueError:
+        raise CaidoToolError("caido_request_invalid") from None
     return selected
 
 

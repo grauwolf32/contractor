@@ -497,7 +497,7 @@ def test_malformed_urls_fail_before_send_without_proxy_retries(
 
 
 @pytest.mark.parametrize("route", ["direct", "proxy"])
-def test_ascii_host_names_outside_idna_rules_are_sent(tmp_path: Path, route: str) -> None:
+def test_host_names_under_the_shared_host_rule_are_sent(tmp_path: Path, route: str) -> None:
     async def scenario() -> None:
         hosts: list[str] = []
 
@@ -519,7 +519,8 @@ def test_ascii_host_names_outside_idna_rules_are_sent(tmp_path: Path, route: str
                 settings=proxy_runtime_settings(),
                 adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
             )
-        long_label = "a" * 64
+        # The longest label the shared host rule accepts; see test_host_syntax.
+        long_label = "a" * 63
         try:
             for url in (
                 "http://juice_shop:3000/",

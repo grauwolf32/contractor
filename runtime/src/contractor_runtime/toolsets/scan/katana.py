@@ -7,9 +7,12 @@ import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 
+import idna
+
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.target_policy import validate_host_syntax
 from contractor_runtime.toolsets.scan.process import ProcessResult
 
 TARGET_LIST_MEDIA_TYPE = "text/vnd.contractor.target-list"
@@ -39,17 +42,15 @@ def canonical_url(value: str) -> str:
         ):
             raise ValueError
         host = parsed.hostname.lower()
+        validate_host_syntax(host)
         try:
             address = ipaddress.ip_address(host)
-            if "%" in host:
-                raise ValueError
             host = f"[{address.compressed}]" if address.version == 6 else str(address)
         except ValueError:
-            if len(host) > 253 or any(
-                not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
-                for label in host.removesuffix(".").split(".")
-            ):
-                raise ValueError from None
+            # Katana and its results compare origins textually, so a Unicode
+            # name takes its canonical IDNA A-label form.
+            if not host.isascii():
+                host = idna.encode(host).decode("ascii")
         port = parsed.port
         if port is not None and not 1 <= port <= 65535:
             raise ValueError

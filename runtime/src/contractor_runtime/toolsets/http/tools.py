@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import ipaddress
 import json
 import math
 import re
@@ -49,6 +48,7 @@ from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
     TargetPolicy,
     TargetPolicyConfig,
+    validate_host_syntax,
 )
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
 from contractor_runtime.toolsets.http.limits import (
@@ -1332,19 +1332,6 @@ def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> floa
     return delay
 
 
-def _validate_idna_host(host: str) -> None:
-    # httpx sends ASCII names as written, so ordinary labels such as
-    # docker-compose service names with underscores stay valid. Only Unicode
-    # names, which httpx IDNA-encodes, and explicit A-labels need IDNA rules.
-    name = host.lower().rstrip(".")
-    if not name.isascii():
-        idna.encode(name)
-        return
-    for label in name.split("."):
-        if label.startswith("xn--"):
-            idna.decode(label)
-
-
 def _validate_target(url: str, policy: TargetPolicy) -> None:
     try:
         validate_web_url(url)
@@ -1358,10 +1345,9 @@ def _validate_target(url: str, policy: TargetPolicy) -> None:
             or parsed.fragment
         ):
             raise HTTPToolError("http_request_invalid")
-        try:
-            ipaddress.ip_address(host)
-        except ValueError:
-            _validate_idna_host(host)
+        # The shared rule rejects percent-escapes and sub-delimiters that a
+        # resolver or forward proxy could interpret differently.
+        validate_host_syntax(host)
         _origin(url)
     except HTTPToolError:
         raise
