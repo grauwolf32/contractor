@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
     ArtifactReadResult,
     FinalizeAllocationRequest,
     GatewayFailureSignature,
+    GatewayFailureSignatures,
     HeartbeatResponse,
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
@@ -73,6 +74,16 @@ MODELS: dict[str, type[BaseModel]] = {
         WorkerCompletion,
         WorkspaceCapabilities,
     )
+}
+
+# Index types the Runtime deliberately does not decode, each with its reason.
+# Every other index type must have a model above, or the suite fails instead of
+# silently skipping its fixtures.
+GO_ONLY_TYPES: dict[str, str] = {
+    "ResolvedLLMGatewayConfig": (
+        "the resolved Gateway body stays on the Go Server; the Runtime receives only "
+        "the LLMGatewayConfigRef and the effective RuntimeSettings failure signatures"
+    ),
 }
 
 DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
@@ -570,6 +581,33 @@ def test_all_golden_files_have_an_assigned_model() -> None:
     assert invalid_files == INDEX["invalid"].keys()
     for entry in INDEX["invalid"].values():
         assert entry.keys() & {"schema", "strict", "reason"}
+
+
+def test_every_index_type_has_a_runtime_model_or_a_go_only_reason() -> None:
+    types = {entry["type"] for kind in ("valid", "invalid") for entry in INDEX[kind].values()}
+    assert types - MODELS.keys() == GO_ONLY_TYPES.keys()
+    assert MODELS.keys().isdisjoint(GO_ONLY_TYPES)
+    assert all(reason.strip() for reason in GO_ONLY_TYPES.values())
+
+
+def test_gateway_failure_signatures_reject_a_permanent_code_with_a_trailing_newline() -> None:
+    assert GatewayFailureSignatures.model_validate(
+        {"permanentCodes": ["insufficient_quota"]}
+    ).permanent_codes == ["insufficient_quota"]
+    with pytest.raises(ValidationError, match="snake_case provider codes"):
+        GatewayFailureSignatures.model_validate({"permanentCodes": ["insufficient_quota\n"]})
+
+
+def test_gateway_failure_signatures_reject_the_shared_newline_fixture() -> None:
+    # The Go-only Gateway fixture carries the same signature body that
+    # RuntimeSettings.llmGatewayFailureSignatures receives.
+    fixture = json.loads(
+        (FIXTURES / "invalid" / "llm-gateway-config-permanent-code-newline.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    with pytest.raises(ValidationError, match="snake_case provider codes"):
+        GatewayFailureSignatures.model_validate(fixture["failureSignatures"])
 
 
 def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> None:
