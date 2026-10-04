@@ -26,6 +26,7 @@ func TestServerCommandsPrintUsageForHelp(t *testing.T) {
 		{[]string{"migrate", "--help"}, "-database-url"},
 		{[]string{"config", "validate", "-h"}, "-root"},
 		{[]string{"blobs", "cleanup", "--help"}, "-offline"},
+		{[]string{"auth", "hash-password", "--help"}, "-username"},
 	} {
 		usage.Reset()
 		if err := RunCLI(context.Background(), test.args, getenv, logger); err != nil {

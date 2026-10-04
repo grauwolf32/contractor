@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V268-001
+title: Complete the CLI, build, and deployment review fixes
+milestone: release-gate-2026-10
+priority: P2
+status: completed
+implementation_commit: 12960ddb0be0a9d509b853256027b1a3d0012a86
+depends_on: []
+languages: [go, shell]
+goal: Finish the remaining help-path failure and verify the earlier CLI and deployment corrections.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/85
+  finding: Token precedence, private downloads, the release selector, CA bundle, non-root deployment, and LiteLLM configuration were corrected earlier; auth hash-password help still required a terminal.
+scope:
+  in:
+    - Parse auth hash-password help before requiring an interactive password prompt.
+    - Remove the obsolete LAN address from the LiteLLM contract fixture.
+    - Verify the already corrected CLI and release selector behavior.
+  out:
+    - Altering normal password prompting or token selection.
+acceptance_criteria:
+  - {id: A1, text: Every Server subcommand prints useful help and exits successfully without an interactive terminal.}
+  - {id: A2, text: CLI token precedence and private download permissions remain covered and passing.}
+  - {id: A3, text: The LikeC4 release selector matches existing tests and deployment examples retain CA, non-root, and configurable upstream settings.}
+tests:
+  - {command: go test ./internal/app ./internal/cli ./internal/config, covers: [A1, A2, A3]}
+  - {command: sh deploy/litellm/test-run-argv.sh, covers: [A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
