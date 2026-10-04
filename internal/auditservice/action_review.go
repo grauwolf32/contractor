@@ -102,7 +102,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		}
 		if expired {
 			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
-				params.RequestID, nil, map[string]any{
+				params.RequestID, map[string]any{
 					"subjectKind": subjectKind,
 					"subjectId":   subjectID,
 					"kind":        kind,
@@ -164,7 +164,7 @@ UPDATE audit_review_requests
 				return err
 			}
 		}
-		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID, nil,
+		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID,
 			map[string]any{
 				"subjectKind": subjectKind, "subjectId": subjectID,
 				"kind": kind, "action": params.Action,

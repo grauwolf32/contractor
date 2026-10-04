@@ -1325,7 +1325,10 @@ the Audit completed; rejection or bounded expiry records a stable terminal
 reason. Each is an ordinary revisioned Audit transition: acceptance records
 the same `audit.report_committed` event as an automatic report commit,
 rejection records `audit.state_changed` to `failed`, and the owner's decision
-then records `review.decided`. A non-expired report request is excluded from Controller claims, while
+then records `review.decided`. Every other exit from `waiting_review` (owner
+cancellation, owner deletion or deletion of the owning Project) expires the
+pending request in the same Audit transition and records one `review.expired`
+event after the lifecycle event. A non-expired report request is excluded from Controller claims, while
 an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity

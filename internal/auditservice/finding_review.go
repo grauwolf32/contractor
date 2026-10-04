@@ -132,7 +132,7 @@ INSERT INTO audit_review_requests (
 			}
 			return err
 		}
-		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.requested", requestID, nil,
+		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.requested", requestID,
 			map[string]any{
 				"subjectKind": ReviewSubjectFinding,
 				"subjectId":   params.FindingID,
@@ -233,7 +233,7 @@ SELECT audit.state,
 			// Returning ErrPrecondition from inside the transaction would roll the
 			// update back and leave the request permanently pending.
 			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
-				request.RequestID, nil, map[string]any{
+				request.RequestID, map[string]any{
 					"subjectKind": ReviewSubjectFinding,
 					"findingId":   row.findingID,
 					"kind":        FindingReviewKind,
@@ -287,7 +287,7 @@ UPDATE audit_findings
  WHERE finding_id = $1`, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
 			return err
 		}
-		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID, nil,
+		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID,
 			map[string]any{"findingId": findingID, "verdict": params.Verdict})
 	})
 	if err != nil {
@@ -858,12 +858,10 @@ UPDATE audit_review_requests
 }
 
 func appendAuditReviewEvent(
-	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string,
-	entityRevision *uint64, summary map[string]any,
+	ctx context.Context, tx pgx.Tx, auditID, kind, entityID string, summary map[string]any,
 ) error {
 	return auditstore.NewPostgresStore(tx).AppendReviewEvent(ctx, auditstore.ReviewEventParams{
-		AuditID: auditID, Kind: kind, EntityID: entityID,
-		EntityRevision: entityRevision, Summary: summary,
+		AuditID: auditID, Kind: kind, EntityID: entityID, Summary: summary,
 	})
 }
 

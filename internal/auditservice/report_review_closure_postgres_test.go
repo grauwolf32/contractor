@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -14,8 +15,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// TestAuditReportReviewExpiresOnCancelOrDelete closes a pending report review
+// whenever owner cancellation, owner deletion or Project deletion moves its
+// Audit out of waiting_review: the request expires and one review.expired
+// event follows the lifecycle event within the same Audit transition.
 func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
-	for _, action := range []string{"cancel", "delete"} {
+	for _, test := range []struct {
+		action, eventKind, eventSummary string
+	}{
+		{"cancel", "audit.state_changed", `{"from":"waiting_review","to":"cancelling"}`},
+		{"delete", "audit.delete_requested", `{"state":"cancelling"}`},
+		{"project-delete", "audit.delete_requested", `{"state":"cancelling","source":"project-deletion"}`},
+	} {
+		action := test.action
 		t.Run(action, func(t *testing.T) {
 			databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 			if databaseURL == "" {
@@ -73,10 +85,13 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 				RequestDigest: serviceTestDigest(action),
 			}
 			var result MutationResult
-			if action == "cancel" {
+			switch action {
+			case "cancel":
 				result, err = service.Cancel(ctx, mutation)
-			} else {
+			case "delete":
 				result, err = service.Delete(ctx, mutation)
+			case "project-delete":
+				result.Audit, err = requestProjectOwnedDeletionForTest(t, ctx, pool, store, project, audit.AuditID)
 			}
 			if err != nil || result.Audit.State != auditstore.AuditCancelling ||
 				result.Audit.Revision != waiting.Revision+2 ||
@@ -87,18 +102,25 @@ func TestAuditReportReviewExpiresOnCancelOrDelete(t *testing.T) {
 			if err != nil || review.State != ReviewExpired || review.Revision != 2 {
 				t.Fatalf("expired report review = (%+v, %v)", review, err)
 			}
-			events, err := store.ListEvents(ctx, audit.AuditID, 0, auditstore.MaxPageSize)
-			if err != nil {
-				t.Fatal(err)
+			events, err := store.ListEvents(ctx, audit.AuditID, waiting.EventSequence, auditstore.MaxPageSize)
+			if err != nil || len(events) != 2 {
+				t.Fatalf("events after closing report review = (%+v, %v)", events, err)
 			}
-			expired := 0
-			for _, event := range events {
-				if event.Kind == "review.expired" && event.EntityID == requestID {
-					expired++
-				}
+			lifecycle, expiry := events[0], events[1]
+			if lifecycle.Kind != test.eventKind || lifecycle.Sequence != waiting.EventSequence+1 ||
+				lifecycle.EntityID != audit.AuditID || lifecycle.EntityRevision == nil ||
+				*lifecycle.EntityRevision != result.Audit.Revision ||
+				!sameJSONObject(t, lifecycle.Summary, test.eventSummary) {
+				t.Fatalf("lifecycle event = %+v (%s)", lifecycle, lifecycle.Summary)
 			}
-			if expired != 1 {
-				t.Fatalf("report review expiry events = %d, want 1", expired)
+			if expiry.Kind != "review.expired" || expiry.Sequence != waiting.EventSequence+2 ||
+				expiry.EntityID != requestID || expiry.EntityRevision == nil || *expiry.EntityRevision != 2 ||
+				!sameJSONObject(t, expiry.Summary, `{"subjectKind":"audit-report","kind":"report-acceptance"}`) {
+				t.Fatalf("report review expiry event = %+v (%s)", expiry, expiry.Summary)
+			}
+			after, err := service.GetWorkspace(ctx, audit.OwnerID, audit.AuditID)
+			if err != nil || after.PendingReviews != 0 {
+				t.Fatalf("workspace after closing report review = (%+v, %v)", after, err)
 			}
 			if action == "cancel" {
 				terminal, err := store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
@@ -228,4 +250,46 @@ INSERT INTO audit_report_candidates (
 		t.Fatalf("report candidate = (%+v, %v)", candidate, err)
 	}
 	return waiting, candidate, claim
+}
+
+// requestProjectOwnedDeletionForTest begins deletion of the Audit's Project
+// and applies the deletion claim's Audit fence as the Project lifecycle
+// controller does.
+func requestProjectOwnedDeletionForTest(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *auditstore.PostgresStore,
+	project projectstore.Project, auditID string,
+) (auditstore.Audit, error) {
+	t.Helper()
+	if _, _, err := projectstore.NewPostgresStore(pool).BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE projects
+   SET deletion_claim_id = 'claim-report-close', deletion_claimed_at = clock_timestamp(),
+       deletion_claim_expires_at = clock_timestamp() + interval '1 minute'
+ WHERE project_id = $1`, project.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := store.RequestProjectOwnedDeletion(ctx, auditstore.ProjectDeletionClaim{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID,
+		ClaimID: "claim-report-close", Phase: string(projectstore.DeletionCancelling),
+	})
+	if err != nil || !changed {
+		t.Fatalf("Project-owned Audit deletion = (%t, %v)", changed, err)
+	}
+	return store.Get(ctx, project.OwnerID, auditID)
+}
+
+func sameJSONObject(t *testing.T, raw json.RawMessage, want string) bool {
+	t.Helper()
+	var got, expected map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(want), &expected); err != nil {
+		t.Fatal(err)
+	}
+	return reflect.DeepEqual(got, expected)
 }
