@@ -27,7 +27,6 @@ import (
 const Deadline = 120 * time.Second
 const MaxReceivedBytes = 128 << 20
 const MaxDecodedBytes = 256 << 20
-const MaxArchiveBytes = 64 << 20
 const maxAdvertisementBytes = 4 << 20
 const maxReferences = 10000
 

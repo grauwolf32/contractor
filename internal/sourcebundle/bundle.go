@@ -1,9 +1,8 @@
 package sourcebundle
 
 import (
-	"archive/zip"
 	"bytes"
-	"compress/flate"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,23 +12,22 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
 // Source ZIP limits and member paths match the runtime source_analysis toolset
 // and Git imports.
 const (
-	MaxArchiveBytes  = gitimport.MaxArchiveBytes
-	MaxEntries       = gitimport.MaxEntries
-	MaxFileBytes     = gitimport.MaxFileBytes
-	MaxExpandedBytes = gitimport.MaxArchiveBytes
-	MaxPathBytes     = gitimport.MaxPathBytes
+	MaxArchiveBytes  = sourcezip.MaxArchiveBytes
+	MaxEntries       = sourcezip.MaxEntries
+	MaxFileBytes     = sourcezip.MaxFileBytes
+	MaxExpandedBytes = sourcezip.MaxArchiveBytes
+	MaxPathBytes     = sourcezip.MaxPathBytes
 	maxPathParts     = 128
 )
 
@@ -92,30 +90,19 @@ func Build(source string, options Options) (Bundle, error) {
 		return Bundle{}, errors.New("source has no files to package after ignore filtering")
 	}
 
-	buffer := &limitedBuffer{maximum: MaxArchiveBytes}
-	writer := zip.NewWriter(buffer)
-	writer.RegisterCompressor(zip.Deflate, func(destination io.Writer) (io.WriteCloser, error) {
-		return flate.NewWriter(destination, 6)
-	})
-	fixedTime := time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
-	for _, file := range files {
-		header := &zip.FileHeader{Name: file.path, Method: zip.Deflate}
-		header.SetMode(0o644)
-		header.SetModTime(fixedTime)
-		entry, createErr := writer.CreateHeader(header)
-		if createErr != nil {
-			_ = writer.Close()
-			return Bundle{}, archiveError(createErr)
-		}
-		if copyErr := copyRegularFile(entry, sourceRoot, file); copyErr != nil {
-			_ = writer.Close()
-			return Bundle{}, copyErr
+	members := make([]sourcezip.Member, len(files))
+	for index, file := range files {
+		members[index] = sourcezip.Member{
+			Name: file.path, Size: file.info.Size(),
+			Write: func(destination io.Writer) error {
+				return copyRegularFile(destination, sourceRoot, file)
+			},
 		}
 	}
-	if err := writer.Close(); err != nil {
+	payload, err := sourcezip.Encode(context.Background(), members, sourcezip.Options{CompressionLevel: 6})
+	if err != nil {
 		return Bundle{}, archiveError(err)
 	}
-	payload := append([]byte(nil), buffer.Bytes()...)
 	return Bundle{
 		Data: payload, Files: len(files), ExpandedBytes: expanded,
 		SHA256:              contentdigest.Bytes(payload),
@@ -453,25 +440,8 @@ func copyRegularFile(destination io.Writer, root *os.Root, file sourceFile) erro
 	return nil
 }
 
-type limitedBuffer struct {
-	bytes.Buffer
-	maximum int
-}
-
-func (b *limitedBuffer) Write(value []byte) (int, error) {
-	remaining := b.maximum - b.Len()
-	if remaining <= 0 {
-		return 0, ErrArchiveTooLarge
-	}
-	if len(value) > remaining {
-		written, _ := b.Buffer.Write(value[:remaining])
-		return written, ErrArchiveTooLarge
-	}
-	return b.Buffer.Write(value)
-}
-
 func archiveError(err error) error {
-	if errors.Is(err, ErrArchiveTooLarge) {
+	if errors.Is(err, sourcezip.ErrLimit) {
 		return ErrArchiveTooLarge
 	}
 	return fmt.Errorf("build source ZIP: %w", err)

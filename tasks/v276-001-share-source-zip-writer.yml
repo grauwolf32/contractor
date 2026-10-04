@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V276-001
+title: Share bounded source ZIP encoding
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: 233c4b0dd87fded95989d2c318a51447be4ddc95
+depends_on: []
+languages: [go]
+goal: Encode local bundles and Git snapshots with one bounded deterministic source ZIP writer.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: sourcebundle and gitimport maintained separate ZIP loops, physical-byte limit writers, and source limits.
+scope:
+  in:
+    - Move shared ZIP encoding and resource limits into sourcezip.
+    - Preserve each caller's compression level, header timestamp encoding, error identity, and source validation.
+    - Keep Git import cancellation checks during large writes.
+  out:
+    - Changing source path filtering or Git object decoding.
+acceptance_criteria:
+  - {id: A1, text: Local and Git source archives use one ZIP writer and limit implementation.}
+  - {id: A2, text: Deterministic archive contents, modes, and fixed timestamps remain intact.}
+  - {id: A3, text: Compressed and expanded limits still reject oversized sources.}
+  - {id: A4, text: Git import cancellation and local file-safety checks still work.}
+tests:
+  - {command: go test ./internal/sourcezip ./internal/sourcebundle ./internal/gitimport, covers: [A1, A2, A3, A4]}
+  - {command: go test -tags=integration -run '^TestRealHTTPSPinnedCommitAndTags$' ./internal/gitimport, covers: [A2, A4]}

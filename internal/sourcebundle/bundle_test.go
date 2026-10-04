@@ -14,19 +14,6 @@ import (
 	"testing"
 )
 
-func TestLimitedBufferNeverExceedsMaximum(t *testing.T) {
-	buffer := &limitedBuffer{maximum: 4}
-	if written, err := buffer.Write([]byte("1234")); err != nil || written != 4 {
-		t.Fatalf("exact write = %d, %v", written, err)
-	}
-	if written, err := buffer.Write([]byte("5")); err != ErrArchiveTooLarge || written != 0 {
-		t.Fatalf("overflow write = %d, %v", written, err)
-	}
-	if buffer.Len() != 4 {
-		t.Fatalf("buffer length = %d", buffer.Len())
-	}
-}
-
 func TestBuildIsDeterministicAndUsesDirectoryContentsAsRoot(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, filepath.Join(root, "z.txt"), "z")
