@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V271-001
+title: Stabilize built-in Eval policy pins
+milestone: code-reuse-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Keep built-in Eval policy pins stable across source-only changes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: Policy pins were derived from Go source bytes, so comments and refactors invalidated stored Experiments.
+scope:
+  in:
+    - Replace source embedding with explicit semantic policy pin constants.
+    - Preserve the exact pins already stored by Experiments on current main.
+  out:
+    - Changing Eval policy behavior or migrating older incompatible policy versions.
+acceptance_criteria:
+  - {id: A1, text: Existing built-in Human, Native, and Normalizer pins remain unchanged.}
+  - {id: A2, text: Source edits no longer change built-in pins.}
+  - {id: A3, text: Eval planning and review still enforce pinned implementations.}
+tests:
+  - {command: go test ./internal/evalservice, covers: [A1, A2, A3]}

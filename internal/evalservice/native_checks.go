@@ -1,22 +1,14 @@
 package evalservice
 
 import (
-	_ "embed"
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
-//go:embed native_checks.go
-var nativeCheckSource []byte
-
-//go:embed native_check_execution.go
-var nativeCheckExecutionSource []byte
-
 func NativePolicySHA256() string {
-	source := append(append([]byte{}, nativeCheckSource...), nativeCheckExecutionSource...)
-	return evaldomain.Digest(source)
+	return nativePolicyV1SHA256
 }
 func RegisteredChecks() []string {
 	return []string{"human-review@1", "required-artifact@1", "media-type@1", "json-schema@1"}

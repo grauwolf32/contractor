@@ -2,7 +2,6 @@ package evalservice
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 
@@ -12,14 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-//go:embed output_collection.go
-var outputNormalizerSource []byte
-
-//go:embed usage_collection.go
-var usageNormalizerSource []byte
-
 func NormalizerSHA256() string {
-	return evaldomain.Digest(append(append([]byte{}, outputNormalizerSource...), usageNormalizerSource...))
+	return normalizerV1SHA256
 }
 
 type preparedSetup struct {
