@@ -3,7 +3,7 @@ id: V325-001
 title: Restore Python coverage of every fixture-index message type
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: Make the Python contract suite fail when a shared fixture type is silently skipped.

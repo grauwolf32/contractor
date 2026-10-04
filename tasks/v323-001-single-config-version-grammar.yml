@@ -3,7 +3,7 @@ id: V323-001
 title: One configuration ID and version grammar across languages
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, typescript]
 goal: Accept and reject the same configuration IDs and versions in Go, Python, schemas, OpenAPI and the UI.

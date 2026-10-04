@@ -3,7 +3,7 @@ id: V328-001
 title: Document transaction-retry 503 responses for public operations
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V323-001]
 languages: [go, yaml]
 goal: Make every public operation that can return a transaction-retry 503 document it.

@@ -3,7 +3,7 @@ id: V324-001
 title: Cap media types at one length everywhere
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V323-001]
 languages: [go, python, typescript]
 goal: Apply the same media-type length bound in every validator.

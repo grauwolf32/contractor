@@ -3,7 +3,7 @@ id: V327-001
 title: Check Eval state sets and plan-size estimates across Go, OpenAPI and UI
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, typescript]
 goal: Catch drift in Eval state sets and the native plan-size estimate automatically.
