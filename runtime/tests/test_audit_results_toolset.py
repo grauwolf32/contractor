@@ -349,6 +349,60 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
     asyncio.run(scenario())
 
 
+def test_cancelled_audit_result_calls_are_recorded() -> None:
+    async def scenario() -> None:
+        collector = BlockingCollector()
+        state = WorkerState()
+        read = ReadAuditTaskTool(
+            collector, ArtifactRef(namespace="inputs", name="task", revision="r1"), state.metrics
+        )
+        submit = SubmitCheckResultTool(collector, state.metrics)
+        context = FakeToolContext("worker-invocation-1")
+        for call in (
+            read(context),
+            submit(context, assessment="satisfied", summary="Checked.", completed=[], gaps=[]),
+        ):
+            collector.started.clear()
+            task = asyncio.create_task(call)
+            await collector.started.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert [
+            (call.tool, call.error.code, call.error.retryable)
+            for call in state.metrics.tool_calls
+            if call.error is not None
+        ] == [
+            ("read_audit_task", "tool_call_cancelled", True),
+            ("submit_check_result", "tool_call_cancelled", True),
+        ]
+        assert state.metrics.counters["tool_errors"] == 2
+
+    asyncio.run(scenario())
+
+
+class BlockingCollector:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.owner = SimpleNamespace(item_keys=("check-authz",))
+
+    def check_invocation(self, invocation_id: str) -> None:
+        del invocation_id
+
+    async def read_tasks(self, invocation_id: str) -> dict:
+        del invocation_id
+        self.started.set()
+        await asyncio.Event().wait()
+        return {}
+
+    async def record(self, item: object, *, expected_revision: int | None) -> object:
+        del item, expected_revision
+        self.started.set()
+        await asyncio.Event().wait()
+        return None
+
+
 class FakeToolContext:
     def __init__(self, invocation_id: str) -> None:
         self.invocation_id = invocation_id

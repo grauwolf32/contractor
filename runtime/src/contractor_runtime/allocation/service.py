@@ -24,12 +24,7 @@ from contractor_runtime.allocation.cleanup import (
 from contractor_runtime.allocation.context import AllocationSnapshot, _AllocationContext
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
 from contractor_runtime.allocation.identity import _spec_fingerprint
-from contractor_runtime.allocation.redaction import (
-    _contains_private_value,
-    _runtime_setting_values,
-    _untrusted_agent_card_strings,
-    _url_hosts,
-)
+from contractor_runtime.allocation.redaction import _untrusted_agent_card_text, _url_hosts
 from contractor_runtime.allocation.reports import _build_report
 from contractor_runtime.allocation.validation import validate_spec
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -58,6 +53,11 @@ from contractor_runtime.projectfs import (
     WorkspacePreparationError,
     WorkspaceStorageError,
     hydrate_workspace,
+)
+from contractor_runtime.redaction import (
+    contains_private_value,
+    runtime_setting_values,
+    substring_values,
 )
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -1160,7 +1160,7 @@ class AllocationService:
         wire = handle.model_dump(mode="json", by_alias=True)
         encoded = json.dumps(wire, ensure_ascii=False)
         endpoint = f"{a2a_base_url.rstrip('/')}/private/v1/allocations/{spec.allocation_id}/a2a"
-        card_strings = _untrusted_agent_card_strings(
+        card_values, card_keys = _untrusted_agent_card_text(
             handle.agent_card,
             allocation_id=spec.allocation_id,
             logical_agent_name=spec.logical_agent_name,
@@ -1168,9 +1168,11 @@ class AllocationService:
             version=spec.agent_template.ref.version,
             endpoint=endpoint,
         )
-        private_values = _runtime_setting_values(spec.runtime_settings)
-        leaked = any(_contains_private_value(value, private_values) for value in card_strings)
-        if leaked or str(workspace.path) in encoded:
+        private_values = runtime_setting_values(spec.runtime_settings)
+        long_values = substring_values(private_values)
+        leaked_value = any(contains_private_value(value, private_values) for value in card_values)
+        leaked_key = any(secret in key for key in card_keys for secret in long_values)
+        if leaked_value or leaked_key or str(workspace.path) in encoded:
             raise AllocationError(
                 "unsafe_worker_handle",
                 "Worker runtime exposed private allocation data in its Agent Card",

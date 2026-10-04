@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -550,13 +551,22 @@ func validateWorkerHandle(
 	if _, err := json.Marshal(handle); err != nil {
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
-	cardStrings := workerHandleUntrustedCardStrings(handle.AgentCard, reservation)
+	cardValues, cardKeys := workerHandleUntrustedCardText(handle.AgentCard, reservation)
 	for _, secret := range settings.SecretValues() {
 		if secret == "" {
 			continue
 		}
-		for value := range cardStrings {
-			if secret == value || len([]byte(secret)) >= 16 && strings.Contains(value, secret) {
+		long := len([]byte(secret)) >= minPrivateSubstringBytes
+		for value := range cardValues {
+			if secret == value || long && strings.Contains(value, secret) {
+				return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
+			}
+		}
+		if !long {
+			continue
+		}
+		for key := range cardKeys {
+			if strings.Contains(key, secret) {
 				return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
 			}
 		}
@@ -569,79 +579,85 @@ func validateWorkerHandle(
 	return nil
 }
 
-// The handle identity is validated against the reservation, and these exact
-// Agent Card fields are fixed by the Server/Runtime protocol. A credential
-// coinciding with one of them is not a leak. Other card text remains checked,
-// including changed values at a normally fixed path.
-func workerHandleUntrustedCardStrings(card map[string]any, reservation Reservation) map[string]struct{} {
-	result := make(map[string]struct{})
-	collectUntrustedCardStrings(result, card, nil, reservation)
-	return result
+// minPrivateSubstringBytes matches the Runtime's MIN_PRIVATE_SUBSTRING_BYTES: a
+// secret this long is matched anywhere, a shorter one only as a complete value.
+const minPrivateSubstringBytes = 16
+
+// workerHandleUntrustedCardText returns the Agent Card values to scan and every
+// object key. The handle identity is validated against the reservation, and
+// workerCardTrustedValues lists the exact values fixed by the Server/Runtime
+// protocol at their paths; a credential coinciding with one of them is not a
+// leak. Other values remain checked, including changed values at a normally
+// fixed path. Keys are scanned whatever their path, but only for secrets long
+// enough to match anywhere, because nearly all of them are protocol vocabulary.
+func workerHandleUntrustedCardText(
+	card map[string]any,
+	reservation Reservation,
+) (values, keys map[string]struct{}) {
+	values = make(map[string]struct{})
+	keys = make(map[string]struct{})
+	collectUntrustedCardText(values, keys, card, nil, workerCardTrustedValues(reservation))
+	return values, keys
 }
 
-func collectUntrustedCardStrings(result map[string]struct{}, value any, path []string, reservation Reservation) {
+func collectUntrustedCardText(
+	values, keys map[string]struct{},
+	value any,
+	path []string,
+	trusted map[string][]string,
+) {
 	switch typed := value.(type) {
 	case string:
-		if !trustedWorkerCardString(path, typed, reservation) {
-			result[typed] = struct{}{}
+		encodedPath, _ := json.Marshal(path)
+		if !slices.Contains(trusted[string(encodedPath)], typed) {
+			values[typed] = struct{}{}
 		}
 	case []any:
 		for index, item := range typed {
-			collectUntrustedCardStrings(result, item, append(path, fmt.Sprint(index)), reservation)
+			collectUntrustedCardText(values, keys, item, append(path, fmt.Sprint(index)), trusted)
 		}
 	case []string:
 		for index, item := range typed {
-			collectUntrustedCardStrings(result, item, append(path, fmt.Sprint(index)), reservation)
+			collectUntrustedCardText(values, keys, item, append(path, fmt.Sprint(index)), trusted)
 		}
 	case map[string]any:
 		for key, item := range typed {
-			collectUntrustedCardStrings(result, item, append(path, key), reservation)
+			keys[key] = struct{}{}
+			collectUntrustedCardText(values, keys, item, append(path, key), trusted)
 		}
 	}
 }
 
-func trustedWorkerCardString(path []string, value string, reservation Reservation) bool {
+// workerCardTrustedValues lists, by JSON-encoded card path, the exact Agent Card
+// strings fixed by the Server/Runtime protocol or taken from the reservation.
+// api/testdata/v1alpha1/agent-card-secret-scan-cases.json holds the same table,
+// which the Python Runtime's Worker handle check shares.
+func workerCardTrustedValues(reservation Reservation) map[string][]string {
 	grant := reservation.Grant
 	endpoint := strings.TrimRight(reservation.A2AURL, "/") +
 		"/private/v1/allocations/" + grant.AllocationID + "/a2a"
-	encodedPath, _ := json.Marshal(path)
-	switch string(encodedPath) {
-	case `["name"]`:
-		return value == grant.LogicalAgentName || value == "Contractor Worker "+grant.LogicalAgentName
-	case `["description"]`:
-		return value == reservation.AgentTemplate.Description
-	case `["version"]`:
-		return value == reservation.AgentTemplate.Ref.Version
-	case `["url"]`, `["supportedInterfaces","0","url"]`:
-		return value == endpoint
-	case `["protocolVersion"]`, `["supportedInterfaces","0","protocolVersion"]`:
-		return value == "1.0"
-	case `["supportedInterfaces","0","protocolBinding"]`:
-		return value == "JSONRPC"
-	case `["supportedInterfaces","0","tenant"]`:
-		return value == grant.AllocationID
-	case `["defaultInputModes","0"]`:
-		return value == stageContentMediaType || value == "application/json"
-	case `["defaultOutputModes","0"]`:
-		return value == workerCompletionMediaType || value == "application/json"
-	case `["skills","0","id"]`:
-		return value == "contractor_stage_content"
-	case `["skills","0","name"]`:
-		return value == "Execute Contractor stage content"
-	case `["skills","0","description"]`:
-		return value == "Execute one strict Contractor StageContentRequest."
-	case `["skills","0","tags","0"]`:
-		return value == "contractor"
-	case `["skills","0","tags","1"]`:
-		return value == "stage"
-	case `["skills","0","inputModes","0"]`:
-		return value == stageContentMediaType
-	case `["skills","0","outputModes","0"]`:
-		return value == workerCompletionMediaType
-	case `["securitySchemes","mutualTLS","mtlsSecurityScheme","description"]`:
-		return value == "Deployment-CA mutual TLS with a Contractor Control Plane peer"
-	default:
-		return false
+	return map[string][]string{
+		`["name"]`:                          {grant.LogicalAgentName, "Contractor Worker " + grant.LogicalAgentName},
+		`["description"]`:                   {reservation.AgentTemplate.Description},
+		`["version"]`:                       {reservation.AgentTemplate.Ref.Version},
+		`["url"]`:                           {endpoint},
+		`["protocolVersion"]`:               {"1.0"},
+		`["supportedInterfaces","0","url"]`: {endpoint},
+		`["supportedInterfaces","0","protocolBinding"]`: {"JSONRPC"},
+		`["supportedInterfaces","0","protocolVersion"]`: {"1.0"},
+		`["supportedInterfaces","0","tenant"]`:          {grant.AllocationID},
+		`["defaultInputModes","0"]`:                     {stageContentMediaType, "application/json"},
+		`["defaultOutputModes","0"]`:                    {workerCompletionMediaType, "application/json"},
+		`["skills","0","id"]`:                           {"contractor_stage_content"},
+		`["skills","0","name"]`:                         {"Execute Contractor stage content"},
+		`["skills","0","description"]`:                  {"Execute one strict Contractor StageContentRequest."},
+		`["skills","0","tags","0"]`:                     {"contractor"},
+		`["skills","0","tags","1"]`:                     {"stage"},
+		`["skills","0","inputModes","0"]`:               {stageContentMediaType},
+		`["skills","0","outputModes","0"]`:              {workerCompletionMediaType},
+		`["securitySchemes","mutualTLS","mtlsSecurityScheme","description"]`: {
+			"Deployment-CA mutual TLS with a Contractor Control Plane peer",
+		},
 	}
 }
 

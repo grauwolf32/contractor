@@ -26,10 +26,10 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceReader,
     WorkspaceStorageError,
 )
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.document_session import (
     DocumentSession,

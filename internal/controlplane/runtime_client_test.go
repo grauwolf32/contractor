@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -385,6 +386,157 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 	}
 	if err := validateWorkerHandle(handle, reservation, settings); err != nil {
 		t.Fatalf("low-entropy credential collided with a JSON key: %v", err)
+	}
+}
+
+type agentCardSecretScanCases struct {
+	TrustedValues []struct {
+		Path   []string `json:"path"`
+		Values []string `json:"values"`
+	} `json:"trustedValues"`
+	Card  map[string]any `json:"card"`
+	Cases []struct {
+		Name   string `json:"name"`
+		Secret string `json:"secret"`
+		Set    []struct {
+			Path  []string `json:"path"`
+			Value any      `json:"value"`
+		} `json:"set"`
+		Leak bool `json:"leak"`
+	} `json:"cases"`
+}
+
+// The trusted path table and the leak cases are shared with the Python Runtime.
+func TestWorkerHandleSecretScanSharedCases(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile(filepath.Join(
+		"..", "..", "api", "testdata", "v1alpha1", "agent-card-secret-scan-cases.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture agentCardSecretScanCases
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute))
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example", template, lease,
+	)
+	render := strings.NewReplacer(
+		"{allocationId}", reservation.Grant.AllocationID,
+		"{logicalAgentName}", reservation.Grant.LogicalAgentName,
+		"{description}", template.Description,
+		"{version}", template.Ref.Version,
+		"{endpoint}", "https://runtime.example/private/v1/allocations/allocation_1/a2a",
+	)
+
+	want := make(map[string][]string, len(fixture.TrustedValues))
+	for _, entry := range fixture.TrustedValues {
+		path, _ := json.Marshal(entry.Path)
+		values := make([]string, 0, len(entry.Values))
+		for _, value := range entry.Values {
+			values = append(values, render.Replace(value))
+		}
+		want[string(path)] = values
+	}
+	if got := workerCardTrustedValues(reservation); !reflect.DeepEqual(got, want) {
+		t.Fatalf("trusted Agent Card values = %v, shared table = %v", got, want)
+	}
+
+	if len(fixture.Cases) == 0 {
+		t.Fatal("shared fixture has no cases")
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			card, ok := renderAgentCardValue(fixture.Card, render).(map[string]any)
+			if !ok {
+				t.Fatal("shared card is not an object")
+			}
+			for _, operation := range test.Set {
+				path := make([]string, 0, len(operation.Path))
+				for _, element := range operation.Path {
+					path = append(path, render.Replace(element))
+				}
+				setAgentCardValue(t, card, path, renderAgentCardValue(operation.Value, render))
+			}
+			settings := testRuntimeSettings()
+			settings.Telemetry = &contracts.TelemetrySettings{
+				Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
+				Headers: map[string]contracts.SecretString{
+					"X-Scope-OrgID": contracts.NewSecretString(render.Replace(test.Secret)),
+				},
+				FlushTimeoutSeconds: 1,
+			}
+			handle := contracts.WorkerHandle{
+				AllocationID: reservation.Grant.AllocationID, AgentTemplateRef: template.Ref,
+				WorkerRuntimeRef: template.Runtime, AgentCard: card, LeaseExpiresAt: lease,
+			}
+			err := validateWorkerHandle(handle, reservation, settings)
+			if test.Leak {
+				if err == nil || !strings.Contains(err.Error(), "exposed RuntimeSettings secret") {
+					t.Fatalf("expected a secret leak, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("expected an accepted handle, got %v", err)
+			}
+		})
+	}
+}
+
+func renderAgentCardValue(value any, render *strings.Replacer) any {
+	switch typed := value.(type) {
+	case string:
+		return render.Replace(typed)
+	case []any:
+		result := make([]any, 0, len(typed))
+		for _, item := range typed {
+			result = append(result, renderAgentCardValue(item, render))
+		}
+		return result
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[render.Replace(key)] = renderAgentCardValue(item, render)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func setAgentCardValue(t *testing.T, card map[string]any, path []string, value any) {
+	t.Helper()
+	var current any = card
+	for index, element := range path {
+		last := index == len(path)-1
+		switch typed := current.(type) {
+		case map[string]any:
+			if last {
+				typed[element] = value
+				return
+			}
+			next, ok := typed[element]
+			if !ok {
+				next = map[string]any{}
+				typed[element] = next
+			}
+			current = next
+		case []any:
+			position, err := strconv.Atoi(element)
+			if err != nil || position < 0 || position >= len(typed) {
+				t.Fatalf("invalid list index %q in %v", element, path)
+			}
+			if last {
+				typed[position] = value
+				return
+			}
+			current = typed[position]
+		default:
+			t.Fatalf("path %v crosses a scalar", path)
+		}
 	}
 }
 

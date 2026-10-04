@@ -18,11 +18,11 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
     _unconfigured_client,
-    runtime_secrets,
 )
 from contractor_runtime.toolsets.common.document_session import (
     DocumentSession,

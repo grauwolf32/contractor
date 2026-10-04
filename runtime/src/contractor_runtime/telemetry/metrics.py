@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.llm.errors import GatewayFailure
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.redaction import redact_private_values, substring_values
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 MAX_METRIC_TOOL_CALLS = 1000
@@ -69,9 +70,19 @@ SAFE_DERIVED_SIZE_METRIC_KEYS = frozenset(
         "result_description_bytes",
     }
 )
+# Tool error codes are Runtime vocabulary and are never redacted. Text in a code
+# position that is not such an identifier is replaced by the generic code.
+SAFE_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _TOOL_METRIC_CORRELATION: ContextVar[str | None] = ContextVar(
     "contractor_tool_metric_correlation", default=None
 )
+
+
+def safe_error_code(error: Exception | None) -> str:
+    code = getattr(error, "code", "tool_call_failed")
+    if not isinstance(code, str) or SAFE_ERROR_CODE.fullmatch(code) is None:
+        return "tool_call_failed"
+    return code
 
 
 def bind_tool_metric_correlation(correlation_id: str) -> Token[str | None]:
@@ -250,7 +261,7 @@ class MetricsState:
             outcome = ToolCallOutcome.FAILED
             aggregate["failed"] = min(MAX_METRIC_COUNTER, aggregate["failed"] + 1)
             self._increment("tool_errors")
-            code = _bounded_text(str(getattr(error, "code", "tool_call_failed")), secrets)
+            code = _metric_error_code(error, secrets)
             retryable = bool(getattr(error, "retryable", False))
             message = (
                 error.diagnostic_message
@@ -278,7 +289,8 @@ class MetricsState:
             result_size = _json_size(result) if result is not None else None
         record = ToolCallRecord(
             callId=f"tool-{self._next_call_number:08d}",
-            tool=_bounded_text(name, secrets),
+            # A Runtime-registered tool name is bounded but never redacted.
+            tool=_truncate_utf8(name, MAX_METRIC_TEXT_BYTES),
             arguments=arguments_summary,
             argumentsTruncated=value_truncated or size_truncated,
             outcome=outcome,
@@ -597,11 +609,16 @@ def _bounded_text(value: str, secrets: tuple[str, ...]) -> str:
             or parsed.fragment
         ):
             return "[REDACTED_URL]"
-    result = value
-    for secret in secrets:
-        if secret:
-            result = result.replace(secret, "[REDACTED]")
-    return _truncate_utf8(result, MAX_METRIC_TEXT_BYTES)
+    return _truncate_utf8(redact_private_values(value, secrets), MAX_METRIC_TEXT_BYTES)
+
+
+def _metric_error_code(error: Exception, secrets: tuple[str, ...]) -> str:
+    code = safe_error_code(error)
+    # A code is never partially redacted. One exposing a long private value,
+    # which no Runtime code does, is replaced whole.
+    if any(secret in code for secret in substring_values(secrets)):
+        return "tool_call_failed"
+    return code
 
 
 def _bounded_error(value: str, secrets: tuple[str, ...]) -> str:

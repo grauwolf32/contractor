@@ -334,6 +334,49 @@ def test_plugin_correlates_every_callback_path_without_double_counting(
     asyncio.run(scenario())
 
 
+def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        instrumentation = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=instrumentation,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        context = FakeContext("worker-close")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="1")
+        await plugin.before_run_callback(invocation_context=context)
+        for name in ("pending_probe", "self_recorded_probe"):
+            pending = await plugin.before_tool_callback(
+                tool=FakeTool(name, FakeOwner()),
+                tool_args={"body": SOURCE},
+                tool_context=FakeContext(context.invocation_id),
+            )
+            assert pending is None
+        # A toolset that records its own cancellation is not counted twice.
+        state.metrics.record_tool_call(
+            "self_recorded_probe", arguments={}, error=ToolFailure("cancelled")
+        )
+
+        await plugin.close()
+
+        report = state.metrics.build_report(report_id="worker-close", duration_ms=1)
+        assert {name: tool.failed for name, tool in report.metrics.tools.items()} == {
+            "pending_probe": 1,
+            "self_recorded_probe": 1,
+        }
+        cancelled = next(call for call in report.tool_calls if call.tool == "pending_probe")
+        assert cancelled.error is not None
+        assert cancelled.error.code == "tool_call_cancelled"
+        assert cancelled.error.retryable is True
+        assert len(report.tool_calls) == 2
+        assert [span.outcome for span in instrumentation.spans] == ["cancelled", "cancelled"]
+
+    asyncio.run(scenario())
+
+
 def test_plugin_retains_only_latest_sequential_invocation() -> None:
     async def scenario() -> None:
         state = WorkerStateStore()

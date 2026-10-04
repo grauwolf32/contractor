@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import json
 import os
 import re
@@ -31,6 +30,7 @@ from contractor_runtime.toolsets.common.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,
     url_endpoint,
+    validate_host_syntax,
 )
 from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
@@ -1036,17 +1036,10 @@ def _url(value: str) -> None:
 
 
 def _host(value: str) -> None:
-    _text(value, "host", 253)
     try:
-        ipaddress.ip_address(value)
-        return
+        validate_host_syntax(value)
     except ValueError:
-        pass
-    if not value or any(
-        not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
-        for label in value.removesuffix(".").split(".")
-    ):
-        raise ScanInputError("host must be one DNS hostname or IP address")
+        raise ScanInputError("host must be one DNS hostname or IP address") from None
 
 
 def _ports(value: str) -> None:
