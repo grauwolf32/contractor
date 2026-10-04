@@ -491,7 +491,11 @@ Read models are keyed by `(owner,experiment,plan digest,selection revision)` and
 built from the complete expected member set. A candidate view generation becomes
 visible atomically only when its rows and summaries are complete. Interrupted
 projection leaves the last complete view visible with an explicit freshness flag.
-It is rebuildable; changing selected authority still requires CAS.
+It is rebuildable; changing selected authority still requires CAS. A publication
+whose selected member documents, comparison policy, pins and selection revision
+are unchanged keeps the current generation and only marks it current. A new
+generation prunes the ones it supersedes: every read resolves the current snapshot
+inside one snapshot transaction, so no reader can reach a replaced generation.
 
 Return expected/eligible/unsupported/blocked/submitted/terminal/missing/conflicting,
 collection-complete/scored/quality-passed counts per arm and suite. End-to-end pass

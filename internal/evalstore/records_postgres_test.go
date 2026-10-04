@@ -241,14 +241,21 @@ func TestPostgresEvalCompleteViewPublicationAndInterruptedProjection(t *testing.
 	if err != nil || latest.Snapshot == first.Snapshot || latest.Freshness != "current" {
 		t.Fatal("replacement view", latest, err)
 	}
+	// Readers only resolve the current snapshot, so the replaced one is pruned.
 	oldRows, err := reader.SelectedMemberPage(ctx, SelectedPageParams{
 		OwnerID: e.OwnerID, ExperimentID: e.ID, Generation: first.Generation, AfterOrdinal: -1, Limit: 100,
 	})
-	if err != nil || len(oldRows.Items) != 8 {
-		t.Fatal("old report disappeared", len(oldRows.Items), err)
+	if err != nil || len(oldRows.Items) != 0 {
+		t.Fatal("superseded generation retained", len(oldRows.Items), err)
+	}
+	currentRows, err := reader.SelectedMemberPage(ctx, SelectedPageParams{
+		OwnerID: e.OwnerID, ExperimentID: e.ID, Generation: latest.Generation, AfterOrdinal: -1, Limit: 100,
+	})
+	if err != nil || len(currentRows.Items) != 8 {
+		t.Fatal("current generation unreadable", len(currentRows.Items), err)
 	}
 	foreign, err := reader.SelectedMemberPage(ctx, SelectedPageParams{
-		OwnerID: "foreign", ExperimentID: e.ID, Generation: first.Generation, AfterOrdinal: -1, Limit: 100,
+		OwnerID: "foreign", ExperimentID: e.ID, Generation: latest.Generation, AfterOrdinal: -1, Limit: 100,
 	})
 	if err != nil || len(foreign.Items) != 0 {
 		t.Fatal("foreign view exposed", err)
