@@ -3,8 +3,8 @@ id: V265-001
 title: Keep overlay workspace export and edits off the event loop
 milestone: runtime-projectfs-reliability-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2c6d41c926677bd5e69e899db02221aef13bed61
 depends_on: []
 languages: [python]
 goal: Preserve Runtime heartbeat responsiveness while exporting or editing large overlay workspaces.
