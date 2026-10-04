@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
 import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
+import { PublicAPIError } from "../../api/error";
 import { artifactScopeKeys } from "../../api/query-keys";
 import { scopedArtifactAPI } from "../../api/scoped-artifacts";
 import { CursorControls } from "../../app/cursor-controls";
@@ -34,12 +35,23 @@ const SCOPE_LABELS = {
   run: "Run Artifact",
 } as const;
 
+/** A version upload the Server rejected, kept visible across the reconcile. */
+interface RejectedUpload {
+  error: unknown;
+  /** The revision named by the upload's If-Match precondition. */
+  expectedRevision: string;
+}
+
 function ArtifactActions({
   scope,
   metadata,
+  onUploadPending,
+  onUploadRejected,
 }: {
   scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
+  onUploadPending: (pending: boolean) => void;
+  onUploadRejected: (rejected: RejectedUpload) => void;
 }) {
   const api = usePublicAPI();
   const location = useLocation();
@@ -98,6 +110,13 @@ function ArtifactActions({
             }}
             initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
+            onPendingChange={onUploadPending}
+            onWriteError={(error) =>
+              onUploadRejected({
+                error,
+                expectedRevision: metadata.artifact.revision,
+              })
+            }
             onWritten={(result) =>
               setSearchParams(
                 { revision: result.artifact.revision },
@@ -288,6 +307,8 @@ export function ArtifactDetailView({
   heading: ReactNode;
 }) {
   const api = usePublicAPI();
+  const location = useLocation();
+  const [, setSearchParams] = useSearchParams();
   const label = SCOPE_LABELS[scope.kind];
   const query = useQuery({
     queryKey: artifactScopeKeys(scope).metadata(namespace, name, revision),
@@ -298,6 +319,26 @@ export function ArtifactDetailView({
         ...(revision === undefined ? {} : { revision }),
       }),
   });
+  // The rejected upload's reconcile remounts the form for a new revision or
+  // replaces it on a now historical one, so the notice lives here.
+  const [rejectedUpload, setRejectedUpload] = useState<RejectedUpload | null>(
+    null,
+  );
+  const recordUploadPending = useCallback((pending: boolean) => {
+    if (pending) setRejectedUpload(null);
+  }, []);
+  const recordUploadRejected = (rejected: RejectedUpload) => {
+    setRejectedUpload(rejected);
+    // A precondition conflict means that another writer moved the binding:
+    // show its current revision instead of the pinned, now historical one.
+    if (
+      revision !== undefined &&
+      rejected.error instanceof PublicAPIError &&
+      rejected.error.code === "conflict"
+    ) {
+      setSearchParams({}, { replace: true, state: location.state });
+    }
+  };
 
   return (
     <section
@@ -324,6 +365,13 @@ export function ArtifactDetailView({
         />
       </header>
 
+      {rejectedUpload === null ? null : (
+        <ErrorNotice
+          error={rejectedUpload.error}
+          context={`The version upload based on ${rejectedUpload.expectedRevision} was rejected`}
+          reconcileWrite
+        />
+      )}
       <QueryView
         query={query}
         loading={
@@ -341,6 +389,8 @@ export function ArtifactDetailView({
               key={`actions-${metadata.artifact.revision}`}
               scope={scope}
               metadata={metadata}
+              onUploadPending={recordUploadPending}
+              onUploadRejected={recordUploadRejected}
             />
             <ArtifactHistoryDisclosure>
               <ArtifactHistory

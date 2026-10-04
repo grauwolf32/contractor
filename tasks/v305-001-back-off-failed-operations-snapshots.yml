@@ -3,7 +3,8 @@ id: V305-001
 title: Retry failed Operations snapshot reads with backoff
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: 931fa332f84a9d10bcdd3fdc92ff33a43a5966f4
 depends_on: []
 languages: [typescript]
 goal: Never resume the Operations live stream from a stale cursor after a failed snapshot read.

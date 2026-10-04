@@ -3,7 +3,8 @@ id: V306-001
 title: Show artifact version-upload conflicts across reconciles
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: dd211c2955fd1f4eee20eacf5804b8c46700d08d
 depends_on: []
 languages: [typescript]
 goal: Keep a 412 version-upload conflict visible after the page reconciles to the newer revision.

@@ -226,9 +226,10 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts");
+    // Library rows open the current binding, not the listed revision.
     expect(
       await screen.findByRole("link", { name: "projects/existing" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("href", "/artifacts/projects/existing");
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -568,6 +569,146 @@ describe("Artifact routes", () => {
     );
     expect(router.state.location.state).toEqual(returnState.returnState);
   });
+
+  it.each([
+    { pinned: false, path: { pathname: "/artifacts/projects/source" } },
+    {
+      pinned: true,
+      path: {
+        pathname: "/artifacts/projects/source",
+        search: "?revision=revision-1",
+      },
+    },
+  ])(
+    "keeps a concurrent-writer upload conflict visible with the new current revision (pinned: $pinned)",
+    async ({ path }) => {
+      const original = {
+        artifact: {
+          namespace: "projects",
+          name: "source",
+          revision: "revision-1",
+        },
+        mediaType: "text/plain",
+        size: 4,
+        current: true,
+        frozen: false,
+        createdAt: "2026-09-01T10:00:00Z",
+      };
+      const concurrent = {
+        ...original,
+        artifact: { ...original.artifact, revision: "revision-2" },
+        size: 6,
+        createdAt: "2026-09-01T10:05:00Z",
+      };
+      const mine = {
+        ...original,
+        artifact: { ...original.artifact, revision: "revision-3" },
+      };
+      const returnState = { returnTo: "/artifacts", returnLabel: "Artifacts" };
+      // Another writer binds revision-2 while this page shows revision-1.
+      let concurrentWriter = false;
+      const writes: Request[] = [];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+          if (
+            request.method === "PUT" &&
+            url.pathname === "/v1/artifacts/projects/source"
+          ) {
+            writes.push(request);
+            if (request.headers.get("If-Match") === '"revision-2"') {
+              return jsonResponse(
+                { artifact: mine.artifact, mediaType: "text/plain", size: 4 },
+                { status: 200, headers: { ETag: '"revision-3"' } },
+              );
+            }
+            concurrentWriter = true;
+            return jsonResponse(
+              {
+                code: "conflict",
+                message:
+                  "resource state changed; retry with the current revision",
+                retryable: true,
+                requestId: "request-conflict",
+              },
+              { status: 409 },
+            );
+          }
+          if (url.pathname.endsWith("/metadata")) {
+            switch (url.searchParams.get("revision")) {
+              case "revision-1":
+                return jsonResponse({
+                  ...original,
+                  current: !concurrentWriter,
+                });
+              case "revision-3":
+                return jsonResponse(mine);
+            }
+            return jsonResponse(concurrentWriter ? concurrent : original);
+          }
+          if (url.pathname === "/v1/artifacts")
+            return jsonResponse({ items: [], page: { hasMore: false } });
+          throw new Error(`unexpected ${request.method} ${url}`);
+        }),
+      );
+      const { router } = renderArtifactApplication(api, {
+        search: "",
+        ...path,
+        state: returnState,
+      });
+      expect(
+        await screen.findByText("Current revision", { selector: ".lede" }),
+      ).toBeVisible();
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByText("Upload a new version", { selector: "summary" }),
+      );
+      await user.upload(
+        screen.getByLabelText("Drop a file here"),
+        new File(["mine"], "source.txt", { type: "text/plain" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Upload new version" }),
+      );
+
+      expect(
+        await screen.findByText('If-Match: "revision-2"'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Current revision", { selector: ".lede" }),
+      ).toBeVisible();
+      const notice = screen.getByRole("alert");
+      expect(notice).toHaveTextContent(/based on revision-1 was rejected/);
+      expect(notice).toHaveTextContent(/binding changed/);
+      expect(router.state.location.search).toBe("");
+      expect(router.state.location.state).toEqual(returnState);
+      expect(writes).toHaveLength(1);
+      expect(writes[0]?.headers.get("If-Match")).toBe('"revision-1"');
+
+      // An explicit new upload against the reviewed revision clears it.
+      await user.upload(
+        screen.getByLabelText("Drop a file here"),
+        new File(["mine"], "source.txt", { type: "text/plain" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Upload new version" }),
+      );
+      await vi.waitFor(() =>
+        expect(router.state.location.search).toBe("?revision=revision-3"),
+      );
+      expect(
+        await screen.findByText('If-Match: "revision-3"'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(writes.map((write) => write.headers.get("If-Match"))).toEqual([
+        '"revision-1"',
+        '"revision-2"',
+      ]);
+    },
+  );
 
   it("does not offer inline preview for binary content", async () => {
     const binary = {

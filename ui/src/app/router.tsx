@@ -197,13 +197,6 @@ export function applicationRoutes(): RouteObject[] {
               lazy: lazyRoute(() => import("../routes/runs"), "RunsRoute"),
             },
             {
-              path: "/runs/configuration/*",
-              lazy: lazyRoute(
-                () => import("../routes/runs"),
-                "LegacyRunConfigurationRedirect",
-              ),
-            },
-            {
               path: "/runs/:runId",
               lazy: lazyRoute(
                 () => import("../routes/runs/detail"),

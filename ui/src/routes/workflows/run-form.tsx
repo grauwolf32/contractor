@@ -61,6 +61,7 @@ import {
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
+import { artifactDetailPath } from "../artifacts/paths";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
 import "./run-drafts.css";
@@ -81,16 +82,6 @@ function configurationSelector(resource: ConfigurationResource): string {
 
 function artifactLabel(metadata: ArtifactMetadata): string {
   return `${artifactOptionKey(metadata.artifact)} · ${metadata.mediaType} · ${formatBytes(metadata.size)}`;
-}
-
-function artifactDetailPath(
-  metadata: ArtifactMetadata,
-  projectId?: string,
-): string {
-  const exactPath = `${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`;
-  return projectId === undefined
-    ? `/artifacts/${exactPath}`
-    : `/projects/${encodeURIComponent(projectId)}/artifacts/${exactPath}`;
 }
 
 function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
@@ -1660,7 +1651,12 @@ function WorkflowRunFormBody({
                             </button>
                           ) : null}
                           <Link
-                            to={artifactDetailPath(selectedMetadata, projectId)}
+                            to={artifactDetailPath(
+                              projectId === undefined
+                                ? { kind: "user" }
+                                : { kind: "project", id: projectId },
+                              selectedMetadata.artifact,
+                            )}
                           >
                             Preview Artifact details
                           </Link>

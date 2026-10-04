@@ -38,27 +38,52 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 }
 
 describe("Project API", () => {
-  it("keeps legacy unparseable target URLs readable in list and detail responses", async () => {
-    const legacy = {
+  it.each([
+    "http://target:70000/",
+    "https://host/?",
+    "ftp://target/",
+    " https://target/",
+  ])(
+    "rejects a stored target URL %j that authoring would reject",
+    async (url) => {
+      const invalid = { ...project, httpTarget: { url } };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const path = new URL(
+            (input instanceof Request ? input : new Request(input)).url,
+          ).pathname;
+          return path === "/v1/projects"
+            ? response({ items: [project, invalid], page: { hasMore: false } })
+            : response(invalid, { headers: { ETag: '"1"' } });
+        }),
+      );
+
+      await expect(listProjects(api)).rejects.toThrow(
+        "Server returned an invalid Project response",
+      );
+      await expect(getProject(api, project.projectId)).rejects.toThrow(
+        "Server returned an invalid Project response",
+      );
+    },
+  );
+
+  it("reads a valid stored target with its credential", async () => {
+    const targeted = {
       ...project,
-      httpTarget: { url: "http://target:70000/" },
+      httpTarget: {
+        url: "https://target.example/api",
+        credential: {
+          credentialId: "target-basic",
+          kind: "http-origin-basic@1",
+        },
+      },
     };
     const api = new PublicAPI(
       runtimeConfig,
-      vi.fn(async (input) => {
-        const path = new URL(
-          (input instanceof Request ? input : new Request(input)).url,
-        ).pathname;
-        return path === "/v1/projects"
-          ? response({ items: [project, legacy], page: { hasMore: false } })
-          : response(legacy, { headers: { ETag: '"1"' } });
-      }),
+      vi.fn(async () => response(targeted, { headers: { ETag: '"1"' } })),
     );
-
-    await expect(listProjects(api)).resolves.toMatchObject({
-      items: [project, legacy],
-    });
-    await expect(getProject(api, project.projectId)).resolves.toEqual(legacy);
+    await expect(getProject(api, project.projectId)).resolves.toEqual(targeted);
   });
 
   it.each(["https://host/?", "https://host/#", "http://target:0/"])(

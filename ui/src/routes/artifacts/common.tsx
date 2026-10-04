@@ -113,6 +113,7 @@ export function ArtifactWriteForm({
   headingId,
   onPendingChange,
   onCancel,
+  onWriteError,
   onWritten,
 }: {
   scope?: WritableArtifactScope;
@@ -138,6 +139,11 @@ export function ArtifactWriteForm({
   onPendingChange?: (pending: boolean) => void;
   /** Renders a Cancel button next to the submit button. */
   onCancel?: () => void;
+  /**
+   * Receives a failed write in place of the form's own notice, so a view
+   * whose reconcile remounts or replaces the form keeps it visible.
+   */
+  onWriteError?: (error: unknown) => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
@@ -178,7 +184,8 @@ export function ArtifactWriteForm({
         setName("");
       }
     },
-    onError: async () => {
+    onError: async (error) => {
+      onWriteError?.(error);
       // A conflict or lost response is ambiguous by design. Reconcile every
       // active Artifact view with Server state, but never retry the unsafe PUT.
       await queryClient.invalidateQueries({ queryKey: keys.all });
@@ -358,7 +365,7 @@ export function ArtifactWriteForm({
           tab.
         </p>
       )}
-      {mutation.error === null ? null : (
+      {mutation.error === null || onWriteError !== undefined ? null : (
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
       <div

@@ -71,6 +71,20 @@ describe("Artifact API", () => {
     expect(url.searchParams.get("limit")).toBe("50");
   });
 
+  it("rejects a binding page without continuation", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response(JSON.stringify({ items: [metadata] }), {
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    await expect(listArtifacts(api)).rejects.toThrow(
+      "Server returned an invalid Artifact page",
+    );
+  });
+
   it("creates and updates with mutually exclusive exact CAS headers", async () => {
     const requests: Request[] = [];
     let revision = 0;

@@ -479,29 +479,20 @@ describe("Runtime configuration hub navigation", () => {
     ).toHaveAttribute("href", "/operations/configuration");
   });
 
-  it.each([
-    ["/runs/configuration", "/operations/configuration", "", ""],
-    [
+  it("keeps no redirect from the removed Runs configuration location", async () => {
+    const { router } = setup(
       "/runs/configuration/debug/1?from=bookmark#worker",
-      "/operations/configuration/debug/1",
-      "?from=bookmark",
-      "#worker",
-    ],
-  ])(
-    "redirects the legacy Runs location %s",
-    async (path, pathname, search, hash) => {
-      const { router } = setup(path);
-      await waitFor(() =>
-        expect(router.state.location).toMatchObject({
-          pathname,
-          search,
-          hash,
-        }),
-      );
-      expect(router.state.historyAction).toBe("REPLACE");
-      await screen.findByRole("heading", { name: "Runtime configuration" });
-    },
-  );
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }),
+    ).toBeVisible();
+    expect(router.state.location).toMatchObject({
+      pathname: "/runs/configuration/debug/1",
+      search: "?from=bookmark",
+      hash: "#worker",
+    });
+    expect(router.state.historyAction).toBe("POP");
+  });
 
   it("drops the Configuration tab from Runs", async () => {
     setup("/runs");

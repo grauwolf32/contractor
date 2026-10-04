@@ -1,8 +1,7 @@
-import { Link, Navigate, useLocation, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
 import { useDocumentTitle } from "../../app/document-title";
-import { legacyRunConfigurationDestination } from "../../app/navigation";
 import { QueuePanel } from "../queue";
 import { CompletedRunsPanel } from "./list";
 
@@ -53,13 +52,4 @@ export function RunsRoute() {
       {completed ? <CompletedRunsPanel /> : <QueuePanel />}
     </section>
   );
-}
-
-/**
- * `/runs/configuration…` moved to Operations → Configuration; old links and
- * bookmarks land on the same version with query and fragment preserved.
- */
-export function LegacyRunConfigurationRedirect() {
-  const location = useLocation();
-  return <Navigate replace to={legacyRunConfigurationDestination(location)} />;
 }

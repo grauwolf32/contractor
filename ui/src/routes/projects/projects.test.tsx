@@ -65,40 +65,6 @@ function renderProjectApplication(
 }
 
 describe("Project routes", () => {
-  it("loads a Project with a legacy invalid target and lets the owner remove it", async () => {
-    const legacyTarget = "http://target:70000/";
-    let currentProject: typeof project & { httpTarget?: { url: string } } = {
-      ...project,
-      httpTarget: { url: legacyTarget },
-    };
-    let patch: Request | undefined;
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const url = new URL(request.url);
-        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
-        if (url.pathname === "/v1/projects/project_example") {
-          if (request.method === "PATCH") {
-            patch = request.clone();
-            currentProject = { ...project, revision: "2" };
-          }
-          return jsonResponse(currentProject, {
-            headers: { ETag: `"${currentProject.revision}"` },
-          });
-        }
-        return jsonResponse({ items: [], page: { hasMore: false } });
-      }),
-    );
-    renderProjectApplication(api, "/projects/project_example/settings");
-    expect(await screen.findByText(legacyTarget)).toBeVisible();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Remove target" }));
-    await screen.findByText(/No target is configured/);
-    expect(patch?.headers.get("If-Match")).toBe('"1"');
-    await expect(patch?.json()).resolves.toEqual({ httpTarget: null });
-  });
-
   it("loads bounded Overview summaries and preserves section filters through navigation", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(

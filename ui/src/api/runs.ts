@@ -149,7 +149,7 @@ function exactRevisionQuery(revision: string): string {
 }
 
 export function isTerminalRunState(state: WorkflowRunState): boolean {
-  return state === "succeeded" || state === "failed" || state === "cancelled";
+  return TERMINAL_RUN_STATES.some((terminal) => terminal === state);
 }
 
 export async function listRuns(
@@ -434,7 +434,7 @@ export async function listRunArtifacts(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getRunArtifactMetadata(

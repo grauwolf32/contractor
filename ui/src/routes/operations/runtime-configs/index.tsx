@@ -4,6 +4,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type UseQueryResult,
 } from "@tanstack/react-query";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -27,6 +28,7 @@ import {
   type RuntimeConfigAuthorDocument,
   type RuntimeConfigResource,
   type RuntimeCredentialMetadata,
+  type RuntimeCredentialPage,
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
@@ -46,6 +48,7 @@ import {
 } from "../../../app/pagination";
 import { LoadMoreButton } from "../../../app/load-more";
 import { ErrorNotice } from "../../../app/error-notice";
+import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
 import { compactDigest } from "../../../app/format";
@@ -1379,7 +1382,7 @@ function RuntimeCredentialList({
   controls,
   onCreate,
 }: {
-  credentials: RuntimeCredentialMetadata[];
+  credentials: UseQueryResult<RuntimeCredentialPage>;
   controls: CursorStackControls;
   onCreate: () => void;
 }) {
@@ -1408,7 +1411,9 @@ function RuntimeCredentialList({
           <h3>Runtime credentials</h3>
         </div>
         <div className="runtime-library-actions">
-          <span>{credentials.length} on this page</span>
+          {credentials.data === undefined ? null : (
+            <span>{credentials.data.items.length} on this page</span>
+          )}
           <button
             className="secondary-button icon-button"
             type="button"
@@ -1421,51 +1426,68 @@ function RuntimeCredentialList({
           </button>
         </div>
       </div>
-      {credentials.length === 0 ? (
-        <p className="compact-empty">No Runtime credentials exist.</p>
-      ) : (
-        <div className="table-scroll">
-          <table className="runtime-credential-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Kind</th>
-                <th>Created</th>
-                <th>Lifecycle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {credentials.map((credential) => (
-                <tr key={credential.credentialId}>
-                  <td>
-                    <code>{credential.credentialId}</code>
-                  </td>
-                  <td>{credential.kind}</td>
-                  <td>
-                    <RecordedTime value={credential.createdAt} />
-                  </td>
-                  <td>
-                    <button
-                      className="danger-button delete-icon-button"
-                      type="button"
-                      aria-label={`Delete Runtime credential ${credential.credentialId}`}
-                      title={`Delete Runtime credential ${credential.credentialId}`}
-                      aria-haspopup="dialog"
-                      disabled={deletion.isPending}
-                      onClick={() => {
-                        deletion.reset();
-                        setConfirmRemoval(credential);
-                      }}
-                    >
-                      <DeleteIcon />
-                    </button>
-                  </td>
+      <QueryView
+        query={credentials}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Runtime credentials…
+          </p>
+        }
+        errorContext="Could not load Runtime credentials"
+        onRetry={() => void credentials.refetch()}
+        isEmpty={(page) => page.items.length === 0}
+        empty={
+          <p className="compact-empty">
+            {controls.canGoBack
+              ? "This page lists no Runtime credentials. Earlier pages may list more."
+              : "No Runtime credentials exist."}
+          </p>
+        }
+      >
+        {(page) => (
+          <div className="table-scroll">
+            <table className="runtime-credential-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Kind</th>
+                  <th>Created</th>
+                  <th>Lifecycle</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {page.items.map((credential) => (
+                  <tr key={credential.credentialId}>
+                    <td>
+                      <code>{credential.credentialId}</code>
+                    </td>
+                    <td>{credential.kind}</td>
+                    <td>
+                      <RecordedTime value={credential.createdAt} />
+                    </td>
+                    <td>
+                      <button
+                        className="danger-button delete-icon-button"
+                        type="button"
+                        aria-label={`Delete Runtime credential ${credential.credentialId}`}
+                        title={`Delete Runtime credential ${credential.credentialId}`}
+                        aria-haspopup="dialog"
+                        disabled={deletion.isPending}
+                        onClick={() => {
+                          deletion.reset();
+                          setConfirmRemoval(credential);
+                        }}
+                      >
+                        <DeleteIcon />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </QueryView>
       <CursorControls label="Runtime credential pages" {...controls} />
       {confirmRemoval ? (
         <ConfirmRemovalDialog
@@ -1562,10 +1584,9 @@ export function RuntimeConfigurationRoute() {
       ),
   });
   const loadedConfigs = configs.data?.items ?? [];
-  const inventoryError = configs.error ?? labels.error ?? credentials.error;
   return (
     <>
-      {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
+      {labels.error === null ? null : <ErrorNotice error={labels.error} />}
       <div className="panel operations-library">
         <div className="section-heading">
           <div>
@@ -1589,97 +1610,111 @@ export function RuntimeConfigurationRoute() {
             </button>
           </div>
         </div>
-        {configs.isPending ? (
-          <p className="loading-copy" role="status">
-            Loading RuntimeConfigs…
-          </p>
-        ) : loadedConfigs.length === 0 ? (
-          <p className="compact-empty">
-            No RuntimeConfig versions are visible.
-          </p>
-        ) : (
-          <div className="table-scroll">
-            <table className="runtime-config-table">
-              <thead>
-                <tr>
-                  <th>Version</th>
-                  <th>Source</th>
-                  <th>Created</th>
-                  <th>Bindings</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadedConfigs.map((resource) => (
-                  <tr key={exactKey(resource)}>
-                    <td>
-                      <RuntimeRef resource={resource} />
-                    </td>
-                    <td>
-                      {resource.builtIn ? "built-in" : resource.createdBy}
-                    </td>
-                    <td>
-                      {resource.builtIn ? (
-                        "Built-in"
-                      ) : (
-                        <RecordedTime value={resource.createdAt} />
-                      )}
-                    </td>
-                    <td>
-                      <div className="runtime-inline-bindings">
-                        {labels.isSuccess ? (
-                          labels.data.items
-                            .filter(
-                              (binding) =>
-                                binding.config.digest === resource.ref.digest,
-                            )
-                            .map((binding) => (
-                              <span className="state-badge" key={binding.label}>
-                                {binding.label}
-                              </span>
-                            ))
-                        ) : (
-                          <small>Labels unavailable</small>
-                        )}
-                        {labels.isSuccess &&
-                        !labels.data.items.some(
-                          (binding) =>
-                            binding.config.digest === resource.ref.digest,
-                        ) ? (
-                          <small>No labels</small>
-                        ) : null}
-                        <button
-                          className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
-                          type="button"
-                          aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
-                          title={
-                            labels.data?.items.some(
-                              (binding) =>
-                                binding.config.digest === resource.ref.digest,
-                            )
-                              ? "Label bindings active — manage bindings"
-                              : "Add a label binding"
-                          }
-                          aria-haspopup="dialog"
-                          disabled={!labels.isSuccess}
-                          onClick={() => setBindingTarget(resource)}
-                        >
-                          <Icon name="binding" />
-                        </button>
-                      </div>
-                    </td>
+        <QueryView
+          query={configs}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading RuntimeConfigs…
+            </p>
+          }
+          errorContext="Could not load RuntimeConfig versions"
+          onRetry={() => void configs.refetch()}
+          isEmpty={(page) => page.items.length === 0}
+          empty={
+            <p className="compact-empty">
+              {configPages.cursor === undefined
+                ? "No RuntimeConfig versions are visible."
+                : "This page lists no RuntimeConfig versions. Earlier pages may list more."}
+            </p>
+          }
+        >
+          {(page) => (
+            <div className="table-scroll">
+              <table className="runtime-config-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Source</th>
+                    <th>Created</th>
+                    <th>Bindings</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {page.items.map((resource) => (
+                    <tr key={exactKey(resource)}>
+                      <td>
+                        <RuntimeRef resource={resource} />
+                      </td>
+                      <td>
+                        {resource.builtIn ? "built-in" : resource.createdBy}
+                      </td>
+                      <td>
+                        {resource.builtIn ? (
+                          "Built-in"
+                        ) : (
+                          <RecordedTime value={resource.createdAt} />
+                        )}
+                      </td>
+                      <td>
+                        <div className="runtime-inline-bindings">
+                          {labels.isSuccess ? (
+                            labels.data.items
+                              .filter(
+                                (binding) =>
+                                  binding.config.digest === resource.ref.digest,
+                              )
+                              .map((binding) => (
+                                <span
+                                  className="state-badge"
+                                  key={binding.label}
+                                >
+                                  {binding.label}
+                                </span>
+                              ))
+                          ) : (
+                            <small>Labels unavailable</small>
+                          )}
+                          {labels.isSuccess &&
+                          !labels.data.items.some(
+                            (binding) =>
+                              binding.config.digest === resource.ref.digest,
+                          ) ? (
+                            <small>No labels</small>
+                          ) : null}
+                          <button
+                            className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
+                            type="button"
+                            aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
+                            title={
+                              labels.data?.items.some(
+                                (binding) =>
+                                  binding.config.digest === resource.ref.digest,
+                              )
+                                ? "Label bindings active — manage bindings"
+                                : "Add a label binding"
+                            }
+                            aria-haspopup="dialog"
+                            disabled={!labels.isSuccess}
+                            onClick={() => setBindingTarget(resource)}
+                          >
+                            <Icon name="binding" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </QueryView>
         <CursorControls
           label="RuntimeConfig pages"
           {...configPages.controls(configs.data?.page)}
         />
       </div>
       <RuntimeCredentialList
-        credentials={credentials.data?.items ?? []}
+        credentials={credentials}
         controls={credentialPages.controls(credentials.data?.page)}
         onCreate={() => setCreateDialog("credential")}
       />
