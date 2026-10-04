@@ -3,7 +3,7 @@ id: V336-001
 title: Fail Postgres-backed tests when the configured database is unreachable
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Stop the gate from passing without a database.

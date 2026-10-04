@@ -3,7 +3,7 @@ id: V335-001
 title: Gate e2e tests by real selection and existence
 milestone: review-process-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, make]
 goal: Make the release-graph guard prove that every tagged test is selected by a reachable gate and that every selected name exists.

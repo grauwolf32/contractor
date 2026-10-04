@@ -3,7 +3,7 @@ id: V340-001
 title: Run Eval and fault race suites in release verification
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V334-001]
 languages: [make, python]
 goal: Put every Go package with tests under the race detector in some release job.

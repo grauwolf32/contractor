@@ -3,7 +3,7 @@ id: V334-001
 title: Keep a verdict for every main push and run fast gates first
 milestone: review-process-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [yaml, make]
 goal: Make CI report on every merge and surface cheap failures within minutes.

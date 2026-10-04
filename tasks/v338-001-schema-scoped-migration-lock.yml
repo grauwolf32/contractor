@@ -3,7 +3,7 @@ id: V338-001
 title: Scope migration advisory locks to the target schema
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Let isolated test schemas migrate concurrently while one schema still has one migration leader.

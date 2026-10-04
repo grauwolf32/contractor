@@ -3,7 +3,7 @@ id: V337-001
 title: Enforce the production collection budget outside the race detector
 milestone: review-process-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, make]
 goal: Make the 10 s finding-collection budget test run somewhere.
