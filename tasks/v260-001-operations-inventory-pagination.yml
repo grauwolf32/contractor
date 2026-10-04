@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V260-001
+title: Expose later Operations configuration and credential pages
+milestone: operations-pagination-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Make configuration pickers and Runtime credentials usable beyond their first 50 results.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/117
+  finding: Credential and RuntimeConfig forms and the Runtime credentials table read only one cursor page.
+scope:
+  in:
+    - Add paged Gateway and ModelPolicy selection to credential and RuntimeConfig forms.
+    - Add cursor navigation to Runtime credentials so later entries can be viewed and deleted.
+    - Cover multi-page API responses in UI tests.
+  out:
+    - Changing the public list endpoints or page size.
+acceptance_criteria:
+  - {id: A1, text: The credential form selects a ModelPolicy and managed Gateway beyond page one.}
+  - {id: A2, text: RuntimeConfig publishing selects a Gateway beyond page one.}
+  - {id: A3, text: A Runtime credential beyond page one is visible and deletable.}
+tests:
+  - {command: corepack pnpm --dir ui test, covers: [A1, A2, A3]}
+  - {command: corepack pnpm --dir ui typecheck, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
