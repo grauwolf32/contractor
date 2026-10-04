@@ -1,21 +1,52 @@
 from __future__ import annotations
 
+import logging
 import socket
 import ssl
 import subprocess
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from cryptography import x509
 
 from contractor_runtime.mtls import (
     CONTROL_PLANE_URI_PREFIX,
+    log_runtime_certificate_expiry,
     runtime_agent_client_context,
     runtime_agent_server_context,
     verify_control_plane_peer,
 )
+
+
+def test_runtime_certificate_expiry_logs_and_warns_with_injected_clock(
+    deployment_pki: PKI, caplog: pytest.LogCaptureFixture
+) -> None:
+    certificate = x509.load_pem_x509_certificate(deployment_pki.agent_certificate.read_bytes())
+    expires = certificate.not_valid_after_utc
+    with caplog.at_level(logging.INFO, logger="contractor_runtime.mtls"):
+        logged = log_runtime_certificate_expiry(
+            deployment_pki.agent_certificate,
+            warning_days=30,
+            now=expires - timedelta(days=31),
+        )
+    assert logged == expires
+    assert any(
+        record.levelno == logging.INFO and expires.isoformat() in record.message
+        for record in caplog.records
+    )
+    assert not any(record.levelno == logging.WARNING for record in caplog.records)
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="contractor_runtime.mtls"):
+        log_runtime_certificate_expiry(
+            deployment_pki.agent_certificate,
+            warning_days=30,
+            now=expires - timedelta(days=29),
+        )
+    assert any(record.levelno == logging.WARNING for record in caplog.records)
 
 
 @dataclass(frozen=True)

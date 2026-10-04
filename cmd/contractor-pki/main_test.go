@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -127,4 +128,58 @@ func hasUsage(certificate *x509.Certificate, expected x509.ExtKeyUsage) bool {
 		}
 	}
 	return false
+}
+
+func TestStandalonePKIRenewCommandsKeepExistingKeys(t *testing.T) {
+	root := t.TempDir()
+	for _, args := range [][]string{
+		{"init-ca", "--root", root},
+		{"issue-control-plane", "--root", root},
+		{"issue-agent", "--root", root, "--name", "worker-1"},
+	} {
+		if err := run(args, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	agent, err := localpki.AgentPaths(root, "worker-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name  string
+		paths localpki.Paths
+		args  []string
+	}{
+		{name: "Control Plane", paths: localpki.ControlPlanePaths(root),
+			args: []string{"renew-control-plane", "--root", root}},
+		{name: "Runtime Agent", paths: agent,
+			args: []string{"renew-agent", "--root", root, "--name", "worker-1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			beforeCert, err := os.ReadFile(test.paths.Certificate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beforeKey, err := os.ReadFile(test.paths.PrivateKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output bytes.Buffer
+			if err := run(test.args, &output, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+			afterCert, err := os.ReadFile(test.paths.Certificate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			afterKey, err := os.ReadFile(test.paths.PrivateKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(beforeCert, afterCert) || !bytes.Equal(beforeKey, afterKey) ||
+				!strings.Contains(output.String(), test.paths.Certificate) {
+				t.Fatalf("renew command did not replace only %s: %q", test.paths.Certificate, output.String())
+			}
+		})
+	}
 }

@@ -159,6 +159,20 @@ def test_private_key_permissions_are_strict(tmp_path: Path) -> None:
         parse_settings(arguments, {})
 
 
+def test_certificate_expiry_warning_window_can_be_configured(tmp_path: Path) -> None:
+    settings = parse_settings(
+        base_arguments(tmp_path), {"CONTRACTOR_CERT_EXPIRY_WARNING_DAYS": "14"}
+    )
+    assert settings.certificate_expiry_warning_days == 14
+    settings = parse_settings(
+        [*base_arguments(tmp_path), "--cert-expiry-warning-days", "7"],
+        {"CONTRACTOR_CERT_EXPIRY_WARNING_DAYS": "14"},
+    )
+    assert settings.certificate_expiry_warning_days == 7
+    with pytest.raises(SystemExit):
+        parse_settings([*base_arguments(tmp_path), "--cert-expiry-warning-days", "0"], {})
+
+
 def base_arguments(tmp_path: Path) -> list[str]:
     ca, certificate, key = settings_files(tmp_path)
     return [

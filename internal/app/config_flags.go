@@ -91,6 +91,7 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags.StringVar(&c.caFile, "ca-file", c.caFile, "deployment CA certificate")
 	flags.StringVar(&c.certificateFile, "certificate-file", c.certificateFile, "Control Plane certificate")
 	flags.StringVar(&c.privateKeyFile, "private-key-file", c.privateKeyFile, "Control Plane private key")
+	flags.DurationVar(&c.certificateExpiryWarningWindow, "cert-expiry-warning-window", c.certificateExpiryWarningWindow, "warn when the Control Plane certificate expires within this duration")
 	flags.DurationVar(&c.plannerTimeout, "planner-timeout", c.plannerTimeout, "maximum Stage preparation and Planner wall time")
 	flags.StringVar(&c.developmentLLMGateway, "development-llm-gateway", c.developmentLLMGateway, "exact LLM Gateway selector for development token bindings")
 	if err := parseCommandFlags(flags, args); err != nil {

@@ -16,7 +16,11 @@ from contractor_runtime.control_client import ControlClient, ControlTransport, M
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.log import configure_logging
-from contractor_runtime.mtls import runtime_agent_client_context, runtime_agent_server_context
+from contractor_runtime.mtls import (
+    log_runtime_certificate_expiry,
+    runtime_agent_client_context,
+    runtime_agent_server_context,
+)
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.workroots import check_root_policy
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
@@ -77,6 +81,10 @@ async def _serve(
     runtime_state = state or RuntimeState()
     stop = stop_requested or asyncio.Event()
     await asyncio.to_thread(cleanup_orphan_workdirs, settings.work_root)
+    log_runtime_certificate_expiry(
+        settings.certificate_file,
+        warning_days=settings.certificate_expiry_warning_days,
+    )
     outgoing_tls = runtime_agent_client_context(
         ca_file=settings.ca_file,
         certificate_file=settings.certificate_file,

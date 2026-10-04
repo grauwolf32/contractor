@@ -10,6 +10,7 @@ import (
 	cryptorand "crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -156,6 +158,129 @@ func (g Generator) IssueAgent(root, name string, options LeafOptions) (Paths, er
 		return Paths{}, err
 	}
 	return g.issueLeaf(root, paths, "Contractor Runtime Agent "+name, options, nil)
+}
+
+// RenewControlPlane replaces only the certificate, retaining its private key,
+// endpoint SANs and Control Plane URI identity.
+func (g Generator) RenewControlPlane(root string) (Paths, error) {
+	return g.renewLeaf(root, ControlPlanePaths(root), true)
+}
+
+// RenewAgent retains the Runtime Agent's key, so its SPKI-derived principal
+// and any Operations-assigned labels remain stable across certificate renewal.
+func (g Generator) RenewAgent(root, name string) (Paths, error) {
+	paths, err := AgentPaths(root, name)
+	if err != nil {
+		return Paths{}, err
+	}
+	return g.renewLeaf(root, paths, false)
+}
+
+func (g Generator) renewLeaf(root string, paths Paths, controlPlane bool) (Paths, error) {
+	if err := validateRoot(root); err != nil {
+		return Paths{}, err
+	}
+	now := g.now().UTC()
+	caCertificate, caKey, err := loadCA(root, now)
+	if err != nil {
+		return Paths{}, err
+	}
+	certificate, key, err := loadRenewalLeaf(paths, caCertificate, controlPlane)
+	if err != nil {
+		return Paths{}, err
+	}
+	serial, err := randomSerial(g.random())
+	if err != nil {
+		return Paths{}, fmt.Errorf("generate renewed leaf serial: %w", err)
+	}
+	notAfter := now.Add(365 * 24 * time.Hour)
+	if !notAfter.After(certificate.NotAfter) {
+		notAfter = certificate.NotAfter.Add(time.Second)
+	}
+	template := &x509.Certificate{
+		SerialNumber:       serial,
+		Subject:            certificate.Subject,
+		NotBefore:          now.Add(-5 * time.Minute),
+		NotAfter:           notAfter,
+		KeyUsage:           certificate.KeyUsage,
+		ExtKeyUsage:        append([]x509.ExtKeyUsage(nil), certificate.ExtKeyUsage...),
+		UnknownExtKeyUsage: append([]asn1.ObjectIdentifier(nil), certificate.UnknownExtKeyUsage...),
+		DNSNames:           append([]string(nil), certificate.DNSNames...),
+		EmailAddresses:     append([]string(nil), certificate.EmailAddresses...),
+		URIs:               append([]*url.URL(nil), certificate.URIs...),
+	}
+	for _, address := range certificate.IPAddresses {
+		template.IPAddresses = append(template.IPAddresses, append(net.IP(nil), address...))
+	}
+	certificateDER, err := x509.CreateCertificate(g.random(), template, caCertificate, key.Public(), caKey)
+	if err != nil {
+		return Paths{}, fmt.Errorf("create renewed leaf certificate: %w", err)
+	}
+	if err := writeFiles([]outputFile{{
+		path: paths.Certificate, mode: 0o644,
+		data: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificateDER}),
+	}}, true); err != nil {
+		return Paths{}, fmt.Errorf("replace leaf certificate: %w", err)
+	}
+	return paths, nil
+}
+
+func loadRenewalLeaf(paths Paths, ca *x509.Certificate, controlPlane bool) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	for _, path := range []string{paths.Certificate, paths.PrivateKey} {
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, nil, fmt.Errorf("renewal requires an existing regular leaf certificate and key: %s", path)
+		}
+	}
+	certificatePEM, err := os.ReadFile(paths.Certificate)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read leaf certificate: %w", err)
+	}
+	keyPEM, err := os.ReadFile(paths.PrivateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read leaf private key: %w", err)
+	}
+	certificateBlock, rest := pem.Decode(certificatePEM)
+	if certificateBlock == nil || certificateBlock.Type != "CERTIFICATE" || len(bytes.TrimSpace(rest)) != 0 {
+		return nil, nil, errors.New("leaf certificate file must contain exactly one PEM certificate")
+	}
+	certificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+	if err != nil || certificate.IsCA || certificate.CheckSignatureFrom(ca) != nil {
+		return nil, nil, errors.New("leaf certificate is not signed by the current deployment CA")
+	}
+	keyBlock, rest := pem.Decode(keyPEM)
+	if keyBlock == nil || keyBlock.Type != "EC PRIVATE KEY" || len(bytes.TrimSpace(rest)) != 0 {
+		return nil, nil, errors.New("leaf key file must contain exactly one EC private key")
+	}
+	key, err := x509.ParseECPrivateKey(keyBlock.Bytes)
+	if err != nil || key.Curve != elliptic.P256() {
+		return nil, nil, errors.New("leaf key is not an ECDSA P-256 private key")
+	}
+	publicKey, ok := certificate.PublicKey.(*ecdsa.PublicKey)
+	if !ok || publicKey.Curve != elliptic.P256() || !publicKey.Equal(key.Public()) {
+		return nil, nil, errors.New("leaf certificate and private key do not match")
+	}
+	if err := validateEndpointSANs(certificate.DNSNames, certificate.IPAddresses); err != nil {
+		return nil, nil, err
+	}
+	if controlPlane {
+		valid := false
+		for _, identity := range certificate.URIs {
+			valid = valid || strings.HasPrefix(identity.String(), ControlPlaneURIPrefix) &&
+				len(identity.String()) > len(ControlPlaneURIPrefix)
+		}
+		if !valid {
+			return nil, nil, errors.New("Control Plane leaf lacks its URI SAN")
+		}
+	} else if len(certificate.URIs) != 0 {
+		return nil, nil, errors.New("Runtime Agent leaf unexpectedly has URI SANs")
+	}
+	if certificate.KeyUsage&x509.KeyUsageDigitalSignature == 0 ||
+		!slices.Contains(certificate.ExtKeyUsage, x509.ExtKeyUsageClientAuth) ||
+		!slices.Contains(certificate.ExtKeyUsage, x509.ExtKeyUsageServerAuth) {
+		return nil, nil, errors.New("leaf certificate lacks required mTLS usages")
+	}
+	return certificate, key, nil
 }
 
 func (g Generator) issueLeaf(

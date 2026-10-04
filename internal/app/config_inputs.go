@@ -44,6 +44,8 @@ type serveConfigInputs struct {
 	credentialMasterKeyFile     string
 	llmGatewayAdminBindingsFile string
 	developmentLLMGateway       string
+
+	certificateExpiryWarningWindow time.Duration
 }
 
 func loadServeConfigInputs(args []string, getenv func(string) string) (*serveConfigInputs, error) {
@@ -143,6 +145,14 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 	if value := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE"); value != "" {
 		privateKeyFile = value
 	}
+	certificateExpiryWarningWindow := defaultCertificateExpiryWarningWindow
+	if value := getenv("CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW"); value != "" {
+		parsed, err := time.ParseDuration(value)
+		if err != nil {
+			return nil, errors.New("CONTRACTOR_CERT_EXPIRY_WARNING_WINDOW must be a duration")
+		}
+		certificateExpiryWarningWindow = parsed
+	}
 	developmentWorkerToken := contracts.NewSecretString(getenv("CONTRACTOR_LLM_GATEWAY_TOKEN"))
 	developmentPlannerToken := contracts.NewSecretString(getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN"))
 	performanceMetrics := deferredBooleanFlag{
@@ -202,5 +212,7 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		credentialMasterKeyFile:     credentialMasterKeyFile,
 		llmGatewayAdminBindingsFile: llmGatewayAdminBindingsFile,
 		developmentLLMGateway:       developmentLLMGateway,
+
+		certificateExpiryWarningWindow: certificateExpiryWarningWindow,
 	}, nil
 }

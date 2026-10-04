@@ -57,6 +57,8 @@ type Config struct {
 	PerformanceMetrics          bool
 	Pprof                       bool
 	PprofListen                 string
+
+	CertificateExpiryWarningWindow time.Duration
 }
 
 // RunCLI parses process configuration and runs the Server until cancellation.
@@ -189,7 +191,7 @@ func runCLI(
 	}
 
 	control, err := configureControlPlane(
-		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry,
+		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry, logger,
 	)
 	if err != nil {
 		return err
