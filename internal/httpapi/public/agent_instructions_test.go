@@ -13,7 +13,7 @@ import (
 )
 
 func TestAgentInstructionsAuthenticatedExactCatalogRead(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixture(t)
 	page := serveQuery(t, fixture.handler, "/v1/configurations/agent-templates?limit=1")
 	var listed configurationPageResponse
 	decodeQueryResponse(t, page, &listed)

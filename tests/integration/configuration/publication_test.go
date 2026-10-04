@@ -14,7 +14,7 @@ import (
 // config package: a response is not reported as successful before the snapshot
 // swap, while the already-renamed YAML is ordinary startup input.
 func TestManagedPublicationRecoversRenameBeforeSnapshotSwap(t *testing.T) {
-	operator := copyTree(t, "../../../configs")
+	operator := copyTree(t, "../../../testdata/configs")
 	managed := filepath.Join(t.TempDir(), "managed")
 	simulatedCrash := errors.New("simulated process crash")
 	manager, err := config.NewManager(config.ManagerOptions{

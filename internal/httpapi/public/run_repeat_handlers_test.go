@@ -142,7 +142,7 @@ func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.
 }
 
 func TestRunRepeatDraftBlocksRetiredDefaultWorkflow(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
 	run := queryRun("run-retired", "user-1", runstore.RunSucceeded, time.Now().UTC())
 	run.WorkflowName, run.WorkflowVersion = "artifact-copy", "1"
 	fixture.runs.runs[run.RunID] = run

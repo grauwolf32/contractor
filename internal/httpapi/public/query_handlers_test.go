@@ -20,7 +20,7 @@ import (
 )
 
 func TestWorkflowQueriesArePaginated(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
 
 	first := serveQuery(t, fixture.handler, "/v1/workflows?limit=1")
 	if first.Code != http.StatusOK {
@@ -45,7 +45,7 @@ func TestWorkflowQueriesArePaginated(t *testing.T) {
 }
 
 func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
 	first := serveQuery(t, fixture.handler, "/v1/workflows?limit=1")
 	if first.Code != http.StatusOK {
 		t.Fatalf("Workflow cursor fixture = %d: %s", first.Code, first.Body.String())
@@ -69,8 +69,8 @@ func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
 }
 
 func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflow(t, "openapi-from-workspace@7")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
+	resolved := catalogWorkflow(t, "openapi-from-workspace@7")
 	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
@@ -97,8 +97,8 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 }
 
 func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflow(t, "likec4-from-workspace@7")
+	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
+	resolved := catalogWorkflow(t, "likec4-from-workspace@7")
 	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
@@ -112,9 +112,13 @@ func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 	}
 }
 
-func repositoryWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
+// publicCatalogFixture is a frozen catalog with real Workflow closures for
+// projection, Repeat, Audit and Eval tests; expectations come from its files.
+const publicCatalogFixture = "testdata/catalog"
+
+func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	snapshot, err := config.Load(publicCatalogFixture, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
