@@ -469,10 +469,23 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       request.method() === "POST" &&
       new URL(request.url()).pathname === "/v1/runs",
   );
+  // Chromium does not always expose fetch(Request) bodies through the
+  // request event. Routing exposes the exact bytes before forwarding them.
+  let submittedBody: string | null = null;
+  await page.route("**/v1/runs", async (route) => {
+    if (route.request().method() === "POST") {
+      submittedBody = route.request().postData();
+    }
+    await route.continue();
+  });
   await runSetup.getByRole("button", { name: "Start Workflow Run" }).click();
   const submitted = await createRequest;
-  const exactSource = submitted.postDataJSON().artifacts.source;
-  expect(submitted.postDataJSON()).toMatchObject({
+  expect((await submitted.response())?.status()).toBe(202);
+  await page.unroute("**/v1/runs");
+  expect(submittedBody).not.toBeNull();
+  const body = JSON.parse(submittedBody ?? "null");
+  const exactSource = body.artifacts.source;
+  expect(body).toMatchObject({
     workflow: "streamline-copy@1",
     parameters: { mode: "streamline-strict" },
     labels,
@@ -506,7 +519,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     },
     {
       origin: apiURL,
-      body: submitted.postDataJSON(),
+      body,
       key: submitted.headers()["idempotency-key"]!,
     },
   );
