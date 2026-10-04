@@ -3,8 +3,8 @@ id: V254-001
 title: Select Eval coordinator claims from actionable work
 milestone: eval-controller-efficiency-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3565c2a20a4c2248399978cfff7c009f077f57dc
 depends_on: []
 languages: [go, sql]
 goal: Keep idle paused Evals out of coordinator polls and avoid scanning retained terminal experiments.
