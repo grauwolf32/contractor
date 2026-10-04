@@ -4,7 +4,7 @@ title: "Drop the dead stage_execution_reports table"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 9c4f919eccf539ba89a9382e567045fc7edea979
+implementation_commit: bc114ccfca330a3e4f28ae25b02399f4297fbd10
 depends_on: []
 languages: [go, sql]
 goal: "Remove a table with no production writer or reader since a1db02a5."

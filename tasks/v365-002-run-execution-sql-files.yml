@@ -4,7 +4,7 @@ title: "Move run execution SQL into *_sql.go files"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 83bfc666802f0b144ed7cf082a20c6edb2e4e27e
+implementation_commit: 246cc7aee9fc0d65c3f3e3b1c6ac2263df08d6c6
 depends_on: []
 languages: [go, sql]
 goal: "Keep large SQL statements in *_sql.go files with comments, without changing behaviour."

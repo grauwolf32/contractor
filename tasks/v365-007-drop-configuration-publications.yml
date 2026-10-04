@@ -4,7 +4,7 @@ title: "Drop the write-only configuration_publications table"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 63432380f82b83921265a642b24875ba470fb281
+implementation_commit: c126c81e83779920ae6577a072aabec860a15358
 depends_on: []
 languages: [go, sql]
 goal: "Remove an audit trail of managed configuration publications that nothing reads."

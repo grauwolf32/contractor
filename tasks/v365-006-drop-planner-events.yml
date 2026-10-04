@@ -4,7 +4,7 @@ title: "Drop the write-only planner_events table"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 915c2a516dbddc1adec5c163682c486bf67bb8ff
+implementation_commit: 0581f0649ab825023199d7cd88c34c178f791297
 depends_on: [V365-002]
 languages: [go, sql]
 goal: "Stop writing a Planner journal that nothing reads; workflow_run_events stays the replay authority."

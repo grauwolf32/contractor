@@ -4,7 +4,7 @@ title: "Drop the write-only eval_selection_history table"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 21f0bff2e2361fe98645d7f62c73b95528e306ea
+implementation_commit: b01d7216583e51938165dd0be9b76eea1e5680b9
 depends_on: [V365-003]
 languages: [go, sql]
 goal: "Stop writing a selection history that nothing reads."

@@ -4,7 +4,7 @@ title: "Move the remaining SQL into *_sql.go files and enforce placement"
 milestone: schema-reduction-2026-10
 priority: P2
 status: completed
-implementation_commit: 08453afba0c7a149bc05f254fcc8f16703c71754
+implementation_commit: 72825e4fa46477bb524624c695efb1e414c2eb5a
 depends_on: [V365-001, V365-002, V365-003]
 languages: [go, sql]
 goal: "Keep large SQL statements in *_sql.go files with comments, without changing behaviour."

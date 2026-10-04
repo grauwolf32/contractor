@@ -3,7 +3,8 @@ id: V365-009
 title: "Drop the write-only artifact_pins table"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 852c273fc6aa68dfbf9dea52ef5abc9567b3b6c6
 depends_on: [V365-001, V365-002, V365-004]
 languages: [go, sql]
 goal: "Remove pins that nothing reads and that purge deletes before the revisions they were meant to protect."
