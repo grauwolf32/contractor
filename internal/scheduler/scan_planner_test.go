@@ -16,7 +16,7 @@ import (
 )
 
 func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../configs/scan", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

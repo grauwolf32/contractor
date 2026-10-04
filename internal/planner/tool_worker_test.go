@@ -10,7 +10,7 @@ import (
 )
 
 func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
-	snapshot, err := config.Load("../../configs/scan", config.MVPDescriptors())
+	snapshot, err := config.Load("../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

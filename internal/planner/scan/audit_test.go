@@ -35,7 +35,7 @@ func (s *auditFactoryHistory) ReadAuditScanHistory(context.Context, string) ([]p
 func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *auditFactoryHistory) {
 	t.Helper()
 	h := newFactoryHarness(t, 1)
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	snapshot, err := config.Load("../../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	}
 	read := func(name string) []byte {
 		t.Helper()
-		data, err := os.ReadFile("../../../configs/scan/examples/audit-openapi-scan/" + name)
+		data, err := os.ReadFile("../../../testdata/configs-scan/audit-openapi-scan/" + name)
 		if err != nil {
 			t.Fatal(err)
 		}
