@@ -261,6 +261,12 @@ Runtime owns allocation-local reader-toolset preparation:
    Failed preparation may leave ordinary unexposed intermediate artifacts;
    replay verifies/reuses them and existing Run cleanup owns their lifecycle.
 
+A failed preparation reports its bounded `findings_*` code as the allocation
+error. `findings_collection_unavailable` and `findings_document_unavailable`
+are retryable only for a lost Artifact API transport or an Artifact API error
+marked retryable; invalid or oversized collections and
+`findings_document_conflict` are non-retryable for the recorded Run snapshot.
+
 The toolset may perform this internal materialization even in a reader-only
 configuration. This grants no model-visible creation operation. It uses the
 existing `WriteInputsAndIntermediates` allocation policy and leaves

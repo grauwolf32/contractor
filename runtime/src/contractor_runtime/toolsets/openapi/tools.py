@@ -1156,6 +1156,10 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         documents = list(yaml.load_all(text, Loader=_UniqueSafeLoader))
     except yaml.YAMLError as error:
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
+    except RecursionError:
+        # PyYAML composes nodes recursively. Nesting that exhausts the stack is
+        # far beyond the depth limit _validate_json_tree enforces afterwards.
+        raise ToolInputError("OpenAPI document exceeds the maximum nesting depth") from None
     if len(documents) != 1 or not isinstance(documents[0], dict):
         raise ToolInputError("OpenAPI artifact must contain exactly one object document")
     document = documents[0]

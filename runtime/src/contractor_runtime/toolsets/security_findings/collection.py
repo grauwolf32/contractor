@@ -28,11 +28,10 @@ IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}")
 class FindingsError(ValueError):
     """A bounded error code safe to report without logging collection contents."""
 
-    retryable = False
-
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, retryable: bool = False) -> None:
         super().__init__(code)
         self.code = code
+        self.retryable = retryable
 
 
 def require(condition: Any, code: str = "findings_collection_invalid") -> None:

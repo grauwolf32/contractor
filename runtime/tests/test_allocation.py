@@ -45,6 +45,7 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 NOW = datetime(2026, 8, 29, 10, 0, tzinfo=UTC)
@@ -231,6 +232,55 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
         with pytest.raises(AllocationError) as failure:
             await service.prepare(make_spec())
         assert failure.value.code == "allocation_preparation_failed"
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await service.snapshot() is None
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code"),
+    [
+        (FindingsError("findings_document_conflict"), 422),
+        (FindingsError("findings_collection_unavailable", retryable=True), 503),
+    ],
+    ids=["conflict", "transient"],
+)
+def test_prepare_keeps_findings_error_code_and_retryability(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    error: FindingsError,
+    status_code: int,
+) -> None:
+    class FindingsToolsetFactory(RunArtifactsToolsetFactory):
+        async def create_selected(self, **_: object) -> dict[str, object]:
+            raise error
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-test")
+        await state.mark_registered()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={"run-artifacts@1": FindingsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+        )
+
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(make_spec())
+        assert failure.value.payload() == {
+            "code": error.code,
+            "message": f"allocation findings preparation failed ({error.code})",
+            "retryable": error.retryable,
+        }
+        assert failure.value.status_code == status_code
         assert (await state.snapshot()).process_state is ProcessState.IDLE
         assert await service.snapshot() is None
         assert list(tmp_path.iterdir()) == []

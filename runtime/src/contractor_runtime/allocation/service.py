@@ -62,6 +62,7 @@ from contractor_runtime.projectfs import (
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -424,6 +425,23 @@ class AllocationService:
                     execution,
                 )
                 raise
+            except FindingsError as error:
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    project_workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                    execution,
+                )
+                raise AllocationError(
+                    error.code,
+                    f"allocation findings preparation failed ({error.code})",
+                    retryable=error.retryable,
+                    status_code=503 if error.retryable else 422,
+                ) from None
             except Exception as error:
                 await self._rollback_prepare(
                     spec,

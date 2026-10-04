@@ -529,6 +529,41 @@ def test_parser_enforces_byte_depth_and_item_limits(
         _validate_json_tree([1, 2, 3])
 
 
+@pytest.mark.parametrize(
+    ("media_type", "payload"),
+    [
+        ("application/json", b"[" * 2000 + b"]" * 2000),
+        (
+            "application/yaml",
+            b"openapi: 3.0.3\ninfo: {title: Deep, version: '1'}\npaths: {}\nx-deep: "
+            + b"{a: " * 2000
+            + b"1"
+            + b"}" * 2000
+            + b"\n",
+        ),
+    ],
+    ids=["sequences", "mappings"],
+)
+def test_seed_nested_beyond_the_parser_stack_reports_the_depth_limit(
+    tmp_path: Path, media_type: str, payload: bytes
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "deep", media_type, payload)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        with pytest.raises(ToolInputError) as rejected:
+            await tools["load_openapi"]("inputs", "deep", seed.revision)
+        reply = _safe_tool_response("load_openapi", rejected.value)["error"]
+        assert reply == {
+            "code": "tool_input_invalid",
+            "message": "OpenAPI document exceeds the maximum nesting depth",
+            "retryable": False,
+        }
+        assert client.write_count == 0
+
+    asyncio.run(scenario())
+
+
 def test_partial_path_updates_validate_after_merge_and_reject_invalid_result(
     tmp_path: Path,
 ) -> None:
