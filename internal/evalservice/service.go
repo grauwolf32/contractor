@@ -169,7 +169,7 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (boo
 		}
 		return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandPrepare)
 	}
-	outstanding, err := store.Outstanding(ctx, e.OwnerID, e.ID, membersPerTick)
+	outstanding, err := store.ReconciliationCandidates(ctx, e.OwnerID, e.ID, membersPerTick)
 	if err != nil {
 		return false, err
 	}
@@ -214,39 +214,11 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (boo
 		if e.ControlMode == evaldomain.ControlExternal {
 			return len(outstanding) > 0, nil
 		}
-		next, err := store.NextMember(ctx, e.OwnerID, e.ID)
-		if err != nil {
-			return false, err
+		admitted, settled, err := s.admitNativeMembers(ctx, claim)
+		if err != nil || settled {
+			return settled, err
 		}
-		if next == nil {
-			return true, s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StateRunning, evaldomain.StateSettling, e.ObservedTokens, nil)
-			})
-		}
-		if e.Outstanding >= e.MaxInFlight {
-			return len(outstanding) > 0, nil
-		}
-		plan, err := store.FrozenPlan(ctx, e.OwnerID, e.ID)
-		if err != nil {
-			return false, err
-		}
-		body, _ := jsonBytes(evaldomain.Submission{PlanSHA256: plan.SHA256})
-		id, err := evaldomain.IdentifyMutation(next.SubmissionKey, "", false, "Submission", body)
-		if err != nil {
-			return false, err
-		}
-		err = s.tx(ctx, func(st *evalstore.Store) error {
-			_, err := st.Admit(ctx, evalstore.Admission{
-				Scope:        scope(e),
-				ExperimentID: e.ID,
-				MemberID:     next.MemberID,
-				PlanSHA256:   plan.SHA256,
-				Claim:        &claim,
-				Mutation:     id,
-			})
-			return err
-		})
-		return err == nil, err
+		return len(admitted) > 0 || len(outstanding) > 0, nil
 	case evaldomain.StatePausing:
 		if e.Outstanding == 0 {
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
@@ -279,6 +251,61 @@ func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (boo
 		}
 	}
 	return len(outstanding) > 0, nil
+}
+
+func (s *Service) admitNativeMembers(ctx context.Context, claim evalstore.Claim) ([]evalstore.Member, bool, error) {
+	var admitted []evalstore.Member
+	settled := false
+	err := s.tx(ctx, func(st *evalstore.Store) error {
+		current, err := st.GetClaimed(ctx, claim)
+		if err != nil {
+			return err
+		}
+		if current.State != evaldomain.StateRunning || current.ControlMode != evaldomain.ControlServer {
+			return nil
+		}
+		capacity := min(current.MaxInFlight-current.Outstanding, membersPerTick)
+		limit := max(1, capacity) // An empty candidate set settles even at full capacity.
+		members, err := st.NextMembers(ctx, current.OwnerID, current.ID, limit)
+		if err != nil {
+			return err
+		}
+		if len(members) == 0 {
+			if err := st.Transition(ctx, scope(current), current.ID, claim,
+				evaldomain.StateRunning, evaldomain.StateSettling, current.ObservedTokens, nil); err != nil {
+				return err
+			}
+			settled = true
+			return nil
+		}
+		if capacity <= 0 {
+			return nil
+		}
+		plan, err := st.FrozenPlan(ctx, current.OwnerID, current.ID)
+		if err != nil {
+			return err
+		}
+		body, _ := jsonBytes(evaldomain.Submission{PlanSHA256: plan.SHA256})
+		for _, member := range members {
+			identity, err := evaldomain.IdentifyMutation(member.SubmissionKey, "", false, "Submission", body)
+			if err != nil {
+				return err
+			}
+			if _, err = st.Admit(ctx, evalstore.Admission{
+				Scope:        scope(current),
+				ExperimentID: current.ID,
+				MemberID:     member.MemberID,
+				PlanSHA256:   plan.SHA256,
+				Claim:        &claim,
+				Mutation:     identity,
+			}); err != nil {
+				return err
+			}
+		}
+		admitted = members
+		return nil
+	})
+	return admitted, settled, err
 }
 
 // Unknown failures retain the pending command for retry. Only a classified
