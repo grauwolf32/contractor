@@ -151,10 +151,9 @@ func (v runtimeCredentialValidator) ValidateRuntimeCredential(
 ) error {
 	var kind string
 	err := v.db.QueryRow(ctx, `
-SELECT c.credential_kind
-FROM runtime_credentials AS c
-LEFT JOIN runtime_credential_tombstones AS t USING (credential_id)
-WHERE c.credential_id = $1 AND t.credential_id IS NULL`, credentialID).Scan(&kind)
+SELECT credential_kind
+FROM runtime_credentials
+WHERE credential_id = $1 AND deleted_at IS NULL`, credentialID).Scan(&kind)
 	if err != nil {
 		return err
 	}

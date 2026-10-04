@@ -118,20 +118,7 @@ func (s *RuntimeCredentialService) Create(
 		defer clear(creation.RequestMAC)
 		transactionErr := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			repository := NewRuntimeCredentialRepository(tx)
-			if _, insertErr := repository.InsertRecord(ctx, record); insertErr != nil {
-				if errors.Is(insertErr, ErrRuntimeCredentialConflict) {
-					if replay, found, replayErr := s.creationReplayWithRepository(
-						ctx, repository, keyDigest, requestMAC, request.CredentialID, request.Material.kind,
-					); replayErr != nil {
-						return replayErr
-					} else if found {
-						result = replay
-						return nil
-					}
-				}
-				return insertErr
-			}
-			inserted, insertErr := repository.InsertCreation(ctx, creation)
+			inserted, insertErr := repository.InsertRecord(ctx, record, creation)
 			if insertErr != nil {
 				return insertErr
 			}
