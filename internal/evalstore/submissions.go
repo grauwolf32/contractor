@@ -157,14 +157,6 @@ WHERE op.experiment_id=$1
 	if key != creationKey {
 		return evaldomain.Failure("eval_member_conflict")
 	}
-	_, err = s.db.Exec(ctx, `
-INSERT INTO eval_project_dependencies(project_id, experiment_id, member_id, owner_id)
-VALUES($1, $2, $3, $4)
-ON CONFLICT (project_id) DO NOTHING
-`, projectID, id, member, scope.OwnerID)
-	if err != nil {
-		return normalize(err)
-	}
 	tag, err := s.db.Exec(ctx, `
 UPDATE eval_submissions
 SET execution_project_id=$3

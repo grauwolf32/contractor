@@ -667,8 +667,8 @@ func TestPostgresEvalTerminalChildProjectDeletionPreservesLifecycle(t *testing.T
 				t.Fatal(err)
 			}
 			if _, err := pool.Exec(ctx, `
-INSERT INTO eval_project_dependencies(project_id, experiment_id, member_id, owner_id)
-VALUES($1, $2, $3, $4)`, child.ProjectID, experiment.ID, member.MemberID, scope.OwnerID); err != nil {
+UPDATE eval_submissions SET execution_project_id=$3
+ WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, member.MemberID, child.ProjectID); err != nil {
 				t.Fatal(err)
 			}
 			// The dependency remains as a tombstone after a member settles. Set up
