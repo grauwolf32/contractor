@@ -3,7 +3,7 @@ id: V300-001
 title: Use a stable timestamp in the paused Eval claim branch
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Let the V254 paused-deadline index serve the claim query as a range.

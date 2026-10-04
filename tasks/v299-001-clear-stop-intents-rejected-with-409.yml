@@ -3,7 +3,7 @@ id: V299-001
 title: Clear Eval stop intents the server rules out with 409
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: Never leave a persisted Eval stop command replaying after the server has ruled it out.

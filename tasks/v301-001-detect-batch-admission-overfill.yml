@@ -3,7 +3,7 @@ id: V301-001
 title: Make the batch-admission race test detect overfill
 milestone: review-defects-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Exercise V259's capacity and transition guarantees with tests that can fail.
