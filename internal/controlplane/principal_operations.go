@@ -45,7 +45,7 @@ func (p RuntimeAgentPrincipalProjection) Validate() error {
 	}
 	if p.Availability == PrincipalOffline {
 		if p.Live != nil || len(p.MissingRuntimeAdapters) != 0 {
-			return errors.New("offline Runtime Agent principal slices.Contains live facts")
+			return errors.New("offline Runtime Agent principal contains live facts")
 		}
 		return nil
 	}

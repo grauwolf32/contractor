@@ -78,7 +78,7 @@ type MetricsSummary struct {
 	Truncated       bool  `json:"truncated"`
 }
 
-// AllocationExecutionConfig slices.Contains only exact, non-secret refs. It is
+// AllocationExecutionConfig contains only exact, non-secret refs. It is
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {

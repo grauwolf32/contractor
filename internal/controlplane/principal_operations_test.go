@@ -193,3 +193,14 @@ func (f *principalOperationsCatalogFake) DeleteIdempotent(
 ) (runtimeconfig.PrincipalMutationResult, error) {
 	return runtimeconfig.PrincipalMutationResult{Deleted: true}, nil
 }
+
+func TestOfflinePrincipalProjectionRejectsLiveFacts(t *testing.T) {
+	t.Parallel()
+	projection := RuntimeAgentPrincipalProjection{
+		Availability: PrincipalOffline,
+		Live:         &RuntimeAgentObservation{InstanceID: "agent-1"},
+	}
+	if err := projection.Validate(); err == nil || err.Error() != "offline Runtime Agent principal contains live facts" {
+		t.Fatalf("offline projection with live facts = %v", err)
+	}
+}
