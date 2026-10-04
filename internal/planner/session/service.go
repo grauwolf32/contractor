@@ -92,10 +92,6 @@ func (s *Service) Begin(
 		if err != nil {
 			return planner.SessionStart{}, fmt.Errorf("generate Planner started event ID: %w", err)
 		}
-		startedEvent, err := encodeBounded(startedSessionEvent{Kind: "planner_started"})
-		if err != nil {
-			return planner.SessionStart{}, err
-		}
 		startedData, err := encodePlannerRunEvent(identity, planner.PlannerEventStarted, nil)
 		if err != nil {
 			return planner.SessionStart{}, err
@@ -106,9 +102,6 @@ func (s *Service) Begin(
 			InvocationID:       identity.InvocationID,
 			StateSchemaVersion: contracts.APIVersion,
 			InitialState:       initial,
-			EventID:            startedEventID,
-			EventSchemaVersion: contracts.APIVersion,
-			Event:              startedEvent,
 			Reason:             runstore.Reason{Code: "planner_started"},
 			RunEvent: runstore.RunEventAppend{
 				EventID: startedEventID, EventSchemaVersion: contracts.APIVersion,
@@ -159,7 +152,7 @@ func (s *Service) RecordRequest(
 		return err
 	}
 	if err := s.append(
-		ctx, session, state.NextSequence, payload, encodedState,
+		ctx, session, state.NextSequence, encodedState,
 		identity, planner.PlannerEventRequestRecorded, nil,
 	); err != nil {
 		if errors.Is(err, runstore.ErrConflict) {
@@ -192,10 +185,6 @@ func (s *Service) Complete(
 	if state.Status != statusRunning || !state.RequestRecorded {
 		return fmt.Errorf("Planner session cannot complete before its request event")
 	}
-	payload, err := encodeCompletionEvent(completion)
-	if err != nil {
-		return err
-	}
 	next := state
 	next.Status = statusCompleted
 	next.NextSequence++
@@ -217,7 +206,7 @@ func (s *Service) Complete(
 		runFields.Outcome = string(completion.Result.Outcome)
 	}
 	if err := s.append(
-		ctx, session, state.NextSequence, payload, encodedState,
+		ctx, session, state.NextSequence, encodedState,
 		identity, eventKind, runFields,
 	); err != nil {
 		if errors.Is(err, runstore.ErrConflict) {
@@ -280,7 +269,7 @@ func (s *Service) RecordPlan(
 		}
 		runFields := planTransitionRunFields(state.Plan, projection, transition.Kind)
 		err = s.append(
-			ctx, session, state.NextSequence, payload, encodedState,
+			ctx, session, state.NextSequence, encodedState,
 			identity, transition.Kind, &runFields,
 		)
 		if err == nil {
@@ -358,7 +347,7 @@ func (s *Service) RecordFact(
 			WorkerName: fact.WorkerName, Outcome: fact.Outcome, Code: fact.Code,
 		}
 		err = s.append(
-			ctx, session, state.NextSequence, payload, encodedState,
+			ctx, session, state.NextSequence, encodedState,
 			identity, fact.Kind, &runFields,
 		)
 		if err == nil {
@@ -454,7 +443,6 @@ func (s *Service) append(
 	ctx context.Context,
 	session runstore.PlannerSession,
 	sequence int64,
-	event json.RawMessage,
 	state json.RawMessage,
 	identity planner.SessionIdentity,
 	kind planner.PlannerEventKind,
@@ -473,10 +461,9 @@ func (s *Service) append(
 		return err
 	}
 	return s.store.AppendPlannerEvent(ctx, runstore.AppendPlannerEventParams{
-		EventID: eventID, SessionID: session.SessionID,
+		SessionID:        session.SessionID,
 		StageExecutionID: identity.StageExecutionID, InvocationID: identity.InvocationID,
-		SequenceNumber:     sequence,
-		EventSchemaVersion: contracts.APIVersion, Event: event,
+		SequenceNumber:        sequence,
 		NewStateSchemaVersion: contracts.APIVersion, NewState: state,
 		RunEvent: runstore.RunEventAppend{
 			EventID: eventID, EventSchemaVersion: contracts.APIVersion,
@@ -529,10 +516,6 @@ type planProjectionEvent struct {
 	Plan             planner.PlannerPlanProjection `json:"plan"`
 }
 
-type startedSessionEvent struct {
-	Kind string `json:"kind"`
-}
-
 type plannerFactEvent struct {
 	Kind         string `json:"kind"`
 	Key          string `json:"key"`
@@ -566,13 +549,6 @@ type requestEvent struct {
 	InstructionsDigest string                           `json:"instructionsDigest"`
 	ParameterNames     []string                         `json:"parameterNames"`
 	Artifacts          map[string]contracts.ArtifactRef `json:"artifacts"`
-}
-
-type completionEvent struct {
-	Kind    string                        `json:"kind"`
-	Outcome string                        `json:"outcome"`
-	Result  *contracts.StageContentResult `json:"result,omitempty"`
-	Failure *planner.Failure              `json:"failure,omitempty"`
 }
 
 func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
@@ -619,21 +595,6 @@ func encodeRequestEvent(facts planner.RequestFacts) (json.RawMessage, error) {
 		event.Bindings = nil
 	}
 	return encodeBounded(event)
-}
-
-func encodeCompletionEvent(completion planner.Completion) (json.RawMessage, error) {
-	cloned, err := cloneCompletion(completion)
-	if err != nil {
-		return nil, err
-	}
-	outcome := "failure"
-	if cloned.Result != nil {
-		outcome = string(cloned.Result.Outcome)
-	}
-	return encodeBounded(completionEvent{
-		Kind: "planner_completed", Outcome: outcome,
-		Result: cloned.Result, Failure: cloned.Failure,
-	})
 }
 
 func encodeState(state persistentState) (json.RawMessage, error) {

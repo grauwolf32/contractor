@@ -28,8 +28,8 @@ type ADKOptions struct {
 // NewADKSession returns the ADK SessionService used by one Streamline Planner
 // invocation. Conversation contents stay in memory because partially resuming
 // an LLM invocation is deliberately out of scope. Every non-partial event is
-// first reduced to bounded, redacted facts and durably appended to Contractor's
-// planner_events table.
+// first reduced to bounded, redacted facts and durably appended to the Run's
+// event journal.
 func (s *Service) NewADKSession(
 	ctx context.Context,
 	identity planner.SessionIdentity,
@@ -184,10 +184,6 @@ func safeADKAuthor(author string) string {
 func (s *Service) recordADKEvent(
 	ctx context.Context, identity planner.SessionIdentity, facts adkEventFacts,
 ) error {
-	payload, err := encodeBounded(facts)
-	if err != nil {
-		return err
-	}
 	for attempt := 0; attempt < maxADKAppendAttempts; attempt++ {
 		stored, state, err := s.load(ctx, identity)
 		if err != nil {
@@ -204,7 +200,7 @@ func (s *Service) recordADKEvent(
 			return err
 		}
 		err = s.append(
-			ctx, stored, state.NextSequence, payload, encodedState,
+			ctx, stored, state.NextSequence, encodedState,
 			identity, planner.PlannerEventActivity,
 			&plannerRunEventData{Activity: &facts},
 		)

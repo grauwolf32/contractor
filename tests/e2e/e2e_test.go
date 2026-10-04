@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -445,19 +446,21 @@ func assertDurableExecution(
 	if execution.AcceptedResult.Outcome != contracts.StageSucceeded || acceptedCopied.Revision == nil {
 		t.Fatalf("accepted result/output mismatch: %+v / %+v", execution.AcceptedResult, output)
 	}
-	events, err := store.ListPlannerEvents(ctx, *execution.PlannerSessionID, 0)
-	if err != nil || len(events) != 3 {
-		t.Fatalf("Planner events = (%+v, %v), want start, request, and completion", events, err)
+	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
+	if err != nil {
+		t.Fatalf("list Run events: %v", err)
 	}
-	var requestEvent struct {
-		Kind string `json:"kind"`
+	var plannerKinds []runstore.RunEventKind
+	for _, event := range runEvents {
+		if strings.HasPrefix(string(event.Kind), "planner.") {
+			plannerKinds = append(plannerKinds, event.Kind)
+		}
 	}
-	var completionEvent struct {
-		Kind string `json:"kind"`
+	wantPlannerKinds := []runstore.RunEventKind{
+		runstore.RunEventPlannerStarted, runstore.RunEventPlannerRequestRecorded, runstore.RunEventPlannerCompleted,
 	}
-	if json.Unmarshal(events[1].Event, &requestEvent) != nil || requestEvent.Kind != "worker_request" ||
-		json.Unmarshal(events[2].Event, &completionEvent) != nil || completionEvent.Kind != "planner_completed" {
-		t.Fatalf("unexpected Planner event sequence: %s / %s / %s", events[0].Event, events[1].Event, events[2].Event)
+	if !reflect.DeepEqual(plannerKinds, wantPlannerKinds) {
+		t.Fatalf("Planner Run events = %v, want start, request, and completion", plannerKinds)
 	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentInstanceID == "" {

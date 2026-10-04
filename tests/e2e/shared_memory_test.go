@@ -538,8 +538,6 @@ func assertMemoryDiagnosticsRedacted(
 ) {
 	t.Helper()
 	queries := []string{
-		`SELECT COALESCE(string_agg(event::text, E'\n'), '')
-FROM planner_events WHERE run_id = $1`,
 		`SELECT COALESCE(string_agg(data::text, E'\n'), '')
 FROM workflow_run_events WHERE run_id = $1`,
 		`SELECT COALESCE(string_agg(session.state::text, E'\n'), '')

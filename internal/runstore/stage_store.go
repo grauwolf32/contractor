@@ -141,7 +141,6 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	for field, value := range map[string]string{
 		"stageExecutionID": params.StageExecutionID, "sessionID": params.SessionID,
 		"invocationID": params.InvocationID, "stateSchemaVersion": params.StateSchemaVersion,
-		"eventID": params.EventID, "eventSchemaVersion": params.EventSchemaVersion,
 	} {
 		if err := validateOpaque(field, value); err != nil {
 			return err
@@ -150,36 +149,29 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 	if err := validateJSONObject("initial Planner state", params.InitialState); err != nil {
 		return err
 	}
-	if err := validateJSONObject("initial Planner event", params.Event); err != nil {
-		return err
-	}
 	if err := validateReason(params.Reason); err != nil {
 		return err
 	}
 	if err := validateRunEventAppend(params.RunEvent); err != nil {
 		return err
 	}
-	if params.EventSchemaVersion != contracts.APIVersion ||
+	if params.RunEvent.EventSchemaVersion != contracts.APIVersion ||
 		params.RunEvent.Kind != RunEventPlannerStarted {
 		return invalidf("initial Planner event schema or kind is invalid")
 	}
-	if len(params.Event) > maxRunEventDataBytes || len(params.InitialState) > maxRunEventDataBytes {
-		return invalidf("initial Planner event or state exceeds its bounded contract")
+	if len(params.InitialState) > maxRunEventDataBytes {
+		return invalidf("initial Planner state exceeds its bounded contract")
 	}
 	if err := validatePlannerRunEventIdentity(
 		params.RunEvent, params.StageExecutionID, params.SessionID, params.InvocationID,
 	); err != nil {
 		return err
 	}
-	if params.RunEvent.EventID != params.EventID ||
-		params.RunEvent.EventSchemaVersion != params.EventSchemaVersion {
-		return invalidf("initial Planner event and WorkflowRun event identities must match")
-	}
 	var sessionID string
 	err := s.db.QueryRow(ctx, startPlannerSQL,
 		params.StageExecutionID, params.SessionID, params.InvocationID,
 		params.StateSchemaVersion, []byte(params.InitialState), params.Reason.Code, params.Reason.Message,
-		params.EventID, params.EventSchemaVersion, []byte(params.Event),
+		params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
 		params.RunEvent.Kind, []byte(params.RunEvent.Data),
 	).Scan(&sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {

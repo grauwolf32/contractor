@@ -25,9 +25,9 @@ SELECT `
 
 // startPlannerSQL moves StageExecution $1 from preparing to running (state
 // CAS) and creates planner session $2. It reserves two Run event sequence
-// numbers for a lifecycle.changed event and the planner-started event, and
-// inserts planner event 1 linked to the latter. Returns the session ID; no row
-// means the Stage was not preparing. Used by PostgresStore.StartPlanner.
+// numbers and appends a lifecycle.changed event and the planner-started event.
+// Returns the session ID; no row means the Stage was not preparing.
+// Used by PostgresStore.StartPlanner.
 var startPlannerSQL = `
 WITH transitioned AS (
     UPDATE stage_executions
@@ -79,21 +79,12 @@ WITH transitioned AS (
     INSERT INTO workflow_run_events (
         run_id, sequence_number, event_id, event_schema_version, kind, data
     )
-    SELECT run_id, planner_sequence, $8, $9, $11, $12::jsonb
+    SELECT run_id, planner_sequence, $8, $9, $10, $11::jsonb
     FROM allocated
     RETURNING run_id, sequence_number
-), inserted_planner_event AS (
-    INSERT INTO planner_events (
-        event_id, session_id, sequence_number, event_schema_version, event,
-        run_id, run_event_sequence
-    )
-    SELECT $8, inserted_session.session_id, 1, $9, $10::jsonb,
-           inserted_event.run_id, inserted_event.sequence_number
-    FROM inserted_session CROSS JOIN inserted_lifecycle_event CROSS JOIN inserted_event
-    RETURNING session_id
 )
-SELECT session_id
-FROM inserted_planner_event`
+SELECT inserted_session.session_id
+FROM inserted_session CROSS JOIN inserted_lifecycle_event CROSS JOIN inserted_event`
 
 // enterFinalizingSQL moves StageExecution $1 from running to finalizing (state
 // CAS) and stores the candidate StageResult, finalization ID and deadline.

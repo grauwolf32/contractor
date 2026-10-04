@@ -103,12 +103,21 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	if err != nil || execution.PlannerSessionID == nil {
 		t.Fatalf("StageExecution = (%+v, %v)", execution, err)
 	}
-	events, err := store.ListPlannerEvents(ctx, *execution.PlannerSessionID, 0)
-	if err != nil || len(events) < 8 {
-		t.Fatalf("Planner events = (%d, %v)", len(events), err)
+	runEvents, err := store.ListRunEvents(ctx, execution.RunID, 0, 1000)
+	if err != nil {
+		t.Fatalf("list Run events: %v", err)
+	}
+	var events []runstore.WorkflowRunEvent
+	for _, event := range runEvents {
+		if strings.HasPrefix(string(event.Kind), "planner.") {
+			events = append(events, event)
+		}
+	}
+	if len(events) < 8 {
+		t.Fatalf("Planner Run events = %d", len(events))
 	}
 	for _, event := range events {
-		payload := string(event.Event)
+		payload := string(event.Data)
 		if strings.Contains(payload, gatewayToken) || strings.Contains(payload, "sensitive objective") ||
 			strings.Contains(payload, "sensitive planner guidance") || strings.Contains(payload, "strict-secret-value") ||
 			strings.Contains(payload, "draft ready") || strings.Contains(payload, "report ready") ||
@@ -128,13 +137,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		plan.Subtasks[1].Status != planner.PlannerSubtaskSucceeded {
 		t.Fatalf("typed durable plan = (%+v, %t, %v)", plan, ok, err)
 	}
-	runEvents, err := store.ListRunEvents(ctx, "run-streamline", 0, 1000)
-	if err != nil || len(runEvents) < len(events) {
-		t.Fatalf("Run events = (%d, %v), Planner events = %d", len(runEvents), err, len(events))
-	}
-	runEventsBySequence := make(map[int64]runstore.WorkflowRunEvent, len(runEvents))
 	for index, event := range runEvents {
-		runEventsBySequence[event.SequenceNumber] = event
 		payload := string(event.Data)
 		for _, forbidden := range []string{
 			gatewayToken, "sensitive objective", "sensitive planner guidance",
@@ -144,15 +147,6 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 			if strings.Contains(payload, forbidden) {
 				t.Fatalf("Run event %d leaked %q: %s", index, forbidden, payload)
 			}
-		}
-	}
-	for index, event := range events {
-		if event.RunEventSequence == nil {
-			t.Fatalf("Planner event %d has no Run event link: %+v", index, event)
-		}
-		linked, ok := runEventsBySequence[*event.RunEventSequence]
-		if !ok || linked.EventID != event.EventID {
-			t.Fatalf("Planner/Run event linkage %d: %+v / %+v", index, event, linked)
 		}
 	}
 	storedSession, err := store.GetPlannerSession(ctx, *execution.PlannerSessionID)

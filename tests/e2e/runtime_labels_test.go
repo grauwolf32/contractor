@@ -1188,7 +1188,6 @@ func assertRuntimeLabelSecretsAbsent(
 				SELECT 1 FROM runtime_config_versions WHERE position($1 in canonical_document) > 0
 				UNION ALL SELECT 1 FROM workflow_runs WHERE position($1 in runtime_config_snapshot::text) > 0
 				UNION ALL SELECT 1 FROM stage_allocations WHERE position($1 in coalesce(runtime_configuration::text, '')) > 0
-				UNION ALL SELECT 1 FROM planner_events WHERE position($1 in event::text) > 0
 				UNION ALL SELECT 1 FROM workflow_run_events WHERE position($1 in data::text) > 0
 				UNION ALL SELECT 1 FROM runtime_credentials WHERE position(convert_to($1, 'UTF8') in ciphertext) > 0
 			)

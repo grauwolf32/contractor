@@ -87,9 +87,9 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 		store.events[1].SequenceNumber != 2 || store.events[2].SequenceNumber != 3 {
 		t.Fatalf("events = %+v", store.events)
 	}
-	if strings.Contains(string(store.events[1].Event), "strict") ||
-		strings.Contains(string(store.events[1].Event), "Build a report") {
-		t.Fatalf("request event retained semantic text or values: %s", store.events[1].Event)
+	if strings.Contains(string(store.events[1].RunEvent.Data), "strict") ||
+		strings.Contains(string(store.events[1].RunEvent.Data), "Build a report") {
+		t.Fatalf("request event retained semantic text or values: %s", store.events[1].RunEvent.Data)
 	}
 
 	recovered, err := service.Begin(context.Background(), "stage-1")
@@ -175,8 +175,8 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 	if len(store.events) != 3 {
 		t.Fatalf("events = %+v", store.events)
 	}
-	persisted := string(store.events[2].Event)
-	runPersisted := string(store.events[2].RunEvent.Data)
+	persisted := string(store.events[2].RunEvent.Data)
+	runPersisted := persisted
 	for _, canary := range []string{
 		secret, memoryContent, memoryDescription, memoryTag, statePath, stateCursor,
 	} {
@@ -431,10 +431,9 @@ func (s *memoryStore) StartPlanner(
 		State: append(json.RawMessage(nil), params.InitialState...), NextEventSequence: 2,
 	}
 	s.events = append(s.events, runstore.AppendPlannerEventParams{
-		EventID: params.EventID, SessionID: params.SessionID,
+		SessionID:        params.SessionID,
 		StageExecutionID: params.StageExecutionID, InvocationID: params.InvocationID,
-		SequenceNumber:     1,
-		EventSchemaVersion: params.EventSchemaVersion, Event: append(json.RawMessage(nil), params.Event...),
+		SequenceNumber:        1,
 		NewStateSchemaVersion: params.StateSchemaVersion,
 		NewState:              append(json.RawMessage(nil), params.InitialState...),
 		RunEvent:              params.RunEvent,

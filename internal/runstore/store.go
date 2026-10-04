@@ -59,7 +59,6 @@ type Repository interface {
 	CompleteStageTermination(context.Context, string) error
 	AppendPlannerEvent(context.Context, AppendPlannerEventParams) error
 	GetPlannerSession(context.Context, string) (PlannerSession, error)
-	ListPlannerEvents(context.Context, string, int64) ([]PlannerEvent, error)
 	GetRunEventCursor(context.Context, string) (WorkflowRunEventCursor, error)
 	ListRunEvents(context.Context, string, int64, int) ([]WorkflowRunEvent, error)
 	RecordStageAllocation(context.Context, StageAllocation) error
