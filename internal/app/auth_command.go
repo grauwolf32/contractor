@@ -14,14 +14,16 @@ import (
 
 type passwordPrompt func(string) ([]byte, error)
 
+var errAuthRequiresTerminal = errors.New("auth hash-password requires an interactive terminal")
+
 func runAuthCLI(args []string) error {
 	if len(args) == 0 || args[0] != "hash-password" {
 		return errors.New("auth command requires the hash-password subcommand")
 	}
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return errors.New("auth hash-password requires an interactive terminal")
-	}
 	prompt := func(message string) ([]byte, error) {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			return nil, errAuthRequiresTerminal
+		}
 		if _, err := fmt.Fprint(os.Stderr, message); err != nil {
 			return nil, err
 		}
@@ -50,6 +52,9 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 	}
 	first, err := prompt("Password: ")
 	if err != nil {
+		if errors.Is(err, errAuthRequiresTerminal) {
+			return err
+		}
 		return errors.New("read password from terminal")
 	}
 	defer clear(first)
@@ -58,6 +63,9 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 	}
 	second, err := prompt("Repeat password: ")
 	if err != nil {
+		if errors.Is(err, errAuthRequiresTerminal) {
+			return err
+		}
 		return errors.New("read repeated password from terminal")
 	}
 	defer clear(second)
