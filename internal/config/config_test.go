@@ -29,7 +29,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	if plannerPolicy.ContextWindowTokens != 118000 || plannerPolicy.Model != "planner-model" || plannerPolicy.MaxOutputTokens != 16384 ||
 		plannerPolicy.MaxModelCalls != 200 || plannerPolicy.MaxWorkerCalls != 200 ||
 		plannerPolicy.MaxTotalTokens != 2500000 || plannerPolicy.MaxToolCalls != 0 ||
-		plannerPolicy.Temperature == nil || *plannerPolicy.Temperature != 0.1 {
+		plannerPolicy.Temperature == nil || *plannerPolicy.Temperature != 1.0 {
 		t.Fatalf("unexpected Planner ModelPolicy: %+v", plannerPolicy)
 	}
 
@@ -40,7 +40,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	assertDigest(t, policy.Ref.Digest)
 	if policy.ContextWindowTokens != 118000 || policy.Model != "worker-model" || policy.MaxOutputTokens != 32768 ||
 		policy.MaxModelCalls != 200 || policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 25000000 ||
-		policy.Temperature == nil || *policy.Temperature != 0.1 {
+		policy.Temperature == nil || *policy.Temperature != 1.0 {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
 

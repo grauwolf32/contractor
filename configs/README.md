@@ -150,7 +150,7 @@ The default catalog uses `planner@2` and `worker@2` for normal execution,
 plus `summarizer@1` for terminal Worker summaries. The separately versioned
 Audit completion example retains its `audit_completion_worker@1` policy.
 The Planner and Worker policies both permit 200 model calls, with temperature
-0.1. `planner@2` permits 2,500,000 cumulative provider-reported tokens, 16,384
+1.0 (the Qwen3.8 thinking-mode recommendation; 0.1 produced repetition loops). `planner@2` permits 2,500,000 cumulative provider-reported tokens, 16,384
 output tokens per response and 200 Worker calls; `worker@2` permits 25,000,000
 cumulative tokens, 32,768 output tokens per response and 200 tool calls. The
 Worker token budget covers 200 calls at the summarization boundary, so a long

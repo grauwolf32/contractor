@@ -10,7 +10,7 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	policy, _ := snapshot.ModelPolicy("worker@2")
 	*policy.Temperature = 99
 	policyAgain, _ := snapshot.ModelPolicy("worker@2")
-	if policyAgain.Temperature == nil || *policyAgain.Temperature != 0.1 {
+	if policyAgain.Temperature == nil || *policyAgain.Temperature != 1.0 {
 		t.Fatalf("ModelPolicy mutation leaked into Snapshot: %+v", policyAgain)
 	}
 
@@ -25,7 +25,7 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 	template.Toolsets[0].Tools[0] = "corrupted"
 	*template.ModelPolicy.Temperature = 99
 	templateAgain, _ := snapshot.AgentTemplate("artifact_builder@2")
-	if templateAgain.Toolsets[0].Tools[0] != "append_memory" || *templateAgain.ModelPolicy.Temperature != 0.1 {
+	if templateAgain.Toolsets[0].Tools[0] != "append_memory" || *templateAgain.ModelPolicy.Temperature != 1.0 {
 		t.Fatalf("AgentTemplate mutation leaked into Snapshot: %+v", templateAgain)
 	}
 
