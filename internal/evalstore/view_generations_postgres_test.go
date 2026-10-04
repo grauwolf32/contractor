@@ -14,7 +14,7 @@ func countViewRows(t *testing.T, pool *pgxpool.Pool, id string) viewRows {
 	t.Helper()
 	var r viewRows
 	err := pool.QueryRow(context.Background(), `
-SELECT (SELECT count(*) FROM eval_view_generations WHERE experiment_id = $1),
+SELECT (SELECT count(*) FROM eval_projection_queue WHERE experiment_id = $1 AND generation IS NOT NULL),
     (SELECT 2 * count(*) FROM eval_view_pairs WHERE experiment_id = $1),
     (SELECT count(*) FROM eval_view_pairs WHERE experiment_id = $1),
     (SELECT count(*) FROM eval_view_charts WHERE experiment_id = $1),
@@ -128,10 +128,8 @@ func TestPostgresEvalViewPublicationSkipsUnchangedAndPrunesSuperseded(t *testing
 		t.Fatalf("current pairs = %d, %v", len(pairs.Items), err)
 	}
 	for _, statement := range []string{
-		`DELETE FROM eval_view_generations WHERE experiment_id = $1`,
 		`DELETE FROM eval_view_pairs WHERE experiment_id = $1`,
 		`DELETE FROM eval_view_charts WHERE experiment_id = $1`,
-		`UPDATE eval_view_generations SET pins_verified = NOT pins_verified WHERE experiment_id = $1`,
 	} {
 		if _, err := pool.Exec(ctx, statement, e.ID); err == nil {
 			t.Fatalf("current generation changed by %s", statement)

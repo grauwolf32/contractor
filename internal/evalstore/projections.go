@@ -137,13 +137,12 @@ func (s *Store) LatestView(ctx context.Context, owner, id string) (*View, error)
 	var v View
 	var summary, suites []byte
 	err := s.db.QueryRow(ctx, `
-SELECT v.snapshot_id, v.generation,
+SELECT q.snapshot_id, q.generation,
     CASE WHEN q.revision = q.published_revision THEN 'current' ELSE 'stale' END,
-    v.summary, v.suites, v.pins_verified, v.created_at
+    q.summary, q.suites, q.pins_verified, q.published_at
 FROM eval_projection_queue q
 JOIN eval_experiments e USING (experiment_id)
-JOIN eval_view_generations v ON v.experiment_id = q.experiment_id AND v.snapshot_id = q.snapshot_id
-WHERE e.owner_id = $1 AND e.experiment_id = $2
+WHERE e.owner_id = $1 AND e.experiment_id = $2 AND q.generation IS NOT NULL
 `, owner, id).Scan(&v.Snapshot, &v.Generation, &v.Freshness, &summary, &suites, &v.PinsVerified, &v.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -246,7 +245,7 @@ LIMIT $2
 	if snapshot != nil {
 		err = s.db.QueryRow(ctx, `
 SELECT content_sha256 IS NOT DISTINCT FROM $3
-FROM eval_view_generations
+FROM eval_projection_queue
 WHERE experiment_id = $1
     AND snapshot_id = $2
 `, id, *snapshot, content).Scan(&unchanged)
@@ -272,20 +271,15 @@ WHERE experiment_id = $1
 		SourceRevision int64
 	}{content, revision}))[7:]
 	var generation int64
+	var publishedAt time.Time
 	if err = s.db.QueryRow(ctx, `
-SELECT COALESCE(max(generation), 0) + 1
-FROM eval_view_generations
+UPDATE eval_projection_queue
+SET generation = COALESCE(generation, 0) + 1, snapshot_id = $2, published_revision = $3,
+    summary = $4, suites = $5, pins_verified = $6, content_sha256 = $7, published_at = clock_timestamp()
 WHERE experiment_id = $1
-`, id).Scan(&generation); err != nil {
-		return nil, err
-	}
-	_, err = s.db.Exec(ctx, `
-INSERT INTO eval_view_generations(
-    experiment_id, generation, snapshot_id, summary, suites, pins_verified, source_revision, content_sha256
-)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-`, id, generation, newSnapshot, bytesOf(comparisonView.Summary), bytesOf(comparisonView.Suites), pinsVerified, revision, content)
-	if err != nil {
+RETURNING generation, published_at
+`, id, newSnapshot, revision, bytesOf(comparisonView.Summary), bytesOf(comparisonView.Suites), pinsVerified, content,
+	).Scan(&generation, &publishedAt); err != nil {
 		return nil, err
 	}
 	complete := make(map[string]bool, len(members))
@@ -298,25 +292,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	if e.StartedAt != nil {
 		_, err = s.db.Exec(ctx, `
 INSERT INTO eval_progress_observations(experiment_id, counts, observed_at)
-VALUES($1,$2,(SELECT created_at FROM eval_view_generations WHERE experiment_id = $1 AND snapshot_id = $3))
-`, id, bytesOf(map[string]any{"a": comparisonView.Summary.Counts[comparison.Baseline].Terminal, "b": comparisonView.Summary.Counts[comparison.Candidate].Terminal, "suites": comparisonView.Suites}), newSnapshot)
+VALUES($1,$2,$3)
+`, id, bytesOf(map[string]any{"a": comparisonView.Summary.Counts[comparison.Baseline].Terminal, "b": comparisonView.Summary.Counts[comparison.Candidate].Terminal, "suites": comparisonView.Suites}), publishedAt)
 		if err != nil {
 			return nil, err
 		}
 	}
-	_, err = s.db.Exec(ctx, `
-UPDATE eval_projection_queue
-SET published_revision = $2,snapshot_id = $3
-WHERE experiment_id = $1
-`, id, revision, newSnapshot)
-	if err != nil {
-		return nil, err
-	}
 	// Readers resolve the queue's snapshot inside one snapshot transaction, so
 	// no reader can reach a superseded generation once this commit is visible.
-	_, err = s.db.Exec(ctx, `DELETE FROM eval_view_generations WHERE experiment_id = $1 AND generation <> $2`, id, generation)
-	if err != nil {
-		return nil, err
+	for _, table := range []string{"eval_view_pairs", "eval_view_charts"} {
+		if _, err = s.db.Exec(ctx, `DELETE FROM `+table+` WHERE experiment_id = $1 AND generation <> $2`, id, generation); err != nil {
+			return nil, err
+		}
 	}
 	return s.LatestView(ctx, e.OwnerID, id)
 }

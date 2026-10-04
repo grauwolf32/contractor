@@ -40,14 +40,12 @@ WITH page AS MATERIALIZED (
     ORDER BY created_at DESC, experiment_id DESC LIMIT $8
 ), details AS (
     SELECT page.*, convert_from(COALESCE(p.setup, page.draft), 'UTF8')::jsonb AS setup,
-        convert_from(v.summary, 'UTF8')::jsonb AS summary,
-        CASE WHEN v.snapshot_id IS NULL THEN 'pending'
+        convert_from(q.summary, 'UTF8')::jsonb AS summary,
+        CASE WHEN q.generation IS NULL THEN 'pending'
              WHEN q.revision = q.published_revision THEN 'current' ELSE 'stale' END AS freshness
     FROM page
     LEFT JOIN eval_frozen_plans p USING (experiment_id)
     LEFT JOIN eval_projection_queue q USING (experiment_id)
-    LEFT JOIN eval_view_generations v ON v.experiment_id = page.experiment_id
-        AND v.snapshot_id = q.snapshot_id
 )
 SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id = $1 AND project_id = $2), 0),
     COALESCE((SELECT jsonb_agg(jsonb_build_object(

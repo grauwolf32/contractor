@@ -143,7 +143,7 @@ func TestPostgresEvalIdleCoordinatorTicksKeepSelectedView(t *testing.T) {
 		t.Helper()
 		var v viewState
 		err := h.pool.QueryRow(t.Context(), `
-SELECT (SELECT count(*) FROM eval_view_generations WHERE experiment_id=$1),
+SELECT (SELECT count(*) FROM eval_projection_queue WHERE experiment_id=$1 AND generation IS NOT NULL),
        (SELECT 2 * count(*) FROM eval_view_pairs WHERE experiment_id=$1),
        (SELECT count(*) FROM eval_view_pairs WHERE experiment_id=$1),
        (SELECT count(*) FROM eval_view_charts WHERE experiment_id=$1),
