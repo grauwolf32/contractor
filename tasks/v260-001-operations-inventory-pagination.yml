@@ -3,8 +3,8 @@ id: V260-001
 title: Expose later Operations configuration and credential pages
 milestone: operations-pagination-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8c18618b73a0fc0feedcb66215c1dc3c6da17369
 depends_on: []
 languages: [typescript]
 goal: Make configuration pickers and Runtime credentials usable beyond their first 50 results.
@@ -23,6 +23,6 @@ acceptance_criteria:
   - {id: A2, text: RuntimeConfig publishing selects a Gateway beyond page one.}
   - {id: A3, text: A Runtime credential beyond page one is visible and deletable.}
 tests:
-  - {command: corepack pnpm --dir ui test, covers: [A1, A2, A3]}
+  - {command: corepack pnpm --dir ui exec vitest run src/routes/operations/inventory-pagination.test.tsx src/routes/operations/runtime-configs/configuration.test.tsx, covers: [A1, A2, A3]}
   - {command: corepack pnpm --dir ui typecheck, covers: [A1, A2, A3]}
-  - {command: make lint, covers: [A1, A2, A3]}
+  - {command: corepack pnpm --dir ui lint, covers: [A1, A2, A3]}
