@@ -46,6 +46,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "old/likec4_validate"),
 			fixture, fixture.PackageACanary,
 		),
+		artifactCopyGatewayStage("blocker-after-old/copy"),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "new/likec4_build"),
 			fixture, fixture.PackageBCanary,

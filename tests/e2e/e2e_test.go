@@ -649,7 +649,40 @@ func waitForRuntimeReleased(
 
 func workRootEmpty(root string) bool {
 	entries, err := os.ReadDir(root)
-	return errors.Is(err, os.ErrNotExist) || err == nil && len(entries) == 0
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		// Runtime keeps this lock inode for safe cross-process ownership. It
+		// remains after allocations finish and is not leftover allocation work.
+		if entry.Name() != "contractor-runtime.lock" || !entry.Type().IsRegular() {
+			return false
+		}
+	}
+	return true
+}
+
+func TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock(t *testing.T) {
+	root := t.TempDir()
+	if !workRootEmpty(root) {
+		t.Fatal("new Runtime work root is not empty")
+	}
+	lock := filepath.Join(root, "contractor-runtime.lock")
+	if err := os.WriteFile(lock, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if !workRootEmpty(root) {
+		t.Fatal("persistent owner lock was mistaken for allocation work")
+	}
+	if err := os.WriteFile(filepath.Join(root, "leftover"), []byte("work"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if workRootEmpty(root) {
+		t.Fatal("leftover allocation work was ignored")
+	}
 }
 
 func download(t *testing.T, client *http.Client, target string) ([]byte, string) {
