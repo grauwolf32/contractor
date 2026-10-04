@@ -78,7 +78,7 @@ func (c *CLI) listProjects(ctx context.Context, client *publicclient.Client, pri
 	)
 }
 
-func (c *CLI) createProject(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {
+func (c *CLI) createProject(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) (resultErr error) {
 	var kind, description, key string
 	flags, err := parseFlags("contractor project create", c.stderr, args, func(flags *flag.FlagSet) {
 		flags.StringVar(&kind, "kind", string(publicapi.ProjectKindProject), "project kind: project or evaluation")
@@ -95,9 +95,17 @@ func (c *CLI) createProject(ctx context.Context, client *publicclient.Client, pr
 	if kind != string(publicapi.ProjectKindProject) && kind != string(publicapi.ProjectKindEvaluation) {
 		return &UsageError{Message: "project kind must be project or evaluation"}
 	}
+	generatedKey := key == ""
 	key, err = idempotencyKey(key)
 	if err != nil {
 		return err
+	}
+	if generatedKey {
+		defer func() {
+			if resultErr != nil {
+				_, _ = fmt.Fprintf(c.stderr, "Retry the create request with --idempotency-key %s\n", key)
+			}
+		}()
 	}
 	body := publicapi.CreateProjectRequest{Name: positionals[0], Kind: publicapi.ProjectKind(kind)}
 	if description != "" {
