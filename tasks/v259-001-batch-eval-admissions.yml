@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V259-001
+title: Admit native Eval members up to available capacity per tick
+milestone: eval-coordinator-throughput-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Fill native Eval execution capacity without one-member-per-poll pacing.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/118
+  finding: A coordinator tick admits only one member regardless of maxInFlight.
+scope:
+  in:
+    - Admit a bounded ordinal-ordered batch under the active claim and experiment transaction.
+    - Reconcile admitted intents promptly without starving older accepted work.
+    - Preserve pause, cancel, deadline, token and claim fences.
+  out:
+    - Changing the coordinator's observation poll interval.
+acceptance_criteria:
+  - {id: A1, text: One tick admits up to min(free slots, membersPerTick) eligible members in ordinal order.}
+  - {id: A2, text: Racing coordinators and stop fences cannot exceed maxInFlight or admit after a stop.}
+  - {id: A3, text: New intents reach Run or Audit creation by the next tick while observation-only ticks retain PollInterval.}
+tests:
+  - {command: go test -count=1 ./internal/evalservice ./internal/evalcoordinator ./internal/evalstore, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
