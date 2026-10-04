@@ -195,8 +195,19 @@ INSERT INTO stage_allocations (
 		t.Fatalf("Audit deletion-intent iteration = (%t, %v), notifications=%v", worked, err, notifier.runIDs)
 	}
 	deletingAudit, err := audits.Get(ctx, audit.OwnerID, audit.AuditID)
-	if err != nil || deletingAudit.State != auditstore.AuditDeleting || deletingAudit.DeletionRequestedAt == nil {
+	if err != nil || deletingAudit.State != auditstore.AuditDeleting || deletingAudit.DeletionRequestedAt == nil ||
+		deletingAudit.Revision != audit.Revision+1 || deletingAudit.EventSequence != audit.EventSequence+1 {
 		t.Fatalf("Project-owned Audit deletion intent = (%+v, %v)", deletingAudit, err)
+	}
+	deletionEvents, err := audits.ListEvents(ctx, audit.AuditID, audit.EventSequence, 1)
+	if err != nil || len(deletionEvents) != 1 || deletionEvents[0].Kind != "audit.delete_requested" ||
+		deletionEvents[0].EntityID != audit.AuditID {
+		t.Fatalf("Project-owned Audit deletion event = (%+v, %v)", deletionEvents, err)
+	}
+	var deletionSummary map[string]any
+	if err := json.Unmarshal(deletionEvents[0].Summary, &deletionSummary); err != nil ||
+		deletionSummary["source"] != "project-deletion" {
+		t.Fatalf("Project-owned Audit deletion summary = (%+v, %v)", deletionSummary, err)
 	}
 	worked, err = first.RunOnce(ctx)
 	if err != nil || !worked || len(notifier.runIDs) != 1 || notifier.runIDs[0] != active.RunID {
