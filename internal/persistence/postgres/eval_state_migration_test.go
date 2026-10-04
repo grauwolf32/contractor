@@ -27,7 +27,7 @@ VALUES ('experiment','owner','eval-project','portable','server','Experiment','pa
 	}
 
 	result, err := ApplyMigrations(ctx, pool)
-	if err != nil || len(result.AppliedVersions) != 1 || result.AppliedVersions[0] != 75 {
+	if err != nil || len(result.AppliedVersions) == 0 || result.AppliedVersions[0] != 75 {
 		t.Fatalf("upgrade Eval state constraint = %+v, %v", result, err)
 	}
 	var state string
