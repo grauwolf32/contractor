@@ -3,8 +3,8 @@ id: V262-001
 title: Coalesce Operations live snapshot and principal reads
 milestone: operations-live-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a18fc58d36072d79b5210294cb53e71061d57065
 depends_on: []
 languages: [typescript]
 goal: Keep Operations views current under frequent Runtime Agent heartbeats without starving reads or churning subscriptions.
@@ -26,6 +26,6 @@ acceptance_criteria:
   - {id: A4, text: Cancelled snapshot HTTP requests abort and repeated generation resyncs back off.}
   - {id: A5, text: Principal-list reads occur at most about once per second under heartbeats.}
 tests:
-  - {command: corepack pnpm --dir ui exec vitest run src/routes/operations/operations.test.tsx src/events/run-events.test.ts src/api/operations.test.ts, covers: [A1, A2, A3, A4, A5]}
+  - {command: corepack pnpm --dir ui exec vitest run src/routes/operations/live-refresh.test.ts src/routes/operations/operations.test.tsx src/events/run-events.test.ts src/api/operations.test.ts, covers: [A1, A2, A3, A4, A5]}
   - {command: corepack pnpm --dir ui typecheck, covers: [A1, A2, A3, A4, A5]}
   - {command: corepack pnpm --dir ui lint, covers: [A1, A2, A3, A4, A5]}
