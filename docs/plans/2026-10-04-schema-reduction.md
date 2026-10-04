@@ -56,9 +56,8 @@ the new files instead of moving them twice.
 | V365-021 | Fold `eval_project_dependencies` into `eval_submissions` | 72 |
 | V365-022 | Fold `eval_view_generations` into `eval_projection_queue` | 71 |
 
-The counts above are against the 91 tables of the starting schema. Upstream
-added `allocation_execution_reports` while the work was in progress, so the
-schema ends with 72 tables, `contractor_schema_migrations` included.
+The counts exclude `contractor_schema_migrations`, the migration runner's own
+table.
 
 V365-019 keeps the frozen report links off `audit_artifact_links`: Eval
 evidence binding and the Eval output projection read every link there, so an
