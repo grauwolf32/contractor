@@ -12,13 +12,13 @@ import (
 
 func auditCompletionConfig(t *testing.T) (string, ResolvedAuditProfile) {
 	t.Helper()
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t, "audit-completion-catalog")
 	path := filepath.Join(root, "audit-profiles/source_checklist.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The bundled profile enables completion. Remove it only in this test copy
+	// The fixture profile enables completion. Remove it only in this test copy
 	// to prove that the trusted binding contributes to the immutable digest.
 	without := strings.Replace(string(raw), "      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}\n", "", 1)
 	writeFile(t, path, []byte(without))
@@ -201,7 +201,7 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
             executionConfig:
               agents:
                 checker:
-                  modelPolicy: worker@2
+                  modelPolicy: test-strong-worker@1
             then:
               fail: {}`
 	writeFile(t, path, []byte(strings.Replace(string(raw), "        failed:\n          fail: {}", replacement, 1)))
@@ -215,7 +215,7 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
 }
 
 func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t, "audit-completion-catalog")
 	path := filepath.Join(root, "agent-templates/audit_source_checker.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {

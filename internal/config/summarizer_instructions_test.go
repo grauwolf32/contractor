@@ -21,7 +21,7 @@ func installSummaryInstructions(t *testing.T, root, text string) {
 }
 
 func TestSummaryInstructionsResolvePinAndPublish(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	text := "Составь итог. Preserve {subtaskId} and JSON: {\"result\": \"text\"}.\n"
 	installSummaryInstructions(t, root, text)
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -63,7 +63,7 @@ func TestSummaryInstructionsRejectInvalidConfig(t *testing.T) {
 		{name: "missing file", text: "summary", missing: true, want: "unknown instruction ref"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			installSummaryInstructions(t, root, tc.text)
 			if tc.missing {
 				if err := os.Remove(filepath.Join(root, "instructions/test-summary.md")); err != nil {

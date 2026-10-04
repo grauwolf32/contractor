@@ -40,7 +40,7 @@ func TestWorkflowStageSessionAuthoringIsStrictAndDefaultsToIsolated(t *testing.T
 	} {
 		mode := mode
 		t.Run(string(mode), func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, string(mode))
 			snapshot := mustLoad(t, root, MVPDescriptors())
 			resolved, err := snapshot.Workflow("artifact-copy@1")
@@ -87,7 +87,7 @@ func TestWorkflowStageSessionRejectsEveryNonEnumAuthoringForm(t *testing.T) {
 	} {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			setWorkflowSession(t, root, test.raw)
 			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), "session") {

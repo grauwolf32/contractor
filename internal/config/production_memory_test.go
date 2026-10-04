@@ -8,26 +8,6 @@ import (
 	"testing"
 )
 
-type memoryCatalogEntry struct {
-	Retired string `json:"retired"`
-	Active  string `json:"active"`
-}
-type memoryCatalog struct {
-	SchemaVersion int                  `json:"schema_version"`
-	Templates     []memoryCatalogEntry `json:"templates"`
-	Workflows     []memoryCatalogEntry `json:"workflows"`
-	AuditProfiles []memoryCatalogEntry `json:"audit_profiles"`
-}
-
-func repositoryMemoryCatalog(t *testing.T) memoryCatalog {
-	t.Helper()
-	var catalog memoryCatalog
-	if err := json.Unmarshal(readFile(t, filepath.Join(repositoryConfigRoot, "memory-catalog.json")), &catalog); err != nil {
-		t.Fatal(err)
-	}
-	return catalog
-}
-
 func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "configs")

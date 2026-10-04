@@ -30,7 +30,7 @@ func TestWorkflowPresentationIsOptionalAndPinnedInSnapshots(t *testing.T) {
 		t.Fatalf("decode legacy Workflow = (%+v, %v)", decodedLegacy.Presentation, err)
 	}
 
-	root := copyConfigTree(t)
+	root := copyCoreFixture(t)
 	path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 	replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    displayName: Artifact Copier\n    description: Copies one exact text artifact.\n")
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -79,7 +79,7 @@ func TestWorkflowPresentationValidationIsStrictAndUnicodeBounded(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			root := copyConfigTree(t)
+			root := copyCoreFixture(t)
 			path := filepath.Join(root, "workflows", "artifact_copy.yaml")
 			replaceFile(t, path, "spec:\n", "spec:\n  presentation:\n    "+test.presentation+"\n")
 			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
