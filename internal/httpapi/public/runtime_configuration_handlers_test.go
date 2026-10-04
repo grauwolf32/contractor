@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,40 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+func TestRuntimeAgentPrincipalPageCursorUsesLastVisiblePrincipal(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	ids := []string{strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)}
+	for _, id := range ids {
+		fixture.runtimePrincipals.principals[id] = controlplane.RuntimeAgentPrincipalProjection{
+			Principal:    runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: id, LabelRevision: 1},
+			Availability: controlplane.PrincipalOffline,
+		}
+	}
+	path := "/v1/operations/runtime-agent-principals?limit=1"
+	for index, id := range ids {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("page %d: status=%d body=%s", index, response.Code, response.Body.String())
+		}
+		var page runtimeAgentPrincipalPageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != 1 || page.Items[0].RuntimeAgentID != id || page.Page.HasMore != (index < len(ids)-1) {
+			t.Fatalf("page %d = %+v", index, page)
+		}
+		if index < len(ids)-1 {
+			if page.Page.NextCursor == nil || *page.Page.NextCursor == "" {
+				t.Fatalf("page %d has no cursor", index)
+			}
+			path = "/v1/operations/runtime-agent-principals?limit=1&cursor=" + url.QueryEscape(*page.Page.NextCursor)
+		} else if page.Page.NextCursor != nil {
+			t.Fatalf("final page has cursor: %q", *page.Page.NextCursor)
+		}
+	}
+}
 
 func TestRuntimeMutationErrorsIdentifyTheMissingResource(t *testing.T) {
 	fixture := newHandlerFixture(t)

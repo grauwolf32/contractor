@@ -161,7 +161,7 @@ type RuntimeCredentialManagement interface {
 }
 
 type RuntimeAgentPrincipalManagement interface {
-	List(context.Context, string, int) ([]controlplane.RuntimeAgentPrincipalProjection, error)
+	List(context.Context, string, int) ([]controlplane.RuntimeAgentPrincipalProjection, bool, error)
 	Get(context.Context, string) (controlplane.RuntimeAgentPrincipalProjection, error)
 	ReplaceLabels(context.Context, string, uint64, []string, string, string, time.Time) (controlplane.RuntimeAgentPrincipalProjection, bool, error)
 	Delete(context.Context, string, uint64, string, string, time.Time) (bool, error)

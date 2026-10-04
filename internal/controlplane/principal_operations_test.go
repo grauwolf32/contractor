@@ -114,9 +114,31 @@ func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T)
 	}
 }
 
+func TestPrincipalOperationsListUsesBatchedAdapterFacts(t *testing.T) {
+	principal := runtimeconfig.RuntimeAgentPrincipal{
+		RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"debug"}, LabelRevision: 1,
+	}
+	catalog := &principalOperationsCatalogFake{
+		principal: principal, required: []string{"otlp-http@1"}, hasMore: true,
+	}
+	operations, err := NewPrincipalOperations(catalog, newTestRegistry(t, newTestClock()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, hasMore, err := operations.List(t.Context(), "", 1)
+	if err != nil || !hasMore || len(page) != 1 ||
+		!equalTestStrings(page[0].RequiredRuntimeAdapters, []string{"otlp-http@1"}) ||
+		page[0].Availability != PrincipalOffline || catalog.batchCalls != 1 || catalog.adapterCalls != 0 {
+		t.Fatalf("batched list = (%+v, %v, %v), calls=%d/%d", page, hasMore, err, catalog.batchCalls, catalog.adapterCalls)
+	}
+}
+
 type principalOperationsCatalogFake struct {
 	principal    runtimeconfig.RuntimeAgentPrincipal
 	required     []string
+	hasMore      bool
+	batchCalls   int
+	adapterCalls int
 	getErr       error
 	afterReplace func()
 }
@@ -133,15 +155,19 @@ func (f *principalOperationsCatalogFake) Get(
 	return f.principal, nil
 }
 
-func (f *principalOperationsCatalogFake) List(
+func (f *principalOperationsCatalogFake) ListWithRequiredRuntimeAdapters(
 	context.Context, string, int,
-) ([]runtimeconfig.RuntimeAgentPrincipal, error) {
-	return []runtimeconfig.RuntimeAgentPrincipal{f.principal}, nil
+) ([]runtimeconfig.PrincipalAdapterRow, bool, error) {
+	f.batchCalls++
+	return []runtimeconfig.PrincipalAdapterRow{{
+		Principal: f.principal, RequiredRuntimeAdapters: append([]string{}, f.required...),
+	}}, f.hasMore, nil
 }
 
 func (f *principalOperationsCatalogFake) RequiredRuntimeAdapters(
 	context.Context, []string,
 ) ([]string, error) {
+	f.adapterCalls++
 	return append([]string{}, f.required...), nil
 }
 

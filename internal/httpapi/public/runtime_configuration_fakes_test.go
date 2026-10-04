@@ -25,7 +25,7 @@ func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManageme
 
 func (f *fakeRuntimeAgentPrincipalManagement) List(
 	_ context.Context, after string, limit int,
-) ([]controlplane.RuntimeAgentPrincipalProjection, error) {
+) ([]controlplane.RuntimeAgentPrincipalProjection, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.principals))
@@ -35,14 +35,15 @@ func (f *fakeRuntimeAgentPrincipalManagement) List(
 		}
 	}
 	sort.Strings(ids)
-	if len(ids) > limit {
+	hasMore := len(ids) > limit
+	if hasMore {
 		ids = ids[:limit]
 	}
 	result := make([]controlplane.RuntimeAgentPrincipalProjection, len(ids))
 	for index, id := range ids {
 		result[index] = clonePrincipalProjection(f.principals[id])
 	}
-	return result, nil
+	return result, hasMore, nil
 }
 
 func (f *fakeRuntimeAgentPrincipalManagement) Get(

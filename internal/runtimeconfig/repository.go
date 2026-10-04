@@ -71,6 +71,54 @@ FROM runtime_config_versions
 WHERE name = $1 AND version = $2 AND digest = $3`, ref.Name, ref.Version, ref.Digest))
 }
 
+// GetVersionsByRefs reads each distinct referenced document once. Callers that
+// need a consistent view across bindings and versions must own a transaction.
+func (r *Repository) GetVersionsByRefs(ctx context.Context, refs []Ref) (map[Ref]Version, error) {
+	result := make(map[Ref]Version, len(refs))
+	if len(refs) == 0 {
+		return result, nil
+	}
+	names := make([]string, 0, len(refs))
+	versions := make([]string, 0, len(refs))
+	digests := make([]string, 0, len(refs))
+	requested := make(map[Ref]struct{}, len(refs))
+	for _, ref := range refs {
+		if err := validateRef(ref); err != nil {
+			return nil, err
+		}
+		if _, exists := requested[ref]; exists {
+			continue
+		}
+		requested[ref] = struct{}{}
+		names = append(names, ref.Name)
+		versions = append(versions, ref.Version)
+		digests = append(digests, ref.Digest)
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT name, version, digest, canonical_document, built_in, actor_id, created_at
+FROM runtime_config_versions
+JOIN unnest($1::text[], $2::text[], $3::text[]) AS requested(name, version, digest)
+  USING (name, version, digest)`, names, versions, digests)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("read referenced RuntimeConfig versions", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		version, scanErr := scanVersion(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[version.Ref] = version
+	}
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate referenced RuntimeConfig versions", err)
+	}
+	if len(result) != len(requested) {
+		return nil, ErrVersionNotFound
+	}
+	return result, nil
+}
+
 func (r *Repository) ListVersions(ctx context.Context, afterName, afterVersion string, limit int) ([]Version, error) {
 	if (afterName == "") != (afterVersion == "") || limit < 1 || limit > maximumPageSize {
 		return nil, invalid("RuntimeConfig page cursor or limit is invalid")
@@ -182,6 +230,40 @@ func (r *Repository) GetBinding(ctx context.Context, label string) (Binding, err
 		return Binding{}, err
 	}
 	return scanBinding(r.db.QueryRow(ctx, bindingSelect+` WHERE label = $1`, label))
+}
+
+// GetBindingsByLabels reads distinct label bindings with one query.
+func (r *Repository) GetBindingsByLabels(ctx context.Context, labels []string) (map[string]Binding, error) {
+	result := make(map[string]Binding, len(labels))
+	if len(labels) == 0 {
+		return result, nil
+	}
+	requested := make(map[string]struct{}, len(labels))
+	for _, label := range labels {
+		if err := validateLabel(label); err != nil {
+			return nil, err
+		}
+		requested[label] = struct{}{}
+	}
+	rows, err := r.db.Query(ctx, bindingSelect+` WHERE label = ANY($1::text[])`, labels)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("read RuntimeConfig label bindings", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		binding, scanErr := scanBinding(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[binding.Label] = binding
+	}
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate RuntimeConfig label bindings", err)
+	}
+	if len(result) != len(requested) {
+		return nil, ErrUnknownLabel
+	}
+	return result, nil
 }
 
 func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit int) ([]Binding, error) {

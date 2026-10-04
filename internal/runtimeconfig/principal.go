@@ -35,6 +35,11 @@ type RuntimeAgentPrincipal struct {
 	UpdatedAt      time.Time
 }
 
+type PrincipalAdapterRow struct {
+	Principal               RuntimeAgentPrincipal
+	RequiredRuntimeAdapters []string
+}
+
 type PrincipalMutationResult struct {
 	Principal *RuntimeAgentPrincipal
 	Deleted   bool
@@ -382,6 +387,83 @@ func (s *PrincipalService) List(
 	return s.repository.List(ctx, afterRuntimeAgentID, limit)
 }
 
+// ListWithRequiredRuntimeAdapters reads one visible page and its distinct
+// RuntimeConfig dependencies from the same database snapshot. The look-ahead
+// row determines hasMore but never triggers adapter resolution.
+func (s *PrincipalService) ListWithRequiredRuntimeAdapters(
+	ctx context.Context, afterRuntimeAgentID string, pageLimit int,
+) ([]PrincipalAdapterRow, bool, error) {
+	if pageLimit < 1 || pageLimit > 200 {
+		return nil, false, invalid("Runtime Agent principal page is invalid")
+	}
+	var rows []PrincipalAdapterRow
+	var hasMore bool
+	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{
+		IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly,
+	}, func(tx pgx.Tx) error {
+		var readErr error
+		rows, hasMore, readErr = listPrincipalAdapterPage(ctx, tx, afterRuntimeAgentID, pageLimit)
+		return readErr
+	})
+	return rows, hasMore, err
+}
+
+func listPrincipalAdapterPage(
+	ctx context.Context, db persistencepostgres.DBTX, afterRuntimeAgentID string, pageLimit int,
+) ([]PrincipalAdapterRow, bool, error) {
+	if pageLimit < 1 || pageLimit > 200 {
+		return nil, false, invalid("Runtime Agent principal page is invalid")
+	}
+	principals, err := NewPrincipalRepository(db).List(ctx, afterRuntimeAgentID, pageLimit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	hasMore := len(principals) > pageLimit
+	if hasMore {
+		principals = principals[:pageLimit]
+	}
+	labels := make(map[string]struct{})
+	for _, principal := range principals {
+		for _, label := range principal.Labels {
+			labels[label] = struct{}{}
+		}
+	}
+	orderedLabels := make([]string, 0, len(labels))
+	for label := range labels {
+		orderedLabels = append(orderedLabels, label)
+	}
+	sort.Strings(orderedLabels)
+	repository := NewRepository(db)
+	bindings, err := repository.GetBindingsByLabels(ctx, orderedLabels)
+	if err != nil {
+		return nil, false, err
+	}
+	refs := make(map[Ref]struct{}, len(bindings))
+	for _, binding := range bindings {
+		refs[binding.Ref] = struct{}{}
+	}
+	orderedRefs := make([]Ref, 0, len(refs))
+	for ref := range refs {
+		orderedRefs = append(orderedRefs, ref)
+	}
+	sort.Slice(orderedRefs, func(i, j int) bool { return orderedRefs[i].String() < orderedRefs[j].String() })
+	versions, err := repository.GetVersionsByRefs(ctx, orderedRefs)
+	if err != nil {
+		return nil, false, err
+	}
+	rows := make([]PrincipalAdapterRow, 0, len(principals))
+	for _, principal := range principals {
+		seen := make(map[string]struct{}, 3)
+		for _, label := range principal.Labels {
+			appendRequiredRuntimeAdapters(seen, versions[bindings[label].Ref])
+		}
+		rows = append(rows, PrincipalAdapterRow{
+			Principal: principal, RequiredRuntimeAdapters: sortedAdapterSet(seen),
+		})
+	}
+	return rows, hasMore, nil
+}
+
 func (s *PrincipalService) RequiredRuntimeAdapters(
 	ctx context.Context, labels []string,
 ) ([]string, error) {
@@ -399,22 +481,30 @@ func (s *PrincipalService) RequiredRuntimeAdapters(
 		if err != nil {
 			return nil, err
 		}
-		if version.Spec.Worker.Telemetry.Present && !version.Spec.Worker.Telemetry.Clear {
-			seen["otlp-http@1"] = struct{}{}
-		}
-		if version.Spec.Worker.HTTPProxy.Present && !version.Spec.Worker.HTTPProxy.Clear {
-			seen["http-proxy@1"] = struct{}{}
-		}
-		if version.Spec.Worker.Caido.Present && !version.Spec.Worker.Caido.Clear {
-			seen["caido-graphql@1"] = struct{}{}
-		}
+		appendRequiredRuntimeAdapters(seen, version)
 	}
+	return sortedAdapterSet(seen), nil
+}
+
+func appendRequiredRuntimeAdapters(seen map[string]struct{}, version Version) {
+	if version.Spec.Worker.Telemetry.Present && !version.Spec.Worker.Telemetry.Clear {
+		seen["otlp-http@1"] = struct{}{}
+	}
+	if version.Spec.Worker.HTTPProxy.Present && !version.Spec.Worker.HTTPProxy.Clear {
+		seen["http-proxy@1"] = struct{}{}
+	}
+	if version.Spec.Worker.Caido.Present && !version.Spec.Worker.Caido.Clear {
+		seen["caido-graphql@1"] = struct{}{}
+	}
+}
+
+func sortedAdapterSet(seen map[string]struct{}) []string {
 	result := make([]string, 0, len(seen))
 	for adapter := range seen {
 		result = append(result, adapter)
 	}
 	sort.Strings(result)
-	return result, nil
+	return result
 }
 
 func (s *PrincipalService) ReplaceLabelsIdempotent(

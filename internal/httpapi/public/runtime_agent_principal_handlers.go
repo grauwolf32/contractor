@@ -29,17 +29,23 @@ func (h *handler) listRuntimeAgentPrincipals(w http.ResponseWriter, r *http.Requ
 	if len(cursor) != 0 {
 		after = cursor[0]
 	}
-	principals, err := h.dependencies.RuntimeAgentPrincipals.List(r.Context(), after, limit+1)
+	principals, hasMore, err := h.dependencies.RuntimeAgentPrincipals.List(r.Context(), after, limit)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	principals, page, err := paginate(h, principals, limit, "runtime-agent-principals", func(last controlplane.RuntimeAgentPrincipalProjection) []string {
-		return []string{last.Principal.RuntimeAgentID}
-	})
-	if err != nil {
-		h.handleError(w, err)
-		return
+	page := pageInfoResponse{HasMore: hasMore}
+	if hasMore {
+		if len(principals) == 0 {
+			h.handleError(w, errors.New("Runtime Agent principal page is empty despite more results"))
+			return
+		}
+		next, cursorErr := h.encodePageCursor("runtime-agent-principals", principals[len(principals)-1].Principal.RuntimeAgentID)
+		if cursorErr != nil {
+			h.handleError(w, cursorErr)
+			return
+		}
+		page.NextCursor = &next
 	}
 	items := make([]runtimeAgentPrincipalResponse, len(principals))
 	for index := range principals {
