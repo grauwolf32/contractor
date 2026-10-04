@@ -109,6 +109,27 @@ def test_local_workspace_root_symlink_is_rejected(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("relationship", ["same", "scratch-parent", "project-parent"])
+def test_overlapping_runtime_roots_are_rejected(tmp_path: Path, relationship: str) -> None:
+    scratch = tmp_path / "sandbox-work"
+    project = {
+        "same": scratch,
+        "scratch-parent": scratch / "project",
+        "project-parent": tmp_path,
+    }[relationship]
+    with pytest.raises(SystemExit):
+        parse_settings(
+            [
+                *base_arguments(tmp_path),
+                "--workspace-storage",
+                "local",
+                "--workspace-work-root",
+                str(project),
+            ],
+            {},
+        )
+
+
 def base_arguments(tmp_path: Path) -> list[str]:
     ca, certificate, key = settings_files(tmp_path)
     return [

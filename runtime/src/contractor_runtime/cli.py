@@ -26,7 +26,9 @@ from contractor_runtime.sandbox.podman.workroots import check_root_policy
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings, parse_settings
 from contractor_runtime.state import RuntimeState
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
+from contractor_runtime.work_root_lock import WorkRootLockError, hold_work_roots
 from contractor_runtime.workspace import cleanup_orphan_workdirs
 
 logger = logging.getLogger(__name__)
@@ -42,30 +44,37 @@ async def serve(
     install_signal_handlers: bool = True,
 ) -> None:
     lifecycle = PodmanLifecycle(settings.podman) if settings.podman.enabled else None
-    try:
-        roots = [settings.work_root]
-        if settings.workspace is not None and settings.workspace.work_root is not None:
-            roots.append(settings.workspace.work_root)
-        for root in roots:
-            await asyncio.to_thread(
-                check_root_policy, root, settings.podman.owner if lifecycle is not None else None
+    project_root = settings.workspace.work_root if settings.workspace is not None else None
+    with hold_work_roots(settings.work_root, project_root):
+        try:
+            roots = [settings.work_root]
+            if project_root is not None:
+                roots.append(project_root)
+            for root in roots:
+                await to_thread_until_done(
+                    check_root_policy,
+                    root,
+                    settings.podman.owner if lifecycle is not None else None,
+                    name="runtime-root-policy",
+                )
+            if lifecycle is not None:
+                await lifecycle.recover(
+                    deadline=time.monotonic() + settings.podman.prepare_max_seconds
+                )
+            await _serve(
+                settings,
+                state=state,
+                transport=transport,
+                stop_requested=stop_requested,
+                server_factory=server_factory,
+                install_signal_handlers=install_signal_handlers,
+                lifecycle=lifecycle,
             )
-        if lifecycle is not None:
-            await lifecycle.recover(deadline=time.monotonic() + settings.podman.prepare_max_seconds)
-        await _serve(
-            settings,
-            state=state,
-            transport=transport,
-            stop_requested=stop_requested,
-            server_factory=server_factory,
-            install_signal_handlers=install_signal_handlers,
-            lifecycle=lifecycle,
-        )
-    finally:
-        if lifecycle is not None:
-            # EOF still delegates cleanup to the surviving owner if this
-            # bounded graceful close cannot confirm it. Never kill the owner.
-            await lifecycle.close(deadline=time.monotonic() + settings.shutdown_grace_seconds)
+        finally:
+            if lifecycle is not None:
+                # EOF still delegates cleanup to the surviving owner if this
+                # bounded graceful close cannot confirm it. Never kill the owner.
+                await lifecycle.close(deadline=time.monotonic() + settings.shutdown_grace_seconds)
 
 
 async def _serve(
@@ -80,7 +89,9 @@ async def _serve(
 ) -> None:
     runtime_state = state or RuntimeState()
     stop = stop_requested or asyncio.Event()
-    await asyncio.to_thread(cleanup_orphan_workdirs, settings.work_root)
+    await to_thread_until_done(
+        cleanup_orphan_workdirs, settings.work_root, name="runtime-orphan-cleanup"
+    )
     log_runtime_certificate_expiry(
         settings.certificate_file,
         warning_days=settings.certificate_expiry_warning_days,
@@ -262,6 +273,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(serve(settings))
     except KeyboardInterrupt:
         logger.info("runtime agent interrupted")
+    except WorkRootLockError as error:
+        logger.error("runtime agent failed: %s", error)
+        raise SystemExit(1) from None
     except Exception as error:
         logger.error("runtime agent failed (%s)", type(error).__name__)
         raise SystemExit(1) from None

@@ -31,6 +31,7 @@ from contractor_runtime.settings import (
     WorkspaceLimits,
     WorkspaceSettings,
 )
+from contractor_runtime.threads import to_thread_until_done
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,7 @@ class LocalWorkspaceProvider:
         expected = f"{LOCAL_DIRECTORY_PREFIX}{storage.owner_token}"
         if path.parent != self._root or path.name != expected:
             raise ValueError("refusing to remove an unowned project workspace")
-        await asyncio.to_thread(_remove_owned_local_workspace, path)
+        await to_thread_until_done(_remove_owned_local_workspace, path, name="workspace-cleanup")
 
     async def _initialize(self) -> None:
         async with self._initialization_lock:
@@ -156,8 +157,12 @@ class LocalWorkspaceProvider:
                 # Disabling Podman cannot authorize deleting a previous bind.
                 from contractor_runtime.sandbox.podman.workroots import check_root_policy
 
-                await asyncio.to_thread(check_root_policy, self._root, None)
-            await asyncio.to_thread(_initialize_and_cleanup_local_root, self._root)
+                await to_thread_until_done(
+                    check_root_policy, self._root, None, name="workspace-root-policy"
+                )
+            await to_thread_until_done(
+                _initialize_and_cleanup_local_root, self._root, name="workspace-root-cleanup"
+            )
             self._initialized = True
 
 

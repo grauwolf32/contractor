@@ -299,6 +299,9 @@ def test_cli_shutdown_drains_active_allocation_before_owner_close(tmp_path, monk
             monkeypatch.setattr(runtime_cli, "built_in_factories", lambda *a, **kw: factories)
             monkeypatch.setattr(runtime_cli, "AllocationService", lambda *a, **kw: service)
             monkeypatch.setattr(
+                runtime_cli, "log_runtime_certificate_expiry", lambda *a, **kw: None
+            )
+            monkeypatch.setattr(
                 runtime_cli,
                 "runtime_agent_client_context",
                 lambda **kw: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT),

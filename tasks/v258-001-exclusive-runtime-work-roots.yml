@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V258-001
+title: Hold exclusive Runtime work-root locks before startup cleanup
+milestone: runtime-work-root-isolation-2026-10
+priority: P1
+status: completed
+implementation_commit: 483b47bf91869dc122d1420f60d8d68fcd51fc28
+depends_on: []
+languages: [python]
+goal: Prevent one Runtime process from deleting another process's live scratch or project workspace.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/112
+  finding: Startup cleanup treats marker-owned directories in a shared root as stale even when another Runtime is using them.
+scope:
+  in:
+    - Acquire non-blocking exclusive locks on scratch and local project-workspace roots before any cleanup.
+    - Validate lock file ownership, type, mode and link count, and hold locks for the process lifetime.
+    - Reject shared or nested scratch and project-workspace roots.
+    - Document distinct roots for each Runtime process.
+  out:
+    - Changing allocation owner marker formats.
+acceptance_criteria:
+  - {id: A1, text: A second Runtime using either locked root fails before deleting live directories or markers.}
+  - {id: A2, text: Locks release on clean or crashed process exit so a restart can reclaim stale directories.}
+  - {id: A3, text: Shared or nested roots are rejected and operator instructions require separate roots.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_work_root_lock.py tests/test_cli.py tests/test_workspace_settings.py tests/test_workspace_provider.py tests/test_allocation.py tests/test_podman_recovery.py tests/test_podman_settings.py, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
