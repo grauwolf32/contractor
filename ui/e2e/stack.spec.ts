@@ -480,8 +480,11 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   });
   await runSetup.getByRole("button", { name: "Start Workflow Run" }).click();
   const submitted = await createRequest;
-  expect((await submitted.response())?.status()).toBe(202);
-  await page.unroute("**/v1/runs");
+  const acceptedResponse = await submitted.response();
+  expect(acceptedResponse?.status()).toBe(202);
+  // request.response() resolves at the headers. Keep the route active until
+  // Chromium has received the body consumed by createRun's fetch.
+  expect(await acceptedResponse?.finished()).toBeNull();
   expect(submittedBody).not.toBeNull();
   const body = JSON.parse(submittedBody ?? "null");
   const exactSource = body.artifacts.source;
@@ -496,7 +499,23 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect(submitted.headers()["idempotency-key"]).toMatch(
     /^run-ui-[0-9a-f]{32}$/,
   );
-  await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
+  try {
+    await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
+  } catch (error) {
+    const submitButton = runSetup.locator('button[type="submit"]');
+    console.error("Run navigation after accepted 202", {
+      submitLabel: (await submitButton.textContent().catch(() => null))?.trim(),
+      submitDisabled: await submitButton.isDisabled().catch(() => null),
+      retryVisible: await runSetup
+        .getByRole("button", { name: "Retry same request" })
+        .isVisible()
+        .catch(() => false),
+    });
+    throw error;
+  }
+  // Removing a route updates Chromium's interception patterns. Do that only
+  // after the lazy Run route has completed navigation.
+  await page.unroute("**/v1/runs");
   const streamlineRunID = new URL(page.url()).pathname.split("/").at(-1)!;
   // Replay the same accepted request against the real Server: it must return
   // the existing Run, even while execution is progressing.

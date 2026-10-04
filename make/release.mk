@@ -7,14 +7,14 @@
 # selected test run once.
 
 RELEASE_STAGES := release-verify-lint release-verify-unit release-verify-ui \
-	release-verify-families release-verify-browser release-verify-race \
+	release-verify-families release-verify-browser-a release-verify-browser-b release-verify-race \
 	release-verify-race-discovered release-verify-integration \
 	release-verify-process-a release-verify-process-b
 
 .PHONY: $(RELEASE_STAGES) test-release-go-race test-release-go-race-discovered \
 	test-release-process-e2e test-release-process-e2e-a test-release-process-e2e-b \
 	test-release-integration test-release-non-race \
-	test-release-ui-stack
+	test-release-ui-stack-a test-release-ui-stack-b
 
 release-verify $(RELEASE_STAGES): RELEASE_CONSOLIDATED := 1
 release-verify: $(RELEASE_STAGES)
@@ -36,7 +36,9 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-audit-program-library-e2e test-audit-completion-e2e \
 	test-findings-e2e test-performance-metrics
 
-release-verify-browser: ui-browser-mocked test-release-ui-stack
+release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a
+
+release-verify-browser-b: test-release-ui-stack-b
 
 release-verify-race: test-release-go-race
 
@@ -96,6 +98,11 @@ test-release-process-e2e-a: require-database runtime-venv
 test-release-process-e2e-b: require-database runtime-venv
 	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_B))$$'
 
-# Several families depend on test-ui-stack; the browser stage runs it once.
-test-release-ui-stack: ui-install ui-browser-install require-database runtime-venv
-	$(UI_STACK_TEST)
+# The two browser stages run independently in CI. Each tagged stack test runs
+# once. Keep the small helper tests in the first shard too.
+RELEASE_UI_STACK_TESTS_A := TestBrowserOperationsStack|TestManagedEvalsNativeStack|TestBrowserReportRequiresExecutedSelection|TestManagedEvalGatewayHasIndependentHistories|TestUIStackConfigurationClosure|TestModelGatewayFindsNamedInputAfterParameterBlock
+test-release-ui-stack-a: ui-install ui-browser-install require-database runtime-venv
+	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^($(RELEASE_UI_STACK_TESTS_A))$$'
+
+test-release-ui-stack-b: ui-install ui-browser-install require-database runtime-venv
+	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^TestManagedEvalsExternalStack$$'
