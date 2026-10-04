@@ -167,8 +167,10 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if entry.Name() != ".contractor-podman-owner-v1" {
-			t.Fatalf("scratch not cleaned: %s", entry.Name())
+		// The Podman root marker and the Runtime work-root lock persist by design.
+		name := entry.Name()
+		if (name != ".contractor-podman-owner-v1" && name != "contractor-runtime.lock") || !entry.Type().IsRegular() {
+			t.Fatalf("scratch not cleaned: %s", name)
 		}
 	}
 	if ids := podmanOwnedIDs(t, ctx, owner); len(ids) != 0 {

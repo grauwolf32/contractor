@@ -148,6 +148,31 @@ def test_main_reports_work_root_lock_contention(
     assert any("scratch work root in use" in record.message for record in caplog.records)
 
 
+def test_main_reports_unsafe_work_root_mode_distinctly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    settings = make_settings(tmp_path)
+    # An operator-created root with a default umask is not private.
+    settings.work_root.mkdir()
+    settings.work_root.chmod(0o755)
+    monkeypatch.setattr(runtime_cli, "parse_settings", lambda _: settings)
+    monkeypatch.setattr(runtime_cli, "configure_logging", lambda _: None)
+    with (
+        caplog.at_level(logging.ERROR, logger="contractor_runtime.cli"),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        runtime_cli.main([])
+    assert exit_info.value.code == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        f"scratch work root unsafe: {settings.work_root}: " in message
+        and "with mode 0700, found" in message
+        and "mode 0755" in message
+        for message in messages
+    ), messages
+    assert not any("in use" in message for message in messages)
+
+
 def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path) -> None:
     pki = generate_pki(tmp_path / "pki")
     heartbeat_started = threading.Event()

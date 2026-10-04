@@ -28,12 +28,17 @@ def hold_work_roots(scratch: Path, project: Path | None) -> Iterator[None]:
 
     The existing owner lock checks a regular, single-link, user-owned 0600
     file beneath a private 0700 directory and never removes the lock inode.
+    Errors tell a live owner apart from an unsafe root, which an operator fixes.
     """
 
     # Import after settings has initialized: sandbox contracts load projectfs,
     # whose provider imports settings while defining the local workspace type.
     from contractor_runtime.sandbox.contracts import SandboxContractError
-    from contractor_runtime.sandbox.podman.ownership import ServiceOwnerLock
+    from contractor_runtime.sandbox.podman.ownership import (
+        OwnerLockHeldError,
+        OwnerLockUnsafeError,
+        ServiceOwnerLock,
+    )
 
     validate_distinct_work_roots(scratch, project)
     roots = [("scratch", scratch)]
@@ -47,7 +52,15 @@ def hold_work_roots(scratch: Path, project: Path | None) -> Iterator[None]:
             lock = ServiceOwnerLock(root, "contractor-runtime")
             try:
                 lock.acquire()
+            except OwnerLockHeldError:
+                raise WorkRootLockError(
+                    f"{label} work root in use by another process: {root}"
+                ) from None
+            except OwnerLockUnsafeError as error:
+                raise WorkRootLockError(
+                    f"{label} work root unsafe: {root}: {error.reason}"
+                ) from None
             except SandboxContractError:
-                raise WorkRootLockError(f"{label} work root in use or unsafe: {root}") from None
+                raise WorkRootLockError(f"{label} work root lock unavailable: {root}") from None
             stack.callback(lock.release)
         yield

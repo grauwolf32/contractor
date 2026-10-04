@@ -3,7 +3,8 @@ id: V320-001
 title: Compute overlay diffs off the event loop
 milestone: review-defects-2026-10-04
 priority: P1
-status: pending
+status: completed
+implementation_commit: 496a4e2583f5614c7796c575668a09774df3d207
 depends_on: []
 languages: [python]
 goal: Keep the Runtime event loop responsive while the model pages through large workspace diffs.

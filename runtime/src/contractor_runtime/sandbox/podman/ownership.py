@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import os
 import re
@@ -10,6 +11,24 @@ from contextlib import suppress
 from pathlib import Path
 
 from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+
+# A symlink fails O_NOFOLLOW; a file or directory sits where the other belongs.
+_UNSAFE_PATH_ERRNOS = frozenset({errno.ELOOP, errno.ENOTDIR, errno.EISDIR})
+
+
+class OwnerLockHeldError(SandboxContractError):
+    """Another live process holds the owner lock."""
+
+    def __init__(self) -> None:
+        super().__init__(SandboxErrorCode.UNAVAILABLE)
+
+
+class OwnerLockUnsafeError(SandboxContractError):
+    """The lock directory or file fails the type, owner, mode or link checks."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(SandboxErrorCode.UNAVAILABLE)
+        self.reason = reason
 
 
 def open_directory(path: Path) -> int:
@@ -55,7 +74,10 @@ class ServiceOwnerLock:
             directory_fd = open_directory(self._directory)
             info = os.fstat(directory_fd)
             if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
-                raise OSError("unsafe lock directory")
+                raise OwnerLockUnsafeError(
+                    f"directory must be owned by uid {os.geteuid()} with mode 0700, "
+                    f"found uid {info.st_uid} mode {stat.S_IMODE(info.st_mode):04o}"
+                )
             lock_fd = os.open(
                 self._name,
                 os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
@@ -69,14 +91,26 @@ class ServiceOwnerLock:
                 or info.st_uid != os.geteuid()
                 or stat.S_IMODE(info.st_mode) != 0o600
             ):
-                raise OSError("unsafe lock file")
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                raise OwnerLockUnsafeError(
+                    f"{self._name} must be a single-link regular file owned by uid "
+                    f"{os.geteuid()} with mode 0600"
+                )
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise OwnerLockHeldError() from None
             self._fd, self._directory_fd = lock_fd, directory_fd
-        except (OSError, SandboxContractError):
+        except (OSError, SandboxContractError) as error:
             if lock_fd is not None:
                 os.close(lock_fd)
             if directory_fd is not None:
                 os.close(directory_fd)
+            if isinstance(error, OwnerLockHeldError | OwnerLockUnsafeError):
+                raise
+            if isinstance(error, OSError) and error.errno in _UNSAFE_PATH_ERRNOS:
+                raise OwnerLockUnsafeError(
+                    "a path component is a symbolic link or has the wrong file type"
+                ) from None
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE) from None
 
     def verify(self) -> None:
