@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V265-001
+title: Keep overlay workspace export and edits off the event loop
+milestone: runtime-projectfs-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: 2c6d41c926677bd5e69e899db02221aef13bed61
+depends_on: []
+languages: [python]
+goal: Preserve Runtime heartbeat responsiveness while exporting or editing large overlay workspaces.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/157
+  finding: Export and inherited edit operations perform whole-workspace CPU work on the asyncio event loop.
+scope:
+  in:
+    - Offload export snapshot, state encoding and diff while holding the session lock.
+    - Detect stale exports through a tree generation updated by every mutator.
+    - Use changed-path validation and accounting for overlay text updates, copies and moves.
+    - Keep workspace limits and existing snapshot semantics.
+  out:
+    - Changing workspace artifact formats or allocation lease protocol.
+acceptance_criteria:
+  - {id: A1, text: prepare_export CPU work executes outside the event loop.}
+  - {id: A2, text: commit_export does not recompute a tree snapshot and rejects every intervening mutation.}
+  - {id: A3, text: Overlay edits validate only changed text while preserving count and byte limits.}
+  - {id: A4, text: Workspace state, export, and concurrency tests pass.}
+tests:
+  - {command: cd runtime && uv run pytest tests/test_workspace_auto_export.py tests/test_workspace_state.py tests/test_projectfs_concurrency.py, covers: [A1, A2, A3, A4]}
+  - {command: cd runtime && uv run ruff check . && uv run ruff format --check ., covers: [A1, A2, A3, A4]}

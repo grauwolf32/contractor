@@ -240,6 +240,91 @@ def test_state_import_validates_the_result_once_off_the_event_loop(
     asyncio.run(scenario())
 
 
+def test_export_preparation_runs_off_loop_and_commit_uses_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        session = await overlay(source_tree(), "export-thread")
+        await session.write_text("src/a.py", "changed\n")
+        calls: list[int] = []
+        snapshot = ManagedWorkspaceTree.snapshot
+        encode = overlay_module.encode_workspace_state
+        diff = overlay_module._workspace_diff
+
+        def counted_snapshot(tree: ManagedWorkspaceTree):
+            calls.append(threading.get_ident())
+            return snapshot(tree)
+
+        def counted_encode(*args: object):
+            calls.append(threading.get_ident())
+            return encode(*args)
+
+        def counted_diff(*args: object):
+            calls.append(threading.get_ident())
+            return diff(*args)
+
+        monkeypatch.setattr(ManagedWorkspaceTree, "snapshot", counted_snapshot)
+        monkeypatch.setattr(overlay_module, "encode_workspace_state", counted_encode)
+        monkeypatch.setattr(overlay_module, "_workspace_diff", counted_diff)
+        bundle = await session.prepare_export()
+        assert len(calls) == 3 and all(call != threading.get_ident() for call in calls)
+
+        def forbidden_snapshot(_: ManagedWorkspaceTree):
+            raise AssertionError("commit_export must not rebuild a snapshot")
+
+        monkeypatch.setattr(ManagedWorkspaceTree, "snapshot", forbidden_snapshot)
+        assert await session.commit_export(bundle) == bundle.snapshot
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+    asyncio.run(scenario())
+
+
+def test_overlay_edits_validate_only_changed_text_and_keep_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        source = ManagedWorkspaceTree(
+            directories={"dir"},
+            text_files={f"dir/file-{index}.txt": "content\n" for index in range(40)},
+        )
+        session = await overlay(source, "edit-delta")
+        calls: list[int] = []
+        validate = overlay_module._validate_text
+
+        def counted(text: str, bounds: WorkspaceLimits | None) -> bytes:
+            calls.append(threading.get_ident())
+            return validate(text, bounds)
+
+        monkeypatch.setattr(overlay_module, "_validate_text", counted)
+        await session.update_text("dir/file-0.txt", lambda value: value + "updated\n")
+        await session.copy_path("dir/file-1.txt", "dir/copied.txt")
+        await session.move_path("dir/file-2.txt", "dir/moved.txt")
+        assert len(calls) == 3 and all(call != threading.get_ident() for call in calls)
+        assert await session.read_text("dir/moved.txt") == "content\n"
+        assert await session.read_text("dir/copied.txt") == "content\n"
+
+        tight = WorkspaceLimits(
+            max_files=3, max_expanded_bytes=12, max_managed_text_bytes=12, max_file_bytes=10
+        )
+        provider = MemoryWorkspaceProvider(WorkspaceSettings(storage="memory", limits=tight))
+        storage = await provider.create("edit-limits")
+        bounded = OverlayWorkspaceSession(
+            storage=storage,
+            content_root=f"{storage.root}/run_workdir",
+            limits=tight,
+            directories=set(),
+            text_files={"a.txt": "12345", "b.txt": "67890"},
+            binary_paths=set(),
+        )
+        with pytest.raises(overlay_module.WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await bounded.copy_path("a.txt", "c.txt")
+        await bounded.move_path("a.txt", "c.txt")
+        assert await bounded.read_text("c.txt") == "12345"
+
+    asyncio.run(scenario())
+
+
 def test_state_limits_bind_the_result_not_intermediate_operations() -> None:
     source = ManagedWorkspaceTree(text_files={"b.txt": "x" * 1000})
     bounds = WorkspaceLimits(

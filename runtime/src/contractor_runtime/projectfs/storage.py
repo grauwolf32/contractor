@@ -19,6 +19,7 @@ from contractor_runtime.projectfs.paths import (
 )
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.threads import to_thread_until_done
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,7 +275,7 @@ class DirectWorkspaceSession:
             return await self._local.snapshot()
         async with self._lock:
             self._require_open()
-            return self._tree.snapshot()
+            return await to_thread_until_done(self._tree.snapshot, name="workspace-snapshot")
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
         if self._local is not None:
@@ -282,10 +283,15 @@ class DirectWorkspaceSession:
             return await self._local.observation_metadata()
         async with self._lock:
             self._require_open()
-            return WorkspaceObservationMetadata(
-                digest=workspace_digest(self._tree.directories, self._tree.text_files),
-                managed_text_paths=tuple(sorted(self._tree.text_files)),
+            return await to_thread_until_done(
+                self._observation_metadata, name="workspace-observation-metadata"
             )
+
+    def _observation_metadata(self) -> WorkspaceObservationMetadata:
+        return WorkspaceObservationMetadata(
+            digest=workspace_digest(self._tree.directories, self._tree.text_files),
+            managed_text_paths=tuple(sorted(self._tree.text_files)),
+        )
 
     async def read_text(self, path: str) -> str:
         if self._local is not None:

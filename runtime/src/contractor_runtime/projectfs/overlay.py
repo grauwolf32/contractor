@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -23,6 +23,9 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceDiff,
     WorkspaceSnapshot,
     WorkspaceStorageError,
+    _copy_tree,
+    _normalized_path,
+    _remove_tree,
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
@@ -64,6 +67,7 @@ class WorkspaceExportBundle:
     state: bytes = field(repr=False)
     diff: bytes = field(repr=False)
     result_workspace_digest: str
+    generation: int = field(repr=False)
 
 
 class OverlayWorkspaceSession(DirectWorkspaceSession):
@@ -93,6 +97,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         # Managed text bytes of one effective tree. Writes adjust it instead
         # of re-encoding every text file; replacing the tree recounts it once.
         self._text_bytes: tuple[ManagedWorkspaceTree, int] | None = None
+        self._generation = 0
 
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_project_path(path, allow_root=False)
@@ -108,7 +113,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             _require_parent_directory(tree, normalized)
             # The effective tree is always valid, so only the written path's
             # count and byte delta can break an invariant.
-            total = self._managed_text_bytes() + len(encoded)
+            total = await self._managed_text_bytes_async() + len(encoded)
             if kind == "text":
                 total -= len(tree.text_files[normalized].encode("utf-8"))
             elif (
@@ -123,36 +128,138 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
                 raise WorkspaceStorageError("workspace_limit_exceeded")
             tree.text_files[normalized] = text
             self._text_bytes = (tree, total)
+            self._generation += 1
+
+    async def _managed_text_bytes_async(self) -> int:
+        if self._text_bytes is not None and self._text_bytes[0] is self._tree:
+            return self._text_bytes[1]
+        return await to_thread_until_done(self._managed_text_bytes, name="workspace-text-account")
+
+    async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            if self._tree.kind(normalized) == "binary":
+                raise WorkspaceStorageError("binary_file_unsupported")
+            try:
+                current = self._tree.text_files[normalized]
+            except KeyError:
+                raise WorkspaceStorageError("workspace_not_found") from None
+            updated, previous_size, updated_size = await to_thread_until_done(
+                self._transform_text,
+                current,
+                transform,
+                name="workspace-text-update",
+            )
+            total = await self._managed_text_bytes_async() - previous_size + updated_size
+            if (
+                total > self._limits.max_managed_text_bytes
+                or total > self._limits.max_expanded_bytes
+            ):
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            self._tree.text_files[normalized] = updated
+            self._text_bytes = (self._tree, total)
+            self._generation += 1
+
+    def _transform_text(
+        self, current: str, transform: Callable[[str], str]
+    ) -> tuple[str, int, int]:
+        updated = transform(current)
+        return updated, len(current.encode("utf-8")), len(_validate_text(updated, self._limits))
+
+    async def copy_path(self, source: str, destination: str, *, recursive: bool = False) -> None:
+        await self._copy_or_move(source, destination, recursive=recursive, move=False)
+
+    async def move_path(self, source: str, destination: str) -> None:
+        await self._copy_or_move(source, destination, recursive=True, move=True)
+
+    async def _copy_or_move(
+        self, source: str, destination: str, *, recursive: bool, move: bool
+    ) -> None:
+        normalized_source = _normalized_path(source)
+        normalized_destination = _normalized_path(destination)
+        async with self._lock:
+            self._require_open()
+            candidate, total = await to_thread_until_done(
+                self._copy_move_candidate,
+                normalized_source,
+                normalized_destination,
+                recursive,
+                move,
+                name="workspace-path-edit",
+            )
+            self._tree = candidate
+            self._text_bytes = (candidate, total)
+            self._generation += 1
+
+    def _copy_move_candidate(
+        self, source: str, destination: str, recursive: bool, move: bool
+    ) -> tuple[ManagedWorkspaceTree, int]:
+        original = self._tree
+        candidate = original.clone()
+        _copy_tree(candidate, source, destination, recursive=recursive)
+        if move:
+            _remove_tree(candidate, source)
+        if len(candidate.paths()) > self._limits.max_files:
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        for path in candidate.paths() - original.paths():
+            if _normalized_path(path) != path:
+                raise WorkspaceStorageError("workspace_path_invalid")
+            if any(parent not in candidate.directories for parent in parent_paths(path)):
+                raise WorkspaceStorageError("workspace_type_conflict")
+        total = self._managed_text_bytes()
+        for path, text in original.text_files.items():
+            if path not in candidate.text_files:
+                total -= len(text.encode("utf-8"))
+        for path, text in candidate.text_files.items():
+            if path not in original.text_files or original.text_files[path] != text:
+                total += len(_validate_text(text, self._limits))
+                if path in original.text_files:
+                    total -= len(original.text_files[path].encode("utf-8"))
+        if total > self._limits.max_managed_text_bytes or total > self._limits.max_expanded_bytes:
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        return candidate, total
 
     def _managed_text_bytes(self) -> int:
         if self._text_bytes is None or self._text_bytes[0] is not self._tree:
-            total = sum(len(_validate_text(text, None)) for text in self._tree.text_files.values())
+            # Hydration and every mutation validate the effective tree. This
+            # recount is only for accounting, never for revalidating old text.
+            total = sum(len(text.encode("utf-8")) for text in self._tree.text_files.values())
             self._text_bytes = (self._tree, total)
         return self._text_bytes[1]
 
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
         _validate_tree(candidate, self._limits)
         self._tree = candidate
+        self._generation += 1
 
     async def import_state(self, payload: bytes) -> None:
         async with self._lock:
             self._require_open()
             # Linear in the state size, but still too long for the event loop
             # that must keep sending lease heartbeats.
-            candidate = await to_thread_until_done(
-                decode_workspace_state,
-                payload,
-                self._source,
-                self._limits,
-                name="workspace-state-import",
+            candidate, checkpoint = await to_thread_until_done(
+                self._import_candidate, payload, name="workspace-state-import"
             )
             self._tree = candidate
-            self._checkpoint = candidate.clone()
+            self._checkpoint = checkpoint
+            self._generation += 1
+
+    def _import_candidate(
+        self, payload: bytes
+    ) -> tuple[ManagedWorkspaceTree, ManagedWorkspaceTree]:
+        candidate = decode_workspace_state(payload, self._source, self._limits)
+        return candidate, candidate.clone()
 
     async def export_state(self) -> bytes:
         async with self._lock:
             self._require_open()
-            return encode_workspace_state(self._source, self._tree)
+            return await to_thread_until_done(
+                encode_workspace_state,
+                self._source,
+                self._tree,
+                name="workspace-state-export",
+            )
 
     async def changed_paths(self, path: str = "") -> tuple[str, ...]:
         return tuple(entry.path for entry in await self.change_entries(path))
@@ -202,31 +309,43 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         normalized = normalize_project_path(path, allow_root=True)
         async with self._lock:
             self._require_open()
-            if normalized == "":
-                self._tree = self._checkpoint.clone()
-                return
-            if self._tree.kind(normalized) is None and self._checkpoint.kind(normalized) is None:
-                raise WorkspaceStorageError("workspace_not_found")
-            candidate = self._tree.clone()
-            _remove_subtree(candidate, normalized)
-            if self._checkpoint.kind(normalized) is not None:
-                # Parents deleted after the checkpoint come back with the path;
-                # one that has since become a file is not silently replaced.
-                for parent in parent_paths(normalized):
-                    kind = candidate.kind(parent)
-                    if kind is None:
-                        candidate.directories.add(parent)
-                    elif kind != "directory":
-                        raise WorkspaceStorageError("workspace_type_conflict")
-            _copy_subtree(self._checkpoint, candidate, normalized)
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
+            self._tree = await to_thread_until_done(
+                self._rollback_candidate, normalized, name="workspace-rollback"
+            )
+            self._generation += 1
+
+    def _rollback_candidate(self, normalized: str) -> ManagedWorkspaceTree:
+        if normalized == "":
+            return self._checkpoint.clone()
+        if self._tree.kind(normalized) is None and self._checkpoint.kind(normalized) is None:
+            raise WorkspaceStorageError("workspace_not_found")
+        candidate = self._tree.clone()
+        _remove_subtree(candidate, normalized)
+        if self._checkpoint.kind(normalized) is not None:
+            # Parents deleted after the checkpoint come back with the path;
+            # one that has since become a file is not silently replaced.
+            for parent in parent_paths(normalized):
+                kind = candidate.kind(parent)
+                if kind is None:
+                    candidate.directories.add(parent)
+                elif kind != "directory":
+                    raise WorkspaceStorageError("workspace_type_conflict")
+        _copy_subtree(self._checkpoint, candidate, normalized)
+        _validate_tree(candidate, self._limits)
+        return candidate
 
     async def commit_checkpoint(self) -> WorkspaceSnapshot:
         async with self._lock:
             self._require_open()
-            self._checkpoint = self._tree.clone()
-            return self._checkpoint.snapshot()
+            self._checkpoint, snapshot = await to_thread_until_done(
+                self._checkpoint_candidate, name="workspace-checkpoint"
+            )
+            self._generation += 1
+            return snapshot
+
+    def _checkpoint_candidate(self) -> tuple[ManagedWorkspaceTree, WorkspaceSnapshot]:
+        candidate = self._tree.clone()
+        return candidate, candidate.snapshot()
 
     async def prepare_export(
         self, *, max_payload_bytes: int = MAX_WORKSPACE_EXPORT_BYTES
@@ -242,33 +361,38 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             raise WorkspaceStorageError("workspace_limit_exceeded")
         async with self._lock:
             self._require_open()
-            snapshot = self._tree.snapshot()
-            state = encode_workspace_state(self._source, self._tree)
-            diff = _workspace_diff(
-                self._checkpoint,
-                self._tree,
-                "",
+            return await to_thread_until_done(
+                self._prepare_export_bundle,
                 max_payload_bytes,
-                0,
+                name="workspace-export-prepare",
             )
-            if len(state) > max_payload_bytes or diff.truncated:
-                raise WorkspaceStorageError("workspace_limit_exceeded")
-            return WorkspaceExportBundle(
-                snapshot=snapshot,
-                state=state,
-                diff=diff.text.encode("utf-8"),
-                result_workspace_digest=snapshot.digest,
-            )
+
+    def _prepare_export_bundle(self, max_payload_bytes: int) -> WorkspaceExportBundle:
+        snapshot = self._tree.snapshot()
+        state = encode_workspace_state(self._source, self._tree)
+        diff = _workspace_diff(self._checkpoint, self._tree, "", max_payload_bytes, 0)
+        if len(state) > max_payload_bytes or diff.truncated:
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        return WorkspaceExportBundle(
+            snapshot=snapshot,
+            state=state,
+            diff=diff.text.encode("utf-8"),
+            result_workspace_digest=snapshot.digest,
+            generation=self._generation,
+        )
 
     async def commit_export(self, bundle: WorkspaceExportBundle) -> WorkspaceSnapshot:
         """Advance B only if the exported F is still the effective tree."""
 
         async with self._lock:
             self._require_open()
-            if self._tree.snapshot() != bundle.snapshot:
+            if self._generation != bundle.generation:
                 raise WorkspaceStorageError("workspace_export_stale")
-            self._checkpoint = self._tree.clone()
-            return self._checkpoint.snapshot()
+            self._checkpoint = await to_thread_until_done(
+                self._tree.clone, name="workspace-export-commit"
+            )
+            self._generation += 1
+            return bundle.snapshot
 
     async def close(self, *, deadline: float | None = None) -> None:
         async with asyncio.timeout_at(deadline), self._lock:

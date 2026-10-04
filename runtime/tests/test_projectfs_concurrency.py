@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 
 import pytest
@@ -63,6 +64,84 @@ def test_export_snapshot_rejects_concurrent_change_and_preserves_checkpoint(
         await session.commit_export(fresh)
         assert await session.changed_paths() == ()
         assert fresh.snapshot == await session.snapshot()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_export_generation_rejects_rollback_import_and_checkpoint(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        session, provider = await hydrated_workspace(
+            tmp_path, "memory", "overlay", "stale-generation"
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+        await session.write_text("lf.txt", "changed\n")
+        state = await session.export_state()
+
+        bundle = await session.prepare_export()
+        await session.rollback_changes("lf.txt")
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.import_state(state)
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.commit_checkpoint()
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.update_text("lf.txt", lambda text: text + "updated\n")
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.copy_path("lf.txt", "copied.txt")
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+
+        bundle = await session.prepare_export()
+        await session.move_path("copied.txt", "moved.txt")
+        with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
+            await session.commit_export(bundle)
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_state_import_does_not_replace_only_one_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        session, provider = await hydrated_workspace(
+            tmp_path, "memory", "overlay", "cancelled-state-import"
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+        await session.write_text("lf.txt", "changed\n")
+        before = await session.snapshot()
+        payload = await session.export_state()
+        started, release = threading.Event(), threading.Event()
+        original = session._import_candidate
+
+        def delayed(data: bytes):
+            started.set()
+            if not release.wait(5):
+                raise AssertionError("state import worker was never released")
+            return original(data)
+
+        monkeypatch.setattr(session, "_import_candidate", delayed)
+        task = asyncio.create_task(session.import_state(payload))
+        assert await asyncio.to_thread(started.wait, 2)
+        task.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert await session.snapshot() == before
+        assert await session.changed_paths() == ("lf.txt",)
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
