@@ -189,8 +189,13 @@ class GatewayFailureSignatures(WireModel):
         return self
 
 
+# LM Studio's answer when its inference engine process died (2026-10-04 OOM).
+_ENGINE_LOST = "Engine protocol predict request failed: fetch failed"
+
+
 def default_gateway_failure_signatures() -> GatewayFailureSignatures:
-    """The openai-compatible@1 baseline: LM Studio unloads observed through LiteLLM.
+    """The openai-compatible@1 baseline: LM Studio unloads and engine process
+    loss observed through LiteLLM.
 
     Mirrors contracts.DefaultGatewayFailureSignatures on the Go side.
     """
@@ -200,10 +205,12 @@ def default_gateway_failure_signatures() -> GatewayFailureSignatures:
             GatewayFailureSignature(
                 status=400, message_equals="Model unloaded by user or API request."
             ),
+            GatewayFailureSignature(status=400, message_equals=_ENGINE_LOST),
             GatewayFailureSignature(status=400, litellm_wrapped="Model is unloaded."),
             GatewayFailureSignature(
                 status=400, litellm_wrapped="Model unloaded by user or API request."
             ),
+            GatewayFailureSignature(status=400, litellm_wrapped=_ENGINE_LOST),
         ],
         permanent_codes=["insufficient_quota", "budget_exceeded", "context_length_exceeded"],
     )

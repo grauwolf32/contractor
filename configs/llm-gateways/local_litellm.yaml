@@ -14,7 +14,7 @@ spec:
 
 
   # Provider-specific failure classification. Omitted here on purpose: the
-  # openai-compatible@1 default already covers LM Studio unload responses seen
+  # openai-compatible@1 default already covers LM Studio unload and engine-loss responses seen
   # through LiteLLM, and declaring the block changes this Gateway's digest,
   # which credentials and pinned RuntimeConfigs are bound to. Declare it on a
   # new Gateway version when a provider reports availability with another

@@ -173,7 +173,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 	if baselineGateway.FailureSignatures != nil {
 		t.Fatalf("undeclared signatures were materialized on the body: %+v", baselineGateway.FailureSignatures)
 	}
-	if effective := baselineGateway.EffectiveFailureSignatures(); len(effective.ModelUnavailable) != 4 || len(effective.PermanentCodes) != 3 {
+	if effective := baselineGateway.EffectiveFailureSignatures(); len(effective.ModelUnavailable) != 6 || len(effective.PermanentCodes) != 3 {
 		t.Fatalf("protocol default = %+v", effective)
 	}
 
