@@ -69,14 +69,12 @@ func TestFindingProvenanceConsistentReadsWithSingleConnection(t *testing.T) {
 		auditdomain.ProposedCheck{Objective: "Verify the candidate", Method: "run-check"})
 	seedAuditFindingAttemptHistory(t, ctx, pool, auditID, findingID, "receipt-provenance")
 	if _, err := pool.Exec(ctx, `
-INSERT INTO audit_proposal_items (
-    audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
-    proposal_ref, proposal_digest
-)
-SELECT audit_id, receipt_id, 0, 'round-finding-attempts', 'item-finding-attempts',
-       proposal_ref->'ref', proposal_ref->>'digest'
-  FROM finding_proposal_audit_holds
- WHERE audit_id = $1 AND receipt_id = 'receipt-provenance'`, auditID); err != nil {
+UPDATE audit_items AS item
+   SET proposal_receipt_id = hold.receipt_id, proposal_check_ordinal = 0,
+       proposal_ref = hold.proposal_ref->'ref', proposal_digest = hold.proposal_ref->>'digest'
+  FROM finding_proposal_audit_holds AS hold
+ WHERE item.item_id = 'item-finding-attempts'
+   AND hold.audit_id = $1 AND hold.receipt_id = 'receipt-provenance'`, auditID); err != nil {
 		t.Fatal(err)
 	}
 	setCurrent := func(assessment string) {

@@ -402,7 +402,7 @@ func assertInvalidMetadataRunRequestsAreAtomic(
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM workflow_runs WHERE owner_id = $1`, ownerID).Scan(&after); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM workflow_run_metadata_labels`).Scan(&labelRows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM workflow_runs WHERE metadata_labels <> '{}'::jsonb`).Scan(&labelRows); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'run'`).Scan(&runScopes); err != nil {

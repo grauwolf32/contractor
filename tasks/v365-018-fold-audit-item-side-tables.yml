@@ -3,7 +3,8 @@ id: V365-018
 title: "Fold audit_coverage_rows and audit_proposal_items into audit_items"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: b2deb2005f4738b5d8c49c0d315ba73cac5047da
 depends_on: [V365-001]
 languages: [go, sql]
 goal: "Remove audit_coverage_rows and audit_proposal_items (both 1:1 with the item) by storing its data on the parent row."

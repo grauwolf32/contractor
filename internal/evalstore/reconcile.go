@@ -183,13 +183,14 @@ func (s *Store) Dependencies(ctx context.Context, owner, id, after string, limit
 		return nil, evaldomain.Failure("eval_invalid")
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT d.project_id
-FROM eval_project_dependencies d
-JOIN projects p USING(project_id)
-WHERE d.owner_id=$1
-    AND d.experiment_id=$2
-    AND d.project_id>$3
-ORDER BY d.project_id LIMIT $4
+SELECT s.execution_project_id
+FROM eval_submissions s
+JOIN eval_experiments e USING(experiment_id)
+JOIN projects p ON p.project_id=s.execution_project_id
+WHERE e.owner_id=$1
+    AND s.experiment_id=$2
+    AND s.execution_project_id>$3
+ORDER BY s.execution_project_id LIMIT $4
 `, owner, id, after, limit)
 	if err != nil {
 		return nil, err

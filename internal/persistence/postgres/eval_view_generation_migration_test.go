@@ -35,9 +35,10 @@ VALUES ('experiment',4,3,'view-3');
 	if err != nil || !slices.Contains(result.AppliedVersions, 78) {
 		t.Fatalf("upgrade view generations = %+v, %v", result, err)
 	}
+	// Later migrations fold the surviving generation into the queue row.
 	var generations []int64
 	if err := pool.QueryRow(ctx, `
-SELECT array_agg(generation ORDER BY generation) FROM eval_view_generations
+SELECT array_agg(generation ORDER BY generation) FROM eval_projection_queue WHERE generation IS NOT NULL
 `).Scan(&generations); err != nil {
 		t.Fatal(err)
 	}
@@ -45,18 +46,8 @@ SELECT array_agg(generation ORDER BY generation) FROM eval_view_generations
 		t.Fatalf("retained generations=%v, want only the current generation 3", generations)
 	}
 	var pgErr *pgconn.PgError
-	for _, statement := range []string{
-		`DELETE FROM eval_view_generations WHERE experiment_id='experiment'`,
-		`UPDATE eval_view_generations SET summary=summary`,
-	} {
-		_, err = pool.Exec(ctx, statement)
-		if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
-			t.Fatalf("current generation changed by %s: %v", statement, err)
-		}
-	}
 	_, err = pool.Exec(ctx, `
-INSERT INTO eval_view_generations(experiment_id,generation,snapshot_id,summary,content_sha256)
-VALUES ('experiment',4,'view-4',convert_to('{}','UTF8'),'not-a-digest')`)
+UPDATE eval_projection_queue SET content_sha256 = 'not-a-digest' WHERE experiment_id = 'experiment'`)
 	if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
 		t.Fatalf("malformed content digest accepted: %v", err)
 	}

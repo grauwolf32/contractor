@@ -76,6 +76,7 @@ Curated Audit standard packages live in the additional non-YAML
 | [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
 | [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
 | [34](34-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
+| [Database ERD](database-erd.html) | Interactive PostgreSQL schema at migration 000096: 71 tables, keys, each table's purpose and the processes that use it, and where the tables removed by V365 went; regenerate with `make docs-erd` ([generator](../../scripts/erd/README.md)) |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
 | [OpenAPI Audit scans](openapi-audit-scans.md) | Released: assigned SQLMap requests and pinned Nuclei URLs; prepare-role OpenAPI generation specified but not delivered |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |

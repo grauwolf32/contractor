@@ -18,7 +18,7 @@ publication_mode, audit_execution_id, audit_submission_key, audit_completion,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
-created_at, updated_at, started_at, finished_at`
+created_at, updated_at, started_at, finished_at, metadata_labels`
 
 type rowScanner interface {
 	Scan(...any) error
@@ -37,6 +37,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var claimID *string
 	var claimedAt *time.Time
 	var claimExpiresAt *time.Time
+	var metadataLabels []byte
 	if err := row.Scan(
 		&result.RunID, &result.OwnerID, &result.ProjectID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
@@ -45,7 +46,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
-		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
+		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt, &metadataLabels,
 	); err != nil {
 		return WorkflowRun{}, err
 	}
@@ -109,6 +110,13 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig labels: projection mismatch")
 	}
 	result.RuntimeLabels = append([]string{}, result.RuntimeLabels...)
+	result.MetadataLabels = make(RunMetadataLabels)
+	if err := json.Unmarshal(metadataLabels, &result.MetadataLabels); err != nil {
+		return WorkflowRun{}, fmt.Errorf("decode persisted Run metadata labels: %w", err)
+	}
+	if err := result.MetadataLabels.Validate(); err != nil {
+		return WorkflowRun{}, fmt.Errorf("validate persisted Run metadata labels: %w", err)
+	}
 	if claimID != nil {
 		if claimedAt == nil || claimExpiresAt == nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun claim: incomplete persisted claim")

@@ -136,7 +136,7 @@ func TestAuditRejectsTerminalDeadlineResumeWithoutChangingRetainedState(t *testi
 			for _, sql := range []string{
 				`UPDATE audit_rounds SET state='closed' WHERE audit_id='audit-time'`,
 				`UPDATE audit_items SET state='settled',final_disposition=CASE WHEN item_key='accepted' THEN 'accepted-result' WHEN item_key='cancelled' THEN 'execution-cancelled' ELSE 'excluded' END,accepted_result_ref=CASE WHEN item_key='accepted' THEN task_ref END,accepted_result_digest=CASE WHEN item_key='accepted' THEN task_digest END WHERE audit_id='audit-time'`,
-				`UPDATE audit_coverage_rows SET gaps='["audit-closed-before-dispatch"]'::jsonb WHERE audit_id='audit-time' AND item_key IN ('remaining','manual')`,
+				`UPDATE audit_items SET coverage_gaps='["audit-closed-before-dispatch"]'::jsonb WHERE audit_id='audit-time' AND item_key IN ('remaining','manual')`,
 				`UPDATE audit_review_requests SET expires_at=clock_timestamp()-interval '1 hour' WHERE audit_id='audit-time'`,
 				`INSERT INTO audit_artifact_links(audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance,display_ref) SELECT audit_id,'report/machine',task_ref,task_digest,'application/json',1,'{}'::jsonb,'Historical report' FROM audit_items WHERE audit_id='audit-time' AND item_key='accepted'`,
 			} {
@@ -232,7 +232,6 @@ func auditTimeControlSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.P
 'audit', (SELECT to_jsonb(a) FROM audits a WHERE audit_id='audit-time'),
 'rounds', (SELECT jsonb_agg(to_jsonb(r) ORDER BY round_id) FROM audit_rounds r WHERE audit_id='audit-time'),
 'items', (SELECT jsonb_agg(to_jsonb(i) ORDER BY item_id) FROM audit_items i WHERE audit_id='audit-time'),
-'coverage', (SELECT jsonb_agg(to_jsonb(c) ORDER BY item_id) FROM audit_coverage_rows c WHERE audit_id='audit-time'),
 'reviews', (SELECT jsonb_agg(to_jsonb(r) ORDER BY request_id) FROM audit_review_requests r WHERE audit_id='audit-time'),
 'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY logical_key) FROM audit_artifact_links l WHERE audit_id='audit-time'),
 'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence_number) FROM audit_events e WHERE audit_id='audit-time'),

@@ -32,7 +32,7 @@ func TestPostgresNativeLifecycleRetainsOnlyCurrentViewGeneration(t *testing.T) {
 	}
 	var generations, members, pairs int
 	if err := h.pool.QueryRow(t.Context(), `
-SELECT (SELECT count(*) FROM eval_view_generations WHERE experiment_id = $1),
+SELECT (SELECT count(*) FROM eval_projection_queue WHERE experiment_id = $1 AND generation IS NOT NULL),
     (SELECT 2 * count(*) FROM eval_view_pairs WHERE experiment_id = $1),
     (SELECT count(*) FROM eval_view_pairs WHERE experiment_id = $1)
 `, e.ID).Scan(&generations, &members, &pairs); err != nil {

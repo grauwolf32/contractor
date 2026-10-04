@@ -21,11 +21,20 @@ manifest_ref, manifest_digest, submission_key, request_digest, run_id,
 state, terminal_outcome, terminal_run_generation, terminal_run_sequence,
 terminal_observed_at, run_provenance, run_deleted_at, created_at, updated_at`
 
-const receiptColumns = `
-receipt_id, audit_id, execution_id, run_id,
-terminal_outcome, terminal_run_generation, terminal_run_sequence,
-disposition, source_output_ref, source_output_digest, retained_refs,
-error_code, request_digest, created_at`
+// collectionReceiptProjection selects a collected AuditExecution aliased as
+// its collection receipt, in scanReceipt order.
+func collectionReceiptProjection(alias string) string {
+	return alias + ".collection_receipt_id AS receipt_id, " + alias + ".audit_id, " +
+		alias + ".execution_id, " + alias + ".run_id, " + alias + ".terminal_outcome, " +
+		alias + ".terminal_run_generation, " + alias + ".terminal_run_sequence, " +
+		alias + ".collection_disposition AS disposition, " +
+		alias + ".collection_source_output_ref AS source_output_ref, " +
+		alias + ".collection_source_output_digest AS source_output_digest, " +
+		alias + ".collection_retained_refs AS retained_refs, " +
+		alias + ".collection_error_code AS error_code, " +
+		alias + ".collection_request_digest AS request_digest, " +
+		alias + ".collected_at AS created_at"
+}
 
 func (s *PostgresStore) GetRound(ctx context.Context, auditID, roundID string) (Round, error) {
 	if err := validateID("auditID", auditID); err != nil {
@@ -581,13 +590,13 @@ func (s *PostgresStore) CollectionDispositionCounts(
 	}
 	var result CollectionDispositionCounts
 	err := s.db.QueryRow(ctx, `
-SELECT count(*) FILTER (WHERE disposition = 'accepted-result'),
-       count(*) FILTER (WHERE disposition = 'missing-output'),
-       count(*) FILTER (WHERE disposition = 'invalid-result'),
-       count(*) FILTER (WHERE disposition = 'execution-failed'),
-       count(*) FILTER (WHERE disposition = 'execution-cancelled'),
-       count(*) FILTER (WHERE disposition = 'collection-contract-invalid')
-  FROM audit_collection_receipts WHERE audit_id = $1`, auditID).Scan(
+SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
+       count(*) FILTER (WHERE collection_disposition = 'missing-output'),
+       count(*) FILTER (WHERE collection_disposition = 'invalid-result'),
+       count(*) FILTER (WHERE collection_disposition = 'execution-failed'),
+       count(*) FILTER (WHERE collection_disposition = 'execution-cancelled'),
+       count(*) FILTER (WHERE collection_disposition = 'collection-contract-invalid')
+  FROM audit_executions WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL`, auditID).Scan(
 		&result.AcceptedResult, &result.MissingOutput, &result.InvalidResult,
 		&result.ExecutionFailed, &result.ExecutionCancelled,
 		&result.ContractInvalid,
@@ -665,13 +674,7 @@ SELECT max_concurrent_runs FROM scheduler_settings WHERE singleton = true`).Scan
 	if err != nil {
 		return ReconcileSnapshot{}, err
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT receipt_id, audit_id, execution_id, run_id,
-       terminal_outcome, terminal_run_generation, terminal_run_sequence,
-       disposition, error_code, request_digest, created_at
-  FROM audit_collection_receipts
- WHERE audit_id = $1 ORDER BY created_at DESC, receipt_id DESC
- LIMIT $2`, audit.AuditID, MaxReconcileRows+1)
+	rows, err := s.db.Query(ctx, listCollectionReceiptsSQL, audit.AuditID, MaxReconcileRows+1)
 	if err != nil {
 		return ReconcileSnapshot{}, fmt.Errorf("list Audit collection receipts: %w", err)
 	}

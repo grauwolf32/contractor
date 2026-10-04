@@ -40,14 +40,14 @@ func testLegacyReportWriteRejection(t *testing.T, ctx context.Context, pool *pgx
 func testLegacyReportCandidateRejection(t *testing.T, ctx context.Context, pool *pgxpool.Pool, service *Service, owner string, current auditstore.ProposeReportParams, candidate auditstore.ReportCandidate) {
 	t.Helper()
 	var original []byte
-	if err := pool.QueryRow(ctx, `SELECT summary_link FROM audit_report_candidates WHERE audit_id=$1`, current.Claim.AuditID).Scan(&original); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT report_summary_link FROM audit_review_requests WHERE audit_id=$1 AND subject_kind='audit-report'`, current.Claim.AuditID).Scan(&original); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE audit_report_candidates SET summary_link=jsonb_set(summary_link, '{artifact,mediaType}', '"text/plain"'::jsonb) WHERE audit_id=$1`, current.Claim.AuditID); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET report_summary_link=jsonb_set(report_summary_link, '{artifact,mediaType}', '"text/plain"'::jsonb) WHERE audit_id=$1 AND subject_kind='audit-report'`, current.Claim.AuditID); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if _, err := pool.Exec(ctx, `UPDATE audit_report_candidates SET summary_link=$2::jsonb WHERE audit_id=$1`, current.Claim.AuditID, original); err != nil {
+		if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET report_summary_link=$2::jsonb WHERE audit_id=$1 AND subject_kind='audit-report'`, current.Claim.AuditID, original); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -135,8 +135,8 @@ func assertReportOperationReadOnly(t *testing.T, ctx context.Context, pool *pgxp
 		t.Helper()
 		state := map[string]string{}
 		for _, table := range []string{
-			"audits", "audit_rounds", "audit_items", "audit_coverage_rows", "audit_artifact_links",
-			"audit_report_candidates", "audit_review_requests", "audit_review_decisions", "audit_events", "audit_idempotency",
+			"audits", "audit_rounds", "audit_items", "audit_artifact_links",
+			"audit_review_requests", "audit_review_decisions", "audit_events", "audit_idempotency",
 			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions", "artifact_bindings",
 		} {
 			var data string

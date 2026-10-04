@@ -26,8 +26,8 @@ func (s *Store) ProjectBlocked(ctx context.Context, owner, project string) (bool
 	var blocked bool
 	err := s.db.QueryRow(ctx, `
 SELECT EXISTS(SELECT 1 FROM eval_experiments e WHERE e.owner_id=$1 AND e.project_id=$2 AND
-    (e.outstanding_count>0 OR EXISTS(SELECT 1 FROM eval_project_dependencies d JOIN projects p ON p.project_id=d.project_id WHERE d.experiment_id=e.experiment_id)))
-    OR EXISTS(SELECT 1 FROM eval_project_dependencies d JOIN eval_submissions s USING(experiment_id,member_id) WHERE d.owner_id=$1 AND d.project_id=$2 AND s.state IN ('intent','accepted'))
+    (e.outstanding_count>0 OR EXISTS(SELECT 1 FROM eval_submissions s JOIN projects p ON p.project_id=s.execution_project_id WHERE s.experiment_id=e.experiment_id)))
+    OR EXISTS(SELECT 1 FROM eval_submissions s JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND s.execution_project_id=$2 AND s.state IN ('intent','accepted'))
 `, owner, project).Scan(&blocked)
 	return blocked, err
 }
@@ -54,9 +54,9 @@ SELECT EXISTS(SELECT 1
     FROM eval_suboperations
     WHERE experiment_id=$1
         AND state='intent') OR EXISTS(SELECT 1
-    FROM eval_project_dependencies d
-    JOIN projects p ON p.project_id=d.project_id
-    WHERE d.experiment_id=$1)
+    FROM eval_submissions s
+    JOIN projects p ON p.project_id=s.execution_project_id
+    WHERE s.experiment_id=$1)
 `, id).Scan(&blocked)
 	if err != nil {
 		return err

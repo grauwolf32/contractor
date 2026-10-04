@@ -3,8 +3,8 @@ package projectstore
 // SQL statements for store.go.
 
 // listProjectsSQL returns one page of an owner's projects, newest first,
-// optionally filtered by kind ($2). Projects listed in
-// eval_project_dependencies are hidden. $3/$4 are the (created_at, project_id)
+// optionally filtered by kind ($2). Workspace Projects owned by an eval
+// submission are hidden. $3/$4 are the (created_at, project_id)
 // keyset cursor of the previous page; a NULL $3 starts at the first page.
 // Used by PostgresStore.List.
 var listProjectsSQL = `
@@ -16,8 +16,9 @@ FROM projects
 WHERE owner_id = $1
   AND ($2::text IS NULL OR kind = $2)
   AND NOT EXISTS (
-      SELECT 1 FROM eval_project_dependencies d
-      WHERE d.owner_id = projects.owner_id AND d.project_id = projects.project_id
+      SELECT 1 FROM eval_submissions s
+      JOIN eval_experiments e USING (experiment_id)
+      WHERE e.owner_id = projects.owner_id AND s.execution_project_id = projects.project_id
   )
   AND ($3::timestamptz IS NULL OR (created_at, project_id) < ($3, $4))
 ORDER BY created_at DESC, project_id DESC

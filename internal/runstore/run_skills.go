@@ -32,10 +32,6 @@ WHERE run_id = $1
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("lock WorkflowRun Skill initialization: %w", err)
 	}
-	run.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
-	if err != nil {
-		return WorkflowRun{}, fmt.Errorf("load WorkflowRun Skill initialization metadata labels: %w", err)
-	}
 	return run, nil
 }
 

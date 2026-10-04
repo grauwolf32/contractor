@@ -180,7 +180,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	}{
 		{"not-tested", 0, 0, 0, 1}, {"blocked", 0, 0, 1, 0}, {"violated", 1, 1, 0, 0}, {"satisfied", 1, 0, 0, 0}, {"traced-partial", 0, 0, 1, 0}, {"not-applicable", 1, 0, 0, 0},
 	} {
-		if _, err := pool.Exec(ctx, `UPDATE audit_coverage_rows SET status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
+		if _, err := pool.Exec(ctx, `UPDATE audit_items SET coverage_status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
 			t.Fatal(err)
 		}
 		summary, err := service.GetWorkspace(ctx, project.OwnerID, draft.AuditID)
@@ -1169,10 +1169,12 @@ INSERT INTO audit_rounds (
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_items (
     item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state
+    task_ref, task_digest, origin, workflow_role, state,
+    coverage_status, coverage_requested, coverage_completed, coverage_gaps
 ) VALUES (
     'item-finding-attempts', $1, 'round-finding-attempts', 'check-one', 0,
-    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready'
+    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
+    'not-tested', '[]', '[]', '[]'
 )`, auditID, taskRef, digest("task"), origin); err != nil {
 			return err
 		}
@@ -1232,15 +1234,12 @@ INSERT INTO audit_execution_items (
 			}
 		}
 		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_collection_receipts (
-    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
-    terminal_run_generation, terminal_run_sequence, disposition,
-    source_output_ref, source_output_digest, retained_refs, request_digest
-) VALUES (
-    'collection-attempt-two', $1, 'execution-attempt-two',
-    'deleted-run-attempt-two', 'succeeded', 'generation-one', 2,
-    'accepted-result', $2::jsonb, $3, '[]'::jsonb, $4
-)`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
+UPDATE audit_executions
+   SET collection_receipt_id = 'collection-attempt-two', collection_disposition = 'accepted-result',
+       collection_source_output_ref = $2::jsonb, collection_source_output_digest = $3,
+       collection_retained_refs = '[]'::jsonb, collection_request_digest = $4,
+       collected_at = clock_timestamp()
+ WHERE audit_id = $1 AND execution_id = 'execution-attempt-two'`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -1351,9 +1350,9 @@ INSERT INTO finding_proposal_receipts (
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-INSERT INTO finding_proposal_retention (
-    receipt_id, state, source_run_deleted_at
-) VALUES ($1, 'audit-held', clock_timestamp())`, receiptID); err != nil {
+UPDATE finding_proposal_receipts
+   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
+ WHERE receipt_id = $1`, receiptID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `

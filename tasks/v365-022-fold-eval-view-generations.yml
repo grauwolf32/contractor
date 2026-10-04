@@ -3,7 +3,8 @@ id: V365-022
 title: "Fold eval_view_generations into eval_projection_queue"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 073fb438d4a8d54e39c180aaa9c5615c3a9f9a4d
 depends_on: [V365-003, V365-010]
 languages: [go, sql]
 goal: "Remove eval_view_generations (one row per experiment since migration 000078) by storing its data on the parent row."

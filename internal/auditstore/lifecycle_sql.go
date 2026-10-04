@@ -20,60 +20,57 @@ WITH live_claim AS MATERIALIZED (
       FROM audits AS audit JOIN live_claim USING (audit_id)
      WHERE audit.state IN ('finalizing', 'cancelling', 'deleting')
      FOR UPDATE OF audit
-), candidates AS MATERIALIZED (
-    SELECT item.item_id
+), locked_items AS MATERIALIZED (
+    SELECT item.item_id, item.last_execution_item_id IS NOT NULL AS had_attempt
       FROM audit_items AS item JOIN target_audit USING (audit_id)
      WHERE item.state IN ('pending', 'awaiting_review', 'ready')
      ORDER BY item.round_id, item.ordinal, item.item_id
      FOR UPDATE OF item SKIP LOCKED
      LIMIT $4
-), changed_items AS (
-    UPDATE audit_items AS item
-       SET state = 'settled',
-           final_disposition = CASE WHEN target_audit.state = 'finalizing'
-               THEN 'excluded' ELSE 'execution-cancelled' END,
-           updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
-      FROM candidates, target_audit
-     WHERE item.item_id = candidates.item_id
-    RETURNING item.item_id, item.audit_id,
-              item.last_execution_item_id IS NOT NULL AS had_attempt
-), settlement AS (
-    SELECT changed_items.item_id, changed_items.had_attempt, target_audit.state,
+), candidates AS MATERIALIZED (
+    SELECT locked.item_id, locked.had_attempt, target_audit.state,
            CASE
-               WHEN changed_items.had_attempt AND target_audit.state = 'finalizing'
+               WHEN locked.had_attempt AND target_audit.state = 'finalizing'
                    THEN 'audit-closed-before-retry'
-               WHEN changed_items.had_attempt THEN 'audit-cancelled-before-retry'
+               WHEN locked.had_attempt THEN 'audit-cancelled-before-retry'
                WHEN target_audit.state = 'finalizing' THEN 'audit-closed-before-dispatch'
                ELSE 'audit-cancelled-before-dispatch'
            END AS gap,
            CASE
-               WHEN changed_items.had_attempt AND target_audit.state = 'finalizing'
+               WHEN locked.had_attempt AND target_audit.state = 'finalizing'
                    THEN 'Audit dispatch closed before a retry of this item was submitted.'
-               WHEN changed_items.had_attempt
+               WHEN locked.had_attempt
                    THEN 'Audit cancellation closed this item before a retry was submitted.'
                WHEN target_audit.state = 'finalizing'
                    THEN 'Audit dispatch closed before this item was submitted.'
                ELSE 'Audit cancellation closed this item before dispatch.'
            END AS message
-      FROM changed_items CROSS JOIN target_audit
-), changed_coverage AS (
-    UPDATE audit_coverage_rows AS coverage
-       SET status = CASE WHEN settlement.had_attempt THEN coverage.status
-               WHEN settlement.state = 'finalizing' THEN 'not-tested' ELSE 'blocked' END,
-           gaps = CASE
-               WHEN coverage.gaps ? settlement.gap
-               THEN coverage.gaps
-               ELSE coverage.gaps || jsonb_build_array(settlement.gap)
+      FROM locked_items AS locked CROSS JOIN target_audit
+), changed_items AS (
+    -- Settling an item records the closure gap on its coverage in the same
+    -- row update.
+    UPDATE audit_items AS item
+       SET state = 'settled',
+           final_disposition = CASE WHEN candidates.state = 'finalizing'
+               THEN 'excluded' ELSE 'execution-cancelled' END,
+           updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond'),
+           coverage_status = CASE WHEN candidates.had_attempt THEN item.coverage_status
+               WHEN candidates.state = 'finalizing' THEN 'not-tested' ELSE 'blocked' END,
+           coverage_gaps = CASE
+               WHEN item.coverage_gaps ? candidates.gap
+               THEN item.coverage_gaps
+               ELSE item.coverage_gaps || jsonb_build_array(candidates.gap)
            END,
-           rationale = CASE
-               WHEN NOT settlement.had_attempt THEN settlement.message
-               WHEN octet_length(concat_ws(' ', nullif(coverage.rationale, ''), settlement.message)) <= 4096
-                   THEN concat_ws(' ', nullif(coverage.rationale, ''), settlement.message)
-               ELSE coverage.rationale
+           coverage_rationale = CASE
+               WHEN NOT candidates.had_attempt THEN candidates.message
+               WHEN octet_length(concat_ws(' ', nullif(item.coverage_rationale, ''), candidates.message)) <= 4096
+                   THEN concat_ws(' ', nullif(item.coverage_rationale, ''), candidates.message)
+               ELSE item.coverage_rationale
            END,
-           updated_at = GREATEST(clock_timestamp(), coverage.updated_at + interval '1 microsecond')
-      FROM settlement
-     WHERE coverage.item_id = settlement.item_id
+           coverage_updated_at = GREATEST(clock_timestamp(), item.coverage_updated_at + interval '1 microsecond')
+      FROM candidates
+     WHERE item.item_id = candidates.item_id
+    RETURNING item.item_id, item.audit_id
 ), expired_reviews AS (
     UPDATE audit_review_requests AS review
        SET state = 'expired', revision = review.revision + 1,

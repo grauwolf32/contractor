@@ -3,7 +3,8 @@ id: V365-015
 title: "Fold workflow_run_metadata_labels into workflow_runs"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: 8156e0632880b1622067da5966db4e7aa219fc06
 depends_on: [V365-002]
 languages: [go, sql]
 goal: "Remove workflow_run_metadata_labels (immutable labels created with the Run) by storing its data on the parent row."

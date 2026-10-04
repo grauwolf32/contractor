@@ -3,7 +3,18 @@ id: V365-016
 title: "Fold planner_execution_reports into stage_metrics"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: deferred
+deferral:
+  date: "2026-10-04"
+  previous_status: pending
+  reason: >-
+    Not a 1:1 extension. A stage can hold several immutable Planner reports
+    (a recovery placeholder and the complete report, resolved by a race that
+    prefers the complete one), while stage_metrics is a derived row that is
+    rebuilt and expires. Folding the raw input into the derived row would
+    drop immutability and re-implement the placeholder race to remove one
+    table.
+  reactivate_when: Explicit user approval of making Planner reports a mutable slot on stage_metrics.
 depends_on: [V365-002]
 languages: [go, sql]
 goal: "Remove planner_execution_reports (staging input of the stage_metrics rebuild) by storing its data on the parent row."

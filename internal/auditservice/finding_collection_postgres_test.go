@@ -107,9 +107,6 @@ workflow_schema_version, workflow_configuration_ref, workflow_closure_digest, pr
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_retention(receipt_id,state) VALUES($1,'source-held')`, "receipt-"+suffix); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {

@@ -15,11 +15,11 @@ WITH anchors AS (
        AND assessment.item_id IS NOT NULL
     UNION
     SELECT contribution.finding_id, source.audit_id,
-           source.receipt_id, source.item_id
-      FROM audit_proposal_items AS source
+           source.proposal_receipt_id, source.item_id
+      FROM audit_items AS source
       JOIN audit_finding_contributions AS contribution
         ON contribution.audit_id = source.audit_id
-       AND contribution.receipt_id = source.receipt_id
+       AND contribution.receipt_id = source.proposal_receipt_id
      WHERE source.audit_id = $1 AND contribution.finding_id = $2
 ), records AS (
     SELECT contribution.created_at, 'proposal:' || contribution.receipt_id AS record_id,

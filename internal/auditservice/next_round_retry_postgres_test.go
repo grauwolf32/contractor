@@ -168,7 +168,7 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 		t.Fatalf("next-Round proposal sources = %+v", seenSources)
 	}
 	var consumed, pendingApprovals int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_proposal_items WHERE audit_id=$1`, auditID).Scan(&consumed); err != nil || consumed != 2 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id=$1 AND proposal_receipt_id IS NOT NULL`, auditID).Scan(&consumed); err != nil || consumed != 2 {
 		t.Fatalf("accepted proposal checks = (%d, %v)", consumed, err)
 	}
 	if err := pool.QueryRow(ctx, `

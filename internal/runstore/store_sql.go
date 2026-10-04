@@ -44,16 +44,10 @@ WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
+    runtime_labels, runtime_config_snapshot, project_http_target_snapshot, metadata_labels,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb, 'initializing', 'created', '')
 RETURNING *
-), inserted_labels AS (
-    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-    SELECT inserted_run.run_id,
-           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
-    FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($12::jsonb) AS entry
 )
 SELECT `
 
@@ -68,29 +62,25 @@ INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
-    request_idempotency_key, request_digest,
+    request_idempotency_key, request_digest, metadata_labels,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12, $13, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING *
-), inserted_labels AS (
-    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-    SELECT inserted_run.run_id,
-           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
-    FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($14::jsonb) AS entry
 )
 SELECT `
 
 // listRunsSQL returns one keyset page of an owner's Runs, newest first, with
 // optional state, Project, lifecycle (active/terminal) and all-labels-match
-// filters. Each row carries a deletable flag (terminal, all allocations
-// released, and for Audit-managed Runs a collected AuditExecution with a
-// receipt) and the metadata labels as a JSON object.
+// filters; the labels filter is a containment match on the Run's labels.
+// Each row carries a deletable flag (terminal, all allocations released, and
+// for Audit-managed Runs a collected AuditExecution with a receipt) and the
+// metadata labels as a JSON object.
 // Used by PostgresStore.ListRuns.
 var listRunsSQL = `
 WITH page AS (
     SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at,
+           metadata_labels,
            state IN ('succeeded', 'failed', 'cancelled')
            AND NOT EXISTS (
                SELECT 1
@@ -105,14 +95,11 @@ WITH page AS (
                OR EXISTS (
                    SELECT 1
                      FROM audit_executions AS audit_execution
-                     JOIN audit_collection_receipts AS receipt
-                       ON receipt.execution_id = audit_execution.execution_id
-                      AND receipt.audit_id = audit_execution.audit_id
-                      AND receipt.run_id = workflow_runs.run_id
                     WHERE audit_execution.execution_id = workflow_runs.audit_execution_id
                       AND audit_execution.run_id = workflow_runs.run_id
                       AND audit_execution.state = 'collected'
                       AND audit_execution.run_provenance IS NOT NULL
+                      AND audit_execution.collection_receipt_id IS NOT NULL
                )
            ) AS deletable
     FROM workflow_runs
@@ -128,29 +115,22 @@ WITH page AS (
       AND (
           cardinality($6::text[]) = 0
           OR (
-              SELECT count(*)
-              FROM workflow_run_metadata_labels AS matched
-              JOIN unnest($6::text[], $7::text[]) AS required(label_key, label_value)
-                ON matched.label_key = required.label_key
-               AND matched.label_value = required.label_value
-              WHERE matched.run_id = workflow_runs.run_id
-          ) = cardinality($6::text[])
+              -- Exact duplicates are removed before the query, so a repeated
+              -- key means contradictory values: nothing can match.
+              (SELECT count(DISTINCT label_key) FROM unnest($6::text[]) AS label_key) = cardinality($6::text[])
+              AND metadata_labels @> (
+                  SELECT jsonb_object_agg(required.label_key, required.label_value)
+                  FROM unnest($6::text[], $7::text[]) AS required(label_key, label_value)
+              )
+          )
       )
     ORDER BY created_at DESC, run_id DESC
     LIMIT $5
 )
-SELECT page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-       page.created_at, page.updated_at, page.finished_at, page.deletable,
-       COALESCE(
-           jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
-               FILTER (WHERE labels.label_key IS NOT NULL),
-           '{}'::jsonb
-       )
+SELECT run_id, project_id, workflow_name, workflow_version, state,
+       created_at, updated_at, finished_at, deletable, metadata_labels
 FROM page
-LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
-GROUP BY page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-         page.created_at, page.updated_at, page.finished_at, page.deletable
-ORDER BY page.created_at DESC, page.run_id DESC`
+ORDER BY created_at DESC, run_id DESC`
 
 // transitionRunSQL moves a Run from expected state $2 to $3 (state CAS) and
 // records the reason. started_at is set on first entry to running; finished_at

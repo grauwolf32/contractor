@@ -3,7 +3,8 @@ id: V365-021
 title: "Fold eval_project_dependencies into eval_submissions"
 milestone: schema-reduction-2026-10
 priority: P2
-status: pending
+status: completed
+implementation_commit: d1510c523caa9b48b3777d3646101f837f628ae1
 depends_on: [V365-003]
 languages: [go, sql]
 goal: "Remove eval_project_dependencies (exact copy of eval_submissions.execution_project_id) by storing its data on the parent row."

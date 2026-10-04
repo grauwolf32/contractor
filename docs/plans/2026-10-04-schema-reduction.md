@@ -9,9 +9,10 @@ Reduce the number of tables without losing behaviour, and keep large SQL
 statements out of ordinary Go code.
 
 The schema has 91 tables. This plan removes 6 tables that have no production
-reader and folds 15 strict 1:1 extensions into their parents, leaving 70. Every
-removal and merge keeps the observable API, CLI and UI behaviour; tests that
-asserted the removed tables are rewritten against the new storage.
+reader and folds 14 strict 1:1 extensions into their parents, leaving 71.
+V365-016 is deferred: Planner reports turned out not to be a 1:1 extension.
+Every removal and merge keeps the observable API, CLI and UI behaviour; tests
+that asserted the removed tables are rewritten against the new storage.
 
 ## SQL placement rule
 
@@ -47,13 +48,20 @@ the new files instead of moving them twice.
 | V365-013 | Fold `llm_credential_identities` and `llm_credential_tombstones` into `credential_operations` | 80 |
 | V365-014 | Fold `artifact_git_sources` into `artifact_versions` | 79 |
 | V365-015 | Fold `workflow_run_metadata_labels` into `workflow_runs` | 78 |
-| V365-016 | Fold `planner_execution_reports` into `stage_metrics` | 77 |
-| V365-017 | Fold `audit_collection_receipts` into `audit_executions` | 76 |
-| V365-018 | Fold `audit_coverage_rows` and `audit_proposal_items` into `audit_items` | 74 |
-| V365-019 | Fold `audit_report_candidates` into `audit_artifact_links` and the review request | 73 |
-| V365-020 | Fold `finding_proposal_retention` into `finding_proposal_receipts` | 72 |
-| V365-021 | Fold `eval_project_dependencies` into `eval_submissions` | 71 |
-| V365-022 | Fold `eval_view_generations` into `eval_projection_queue` | 70 |
+| V365-016 | Deferred: `planner_execution_reports` holds several immutable reports per stage; `stage_metrics` is derived | 78 |
+| V365-017 | Fold `audit_collection_receipts` into `audit_executions` | 77 |
+| V365-018 | Fold `audit_coverage_rows` and `audit_proposal_items` into `audit_items` | 75 |
+| V365-019 | Fold `audit_report_candidates` into its report-acceptance review request | 74 |
+| V365-020 | Fold `finding_proposal_retention` into `finding_proposal_receipts` | 73 |
+| V365-021 | Fold `eval_project_dependencies` into `eval_submissions` | 72 |
+| V365-022 | Fold `eval_view_generations` into `eval_projection_queue` | 71 |
+
+The counts exclude `contractor_schema_migrations`, the migration runner's own
+table.
+
+V365-019 keeps the frozen report links off `audit_artifact_links`: Eval
+evidence binding and the Eval output projection read every link there, so an
+unaccepted report would look published.
 
 Each schema task adds one forward migration that moves existing rows before it
 drops a table, so an existing database upgrades in place. Where a whole-row

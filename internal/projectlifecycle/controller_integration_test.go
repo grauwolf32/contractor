@@ -529,8 +529,9 @@ INSERT INTO finding_proposal_receipts (
           $4::jsonb, $1, 'application/json', 128, '[]'::jsonb)`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
-INSERT INTO finding_proposal_retention (receipt_id, state, source_run_deleted_at)
-VALUES ('receipt-decided', 'audit-held', clock_timestamp())`, nil},
+UPDATE finding_proposal_receipts
+   SET retention_state = 'audit-held', source_run_deleted_at = clock_timestamp()
+ WHERE receipt_id = 'receipt-decided'`, nil},
 		{`
 INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
 VALUES ('receipt-decided', $1, $2,
@@ -546,9 +547,11 @@ INSERT INTO audit_rounds (
 		{`
 INSERT INTO audit_items (
     item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state
+    task_ref, task_digest, origin, workflow_role, state,
+    coverage_status, coverage_requested, coverage_completed, coverage_gaps
 ) VALUES ('item-decided', $1, 'round-decided', 'check-decided', 0, 'check',
-          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready')`,
+          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
+          'not-tested', '[]', '[]', '[]')`,
 			[]any{audit.AuditID, taskRef, digest, origin}},
 		{`
 INSERT INTO audit_executions (
@@ -570,12 +573,12 @@ INSERT INTO audit_execution_items (
           0, 1, $2::jsonb, $3, '[]'::jsonb, 'settled', 'accepted-result',
           $4::jsonb, $3, clock_timestamp())`, []any{audit.AuditID, taskRef, digest, resultRef}},
 		{`
-INSERT INTO audit_collection_receipts (
-    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
-    terminal_run_generation, terminal_run_sequence, disposition,
-    source_output_ref, source_output_digest, retained_refs, request_digest
-) VALUES ('collection-decided', $1, 'execution-decided', 'deleted-run-decided', 'succeeded',
-          'generation-one', 1, 'accepted-result', $2::jsonb, $3, '[]'::jsonb, $3)`,
+UPDATE audit_executions
+   SET collection_receipt_id = 'collection-decided', collection_disposition = 'accepted-result',
+       collection_source_output_ref = $2::jsonb, collection_source_output_digest = $3,
+       collection_retained_refs = '[]'::jsonb, collection_request_digest = $3,
+       collected_at = clock_timestamp()
+ WHERE audit_id = $1 AND execution_id = 'execution-decided'`,
 			[]any{audit.AuditID, resultRef, digest}},
 		{`
 INSERT INTO audit_finding_assessments (

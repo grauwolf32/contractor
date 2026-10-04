@@ -208,7 +208,7 @@ func TestPostgresCollectionRejectsOnlyInvalidChildFindingProposal(t *testing.T) 
 	}
 	var disposition string
 	if err := harness.pool.QueryRow(ctx, `
-SELECT disposition FROM audit_collection_receipts WHERE execution_id = $1`,
+SELECT collection_disposition FROM audit_executions WHERE execution_id = $1`,
 		executions[0].ExecutionID).Scan(&disposition); err != nil || disposition != "execution-failed" {
 		t.Fatalf("collection disposition = (%q, %v)", disposition, err)
 	}

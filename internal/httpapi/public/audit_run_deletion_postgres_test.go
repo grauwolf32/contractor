@@ -317,8 +317,5 @@ workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,propo
 		auditHandlerDigest(suffix), runID, owner, refJSON, auditHandlerDigest(string(body)), written.Size, evidenceJSON); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_retention(receipt_id,state) VALUES($1,'source-held')`, "receipt-"+suffix); err != nil {
-		t.Fatal(err)
-	}
 	return written.Ref
 }

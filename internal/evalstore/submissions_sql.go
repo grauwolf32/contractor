@@ -24,7 +24,7 @@ FOR SHARE
 `
 
 // bindExecutionSQL reports whether Audit $1 belongs to owner $2, lives in the
-// workspace Project registered for the member in eval_project_dependencies,
+// workspace Project registered on the member's submission,
 // and was created by an 'audit.create' audit_idempotency entry with the
 // member's suboperation key $5 and request digest $6.
 // Used by Store.BindExecution.
@@ -32,11 +32,11 @@ var bindExecutionSQL = `
 SELECT EXISTS(SELECT 1
     FROM audits a
     JOIN audit_idempotency i USING(audit_id)
-    JOIN eval_project_dependencies d ON d.project_id=a.project_id
+    JOIN eval_submissions s ON s.execution_project_id=a.project_id
     WHERE a.audit_id=$1
         AND a.owner_id=$2
-        AND d.experiment_id=$3
-        AND d.member_id=$4
+        AND s.experiment_id=$3
+        AND s.member_id=$4
         AND i.owner_id=$2
         AND i.operation='audit.create'
         AND i.idempotency_key=$5

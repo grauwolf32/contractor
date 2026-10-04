@@ -320,11 +320,9 @@ func pendingReportReview(ctx context.Context, tx pgx.Tx, auditID string) (bool, 
 	err := tx.QueryRow(ctx, `
 SELECT EXISTS (
     SELECT 1
-      FROM audit_report_candidates AS candidate
-      JOIN audit_review_requests AS request
-        ON request.request_id = candidate.request_id
-       AND request.audit_id = candidate.audit_id
-     WHERE candidate.audit_id = $1 AND request.state = 'pending'
+      FROM audit_review_requests AS request
+     WHERE request.audit_id = $1 AND request.subject_kind = 'audit-report'
+       AND request.state = 'pending'
 )`, auditID).Scan(&pending)
 	return pending, err
 }
