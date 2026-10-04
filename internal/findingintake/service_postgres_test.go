@@ -376,15 +376,21 @@ SELECT count(*) FROM audit_finding_assessments
 		t.Fatal(err)
 	}
 	collectionCtx := WithCollectionDirectVerificationCache(ctx)
-	if _, replayed, err := actor.RetainAuditCollection(collectionCtx, ImportRequest{
-		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
-	}); err != nil || !replayed {
-		t.Fatalf("terminal direct-verification import replay = (replay=%v, %v)", replayed, err)
+	if err := actor.RetainAuditCollectionBatch(collectionCtx, []ImportRequest{
+		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref},
+		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref},
+	}); err != nil {
+		t.Fatalf("terminal collection retention: %v", err)
 	}
-	if _, replayed, err := actor.RetainAuditCollection(collectionCtx, ImportRequest{
-		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref,
-	}); err != nil || replayed {
-		t.Fatalf("claim-only terminal import = (replay=%v, %v)", replayed, err)
+	// The owner import's hold is replayed; the claim-only receipt gains one.
+	for receiptID, want := range map[string]*contracts.ArtifactRef{
+		firstReceipt.ReceiptID: &hold.Proposal.Ref, claimOnlyReceipt.ReceiptID: nil,
+	} {
+		retained, err := service.GetAuditReceipt(ctx, ownerID, auditID, receiptID)
+		if err != nil || len(retained.AuditHolds) != 1 ||
+			(want != nil && !retained.AuditHolds[0].Proposal.Ref.SameExact(*want)) {
+			t.Fatalf("collected receipt %s = (%+v, %v)", receiptID, retained.AuditHolds, err)
+		}
 	}
 	if trace.runReads.Load() != 1 || trace.directReads.Load() != 1 {
 		t.Fatalf("collection resolved Run/output %d/%d times, want once each", trace.runReads.Load(), trace.directReads.Load())

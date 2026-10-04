@@ -563,9 +563,13 @@ A check execution contains one to `batchSize` compatible items, subject to both
 the Server item-count maximum and the encoded Audit package byte bounds.
 `batchSize` is a ceiling, not a promise that every compatible count-sized group
 fits one Run. Each item retains its own batch ordinal, attempt, result,
-evidence, proposal membership, coverage, and settlement. Retry creates a new
-`AuditExecution` and `AuditExecutionItem` for every retried item; the Controller
-may regroup ready retries without changing item identity or attempt history.
+evidence, proposal membership, coverage, and settlement. Members verifying
+distinct proposed checks of one finding may share an execution: each records
+its own assessment, and the member with the highest batch ordinal supplies the
+finding's current assessment, as if the members were collected in batch order.
+Retry creates a new `AuditExecution` and `AuditExecutionItem` for every retried
+item; the Controller may regroup ready retries without changing item identity
+or attempt history.
 Items with different pinned Workflow role/configuration, resolved Run inputs or
 parameters, baseline/workspace, credentials, active-check authority, or exact
 approval kind/subject digest cannot share an execution. Workspace reuse does
@@ -927,9 +931,12 @@ in one PostgreSQL transaction.
 Before an Audit child Run receives its collection receipt, every committed
 proposal and its evidence is copied to collision-free protected ProjectScope
 bindings and recorded in an exact Audit hold. This transfer is idempotent and
-does not confirm or associate the proposal with an item. A profile with
-`findingConfirmation: disabled` cannot select the Toolset, and an unexpected
-receipt makes collection contract-invalid rather than admitting it.
+does not confirm or associate the proposal with an item. Each transaction
+retains a bounded number of proposal and evidence revisions, so a collection
+attempt that reaches its deadline keeps the holds it committed and the next
+attempt retains only the rest. A profile with `findingConfirmation: disabled`
+cannot select the Toolset, and an unexpected receipt makes collection
+contract-invalid rather than admitting it.
 
 An owner may similarly import an exact proposal from an ordinary Run into a
 non-terminal Audit in the same Project whose pinned profile requires finding
@@ -1574,11 +1581,12 @@ exact terminal observation. The receipt is required even when the Run failed or
 was cancelled, produced no output, or produced an invalid package. Accepted
 evidence is retained by exact revision; a receipt with no accepted evidence
 records that fact rather than waiting for an impossible successful import.
-If the trusted collector cannot validate pinned internal data, it records the
-bounded `collection-contract-invalid` disposition, settles the affected items
-as invalid with blocked coverage, and preserves their prior requested and
-completed coverage arrays. This is a cleanup-safe technical outcome, never
-accepted evidence.
+If the trusted collector cannot validate pinned internal data, or the Store
+rejects a collection request by its content alone so that no retry can commit
+it, the collector records the bounded `collection-contract-invalid`
+disposition, settles the affected items as invalid with blocked coverage, and
+preserves their prior requested and completed coverage arrays. This is a
+cleanup-safe technical outcome, never accepted evidence.
 After collection, Run deletion is allowed. AuditExecution and
 AuditExecutionItem retain outcome, exact retained refs when any, and tombstone
 provenance through a nullable non-cascading Run relation.
@@ -1642,7 +1650,10 @@ For an Audit child Run, collection accounts for every committed proposal
 receipt before making the Run deletable: an allowed proposal receives an exact
 Audit-owned inbox link/hold, while a profile with finding production disabled
 treats an unexpected proposal result as invalid rather than silently admitting
-it. Source-Run pins may be released only after that durable disposition.
+it. A proposal whose own proposal or evidence revision is missing or no longer
+matches its receipt can never be retained; collection records it as rejected,
+like a proposal with invalid standard references, and keeps collecting the
+others. Source-Run pins may be released only after that durable disposition.
 
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,

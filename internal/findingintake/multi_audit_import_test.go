@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 
@@ -63,6 +65,9 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 		if err != nil || len(inbox) != 1 || inbox[0].ReceiptID != f.receiptID {
 			t.Fatalf("Audit inbox of %s after source deletion: %+v, %v", auditID, inbox, err)
 		}
+		if !reflect.DeepEqual(receipt, batch[0]) {
+			t.Fatalf("single and batch reads through %s differ: %+v != %+v", auditID, receipt, batch[0])
+		}
 		// Each Audit sees, and reads the proposal through, only its own copy.
 		for _, read := range []Receipt{receipt, batch[0], inbox[0]} {
 			if len(read.AuditHolds) != 1 || read.AuditHolds[0].AuditID != auditID ||
@@ -103,6 +108,122 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	if _, err := projectArtifacts.Read(f.ctx, holds[first.AuditID].Proposal.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("purged proposal: %v", err)
 	}
+}
+
+// A hold admits a receipt to an Audit only in that Audit's Project, the same
+// condition under which the hold itself is read.
+func TestPostgresAuditReceiptReadsRequireHoldInAuditProject(t *testing.T) {
+	f := newDeletionImportFixture(t)
+	const otherProject, otherAudit = "other-project", "other-project-audit"
+	if _, _, err := projectstore.NewPostgresStore(f.pool).Create(f.ctx, projectstore.CreateParams{
+		ProjectID: otherProject, OwnerID: f.request.OwnerID, Kind: projectstore.KindProject,
+		Name: "Other project", IdempotencyKey: "other-project",
+		RequestDigest: auditdomain.DigestBytes([]byte("other-project")),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := auditstore.NewPostgresStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
+		AuditID: otherAudit, OwnerID: f.request.OwnerID, ProjectID: otherProject,
+		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
+		IdempotencyKey: otherAudit, RequestDigest: auditdomain.DigestBytes([]byte(otherAudit)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal, err := json.Marshal(receipt.Proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A hold naming the source Project instead of its Audit's Project.
+	if _, err := f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, proposal_ref, evidence)
+VALUES ($1, $2, 'delete-project', $3::jsonb, '[]'::jsonb)`, f.receiptID, otherAudit, proposal); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, otherAudit, f.receiptID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("receipt read through a foreign-Project hold = %v", err)
+	}
+	if _, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, otherAudit, []string{f.receiptID}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("receipt page read through a foreign-Project hold = %v", err)
+	}
+}
+
+// After source Run deletion, publishing a receipt selected through an Audit
+// reads that Audit's own retained copy, not another destination's.
+func TestPostgresCollectionPublicationReadsRequestingAuditHoldAfterRunDeletion(t *testing.T) {
+	f := newDeletionImportFixture(t)
+	// The other destination sorts first among the receipt's holds.
+	const otherAudit = "a-first-audit"
+	createFixtureAudit(t, f, otherAudit)
+	for _, auditID := range []string{otherAudit, f.request.AuditID} {
+		request := f.request
+		request.AuditID = auditID
+		if _, _, err := f.intake.ImportIntoAudit(f.ctx, request); err != nil {
+			t.Fatalf("import into %s: %v", auditID, err)
+		}
+	}
+	if err := runstore.NewPostgresStore(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := NewCollectionPublisher(f.pool, emptyCollectionReviews{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := publisher.PublishCollection(f.ctx, PublishCollectionParams{
+		OwnerID: f.request.OwnerID, Request: PublishCollectionRequest{
+			ClientKey: "requesting-audit-copy", Sources: []CollectionSelection{{
+				Kind: "audit", ID: f.request.AuditID,
+				ReceiptIDs: []string{f.receiptID}, Findings: []CollectionFindingSelection{},
+			}},
+		},
+	})
+	if err != nil || published.EntryCount != 1 {
+		t.Fatalf("publish retained receipt = (%+v, %v)", published, err)
+	}
+	user, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).User(f.request.OwnerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := user.Read(f.ctx, published.Artifact.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection, _, err := auditdomain.DecodeFindingCollectionPackage(archive.Payload.Data)
+	if err != nil || len(collection.Entries) != 1 {
+		t.Fatalf("published collection = (%+v, %v)", collection, err)
+	}
+	for _, document := range collection.Documents {
+		if document.ID != collection.Entries[0].ProposalDocumentID {
+			continue
+		}
+		if document.Scope.Kind != "project" ||
+			document.Ref.Namespace != auditdomain.ArtifactNamespace(f.request.AuditID) {
+			t.Fatalf("published proposal copy = %+v, want the requesting Audit's", document)
+		}
+		return
+	}
+	t.Fatalf("published collection has no proposal document: %+v", collection)
+}
+
+type emptyCollectionReviews struct{}
+
+func (emptyCollectionReviews) SelectCollectionFindings(
+	context.Context, pgx.Tx, string, string, []CollectionFindingSelection,
+) ([]string, error) {
+	return []string{}, nil
+}
+
+func (emptyCollectionReviews) ReadCollectionReviews(
+	context.Context, pgx.Tx, string, []string,
+) (map[string][]auditdomain.FindingCollectionReview, error) {
+	return map[string][]auditdomain.FindingCollectionReview{}, nil
 }
 
 // After source Run deletion an Audit inbox reads the proposal only from that
@@ -158,7 +279,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 	retained := insertAuditChildReceipt(t, f, "retained-candidate")
 	request := f.request
 	request.Proposal = retained.Proposal.Ref
-	if _, _, err := f.intake.RetainAuditCollection(f.ctx, request); err != nil {
+	if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{request}); err != nil {
 		t.Fatal(err)
 	}
 	audits := auditstore.NewPostgresStore(f.pool)
@@ -244,12 +365,25 @@ func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 // insertAuditChildReceipt records one more receipt of the fixture's source Run
 // with the fixture Audit as its origin, as intake does for an Audit child Run.
 func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey string) Receipt {
+	return insertAuditChildReceiptWithEvidence(t, f, clientKey, []ExactArtifact{})
+}
+
+// insertAuditChildReceiptWithEvidence is insertAuditChildReceipt for a
+// proposal citing exact evidence revisions of the source Run, given in
+// canonical reference order.
+func insertAuditChildReceiptWithEvidence(
+	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact,
+) Receipt {
 	t.Helper()
 	source, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonical, err := canonicalize(testSubmission(clientKey+"-invocation", clientKey, []contracts.ArtifactRef{}))
+	refs := make([]contracts.ArtifactRef, len(evidence))
+	for index := range evidence {
+		refs[index] = evidence[index].Ref
+	}
+	canonical, err := canonicalize(testSubmission(clientKey+"-invocation", clientKey, refs))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +402,7 @@ func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey st
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
 	receiptID := clientKey + "-receipt"
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, proposal, []ExactArtifact{}, origin, f.request.OwnerID, &project, grant)
+		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, proposal, evidence, origin, f.request.OwnerID, &project, grant)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +508,7 @@ UPDATE audits
 			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("owner import into %s Audit error = %v", state, err)
 			}
-			_, _, err := f.intake.RetainAuditCollection(f.ctx, f.request)
+			err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{f.request})
 			if state == "cancelled" || state == "completed" {
 				if !errors.Is(err, ErrAuditClosed) {
 					t.Fatalf("collection retention into %s Audit error = %v", state, err)
@@ -384,12 +518,16 @@ UPDATE audits
 			if err != nil {
 				t.Fatalf("collection retention into %s Audit error = %v", state, err)
 			}
-			if _, replayed, err := f.intake.RetainAuditCollection(f.ctx, f.request); err != nil || !replayed {
-				t.Fatalf("collection retention replay = (%t, %v)", replayed, err)
-			}
 			receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 			if err != nil || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("retained receipt = (%+v, %v)", receipt, err)
+			}
+			if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{f.request}); err != nil {
+				t.Fatalf("collection retention replay: %v", err)
+			}
+			replayed, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+			if err != nil || !reflect.DeepEqual(replayed.AuditHolds, receipt.AuditHolds) {
+				t.Fatalf("replayed retention changed holds: %+v, %v", replayed.AuditHolds, err)
 			}
 		})
 	}

@@ -272,6 +272,8 @@ func (i *Importer) collectSucceededRole(
 // safely. Retention is admitted while the Audit finalizes or cancels, so a
 // closing Audit still keeps every proposal its children found. A Run can fail after committing a proposal; technical failure must
 // not erase that candidate or silently promote it to a confirmed finding.
+// The batch itself rejects a proposal whose own exact data can never be
+// retained, so one corrupt proposal cannot keep the execution collecting.
 func (i *Importer) retainFindingProposals(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
@@ -306,9 +308,7 @@ func (i *Importer) retainFindingProposals(
 				receipt.Origin.RunID != *execution.RunID {
 				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
 			}
-			if candidate.Rejected || (candidate.Retained &&
-				(candidate.PostTerminalRetained || candidate.DirectAssessed ||
-					*execution.TerminalOutcome != auditstore.TerminalSucceeded)) {
+			if !candidate.NeedsRetention(*execution.TerminalOutcome == auditstore.TerminalSucceeded) {
 				continue
 			}
 			request := findingintake.ImportRequest{
@@ -555,6 +555,12 @@ func (i *Importer) commitCollection(
 		SourceOutput: source, Retained: nonNilLinks(retained), ErrorCode: errorCode,
 		RequestDigest: auditdomain.DigestBytes(encoded), Items: items,
 	})
+	if errors.Is(err, auditstore.ErrInvalid) {
+		// The store rejects a request by its content alone, so retrying the
+		// same request can never commit. Collect retains a contract-invalid
+		// receipt instead of leaving the execution collecting forever.
+		return false, fmt.Errorf("%w: %w", ErrPermanent, err)
+	}
 	return err == nil, err
 }
 

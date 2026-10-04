@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -160,6 +161,8 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		return auditdomain.FindingCollection{}, nil, err
 	}
 	selected := make(map[string]bool)
+	// requestingAudits names, per receipt, the Audit sources that selected it.
+	requestingAudits := make(map[string][]string)
 	for _, source := range request.Sources {
 		value.Sources = append(value.Sources, auditdomain.FindingCollectionSource{Kind: source.Kind, ID: source.ID})
 		if err := authorizeCollectionSource(ctx, tx, ownerID, source); err != nil {
@@ -181,6 +184,9 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 				return fail(err)
 			}
 			selected[id] = true
+			if source.Kind == "audit" {
+				requestingAudits[id] = append(requestingAudits[id], source.ID)
+			}
 			if len(selected) > auditdomain.MaximumCollectionEntries {
 				return fail(fmt.Errorf("%w: expanded collection selection limit", ErrInvalid))
 			}
@@ -232,10 +238,12 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 			}
 		}
 		if receipt.Origin.RunDeleted {
-			if len(holds) == 0 {
+			// As for a receipt read through an Audit, only a requesting
+			// Audit's own retained copy is readable after source deletion.
+			hold, found := requestedAuditHold(holds, requestingAudits[id])
+			if !found {
 				return fail(ErrNotFound)
 			}
-			hold := holds[0]
 			scope = auditdomain.FindingCollectionSource{Kind: "project", ID: hold.ProjectID}
 			proposal, evidence = hold.Proposal, hold.Evidence
 		}
@@ -268,6 +276,17 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 	}
 	sort.Slice(value.Documents, func(i, j int) bool { return value.Documents[i].ID < value.Documents[j].ID })
 	return value, builder.contents, nil
+}
+
+// requestedAuditHold returns the hold of the first requesting Audit in the
+// AuditID-ordered holds, so the published copy is deterministic.
+func requestedAuditHold(holds []AuditHold, auditIDs []string) (AuditHold, bool) {
+	for _, hold := range holds {
+		if slices.Contains(auditIDs, hold.AuditID) {
+			return hold, true
+		}
+	}
+	return AuditHold{}, false
 }
 
 func authorizeCollectionSource(ctx context.Context, tx pgx.Tx, ownerID string, source CollectionSelection) error {

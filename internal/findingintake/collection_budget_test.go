@@ -1,8 +1,9 @@
-//go:build !race
-
 package findingintake
 
 import "time"
 
-// The production collection attempt has a 10-second default deadline.
-const largeDirectCollectionTestTimeout = 10 * time.Second
+// collectionAttemptTimeout mirrors the Controller's default operation
+// timeout, which bounds one collection attempt. Collection commits bounded
+// transactions, so an attempt only has to commit one of them, with ample
+// margin even under the race detector.
+const collectionAttemptTimeout = 10 * time.Second

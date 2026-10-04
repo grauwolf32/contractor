@@ -18,6 +18,18 @@ type CollectionReceipt struct {
 	Rejected             bool
 }
 
+// NeedsRetention reports whether collection must still pass this proposal to
+// RetainAuditCollectionBatch. A rejected proposal stays out of the Audit. A
+// retained one needs another pass only while its direct verification can
+// still be accepted: the source Run succeeded, no direct assessment exists,
+// and the hold was created before the Run finished.
+func (c CollectionReceipt) NeedsRetention(sourceSucceeded bool) bool {
+	if c.Rejected {
+		return false
+	}
+	return !c.Retained || (sourceSucceeded && !c.PostTerminalRetained && !c.DirectAssessed)
+}
+
 // ListAuditCollection pages every proposal of a child Run but hydrates only
 // proposals that this Audit has not already retained or rejected. A retry over
 // completed receipts therefore needs two set-based queries per page and no

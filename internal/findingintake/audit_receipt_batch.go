@@ -14,10 +14,10 @@ import (
 // MaxAuditReceiptBatchSize matches the bounded Audit finding page.
 const MaxAuditReceiptBatchSize = 200
 
-// GetAuditReceipts preserves GetAuditReceipt's ownership, holds and exact
-// artifact hydration, while loading related records for the whole page.
-// Returned receipts follow input order, including repeated identities. Like
-// GetAuditReceipt it exposes only the requesting Audit's own hold.
+// GetAuditReceipts reads receipts admitted to the owner's Audit: its native
+// child receipts and those it holds in its own Project. Returned receipts
+// follow input order, including repeated identities, and expose only the
+// requesting Audit's own hold, loaded for the whole page.
 func (s *Service) GetAuditReceipts(ctx context.Context, ownerID, auditID string, ids []string) ([]Receipt, error) {
 	if ownerID == "" || auditID == "" || len(ids) > MaxAuditReceiptBatchSize {
 		return nil, ErrInvalid
@@ -39,6 +39,7 @@ SELECT `+receiptProjection+`
    AND (receipt.audit_id = $2 OR EXISTS (
        SELECT 1 FROM finding_proposal_audit_holds AS hold
         WHERE hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
+          AND hold.project_id = audit.project_id
    ))`, ownerID, auditID, ids)
 	if err != nil {
 		return nil, fmt.Errorf("read Audit finding receipts: %w", err)
