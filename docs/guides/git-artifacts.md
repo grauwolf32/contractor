@@ -47,7 +47,8 @@ keeps its relative path when normalized to `ssh://git@host:22/~/repo.git`.
 
 ## Storage, resources and recovery
 
-The Server fetches Git objects and creates the ZIP in memory. Its production
+The Server streams the received Git pack into its decoder, retains decoded
+objects and creates the ZIP in memory. Its production
 image needs neither a Git executable nor writable Git, checkout, key or `/tmp`
 directories. Use the existing [deployment without PVC](../operations/artifact-blob-storage.md#deployment-without-pvc)
 with read-only CA/known_hosts/master-key mounts. The managed configuration
@@ -118,14 +119,16 @@ CONTRACTOR_TEST_DATABASE_URL=postgres://... GOFLAGS=-p=1 \
 | Operations Settings repository access, explicit replacement CAS, exact Workflow selection, retained drafts, mobile cancel and focus restoration | `git-artifacts.test.tsx` and five `git-artifacts.spec.ts` scenarios; browser gate serves an isolated production UI build |
 | Ordinary Artifact limits, storage loss, commit ambiguity, cleanup and public/private consumers | `make test-artifact-blob-backends` |
 
-On Linux, Go 1.25.6 and PostgreSQL 17 (2026-09-06), the production-container
-measurement imported a 66,082,811-byte ZIP with 16 incompressible files totalling
+On Linux, Go 1.26.8 and PostgreSQL 17 (2026-10-04), the production-container
+gate imported a 66,082,811-byte ZIP with 16 incompressible files totalling
 63 MiB plus one small tracked file. Three ordinary uploads each held 64 MiB
-minus one byte concurrently. Kernel process peak RSS (`VmHWM`) in the final Git
-gate was 881,980 KiB (about 861 MiB) for PostgreSQL and 744,052 KiB (about 727 MiB)
-for filesystem.
-The measurement includes actual Git object storage, ZIP buffers, HTTP handling
-and database-driver copies, following the small end-to-end Workflow run.
+minus one byte concurrently. Kernel process peak RSS (`VmHWM`) after streaming
+pack decoding was 753,252 KiB (about 736 MiB) for PostgreSQL and 623,936 KiB
+(about 609 MiB) for filesystem. The prior whole-pack measurement on Go 1.25.6
+(2026-09-06) was 881,980 KiB and 744,052 KiB respectively. The measured peaks
+fell by about 126 MiB and 117 MiB across those runs; the Go version also changed.
+The gate includes actual Git object storage, ZIP buffers, HTTP handling and
+database-driver copies, following the small end-to-end Workflow run.
 
 These are observed process peaks for this fixture, not upper bounds for every
 allowed pack or application workload. PostgreSQL's separate process memory and

@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -171,12 +172,61 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	}
 }
 
+func TestRealHTTPSInterruptedPackIsRemote(t *testing.T) {
+	repo, _ := realRepository(t)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		args := []string{"upload-pack", "--stateless-rpc"}
+		switch r.URL.Path {
+		case "/repo.git/info/refs":
+			_, _ = io.WriteString(w, "001e# service=git-upload-pack\n0000")
+			args = append(args, "--advertise-refs")
+		case "/repo.git/git-upload-pack":
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		command := exec.CommandContext(r.Context(), "git", append(args, repo)...)
+		command.Stdin = r.Body
+		var response bytes.Buffer
+		command.Stdout = &response
+		if err := command.Run(); err != nil {
+			t.Errorf("upload-pack: %v", err)
+			return
+		}
+		if r.URL.Path != "/repo.git/git-upload-pack" {
+			_, _ = w.Write(response.Bytes())
+			return
+		}
+		packStart := bytes.Index(response.Bytes(), []byte("PACK"))
+		if packStart < 0 || packStart+32 >= response.Len() {
+			t.Errorf("fixture upload response has no usable pack")
+			return
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(response.Len()))
+		_, _ = w.Write(response.Bytes()[:packStart+32])
+	}))
+	defer server.Close()
+	remote, err := ParseRemote(server.URL + "/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.allowLoopback = true
+	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	if _, err := client.Fetch(t.Context(), remote, "", nil); !errors.Is(err, ErrRemote) {
+		t.Fatalf("interrupted pack = %v, want ErrRemote", err)
+	}
+}
+
 func TestDecodedPackCumulativeBudget(t *testing.T) {
 	// Each object is individually allowed; the fifth must be rejected before
 	// inflation even though the compressed pack is tiny and objects deduplicate.
 	entry := packEntry{kind: plumbing.BlobObject, data: make([]byte, maxObjectBytes)}
 	pack := makePack(entry, entry, entry, entry, entry)
-	if _, err := decodePack(context.Background(), pack); !errors.Is(err, ErrBudget) {
+	if _, err := decodePack(context.Background(), bytes.NewReader(pack)); !errors.Is(err, ErrBudget) {
 		t.Fatalf("cumulative decoded bytes: %v", err)
 	}
 }

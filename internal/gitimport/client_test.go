@@ -186,7 +186,7 @@ func TestPackBudgetsAndDelta(t *testing.T) {
 	base := &gitObject{kind: plumbing.BlobObject, data: []byte("hello")}
 	delta := []byte{5, 6, 6, 'h', 'e', 'l', 'l', 'o', '!'}
 	pack := makePack(packEntry{kind: plumbing.REFDeltaObject, data: delta, base: objectHash(base)}, packEntry{kind: base.kind, data: base.data})
-	objects, err := decodePack(context.Background(), pack)
+	objects, err := decodePack(context.Background(), bytes.NewReader(pack))
 	if err != nil || objects[objectHash(&gitObject{kind: plumbing.BlobObject, data: []byte("hello!")})] == nil {
 		t.Fatalf("delta: %v", err)
 	}
@@ -202,18 +202,66 @@ func TestPackBudgetsAndDelta(t *testing.T) {
 	}{
 		"object-size": {makePack(packEntry{kind: plumbing.BlobObject, data: []byte("x"), declared: &oversize}), ErrBudget},
 		"delta-size":  {makePack(packEntry{kind: base.kind, data: base.data}, packEntry{kind: plumbing.REFDeltaObject, data: largeDelta, base: objectHash(base)}), ErrBudget},
-		"checksum":    {badChecksum, ErrContent}, "trailing": {append(bytes.Clone(pack), 0), ErrContent}, "count": {tooMany, ErrBudget}, "truncated": {pack[:len(pack)-1], ErrContent},
+		"checksum":    {badChecksum, ErrContent}, "count": {tooMany, ErrBudget}, "truncated": {pack[:len(pack)-1], ErrContent},
+		"trailing-00": {append(bytes.Clone(pack), 0x00), ErrContent},
+		"trailing-80": {append(bytes.Clone(pack), 0x80), ErrContent},
+		"trailing-70": {append(bytes.Clone(pack), 0x70), ErrContent},
+		"trailing-60": {append(bytes.Clone(pack), 0x60), ErrContent},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := decodePack(context.Background(), tc.pack); !errors.Is(err, tc.err) {
+			if _, err := decodePack(context.Background(), bytes.NewReader(tc.pack)); !errors.Is(err, tc.err) {
 				t.Fatalf("got %v", err)
 			}
 		})
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := decodePack(ctx, pack); !errors.Is(err, context.Canceled) {
+	if _, err := decodePack(ctx, bytes.NewReader(pack)); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
+	}
+}
+
+type failingPackSource struct{ err error }
+
+func (r failingPackSource) Read([]byte) (int, error) { return 0, r.err }
+
+type zeroPackSource struct{}
+
+func (zeroPackSource) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
+func TestPackStreamPreservesSourceErrorsAndEnforcesByteLimit(t *testing.T) {
+	pack := makePack(packEntry{kind: plumbing.BlobObject, data: []byte("payload")})
+	for _, cut := range []int{8, len(pack) / 2, len(pack) - 5} {
+		source := io.MultiReader(bytes.NewReader(pack[:cut]), failingPackSource{err: io.ErrUnexpectedEOF})
+		if _, err := decodePack(context.Background(), source); !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Fatalf("source error after %d bytes = %v", cut, err)
+		}
+	}
+	for _, test := range []struct {
+		name   string
+		length int64
+		want   error
+	}{
+		{"at-limit", MaxReceivedBytes, io.EOF},
+		{"over-limit", MaxReceivedBytes + 1, ErrBudget},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := &packStreamReader{ctx: t.Context(), source: io.LimitReader(zeroPackSource{}, test.length)}
+			buffer := make([]byte, 64<<10)
+			for {
+				_, err := reader.Read(buffer)
+				if err == nil {
+					continue
+				}
+				if !errors.Is(err, test.want) || reader.total != MaxReceivedBytes {
+					t.Fatalf("limit result = (%d, %v), want %v", reader.total, err, test.want)
+				}
+				return
+			}
+		})
 	}
 }
 
@@ -229,7 +277,7 @@ func TestDeltaDepthAndAdvertisementLimits(t *testing.T) {
 		entries = append(entries, packEntry{kind: plumbing.REFDeltaObject, data: delta, base: objectHash(base)})
 		base = &gitObject{kind: plumbing.BlobObject, data: next}
 	}
-	if _, err := decodePack(context.Background(), makePack(entries...)); !errors.Is(err, ErrBudget) {
+	if _, err := decodePack(context.Background(), bytes.NewReader(makePack(entries...))); !errors.Is(err, ErrBudget) {
 		t.Fatalf("delta depth: %v", err)
 	}
 	adv := packp.NewAdvRefs()

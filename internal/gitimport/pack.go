@@ -27,17 +27,29 @@ type packedObject struct {
 }
 
 // Limits apply before inflation or delta allocation, including intermediate
-// delta programs/results. No thin packs are requested or accepted.
-func decodePack(ctx context.Context, raw []byte) (map[plumbing.Hash]*gitObject, error) {
-	if len(raw) > MaxReceivedBytes {
-		return nil, ErrBudget
-	}
-	if len(raw) < 32 {
+// delta programs/results. The pack is scanned directly from its source; only
+// the last 20 bytes are retained to detect trailing data after the SHA-1.
+// No thin packs are requested or accepted.
+func decodePack(ctx context.Context, source io.Reader) (map[plumbing.Hash]*gitObject, error) {
+	if source == nil {
 		return nil, ErrContent
 	}
-	scanner := packfile.NewScanner(bytes.NewReader(raw))
+	reader := &packStreamReader{ctx: ctx, source: source}
+	contentError := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if reader.readError != nil {
+			return reader.readError
+		}
+		return ErrContent
+	}
+	scanner := packfile.NewScanner(reader)
 	version, count, err := scanner.Header()
-	if err != nil || (version != 2 && version != 3) || count == 0 {
+	if err != nil {
+		return nil, contentError()
+	}
+	if (version != 2 && version != 3) || count == 0 {
 		return nil, ErrContent
 	}
 	if count > maxObjects {
@@ -60,7 +72,7 @@ func decodePack(ctx context.Context, raw []byte) (map[plumbing.Hash]*gitObject, 
 		}
 		header, err := scanner.NextObjectHeader()
 		if err != nil {
-			return nil, ErrContent
+			return nil, contentError()
 		}
 		if err := charge(header.Length); err != nil {
 			return nil, err
@@ -75,10 +87,7 @@ func decodePack(ctx context.Context, raw []byte) (map[plumbing.Hash]*gitObject, 
 		sink := &objectWriter{ctx: ctx, data: data}
 		n, _, err := scanner.NextObject(sink)
 		if err != nil || n != header.Length {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			return nil, ErrContent
+			return nil, contentError()
 		}
 		record := &packedObject{header: *header}
 		byOffset[header.Offset] = record
@@ -94,11 +103,24 @@ func decodePack(ctx context.Context, raw []byte) (map[plumbing.Hash]*gitObject, 
 		}
 	}
 	checksum, err := scanner.Checksum()
-	if err != nil || !bytes.Equal(checksum[:], raw[len(raw)-20:]) {
-		return nil, ErrContent
+	if err != nil {
+		return nil, contentError()
 	}
 	// Reading another header must hit EOF; reject concatenated/trailing data.
 	if _, err := scanner.NextObjectHeader(); err != io.EOF {
+		return nil, contentError()
+	}
+	// The scanner may have buffered trailing bytes. Also probe the underlying
+	// stream in case it returned EOF without asking the source for more data.
+	var extra [1]byte
+	n, err := reader.Read(extra[:])
+	if n != 0 || err != io.EOF {
+		return nil, contentError()
+	}
+	if reader.readError != nil {
+		return nil, contentError()
+	}
+	if reader.total < 32 || !bytes.Equal(checksum[:], reader.tail[:]) {
 		return nil, ErrContent
 	}
 	for pass := 0; len(pending) > 0; pass++ {
@@ -151,6 +173,55 @@ func decodePack(ctx context.Context, raw []byte) (map[plumbing.Hash]*gitObject, 
 		pending = next
 	}
 	return objects, ctx.Err()
+}
+
+// packStreamReader bounds received bytes and remembers the trailer-sized tail.
+// A non-EOF source error is retained so scanner failures can be distinguished
+// from invalid Git content without exposing the transport error to the client.
+type packStreamReader struct {
+	ctx       context.Context
+	source    io.Reader
+	total     int64
+	tail      [20]byte
+	readError error
+}
+
+func (r *packStreamReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if r.total == MaxReceivedBytes {
+		var probe [1]byte
+		n, err := r.source.Read(probe[:])
+		if n != 0 {
+			r.readError = ErrBudget
+			return 0, ErrBudget
+		}
+		if err != nil && err != io.EOF && r.readError == nil {
+			r.readError = err
+		}
+		return 0, err
+	}
+	if int64(len(p)) > MaxReceivedBytes-r.total {
+		p = p[:MaxReceivedBytes-r.total]
+	}
+	n, err := r.source.Read(p)
+	if n > 0 {
+		r.total += int64(n)
+		if n >= len(r.tail) {
+			copy(r.tail[:], p[n-len(r.tail):n])
+		} else {
+			copy(r.tail[:], r.tail[n:])
+			copy(r.tail[len(r.tail)-n:], p[:n])
+		}
+	}
+	if err != nil && err != io.EOF && r.readError == nil {
+		r.readError = err
+	}
+	return n, err
 }
 
 func objectHash(object *gitObject) plumbing.Hash {
