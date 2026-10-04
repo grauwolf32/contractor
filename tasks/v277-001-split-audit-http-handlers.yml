@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V277-001
+title: Split oversized Audit HTTP handler module
+milestone: code-reuse-2026-10
+priority: P2
+status: completed
+implementation_commit: a755607c529911c5093a063dd2c22511837d22e0
+depends_on: []
+languages: [go]
+goal: Keep Audit HTTP request handling, response contracts, and read models independently navigable.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: internal/httpapi/public/audit_handlers.go combined nearly 1000 lines of request and response types, route handlers, and read-model helpers.
+scope:
+  in:
+    - Move Audit request and response declarations into audit_types.go.
+    - Move Audit read-model and request helper functions into audit_models.go.
+    - Preserve handler behavior and public JSON contracts.
+  out:
+    - Changes to Audit routes or persistence behavior.
+acceptance_criteria:
+  - {id: A1, text: Audit handlers, types, and read-model helpers reside in separate files.}
+  - {id: A2, text: Existing declarations and request behavior remain unchanged.}
+  - {id: A3, text: Public HTTP package tests and lint pass.}
+tests:
+  - {command: go test -count=1 ./internal/httpapi/public, covers: [A2, A3]}
+  - {command: make lint, covers: [A1, A3]}
