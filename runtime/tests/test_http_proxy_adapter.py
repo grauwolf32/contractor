@@ -39,6 +39,7 @@ from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.http_body import read_limited_body
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
+from contractor_runtime.toolsets.common.credentials import proxy_authorization
 from contractor_runtime.toolsets.common.target_policy import (
     TargetPolicy,
     parse_allowed_networks,
@@ -127,14 +128,12 @@ def test_tool_http_and_subprocess_use_authenticated_tls_proxy_and_remove_ca(
         tls.load_cert_chain(certificate, key)
         ca_bundle = certificate.read_text(encoding="utf-8")
         async with fake_proxy(text_response, tls=tls, host="localhost") as proxy:
-            adapter = HTTPProxyAdapter(
-                adapter_context(),
-                proxy_settings(
-                    proxy.url,
-                    targets=["tool-http", "tool-subprocess"],
-                    ca_bundle=ca_bundle,
-                ),
+            settings = proxy_settings(
+                proxy.url,
+                targets=["tool-http", "tool-subprocess"],
+                ca_bundle=ca_bundle,
             )
+            adapter = HTTPProxyAdapter(adapter_context(), settings)
             http_handle = adapter.handles.tool_http
             launcher = adapter.handles.tool_subprocess
             assert isinstance(http_handle, ProxyHTTPClient)
@@ -170,8 +169,12 @@ def test_tool_http_and_subprocess_use_authenticated_tls_proxy_and_remove_ca(
             assert not child_ca_path.exists()
             assert launcher.active_temporary_roots == ()
             assert len(proxy.requests) == 2
+            # The value Caido results scrub is the one both proxied routes send.
+            expected_authorization = proxy_authorization(SimpleNamespace(http_proxy=settings))
+            assert expected_authorization is not None
+            assert expected_authorization.startswith("Basic ")
             assert all(
-                request.headers["proxy-authorization"].startswith("Basic ")
+                request.headers["proxy-authorization"] == expected_authorization
                 for request in proxy.requests
             )
             assert adapter.metrics.failed_operations == 1
@@ -254,6 +257,9 @@ def test_bearer_subprocess_fails_closed_and_registry_rejects_channel_mismatch() 
             assert response.is_success
             await response.aclose()
             assert proxy.requests[0].headers["proxy-authorization"] == (f"Bearer {PROXY_BEARER}")
+            assert proxy_authorization(SimpleNamespace(http_proxy=settings)) == (
+                f"Bearer {PROXY_BEARER}"
+            )
             with pytest.raises(ProxySubprocessError) as captured:
                 await launcher.run_async([sys.executable, "-c", "print('x')"])
             assert PROXY_BEARER not in repr(captured.value)

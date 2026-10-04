@@ -10,6 +10,7 @@ import math
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from types import MappingProxyType
@@ -20,10 +21,18 @@ from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGra
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.redaction import MIN_PRIVATE_SUBSTRING_BYTES, REDACTED
 from contractor_runtime.toolsets.common.artifact_visibility import (
     ArtifactObservingTool,
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.credentials import (
+    RUNTIME_CREDENTIAL,
+    RUNTIME_TARGET_CREDENTIAL,
+    gateway_authorization,
+    proxy_authorization,
+    target_authorization,
+)
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.common.target_policy import (
@@ -91,6 +100,8 @@ _ERROR_RETRYABILITY = MappingProxyType(
         "caido_response_too_large": False,
     }
 )
+_CREDENTIAL_HEADER_NAMES = frozenset({b"authorization", b"proxy-authorization"})
+_MAX_HEADER_NAME_BYTES = 64
 
 
 class CaidoToolError(RuntimeError):
@@ -101,6 +112,92 @@ class CaidoToolError(RuntimeError):
         self.code = normalized
         self.retryable = _ERROR_RETRYABILITY[normalized] if retryable is None else bool(retryable)
         super().__init__(f"Caido operation failed ({normalized})")
+
+
+@dataclass(frozen=True, slots=True)
+class _CaidoRedaction:
+    """Runtime credentials that Caido may have recorded, and their replacements.
+
+    The tool-http, tool-subprocess and llm-gateway routes may use Caido as their
+    forward proxy, and Caido stores every request as sent: with the
+    Authorization and Proxy-Authorization values Runtime injected. A header
+    line carrying one of those exact values becomes a marker at any length.
+    Other Runtime secrets, and long injected values elsewhere in a message (an
+    echoing response, for example), are replaced only when they are long enough
+    to match as substrings under the shared policy.
+    """
+
+    credentials: Mapping[bytes, bytes] = field(default_factory=dict)
+    substrings: tuple[str, ...] = ()
+
+    @classmethod
+    def from_settings(cls, settings: RuntimeSettings) -> _CaidoRedaction:
+        credentials: dict[bytes, bytes] = {}
+        derived: list[str] = []
+        # The project target credential is listed last so its marker wins when
+        # an infrastructure route happens to use the same value.
+        for value, marker in (
+            (gateway_authorization(settings), RUNTIME_CREDENTIAL),
+            (proxy_authorization(settings), RUNTIME_CREDENTIAL),
+            (target_authorization(settings), RUNTIME_TARGET_CREDENTIAL),
+        ):
+            if value is None:
+                continue
+            credentials[_credential_key(value.encode())] = marker.encode()
+            # The complete header value and, for Basic, its base64 credential.
+            derived.extend((value, value.partition(" ")[2]))
+        substrings = {
+            value
+            for value in (*runtime_secrets(settings), *derived)
+            if len(value.encode()) >= MIN_PRIVATE_SUBSTRING_BYTES
+        }
+        # Longest first, so a secret containing another one is replaced whole.
+        ordered = sorted(substrings, key=lambda value: (-len(value.encode()), value))
+        return cls(credentials=MappingProxyType(credentials), substrings=tuple(ordered))
+
+    def message(self, raw: bytes) -> bytes:
+        """Scrub one raw HTTP message, or other bytes returned by Caido."""
+
+        if self.credentials:
+            lines = raw.split(b"\n")
+            for index, line in enumerate(lines):
+                name, separator, value = line.partition(b":")
+                if (
+                    not separator
+                    or len(name) > _MAX_HEADER_NAME_BYTES
+                    or name.strip(b" \t").lower() not in _CREDENTIAL_HEADER_NAMES
+                ):
+                    continue
+                marker = self.credentials.get(_credential_key(value))
+                if marker is not None:
+                    ending = b"\r" if line.endswith(b"\r") else b""
+                    lines[index] = name + b": " + marker + ending
+            raw = b"\n".join(lines)
+        for secret in self.substrings:
+            raw = raw.replace(secret.encode(), REDACTED.encode())
+        return raw
+
+    def result(self, value: Any) -> Any:
+        """Replace long Runtime secrets in every string of a tool result."""
+
+        if not self.substrings:
+            return value
+        if isinstance(value, str):
+            for secret in self.substrings:
+                value = value.replace(secret, REDACTED)
+            return value
+        if isinstance(value, dict):
+            return {key: self.result(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self.result(item) for item in value]
+        return value
+
+
+def _credential_key(value: bytes) -> bytes:
+    # Header values compare with optional whitespace removed and the
+    # authentication scheme case-folded, as HTTP defines both.
+    scheme, _, credentials = value.strip(b" \t\r").partition(b" ")
+    return scheme.lower() + b" " + credentials.strip(b" \t")
 
 
 class CaidoToolsetFactory:
@@ -153,6 +250,7 @@ class CaidoToolsetFactory:
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
             metric_secrets=runtime_secrets(runtime_settings),
+            redaction=_CaidoRedaction.from_settings(runtime_settings),
             target_policy=policy,
             sleep=self._sleep,
             monotonic=self._monotonic,
@@ -180,6 +278,7 @@ class _CaidoSession:
         artifact_client: ArtifactClient,
         namespace: str,
         metric_secrets: tuple[str, ...],
+        redaction: _CaidoRedaction,
         target_policy: TargetPolicy,
         sleep: Callable[[float], Awaitable[None]],
         monotonic: Callable[[], float],
@@ -188,6 +287,7 @@ class _CaidoSession:
         self._artifact_client: ArtifactClient | None = artifact_client
         self._namespace = namespace
         self._metric_secrets = metric_secrets
+        self._redaction = redaction
         self._target_policy = target_policy
         self._nonce = secrets.token_hex(8)
         self._next_artifact = 1
@@ -204,6 +304,9 @@ class _CaidoSession:
     @property
     def artifact_client(self) -> ArtifactClient | None:
         return self._artifact_client
+
+    def redact_result(self, value: Any) -> Any:
+        return self._redaction.result(value)
 
     def _require_target(self, host: str, port: int) -> None:
         try:
@@ -284,11 +387,11 @@ class _CaidoSession:
             if data["request"] is None:
                 return {"request_id": selected_id, "status": "not_found"}
             request = _request_detail(data["request"])
-            raw_request = _blob(request.pop("_raw"))
+            raw_request = self._redaction.message(_blob(request.pop("_raw")))
             response = request.get("response")
             raw_response = b""
             if isinstance(response, dict):
-                raw_response = _blob(response.pop("_raw"))
+                raw_response = self._redaction.message(_blob(response.pop("_raw")))
             artifact = await self._write_exchange(raw_request, raw_response)
             request["raw"] = _raw_preview(raw_request)
             if isinstance(response, dict):
@@ -407,8 +510,8 @@ class _CaidoSession:
                 if observation is not None:
                     if observation["status"] == "failed":
                         return _bounded_result({**base_result, "status": "failed"})
-                    raw_response = observation.pop("_raw_response")
-                    raw_replayed_request = observation.pop("_raw_request")
+                    raw_response = self._redaction.message(observation.pop("_raw_response"))
+                    raw_replayed_request = self._redaction.message(observation.pop("_raw_request"))
                     try:
                         artifact = await self._write_exchange(raw_replayed_request, raw_response)
                     except CaidoToolError as error:
@@ -710,7 +813,7 @@ class _CaidoSession:
                     "status": "rejected",
                     "error_code": result["error_code"],
                 }
-            output = _blob(result["output"])
+            output = self._redaction.message(_blob(result["output"]))
             try:
                 text_output = output.decode()
             except UnicodeDecodeError:
@@ -843,6 +946,7 @@ class _CaidoSession:
             self._namespace = ""
             self._nonce = ""
             self._metric_secrets = ()
+            self._redaction = _CaidoRedaction()
             self._sleep = _closed_sleep
             self._monotonic = _closed_monotonic
             self._closed = True
@@ -904,7 +1008,7 @@ class _CaidoTool(ArtifactObservingTool):
             secrets=self._session.metric_secrets,
             bound_error=_bounded_caido_error,
         ) as call:
-            result = await operation()
+            result = self._session.redact_result(await operation())
             call.succeed(summary(result))
             return result
 

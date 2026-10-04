@@ -42,6 +42,7 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, runtime_secrets
+from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.common.target_policy import (
@@ -218,7 +219,7 @@ class HTTPToolsetFactory:
             proxy=proxy,
             direct_client=direct_client,
             target_origin=_target_origin(runtime_settings),
-            target_authorization=_target_authorization(runtime_settings),
+            target_authorization=target_authorization(runtime_settings),
         )
         state.http_session = session
         builders: dict[str, Callable[[], _HTTPTool]] = {
@@ -1148,7 +1149,7 @@ def _tool_http_proxy_required(settings: RuntimeSettings) -> bool:
 
 
 def _http_metric_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
-    authorization = _target_authorization(settings)
+    authorization = target_authorization(settings)
     secrets = runtime_secrets(settings)
     return secrets if authorization is None else (*secrets, authorization)
 
@@ -1157,20 +1158,6 @@ def _target_origin(settings: RuntimeSettings) -> tuple[str, str, int] | None:
     if settings.http_origin_target is None:
         return None
     return _origin(settings.http_origin_target.url)
-
-
-def _target_authorization(settings: RuntimeSettings) -> str | None:
-    if settings.http_origin_target is None:
-        return None
-    target = settings.http_origin_target
-    if target.bearer_token is not None:
-        return f"Bearer {target.bearer_token.get_secret_value()}"
-    if target.basic_auth is not None:
-        username = target.basic_auth.username.get_secret_value()
-        password = target.basic_auth.password.get_secret_value()
-        raw = f"{username}:{password}".encode()
-        return f"Basic {base64.b64encode(raw).decode('ascii')}"
-    return None
 
 
 def _method(value: object) -> str:

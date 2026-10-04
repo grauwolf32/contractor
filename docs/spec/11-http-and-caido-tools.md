@@ -384,6 +384,22 @@ request/session is an explicit bounded `not_found` domain result, while a
 malformed partial response is `caido_response_invalid` and produces no selected
 artifact.
 
+Caido stores proxied traffic as sent. When the `tool-http`, `tool-subprocess`
+or `llm-gateway` route uses Caido as its forward proxy, those requests carry the
+Authorization and Proxy-Authorization values Runtime injected. Request detail
+and Replay previews, exchange artifacts and convert output therefore replace a
+header line whose value equals the project target credential with
+`[runtime-target-credential]`, and one equal to the proxy or Gateway credential
+with `[runtime-credential]`, at any length (the authentication scheme compares
+case-insensitively). Other Runtime secrets, and these header values elsewhere
+in a message such as an echoing response body, are replaced by `[REDACTED]` in
+raw bytes and in every result string when they are at least 16 bytes long, the
+shared substring policy. Previews, sizes and artifacts describe the scrubbed
+bytes, while a captured request used for Replay or Automate is still submitted
+to Caido unchanged. Caido itself retains the credentials and evaluates HTTPQL
+filters against them, so a deployment that must keep the project credential
+from the model does not route credentialed traffic through Caido.
+
 Replay requests receive an opaque allocation-derived `X-Request-Id` tag. HTTP
 tool and Caido replay counters use distinct infixes so proxy history can
 correlate traffic without exposing Run/Stage IDs. Tags are safe observability

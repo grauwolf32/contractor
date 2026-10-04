@@ -7,12 +7,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.redaction import MIN_PRIVATE_SUBSTRING_BYTES
 from contractor_runtime.toolsets.common.artifacts import runtime_secrets
-
-# A private value this long is specific enough to be matched anywhere in
-# model- or Worker-authored text; a shorter one (a proxy username, a short
-# password) only as a complete string, so ordinary words cannot fail closed.
-MIN_PRIVATE_SUBSTRING_BYTES = 16
 
 
 def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
