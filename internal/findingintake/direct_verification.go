@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -419,24 +420,10 @@ UPDATE audit_findings
 RETURNING revision`, assessmentID, input.AuditID, findingID).Scan(&findingRevision); err != nil {
 		return err
 	}
-	var sequence int64
-	if err := tx.QueryRow(ctx, `
-UPDATE audits
-   SET retained_evidence_bytes = retained_evidence_bytes + $2,
-       revision = revision + 1,
-       next_event_sequence = next_event_sequence + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1
-   AND retained_evidence_bytes + $2 <= max_evidence_bytes
-RETURNING next_event_sequence - 1`, input.AuditID, retainedBytes).Scan(&sequence); err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `
-INSERT INTO audit_events (
-    audit_id, sequence_number, kind, entity_id, entity_revision, summary
-) VALUES (
-    $1, $2, 'finding.assessed', $3, $4,
-    jsonb_build_object('assessmentId', $5::text, 'directVerification', true)
-)`, input.AuditID, sequence, findingID, findingRevision, assessmentID)
-	return err
+	return auditstore.NewPostgresStore(tx).RecordDirectFindingAssessment(ctx,
+		auditstore.DirectFindingAssessmentParams{
+			AuditID: input.AuditID, FindingID: findingID,
+			FindingRevision: findingRevision, AssessmentID: assessmentID,
+			RetainedBytes: retainedBytes,
+		})
 }

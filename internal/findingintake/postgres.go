@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -722,24 +723,11 @@ SELECT receipt.receipt_id, EXISTS (
 		if err != nil || recorded {
 			return err
 		}
-		var sequence int64
-		if err := tx.QueryRow(ctx, `
-UPDATE audits
-   SET revision = revision + 1,
-       next_event_sequence = next_event_sequence + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1
-RETURNING next_event_sequence - 1`, request.AuditID).Scan(&sequence); err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `
-INSERT INTO audit_events (
-    audit_id, sequence_number, kind, entity_id, summary
-) VALUES (
-    $1, $2, 'finding.proposal_rejected', $3,
-    jsonb_build_object('runId', $4::text, 'reason', $5::text)
-)`, request.AuditID, sequence, receiptID, request.RunID, reason)
-		return err
+		return auditstore.NewPostgresStore(tx).RecordRejectedFindingProposal(ctx,
+			auditstore.RejectedFindingProposalParams{
+				AuditID: request.AuditID, ReceiptID: receiptID,
+				RunID: request.RunID, Reason: reason,
+			})
 	})
 }
 

@@ -409,6 +409,25 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
 			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
 	}
+	audits := auditstore.NewPostgresStore(pool)
+	beforeReplay, err := audits.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := audits.ListEvents(ctx, auditID, 0, auditstore.MaxPageSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessments := 0
+	for _, event := range events {
+		if event.Kind == "finding.assessed" &&
+			strings.Contains(string(event.Summary), directAssessmentID) {
+			assessments++
+		}
+	}
+	if assessments != 1 || beforeReplay.Revision != beforeReplay.EventSequence {
+		t.Fatalf("direct assessment event count=%d Audit=%+v", assessments, beforeReplay)
+	}
 	var claimOnlyAssessments int
 	if err := pool.QueryRow(ctx, `
 SELECT count(*) FROM audit_finding_assessments
@@ -441,6 +460,11 @@ SELECT count(*) FROM audit_artifact_links
 	if retainedAfter != retainedBefore || directLinks != 2 {
 		t.Fatalf("direct replay retention = (before=%d after=%d links=%d)",
 			retainedBefore, retainedAfter, directLinks)
+	}
+	afterReplay, err := audits.Get(ctx, ownerID, auditID)
+	if err != nil || afterReplay.Revision != beforeReplay.Revision ||
+		afterReplay.EventSequence != beforeReplay.EventSequence {
+		t.Fatalf("direct assessment replay Audit = (%+v, %v)", afterReplay, err)
 	}
 	// Import the same exact successful source into another compatible Audit.
 	// Its assessment and retained bytes must be independent of the first Audit.

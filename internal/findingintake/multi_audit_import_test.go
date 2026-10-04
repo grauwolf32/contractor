@@ -161,9 +161,33 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 	if _, _, err := f.intake.RetainAuditCollection(f.ctx, request); err != nil {
 		t.Fatal(err)
 	}
+	audits := auditstore.NewPostgresStore(f.pool)
+	beforeRejection, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	request.Proposal = rejected.Proposal.Ref
 	if err := f.intake.RejectAuditCollection(f.ctx, request, "finding-proposal-standard-invalid"); err != nil {
 		t.Fatal(err)
+	}
+	afterRejection, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
+	if err != nil || afterRejection.Revision != beforeRejection.Revision+1 ||
+		afterRejection.EventSequence != beforeRejection.EventSequence+1 {
+		t.Fatalf("rejected proposal Audit revision = (%+v, %v)", afterRejection, err)
+	}
+	rejectionEvents, err := audits.ListEvents(f.ctx, request.AuditID, beforeRejection.EventSequence, 1)
+	if err != nil || len(rejectionEvents) != 1 ||
+		rejectionEvents[0].Kind != "finding.proposal_rejected" ||
+		rejectionEvents[0].EntityID != rejected.ReceiptID {
+		t.Fatalf("rejected proposal event = (%+v, %v)", rejectionEvents, err)
+	}
+	if err := f.intake.RejectAuditCollection(f.ctx, request, "finding-proposal-standard-invalid"); err != nil {
+		t.Fatalf("rejected proposal replay: %v", err)
+	}
+	afterReplay, err := audits.Get(f.ctx, request.OwnerID, request.AuditID)
+	if err != nil || afterReplay.Revision != afterRejection.Revision ||
+		afterReplay.EventSequence != afterRejection.EventSequence {
+		t.Fatalf("rejected proposal replay Audit revision = (%+v, %v)", afterReplay, err)
 	}
 	owner, auditID := f.request.OwnerID, f.request.AuditID
 	live, err := f.intake.ListAuditInbox(f.ctx, owner, auditID, ListQuery{Limit: 10})

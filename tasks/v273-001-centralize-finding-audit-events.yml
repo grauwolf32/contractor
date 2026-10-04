@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V273-001
+title: Centralize finding-intake Audit event mutations
+milestone: code-reuse-2026-10
+priority: P1
+status: completed
+implementation_commit: 4dc5c535e47900cfa42985948fe2123516758098
+depends_on: []
+languages: [go]
+goal: Keep finding-intake Audit revisions, evidence quota, and events behind auditstore.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/87
+  finding: Finding intake directly updated audits for rejected proposals and direct verification assessments.
+scope:
+  in:
+    - Move both Audit mutations into auditstore while retaining caller-owned transactions.
+    - Record the revision and event in one SQL statement for each mutation.
+    - Preserve direct-verification evidence quota enforcement and rejection replay behavior.
+  out:
+    - Other Audit mutation paths tracked by issue 87.
+acceptance_criteria:
+  - {id: A1, text: Finding intake no longer issues UPDATE audits.}
+  - {id: A2, text: Rejected proposals advance one Audit revision and replay without a second event.}
+  - {id: A3, text: Direct assessments charge retained evidence once and record one event.}
+  - {id: A4, text: Quota failures leave the Audit revision and event sequence unchanged.}
+tests:
+  - {command: go test -tags=integration ./internal/findingintake ./internal/auditstore, covers: [A1, A2, A3, A4]}
