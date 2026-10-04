@@ -40,43 +40,7 @@ func (s *PostgresStore) UpdateOwnerQueueControl(
 	if params.ExpectedRevision > math.MaxInt64 {
 		return OwnerQueueControl{}, invalidf("owner Queue control revision is invalid")
 	}
-	control, err := scanOwnerQueueControl(s.db.QueryRow(ctx, `
-WITH queue_lock AS MATERIALIZED (
-    SELECT pg_advisory_xact_lock(
-        hashtextextended('owner-queue-control:' || $1::text, 0)
-    )
-), inserted AS (
-    INSERT INTO owner_queue_controls (owner_id, paused, revision)
-    SELECT $1, $2, 1
-    FROM queue_lock WHERE $3::bigint = 0
-    ON CONFLICT DO NOTHING
-    RETURNING owner_id, paused, revision, updated_at
-), updated AS (
-    UPDATE owner_queue_controls AS control
-    SET paused = $2,
-        revision = control.revision + 1,
-        updated_at = GREATEST(clock_timestamp(), control.updated_at + interval '1 microsecond')
-    FROM queue_lock
-    WHERE control.owner_id = $1
-      AND control.revision = $3
-      AND $3::bigint > 0
-      AND control.paused IS DISTINCT FROM $2
-    RETURNING control.owner_id, control.paused, control.revision, control.updated_at
-), unchanged AS (
-    SELECT control.owner_id, control.paused, control.revision, control.updated_at
-    FROM owner_queue_controls AS control CROSS JOIN queue_lock
-    WHERE control.owner_id = $1
-      AND control.revision = $3
-      AND $3::bigint > 0
-      AND control.paused IS NOT DISTINCT FROM $2
-    FOR UPDATE OF control
-)
-SELECT owner_id, paused, revision, updated_at FROM inserted
-UNION ALL
-SELECT owner_id, paused, revision, updated_at FROM updated
-UNION ALL
-SELECT owner_id, paused, revision, updated_at FROM unchanged
-LIMIT 1`, params.OwnerID, params.Paused, int64(params.ExpectedRevision)))
+	control, err := scanOwnerQueueControl(s.db.QueryRow(ctx, updateOwnerQueueControlSQL, params.OwnerID, params.Paused, int64(params.ExpectedRevision)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OwnerQueueControl{}, ErrPrecondition
 	}

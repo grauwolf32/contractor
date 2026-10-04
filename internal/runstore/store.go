@@ -86,32 +86,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 	if limit < 1 || limit > 128 {
 		return nil, invalidf("credential Run-reference limit must be between 1 and 128")
 	}
-	rows, err := s.db.Query(ctx, `
-WITH credential_runs AS (
-    SELECT run_id, created_at
-    FROM workflow_runs
-    WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
-      AND (
-          jsonb_path_exists(
-              workflow_snapshot,
-              '$.**.credentialId ? (@ == $credential)',
-              jsonb_build_object('credential', to_jsonb($1::text)),
-              true
-          )
-          OR (runtime_config_snapshot->'llmCredentialIds') ? $1
-      )
-    UNION
-    SELECT e.run_id, r.created_at
-    FROM stage_allocations a
-    JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
-    JOIN workflow_runs r ON r.run_id = e.run_id
-    WHERE a.release_completed_at IS NULL
-      AND a.runtime_configuration #>> '{provenance,llmCredential,credentialId}' = $1
-)
-SELECT run_id
-FROM credential_runs
-ORDER BY created_at, run_id
-LIMIT $2`, credentialID, limit)
+	rows, err := s.db.Query(ctx, listNonTerminalRunIDsByCredentialSQL, credentialID, limit)
 	if err != nil {
 		return nil, errors.New("list non-terminal Runs by credential")
 	}
@@ -219,23 +194,7 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode metadata labels: %w", err)
 	}
 
-	row := s.db.QueryRow(ctx, `
-WITH inserted_run AS (
-INSERT INTO workflow_runs (
-    run_id, owner_id, project_id, workflow_name, workflow_version,
-    workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
-    state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, 'initializing', 'created', '')
-RETURNING *
-), inserted_labels AS (
-    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-    SELECT inserted_run.run_id,
-           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
-    FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($12::jsonb) AS entry
-)
-SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
+	row := s.db.QueryRow(ctx, createRunSQL+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
 		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
@@ -294,25 +253,7 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err != nil {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode metadata labels: %w", err)
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-WITH inserted_run AS (
-INSERT INTO workflow_runs (
-    run_id, owner_id, project_id, workflow_name, workflow_version,
-    workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
-    request_idempotency_key, request_digest,
-    state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12, $13, 'initializing', 'created', '')
-ON CONFLICT DO NOTHING
-RETURNING *
-), inserted_labels AS (
-    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
-    SELECT inserted_run.run_id,
-           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
-    FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($14::jsonb) AS entry
-)
-SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, createRunIdempotentSQL+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
 		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
@@ -466,69 +407,7 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		value := string(*params.Lifecycle)
 		lifecycle = &value
 	}
-	rows, err := s.db.Query(ctx, `
-WITH page AS (
-    SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at,
-           state IN ('succeeded', 'failed', 'cancelled')
-           AND NOT EXISTS (
-               SELECT 1
-               FROM stage_executions AS execution
-               JOIN stage_allocations AS allocation
-                 ON allocation.stage_execution_id = execution.stage_execution_id
-               WHERE execution.run_id = workflow_runs.run_id
-                 AND allocation.release_completed_at IS NULL
-           )
-           AND (
-               publication_mode <> 'audit-managed'
-               OR EXISTS (
-                   SELECT 1
-                     FROM audit_executions AS audit_execution
-                     JOIN audit_collection_receipts AS receipt
-                       ON receipt.execution_id = audit_execution.execution_id
-                      AND receipt.audit_id = audit_execution.audit_id
-                      AND receipt.run_id = workflow_runs.run_id
-                    WHERE audit_execution.execution_id = workflow_runs.audit_execution_id
-                      AND audit_execution.run_id = workflow_runs.run_id
-                      AND audit_execution.state = 'collected'
-                      AND audit_execution.run_provenance IS NOT NULL
-               )
-           ) AS deletable
-    FROM workflow_runs
-    WHERE owner_id = $1
-      AND ($2::text IS NULL OR state = $2)
-      AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
-      AND ($8::text IS NULL OR project_id = $8)
-      AND (
-          $9::text IS NULL
-          OR ($9 = 'active' AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling'))
-          OR ($9 = 'terminal' AND state IN ('succeeded', 'failed', 'cancelled'))
-      )
-      AND (
-          cardinality($6::text[]) = 0
-          OR (
-              SELECT count(*)
-              FROM workflow_run_metadata_labels AS matched
-              JOIN unnest($6::text[], $7::text[]) AS required(label_key, label_value)
-                ON matched.label_key = required.label_key
-               AND matched.label_value = required.label_value
-              WHERE matched.run_id = workflow_runs.run_id
-          ) = cardinality($6::text[])
-      )
-    ORDER BY created_at DESC, run_id DESC
-    LIMIT $5
-)
-SELECT page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-       page.created_at, page.updated_at, page.finished_at, page.deletable,
-       COALESCE(
-           jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
-               FILTER (WHERE labels.label_key IS NOT NULL),
-           '{}'::jsonb
-       )
-FROM page
-LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
-GROUP BY page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-         page.created_at, page.updated_at, page.finished_at, page.deletable
-ORDER BY page.created_at DESC, page.run_id DESC`,
+	rows, err := s.db.Query(ctx, listRunsSQL,
 		params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit,
 		selectorKeys, selectorValues, params.ProjectID, lifecycle,
 	)
@@ -578,19 +457,7 @@ func (s *PostgresStore) TransitionRun(
 	if err := validateReason(reason); err != nil {
 		return WorkflowRun{}, err
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-UPDATE workflow_runs
-SET state = $3,
-    state_reason_code = $4,
-    state_reason_message = $5,
-    updated_at = clock_timestamp(),
-    started_at = CASE WHEN $3 = 'running' AND started_at IS NULL THEN clock_timestamp() ELSE started_at END,
-    finished_at = CASE WHEN $3 IN ('succeeded', 'failed', 'cancelled') THEN clock_timestamp() ELSE NULL END,
-    scheduler_claim_id = CASE WHEN $3 IN ('succeeded', 'failed', 'cancelled') THEN NULL ELSE scheduler_claim_id END,
-    scheduler_claimed_at = CASE WHEN $3 IN ('succeeded', 'failed', 'cancelled') THEN NULL ELSE scheduler_claimed_at END,
-    scheduler_claim_expires_at = CASE WHEN $3 IN ('succeeded', 'failed', 'cancelled') THEN NULL ELSE scheduler_claim_expires_at END
-WHERE run_id = $1 AND state = $2
-RETURNING `+workflowRunColumns,
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, transitionRunSQL+workflowRunColumns,
 		runID, expected, next, reason.Code, reason.Message,
 	))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -622,17 +489,7 @@ func (s *PostgresStore) RequestRunCancellation(
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("request WorkflowRun cancellation: encode payload: %w", err)
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-UPDATE workflow_runs
-SET state = 'cancelling',
-    state_reason_code = 'user_cancelled',
-    state_reason_message = COALESCE($4, ''),
-    cancellation_schema_version = $2,
-    run_cancellation = $3::jsonb,
-    updated_at = clock_timestamp(),
-    finished_at = NULL
-WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting')
-RETURNING `+workflowRunColumns,
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, requestRunCancellationSQL+workflowRunColumns,
 		runID, contracts.APIVersion, encoded, cancellation.Reason,
 	))
 	if err == nil {
@@ -666,33 +523,7 @@ func (s *PostgresStore) ClaimRunnableRun(
 	if microseconds <= 0 {
 		return WorkflowRun{}, invalidf("claim duration must be at least one microsecond")
 	}
-	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
-WITH candidate AS (
-    SELECT run_id
-    FROM workflow_runs
-    WHERE (state IN ('pending', 'running', 'waiting', 'cancelling')
-       OR (state = 'initializing' AND state_reason_code = 'skill_initialization_pending'))
-      AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
-    ORDER BY CASE
-                 WHEN state = 'cancelling' THEN 0
-                 WHEN scheduler_deferred
-                  AND updated_at > clock_timestamp() - ($3::bigint * interval '1 microsecond') THEN 3
-                 WHEN state IN ('running', 'waiting') THEN 1
-                 ELSE 2
-             END,
-             updated_at, created_at, run_id
-    FOR UPDATE SKIP LOCKED
-    LIMIT 1
-)
-UPDATE workflow_runs AS run
-SET scheduler_claim_id = $1,
-    scheduler_claimed_at = clock_timestamp(),
-    scheduler_claim_expires_at = clock_timestamp() + ($2::bigint * interval '1 microsecond'),
-    updated_at = clock_timestamp()
-FROM candidate
-WHERE run.run_id = candidate.run_id
-RETURNING `+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds(),
-	))
+	result, err := scanWorkflowRun(s.db.QueryRow(ctx, claimRunnableRunSQL+prefixedWorkflowRunColumns("run"), claimID, microseconds, deferredClaimYield.Microseconds()))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, ErrNoWork
 	}

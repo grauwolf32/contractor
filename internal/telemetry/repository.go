@@ -164,21 +164,7 @@ func (r *Repository) ListAllocationReports(
 	if err := requireText("stageExecutionID", stageExecutionID); err != nil {
 		return nil, err
 	}
-	rows, err := r.db.Query(ctx, `
-WITH effective AS (
-    SELECT DISTINCT ON (logical_agent_name)
-           stage_execution_id, allocation_id, logical_agent_name,
-           report_schema_version, report, received_at, expires_at
-    FROM allocation_execution_reports
-    WHERE stage_execution_id = $1
-    ORDER BY logical_agent_name,
-             ((report->'worker'->>'complete')::boolean
-              AND (report->'runtime'->>'complete')::boolean) DESC,
-             received_at DESC, report_id
-)
-SELECT stage_execution_id, allocation_id, logical_agent_name,
-       report_schema_version, report, received_at, expires_at
-FROM effective ORDER BY logical_agent_name`, stageExecutionID)
+	rows, err := r.db.Query(ctx, listAllocationReportsSQL, stageExecutionID)
 	if err != nil {
 		return nil, fmt.Errorf("list allocation reports: %w", err)
 	}
@@ -310,17 +296,7 @@ func (r *Repository) RebuildStageMetrics(
 	if err != nil {
 		return StageMetricsRecord{}, fmt.Errorf("encode telemetry summary: %w", err)
 	}
-	row := r.db.QueryRow(ctx, `
-INSERT INTO stage_metrics (
-    stage_execution_id, metrics_schema_version, metrics, summary
-) VALUES ($1, $2, $3::jsonb, $4::jsonb)
-ON CONFLICT (stage_execution_id) DO UPDATE SET
-    metrics_schema_version = EXCLUDED.metrics_schema_version,
-    metrics = EXCLUDED.metrics,
-    summary = EXCLUDED.summary,
-    updated_at = clock_timestamp(),
-    expires_at = GREATEST(stage_metrics.expires_at, EXCLUDED.expires_at)
-RETURNING metrics_schema_version, metrics, summary, updated_at, expires_at`,
+	row := r.db.QueryRow(ctx, rebuildStageMetricsSQL,
 		stageExecutionID, schemaVersion, encodedMetrics, encodedSummary,
 	)
 	result := StageMetricsRecord{StageExecutionID: stageExecutionID}
