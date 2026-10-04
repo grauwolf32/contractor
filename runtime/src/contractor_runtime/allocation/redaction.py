@@ -18,21 +18,21 @@ def _url_hosts(urls: Sequence[str]) -> tuple[str, ...]:
     return tuple(sorted(values))
 
 
-def _untrusted_agent_card_strings(
-    card: Mapping[str, Any],
+def _trusted_agent_card_values(
     *,
     allocation_id: str,
     logical_agent_name: str,
     description: str,
     version: str,
     endpoint: str,
-) -> set[str]:
-    """Card text beyond exact protocol and Server-supplied values.
+) -> dict[tuple[str, ...], tuple[str, ...]]:
+    """Exact Agent Card strings fixed by the protocol or the Server, by card path.
 
-    Keep this path policy aligned with Go's trustedWorkerCardString. A changed
-    value at a normally fixed path is still scanned for private data.
+    Go's workerCardTrustedValues holds the same table, and
+    api/testdata/v1alpha1/agent-card-secret-scan-cases.json pins both.
     """
-    trusted: dict[tuple[str, ...], tuple[str, ...]] = {
+
+    return {
         ("name",): (logical_agent_name, f"Contractor Worker {logical_agent_name}"),
         ("description",): (description,),
         ("version",): (version,),
@@ -61,18 +61,46 @@ def _untrusted_agent_card_strings(
             "Deployment-CA mutual TLS with a Contractor Control Plane peer",
         ),
     }
-    result: set[str] = set()
+
+
+def _untrusted_agent_card_text(
+    card: Mapping[str, Any],
+    *,
+    allocation_id: str,
+    logical_agent_name: str,
+    description: str,
+    version: str,
+    endpoint: str,
+) -> tuple[set[str], set[str]]:
+    """Card values beyond exact protocol and Server-supplied text, and every key.
+
+    A changed value at a normally fixed path is still scanned for private data.
+    Object keys carry no path exemption; they are returned separately because
+    nearly all of them are protocol vocabulary, which only a private value long
+    enough to match anywhere is checked against.
+    """
+
+    trusted = _trusted_agent_card_values(
+        allocation_id=allocation_id,
+        logical_agent_name=logical_agent_name,
+        description=description,
+        version=version,
+        endpoint=endpoint,
+    )
+    values: set[str] = set()
+    keys: set[str] = set()
 
     def visit(value: Any, path: tuple[str, ...]) -> None:
         if isinstance(value, str):
             if value not in trusted.get(path, ()):
-                result.add(value)
+                values.add(value)
         elif isinstance(value, Mapping):
             for key, nested in value.items():
-                visit(nested, (*path, key))
+                keys.add(str(key))
+                visit(nested, (*path, str(key)))
         elif isinstance(value, (list, tuple)):
             for index, nested in enumerate(value):
                 visit(nested, (*path, str(index)))
 
     visit(card, ())
-    return result
+    return values, keys

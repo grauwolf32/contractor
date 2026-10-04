@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,6 +21,7 @@ from contractor_runtime.adapters import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.allocation.redaction import _trusted_agent_card_values
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -39,6 +41,11 @@ from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 TELEMETRY_SECRET = "recognizable-telemetry-header-secret"
+AGENT_CARD_SCAN = json.loads(
+    (
+        Path(__file__).parents[2] / "api/testdata/v1alpha1/agent-card-secret-scan-cases.json"
+    ).read_text(encoding="utf-8")
+)
 PROXY_SECRET = "recognizable-proxy-password-secret"
 CAIDO_SECRET = "recognizable-caido-bearer-secret"
 
@@ -496,6 +503,108 @@ def test_runtime_chosen_card_text_still_rejects_private_values(
     asyncio.run(scenario())
 
 
+def test_agent_card_scan_shares_the_trusted_table_and_production_card() -> None:
+    placeholders = card_placeholders(
+        allocation_id="allocation-1",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+    )
+    trusted = _trusted_agent_card_values(
+        allocation_id="allocation-1",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+    )
+    assert trusted == {
+        tuple(entry["path"]): tuple(render_card_value(entry["values"], placeholders))
+        for entry in AGENT_CARD_SCAN["trustedValues"]
+    }
+    card = build_agent_card(
+        allocation_id="allocation-1",
+        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+        logical_agent_name="builder",
+        description="Builds a requested artifact",
+        version="1",
+    )
+    assert agent_card_dict(card) == render_card_value(AGENT_CARD_SCAN["card"], placeholders)
+
+
+@pytest.mark.parametrize("case", AGENT_CARD_SCAN["cases"], ids=lambda case: case["name"])
+def test_worker_handle_secret_scan_shared_cases(tmp_path: Path, case: dict[str, Any]) -> None:
+    async def scenario() -> None:
+        events: list[str] = []
+        telemetry = FakeAdapterFactory(
+            "otlp-http@1", events, handles=AdapterHandles(instrumentation=object())
+        )
+        _, service = await make_service(
+            tmp_path,
+            runtime_adapters={"otlp-http@1": telemetry},
+            runtime=SharedCaseCardRuntimeFactory(case),
+        )
+        spec = configured_spec(telemetry=True)
+        assert spec.runtime_settings.telemetry is not None
+        placeholders = card_placeholders(
+            allocation_id=spec.allocation_id,
+            logical_agent_name=spec.logical_agent_name,
+            description=spec.agent_template.description,
+            version=spec.agent_template.ref.version,
+            endpoint=f"https://runtime.example/private/v1/allocations/{spec.allocation_id}/a2a",
+        )
+        secret = render_card_value(case["secret"], placeholders)
+        spec.runtime_settings.telemetry.headers["X-Scope-OrgID"] = SecretStr(secret)
+        if case["leak"]:
+            with pytest.raises(AllocationError) as failure:
+                await service.prepare(spec)
+            assert failure.value.code == "unsafe_worker_handle"
+        else:
+            response = await service.prepare(spec)
+            assert response.worker_handle.allocation_id == spec.allocation_id
+
+    asyncio.run(scenario())
+
+
+def card_placeholders(
+    *, allocation_id: str, logical_agent_name: str, description: str, version: str, endpoint: str
+) -> dict[str, str]:
+    return {
+        "{allocationId}": allocation_id,
+        "{logicalAgentName}": logical_agent_name,
+        "{description}": description,
+        "{version}": version,
+        "{endpoint}": endpoint,
+    }
+
+
+def render_card_value(value: Any, placeholders: Mapping[str, str]) -> Any:
+    if isinstance(value, str):
+        for placeholder, replacement in placeholders.items():
+            value = value.replace(placeholder, replacement)
+        return value
+    if isinstance(value, list):
+        return [render_card_value(item, placeholders) for item in value]
+    if isinstance(value, dict):
+        return {
+            render_card_value(key, placeholders): render_card_value(item, placeholders)
+            for key, item in value.items()
+        }
+    return value
+
+
+def set_card_value(card: dict[str, Any], path: list[str], value: Any) -> None:
+    current: Any = card
+    for element in path[:-1]:
+        current = (
+            current[int(element)] if isinstance(current, list) else current.setdefault(element, {})
+        )
+    if isinstance(current, list):
+        current[int(path[-1])] = value
+    else:
+        current[path[-1]] = value
+
+
 def test_metrics_saturate_and_reject_unbounded_error_codes() -> None:
     metrics = RuntimeAdapterMetricsState(
         operations=2**64 - 1,
@@ -760,6 +869,36 @@ class ProductionCardRuntimeFactory(CapturingRuntimeFactory):
             version=context.card_version,
         )
         runtime._agent_card = agent_card_dict(card)
+        return runtime
+
+
+class SharedCaseCardRuntimeFactory(CapturingRuntimeFactory):
+    """Serve the shared fixture card with one case's changes applied."""
+
+    def __init__(self, case: dict[str, Any]) -> None:
+        super().__init__()
+        self.case = case
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        runtime = await super().create(context)
+        placeholders = card_placeholders(
+            allocation_id=context.allocation_id,
+            logical_agent_name=context.logical_agent_name,
+            description=context.description,
+            version=context.card_version,
+            endpoint=(
+                f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/"
+                f"{context.allocation_id}/a2a"
+            ),
+        )
+        card = render_card_value(AGENT_CARD_SCAN["card"], placeholders)
+        for operation in self.case["set"]:
+            set_card_value(
+                card,
+                render_card_value(operation["path"], placeholders),
+                render_card_value(operation["value"], placeholders),
+            )
+        runtime._agent_card = card
         return runtime
 
 

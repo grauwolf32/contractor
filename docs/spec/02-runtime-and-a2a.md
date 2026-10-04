@@ -640,6 +640,15 @@ Scheduler invocation and Runtime Agent self-fences its Worker.
 
 It contains no host path, tool-sandbox handle or in-process Worker object.
 It also contains no LLM Gateway token or other RuntimeSettings secret.
+Runtime before returning a handle and Server before accepting it scan the Agent
+Card for those secrets. A card value matches a secret of any length exactly and
+one of at least 16 UTF-8 bytes anywhere, except the exact protocol- or
+Server-fixed value at a trusted path (such as the template description or the
+`stage` skill tag), so a short credential may coincide with fixed vocabulary.
+Every object key is scanned whatever its path, for secrets of at least 16 UTF-8
+bytes. Both implementations share the trusted path table, the Runtime's card
+shape and the leak cases in
+[`agent-card-secret-scan-cases.json`](../../api/testdata/v1alpha1/agent-card-secret-scan-cases.json).
 
 ## Preparation and execution flow
 
