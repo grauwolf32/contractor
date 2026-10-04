@@ -11,15 +11,18 @@ import httpx
 import pytest
 from google.adk.tools import FunctionTool
 from google.genai import types
+from test_audit_result_collector import CONTEXT, fixture_assignment, tool_for
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.llm.openai import _tools
+from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.http.limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.security_findings.classification import CWEReferenceError
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingsToolsetFactory,
@@ -30,7 +33,12 @@ from contractor_runtime.toolsets.security_findings.facades import (
     HTTPFindingTool,
 )
 from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
-from contractor_runtime.toolsets.security_findings.locations import normalize_locations
+from contractor_runtime.toolsets.security_findings.locations import (
+    StandardReference,
+    normalize_locations,
+)
+from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
+from contractor_runtime.worker.instrumentation import _safe_tool_response
 
 LOCATION_CASES = json.loads(
     (Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json").read_text()
@@ -158,6 +166,83 @@ def test_code_finding_rejects_deprecated_cwe_before_submission():
             )
         assert client.requests == []
         assert state.metrics.counters["tool_errors"] == 1
+
+    asyncio.run(scenario())
+
+
+VERSION_REPAIR = "standard_refs: Use version 4.20 of the pinned CWE catalog"
+WEAKNESS_REPAIR = "standard_refs: Use a non-deprecated weakness ID from the pinned CWE catalog"
+
+
+@pytest.mark.parametrize(
+    "factory_type,location_args",
+    [
+        (GeneralFindingsToolsetFactory, {}),
+        (CodeFindingsToolsetFactory, {"file": "src/order.py"}),
+        (HTTPFindingsToolsetFactory, {"url": "https://target.example", "method": "GET"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "reference,repair_text",
+    [
+        ({"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-534"}, WEAKNESS_REPAIR),
+        ({"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-999999"}, WEAKNESS_REPAIR),
+        ({"scheme": "CWE", "version": "4.9", "requirement_id": "CWE-79"}, VERSION_REPAIR),
+    ],
+    ids=["deprecated", "unknown", "other-version"],
+)
+def test_cwe_standard_refs_outside_the_pinned_catalog_fail_before_submission(
+    factory_type, location_args, reference, repair_text
+):
+    async def scenario():
+        client = FakeFindingClient()
+        state = WorkerState()
+        tool = FunctionTool(await finding_tool(factory_type, client, state))
+        args = {"title": "Candidate", "description": "Observation", **location_args}
+        with pytest.raises(ToolInputError) as failure:
+            await tool.run_async(
+                args={**args, "standard_refs": [reference]}, tool_context=context()
+            )
+        reply = _safe_tool_response("finding", failure.value)["error"]
+        assert reply["code"] == "tool_input_invalid" and reply["retryable"] is False
+        assert reply["message"].startswith(repair_text)
+        assert client.requests == []
+        assert state.metrics.counters["tool_errors"] == 1
+
+        valid = {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-639"}
+        await tool.run_async(
+            args={**args, "cwe": "CWE-639", "standard_refs": [valid]},
+            tool_context=context("call-2"),
+        )
+        assert client.requests[0]["proposal"]["standard_refs"] == [valid]
+
+    asyncio.run(scenario())
+
+
+def test_audit_and_ordinary_findings_share_the_cwe_reference_check():
+    async def scenario():
+        collector, _, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
+        audit_state = WorkerState()
+        audit_state.audit_completion_binding = SimpleNamespace(current=lambda: collector)
+        reference = StandardReference(scheme="CWE", version="4.20", requirement_id="CWE-534")
+        failures = []
+        for state in (audit_state, WorkerState()):
+            client = FakeFindingClient()
+            finding = GeneralFindingTool(FindingPublisher(client, state.metrics, (), state))
+            with pytest.raises(ToolInputError) as failure:
+                await finding(
+                    title="Candidate",
+                    description="Observed weakness.",
+                    standard_refs=[reference],
+                    tool_context=context(invocation_id=CONTEXT.invocation_id),
+                )
+            assert client.requests == []
+            failures.append(failure.value)
+        audit, ordinary = failures
+        assert isinstance(audit, AuditCollectionError) and audit.field == "standard_refs"
+        assert isinstance(ordinary, CWEReferenceError)
+        assert audit.reason == ordinary.reason and str(audit) == str(ordinary)
+        assert str(ordinary).startswith(WEAKNESS_REPAIR)
 
     asyncio.run(scenario())
 

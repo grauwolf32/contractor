@@ -394,8 +394,10 @@ No content-based deduplication or guessed subject is introduced.
 Optional `cwe` maps to `standard_refs` with scheme `CWE`, version `4.20` and the
 explicit `CWE-NNN` weakness ID. The bundled catalog records MITRE's versioned XML
 archive URL, archive/XML SHA-256 and its weakness IDs, excluding Weakness entries
-with `Status="Deprecated"`. Unknown or deprecated IDs fail locally;
-no live taxonomy lookup occurs. Updating the catalog/version requires reviewing
+with `Status="Deprecated"`. Unknown or deprecated IDs fail locally, in `cwe` and
+in explicit `standard_refs` entries with scheme `CWE`; such an entry must also use
+version `4.20`. Rejected references never reach intake, and no live taxonomy
+lookup occurs. Updating the catalog/version requires reviewing
 the mapping and the external benchmark binding together.
 Audit import accepts known `CWE@4.20` references without pinning CWE as an
 Audit standard; they are incidental classifications and cannot satisfy an
