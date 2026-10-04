@@ -68,9 +68,12 @@ are never resampled. Duplicate copies native
 authoring intent into a fresh draft; external producers create new invocations.
 
 Native ticks never admit external members. A failed member observation rotates
-within bounded polling and cannot prevent the deadline fence or reconciliation
-of other accepted members. Ready/terminal states with pending command receipts
-remain claimable to recover a crash after a lifecycle transition commits.
+within bounded polling and cannot prevent the deadline fence, reconciliation or
+admission of other members, lifecycle transitions or view publication; the tick
+reports its error to the coordinator only after that work ran. The failed member
+stays outstanding, so it keeps its in-flight slot and delays only the drain that
+must wait for it. Ready/terminal states with pending command receipts remain
+claimable to recover a crash after a lifecycle transition commits.
 
 Verification uses a disposable PostgreSQL and isolated schemas:
 

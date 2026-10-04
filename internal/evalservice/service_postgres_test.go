@@ -618,15 +618,15 @@ VALUES ('expired-pause',$1,$2,'expired-pause','external','expired pause','paused
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "expired-pause" {
 		t.Fatalf("expired paused claim = %+v, %v", claims, err)
 	}
-	progressed, err := h.service.tickExecution(ctx, claims[0])
-	if err != nil || !progressed {
-		t.Fatalf("expired paused tick = %v, %v", progressed, err)
+	progressed, memberErr, err := h.service.tickExecution(ctx, claims[0])
+	if err != nil || memberErr != nil || !progressed {
+		t.Fatalf("expired paused tick = %v, %v, %v", progressed, memberErr, err)
 	}
 	if state := h.get(t, "expired-pause").State; state != evaldomain.StateSettling {
 		t.Fatalf("expired pause state = %s, want settling", state)
 	}
-	if _, err := h.service.tickExecution(ctx, claims[0]); err != nil {
-		t.Fatal(err)
+	if _, memberErr, err := h.service.tickExecution(ctx, claims[0]); err != nil || memberErr != nil {
+		t.Fatal(memberErr, err)
 	}
 	if state := h.get(t, "expired-pause").State; state != evaldomain.StateFinished {
 		t.Fatalf("expired pause state = %s, want finished", state)
