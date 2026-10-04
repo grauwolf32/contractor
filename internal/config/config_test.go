@@ -39,7 +39,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 	assertDigest(t, policy.Ref.Digest)
 	if policy.ContextWindowTokens != 118000 || policy.Model != "worker-model" || policy.MaxOutputTokens != 32768 ||
-		policy.MaxModelCalls != 200 || policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 24000000 ||
+		policy.MaxModelCalls != 200 || policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 25000000 ||
 		policy.Temperature == nil || *policy.Temperature != 0.1 {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}

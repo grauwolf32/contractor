@@ -10,5 +10,5 @@ spec:
   maxOutputTokens: 4096
   maxModelCalls: 16
   maxToolCalls: 32
-  maxTotalTokens: 65536
+  maxTotalTokens: 25000000
   temperature: 0.1

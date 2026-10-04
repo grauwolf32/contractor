@@ -98,8 +98,8 @@ func TestAuditPreparationAttemptBudgetChangesDigestAndInvalidatesSnapshot(t *tes
 func TestRepositoryAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	for ref, digest := range map[string]string{
-		"source-checklist@1":          "sha256:e1546170093cc6e83617a83d635c8d54a1cb7d0487e6ba6e0f524832be05cffb",
-		"openapi-operation-observe@1": "sha256:39a38eb3680de53897b91b43d6b2115cb828201f751c3b10d72cf2af2aa063ee",
+		"source-checklist@1":          "sha256:12e7ecacdc9fbe14ed31edcbf7249457edaa34b72e8e8b9dff20d95b85d6663b",
+		"openapi-operation-observe@1": "sha256:d3b7b72bd161c32d8655e44eedfdd46bfed8433113fd99ce68aca9d1979783fd",
 	} {
 		profile, err := snapshot.AuditProfile(ref)
 		if err != nil {
