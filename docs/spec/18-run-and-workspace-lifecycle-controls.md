@@ -107,7 +107,7 @@ Deletion is one controlled transaction over all Run-owned durable state,
 including:
 
 - the complete RunScope: input forks, intermediate bindings, declared outputs,
-  revisions, pins and lineage;
+  revisions and lineage;
 - Stage executions, plans, attempts, candidate/accepted results, allocation
   records and release metadata;
 - Run events, metrics, labels, cancellation state, resolved execution data,

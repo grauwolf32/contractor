@@ -137,7 +137,7 @@ func assertReportOperationReadOnly(t *testing.T, ctx context.Context, pool *pgxp
 		for _, table := range []string{
 			"audits", "audit_rounds", "audit_items", "audit_coverage_rows", "audit_artifact_links",
 			"audit_report_candidates", "audit_review_requests", "audit_review_decisions", "audit_events", "audit_idempotency",
-			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions", "artifact_bindings", "artifact_pins",
+			"artifact_scopes", "artifact_blobs", "artifact_versions", "artifact_binding_revisions", "artifact_bindings",
 		} {
 			var data string
 			if err := pool.QueryRow(ctx, `SELECT COALESCE(jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text), '[]'::jsonb)::text FROM `+pgx.Identifier{table}.Sanitize()+` AS row`).Scan(&data); err != nil {

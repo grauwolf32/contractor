@@ -193,17 +193,8 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes),
 			MediaType: written.MediaType, SizeBytes: written.Size,
 		}
-		if err := artifactService.PinExact(
-			ctx, grant.RunID, mustRunScope(grant.RunID), proposal.Ref,
-			artifacts.PinFindingProposal, receiptID+":proposal",
-		); err != nil {
-			return err
-		}
-		for index, item := range evidence {
-			if err := artifactService.PinExact(
-				ctx, grant.RunID, mustRunScope(grant.RunID), item.Ref,
-				artifacts.PinFindingEvidence, fmt.Sprintf("%s:evidence:%d", receiptID, index+1),
-			); err != nil {
+		for _, item := range evidence {
+			if err := artifactService.RequireExact(ctx, mustRunScope(grant.RunID), item.Ref); err != nil {
 				return err
 			}
 		}

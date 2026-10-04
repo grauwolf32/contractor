@@ -62,11 +62,6 @@ ORDER BY version_id`, scope.kind, scope.id, namespace)
 	}
 	rows.Close()
 	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_pins
-WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
-		return fmt.Errorf("delete Audit Artifact pins: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_lineage
 WHERE (source_scope_kind = $1 AND source_scope_id = $2 AND source_namespace = $3)
    OR (target_scope_kind = $1 AND target_scope_id = $2 AND target_namespace = $3)`,
@@ -126,11 +121,6 @@ WHERE run_id = $1`, runID); err != nil {
 		return fmt.Errorf("delete WorkflowRun output publications: %w", err)
 	}
 	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_pins
-WHERE run_id = $1`, runID); err != nil {
-		return fmt.Errorf("delete WorkflowRun Artifact pins: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_lineage
 WHERE (source_scope_kind = $1 AND source_scope_id = $2)
    OR (target_scope_kind = $1 AND target_scope_id = $2)`, scope.kind, scope.id); err != nil {
@@ -184,11 +174,6 @@ func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) err
 DELETE FROM workflow_run_output_publications
 WHERE project_id = $1`, projectID); err != nil {
 		return fmt.Errorf("delete Project output publications: %w", err)
-	}
-	if _, err := p.tx.Exec(ctx, `
-DELETE FROM artifact_pins
-WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
-		return fmt.Errorf("delete Project Artifact pins: %w", err)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_lineage

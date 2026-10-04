@@ -536,7 +536,7 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	return artifacts.ForkResult{SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}, nil
 }
 
-func (*fakeArtifactRepository) PinExact(context.Context, string, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
+func (*fakeArtifactRepository) RequireExact(context.Context, artifacts.Scope, artifacts.ArtifactRef) error {
 	return nil
 }
 

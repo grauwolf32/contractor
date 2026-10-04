@@ -918,14 +918,14 @@ IDs. Server derives Run and optional Audit identity from allocation and trusted
 Run provenance, verifies Toolset selection, current write fence, exact evidence
 refs in that Run, and all payload/count limits.
 
-One transaction creates the immutable proposal artifact, pins its evidence,
-and records the receipt. A generic artifact write cannot forge a receipt.
+One transaction creates the immutable proposal artifact, verifies its exact
+evidence, and records the receipt. A generic artifact write cannot forge a receipt.
 Replay of `(allocation_id, invocation_id, submission_id)` with the same
 canonical digest returns the original receipt; a different digest conflicts.
 Receipt replay remains readable after the write fence, while a new submission
 is rejected. Intake and fence transition are serialized by the allocation
 write-authorization critical section used by ordinary private artifact writes;
-the proposal Artifact, exact evidence pins, receipt, and retention row commit
+the proposal Artifact, evidence verification, receipt, and retention row commit
 in one PostgreSQL transaction.
 
 Before an Audit child Run receives its collection receipt, every committed
@@ -941,8 +941,8 @@ contract-invalid rather than admitting it.
 An owner may similarly import an exact proposal from an ordinary Run into a
 non-terminal Audit in the same Project whose pinned profile requires finding
 confirmation. Hard deletion of the source Run atomically marks imported
-receipts `audit-held` and unimported receipts `discarded`, then releases every
-source-owned proposal/evidence pin. Receipt provenance and discarded
+receipts `audit-held` and unimported receipts `discarded`, then purges the
+source RunScope with its proposal and evidence revisions. Receipt provenance and discarded
 tombstones survive the source Run; only protected imported Artifact revisions
 survive as readable content.
 
@@ -1637,16 +1637,16 @@ Audit-level credential dispatch holds and evidence holds are not released by
 the same transition. Dispatch holds may be released once dispatch is durably
 closed and no unresolved child submission intent can create another Run.
 Per-Run credential holds follow the ordinary Run lifecycle. Exact Audit
-evidence and accepted proposal pins remain until Audit deletion or an explicit
+evidence and accepted proposal holds remain until Audit deletion or an explicit
 later retention policy transfers and releases them.
 
-An ordinary non-Audit Run proposal is pinned by its proposal receipt until it
-is either imported by exact revision into an Audit or durably discarded. Hard
-deleting its source Run atomically marks every unimported proposal discarded,
-releases its proposal/evidence pins, and retains only bounded tombstone
-provenance; an imported proposal is protected by the destination Audit's own
-exact holds. Run deletion therefore cannot leak abandoned proposal pins or
-silently remove evidence already retained by an Audit.
+An ordinary non-Audit Run proposal stays readable in its source RunScope until
+it is either imported by exact revision into an Audit or durably discarded.
+Hard deleting its source Run atomically marks every unimported proposal
+discarded, purges its proposal/evidence revisions with the RunScope, and
+retains only bounded tombstone provenance; an imported proposal is protected by
+the destination Audit's own exact holds. Run deletion therefore cannot leak
+abandoned proposals or silently remove evidence already retained by an Audit.
 
 The same exact receipt may be imported into multiple compatible Audits owned
 by the same owner. Each destination independently owns its finding, analyst
@@ -1676,7 +1676,7 @@ treats an unexpected proposal result as invalid rather than silently admitting
 it. A proposal whose own proposal or evidence revision is missing or no longer
 matches its receipt can never be retained; collection records it as rejected,
 like a proposal with invalid standard references, and keeps collecting the
-others. Source-Run pins may be released only after that durable disposition.
+others. The source Run may be purged only after that durable disposition.
 
 Deleting an Audit is a durable operation. It first closes dispatch and releases
 future-dispatch credential holds, cancels/drains and collects owned Runs,
@@ -1935,7 +1935,7 @@ revision after an availability change.
    finding-verification Audit.
 4. Import retains provenance; Worker never chooses the Project/Audit or starts work.
 5. If the owner instead hard-deletes the source Run, unimported proposals are
-   durably discarded and their pins are released; imported revisions remain
+   durably discarded and purged with the source Run; imported revisions remain
    held by their destination Audits.
 
 ## 19. Additive implementation changes

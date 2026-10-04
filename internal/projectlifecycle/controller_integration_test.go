@@ -125,12 +125,6 @@ INSERT INTO stage_allocations (
 	}
 
 	completed := createProjectRun(t, ctx, runs, "run-completed", projectID)
-	if err := artifactService.PinExact(
-		ctx, completed.RunID, mustUserScope(t, project.OwnerID), userSkill.Ref,
-		artifacts.PinRunInput, "run-completed-skill",
-	); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := runs.TransitionRun(
 		ctx, completed.RunID, runstore.RunInitializing, runstore.RunFailed,
 		runstore.Reason{Code: "fixture_failed"},
@@ -278,7 +272,6 @@ INSERT INTO stage_allocations (
 		"Project Runs":      `SELECT count(*) FROM workflow_runs WHERE project_id = 'project-delete'`,
 		"Project scope":     `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
 		"Project revisions": `SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
-		"Run pins":          `SELECT count(*) FROM artifact_pins WHERE run_id IN ('run-active', 'run-completed')`,
 	} {
 		var count int
 		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil || count != 0 {
@@ -820,15 +813,6 @@ SET deletion_claimed_at = clock_timestamp() - interval '2 seconds',
 WHERE project_id = $1 AND deletion_claim_id IS NOT NULL`, projectID); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func mustUserScope(t *testing.T, userID string) artifacts.Scope {
-	t.Helper()
-	scope, err := artifacts.UserScope(userID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return scope
 }
 
 func isolatedPool(t *testing.T, ctx context.Context) *pgxpool.Pool {

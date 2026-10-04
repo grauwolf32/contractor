@@ -4,7 +4,7 @@ package artifacts
 
 // forkSkillSQL forks exact skill revision $4 of user scope $1/$2 into a new
 // skills/$3 binding of run scope $5/$6 at revision $7, reusing the version,
-// recording 'input_fork' lineage and pinning the source as a run input. Beside
+// and recording 'input_fork' lineage. Beside
 // flags, media type and size it returns the existing target revision and its
 // input_fork source, so the caller can accept an idempotent retry.
 // Used by PostgresRepository.ForkSkill.
@@ -52,15 +52,6 @@ WITH source_selection AS (
     SELECT $5, $6, 'skills', $3, $7,
            $1, $2, 'skills', $3, source_selection.revision, 'input_fork'
     FROM source_selection, target_revision
-    RETURNING 1
-), pinned AS (
-    INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
-    )
-    SELECT 'run_input', $6 || ':skill:' || $3,
-           $1, $2, 'skills', $3, source_selection.revision, $6
-    FROM source_selection, lineage
-    ON CONFLICT DO NOTHING
     RETURNING 1
 )
 SELECT

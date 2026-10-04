@@ -97,7 +97,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				if err := runs.SetRunSkillSelections(ctx, runID, normalized.Skills); err != nil {
 					return err
 				}
-				if err := catalog.PinRunSources(ctx, intent.OwnerID, runID, normalized.Skills); err != nil {
+				if err := catalog.RequireRunSources(ctx, intent.OwnerID, normalized.Skills); err != nil {
 					return err
 				}
 			}
@@ -110,11 +110,8 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			); metadataErr != nil {
 				return metadataErr
 			}
-			if pinErr := artifactService.PinExact(
-				ctx, runID, projectScope, normalized.ExecutionManifest.Ref,
-				artifacts.PinRunInput, runID+":audit-execution-manifest",
-			); pinErr != nil {
-				return pinErr
+			if err := artifactService.RequireExact(ctx, projectScope, normalized.ExecutionManifest.Ref); err != nil {
+				return err
 			}
 			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 			for _, slot := range sortedInputSlots(normalized.Inputs) {

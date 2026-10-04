@@ -81,12 +81,11 @@ func TestPostgresGitProvenanceRetainsExactRunInputAndRollsBack(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE artifact_git_sources SET resolved_commit=$1`, strings.Repeat("c", 40)); err == nil {
 		t.Fatal("origin mutation accepted")
 	}
-	// Remove only the source binding after dropping its source-side pin. The
-	// Run revision still references the immutable version and keeps its origin.
+	// Remove only the source binding. The Run revision still references the
+	// immutable version and keeps its origin.
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, query := range []string{
 			`SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
-			`DELETE FROM artifact_pins WHERE scope_kind='user' AND namespace='source' AND name='original'`,
 			`DELETE FROM artifact_lineage WHERE source_scope_kind='user' AND source_namespace='source' AND source_name='original'`,
 			`DELETE FROM artifact_bindings WHERE scope_kind='user' AND namespace='source' AND name='original'`,
 			`DELETE FROM artifact_binding_revisions WHERE scope_kind='user' AND namespace='source' AND name='original'`,

@@ -1,6 +1,6 @@
 package artifacts
 
-// Fork and pin statements. Each resolves the source binding and writes the
+// Fork statements. Each resolves the source binding and writes the
 // target in one statement, and reports back which halves existed so the
 // caller can tell a missing source from an idempotent repeat.
 // See postgres_fork.go for the callers.
@@ -68,14 +68,6 @@ WITH source_selection AS (
            $1, $2, $3, $4, source_selection.revision, 'input_fork'
     FROM source_selection, target_revision
     RETURNING 1
-), pinned AS (
-    INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
-    )
-    SELECT 'run_input', $7 || ':' || $8, $1, $2, $3, $4, source_selection.revision, $7
-    FROM source_selection, lineage
-    ON CONFLICT DO NOTHING
-    RETURNING 1
 )
 SELECT
     EXISTS(SELECT 1 FROM source_selection),
@@ -129,46 +121,9 @@ WITH source_selection AS (
            $1, $2, $3, $4, $5, 'output_bind'
     FROM target_revision
     RETURNING 1
-), pinned AS (
-    INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
-    )
-    SELECT 'run_output', $2 || ':' || $6, $1, $2, $3, $4, $5, $2
-    FROM lineage
-    ON CONFLICT DO NOTHING
-    RETURNING 1
 )
 SELECT
     EXISTS(SELECT 1 FROM source_selection),
     EXISTS(SELECT 1 FROM target_revision),
     (SELECT media_type FROM source_selection),
     (SELECT size_bytes FROM source_selection)`
-
-// pinExactSQL records a Run's pin on an exact artifact revision and
-// reports whether the pin was created or already matched.
-var pinExactSQL = `
-WITH source_selection AS (
-    SELECT 1
-    FROM artifact_binding_revisions
-    WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4 AND revision = $5
-), run_selection AS (
-    SELECT 1 FROM workflow_runs WHERE run_id = $8
-), inserted AS (
-    INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
-    )
-    SELECT $6, $7, $1, $2, $3, $4, $5, $8
-    FROM source_selection, run_selection
-    ON CONFLICT DO NOTHING
-    RETURNING 1
-), existing AS (
-    SELECT 1
-    FROM artifact_pins
-    WHERE pin_kind = $6 AND pin_id = $7
-      AND scope_kind = $1 AND scope_id = $2
-      AND namespace = $3 AND name = $4 AND revision = $5
-      AND run_id = $8
-)
-SELECT EXISTS(SELECT 1 FROM source_selection),
-       EXISTS(SELECT 1 FROM run_selection),
-       EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM existing)`

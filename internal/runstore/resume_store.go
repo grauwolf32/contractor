@@ -114,7 +114,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
-		// Pin in name order, like Stage creation, for a deterministic lock order.
+		// Check in name order, like Stage creation, for a deterministic lock order.
 		names := make([]string, 0, len(previous.StageContext.Artifacts))
 		for name := range previous.StageContext.Artifacts {
 			names = append(names, name)
@@ -123,7 +123,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		for _, name := range names {
 			value := previous.StageContext.Artifacts[name]
 			if value.Artifact != nil {
-				if err := service.PinExact(ctx, runID, scope, *value.Artifact, artifacts.PinStageContext, targetID+":"+name); err != nil {
+				if err := service.RequireExact(ctx, scope, *value.Artifact); err != nil {
 					return err
 				}
 			}

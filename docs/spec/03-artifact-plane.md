@@ -477,13 +477,13 @@ binding for the same Run.
 
 Every ArtifactRef in a candidate StageResult must contain a revision. When
 entering StageExecution `finalizing`, Workflow Scheduler validates each exact
-ref, including its stored media type against the declared result slot, and pins
-the internal version identified by that revision. It never
+ref, including its stored media type against the declared result slot, and
+locks the internal version identified by that revision. It never
 re-resolves the current binding, and the selected revision need not still be
 current. Worker finalization cannot mutate artifacts. When Scheduler accepts
 the terminal successful result while WorkflowRun is still `running`, the same
 database transaction creates or advances the corresponding
-`outputs/<workflow output name>` binding to those already pinned versions. This
+`outputs/<workflow output name>` binding to those already validated versions. This
 also validates the destination Workflow output slot. The binding is a metadata
 fork inside the same RunScope and does not copy bytes. If Run
 cancellation committed first, StageResult may still be accepted for audit but
@@ -605,7 +605,7 @@ optional binding into the reserved `outputs` Namespace is Scheduler-controlled.
 
 Normal Worker reads through a versionless ref resolve the current committed
 binding and return the exact versioned ref that was read. Entering
-StageExecution `finalizing` validates and pins the revisions already named by
+StageExecution `finalizing` validates the revisions already named by
 the candidate StageResult. Terminal acceptance may bind those versions into
 `outputs`; it does not re-resolve a newer current binding.
 
@@ -619,12 +619,12 @@ public change feed.
 Normal Artifact APIs never delete committed versions. The trusted lifecycle
 cleanup specified by [18](18-run-and-workspace-lifecycle-controls.md) is the
 only controlled exception: after its Run release or Project deletion gate, it
-may remove a complete RunScope or ProjectScope and the pins/lineage edges owned
+may remove a complete RunScope or ProjectScope and the lineage edges owned
 by that purge set. It never grants delete authority to a browser-selected
 scope, Planner, Runtime or generic artifact client.
 
 Registry cleanup is reference-safe. A version and its content-addressed blob
-may be collected only after no binding, retained revision, pin or lineage edge
+may be collected only after no binding, retained revision or lineage edge
 outside the purge set references them. Removing a cross-scope provenance edge
 does not remove the independently retained target artifact. Scope registry
 deletion and relational reference checks are one transaction; physical blob
@@ -716,7 +716,7 @@ The allocation remains the path identity, while the client repeats its process
 identity in bounded `X-Contractor-Runtime-Instance-ID`; Server validates that
 header against the mTLS principal-bound grant before reading a request body.
 
-Workflow Scheduler uses an internal ArtifactStore capability to pin versions,
+Workflow Scheduler uses an internal ArtifactStore capability to verify exact versions,
 fork UserScope inputs into RunScope and bind accepted versions into `outputs`.
 The User Artifact API exposes a separate, purpose-specific publication
 operation for an authorized Run output. ArtifactStore and its APIs do not
@@ -751,7 +751,7 @@ version.
    authenticated context supplies scope and callers cannot select another
    scope.
 3. All Stage participants in one Run use the same RunArtifactSpace.
-4. Every required input is pinned and forked before the Run is schedulable;
+4. Every required input is forked at an exact revision before the Run is schedulable;
    Run mutations never modify its UserScope source.
 5. Generic Worker grants never cross a Run and cannot write `outputs`.
 6. Allocation writes are rejected from the durable transition to `finalizing`
@@ -764,7 +764,7 @@ version.
 10. Writes require a versionless target and use a separate explicit CAS
     precondition; same-binding conflicts are returned to the caller.
 11. Every candidate StageResult ref is versioned before `finalizing`; Scheduler
-    pins that exact revision rather than resolving current.
+    verifies that exact revision rather than resolving current.
 12. Declared Run outputs are Scheduler-managed bindings to accepted versions.
 13. Final required-output binding/freezing and `running -> succeeded` are one
     transaction; a StageResult accepted after Run cancellation cannot create
@@ -772,8 +772,8 @@ version.
 14. Run-to-user publication is explicit and revision-checked.
 15. A2A normally carries refs, not artifact bytes.
 16. Runtime Agent receives no Artifact Registry or blob-backend credential.
-17. Every present StageContext artifact is pinned to an exact retained revision
-    before allocation; missing optional bindings are recorded as absent, while
+17. Every present StageContext artifact resolves to an exact retained revision,
+    verified before allocation; missing optional bindings are recorded as absent, while
     a missing required binding prevents Planner creation.
 18. RunScope names beginning `memory.` in non-reserved Namespaces are
     purpose-specific MemoryTools bindings: no artifact-backed model Toolset,

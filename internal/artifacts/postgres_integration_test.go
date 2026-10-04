@@ -164,11 +164,13 @@ WHERE (scope_kind, scope_id, namespace, name, revision) IN (
 	if err != nil || distinctVersions != 1 {
 		t.Fatalf("fork version reuse = (%d, %v), want one internal version", distinctVersions, err)
 	}
-	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
-		t.Fatalf("pin exact StageContext artifact: %v", err)
+	if err := service.RequireExact(ctx, mustRunScope(t, "run-fork"), runUpdate.Ref); err != nil {
+		t.Fatalf("require exact StageContext artifact: %v", err)
 	}
-	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
-		t.Fatalf("repeat idempotent pin: %v", err)
+	missing := runUpdate.Ref
+	missing.Name = "absent"
+	if err := service.RequireExact(ctx, mustRunScope(t, "run-fork"), missing); !errors.Is(err, ErrArtifactNotFound) {
+		t.Fatalf("require missing exact artifact = %v, want not found", err)
 	}
 
 	_, err = pool.Exec(ctx, `
@@ -496,12 +498,6 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	if _, err := service.ForkProjectInput(ctx, projectID, projectSource.Ref, runID, "project-source"); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.PinExact(
-		ctx, runID, mustProjectScope(t, projectID), projectSource.Ref,
-		PinStageContext, "stage-run-delete:project-source",
-	); err != nil {
-		t.Fatal(err)
-	}
 	ephemeral, err := run.Write(
 		ctx, ArtifactRef{Namespace: "scratch", Name: "ephemeral"},
 		Payload{MediaType: "text/plain", Data: []byte("run-only bytes")}, nil,
@@ -616,7 +612,6 @@ WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
 	}
 	for name, query := range map[string]string{
 		"Run scope": `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'run' AND scope_id = $1`,
-		"Run pins":  `SELECT count(*) FROM artifact_pins WHERE run_id = $1`,
 		"Run lineage": `SELECT count(*) FROM artifact_lineage
             WHERE (source_scope_kind = 'run' AND source_scope_id = $1)
                OR (target_scope_kind = 'run' AND target_scope_id = $1)`,

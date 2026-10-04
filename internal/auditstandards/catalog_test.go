@@ -412,8 +412,7 @@ func (r *memoryRepository) BindOutputExact(context.Context, artifacts.Scope, str
 	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
 }
 
-func (r *memoryRepository) PinExact(context.Context, string, artifacts.Scope,
-	artifacts.ArtifactRef, artifacts.PinKind, string) error {
+func (r *memoryRepository) RequireExact(context.Context, artifacts.Scope, artifacts.ArtifactRef) error {
 	return artifacts.ErrQueryUnsupported
 }
 

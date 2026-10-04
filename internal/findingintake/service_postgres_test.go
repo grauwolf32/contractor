@@ -564,13 +564,6 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 			t.Fatalf("retained %s after Run deletion: %v", name, err)
 		}
 	}
-	var sourcePins int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_pins WHERE run_id = $1`, runID).Scan(&sourcePins); err != nil {
-		t.Fatal(err)
-	}
-	if sourcePins != 0 {
-		t.Fatalf("source Run retained %d finding pins", sourcePins)
-	}
 }
 
 func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {

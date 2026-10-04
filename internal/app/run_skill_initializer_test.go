@@ -68,7 +68,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		if err := store.SetRunSkillSelections(ctx, "run-skill-init", selected); err != nil {
 			return err
 		}
-		return catalog.PinRunSources(ctx, "owner-1", "run-skill-init", selected)
+		return catalog.RequireRunSources(ctx, "owner-1", selected)
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -270,7 +270,7 @@ func createAppSkillRunSelection(
 		if err := store.SetRunSkillSelections(ctx, runID, selected); err != nil {
 			return err
 		}
-		return catalog.PinRunSources(ctx, "owner-1", runID, selected)
+		return catalog.RequireRunSources(ctx, "owner-1", selected)
 	})
 	if err != nil {
 		t.Fatal(err)

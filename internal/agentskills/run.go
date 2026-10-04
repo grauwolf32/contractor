@@ -119,13 +119,12 @@ func ValidateSelectedLimits(selected []contracts.RunSkillSnapshot, templateSets 
 	return nil
 }
 
-// PinRunSources retains every exact non-missing owner version before the Run
-// creation transaction commits. Missing markers are intentionally durable and
-// have nothing to pin.
-func (c *Catalog) PinRunSources(
+// RequireRunSources confirms every exact non-missing owner version and holds
+// a key-share lock on it until the Run creation transaction commits. Missing
+// markers are intentionally durable and have nothing to check.
+func (c *Catalog) RequireRunSources(
 	ctx context.Context,
 	ownerID string,
-	runID string,
 	selected []contracts.RunSkillSnapshot,
 ) error {
 	if c == nil || c.service == nil {
@@ -139,9 +138,7 @@ func (c *Catalog) PinRunSources(
 		if skill.Source == nil {
 			continue
 		}
-		if pinErr := c.service.PinExact(
-			ctx, runID, scope, *skill.Source, artifacts.PinRunInput, runID+":skill:"+skill.Name,
-		); pinErr != nil {
+		if err := c.service.RequireExact(ctx, scope, *skill.Source); err != nil {
 			return runSkillError(CodeArtifactUnavailable, skill.Name, true)
 		}
 	}
@@ -200,8 +197,7 @@ func (c *Catalog) InitializeRun(
 	if err := validateInitializedLimits(initialized, templateSets); err != nil {
 		return nil, err
 	}
-	runScope, err := artifacts.RunScope(runID)
-	if err != nil {
+	if _, err := artifacts.RunScope(runID); err != nil {
 		return nil, runSkillError(CodeForkFailed, "", true)
 	}
 	for index := range initialized {
@@ -219,12 +215,6 @@ func (c *Catalog) InitializeRun(
 			return nil, runSkillError(CodeForkConflict, skill.Name, false)
 		}
 		skill.Artifact = exactRefPointer(fork.TargetRef)
-		if pinErr := c.service.PinExact(
-			ctx, runID, runScope, *skill.Artifact, artifacts.PinRunInput,
-			runID+":skill-fork:"+skill.Name,
-		); pinErr != nil {
-			return nil, runSkillError(CodeForkFailed, skill.Name, true)
-		}
 	}
 	return initialized, nil
 }

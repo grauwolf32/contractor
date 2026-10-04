@@ -244,64 +244,59 @@ func TestPostgresResumeWaitsForAllocationRelease(t *testing.T) {
 
 // Resume pins StageContext artifacts in name order, like every other pinning
 // site, so concurrent transactions take Artifact locks in one order.
-func TestPostgresResumePinsStageContextInNameOrder(t *testing.T) {
+func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
-	runID := "run-resume-pin-order"
-	run := createTestRun(t, ctx, store, runID)
-	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
-		t.Fatal(err)
-	}
-	scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stageContext := make(map[string]PinnedContextArtifact)
-	want := make([]string, 0, 12)
-	for index := 0; index < 12; index++ {
-		name := fmt.Sprintf("context-%02d", index)
-		written, err := scoped.Write(ctx, contracts.ArtifactRef{Namespace: "analysis", Name: name},
-			artifacts.Payload{MediaType: "text/plain", Data: []byte(name)}, nil)
+	for _, missing := range []bool{true, false} {
+		runID := fmt.Sprintf("run-resume-context-%t", missing)
+		run := createTestRun(t, ctx, store, runID)
+		if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+			t.Fatal(err)
+		}
+		scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref := written.Ref
-		stageContext[name] = PinnedContextArtifact{Required: true, Artifact: &ref}
-		want = append(want, "resumed-stage:"+name)
-	}
-	stageID := runID + "-stage"
-	if _, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
-		StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
-		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
-		StageContextSchemaVersion: contracts.APIVersion,
-		StageContext:              StageContextSnapshot{Parameters: run.Parameters, Artifacts: stageContext},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	failResumeStage(t, ctx, store, runID, stageID)
-	if _, err := store.ResumeFailedRun(ctx, "user-1", runID, stageID, "resumed-stage"); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := pool.Query(ctx, `
-SELECT pin_id FROM artifact_pins
-WHERE pin_kind = 'stage_context' AND pin_id LIKE 'resumed-stage:%'
-ORDER BY created_at`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	got := make([]string, 0, len(want))
-	for rows.Next() {
-		var pinID string
-		if err := rows.Scan(&pinID); err != nil {
+		stageContext := make(map[string]PinnedContextArtifact)
+		for index := 0; index < 3; index++ {
+			name := fmt.Sprintf("context-%02d", index)
+			written, err := scoped.Write(ctx, contracts.ArtifactRef{Namespace: "analysis", Name: name},
+				artifacts.Payload{MediaType: "text/plain", Data: []byte(name)}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref := written.Ref
+			stageContext[name] = PinnedContextArtifact{Required: true, Artifact: &ref}
+		}
+		if missing {
+			// Same revision, absent binding: the exact ref names no stored revision.
+			ref := *stageContext["context-00"].Artifact
+			ref.Name = "context-absent"
+			stageContext["context-absent"] = PinnedContextArtifact{Required: true, Artifact: &ref}
+		}
+		stageID := runID + "-stage"
+		if _, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+			StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
+			StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
+			StageContextSchemaVersion: contracts.APIVersion,
+			StageContext:              StageContextSnapshot{Parameters: run.Parameters, Artifacts: stageContext},
+		}); err != nil {
 			t.Fatal(err)
 		}
-		got = append(got, pinID)
-	}
-	if err := rows.Err(); err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("resumed StageContext pin order = (%v, %v), want %v", got, err, want)
+		failResumeStage(t, ctx, store, runID, stageID)
+		_, err = store.ResumeFailedRun(ctx, "user-1", runID, stageID, runID+"-resumed")
+		if missing != errors.Is(err, artifacts.ErrArtifactNotFound) || !missing && err != nil {
+			t.Fatalf("resume with missing context artifact %t: %v", missing, err)
+		}
+		stored, err := store.GetRun(ctx, runID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := map[bool]WorkflowRunState{true: RunFailed, false: RunPending}[missing]; stored.State != want {
+			t.Fatalf("Run after resume with missing context artifact %t = %s, want %s", missing, stored.State, want)
+		}
 	}
 }
 

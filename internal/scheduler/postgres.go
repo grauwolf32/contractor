@@ -56,15 +56,8 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		sorted := append([]ContextPin(nil), pins...)
 		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 		for _, pin := range sorted {
-			if err := artifactService.PinExact(
-				ctx,
-				params.RunID,
-				scope,
-				pin.Ref,
-				artifacts.PinStageContext,
-				params.StageExecutionID+":"+pin.Name,
-			); err != nil {
-				return fmt.Errorf("pin StageContext artifact %q: %w", pin.Name, err)
+			if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+				return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
 			}
 		}
 		return nil
@@ -97,15 +90,8 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		}
 		names := sortedArtifactNames(params.Candidate.Artifacts)
 		for _, name := range names {
-			if err := artifactService.PinExact(
-				ctx,
-				execution.RunID,
-				scope,
-				params.Candidate.Artifacts[name],
-				artifacts.PinStageResult,
-				params.StageExecutionID+":"+name,
-			); err != nil {
-				return fmt.Errorf("pin StageResult artifact %q: %w", name, err)
+			if err := artifactService.RequireExact(ctx, scope, params.Candidate.Artifacts[name]); err != nil {
+				return fmt.Errorf("require StageResult artifact %q: %w", name, err)
 			}
 		}
 		return store.EnterFinalizing(ctx, params)
@@ -588,15 +574,8 @@ func commitNextStage(
 	pins := append([]ContextPin(nil), progression.NextStage.ContextPins...)
 	sort.Slice(pins, func(i, j int) bool { return pins[i].Name < pins[j].Name })
 	for _, pin := range pins {
-		if err := artifactService.PinExact(
-			ctx,
-			progression.NextStage.Params.RunID,
-			scope,
-			pin.Ref,
-			artifacts.PinStageContext,
-			progression.NextStage.Params.StageExecutionID+":"+pin.Name,
-		); err != nil {
-			return fmt.Errorf("pin StageContext artifact %q: %w", pin.Name, err)
+		if err := artifactService.RequireExact(ctx, scope, pin.Ref); err != nil {
+			return fmt.Errorf("require StageContext artifact %q: %w", pin.Name, err)
 		}
 	}
 	return nil
