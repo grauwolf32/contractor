@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V3 · Start a check</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.t-light{--bg:#f4f6fa;--surface:#ffffff;--chrome:#e6ebf3;--chrome-2:#d9e0eb;--sunken:#eff2f7;--sel:#eef2f7;--sel-line:#a9bacd;--text:#0d121c;--muted:#465166;--faint:#5a667b;--line:#dde3ec;--line-strong:#c4cdda;--accent:#1f2937;--accent-kbd:#3a4556;--accent-ink:#2f5d8a;--on-accent:#ffffff;--good:#17703a;--good-bg:#e1f3e7;--warn:#8a4a00;--warn-bg:#fcefd8;--bad:#b3261e;--bad-bg:#fde6e3;--info:#1d4fbf;--info-bg:#e2eafc;--m-idle:#d3dae5;--m-partial:#e3a514;--m-progress:#3f6fe0;--m-blocked:#9f1f17;--code-bg:#f3f5f9;--code-hl:#eef2f7;--badge-bg:#0d121c;--badge-ink:#ffffff;--shadow:0 1px 2px rgba(13,18,28,.05),0 12px 32px -16px rgba(13,18,28,.22)}
+.t-dark{--bg:#0b0e13;--surface:#121720;--chrome:#0f141b;--chrome-2:#1b2331;--sunken:#0d1219;--sel:#18212c;--sel-line:#3b4f66;--text:#e9edf3;--muted:#a6b1c2;--faint:#8c98ab;--line:#232c3a;--line-strong:#354256;--accent:#d3dbe6;--accent-kbd:#b6c2d1;--accent-ink:#9fbde0;--on-accent:#0b1017;--good:#72d895;--good-bg:#10261a;--warn:#f3b54a;--warn-bg:#2a2010;--bad:#ff8e85;--bad-bg:#311614;--info:#8fb3ff;--info-bg:#14213b;--m-idle:#2b3546;--m-partial:#f6c35c;--m-progress:#6f9bff;--m-blocked:#e0483f;--code-bg:#0d1219;--code-hl:#18212c;--badge-bg:#d3dbe6;--badge-ink:#0b1017;--shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -16px rgba(0,0,0,.7)}
+.t-black{--bg:#000000;--surface:#0b0b0c;--chrome:#060607;--chrome-2:#141518;--sunken:#050506;--sel:#11161d;--sel-line:#33435a;--text:#ededed;--muted:#a3a7ad;--faint:#8b9097;--line:#1e2023;--line-strong:#2e3136;--accent:#e6e8eb;--accent-kbd:#cfd3d8;--accent-ink:#b2c4da;--on-accent:#000000;--good:#72d895;--good-bg:#0a1a10;--warn:#f3b54a;--warn-bg:#1c1508;--bad:#ff8e85;--bad-bg:#200c0b;--info:#8fb3ff;--info-bg:#0c1529;--m-idle:#26292e;--m-partial:#f6c35c;--m-progress:#6f9bff;--m-blocked:#e0483f;--code-bg:#050506;--code-hl:#11161d;--badge-bg:#e6e8eb;--badge-ink:#000000;--shadow:0 1px 2px rgba(0,0,0,.6),0 16px 40px -16px rgba(0,0,0,.9)}
+a{color:var(--accent-ink)}a:hover{text-decoration-thickness:2px}
+</style>
+</head>
+<body>
+<div class="t-light" data-mockup-root style="min-height: 1100px; background: var(--bg); color: var(--text); font-family: Manrope, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap;">
+<nav aria-label="Main" style="flex: 1 1 88px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; padding: 16px 8px 20px; background: var(--chrome); border-right: 1px solid var(--line);">
+  <div style="display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center; gap: 4px;">
+    <a href="#" aria-label="Contractor" style="flex: 1 1 72px; display: flex; justify-content: center; padding: 2px 0 14px; text-decoration: none;">
+      <span style="display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--text); color: var(--bg);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M16.5 8A5.5 5.5 0 1 0 16.5 16"/><circle cx="17.4" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg></span>
+    </a>
+    <a href="#" style="flex: 1 1 72px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0 8px; text-decoration: none; font-size: 11.5px; line-height: 1.2; color: var(--muted); font-weight: 600;"><span style="position: relative; display: grid; place-items: center; width: 52px; height: 32px; border-radius: 999px; background: transparent; color: var(--muted);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M3.5 13.5h4.6l1.4 2.5h5l1.4-2.5h4.6"/><path d="M6 5h12l2.5 8.5V19h-17v-5.5z"/></svg><span aria-label="4 items" style="position: absolute; top: -6px; right: -2px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; border: 2px solid var(--chrome); background: var(--badge-bg); color: var(--badge-ink); font-size: 10.5px; font-weight: 800; line-height: 15px; text-align: center;">4</span></span><span>Inbox</span></a><a href="#" aria-current="page" style="flex: 1 1 72px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0 8px; text-decoration: none; font-size: 11.5px; line-height: 1.2; color: var(--text); font-weight: 800;"><span style="position: relative; display: grid; place-items: center; width: 52px; height: 32px; border-radius: 999px; background: var(--accent); color: var(--on-accent);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4l2 2h8A1.5 1.5 0 0 1 20.5 9v8.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg></span><span>Projects</span></a><a href="#" style="flex: 1 1 72px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0 8px; text-decoration: none; font-size: 11.5px; line-height: 1.2; color: var(--muted); font-weight: 600;"><span style="position: relative; display: grid; place-items: center; width: 52px; height: 32px; border-radius: 999px; background: transparent; color: var(--muted);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.9-7 9-4.1-1.1-7-4.7-7-9V6.3z"/><path d="M9.2 12l2 2 3.8-3.8"/></svg></span><span>Checks</span></a><a href="#" style="flex: 1 1 72px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0 8px; text-decoration: none; font-size: 11.5px; line-height: 1.2; color: var(--muted); font-weight: 600;"><span style="position: relative; display: grid; place-items: center; width: 52px; height: 32px; border-radius: 999px; background: transparent; color: var(--muted);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z"/><path d="M14 3.5V8h4.5"/><path d="M9.5 12.5h6M9.5 16h6"/></svg></span><span>Reports</span></a>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;">
+    <a href="#" style="flex: 1 1 72px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 0 8px; text-decoration: none; font-size: 11.5px; line-height: 1.2; color: var(--muted); font-weight: 600;"><span style="position: relative; display: grid; place-items: center; width: 52px; height: 32px; border-radius: 999px; background: transparent; color: var(--muted);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><rect x="4" y="4.5" width="16" height="6" rx="1.5"/><rect x="4" y="13.5" width="16" height="6" rx="1.5"/><path d="M7.5 7.5h.01M7.5 16.5h.01"/></svg></span><span>Operations</span></a>
+    <a href="#" aria-label="Your account" style="flex: 1 1 72px; display: flex; justify-content: center; padding: 4px 0; text-decoration: none;">
+      <span style="display: grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-strong); color: var(--muted);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><circle cx="12" cy="9" r="3.5"/><path d="M5.5 19.5c1.2-3.2 3.6-4.8 6.5-4.8s5.3 1.6 6.5 4.8"/></svg></span>
+    </a>
+  </div>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 14px 32px; border-bottom: 1px solid var(--line);">
+      <div role="search" style="position: relative; flex: 1 1 320px; max-width: 640px;">
+        <label for="cmd-start" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;">Search or start a check</label>
+        <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); display: flex; color: var(--muted);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></span>
+        <input id="cmd-start" type="search" placeholder="Search or start a check…" autocomplete="off" style="box-sizing: border-box; width: 100%; height: 44px; padding: 0 100px 0 44px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; font-size: 14.5px;">
+        <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px;"><kbd style="font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 6px 4px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted);">Ctrl</kbd><kbd style="font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 6px 4px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted);">K</kbd></span>
+      </div>
+      <button type="button" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;">[TEAM NAME]<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M6 9.5l6 6 6-6"/></svg></button>
+    </header>
+    <div style="display: flex; justify-content: center; padding: 16px 32px 32px;">
+      <div style="flex: 1 1 auto; max-width: 880px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;">
+          <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px;"><a href="#" style="color: var(--muted); font-weight: 600;">crapi-workshop</a><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M9.5 6l6 6-6 6"/></svg><span aria-current="page" style="color: var(--text); font-weight: 700;">New check</span></nav>
+          <button type="button" style="display: inline-flex; align-items: center; justify-content: center; font: inherit; line-height: 1; white-space: nowrap; cursor: pointer; height: 32px; padding: 0 12px; font-size: 13px; border-radius: 9px; gap: 6px; background: transparent; color: var(--muted); border: 1px solid transparent; font-weight: 700; "><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg><span>Cancel</span></button>
+        </div>
+        <div>
+          <h1 style="margin: 0; font-size: 32px; line-height: 1.1; font-weight: 800; letter-spacing: -0.03em;">Start a check</h1>
+          <p style="margin: 8px 0 0; color: var(--muted); font-size: 15px;">Say what you want to find out. Contractor suggests the check and attaches the materials; you confirm.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label for="objective" style="font-size: 14px; font-weight: 800; color: var(--text);">Your objective, in your own words</label>
+          <textarea id="objective" rows="2" style="box-sizing: border-box; width: 100%; resize: vertical; padding: 14px 18px; border-radius: 16px; border: 2px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 19px; font-weight: 600; line-height: 1.45; letter-spacing: -0.01em;">Check the shop and mechanic APIs for authorization flaws</textarea>
+        </div>
+
+        <fieldset style="margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+          <legend style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;">Check type</legend>
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px;"><span aria-hidden="true" style="font-size: 14px; font-weight: 800; color: var(--text);">Check type</span><a href="#" style="font-size: 13px; font-weight: 700;">See all 9 check types</a></div>
+
+            <label for="type-trace" style="display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 16px; background: var(--sel); border: 2px solid var(--sel-line); cursor: pointer;">
+              <input id="type-trace" type="radio" name="check-type" checked="checked" style="margin: 4px 0 0; width: 18px; height: 18px; accent-color: var(--accent-ink); flex: none;">
+              <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+                <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;">
+                  <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.01em;">API endpoint trace</span>
+                  <span style="display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 800;">Suggested</span>
+                </span>
+                <span style="font-size: 14px; color: var(--text);">Traces every endpoint of your API spec through the code and proposes possible issues. Sends no live traffic.</span>
+                <span style="display: flex; gap: 8px; align-items: flex-start; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--sel-line); font-size: 13.5px; color: var(--text);">
+                  <span style="color: var(--accent-ink); display: flex; padding-top: 1px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3.5a5.8 5.8 0 0 0-3.4 10.5c.6.5.9 1.1.9 1.8v.2h5v-.2c0-.7.3-1.3.9-1.8A5.8 5.8 0 0 0 12 3.5z"/></svg></span>
+                  <span><strong style="font-weight: 800;">Why this fits:</strong> authorization flaws sit in each endpoint's access checks, and this check reads exactly those, endpoint by endpoint. It needs source code and an API spec, and this project has both.</span>
+                </span>
+              </span>
+            </label>
+
+            <label for="type-top10" style="display: flex; gap: 14px; align-items: flex-start; padding: 14px 20px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line-strong); cursor: pointer;">
+              <input id="type-top10" type="radio" name="check-type" style="margin: 3px 0 0; width: 18px; height: 18px; accent-color: var(--accent-ink); flex: none;">
+              <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;"><span style="font-size: 15px; font-weight: 800;">OWASP Top 10 (2025) review</span><span style="font-size: 13px; color: var(--muted);">Alternative</span></span>
+                <span style="font-size: 13.5px; color: var(--muted);">A broader risk review of the code, not endpoint by endpoint. Needs source code only.</span>
+              </span>
+            </label>
+        </fieldset>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px;">
+          <section aria-labelledby="mat-h" style="display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px;"><h2 id="mat-h" style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Materials</h2><span style="font-size: 13px; color: var(--muted);">Attached from the project</span></div>
+            <ul role="list" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px;">
+              <li style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-strong); font-size: 13px; line-height: 1.3;"><span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; background: var(--good-bg); color: var(--good);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span><span style="display: flex; align-items: center; gap: 6px; color: var(--text);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4"/></svg><span style="font-weight: 700;">Source code</span></span><span style="color: var(--muted);">ZIP, 68.7 KiB</span></li>
+              <li style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-strong); font-size: 13px; line-height: 1.3;"><span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; background: var(--good-bg); color: var(--good);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span><span style="display: flex; align-items: center; gap: 6px; color: var(--text);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M8.5 4.5H7A1.5 1.5 0 0 0 5.5 6v4L4 12l1.5 2v4A1.5 1.5 0 0 0 7 19.5h1.5M15.5 4.5H17A1.5 1.5 0 0 1 18.5 6v4l1.5 2-1.5 2v4a1.5 1.5 0 0 1-1.5 1.5h-1.5"/></svg><span style="font-weight: 700;">API spec</span></span><span style="color: var(--muted);">OpenAPI YAML</span></li>
+            </ul>
+            <p style="margin: 0; font-size: 13px; color: var(--muted);">No live target needed for this check.</p>
+          </section>
+          <fieldset style="margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;">
+            <legend style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;">Scope</legend>
+            <span aria-hidden="true" style="font-size: 14px; font-weight: 800; color: var(--text);">Scope</span>
+            <label for="scope-all" style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; cursor: pointer;"><input id="scope-all" type="radio" name="scope" checked="checked" style="margin: 0; width: 17px; height: 17px; accent-color: var(--accent-ink);">All 5 endpoints</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label for="scope-areas" style="display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; cursor: pointer;"><input id="scope-areas" type="radio" name="scope" style="margin: 0; width: 17px; height: 17px; accent-color: var(--accent-ink);">Pick areas</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; padding-left: 27px;">
+                <label for="a-shop" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 13px; cursor: pointer;"><input id="a-shop" type="checkbox" disabled="disabled" style="margin: 0; width: 15px; height: 15px; accent-color: var(--accent-ink);"><span style="font-weight: 700;">shop</span><span>2 endpoints</span></label>
+                <label for="a-mech" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 13px; cursor: pointer;"><input id="a-mech" type="checkbox" disabled="disabled" style="margin: 0; width: 15px; height: 15px; accent-color: var(--accent-ink);"><span style="font-weight: 700;">mechanic</span><span>2 endpoints</span></label>
+                <label for="a-merch" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 13px; cursor: pointer;"><input id="a-merch" type="checkbox" disabled="disabled" style="margin: 0; width: 15px; height: 15px; accent-color: var(--accent-ink);"><span style="font-weight: 700;">merchant</span><span>1 endpoint</span></label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <details style="border: 1px solid var(--line); border-radius: 14px; background: var(--surface);">
+          <summary style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 13px 18px; cursor: pointer;">
+            <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M9.5 6l6 6-6 6"/></svg>Advanced options</span>
+            <span style="font-size: 13px; color: var(--muted);">Time limit, AI model and labels. The defaults suit most checks.</span>
+          </summary>
+          <dl style="margin: 0; padding: 4px 18px 16px 41px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px 24px; font-size: 13.5px;">
+            <div><dt style="color: var(--muted);">Time limit</dt><dd style="margin: 0; font-weight: 700;">24 hours</dd></div>
+            <div><dt style="color: var(--muted);">AI model</dt><dd style="margin: 0; font-weight: 700;">Workspace default</dd></div>
+            <div><dt style="color: var(--muted);">Labels</dt><dd style="margin: 0; font-weight: 700;">None</dd></div>
+          </dl>
+        </details>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 18px 20px 18px 22px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);">
+          <p style="flex: 1 1 380px; margin: 0; font-size: 14px; color: var(--text);"><strong style="font-weight: 800;">API endpoint trace on all 5 endpoints of crapi-workshop.</strong> <span style="color: var(--muted);">It runs on its own and stops after 24 hours at most. Possible issues arrive in your Inbox as they are found.</span></p>
+          <button type="button" style="display: inline-flex; align-items: center; justify-content: center; font: inherit; line-height: 1; white-space: nowrap; cursor: pointer; height: 48px; padding: 0 18px; font-size: 15px; border-radius: 12px; gap: 10px; background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); font-weight: 800; "><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M8 5.5v13l10.5-6.5z"/></svg><span>Start check</span></button>
+        </div>
+      </div>
+    </div>
+</main>
+</div>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='black'){document.querySelector('[data-mockup-root]').className='t-'+t;}})();</script>
+</body>
+</html>

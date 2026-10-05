@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Agent assembly board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; min-height: 56px; box-sizing: border-box; padding: 8px 16px; background: #0c1016; border-bottom: 1px solid #2b3442">
+<a href="#" style="font-size: 13px; font-weight: 600; text-decoration: none">← Agents</a>
+<span style="width: 1px; height: 24px; background: #2b3442"></span>
+<b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">workspace_openapi_builder</b>
+<span style="padding: 3px 9px; border-radius: 999px; border: 1px solid #d8ff7259; color: #d8ff72; font-size: 12px; font-weight: 700">draft @4 ← @3</span>
+<div role="group" aria-label="View" style="display: flex; margin: 0 auto; padding: 3px; border-radius: 10px; background: #121720; border: 1px solid #2b3442">
+<button type="button" aria-pressed="true" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 700">Assemble</button>
+<button type="button" aria-pressed="false" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">Instructions</button>
+<button type="button" aria-pressed="false" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">YAML</button>
+</div>
+<button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Validate</button>
+<button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 8.8px; border: 1px solid transparent; background: #d8ff72; color: #11170a; font: inherit; font-size: 13px; font-weight: 700">Export YAML</button>
+</header>
+
+<div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<aside aria-label="Parts" style="flex: 1 1 220px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: #0c1016; border-right: 1px solid #2b3442">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #8f9cad; font-weight: 600">Search parts
+<input placeholder="Toolset, tool, skill" style="min-height: 38px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit; font-size: 13px"></label>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad; margin-bottom: 4px">TOOLSETS</span>
+<span style="display: flex; justify-content: space-between; padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8f9cad">memory-tools@1<span style="color: #d8ff72">in use</span></span>
+<span style="display: flex; justify-content: space-between; padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8f9cad">filesystem@1<span style="color: #d8ff72">in use</span></span>
+<span style="display: flex; justify-content: space-between; padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8f9cad">code-analysis@1<span style="color: #d8ff72">in use</span></span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">source-analysis@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">run-artifacts@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">edit-files@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">http-tools@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">security-findings-code@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">taint-annotations@1</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">likec4@1</span>
+<span style="padding: 5px 4px; font-size: 12px; color: #8f9cad">+ 8 more</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad; margin-bottom: 4px">SKILLS</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">skills/trace</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">skills/vulns</span>
+<span style="padding: 5px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e9edf3">skills/auth</span>
+<span style="padding: 5px 4px; font-size: 12px; color: #8f9cad">+ 6 more</span>
+</div>
+<span style="font-size: 12px; color: #8f9cad">Drop a part on a socket</span>
+</aside>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<div style="flex: 1 1 auto; overflow: auto; background-color: #090c10; background-image: radial-gradient(#232b37 1px, transparent 1px); background-size: 20px 20px; padding: 12px 0">
+<div style="position: relative; width: 880px; height: 600px; margin: 0 auto">
+
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 136px; top: 112px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 436px; top: 112px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 736px; top: 112px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="600" height="8" viewBox="0 0 600 8" preserveAspectRatio="none" style="position: absolute; left: 140px; top: 162px; width: 600px; height: 8px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 600 4"></path></svg>
+<svg width="8" height="52" viewBox="0 0 8 52" preserveAspectRatio="none" style="position: absolute; left: 436px; top: 166px; width: 8px; height: 52px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#3b4655" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 52" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="88" height="8" viewBox="0 0 88 8" preserveAspectRatio="none" style="position: absolute; left: 240px; top: 276px; width: 88px; height: 8px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#3b4655" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 88 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="88" height="8" viewBox="0 0 88 8" preserveAspectRatio="none" style="position: absolute; left: 552px; top: 276px; width: 88px; height: 8px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#3b4655" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 88 4 L 0 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 436px; top: 340px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="720" height="8" viewBox="0 0 720 8" preserveAspectRatio="none" style="position: absolute; left: 80px; top: 390px; width: 720px; height: 8px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 720 4"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 76px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 220px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 364px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 508px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 652px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #3b4655; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+<svg width="8" height="54" viewBox="0 0 8 54" preserveAspectRatio="none" style="position: absolute; left: 796px; top: 394px; width: 8px; height: 54px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 54"></path></svg>
+
+<div style="position: absolute; left: 40px; top: 40px; width: 200px; height: 72px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">MODEL POLICY</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">worker@2</b></span></div>
+<div style="position: absolute; left: 340px; top: 40px; width: 200px; height: 72px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">INSTRUCTIONS</small><br><span style="font-family: 'JetBrains Mono', monospace; color: #e9edf3">workspace-openapi-builder-<br>worker-memory.md</span></span></div>
+<div style="position: absolute; left: 640px; top: 40px; width: 200px; height: 72px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">SUMMARIZER</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">summarizer@1</b> · ratio 0.8</span></div>
+
+<div style="position: absolute; left: 330px; top: 220px; width: 220px; height: 120px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px 14px; background: #1b2215; border: 2px solid #d8ff7299; border-radius: 14px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">AGENT TEMPLATE · DRAFT @4</small><br><b style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: #e9edf3">workspace_openapi_builder</b><br>runtime adk@1<br>6 toolsets · 33 tools · 0 skills</span></div>
+
+<div style="position: absolute; left: 40px; top: 244px; width: 200px; height: 72px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">SANDBOX</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">local-workdir@1</b></span></div>
+<div style="position: absolute; left: 640px; top: 244px; width: 200px; height: 72px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #0f131a; border: 1px dashed #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #8f9cad"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">SKILLS</small><br>empty · drop a skill here</span></div>
+
+<div style="position: absolute; left: 20px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 10px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">TOOLSET</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">memory-<br>tools@1</b><br>6 of 6</span></div>
+<div style="position: absolute; left: 164px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 10px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">TOOLSET</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">filesystem@1</b><br>4 of 4 · read-only</span></div>
+<div style="position: absolute; left: 308px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 10px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">TOOLSET</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">workspace-<br>changes@1</b><br>3 of 3</span></div>
+<div style="position: absolute; left: 452px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 10px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">TOOLSET</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">text-<br>artifacts@1</b><br>1 of 2</span></div>
+<div style="position: absolute; left: 596px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 10px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">TOOLSET</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi@1</b><br>15 of 17 · writes doc</span></div>
+<div style="position: absolute; left: 740px; top: 448px; width: 120px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 7px 9px; background: #1b2215; border: 2px solid #d8ff72; border-radius: 8px; box-shadow: 0 0 0 4px #d8ff7222; font-size: 11.5px; line-height: 16px; color: #b7c1ce"><span><small style="font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">ADDED</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">code-<br>analysis@1</b><br>4 of 11</span></div>
+
+<div style="position: absolute; left: 252px; top: 254px; width: 64px; font-size: 11.5px; line-height: 16px; color: #8f9cad">runs in</div>
+<div style="position: absolute; left: 568px; top: 254px; width: 56px; font-size: 11.5px; line-height: 16px; color: #8f9cad">loads</div>
+<div style="position: absolute; left: 452px; top: 359px; width: 60px; font-size: 11.5px; line-height: 16px; color: #8f9cad">tools</div>
+
+</div>
+</div>
+
+<section aria-label="Checks" style="border-top: 1px solid #2b3442; background: #0c1016; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">CHECKS</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 76px; color: #ffe9a4; font-weight: 700"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1 L13.5 12.5 H0.5 Z" fill="#ffe9a4"></path><path d="M7 5 V8.4 M7 10.2 V10.4" stroke="#0b0e13" stroke-width="1.8"></path></svg>warning</span>
+<span style="flex: 1 1 320px">code-analysis@1 runs only on a Runtime that advertises workspace and graph capabilities</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 76px; color: #95e6d9; font-weight: 700"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#95e6d9"></circle><path d="M4 7.2 L6.2 9.2 L10 5.2" stroke="#0b0e13" stroke-width="1.6" fill="none"></path></svg>ok</span>
+<span style="flex: 1 1 320px">All toolset refs, tool names, policies and the instructions ref resolve</span>
+</div>
+</section>
+</div>
+
+<aside aria-label="Selected part" style="flex: 1 1 320px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 16px; background: #0c1016; border-left: 1px solid #2b3442">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #d8ff72">TOOLSET</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600">code-analysis@1</span>
+<span style="font-size: 12.5px; color: #8f9cad">Structural graph queries over the hydrated workspace</span>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 13px; font-weight: 700">Tools · 4 of 11</span><span style="display: flex; gap: 10px"><a href="#" style="font-size: 12.5px; font-weight: 600">All</a><a href="#" style="font-size: 12.5px; font-weight: 600">None</a></span></div>
+<fieldset style="margin: 0; padding: 4px 0; border: 0; display: flex; flex-direction: column; font-family: 'JetBrains Mono', monospace; font-size: 12.5px">
+<legend style="position: absolute; width: 1px; height: 1px; overflow: hidden">code-analysis@1 tools</legend>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #d8ff72">search_def</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">list_symbols</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">graph_summary</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #d8ff72">find_symbol</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #d8ff72">find_callers</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">find_callees</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">paths_between</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #d8ff72">entrypoint_paths_to</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">attack_surface</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">complexity_hotspots</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 34px; color: #b7c1ce"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #d8ff72">functions_that_raise</label>
+</fieldset>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px">
+<span style="font-weight: 700">Also used by</span>
+<a href="#" style="font-family: 'JetBrains Mono', monospace; font-size: 12px">workspace_source_graph_analyst@3</a>
+<a href="#" style="font-family: 'JetBrains Mono', monospace; font-size: 12px">audit_openapi_operation_tracer@1</a>
+<span style="color: #8f9cad">+ 2 more templates</span>
+</div>
+<button type="button" style="min-height: 38px; border-radius: 8.8px; border: 1px solid #ff8f8666; background: transparent; color: #ff8f86; font: inherit; font-size: 13px; font-weight: 600">Remove toolset</button>
+</aside>
+
+</div>
+</div>
+</body>
+</html>

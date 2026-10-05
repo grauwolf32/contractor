@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V1 · Check</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.t-light{--bg:#f5f4ef;--surface:#ffffff;--sunken:#f1f0ea;--nav-active:#eceae2;--text:#1a1c16;--muted:#585c51;--line:#e4e2da;--line-strong:#cfccc1;--accent:#2b2f36;--accent-edge:#2b2f36;--accent-soft:#eef1f5;--accent-line:#c9d2dd;--accent-ink:#2f5b84;--on-accent:#ffffff;--good:#2b6a1d;--good-bg:#e5f2db;--warn:#8a4a00;--warn-bg:#fcefd5;--bad:#a3271c;--bad-bg:#fbe4df;--info:#1d5a8b;--info-bg:#e2eef8;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#eaa53c;--on-seg-review:#2a1800;--seg-blocked:#b3372a;--on-seg-blocked:#ffffff;--seg-run:#5b7fa6;--on-seg-run:#ffffff;--seg-wait:#ffffff;--on-seg-wait:#585c51;--seg-wait-line:#bdbab0;--shadow:0 1px 2px rgba(40,38,20,.05);--shadow-pop:0 14px 36px rgba(40,38,20,.14),0 2px 6px rgba(40,38,20,.06)}
+.t-dark{--bg:#0b0e13;--surface:#121720;--sunken:#0e131a;--nav-active:#1c2330;--text:#e9edf3;--muted:#9aa6b6;--line:#252d3a;--line-strong:#364152;--accent:#d6dde6;--accent-edge:#d6dde6;--accent-soft:#151c26;--accent-line:#2f3d4f;--accent-ink:#a5c0de;--on-accent:#0d1218;--good:#8fd68a;--good-bg:#12261a;--warn:#f2c46b;--warn-bg:#2a2113;--bad:#ff9b8f;--bad-bg:#2f1717;--info:#8cc3f4;--info-bg:#122233;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#0d1218;--seg-wait:#121720;--on-seg-wait:#9aa6b6;--seg-wait-line:#3d4859;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-pop:0 14px 36px rgba(0,0,0,.55)}
+.t-black{--bg:#000000;--surface:#0b0b0c;--sunken:#060607;--nav-active:#16181b;--text:#ececec;--muted:#a0a3a8;--line:#1f2124;--line-strong:#303338;--accent:#e6e8eb;--accent-edge:#e6e8eb;--accent-soft:#0f141a;--accent-line:#2a3542;--accent-ink:#b3c5da;--on-accent:#000000;--good:#8fd68a;--good-bg:#0b1a10;--warn:#f2c46b;--warn-bg:#1c160a;--bad:#ff9b8f;--bad-bg:#210d0c;--info:#8cc3f4;--info-bg:#0b1724;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#000000;--seg-wait:#0b0b0c;--on-seg-wait:#a0a3a8;--seg-wait-line:#34373c;--shadow:0 1px 2px rgba(0,0,0,.6);--shadow-pop:0 14px 36px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06)}
+a{color:var(--accent-ink)}a:hover{text-decoration-thickness:2px}
+</style>
+</head>
+<body>
+<div class="t-light" data-mockup-root style="min-height: 1300px; background: var(--bg); color: var(--text); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+  <header style="background: var(--surface); border-bottom: 1px solid var(--line);">
+    <div style="padding: 10px clamp(16px, 3vw, 32px); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px;">
+      <a href="#" style="display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em;">
+        <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--accent-edge);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg>
+        </span>
+        Contractor
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 auto;">
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Projects</a>
+        <a href="#" aria-current="page" style="padding: 7px 12px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 600; background: var(--nav-active);">Checks</a>
+        <a href="#" aria-label="Issues, 1 to review" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;">Issues <span style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">1</span></a>
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Library</a>
+      </nav>
+      <details style="position: relative;">
+        <summary aria-label="Account menu for owner" style="list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-weight: 500;">
+          <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 50%; background: var(--nav-active); color: var(--text); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">O</span>
+          owner
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M6 9l6 6 6-6"></path></svg>
+        </summary>
+        <div role="menu" aria-label="Account" style="position: absolute; right: 0; top: calc(100% + 8px); width: 264px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-pop); padding: 6px; box-sizing: border-box; z-index: 5;">
+          <div style="padding: 10px 12px 10px;">
+            <div style="font-weight: 600;">owner</div>
+            <div style="font-size: 12.5px; color: var(--muted);">[TEAM NAME] · Admin</div>
+          </div>
+          <div style="height: 1px; background: var(--line); margin: 2px 6px 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"></path></svg>
+            Profile and settings
+          </a>
+          <a href="#" role="menuitem" style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted); margin-top: 2px; flex: none;"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect><path d="M7 7.5h.01"></path><path d="M7 16.5h.01"></path></svg>
+            <span style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto;">
+              <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">Operations <span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted);">Admins</span></span>
+              <span style="font-size: 12.5px; color: var(--muted);">Runtime, queue and run history</span>
+            </span>
+          </a>
+          <div style="height: 1px; background: var(--line); margin: 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H4"></path></svg>
+            Sign out
+          </a>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main style="max-width: 1144px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <a href="#" style="color: var(--muted); text-decoration: none;">Projects</a>
+        <span aria-hidden="true">/</span>
+        <a href="#" style="color: var(--muted); text-decoration: none;">crapi-workshop</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" style="color: var(--text);">API endpoint trace</span>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 520px; min-width: 0;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+            <h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em;">API endpoint trace</h1>
+            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-line); font-size: 13px; font-weight: 600;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-opacity="0.3"></circle><path d="M21 12a9 9 0 0 0-9-9"></path></svg>
+              Running
+            </span>
+          </div>
+          <p style="margin: 0; font-size: 15px; color: var(--muted);">Follows each endpoint of your API spec through the crapi-workshop source code and flags possible issues. No live traffic is sent.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+          <button type="button" style="display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5v14"></path><path d="M15 5v14"></path></svg>
+            Pause
+          </button>
+          <button type="button" style="padding: 9px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer;">Stop check</button>
+        </div>
+      </div>
+    </div>
+
+    <section aria-label="Progress" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <p style="margin: 0; font-size: 24px; line-height: 1.3; font-weight: 600; letter-spacing: -0.015em;">Checking 5 endpoints <span style="color: var(--muted); font-weight: 400;">·</span> 1 in progress <span style="color: var(--muted); font-weight: 400;">·</span> 1 blocked</p>
+        <p style="margin: 0; font-size: 14.5px; color: var(--muted);">0 of 5 done so far. Started Oct 4 at 23:51; if it isn't finished by Oct 5 at 23:51, it stops by itself.</p>
+      </div>
+      <div role="img" aria-label="5 endpoints: 0 done, 1 needs your review, 1 blocked, 1 being checked now, 2 not checked yet" style="display: flex; gap: 4px; min-height: 40px;">
+        <span style="flex: 1 1 0; min-width: 0; border-radius: 10px 4px 4px 10px; background: var(--seg-review); color: var(--on-seg-review); display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M12 4l9 16H3L12 4z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+          <span style="overflow: hidden; text-overflow: ellipsis;">Needs your review</span>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--seg-blocked); color: var(--on-seg-blocked); display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6l12.8 12.8"></path></svg>
+          <span style="overflow: hidden; text-overflow: ellipsis;">Blocked</span>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--seg-run); color: var(--on-seg-run); box-shadow: inset 0 0 0 1px var(--accent-edge); display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><circle cx="12" cy="12" r="9" stroke-opacity="0.3"></circle><path d="M21 12a9 9 0 0 0-9-9"></path></svg>
+          <span style="overflow: hidden; text-overflow: ellipsis;">Checking now</span>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--seg-wait); color: var(--on-seg-wait); border: 1.5px dashed var(--seg-wait-line); box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden;">
+          <span style="overflow: hidden; text-overflow: ellipsis;">Not checked yet</span>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; border-radius: 4px 10px 10px 4px; background: var(--seg-wait); color: var(--on-seg-wait); border: 1.5px dashed var(--seg-wait-line); box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden;">
+          <span style="overflow: hidden; text-overflow: ellipsis;">Not checked yet</span>
+        </span>
+      </div>
+      <ul aria-label="Legend" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px;">
+        <li style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--seg-done);"></span>Done <strong style="font-weight: 600;">0</strong></li>
+        <li style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--seg-review);"></span>Needs your review <strong style="font-weight: 600;">1</strong></li>
+        <li style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--seg-blocked);"></span>Blocked <strong style="font-weight: 600;">1</strong></li>
+        <li style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--seg-run); box-shadow: inset 0 0 0 1px var(--accent-edge);"></span>Checking now <strong style="font-weight: 600;">1</strong></li>
+        <li style="display: inline-flex; align-items: center; gap: 7px;"><span style="width: 12px; height: 12px; border-radius: 3px; border: 1.5px dashed var(--seg-wait-line); box-sizing: border-box;"></span>Not checked yet <strong style="font-weight: 600;">2</strong></li>
+      </ul>
+      <div style="display: flex; align-items: flex-start; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top: 2px; flex: none;"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>
+        <span>What happens next: once every endpoint is checked and you've decided on each possible issue, the report is ready to read and share.</span>
+      </div>
+    </section>
+
+    <section aria-labelledby="possible-issues" style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 20px 22px; border-radius: 16px; background: var(--accent-soft); border: 1px solid var(--accent-line);">
+      <span style="width: 40px; height: 40px; border-radius: 12px; background: var(--warn-bg); color: var(--warn); display: inline-flex; align-items: center; justify-content: center; flex: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3L12 4z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+      </span>
+      <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+        <h2 id="possible-issues" style="margin: 0; font-size: 16px; font-weight: 600;">Possible issues (1) · waiting for your review</h2>
+        <div>IDOR: Any authenticated user can read any mechanic's service report</div>
+        <div style="font-size: 13px; color: var(--muted);">Found on <span style="font-family: 'Geist Mono', ui-monospace, monospace; color: var(--text);">GET /workshop/api/mechanic/mechanic_report</span> · CWE-639</div>
+      </div>
+      <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent-edge); background: var(--accent); color: var(--on-accent); font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;">
+        Review
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+      </button>
+    </section>
+
+    <section aria-labelledby="endpoints" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px;">
+        <h2 id="endpoints" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em;">Endpoints <span style="color: var(--muted); font-weight: 400;">5</span></h2>
+        <div role="group" aria-label="Show" style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <button type="button" aria-pressed="true" style="padding: 5px 12px; border-radius: 999px; border: 1px solid var(--text); background: var(--text); color: var(--surface); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">All 5</button>
+          <button type="button" aria-pressed="false" style="padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">Needs you 2</button>
+          <button type="button" aria-pressed="false" style="padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">Checking 1</button>
+          <button type="button" aria-pressed="false" style="padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">Not checked yet 2</button>
+        </div>
+      </div>
+      <div style="overflow-x: auto; border-top: 1px solid var(--line);">
+        <table style="width: 100%; min-width: 760px; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th scope="col" style="text-align: left; font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 10px 22px; border-bottom: 1px solid var(--line);">Endpoint</th>
+              <th scope="col" style="text-align: left; font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); width: 190px;">Status</th>
+              <th scope="col" style="text-align: right; font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 10px 22px; border-bottom: 1px solid var(--line); width: 130px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Action</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 14px 22px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--line);">GET</span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere;">/workshop/api/mechanic/mechanic_report</span>
+                </div>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">Partly traced. One possible issue found and waiting for you.</div>
+              </td>
+              <td style="padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; font-weight: 600; white-space: nowrap;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3L12 4z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+                  Needs your review
+                </span>
+              </td>
+              <td style="padding: 12px 22px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: right;">
+                <a href="#" style="font-weight: 500; white-space: nowrap; display: inline-block; padding-top: 3px;">Review issue</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 22px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--line);">PUT</span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere;">/workshop/api/mechanic/service_request/{service_request_id}</span>
+                </div>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">The AI analyst hit its response length limit before it finished. Retrying starts this endpoint again.</div>
+              </td>
+              <td style="padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--bad-bg); color: var(--bad); font-size: 12.5px; font-weight: 600; white-space: nowrap;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M5.6 5.6l12.8 12.8"></path></svg>
+                  Blocked
+                </span>
+              </td>
+              <td style="padding: 10px 22px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: right;">
+                <button type="button" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3.9L4 8.5"></path><path d="M4 4v4.5h4.5"></path><path d="M4 13a8 8 0 0 0 14.9 3.9l1.1-1.4"></path><path d="M20 20v-4.5h-4.5"></path></svg>
+                  Retry
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 22px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--line);">POST</span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere;">/workshop/api/merchant/contact_mechanic</span>
+                </div>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">Being traced through the code right now.</div>
+              </td>
+              <td style="padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-line); font-size: 12.5px; font-weight: 600; white-space: nowrap;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-opacity="0.3"></circle><path d="M21 12a9 9 0 0 0-9-9"></path></svg>
+                  Checking now
+                </span>
+              </td>
+              <td style="padding: 12px 22px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: right;"></td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 22px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--line);">POST</span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere;">/workshop/api/shop/orders</span>
+                </div>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">Waiting its turn.</div>
+              </td>
+              <td style="padding: 14px 12px; border-bottom: 1px solid var(--line); vertical-align: top;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; border: 1px dashed var(--seg-wait-line); color: var(--muted); font-size: 12.5px; font-weight: 500; white-space: nowrap;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+                  Not checked yet
+                </span>
+              </td>
+              <td style="padding: 12px 22px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: right;"></td>
+            </tr>
+            <tr>
+              <td style="padding: 14px 22px; vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--sunken); border: 1px solid var(--line);">PUT</span>
+                  <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; overflow-wrap: anywhere;">/workshop/api/shop/orders/{order_id}</span>
+                </div>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">Waiting its turn.</div>
+              </td>
+              <td style="padding: 14px 12px; vertical-align: top;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; border: 1px dashed var(--seg-wait-line); color: var(--muted); font-size: 12.5px; font-weight: 500; white-space: nowrap;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"></circle></svg>
+                  Not checked yet
+                </span>
+              </td>
+              <td style="padding: 12px 22px; vertical-align: top; text-align: right;"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <details style="background: var(--surface); border: 1px solid var(--line); border-radius: 14px;">
+      <summary style="list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 14px 18px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M9 6l6 6-6 6"></path></svg>
+        <span style="font-weight: 600;">Technical details</span>
+        <span style="font-size: 13px; color: var(--muted);">Run history, limits and IDs, for troubleshooting or a support request.</span>
+      </summary>
+      <div style="padding: 4px 18px 20px 46px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 20px; font-size: 13px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-weight: 600;">Run history</div>
+          <div><span style="font-family: 'Geist Mono', ui-monospace, monospace;">run_a9253c4b…e46c935a</span> <span style="color: var(--muted);">· running · Oct 4, 23:59</span></div>
+          <div><span style="font-family: 'Geist Mono', ui-monospace, monospace;">run_8eecbf9b…c18832d1</span> <span style="color: var(--muted);">· succeeded · Oct 4, 23:56</span></div>
+          <a href="#">Open in Operations</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-weight: 600;">Limits</div>
+          <div><span style="color: var(--muted);">Attempts per endpoint</span> 3</div>
+          <div><span style="color: var(--muted);">Evidence kept</span> 7.4 KiB of 64.0 MiB</div>
+          <div><span style="color: var(--muted);">Deadline</span> Oct 5, 23:51</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-weight: 600;">IDs</div>
+          <div><span style="color: var(--muted);">Check</span> <span style="font-family: 'Geist Mono', ui-monospace, monospace; overflow-wrap: anywhere;">audit_16e11f63ecad552dce94fbb432528841</span></div>
+          <div><span style="color: var(--muted);">Check type</span> <span style="font-family: 'Geist Mono', ui-monospace, monospace;">openapi-operation-trace v1</span></div>
+        </div>
+      </div>
+    </details>
+
+  </main>
+</div>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='black'){document.querySelector('[data-mockup-root]').className='t-'+t;}})();</script>
+</body>
+</html>

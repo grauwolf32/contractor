@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V1 · Project</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.t-light{--bg:#f5f4ef;--surface:#ffffff;--sunken:#f1f0ea;--nav-active:#eceae2;--text:#1a1c16;--muted:#585c51;--line:#e4e2da;--line-strong:#cfccc1;--accent:#2b2f36;--accent-edge:#2b2f36;--accent-soft:#eef1f5;--accent-line:#c9d2dd;--accent-ink:#2f5b84;--on-accent:#ffffff;--good:#2b6a1d;--good-bg:#e5f2db;--warn:#8a4a00;--warn-bg:#fcefd5;--bad:#a3271c;--bad-bg:#fbe4df;--info:#1d5a8b;--info-bg:#e2eef8;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#eaa53c;--on-seg-review:#2a1800;--seg-blocked:#b3372a;--on-seg-blocked:#ffffff;--seg-run:#5b7fa6;--on-seg-run:#ffffff;--seg-wait:#ffffff;--on-seg-wait:#585c51;--seg-wait-line:#bdbab0;--shadow:0 1px 2px rgba(40,38,20,.05);--shadow-pop:0 14px 36px rgba(40,38,20,.14),0 2px 6px rgba(40,38,20,.06)}
+.t-dark{--bg:#0b0e13;--surface:#121720;--sunken:#0e131a;--nav-active:#1c2330;--text:#e9edf3;--muted:#9aa6b6;--line:#252d3a;--line-strong:#364152;--accent:#d6dde6;--accent-edge:#d6dde6;--accent-soft:#151c26;--accent-line:#2f3d4f;--accent-ink:#a5c0de;--on-accent:#0d1218;--good:#8fd68a;--good-bg:#12261a;--warn:#f2c46b;--warn-bg:#2a2113;--bad:#ff9b8f;--bad-bg:#2f1717;--info:#8cc3f4;--info-bg:#122233;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#0d1218;--seg-wait:#121720;--on-seg-wait:#9aa6b6;--seg-wait-line:#3d4859;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-pop:0 14px 36px rgba(0,0,0,.55)}
+.t-black{--bg:#000000;--surface:#0b0b0c;--sunken:#060607;--nav-active:#16181b;--text:#ececec;--muted:#a0a3a8;--line:#1f2124;--line-strong:#303338;--accent:#e6e8eb;--accent-edge:#e6e8eb;--accent-soft:#0f141a;--accent-line:#2a3542;--accent-ink:#b3c5da;--on-accent:#000000;--good:#8fd68a;--good-bg:#0b1a10;--warn:#f2c46b;--warn-bg:#1c160a;--bad:#ff9b8f;--bad-bg:#210d0c;--info:#8cc3f4;--info-bg:#0b1724;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#000000;--seg-wait:#0b0b0c;--on-seg-wait:#a0a3a8;--seg-wait-line:#34373c;--shadow:0 1px 2px rgba(0,0,0,.6);--shadow-pop:0 14px 36px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06)}
+a{color:var(--accent-ink)}a:hover{text-decoration-thickness:2px}
+</style>
+</head>
+<body>
+<div class="t-light" data-mockup-root style="min-height: 1200px; background: var(--bg); color: var(--text); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+  <header style="background: var(--surface); border-bottom: 1px solid var(--line);">
+    <div style="padding: 10px clamp(16px, 3vw, 32px); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px;">
+      <a href="#" style="display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em;">
+        <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--accent-edge);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg>
+        </span>
+        Contractor
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 auto;">
+        <a href="#" aria-current="page" style="padding: 7px 12px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 600; background: var(--nav-active);">Projects</a>
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Checks</a>
+        <a href="#" aria-label="Issues, 1 to review" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;">Issues <span style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">1</span></a>
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Library</a>
+      </nav>
+      <details style="position: relative;">
+        <summary aria-label="Account menu for owner" style="list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-weight: 500;">
+          <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 50%; background: var(--nav-active); color: var(--text); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">O</span>
+          owner
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M6 9l6 6 6-6"></path></svg>
+        </summary>
+        <div role="menu" aria-label="Account" style="position: absolute; right: 0; top: calc(100% + 8px); width: 264px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-pop); padding: 6px; box-sizing: border-box; z-index: 5;">
+          <div style="padding: 10px 12px 10px;">
+            <div style="font-weight: 600;">owner</div>
+            <div style="font-size: 12.5px; color: var(--muted);">[TEAM NAME] · Admin</div>
+          </div>
+          <div style="height: 1px; background: var(--line); margin: 2px 6px 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"></path></svg>
+            Profile and settings
+          </a>
+          <a href="#" role="menuitem" style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted); margin-top: 2px; flex: none;"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect><path d="M7 7.5h.01"></path><path d="M7 16.5h.01"></path></svg>
+            <span style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto;">
+              <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">Operations <span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted);">Admins</span></span>
+              <span style="font-size: 12.5px; color: var(--muted);">Runtime, queue and run history</span>
+            </span>
+          </a>
+          <div style="height: 1px; background: var(--line); margin: 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H4"></path></svg>
+            Sign out
+          </a>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main style="max-width: 1144px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 64px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px;">
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <a href="#" style="color: var(--muted); text-decoration: none;">Projects</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" style="color: var(--text);">crapi-workshop</span>
+      </nav>
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px;">
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 480px; min-width: 0;">
+          <h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em;">crapi-workshop</h1>
+          <p style="margin: 0; font-size: 16px; color: var(--muted); max-width: 640px;">OWASP crAPI "workshop" service: Django/DRF shop, mechanic and merchant APIs.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+          <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"></path><path d="M18 7h2"></path><path d="M4 17h4"></path><path d="M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
+            Project settings
+          </button>
+          <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent-edge); background: var(--accent); color: var(--on-accent); font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            Start a check
+          </button>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--accent-line);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--accent-ink); flex: none;"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+        <span style="flex: 1 1 320px;"><strong style="font-weight: 600;">Next step:</strong> the running check found 1 possible issue. Have a look and tell us if it's real.</span>
+        <a href="#" style="font-weight: 600;">Review it</a>
+      </div>
+    </div>
+
+    <section aria-labelledby="materials" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <h2 id="materials" style="margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Materials</h2>
+          <span style="font-size: 13px; color: var(--muted);">2 of 3 added</span>
+        </div>
+        <span style="font-size: 13px; color: var(--muted);">What you add here decides which checks you can run.</span>
+      </div>
+      <ul style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px;">
+        <li style="border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: var(--good-bg); color: var(--good); display: inline-flex; align-items: center; justify-content: center; flex: none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+            </span>
+            <span style="font-weight: 600; font-size: 15px; flex: 1 1 auto;">Source code <span style="font-size: 12.5px; font-weight: 500; color: var(--good);">· Added</span></span>
+            <a href="#" style="font-size: 13px; font-weight: 500;">Replace</a>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); padding-left: 36px;">crapi-workshop source · ZIP · 68.7 KiB</div>
+          <div style="font-size: 13px; padding-left: 36px;">Unlocks OWASP Top 10, ASVS and WSTG code reviews and custom checklists.</div>
+        </li>
+        <li style="border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 26px; height: 26px; border-radius: 50%; background: var(--good-bg); color: var(--good); display: inline-flex; align-items: center; justify-content: center; flex: none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+            </span>
+            <span style="font-weight: 600; font-size: 15px; flex: 1 1 auto;">API spec <span style="font-size: 12.5px; font-weight: 500; color: var(--good);">· Added</span></span>
+            <a href="#" style="font-size: 13px; font-weight: 500;">Replace</a>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); padding-left: 36px;">OpenAPI YAML · 1.7 KiB</div>
+          <div style="font-size: 13px; padding-left: 36px;">With source code, unlocks the API endpoint trace and endpoint map.</div>
+        </li>
+        <li style="border: 1px dashed var(--line-strong); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--bg);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 26px; height: 26px; border-radius: 50%; border: 1.5px dashed var(--line-strong); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex: none;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"></path></svg>
+            </span>
+            <span style="font-weight: 600; font-size: 15px; flex: 1 1 auto;">Live target <span style="font-size: 12.5px; font-weight: 500; color: var(--muted);">· Not added</span></span>
+            <button type="button" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+              Add
+            </button>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); padding-left: 36px;">A running URL, plus what we're allowed to test.</div>
+          <div style="font-size: 13px; padding-left: 36px;">Unlocks WSTG live testing, Nuclei and SQLMap scans.</div>
+        </li>
+      </ul>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px;">
+
+      <section aria-labelledby="checks" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+        <h2 id="checks" style="margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Checks</h2>
+        <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);">
+          <div style="padding: 20px 22px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                <span style="font-size: 16px; font-weight: 600;">API endpoint trace</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-line); font-size: 12.5px; font-weight: 600;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-opacity="0.3"></circle><path d="M21 12a9 9 0 0 0-9-9"></path></svg>
+                  Running
+                </span>
+              </div>
+              <a href="#" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500;">Open
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+              </a>
+            </div>
+            <p style="margin: 0;">Started Oct 4 at 23:51. 0 of 5 endpoints are done so far: one is being checked now, one is blocked and can be retried, and one possible issue is waiting for you.</p>
+            <div role="img" aria-label="5 endpoints: 1 needs your review, 1 blocked, 1 being checked now, 2 not checked yet" style="display: flex; gap: 3px; height: 8px;">
+              <span style="flex: 1; border-radius: 999px 2px 2px 999px; background: var(--seg-review);"></span>
+              <span style="flex: 1; border-radius: 2px; background: var(--seg-blocked);"></span>
+              <span style="flex: 1; border-radius: 2px; background: var(--seg-run); box-shadow: inset 0 0 0 1px var(--accent-edge);"></span>
+              <span style="flex: 1; border-radius: 2px; border: 1px dashed var(--seg-wait-line); box-sizing: border-box;"></span>
+              <span style="flex: 1; border-radius: 2px 999px 999px 2px; border: 1px dashed var(--seg-wait-line); box-sizing: border-box;"></span>
+            </div>
+          </div>
+          <div style="border-top: 1px solid var(--line); padding: 16px 22px 6px; font-size: 13px; color: var(--muted);">Ready to run with your materials</div>
+          <ul style="list-style: none; margin: 0; padding: 0 0 8px;">
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 22px;">
+              <div style="flex: 1 1 320px; min-width: 0;">
+                <div style="font-weight: 600;">OWASP Top 10 (2025) review</div>
+                <div style="font-size: 13px; color: var(--muted);">Not run yet · reviews your code for the OWASP Top 10 risks</div>
+              </div>
+              <a href="#" style="font-size: 13px; font-weight: 500;">Set up</a>
+            </li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 22px;">
+              <div style="flex: 1 1 320px; min-width: 0;">
+                <div style="font-weight: 600;">OWASP ASVS 5.0 Level 1</div>
+                <div style="font-size: 13px; color: var(--muted);">Not run yet · 70 requirements, with a 5-requirement pilot to start small</div>
+              </div>
+              <a href="#" style="font-size: 13px; font-weight: 500;">Set up</a>
+            </li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 10px 22px;">
+              <div style="flex: 1 1 320px; min-width: 0;">
+                <a href="#" style="font-size: 13px; font-weight: 500;">See every check type in the Library</a>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section aria-labelledby="issues" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+        <h2 id="issues" style="margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em;">Issues</h2>
+        <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);">
+          <div style="padding: 20px 22px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; font-weight: 600;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3L12 4z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+                1 needs your review
+              </span>
+            </div>
+            <div style="font-weight: 600; line-height: 1.4;">IDOR: Any authenticated user can read any mechanic's service report</div>
+            <div style="font-size: 12.5px; color: var(--muted);"><span style="font-family: 'Geist Mono', ui-monospace, monospace; color: var(--text);">GET /workshop/api/mechanic/mechanic_report</span> · CWE-639</div>
+            <a href="#" style="font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">Review possible issue
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </a>
+          </div>
+          <div style="border-top: 1px solid var(--line); padding: 14px 22px; display: flex; align-items: baseline; gap: 10px;">
+            <span style="font-size: 22px; font-weight: 600; line-height: 1;">0</span>
+            <span style="color: var(--muted);">confirmed issues so far</span>
+          </div>
+          <div style="border-top: 1px solid var(--line); padding: 14px 22px 18px; display: flex; align-items: flex-start; gap: 10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted); margin-top: 2px; flex: none;"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"></path><path d="M14 3v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 600;">Report</span>
+              <span style="font-size: 13px; color: var(--muted);">Built from the issues you confirm.</span>
+              <a href="#" style="font-size: 13px; font-weight: 500;">Preview report</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='black'){document.querySelector('[data-mockup-root]').className='t-'+t;}})();</script>
+</body>
+</html>

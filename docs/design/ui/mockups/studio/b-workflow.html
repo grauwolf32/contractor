@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Workflow node studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; min-height: 56px; box-sizing: border-box; padding: 8px 16px; background: #0c1016; border-bottom: 1px solid #2b3442">
+<a href="#" style="font-size: 13px; font-weight: 600; text-decoration: none">← Catalog</a>
+<span style="width: 1px; height: 24px; background: #2b3442"></span>
+<b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px">openapi-from-workspace</b>
+<span style="padding: 3px 9px; border-radius: 999px; border: 1px solid #d8ff7259; color: #d8ff72; font-size: 12px; font-weight: 700">draft @8 ← @7</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; color: #8f9cad; font-size: 12.5px"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#ffe9a4"></circle></svg>unsaved changes</span>
+<div role="group" aria-label="Mode" style="display: flex; margin: 0 auto; padding: 3px; border-radius: 10px; background: #121720; border: 1px solid #2b3442">
+<button type="button" aria-pressed="true" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 700">Design</button>
+<button type="button" aria-pressed="false" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">Live</button>
+</div>
+<button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Validate</button>
+<button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 8.8px; border: 1px solid transparent; background: #d8ff72; color: #11170a; font: inherit; font-size: 13px; font-weight: 700">Export YAML</button>
+</header>
+
+<div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<aside aria-label="Blocks" style="flex: 1 1 220px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; padding: 16px; background: #0c1016; border-right: 1px solid #2b3442">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #8f9cad; font-weight: 600">Search blocks
+<input placeholder="Stage, template, planner" style="min-height: 38px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit; font-size: 13px"></label>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">BLOCKS</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #2b3442; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600; text-align: left"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#d8ff72" stroke-width="1.6"><rect x="1" y="2" width="12" height="10" rx="2"></rect></svg>Stage</button>
+<button type="button" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #2b3442; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600; text-align: left"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8f9cad" stroke-width="1.6"><rect x="1" y="3" width="12" height="8" rx="4"></rect></svg>Workflow input</button>
+<button type="button" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #2b3442; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600; text-align: left"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8f9cad" stroke-width="1.6"><rect x="1" y="3" width="12" height="8" rx="1"></rect><path d="M4 7 H10"></path></svg>Workflow output</button>
+<button type="button" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #2b3442; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600; text-align: left"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8f9cad" stroke-width="1.6"><path d="M2 4 H12 M2 7 H9 M2 10 H11"></path></svg>Parameter</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">AGENT TEMPLATES</span>
+<a href="#" style="padding: 6px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce; text-decoration: none">workspace_source_graph_analyst@3</a>
+<a href="#" style="padding: 6px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce; text-decoration: none">workspace_openapi_builder@3</a>
+<a href="#" style="padding: 6px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce; text-decoration: none">workspace_openapi_validator@3</a>
+<a href="#" style="padding: 6px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce; text-decoration: none">workspace_taint_analyst@3</a>
+<a href="#" style="padding: 6px 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce; text-decoration: none">findings_analyst@2</a>
+<a href="#" style="padding: 6px 4px; font-size: 12px; font-weight: 600">+ New agent template</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">PLANNERS</span>
+<span style="padding: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce">passthrough@1</span>
+<span style="padding: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce">streamline@1</span>
+<span style="padding: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce">scan-plan@1</span>
+</div>
+<span style="font-size: 12px; color: #8f9cad">Drag onto the canvas</span>
+</aside>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+
+<div role="toolbar" aria-label="Canvas tools" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2b3442; background: #0c1016">
+<div role="group" aria-label="Tool" style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; border: 1px solid #2b3442">
+<button type="button" aria-pressed="true" style="min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: #1a202b; color: #e9edf3; font: inherit; font-size: 12.5px; font-weight: 600">Select</button>
+<button type="button" aria-pressed="false" style="min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: #b7c1ce; font: inherit; font-size: 12.5px; font-weight: 600">Connect</button>
+<button type="button" aria-pressed="false" style="min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: #b7c1ce; font: inherit; font-size: 12.5px; font-weight: 600">Pan</button>
+</div>
+<label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #b7c1ce"><input type="checkbox" checked style="accent-color: #d8ff72">Artifact wires</label>
+<label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #b7c1ce"><input type="checkbox" checked style="accent-color: #d8ff72">Failure paths</label>
+<div style="display: flex; align-items: center; gap: 4px; margin-left: auto">
+<button type="button" style="min-height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid #2b3442; background: transparent; color: #e9edf3; font: inherit; font-size: 12.5px; font-weight: 600">Auto layout</button>
+<button type="button" aria-label="Zoom out" style="min-width: 32px; min-height: 32px; border-radius: 6px; border: 1px solid #2b3442; background: transparent; color: #e9edf3; font: inherit">−</button>
+<span style="min-width: 44px; text-align: center; font-size: 12.5px; color: #b7c1ce">100%</span>
+<button type="button" aria-label="Zoom in" style="min-width: 32px; min-height: 32px; border-radius: 6px; border: 1px solid #2b3442; background: transparent; color: #e9edf3; font: inherit">+</button>
+</div>
+</div>
+
+<div style="flex: 1 1 auto; overflow: auto; background-color: #090c10; background-image: radial-gradient(#232b37 1px, transparent 1px); background-size: 20px 20px">
+<div style="position: relative; width: 880px; height: 560px; margin: 0 auto">
+
+<svg width="8" height="70" viewBox="0 0 8 70" preserveAspectRatio="none" style="position: absolute; left: 104px; top: 104px; width: 8px; height: 70px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 70" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="364" height="8" viewBox="0 0 364 8" preserveAspectRatio="none" style="position: absolute; left: 192px; top: 62px; width: 364px; height: 8px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 364 4"></path></svg>
+<svg width="8" height="108" viewBox="0 0 8 108" preserveAspectRatio="none" style="position: absolute; left: 552px; top: 66px; width: 8px; height: 108px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 108" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="54" height="8" viewBox="0 0 54 8" preserveAspectRatio="none" style="position: absolute; left: 192px; top: 228px; width: 54px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 54 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="54" height="8" viewBox="0 0 54 8" preserveAspectRatio="none" style="position: absolute; left: 416px; top: 228px; width: 54px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 54 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="54" height="8" viewBox="0 0 54 8" preserveAspectRatio="none" style="position: absolute; left: 640px; top: 228px; width: 54px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 54 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="130" viewBox="0 0 8 130" preserveAspectRatio="none" style="position: absolute; left: 804px; top: 288px; width: 8px; height: 130px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 130" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="84" viewBox="0 0 8 84" preserveAspectRatio="none" style="position: absolute; left: 104px; top: 288px; width: 8px; height: 84px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 84"></path></svg>
+<svg width="8" height="84" viewBox="0 0 8 84" preserveAspectRatio="none" style="position: absolute; left: 328px; top: 288px; width: 8px; height: 84px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 84"></path></svg>
+<svg width="8" height="84" viewBox="0 0 8 84" preserveAspectRatio="none" style="position: absolute; left: 552px; top: 288px; width: 8px; height: 84px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 84"></path></svg>
+<svg width="8" height="84" viewBox="0 0 8 84" preserveAspectRatio="none" style="position: absolute; left: 748px; top: 288px; width: 8px; height: 84px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 0 L 4 84"></path></svg>
+<svg width="644" height="8" viewBox="0 0 644 8" preserveAspectRatio="none" style="position: absolute; left: 108px; top: 368px; width: 644px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><path d="M 0 4 L 644 4"></path></svg>
+<svg width="8" height="74" viewBox="0 0 8 74" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 372px; width: 8px; height: 74px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 74" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+
+<div style="position: absolute; left: 24px; top: 28px; width: 168px; height: 76px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #121720; border: 1px solid #3b4655; border-radius: 22px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">INPUTS</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">source</b> · zip<br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">existing_openapi</b> ?</span></div>
+
+<div style="position: absolute; left: 24px; top: 176px; width: 168px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">STAGE · ENTRY</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">dependency_<br>discovery</b><br>analyst · graph_analyst@3<br>in 1 · out 3</span></div>
+<div style="position: absolute; left: 248px; top: 176px; width: 168px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">STAGE</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">project_<br>discovery</b><br>analyst · graph_analyst@3<br>in 3 · out 3</span></div>
+<div style="position: absolute; left: 472px; top: 176px; width: 168px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 9px 11px; background: #1b2215; border: 2px solid #d8ff72; border-radius: 8px; box-shadow: 0 0 0 4px #d8ff7222; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">STAGE · SELECTED</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi_build</b><br>builder · openapi_builder@3<br>in 5 · out 3</span></div>
+<div style="position: absolute; left: 696px; top: 176px; width: 168px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">STAGE</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi_<br>validate</b><br>validator · validator@3<br>in 5 · out 4</span></div>
+
+<div style="position: absolute; left: 680px; top: 420px; width: 184px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 12px; background: #121720; border: 1px solid #d8ff7266; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">SUCCEED · OUTPUTS</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi</b> ★<br>validation_report<br>workspace_state · diff</span></div>
+<div style="position: absolute; left: 160px; top: 448px; width: 160px; height: 48px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #1e1416; border: 1px solid #ff8f8680; border-radius: 24px; font-size: 13px; font-weight: 700; color: #ff8f86">fail Run</div>
+<div style="position: absolute; left: 384px; top: 440px; width: 216px; height: 88px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #121720; border: 2px dashed #ffe9a4; border-radius: 8px; font-size: 12px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #ffe9a4">NEW STAGE · UNREACHABLE</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">contract_lint</b><br>passthrough@1 · no agent yet</span></div>
+
+<div style="position: absolute; left: 120px; top: 131px; width: 50px; font-size: 11.5px; line-height: 16px; color: #8f9cad">source</div>
+<div style="position: absolute; left: 284px; top: 38px; width: 180px; text-align: center; font-size: 11.5px; line-height: 16px; color: #8f9cad">existing_openapi · optional</div>
+<div style="position: absolute; left: 116px; top: 322px; width: 52px; font-size: 11.5px; line-height: 16px; color: #ff8f86">retry 2</div>
+<div style="position: absolute; left: 340px; top: 322px; width: 52px; font-size: 11.5px; line-height: 16px; color: #ff8f86">retry 2</div>
+<div style="position: absolute; left: 564px; top: 322px; width: 52px; font-size: 11.5px; line-height: 16px; color: #ff8f86">retry 4</div>
+<div style="position: absolute; left: 688px; top: 322px; width: 52px; text-align: right; font-size: 11.5px; line-height: 16px; color: #ff8f86">retry 2</div>
+
+</div>
+</div>
+
+<section aria-label="Problems" style="border-top: 1px solid #2b3442; background: #0c1016">
+<div role="tablist" style="display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid #2b3442">
+<button type="button" role="tab" aria-selected="true" style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 0; background: transparent; color: #e9edf3; box-shadow: inset 0 -2px #d8ff72; font: inherit; font-size: 13px; font-weight: 700">Problems · 2</button>
+<button type="button" role="tab" aria-selected="false" style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 0; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">YAML</button>
+<button type="button" role="tab" aria-selected="false" style="min-height: 38px; padding: 0 12px; border: 0; border-radius: 0; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">Diff vs @7</button>
+</div>
+<div style="display: flex; flex-direction: column; font-size: 13px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #1a202b">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 76px; color: #ff8f86; font-weight: 700"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#ff8f86"></circle><path d="M7 3.8 V7.8 M7 9.8 V10" stroke="#0b0e13" stroke-width="1.8"></path></svg>error</span>
+<span style="flex: 1 1 320px">contract_lint reads <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">openapi/openapi-draft</code>, which no Stage produces</span>
+<a href="#" style="font-family: 'JetBrains Mono', monospace; font-size: 12px">stages.contract_lint.context</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 76px; color: #ffe9a4; font-weight: 700"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1 L13.5 12.5 H0.5 Z" fill="#ffe9a4"></path><path d="M7 5 V8.4 M7 10.2 V10.4" stroke="#0b0e13" stroke-width="1.8"></path></svg>warning</span>
+<span style="flex: 1 1 320px">contract_lint is not reachable from entryStage dependency_discovery</span>
+<a href="#" style="font-size: 12.5px; font-weight: 600">Connect after openapi_validate</a>
+</div>
+</div>
+</section>
+</div>
+
+<aside aria-label="Properties" style="flex: 1 1 320px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: #0c1016; border-left: 1px solid #2b3442">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #d8ff72">STAGE</span>
+<input aria-label="Stage id" value="openapi_build" style="min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600">
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #b7c1ce; font-weight: 600">Objective
+<textarea rows="2" style="box-sizing: border-box; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 400; resize: vertical">Build an evidence-linked OpenAPI document for the implemented inbound HTTP API</textarea></label>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #b7c1ce; font-weight: 600">Planner
+<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 400"><option>passthrough@1</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: #b7c1ce; font-weight: 600">Session
+<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 400"><option>isolated</option></select></label>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #2b3442; border-radius: 10px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12.5px; font-weight: 700">Agent · builder</span><a href="#" style="font-size: 12.5px; font-weight: 600">Assemble</a></div>
+<select aria-label="Agent template" style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12px"><option>workspace_openapi_builder@3</option></select>
+<span style="font-size: 12px; color: #8f9cad">namespace openapi · worker@2 · 33 tools</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12.5px; font-weight: 700">On outcome</span>
+<div style="display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12.5px">
+<span style="color: #8f9cad">succeeded</span><select aria-label="succeeded" style="min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit"><option>next → openapi_validate</option></select>
+<span style="color: #8f9cad">failed</span><select aria-label="failed" style="min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit"><option>retry ×4 → fail</option></select>
+<span style="color: #8f9cad">interrupted</span><select aria-label="interrupted" style="min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #121720; color: #e9edf3; font: inherit"><option>retry ×4 → fail</option></select>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12.5px">
+<span style="font-weight: 700">Wires in</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce">inputs/source · analysis/dependencies · analysis/project · inputs/existing_openapi? · analysis/workspace_state</span>
+<span style="font-weight: 700; margin-top: 6px">Wires out</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #b7c1ce">openapi/openapi · workspace_state · workspace_diff</span>
+</div>
+</aside>
+
+</div>
+</div>
+</body>
+</html>

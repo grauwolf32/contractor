@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V1 · Possible issue</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.t-light{--bg:#f5f4ef;--surface:#ffffff;--sunken:#f1f0ea;--nav-active:#eceae2;--text:#1a1c16;--muted:#585c51;--line:#e4e2da;--line-strong:#cfccc1;--accent:#2b2f36;--accent-edge:#2b2f36;--accent-soft:#eef1f5;--accent-line:#c9d2dd;--accent-ink:#2f5b84;--on-accent:#ffffff;--good:#2b6a1d;--good-bg:#e5f2db;--warn:#8a4a00;--warn-bg:#fcefd5;--bad:#a3271c;--bad-bg:#fbe4df;--info:#1d5a8b;--info-bg:#e2eef8;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#eaa53c;--on-seg-review:#2a1800;--seg-blocked:#b3372a;--on-seg-blocked:#ffffff;--seg-run:#5b7fa6;--on-seg-run:#ffffff;--seg-wait:#ffffff;--on-seg-wait:#585c51;--seg-wait-line:#bdbab0;--shadow:0 1px 2px rgba(40,38,20,.05);--shadow-pop:0 14px 36px rgba(40,38,20,.14),0 2px 6px rgba(40,38,20,.06)}
+.t-dark{--bg:#0b0e13;--surface:#121720;--sunken:#0e131a;--nav-active:#1c2330;--text:#e9edf3;--muted:#9aa6b6;--line:#252d3a;--line-strong:#364152;--accent:#d6dde6;--accent-edge:#d6dde6;--accent-soft:#151c26;--accent-line:#2f3d4f;--accent-ink:#a5c0de;--on-accent:#0d1218;--good:#8fd68a;--good-bg:#12261a;--warn:#f2c46b;--warn-bg:#2a2113;--bad:#ff9b8f;--bad-bg:#2f1717;--info:#8cc3f4;--info-bg:#122233;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#0d1218;--seg-wait:#121720;--on-seg-wait:#9aa6b6;--seg-wait-line:#3d4859;--shadow:0 1px 2px rgba(0,0,0,.4);--shadow-pop:0 14px 36px rgba(0,0,0,.55)}
+.t-black{--bg:#000000;--surface:#0b0b0c;--sunken:#060607;--nav-active:#16181b;--text:#ececec;--muted:#a0a3a8;--line:#1f2124;--line-strong:#303338;--accent:#e6e8eb;--accent-edge:#e6e8eb;--accent-soft:#0f141a;--accent-line:#2a3542;--accent-ink:#b3c5da;--on-accent:#000000;--good:#8fd68a;--good-bg:#0b1a10;--warn:#f2c46b;--warn-bg:#1c160a;--bad:#ff9b8f;--bad-bg:#210d0c;--info:#8cc3f4;--info-bg:#0b1724;--seg-done:#5fae4c;--on-seg-done:#0b1408;--seg-review:#e9a640;--on-seg-review:#2a1800;--seg-blocked:#a8362b;--on-seg-blocked:#ffffff;--seg-run:#7f9fc4;--on-seg-run:#000000;--seg-wait:#0b0b0c;--on-seg-wait:#a0a3a8;--seg-wait-line:#34373c;--shadow:0 1px 2px rgba(0,0,0,.6);--shadow-pop:0 14px 36px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06)}
+a{color:var(--accent-ink)}a:hover{text-decoration-thickness:2px}
+</style>
+</head>
+<body>
+<div class="t-light" data-mockup-root style="min-height: 1200px; background: var(--bg); color: var(--text); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+  <header style="background: var(--surface); border-bottom: 1px solid var(--line);">
+    <div style="padding: 10px clamp(16px, 3vw, 32px); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px;">
+      <a href="#" style="display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em;">
+        <span style="width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--accent-edge);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg>
+        </span>
+        Contractor
+      </a>
+      <nav aria-label="Main" style="display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 auto;">
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Projects</a>
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Checks</a>
+        <a href="#" aria-current="page" aria-label="Issues, 1 to review" style="padding: 7px 12px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 600; background: var(--nav-active); display: inline-flex; align-items: center; gap: 6px;">Issues <span style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">1</span></a>
+        <a href="#" style="padding: 7px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500;">Library</a>
+      </nav>
+      <details style="position: relative;">
+        <summary aria-label="Account menu for owner" style="list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-weight: 500;">
+          <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 50%; background: var(--nav-active); color: var(--text); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">O</span>
+          owner
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M6 9l6 6 6-6"></path></svg>
+        </summary>
+        <div role="menu" aria-label="Account" style="position: absolute; right: 0; top: calc(100% + 8px); width: 264px; max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-pop); padding: 6px; box-sizing: border-box; z-index: 5;">
+          <div style="padding: 10px 12px 10px;">
+            <div style="font-weight: 600;">owner</div>
+            <div style="font-size: 12.5px; color: var(--muted);">[TEAM NAME] · Admin</div>
+          </div>
+          <div style="height: 1px; background: var(--line); margin: 2px 6px 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"></path></svg>
+            Profile and settings
+          </a>
+          <a href="#" role="menuitem" style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted); margin-top: 2px; flex: none;"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect><path d="M7 7.5h.01"></path><path d="M7 16.5h.01"></path></svg>
+            <span style="display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto;">
+              <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">Operations <span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted);">Admins</span></span>
+              <span style="font-size: 12.5px; color: var(--muted);">Runtime, queue and run history</span>
+            </span>
+          </a>
+          <div style="height: 1px; background: var(--line); margin: 6px;"></div>
+          <a href="#" role="menuitem" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--text); text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--muted);"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"></path><path d="M10 17l5-5-5-5"></path><path d="M15 12H4"></path></svg>
+            Sign out
+          </a>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main style="max-width: 884px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px;">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;">
+      <nav aria-label="Breadcrumb" style="font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+        <a href="#" style="color: var(--muted); text-decoration: none;">crapi-workshop</a>
+        <span aria-hidden="true">/</span>
+        <a href="#" style="color: var(--muted); text-decoration: none;">API endpoint trace</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" style="color: var(--text);">Possible issue 1 of 1</span>
+      </nav>
+      <a href="#" style="font-size: 13px; color: var(--muted);">Technical details</a>
+    </div>
+
+    <article style="display: flex; flex-direction: column; gap: 22px;">
+
+      <header style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; font-weight: 600;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3L12 4z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+            Possible issue · needs your review
+          </span>
+          <span style="font-size: 13px; color: var(--muted);">Only issues you confirm go into the report.</span>
+        </div>
+        <h1 style="margin: 0; font-size: 28px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em;">IDOR: Any authenticated user can read any mechanic's service report</h1>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13.5px; color: var(--muted);">
+          <span style="display: inline-flex; align-items: center; gap: 8px; min-width: 0;">
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--text);">GET</span>
+            <span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; color: var(--text); overflow-wrap: anywhere;">/workshop/api/mechanic/mechanic_report</span>
+          </span>
+          <span aria-hidden="true">·</span>
+          <a href="#">CWE-639</a>
+          <span>Authorization bypass through user-controlled key</span>
+        </div>
+      </header>
+
+      <section aria-label="Your decision" style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent-edge); background: var(--accent); color: var(--on-accent); font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              Confirm issue
+            </button>
+            <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; cursor: pointer;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg>
+              Not an issue
+            </button>
+            <button type="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-weight: 500; cursor: pointer;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+              Needs more evidence
+            </button>
+          </div>
+        </div>
+        <div style="height: 1px; background: var(--line);"></div>
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0;">
+          <legend style="float: left; padding: 0; margin-right: 6px; font-weight: 600;">Severity <span style="font-weight: 400; color: var(--muted);">· not set yet</span></legend>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; cursor: pointer;"><input type="radio" name="severity" style="margin: 0; accent-color: var(--accent-ink);">Critical</label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; cursor: pointer;"><input type="radio" name="severity" style="margin: 0; accent-color: var(--accent-ink);">High</label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; cursor: pointer;"><input type="radio" name="severity" style="margin: 0; accent-color: var(--accent-ink);">Medium</label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; cursor: pointer;"><input type="radio" name="severity" style="margin: 0; accent-color: var(--accent-ink);">Low</label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; cursor: pointer;"><input type="radio" name="severity" style="margin: 0; accent-color: var(--accent-ink);">Informational</label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section aria-labelledby="found" style="display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; line-height: 1.6;">
+        <h2 id="found" style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em;">What we found</h2>
+        <p style="margin: 0;"><code style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; background: var(--sunken); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px;">GetReportView.get</code> (crapi/mechanic/views.py, lines 214–244) answers this endpoint and is protected only by <code style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; background: var(--sunken); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px;">@jwt_auth_required</code>, which checks that the caller is signed in and nothing more. On line 235, <code style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; background: var(--sunken); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px;">ServiceRequest.objects.filter(id=report_id).first()</code> loads the report by its id without tying it to the caller.</p>
+        <p style="margin: 0;">Sibling views in the same file get this right: line 269 filters by <code style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; background: var(--sunken); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px;">mechanic__user=user</code>, and line 304 checks the mechanic role.</p>
+      </section>
+
+      <section aria-labelledby="matters" style="display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; line-height: 1.6;">
+        <h2 id="matters" style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em;">Why it matters</h2>
+        <p style="margin: 0;">Any signed-in user, including a customer who registered themselves, can step through sequential <code style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12.5px; background: var(--sunken); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px;">report_id</code> values and read every service report: the owner's email and phone number, the vehicle's VIN and the problem details.</p>
+      </section>
+
+      <section aria-labelledby="evidence" style="display: flex; flex-direction: column; gap: 10px;">
+        <h2 id="evidence" style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em;">Evidence</h2>
+        <ul style="list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;">
+          <li style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; padding: 9px 16px; border-bottom: 1px solid var(--line);">
+            <a href="#" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; flex: 0 1 300px;">crapi/mechanic/views.py:235</a>
+            <span style="flex: 1 1 280px;">The report lookup by id is not limited to the caller.</span>
+          </li>
+          <li style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; padding: 9px 16px; border-bottom: 1px solid var(--line);">
+            <a href="#" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; flex: 0 1 300px;">crapi/mechanic/views.py:213-214</a>
+            <span style="flex: 1 1 280px;">Only the sign-in decorator; no role or ownership check.</span>
+          </li>
+          <li style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; padding: 9px 16px; border-bottom: 1px solid var(--line);">
+            <a href="#" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; flex: 0 1 300px;">crapi/mechanic/views.py:269</a>
+            <span style="flex: 1 1 280px;">A sibling view that correctly limits results to the caller.</span>
+          </li>
+          <li style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; padding: 9px 16px; border-bottom: 1px solid var(--line);">
+            <a href="#" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; flex: 0 1 300px;">crapi/mechanic/serializers.py:40-72</a>
+            <span style="flex: 1 1 280px;">The response includes the owner's personal data.</span>
+          </li>
+          <li style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; padding: 9px 16px;">
+            <a href="#" style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; flex: 0 1 300px;">utils/jwt.py:61-65</a>
+            <span style="flex: 1 1 280px;">Loads the user from the token; never checks their role.</span>
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="sure" style="display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; line-height: 1.6;">
+        <h2 id="sure" style="margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em;">How sure we are</h2>
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: var(--good-bg); color: var(--good); display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: 1px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          </span>
+          <p style="margin: 0;"><strong style="font-weight: 600;">Clear in the code:</strong> line 235 ignores who is asking, while the sibling views on lines 269 and 304 do not.</p>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: var(--warn-bg); color: var(--warn); display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: 1px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"></path><path d="M12 17h.01"></path></svg>
+          </span>
+          <p style="margin: 0;"><strong style="font-weight: 600;">Not visible to us:</strong> how the external identity service issues the token a caller needs.</p>
+        </div>
+      </section>
+
+    </article>
+  </main>
+</div>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='black'){document.querySelector('[data-mockup-root]').className='t-'+t;}})();</script>
+</body>
+</html>

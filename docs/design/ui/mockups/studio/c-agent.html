@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Agent capability matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 1320px; display: flex; flex-wrap: wrap; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<aside style="flex: 1 1 232px; box-sizing: border-box; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; background: #0c1016; border-right: 1px solid #2b3442">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 32px; height: 32px; border-radius: 50%; background: #050505; border: 1px solid #ffffff24; box-shadow: 0 0 24px #d8ff7214"></div>
+<span style="font-weight: 800; font-size: 17px">Contractor</span>
+</div>
+<nav aria-label="Primary navigation" style="display: flex; flex-direction: column; gap: 6px">
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7 L8 2 L14 7 V14 H2 Z"></path></svg>Home</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"></rect></svg>Projects</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3 L12 8 L4 13 Z"></path></svg>Runs</a>
+<a href="#" aria-current="page" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #ffffff; background: #1a202b; box-shadow: inset 3px 0 #d8ff72; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#d8ff72" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"></rect><rect x="9" y="2" width="5" height="5" rx="1"></rect><rect x="2" y="9" width="5" height="5" rx="1"></rect><rect x="9" y="9" width="5" height="5" rx="1"></rect></svg>Catalog</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2 H10 L13 5 V14 H4 Z"></path></svg>Artifacts</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13 L6 8 L9 10 L14 3"></path></svg>Evals</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"></circle><circle cx="8" cy="8" r="2"></circle></svg>Operations</a>
+</nav>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+
+<nav aria-label="Breadcrumbs" style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #8f9cad">
+<a href="#" style="color: #b7c1ce">Catalog</a><span>/</span><a href="#" style="color: #b7c1ce">Agents</a><span>/</span><a href="#" style="color: #b7c1ce">workspace_openapi_builder</a><span>/</span><span>Draft</span>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0">
+<h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 700">workspace_openapi_builder</h1>
+<span style="padding: 4px 10px; border-radius: 999px; border: 1px solid #d8ff7259; color: #d8ff72; font-size: 12px; font-weight: 700">Draft @4 · from @3</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid #3b4655; background: transparent; color: #e9edf3; font: inherit; font-weight: 600">Discard draft</button>
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid transparent; background: #d8ff72; color: #11170a; font: inherit; font-weight: 700">Download YAML</button>
+</div>
+</div>
+
+<nav aria-label="Agent views" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #2b3442">
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Overview</a>
+<a href="#" aria-current="page" style="padding: 10px 14px; color: #e9edf3; text-decoration: none; font-weight: 700; box-shadow: inset 0 -2px #d8ff72">Capabilities</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Instructions</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">YAML</a>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px">
+<span style="color: #8f9cad">Compare with</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid #3b4655; font-family: 'JetBrains Mono', monospace; font-size: 12px">workspace_openapi_validator@3<button type="button" aria-label="Remove workspace_openapi_validator@3" style="min-width: 22px; min-height: 22px; padding: 0; border: 0; border-radius: 50%; background: #1a202b; color: #b7c1ce; font: inherit">×</button></span>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid #3b4655; font-family: 'JetBrains Mono', monospace; font-size: 12px">workspace_source_graph_analyst@3<button type="button" aria-label="Remove workspace_source_graph_analyst@3" style="min-width: 22px; min-height: 22px; padding: 0; border: 0; border-radius: 50%; background: #1a202b; color: #b7c1ce; font: inherit">×</button></span>
+<button type="button" style="min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px dashed #3b4655; background: transparent; color: #e9edf3; font: inherit; font-size: 12.5px; font-weight: 600">+ Add template</button>
+<label style="display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: #e9edf3"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #d8ff72">Only differences</label>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px">
+
+<section aria-label="Capability matrix" style="flex: 999 1 560px; min-width: 0; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px; overflow-x: auto">
+<table style="width: 100%; min-width: 720px; border-collapse: separate; border-spacing: 0; font-size: 12.5px">
+<thead>
+<tr style="font-size: 11.5px; color: #8f9cad">
+<th style="padding: 12px 14px; text-align: left; font-weight: 600; border-bottom: 1px solid #2b3442">Toolset / tool</th>
+<th style="width: 118px; padding: 12px 8px; text-align: center; font-weight: 600; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">openapi_ builder@3</span></th>
+<th style="width: 118px; padding: 12px 8px; text-align: center; font-weight: 600; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">openapi_ validator@3</span></th>
+<th style="width: 118px; padding: 12px 8px; text-align: center; font-weight: 600; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">source_graph_ analyst@3</span></th>
+<th style="width: 118px; padding: 12px 8px; text-align: center; font-weight: 700; color: #d8ff72; background: #161d12; border-bottom: 1px solid #2b3442; box-shadow: inset 0 3px #d8ff72"><span style="font-family: 'JetBrains Mono', monospace">builder draft @4</span></th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding: 9px 14px; border-bottom: 1px solid #1a202b; color: #b7c1ce">Model policy</td><td style="text-align: center; border-bottom: 1px solid #1a202b">worker@2</td><td style="text-align: center; border-bottom: 1px solid #1a202b">worker@2</td><td style="text-align: center; border-bottom: 1px solid #1a202b">worker@2</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12">worker@2</td></tr>
+<tr><td style="padding: 9px 14px; border-bottom: 1px solid #1a202b; color: #b7c1ce">Sandbox · runtime</td><td style="text-align: center; border-bottom: 1px solid #1a202b">local-workdir · adk</td><td style="text-align: center; border-bottom: 1px solid #1a202b">local-workdir · adk</td><td style="text-align: center; border-bottom: 1px solid #1a202b">local-workdir · adk</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12">local-workdir · adk</td></tr>
+
+<tr style="background: #0f141b"><td style="padding: 9px 14px; border-bottom: 1px solid #2b3442"><button type="button" aria-expanded="false" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">› memory-tools@1</button></td><td style="text-align: center; border-bottom: 1px solid #2b3442">6 / 6</td><td style="text-align: center; border-bottom: 1px solid #2b3442">6 / 6</td><td style="text-align: center; border-bottom: 1px solid #2b3442">6 / 6</td><td style="text-align: center; border-bottom: 1px solid #2b3442; background: #161d12">6 / 6</td></tr>
+<tr style="background: #0f141b"><td style="padding: 9px 14px; border-bottom: 1px solid #2b3442"><button type="button" aria-expanded="false" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">› filesystem@1</button></td><td style="text-align: center; border-bottom: 1px solid #2b3442">4 / 4</td><td style="text-align: center; border-bottom: 1px solid #2b3442">4 / 4</td><td style="text-align: center; border-bottom: 1px solid #2b3442">4 / 4</td><td style="text-align: center; border-bottom: 1px solid #2b3442; background: #161d12">4 / 4</td></tr>
+<tr style="background: #0f141b"><td style="padding: 9px 14px; border-bottom: 1px solid #2b3442"><button type="button" aria-expanded="false" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">› workspace-changes@1</button></td><td style="text-align: center; border-bottom: 1px solid #2b3442">3 / 3</td><td style="text-align: center; border-bottom: 1px solid #2b3442">3 / 3</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #2b3442; background: #161d12">3 / 3</td></tr>
+
+<tr style="background: #0f141b"><td style="padding: 9px 14px; border-bottom: 1px solid #1a202b"><button type="button" aria-expanded="true" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">⌄ text-artifacts@1</button></td><td style="text-align: center; border-bottom: 1px solid #1a202b">1 / 2</td><td style="text-align: center; border-bottom: 1px solid #1a202b">2 / 2</td><td style="text-align: center; border-bottom: 1px solid #1a202b">2 / 2</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12">1 / 2</td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #2b3442; font-family: 'JetBrains Mono', monospace; font-size: 12px">write_text_artifact</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #2b3442; background: #161d12"><input type="checkbox" aria-label="Draft uses write_text_artifact" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+
+<tr style="background: #0f141b"><td style="padding: 9px 14px; border-bottom: 1px solid #1a202b"><button type="button" aria-expanded="true" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">⌄ openapi@1</button></td><td style="text-align: center; border-bottom: 1px solid #1a202b">15 / 17</td><td style="text-align: center; border-bottom: 1px solid #1a202b">16 / 17</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12">15 / 17</td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">initialize_openapi</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" checked aria-label="Draft uses initialize_openapi" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">remove_openapi_path</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses remove_openapi_path" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">remove_openapi_component</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses remove_openapi_component" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td colspan="5" style="padding: 7px 14px 7px 30px; border-bottom: 1px solid #2b3442; font-size: 12px; color: #8f9cad">14 shared openapi@1 tools hidden</td></tr>
+
+<tr style="background: #151b13"><td style="padding: 9px 14px; border-bottom: 1px solid #1a202b"><button type="button" aria-expanded="true" style="padding: 0; min-height: 24px; border: 0; background: transparent; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">⌄ code-analysis@1</button> <span style="margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #d8ff72; color: #11170a; font-size: 10.5px; font-weight: 800">ADDED</span></td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b">11 / 11</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12; color: #d8ff72; font-weight: 700">4 / 11</td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">search_def</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" checked aria-label="Draft uses search_def" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">list_symbols</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses list_symbols" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">graph_summary</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses graph_summary" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">find_symbol</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" checked aria-label="Draft uses find_symbol" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">find_callers</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" checked aria-label="Draft uses find_callers" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">find_callees</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses find_callees" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">paths_between</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses paths_between" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">entrypoint_paths_to</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" checked aria-label="Draft uses entrypoint_paths_to" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">attack_surface</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses attack_surface" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace; font-size: 12px">complexity_hotspots</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #1a202b; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #1a202b; background: #161d12"><input type="checkbox" aria-label="Draft uses complexity_hotspots" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+<tr><td style="padding: 8px 14px 8px 30px; border-bottom: 1px solid #2b3442; font-family: 'JetBrains Mono', monospace; font-size: 12px">functions_that_raise</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #6b7789">—</td><td style="text-align: center; border-bottom: 1px solid #2b3442; color: #d8ff72; font-weight: 700">✓</td><td style="text-align: center; border-bottom: 1px solid #2b3442; background: #161d12"><input type="checkbox" aria-label="Draft uses functions_that_raise" style="width: 16px; height: 16px; accent-color: #d8ff72"></td></tr>
+
+<tr><td style="padding: 9px 14px; color: #b7c1ce">Skills</td><td style="text-align: center; color: #6b7789">—</td><td style="text-align: center; color: #6b7789">—</td><td style="text-align: center; color: #6b7789">—</td><td style="text-align: center; background: #161d12"><button type="button" style="min-height: 28px; padding: 0 8px; border-radius: 6px; border: 1px dashed #3b4655; background: transparent; color: #e9edf3; font: inherit; font-size: 12px; font-weight: 600">+ Add</button></td></tr>
+</tbody>
+</table>
+</section>
+
+<aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 18px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px; font-size: 13px">
+<h2 style="margin: 0; font-size: 15px">Borrow from a template</h2>
+<label style="display: flex; flex-direction: column; gap: 6px; color: #b7c1ce; font-weight: 600">Source
+<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12px"><option>workspace_source_graph_analyst@3</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; color: #b7c1ce; font-weight: 600">Toolset
+<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font-family: 'JetBrains Mono', monospace; font-size: 12px"><option>code-analysis@1 · 11 tools</option></select></label>
+<button type="button" style="min-height: 38px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Copy its tool selection</button>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 18px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px; font-size: 13px">
+<h2 style="margin: 0; font-size: 15px">Draft @4 vs @3</h2>
+<span><b style="color: #d8ff72">+1</b> toolset · <b style="color: #d8ff72">+4</b> tools · 33 tools total</span>
+<span style="display: flex; gap: 8px"><svg width="14" height="14" viewBox="0 0 14 14" style="flex: none; margin-top: 3px"><path d="M7 1 L13.5 12.5 H0.5 Z" fill="#ffe9a4"></path><path d="M7 5 V8.4 M7 10.2 V10.4" stroke="#0b0e13" stroke-width="1.8"></path></svg>code-analysis@1 needs a Runtime with workspace and graph capabilities</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 18px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px; font-size: 13px">
+<h2 style="margin: 0; font-size: 15px">Bound in</h2>
+<a href="#" style="font-weight: 600">openapi-from-workspace@7 · openapi_build</a>
+<a href="#" style="font-weight: 600">openapi-from-workspace-streamline@2 · openapi_build</a>
+<span style="font-size: 12.5px; color: #8f9cad">Both keep @3 until their next version selects @4.</span>
+</section>
+</aside>
+
+</div>
+</main>
+</div>
+</body>
+</html>

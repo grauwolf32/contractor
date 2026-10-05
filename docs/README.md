@@ -20,6 +20,11 @@ Accepted contracts belong in the specification; implementation status belongs in
 [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
 current readiness.
 
+[UI redesign explorations](design/ui/README.md) record the 2026-10 Web UI
+directions (V1–V3, the V3 variations, themes and the Workflow/Audit/Agent
+editor studio) with static mockups and screenshots. V3B Panes is chosen for
+implementation; the documents are non-normative.
+
 [Evals experience design](evals-experience-design.md) records the selected full
 browser journey and independent producer boundary. V38-001–010 are delivered,
 including collection, comparison, the native UI and the release gate.

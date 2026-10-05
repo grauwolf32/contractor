@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Audit outline and flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 1120px; display: flex; flex-wrap: wrap; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<aside style="flex: 1 1 232px; box-sizing: border-box; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; background: #0c1016; border-right: 1px solid #2b3442">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 32px; height: 32px; border-radius: 50%; background: #050505; border: 1px solid #ffffff24; box-shadow: 0 0 24px #d8ff7214"></div>
+<span style="font-weight: 800; font-size: 17px">Contractor</span>
+</div>
+<nav aria-label="Primary navigation" style="display: flex; flex-direction: column; gap: 6px">
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7 L8 2 L14 7 V14 H2 Z"></path></svg>Home</a>
+<a href="#" aria-current="page" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #ffffff; background: #1a202b; box-shadow: inset 3px 0 #d8ff72; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#d8ff72" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"></rect></svg>Projects</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3 L12 8 L4 13 Z"></path></svg>Runs</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"></rect><rect x="9" y="2" width="5" height="5" rx="1"></rect><rect x="2" y="9" width="5" height="5" rx="1"></rect><rect x="9" y="9" width="5" height="5" rx="1"></rect></svg>Catalog</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2 H10 L13 5 V14 H4 Z"></path></svg>Artifacts</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13 L6 8 L9 10 L14 3"></path></svg>Evals</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"></circle><circle cx="8" cy="8" r="2"></circle></svg>Operations</a>
+</nav>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+
+<nav aria-label="Breadcrumbs" style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #8f9cad">
+<a href="#" style="color: #b7c1ce">Projects</a><span>/</span><a href="#" style="color: #b7c1ce">crapi-workshop</a><span>/</span><a href="#" style="color: #b7c1ce">Audits</a><span>/</span><span>Operation trace #3</span>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 700">Operation trace #3</h1>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #1b2600; color: #d8ff72; font-size: 12px; font-weight: 700"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#d8ff72"></circle></svg>active · round 1 executing</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-weight: 600">Pause</button>
+</div>
+</div>
+
+<nav aria-label="Audit views" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #2b3442">
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Overview</a>
+<a href="#" aria-current="page" style="padding: 10px 14px; color: #e9edf3; text-decoration: none; font-weight: 700; box-shadow: inset 0 -2px #d8ff72">Profile &amp; flow</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Coverage</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Queue</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Findings · 5</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Report</a>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px">
+
+<article aria-label="Audit profile" style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 0; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #2b3442">
+<div style="display: flex; flex-direction: column"><span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">AUDIT PROFILE</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600">openapi-operation-trace@1</span></div>
+<button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #3b4655; background: transparent; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Clone to draft</button>
+</header>
+
+<section style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 14px; padding: 14px 18px; border-bottom: 1px solid #2b3442; font-size: 13px">
+<span style="color: #8f9cad">Mode</span><span>operation-tracing</span>
+<span style="color: #8f9cad">Inputs</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">source</code> zip · <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">openapi</code> json, yaml or zip · both required</span>
+<span style="color: #8f9cad">Inventory</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">openapi-operations@1</code> from audit input <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">openapi</code>; each item goes to role <b>trace</b></span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #2b3442; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="padding: 2px 8px; border-radius: 999px; background: #1b2600; color: #d8ff72; font-size: 11px; font-weight: 800">CHECK</span><b>Role trace</b></div>
+<a href="#" style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600">audit-openapi-operation-trace@1</a>
+<span style="color: #b7c1ce">Completion audit-check-results@1 at stage <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">check</code>, agent <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">checker</code></span>
+<table style="width: 100%; border-collapse: collapse; font-size: 12.5px">
+<thead><tr style="color: #8f9cad; font-size: 11.5px; text-align: left"><th style="padding: 6px 0; font-weight: 600; border-bottom: 1px solid #2b3442">Workflow input</th><th style="padding: 6px 0; font-weight: 600; border-bottom: 1px solid #2b3442">Supplied by</th></tr></thead>
+<tbody>
+<tr><td style="padding: 6px 0; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace">task</td><td style="padding: 6px 0; border-bottom: 1px solid #1a202b">item package</td></tr>
+<tr><td style="padding: 6px 0; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace">execution_manifest</td><td style="padding: 6px 0; border-bottom: 1px solid #1a202b">execution manifest</td></tr>
+<tr><td style="padding: 6px 0; border-bottom: 1px solid #1a202b; font-family: 'JetBrains Mono', monospace">source</td><td style="padding: 6px 0; border-bottom: 1px solid #1a202b">audit input <code style="font-family: 'JetBrains Mono', monospace">source</code></td></tr>
+<tr><td style="padding: 6px 0; font-family: 'JetBrains Mono', monospace">→ result</td><td style="padding: 6px 0">collected as the item result</td></tr>
+</tbody>
+</table>
+</section>
+
+<section style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; padding: 14px 18px; border-bottom: 1px solid #2b3442; font-size: 13px">
+<span style="grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">EXECUTION</span>
+<span style="color: #b7c1ce">Round mode</span><span>fixed-barrier</span>
+<span style="color: #b7c1ce">Rounds · batch size</span><span>1 · 1</span>
+<span style="color: #b7c1ce">Items per round · total</span><span>256 · 256</span>
+<span style="color: #b7c1ce">Submitted runs</span><span>768</span>
+<span style="color: #b7c1ce">Run attempts per item</span><span>3</span>
+<span style="color: #b7c1ce">Deadline</span><span>24 h</span>
+<span style="color: #b7c1ce">Evidence</span><span>64 MiB</span>
+<span style="color: #b7c1ce">Incomplete round</span><span>assess with gaps</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 14px 18px; font-size: 13px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">INTERACTION</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px">
+<span style="padding: 3px 8px; border-radius: 999px; border: 1px solid #2b3442">active checks prohibited</span>
+<span style="padding: 3px 8px; border-radius: 999px; border: 1px solid #2b3442">findings human-required</span>
+<span style="padding: 3px 8px; border-radius: 999px; border: 1px solid #2b3442">n/a by profile rule</span>
+<span style="padding: 3px 8px; border-radius: 999px; border: 1px solid #2b3442">report automatic</span>
+</div>
+</section>
+</article>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #121720; border: 1px solid #2b3442; border-radius: 10px"><span style="font-size: 12px; color: #8f9cad">Items</span><span style="font-size: 24px; font-weight: 700">24</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #121720; border: 1px solid #2b3442; border-radius: 10px"><span style="font-size: 12px; color: #8f9cad">Settled</span><span style="font-size: 24px; font-weight: 700">14</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #121720; border: 1px solid #2b3442; border-radius: 10px"><span style="font-size: 12px; color: #8f9cad">Accepted</span><span style="font-size: 24px; font-weight: 700">11</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #121720; border: 1px solid #2b3442; border-radius: 10px"><span style="font-size: 12px; color: #8f9cad">Proposals</span><span style="font-size: 24px; font-weight: 700">5</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: #121720; border: 1px solid #2b3442; border-radius: 10px"><span style="font-size: 12px; color: #8f9cad">Runs</span><span style="font-size: 24px; font-weight: 700">19<span style="font-size: 14px; font-weight: 500; color: #8f9cad"> / 768</span></span></div>
+</div>
+
+<section aria-label="Item flow" style="display: flex; flex-direction: column; gap: 12px; padding: 18px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px"><h2 style="margin: 0; font-size: 16px">Where the 24 operations are</h2><a href="#" style="font-size: 13px; font-weight: 600">View as table</a></div>
+<svg viewBox="0 0 720 290" role="img" aria-label="Flow of 24 operations: 14 settled, 5 in flight, 5 queued; of settled, 11 accepted, 1 invalid result, 1 execution failed, 1 missing output; of accepted, 6 traced complete, 4 traced partial, 1 unmapped" style="width: 100%; height: auto; max-width: 720px">
+<g fill="#8f9cad" font-size="11" font-weight="700" letter-spacing="1.2" font-family="Inter, system-ui, sans-serif">
+<text x="0" y="14">OPERATIONS</text><text x="190" y="14">ITEM STATE</text><text x="380" y="14">DISPOSITION</text><text x="570" y="14">COVERAGE</text>
+</g>
+<g fill-opacity="0.28">
+<path d="M10 28 C100 28 100 28 190 28 L190 168 C100 168 100 168 10 168 Z" fill="#d8ff72"><title>settled · 14</title></path>
+<path d="M10 168 C100 168 100 174 190 174 L190 224 C100 224 100 218 10 218 Z" fill="#83a336"><title>in flight · 5 (collecting 3, submitted 2)</title></path>
+<path d="M10 218 C100 218 100 230 190 230 L190 280 C100 280 100 268 10 268 Z" fill="#62772b"><title>queued · 5 (ready 4, pending 1)</title></path>
+<path d="M200 28 C290 28 290 28 380 28 L380 138 C290 138 290 138 200 138 Z" fill="#95e6d9"><title>accepted-result · 11</title></path>
+<path d="M200 138 C290 138 290 144 380 144 L380 154 C290 154 290 148 200 148 Z" fill="#ff8f86"><title>invalid-result · 1</title></path>
+<path d="M200 148 C290 148 290 160 380 160 L380 170 C290 170 290 158 200 158 Z" fill="#ff8f86"><title>execution-failed · 1</title></path>
+<path d="M200 158 C290 158 290 176 380 176 L380 186 C290 186 290 168 200 168 Z" fill="#f5a05a"><title>missing-output · 1</title></path>
+<path d="M390 28 C480 28 480 28 570 28 L570 88 C480 88 480 88 390 88 Z" fill="#95e6d9"><title>traced-complete · 6</title></path>
+<path d="M390 88 C480 88 480 94 570 94 L570 134 C480 134 480 128 390 128 Z" fill="#ffe9a4"><title>traced-partial · 4</title></path>
+<path d="M390 128 C480 128 480 140 570 140 L570 150 C480 150 480 138 390 138 Z" fill="#f5a05a"><title>unmapped · 1</title></path>
+</g>
+<g>
+<rect x="0" y="28" width="10" height="240" rx="2" fill="#b7c1ce"></rect>
+<rect x="190" y="28" width="10" height="140" rx="2" fill="#d8ff72"></rect>
+<rect x="190" y="174" width="10" height="50" rx="2" fill="#83a336"></rect>
+<rect x="190" y="230" width="10" height="50" rx="2" fill="#62772b"></rect>
+<rect x="380" y="28" width="10" height="110" rx="2" fill="#95e6d9"></rect>
+<rect x="380" y="144" width="10" height="10" rx="2" fill="#ff8f86"></rect>
+<rect x="380" y="160" width="10" height="10" rx="2" fill="#ff8f86"></rect>
+<rect x="380" y="176" width="10" height="10" rx="2" fill="#f5a05a"></rect>
+<rect x="570" y="28" width="10" height="60" rx="2" fill="#95e6d9"></rect>
+<rect x="570" y="94" width="10" height="40" rx="2" fill="#ffe9a4"></rect>
+<rect x="570" y="140" width="10" height="10" rx="2" fill="#f5a05a"></rect>
+</g>
+<g fill="#e9edf3" font-size="12" font-family="Inter, system-ui, sans-serif" stroke="#121720" stroke-width="4" stroke-linejoin="round" paint-order="stroke">
+<text x="16" y="152">24 operations</text>
+<text x="206" y="102">settled 14</text>
+<text x="206" y="203">in flight 5</text>
+<text x="206" y="259">queued 5</text>
+<text x="396" y="87">accepted 11</text>
+<text x="396" y="153">invalid-result 1</text>
+<text x="396" y="169">execution-failed 1</text>
+<text x="396" y="185">missing-output 1</text>
+<text x="586" y="62">traced-complete 6</text>
+<text x="586" y="118">traced-partial 4</text>
+<text x="586" y="149">unmapped 1</text>
+</g>
+</svg>
+</section>
+
+<section aria-label="Needs attention" style="display: flex; flex-direction: column; gap: 10px; padding: 18px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px">
+<h2 style="margin: 0; font-size: 16px">Needs attention · 4</h2>
+<div style="display: flex; flex-direction: column; border: 1px solid #2b3442; border-radius: 10px; font-size: 13px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #2b3442">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 150px; color: #ff8f86; font-weight: 600"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2 L10 10 M10 2 L2 10" stroke="#ff8f86" stroke-width="2"></path></svg>invalid-result</span>
+<code style="flex: 1 1 260px; font-family: 'JetBrains Mono', monospace; font-size: 12px">POST /workshop/api/shop/apply_coupon</code>
+<span style="color: #8f9cad">3 of 3 attempts</span><a href="#" style="font-weight: 600">Last run</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #2b3442">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 150px; color: #ff8f86; font-weight: 600"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2 L10 10 M10 2 L2 10" stroke="#ff8f86" stroke-width="2"></path></svg>execution-failed</span>
+<code style="flex: 1 1 260px; font-family: 'JetBrains Mono', monospace; font-size: 12px">GET /workshop/api/mechanic/receive_report</code>
+<span style="color: #8f9cad">3 of 3 attempts</span><a href="#" style="font-weight: 600">Last run</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #2b3442">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 150px; color: #f5a05a; font-weight: 600"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#f5a05a" stroke-width="2"></circle></svg>missing-output</span>
+<code style="flex: 1 1 260px; font-family: 'JetBrains Mono', monospace; font-size: 12px">GET /workshop/api/management/users/all</code>
+<span style="color: #8f9cad">2 of 3 attempts</span><a href="#" style="font-weight: 600">Last run</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px">
+<span style="display: inline-flex; align-items: center; gap: 6px; min-width: 150px; color: #f5a05a; font-weight: 600"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#f5a05a" stroke-width="2"></circle></svg>unmapped</span>
+<code style="flex: 1 1 260px; font-family: 'JetBrains Mono', monospace; font-size: 12px">PUT /workshop/api/shop/orders/{order_id}</code>
+<span style="color: #8f9cad">accepted, no handler traced</span><a href="#" style="font-weight: 600">Result</a>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</main>
+</div>
+</body>
+</html>

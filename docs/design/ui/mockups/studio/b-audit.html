@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · Audit live swimlanes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; min-height: 56px; box-sizing: border-box; padding: 8px 16px; background: #0c1016; border-bottom: 1px solid #2b3442">
+<a href="#" style="font-size: 13px; font-weight: 600; text-decoration: none">← crapi-workshop</a>
+<span style="width: 1px; height: 24px; background: #2b3442"></span>
+<b style="font-weight: 700; font-size: 15px">Operation trace #3</b>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #8f9cad">openapi-operation-trace@1</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: #1b2600; color: #d8ff72; font-size: 12px; font-weight: 700"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#d8ff72"></circle></svg>active</span>
+<div role="group" aria-label="Mode" style="display: flex; margin: 0 auto; padding: 3px; border-radius: 10px; background: #121720; border: 1px solid #2b3442">
+<button type="button" aria-pressed="false" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: #8f9cad; font: inherit; font-size: 13px; font-weight: 600">Design</button>
+<button type="button" aria-pressed="true" style="min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 700">Live</button>
+</div>
+<span style="font-size: 12.5px; color: #8f9cad">sample state · updated 10:26:41</span>
+<button type="button" style="min-height: 38px; padding: 0 14px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Pause</button>
+</header>
+
+<div style="flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<div style="flex: 1 1 auto; overflow: auto; background-color: #090c10; background-image: radial-gradient(#232b37 1px, transparent 1px); background-size: 20px 20px; padding: 16px 0">
+<div style="position: relative; width: 1060px; height: 600px; margin: 0 auto">
+
+<div style="position: absolute; left: 0px; top: 0px; width: 1060px; height: 200px; box-sizing: border-box; background: #0f141bcc; border: 1px solid #1f2632; border-radius: 12px 12px 0 0"></div>
+<div style="position: absolute; left: 0px; top: 200px; width: 1060px; height: 200px; box-sizing: border-box; background: #0b0f15cc; border: 1px solid #1f2632; border-top: 0"></div>
+<div style="position: absolute; left: 0px; top: 400px; width: 1060px; height: 200px; box-sizing: border-box; background: #0f141bcc; border: 1px solid #1f2632; border-top: 0; border-radius: 0 0 12px 12px"></div>
+
+<svg width="62" height="8" viewBox="0 0 62 8" preserveAspectRatio="none" style="position: absolute; left: 200px; top: 112px; width: 62px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 62 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="62" height="8" viewBox="0 0 62 8" preserveAspectRatio="none" style="position: absolute; left: 440px; top: 112px; width: 62px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 62 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="118" height="8" viewBox="0 0 118 8" preserveAspectRatio="none" style="position: absolute; left: 720px; top: 112px; width: 118px; height: 8px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 118 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 608px; top: 172px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 78" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="62" height="8" viewBox="0 0 62 8" preserveAspectRatio="none" style="position: absolute; left: 440px; top: 300px; width: 62px; height: 8px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 62 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="118" height="8" viewBox="0 0 118 8" preserveAspectRatio="none" style="position: absolute; left: 720px; top: 300px; width: 118px; height: 8px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 118 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 924px; top: 174px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 78 L 4 0" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="94" viewBox="0 0 8 94" preserveAspectRatio="none" style="position: absolute; left: 924px; top: 356px; width: 8px; height: 94px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 94" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="118" height="8" viewBox="0 0 118 8" preserveAspectRatio="none" style="position: absolute; left: 722px; top: 500px; width: 118px; height: 8px; overflow: visible; fill: none; stroke: #ffe9a4; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ffe9a4" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 118 4 L 0 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="62" height="8" viewBox="0 0 62 8" preserveAspectRatio="none" style="position: absolute; left: 442px; top: 500px; width: 62px; height: 8px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 62 4 L 0 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+
+<div style="position: absolute; left: 24px; top: 60px; width: 176px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">INPUTS</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">source</b> · zip<br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi</b> · yaml<br><span style="color: #95e6d9">● pinned</span></span></div>
+<div style="position: absolute; left: 264px; top: 60px; width: 176px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">INVENTORY</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi-<br>operations@1</b><br><span style="color: #95e6d9">● 24 operations</span></span></div>
+<div style="position: absolute; left: 504px; top: 60px; width: 216px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 9px 11px; background: #1b2215; border: 2px solid #d8ff72; border-radius: 8px; box-shadow: 0 0 0 4px #d8ff7222; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #d8ff72">ROUND 1 · SELECTED</small><br>fixed-barrier · batch 1<br>≤ 3 attempts per item<br><span style="color: #d8ff72; font-weight: 600">● executing · 14 / 24 settled</span></span></div>
+<div style="position: absolute; left: 840px; top: 60px; width: 176px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #121720; border: 1px dashed #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #8f9cad"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">REPORT</small><br>acceptance automatic<br>○ waits for round close</span></div>
+
+<div style="position: absolute; left: 264px; top: 252px; width: 176px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #121720; border: 1px solid #3b4655; border-radius: 8px; font-size: 11.5px; line-height: 17px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">INPUT MAPPING</small><br>task ← item-package<br>manifest ← execution<br>source ← audit-input</span></div>
+<div style="position: absolute; left: 504px; top: 252px; width: 216px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">WORKFLOW · CHECK</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">audit-openapi-<br>operation-trace@1</b><br><span style="color: #d8ff72; font-weight: 600">● 3 running · 19 runs</span></span></div>
+<div style="position: absolute; left: 840px; top: 252px; width: 176px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">RESULTS</small><br><span style="color: #95e6d9">● 11 accepted</span><br><span style="color: #ff8f86">✕ 3 not accepted</span></span></div>
+
+<div style="position: absolute; left: 840px; top: 452px; width: 176px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">FINDING PROPOSALS</small><br><span style="color: #ffe9a4; font-weight: 600">▲ 5 proposed</span><br>from 4 operations</span></div>
+<div style="position: absolute; left: 504px; top: 452px; width: 216px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #161c26; border: 1px solid #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">HUMAN REVIEW</small><br>confirmation human-required<br><span style="color: #ffe9a4; font-weight: 600">▲ 5 waiting · 0 decided</span></span></div>
+<div style="position: absolute; left: 264px; top: 452px; width: 176px; height: 104px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 12px; background: #121720; border: 1px dashed #3b4655; border-radius: 8px; font-size: 12px; line-height: 18px; color: #8f9cad"><span><small style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: #8f9cad">FINDINGS</small><br>○ none confirmed yet</span></div>
+
+<div style="position: absolute; left: 16px; top: 14px; font-size: 11px; line-height: 16px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">AUDIT</div>
+<div style="position: absolute; left: 16px; top: 214px; font-size: 11px; line-height: 16px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">ROLE TRACE · CHECK</div>
+<div style="position: absolute; left: 16px; top: 414px; font-size: 11px; line-height: 16px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">REVIEW</div>
+<div style="position: absolute; left: 624px; top: 203px; width: 96px; font-size: 11.5px; line-height: 16px; color: #8f9cad">item-package</div>
+
+</div>
+</div>
+
+<section aria-label="Live events" style="border-top: 1px solid #2b3442; background: #0c1016; padding: 10px 16px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #8f9cad">LIVE EVENTS</span><a href="#" style="font-size: 12.5px; font-weight: 600">Open queue</a></div>
+<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 12px; font-size: 12.5px">
+<span style="font-family: 'JetBrains Mono', monospace; color: #8f9cad">10:26:41</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">POST /workshop/api/shop/orders/return_order</code> → collecting</span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #8f9cad">10:26:12</span><span>Run started for <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">GET /workshop/api/mechanic/mechanic_report</code></span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #8f9cad">10:25:58</span><span>Finding proposal on <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">POST /workshop/api/shop/orders</code></span>
+<span style="font-family: 'JetBrains Mono', monospace; color: #8f9cad">10:24:30</span><span><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">POST /workshop/api/shop/apply_coupon</code> settled · invalid-result after 3 attempts</span>
+</div>
+</section>
+</div>
+
+<aside aria-label="Round 1" style="flex: 1 1 320px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; padding: 16px; background: #0c1016; border-left: 1px solid #2b3442">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: #d8ff72">ROUND 1</span>
+<span style="font-size: 18px; font-weight: 700">executing</span>
+<span style="font-size: 12.5px; color: #8f9cad">round 1 of max 1 · assess with gaps if incomplete</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 13px; font-weight: 700">Items · 24</span><span style="font-size: 12px; color: #8f9cad">ring = not accepted</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; max-width: 238px">
+
+<span title="#1 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#2 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#3 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#4 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#5 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#6 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#7 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#8 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#9 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#10 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#11 · settled" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: none"></span>
+
+<span title="#12 · settled · not accepted" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: inset 0 0 0 3px #ff8f86"></span>
+
+<span title="#13 · settled · not accepted" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: inset 0 0 0 3px #ff8f86"></span>
+
+<span title="#14 · settled · not accepted" style="width: 28px; height: 28px; border-radius: 6px; background: #d8ff72; box-shadow: inset 0 0 0 3px #ff8f86"></span>
+
+<span title="#15 · collecting" style="width: 28px; height: 28px; border-radius: 6px; background: #abd04a; box-shadow: none"></span>
+
+<span title="#16 · collecting" style="width: 28px; height: 28px; border-radius: 6px; background: #abd04a; box-shadow: none"></span>
+
+<span title="#17 · collecting" style="width: 28px; height: 28px; border-radius: 6px; background: #abd04a; box-shadow: none"></span>
+
+<span title="#18 · submitted" style="width: 28px; height: 28px; border-radius: 6px; background: #83a336; box-shadow: none"></span>
+
+<span title="#19 · submitted" style="width: 28px; height: 28px; border-radius: 6px; background: #83a336; box-shadow: none"></span>
+
+<span title="#20 · ready" style="width: 28px; height: 28px; border-radius: 6px; background: #62772b; box-shadow: none"></span>
+
+<span title="#21 · ready" style="width: 28px; height: 28px; border-radius: 6px; background: #62772b; box-shadow: none"></span>
+
+<span title="#22 · ready" style="width: 28px; height: 28px; border-radius: 6px; background: #62772b; box-shadow: none"></span>
+
+<span title="#23 · ready" style="width: 28px; height: 28px; border-radius: 6px; background: #62772b; box-shadow: none"></span>
+
+<span title="#24 · pending" style="width: 28px; height: 28px; border-radius: 6px; background: #46541f; box-shadow: none"></span>
+
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #b7c1ce">
+<span style="display: inline-flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #d8ff72"></span>settled 14</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #abd04a"></span>collecting 3</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #83a336"></span>submitted 2</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #62772b"></span>ready 4</span>
+<span style="display: inline-flex; align-items: center; gap: 5px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #46541f"></span>pending 1</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 700">In flight · 5</span>
+<div style="display: flex; flex-direction: column; border: 1px solid #2b3442; border-radius: 10px; font-size: 12px">
+<a href="#" style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2b3442; color: #e9edf3; text-decoration: none"><span style="font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere">POST …/orders/return_order</span><span style="color: #8f9cad">collecting</span></a>
+<a href="#" style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2b3442; color: #e9edf3; text-decoration: none"><span style="font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere">GET …/mechanic/service_requests</span><span style="color: #8f9cad">collecting</span></a>
+<a href="#" style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2b3442; color: #e9edf3; text-decoration: none"><span style="font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere">GET …/shop/return_qr_code</span><span style="color: #8f9cad">collecting</span></a>
+<a href="#" style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; color: #e9edf3; text-decoration: none"><span style="font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere">GET …/mechanic/mechanic_report</span><span style="color: #8f9cad">submitted</span></a>
+</div>
+<a href="#" style="font-size: 12.5px; font-weight: 600">1 more</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 12.5px">
+<span style="font-size: 13px; font-weight: 700">Budget</span>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between"><span style="color: #b7c1ce">Submitted runs</span><span>19 / 768</span></div><div style="height: 4px; border-radius: 4px; background: #1a202b"><div style="width: 3%; height: 4px; border-radius: 4px; background: #d8ff72"></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between"><span style="color: #b7c1ce">Deadline</span><span>21 h 14 m left</span></div><div style="height: 4px; border-radius: 4px; background: #1a202b"><div style="width: 12%; height: 4px; border-radius: 4px; background: #d8ff72"></div></div></div>
+<div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between"><span style="color: #b7c1ce">Evidence</span><span>3.1 / 64 MiB</span></div><div style="height: 4px; border-radius: 4px; background: #1a202b"><div style="width: 5%; height: 4px; border-radius: 4px; background: #d8ff72"></div></div></div>
+</div>
+</aside>
+
+</div>
+</div>
+</body>
+</html>

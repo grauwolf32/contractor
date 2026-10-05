@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · Workflow draft graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0e13}
+a{color:#c8ed69}a:hover{color:#e3ff9a}
+</style>
+</head>
+<body>
+<div style="min-height: 1400px; display: flex; flex-wrap: wrap; background: #0b0e13; color: #e9edf3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<aside style="flex: 1 1 232px; box-sizing: border-box; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; background: #0c1016; border-right: 1px solid #2b3442">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 32px; height: 32px; border-radius: 50%; background: #050505; border: 1px solid #ffffff24; box-shadow: 0 0 24px #d8ff7214"></div>
+<span style="font-weight: 800; font-size: 17px">Contractor</span>
+</div>
+<nav aria-label="Primary navigation" style="display: flex; flex-direction: column; gap: 6px">
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7 L8 2 L14 7 V14 H2 Z"></path></svg>Home</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="2"></rect></svg>Projects</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3 L12 8 L4 13 Z"></path></svg>Runs</a>
+<a href="#" aria-current="page" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #ffffff; background: #1a202b; box-shadow: inset 3px 0 #d8ff72; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#d8ff72" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"></rect><rect x="9" y="2" width="5" height="5" rx="1"></rect><rect x="2" y="9" width="5" height="5" rx="1"></rect><rect x="9" y="9" width="5" height="5" rx="1"></rect></svg>Catalog</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2 H10 L13 5 V14 H4 Z"></path></svg>Artifacts</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13 L6 8 L9 10 L14 3"></path></svg>Evals</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 12px; border-radius: 8px; color: #aab5c3; text-decoration: none"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"></circle><circle cx="8" cy="8" r="2"></circle></svg>Operations</a>
+</nav>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+
+<nav aria-label="Breadcrumbs" style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #8f9cad">
+<a href="#" style="color: #b7c1ce">Catalog</a><span>/</span><a href="#" style="color: #b7c1ce">Workflows</a><span>/</span><a href="#" style="color: #b7c1ce">openapi-from-workspace</a><span>/</span><span>Draft</span>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0">
+<h1 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 700">openapi-from-workspace</h1>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d8ff7259; color: #d8ff72; font-size: 12px; font-weight: 700">Draft @8 · from @7</span>
+<span style="color: #8f9cad; font-size: 13px">Local draft · not published</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid #3b4655; background: transparent; color: #e9edf3; font: inherit; font-weight: 600">Discard draft</button>
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid #3b4655; background: #1a202b; color: #e9edf3; font: inherit; font-weight: 600">Validate</button>
+<button type="button" style="min-height: 40px; padding: 0 16px; border-radius: 8.8px; border: 1px solid transparent; background: #d8ff72; color: #11170a; font: inherit; font-weight: 700">Download YAML</button>
+</div>
+</div>
+
+<nav aria-label="Workflow views" style="display: flex; gap: 4px; border-bottom: 1px solid #2b3442">
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Overview</a>
+<a href="#" aria-current="page" style="padding: 10px 14px; color: #e9edf3; text-decoration: none; font-weight: 700; box-shadow: inset 0 -2px #d8ff72">Graph</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">YAML</a>
+<a href="#" style="padding: 10px 14px; color: #8f9cad; text-decoration: none; font-weight: 600">Changes · 1</a>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #ff8f8666; border-radius: 10px; background: #1e1416">
+<span style="display: inline-flex; align-items: center; gap: 6px; color: #ff8f86; font-weight: 700"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#ff8f86" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 4.5 V9"></path><path d="M8 11.2 V11.4"></path></svg>1 error</span>
+<span style="flex: 1 1 360px; min-width: 0; color: #e9edf3">stages.openapi_validate.on.failed: <code style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px">next: openapi_build</code> creates a cycle. In v1alpha1 only bounded retry and escalate may loop.</span>
+<a href="#" style="font-weight: 600">Show in YAML</a>
+<button type="button" style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #3b4655; background: transparent; color: #e9edf3; font: inherit; font-weight: 600">Revert edge</button>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px">
+
+<section aria-label="Stage graph" style="flex: 999 1 520px; min-width: 0; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #2b3442">
+<div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 16px">Stage graph</h2><span style="color: #8f9cad; font-size: 13px">4 Stages · entry dependency_discovery</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: #b7c1ce">
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6"><path d="M0 3 H22" stroke="#d8ff72" stroke-width="2"></path></svg>succeeded</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6"><path d="M0 3 H22" stroke="#ff8f86" stroke-width="2" stroke-dasharray="5 4"></path></svg>failed / interrupted</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6"><path d="M0 3 H22" stroke="#6b7789" stroke-width="2"></path></svg>workflow input</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="22" height="6" viewBox="0 0 22 6"><path d="M0 3 H22" stroke="#ff8f86" stroke-width="3"></path></svg>invalid edge</span>
+</div>
+</div>
+<div style="overflow-x: auto; padding: 8px 0 16px">
+<div style="position: relative; width: 760px; height: 1016px; margin: 0 auto">
+
+<svg width="8" height="70" viewBox="0 0 8 70" preserveAspectRatio="none" style="position: absolute; left: 226px; top: 88px; width: 8px; height: 70px; overflow: visible; fill: none; stroke: #6b7789; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#6b7789" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 70" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 226px; top: 256px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 78" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 226px; top: 432px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 78" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 226px; top: 608px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 78" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="8" height="78" viewBox="0 0 8 78" preserveAspectRatio="none" style="position: absolute; left: 226px; top: 784px; width: 8px; height: 78px; overflow: visible; fill: none; stroke: #d8ff72; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#d8ff72" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 4 0 L 4 78" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="78" height="8" viewBox="0 0 78 8" preserveAspectRatio="none" style="position: absolute; left: 380px; top: 204px; width: 78px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 78 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="78" height="8" viewBox="0 0 78 8" preserveAspectRatio="none" style="position: absolute; left: 380px; top: 380px; width: 78px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 78 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="78" height="8" viewBox="0 0 78 8" preserveAspectRatio="none" style="position: absolute; left: 380px; top: 556px; width: 78px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 78 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="78" height="8" viewBox="0 0 78 8" preserveAspectRatio="none" style="position: absolute; left: 380px; top: 732px; width: 78px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 78 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+<svg width="40" height="8" viewBox="0 0 40 8" preserveAspectRatio="none" style="position: absolute; left: 40px; top: 732px; width: 40px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round"><path d="M 40 4 L 0 4"></path></svg>
+<svg width="8" height="176" viewBox="0 0 8 176" preserveAspectRatio="none" style="position: absolute; left: 36px; top: 560px; width: 8px; height: 176px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round"><path d="M 4 176 L 4 0"></path></svg>
+<svg width="37" height="8" viewBox="0 0 37 8" preserveAspectRatio="none" style="position: absolute; left: 40px; top: 556px; width: 37px; height: 8px; overflow: visible; fill: none; stroke: #ff8f86; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled" orient="auto" markerWidth="5" markerHeight="5" refX="3.2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#ff8f86" stroke="none" style="fill: context-stroke"/></marker></defs><path d="M 0 4 L 37 4" marker-end="url(#dc-arrow-head-filled)"></path></svg>
+
+<div style="position: absolute; left: 80px; top: 32px; width: 300px; height: 56px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 16px; background: #0c1016; border: 1px solid #3b4655; border-radius: 999px; font-size: 12px; line-height: 17px; color: #8f9cad"><span><b style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #e9edf3">source</b> · input<br>application/zip · required</span></div>
+<div style="position: absolute; left: 420px; top: 32px; width: 300px; height: 56px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 16px; background: #0c1016; border: 1px dashed #3b4655; border-radius: 999px; font-size: 12px; line-height: 17px; color: #8f9cad"><span><b style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #e9edf3">existing_openapi</b> · input<br>yaml · json · optional · read by openapi_build</span></div>
+
+<div style="position: absolute; left: 80px; top: 160px; width: 300px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 16px; background: #1a202b; border: 1px solid #3b4655; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #d8ff72">1 · ENTRY</small><br><b style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: #e9edf3">dependency_discovery</b><br>Inventory runtime dependencies<br><small style="font-size: 12px; color: #8f9cad">analyst · workspace_source_graph_analyst@3</small></span></div>
+<div style="position: absolute; left: 80px; top: 336px; width: 300px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 16px; background: #1a202b; border: 1px solid #3b4655; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #8f9cad">2</small><br><b style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: #e9edf3">project_discovery</b><br>Map structure, API surface, controls<br><small style="font-size: 12px; color: #8f9cad">analyst · workspace_source_graph_analyst@3</small></span></div>
+<div style="position: absolute; left: 80px; top: 512px; width: 300px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 16px; background: #1a202b; border: 1px solid #3b4655; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #8f9cad">3</small><br><b style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: #e9edf3">openapi_build</b><br>Build an evidence-linked OpenAPI<br><small style="font-size: 12px; color: #8f9cad">builder · workspace_openapi_builder@3</small></span></div>
+<div style="position: absolute; left: 80px; top: 688px; width: 300px; height: 96px; box-sizing: border-box; display: flex; align-items: center; padding: 10px 15px; background: #1d2418; border: 2px solid #d8ff72; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><small style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #ff8f86">4 · SELECTED · 1 ERROR</small><br><b style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: #e9edf3">openapi_validate</b><br>Validate and minimally repair OpenAPI<br><small style="font-size: 12px; color: #8f9cad">validator · workspace_openapi_validator@3</small></span></div>
+
+<div style="position: absolute; left: 460px; top: 176px; width: 236px; height: 64px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 14px; background: #1e1416; border: 1px dashed #ff8f8680; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><b style="color: #e9edf3">failed · interrupted</b><br>retry × 2, then fail</span></div>
+<div style="position: absolute; left: 460px; top: 352px; width: 236px; height: 64px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 14px; background: #1e1416; border: 1px dashed #ff8f8680; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><b style="color: #e9edf3">failed · interrupted</b><br>retry × 2, then fail</span></div>
+<div style="position: absolute; left: 460px; top: 528px; width: 236px; height: 64px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 14px; background: #1e1416; border: 1px dashed #ff8f8680; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><b style="color: #e9edf3">failed · interrupted</b><br>retry × 4, then fail</span></div>
+<div style="position: absolute; left: 460px; top: 704px; width: 236px; height: 64px; box-sizing: border-box; display: flex; align-items: center; padding: 8px 14px; background: #1e1416; border: 1px dashed #ff8f8680; border-radius: 10px; font-size: 13px; line-height: 18px; color: #b7c1ce"><span><b style="color: #e9edf3">interrupted</b><br>retry × 2, then fail</span></div>
+
+<div style="position: absolute; left: 80px; top: 864px; width: 616px; height: 112px; box-sizing: border-box; display: flex; align-items: center; padding: 12px 18px; background: #151b13; border: 1px solid #d8ff7266; border-radius: 10px; font-size: 13px; line-height: 21px; color: #b7c1ce"><span><small style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #d8ff72">SUCCEED · WORKFLOW OUTPUTS</small><br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi</b> ← openapi · primary · application/yaml<br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">openapi_validation_report</b> ← validation_report · text/markdown<br><b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">workspace_state</b>, <b style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #e9edf3">workspace_diff</b> ← same names</span></div>
+
+<div style="position: absolute; left: 242px; top: 115px; width: 44px; font-size: 12px; line-height: 16px; font-weight: 700; color: #d8ff72">entry</div>
+<div style="position: absolute; left: 244px; top: 284px; box-sizing: border-box; height: 24px; padding: 3px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 16px; color: #b7c1ce; background: #0c1016; border: 1px solid #2b3442; border-radius: 6px">analysis/dependencies · workspace_state</div>
+<div style="position: absolute; left: 244px; top: 460px; box-sizing: border-box; height: 24px; padding: 3px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 16px; color: #b7c1ce; background: #0c1016; border: 1px solid #2b3442; border-radius: 6px">analysis/project · workspace_state</div>
+<div style="position: absolute; left: 244px; top: 636px; box-sizing: border-box; height: 24px; padding: 3px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 16px; color: #b7c1ce; background: #0c1016; border: 1px solid #2b3442; border-radius: 6px">openapi/openapi · workspace_state</div>
+<div style="position: absolute; left: 244px; top: 815px; width: 76px; font-size: 12px; line-height: 16px; color: #8f9cad">succeeded</div>
+<div style="position: absolute; left: 52px; top: 640px; width: 170px; font-size: 12px; line-height: 16px; font-weight: 700; color: #ff8f86">failed → openapi_build</div>
+
+</div>
+</div>
+</section>
+
+<aside aria-label="Stage inspector" style="flex: 1 1 320px; min-width: 0; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; padding: 20px; background: #121720; border: 1px solid #2b3442; border-radius: 12.8px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #d8ff72">STAGE 4</span>
+<h2 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 18px">openapi_validate</h2>
+</div>
+
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b7c1ce; font-weight: 600">Objective
+<textarea rows="3" style="box-sizing: border-box; width: 100%; padding: 9px 11px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit; font-weight: 400; resize: vertical">Validate and minimally repair the candidate OpenAPI document against source evidence</textarea></label>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b7c1ce; font-weight: 600">Planner
+<select style="min-height: 40px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit; font-weight: 400"><option>passthrough@1</option><option>streamline@1</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b7c1ce; font-weight: 600">Agent key
+<input value="validator" style="min-height: 40px; box-sizing: border-box; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit; font-weight: 400"></label>
+</div>
+
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b7c1ce; font-weight: 600">Agent template
+<select style="min-height: 40px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit; font-weight: 400"><option>workspace_openapi_validator@3</option></select></label>
+<a href="#" style="font-size: 13px; font-weight: 600; margin-top: -10px">Open agent template</a>
+
+<fieldset style="margin: 0; padding: 14px; border: 1px solid #2b3442; border-radius: 10px; display: flex; flex-direction: column; gap: 12px">
+<legend style="padding: 0 6px; font-size: 13px; font-weight: 700">Transitions</legend>
+<div style="display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 8px">
+<span style="font-size: 13px; color: #8f9cad">succeeded</span>
+<select aria-label="succeeded action" style="min-height: 38px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit"><option>succeed</option></select>
+</div>
+<div style="display: grid; grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px">
+<span style="font-size: 13px; color: #8f9cad">failed</span>
+<select aria-label="failed action" style="min-height: 38px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #ff8f86; background: #0c1016; color: #e9edf3; font: inherit"><option>next</option></select>
+<select aria-label="failed next stage" style="min-height: 38px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #ff8f86; background: #0c1016; color: #e9edf3; font: inherit"><option>openapi_build</option></select>
+</div>
+<p style="margin: -4px 0 0 100px; font-size: 12px; line-height: 17px; color: #ff8f86">Loops back to Stage 3 without a retry bound.</p>
+<div style="display: grid; grid-template-columns: 92px minmax(0, 1fr) 64px minmax(0, 1fr); align-items: center; gap: 8px">
+<span style="font-size: 13px; color: #8f9cad">interrupted</span>
+<select aria-label="interrupted action" style="min-height: 38px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit"><option>retry</option></select>
+<input aria-label="max attempts" value="2" style="min-height: 38px; box-sizing: border-box; width: 100%; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit">
+<select aria-label="then" style="min-height: 38px; padding: 0 10px; border-radius: 8.8px; border: 1px solid #3b4655; background: #0c1016; color: #e9edf3; font: inherit"><option>then fail</option></select>
+</div>
+</fieldset>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h3 style="margin: 0; font-size: 14px">Context artifacts</h3><button type="button" style="min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #3b4655; background: transparent; color: #e9edf3; font: inherit; font-size: 13px; font-weight: 600">Add</button></div>
+<div style="display: flex; flex-direction: column; border: 1px solid #2b3442; border-radius: 10px; font-size: 12.5px">
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">source</span><span style="color: #8f9cad">inputs/source</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">dependency_report</span><span style="color: #8f9cad">analysis/dependencies</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">project_report</span><span style="color: #8f9cad">analysis/project</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #2b3442"><span style="font-family: 'JetBrains Mono', monospace">openapi_candidate</span><span style="color: #8f9cad">openapi/openapi</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px"><span style="font-family: 'JetBrains Mono', monospace">prior_workspace_state</span><span style="color: #8f9cad">openapi/workspace_state</span></div>
+</div>
+<span style="font-size: 12px; color: #8f9cad">All 5 required · workspace overlay from source</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 14px">Results → workflow outputs</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px">
+<span style="padding: 3px 8px; border-radius: 6px; background: #1a202b; border: 1px solid #d8ff7259">openapi ★</span>
+<span style="padding: 3px 8px; border-radius: 6px; background: #1a202b; border: 1px solid #2b3442">validation_report</span>
+<span style="padding: 3px 8px; border-radius: 6px; background: #1a202b; border: 1px solid #2b3442">workspace_state</span>
+<span style="padding: 3px 8px; border-radius: 6px; background: #1a202b; border: 1px solid #2b3442">workspace_diff</span>
+</div>
+</div>
+</aside>
+
+</div>
+</main>
+</div>
+</body>
+</html>
