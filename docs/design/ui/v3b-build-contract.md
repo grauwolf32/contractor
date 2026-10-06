@@ -321,6 +321,44 @@ and standards → audit baseline standards → profile name → "item").
 - `invalidateCrossProject(queryClient)` after every decision or lifecycle
   mutation. Keys live in `queryKeys.crossProject`.
 
+### Shell (`ui/src/app/shell.tsx`, `destinations.ts`, `account-menu.tsx`, `command-palette.tsx`)
+
+- The shell sets `--shell-rail-width: 76px` and `--shell-topbar-height: 56px`
+  on `.application`; `PaneLayout` uses the latter. `.content` has no padding
+  on pane pages; give your page its own padding when it is not a
+  `PaneLayout`.
+- Rail destinations and active rules live in `destinations.ts`
+  (`DESTINATIONS`, `destinationsFor(capabilities)`, `activeDestination(path)`,
+  `projectIdOf(path)`). The Inbox badge reads `useInboxSummary()`.
+- The account menu (`AccountMenu`, `AccountPanel`) holds Settings, Theme,
+  Sign out and the UI version; at ≤ 820 px the same panel is in the "Menu"
+  drawer.
+- The command palette (Ctrl/⌘+K) offers Start a check (with `?project=`
+  inside a project), New project (`/projects?new=1`), Go to destinations plus
+  Files (`/artifacts`), and searches projects, checks, check types
+  (`useAuditPresets` from `routes/catalog/audit-preset-data.ts`) and workflows
+  (`useWorkflowInventory` from `routes/workflows/inventory.ts`). Keep those
+  two export names and shapes.
+- `/artifacts` has no rail item; the Library page must link to Files.
+
+### Decisions (`ui/src/routes/decisions`, README.md there)
+
+- `FindingSummary({ auditId, finding, variant?: "full" | "compact", titleAs? })`
+  renders only sections backed by `AuditFinding` fields.
+- `FindingDecision({ auditId, finding, onDecided?, next?, autoFocus?, pendingReview?, shortcuts? = true })`
+  records Confirm issue (C, severity), Not an issue (R), Needs evidence (E),
+  Duplicate… and Reopen (More), creating the review request when needed
+  (If-Match + Idempotency-Key), refreshes the check, project lists and
+  cross-project queries, announces "Decision recorded" and calls
+  `onDecided`. Pass `shortcuts={false}` when several decisions share a page.
+- `ActionDecision({ auditId, review, onDecided? })` (approvals and
+  applicability) and `ReportDecision({ auditId, review, report?, onDecided? })`
+  (report acceptance) follow the same rules; `DecisionRecord({ decision })`
+  shows a recorded decision.
+- If your page unmounts the decision on success (for example it moves to the
+  next item), announce the outcome yourself in a page-level status region and
+  move focus to the next item.
+
 ### Routes
 
 New routes (§5) are registered with stubs; owners replace the stub body and
