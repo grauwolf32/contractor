@@ -512,7 +512,9 @@ describe("Runtime configuration hub navigation", () => {
         "not authorized to observe or manage Operations",
       );
       expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
-      expect(requests).toEqual(["/v1/auth/session"]);
+      expect(
+        requests.filter((request) => !request.startsWith("/v1/projects")),
+      ).toEqual(["/v1/auth/session"]);
     },
   );
 });

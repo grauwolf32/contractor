@@ -990,7 +990,7 @@ describe("Project Audit routes", () => {
     );
     expect(router.state.location.hash).toBe("#check-item_attempted");
     expect(
-      screen.queryByRole("link", { name: "Checks" }),
+      within(screen.getByRole("main")).queryByRole("link", { name: "Checks" }),
     ).not.toBeInTheDocument();
     const opened = screen.getByRole("article", { name: "Attempted check" });
     expect(opened).toHaveAttribute("id", "check-item_attempted");

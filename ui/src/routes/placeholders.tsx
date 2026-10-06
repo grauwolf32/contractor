@@ -8,7 +8,7 @@ export function NotFoundRoute() {
       <h1>Page not found</h1>
       <p>This address may be incomplete or the page may have moved.</p>
       <nav className="action-row" aria-label="Recovery">
-        <a href="/">Home</a>
+        <a href="/">Inbox</a>
         <a href="/projects">Projects</a>
       </nav>
     </main>

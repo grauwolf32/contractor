@@ -236,7 +236,7 @@ describe("Action center", () => {
         name: /review.*@9/i,
       }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Inbox" })).toHaveAttribute(
       "aria-current",
       "page",
     );
