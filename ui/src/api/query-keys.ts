@@ -444,6 +444,29 @@ export const queryKeys = {
       cursor: string | undefined,
     ) => ["evals", "input-artifacts", scope, projectId, cursor] as const,
   },
+  /**
+   * Bounded cross-project reads (src/api/cross-project.ts). The project index
+   * and the per-project check pages are polled. Per-check reads (`…Of`) are
+   * prefixes: the hooks append the check's revision as the last element.
+   */
+  crossProject: {
+    all: ["cross-project"] as const,
+    projects: ["cross-project", "projects"] as const,
+    allAudits: ["cross-project", "audits"] as const,
+    audits: (projectId: string, state: string | null) =>
+      ["cross-project", "audits", projectId, state] as const,
+    findingsOf: (
+      auditId: string,
+      state: string | null,
+      verdict: string | null,
+      severity: string | null,
+    ) =>
+      ["cross-project", "findings", auditId, state, verdict, severity] as const,
+    pendingReviewsOf: (auditId: string) =>
+      ["cross-project", "pending-reviews", auditId] as const,
+    reportOf: (auditId: string) =>
+      ["cross-project", "report", auditId] as const,
+  },
 };
 
 /** Artifact binding keys of one scope; each maps to its scope's family. */
