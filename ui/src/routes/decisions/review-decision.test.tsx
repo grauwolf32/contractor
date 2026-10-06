@@ -157,10 +157,10 @@ describe("ActionDecision", () => {
     expect(record).toHaveAccessibleDescription("Write a short reason.");
     const reason = within(region).getByRole("textbox", { name: "Why" });
     expect(reason).toHaveFocus();
-    expect(reason).toHaveAttribute(
-      "placeholder",
-      "Required. Saved with the decision.",
-    );
+    expect(
+      within(region).getByText("Required. Saved with the decision."),
+    ).toBeVisible();
+    expect(reason).not.toHaveAttribute("placeholder");
     await user.keyboard("   ");
     expect(record).toBeDisabled();
     await user.keyboard("The **target** is our own staging host. ");
@@ -173,6 +173,14 @@ describe("ActionDecision", () => {
     expect(
       screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
+    // The refetched request shows the decision; the live region still says
+    // what was recorded and focus stays on this decision.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Decision recorded: Approved.",
+    );
+    expect(
+      screen.getByRole("group", { name: "Decision on active test approval" }),
+    ).toHaveFocus();
     const posts = sent("POST", "/decisions");
     expect(posts).toHaveLength(1);
     expect(posts[0]?.headers.get("If-Match")).toBe('"2"');
@@ -213,6 +221,11 @@ describe("ActionDecision", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Not saved: this request changed or expired first. The latest version is now shown.",
     );
+    await user.click(screen.getByText("Request details"));
+    expect(
+      screen.getByText("Code precondition_failed · Status 412"),
+    ).toBeVisible();
+    expect(screen.getByText("Request req_1")).toBeVisible();
     await waitFor(() =>
       expect(sent("GET", "/reviews/review_action").length).toBeGreaterThan(1),
     );
@@ -337,5 +350,110 @@ describe("ReportDecision", () => {
     expect(
       screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("without a report from the page", () => {
+    /** A Server whose report read waits for `answer`. */
+    function reportRead(answer: () => Response | Promise<Response>) {
+      const handle: Handler = (request, url) => {
+        if (
+          request.method === "GET" &&
+          url.pathname === `/v1/audits/${AUDIT_ID}/report`
+        )
+          return answer();
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      };
+      return handle;
+    }
+
+    it("reads the report and offers actions only once it carries this request", async () => {
+      let release: (() => void) | undefined;
+      const read = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { sent } = renderWithServer(
+        <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
+        reportRead(async () => {
+          await read;
+          return json(proposedReport(reportReview()));
+        }),
+      );
+      expect(await screen.findByText("Loading the report…")).toBeVisible();
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument();
+      release?.();
+      const region = await bar();
+      expect(
+        within(region)
+          .getAllByRole("button", { pressed: false })
+          .map((button) => button.textContent),
+      ).toEqual(["Approve", "Reject"]);
+      expect(sent("GET", "/report")).toHaveLength(1);
+    });
+
+    it("does not decide next to a report that carries another request", async () => {
+      renderWithServer(
+        <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
+        reportRead(() =>
+          json(proposedReport(makeActionReview({ requestId: "review_newer" }))),
+        ),
+      );
+      expect(
+        await screen.findByText(
+          "This report no longer matches its acceptance request. Load the current report before deciding.",
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("explains a report that cannot be read and decides only after it loads", async () => {
+      let fail = true;
+      const user = userEvent.setup();
+      renderWithServer(
+        <ReportDecision auditId={AUDIT_ID} review={reportReview()} />,
+        reportRead(() =>
+          fail
+            ? failure(503, "unavailable", "report store unavailable")
+            : json(proposedReport(reportReview())),
+        ),
+      );
+      const notice = await screen.findByRole("alert");
+      expect(notice).toHaveTextContent(
+        "The report could not be loaded, so this request cannot be decided here yet.",
+      );
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument();
+      await user.click(within(notice).getByText("Request details"));
+      expect(
+        within(notice).getByText("Message: report store unavailable"),
+      ).toBeVisible();
+      fail = false;
+      await user.click(
+        within(notice).getByRole("button", { name: "Try again" }),
+      );
+      expect(await bar()).toBeVisible();
+    });
+
+    it("needs no report for a request that is already decided", () => {
+      const decided = reportReview();
+      decided.state = "decided";
+      decided.decision = makeDecision({
+        requestId: "review_report",
+        action: "reject",
+      });
+      delete decided.decision.verdict;
+      delete decided.decision.severity;
+      renderWithServer(
+        <ReportDecision auditId={AUDIT_ID} review={decided} />,
+        () => {
+          throw new Error("no request expected");
+        },
+      );
+      expect(screen.getByText("Rejected")).toBeVisible();
+    });
   });
 });

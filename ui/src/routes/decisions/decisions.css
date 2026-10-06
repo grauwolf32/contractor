@@ -465,15 +465,69 @@ p.decisions-quiet {
   font-size: 0.8125rem;
 }
 
+.decisions-notice > p {
+  margin: 0;
+}
+
 /* A notice that lines up with the decision bar's insets. */
 .decisions-inset {
   margin: 0.75rem var(--ui-pad-end, 1.75rem) 0 var(--ui-pad-start, 1.75rem);
 }
 
-/* "Use AI summary": a quiet action at the end of the row above the reason. */
+/* "Request details" of a refused or failed request, as in ErrorNotice. */
+.decisions-error-details {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.decisions-notice > .decisions-error-details {
+  margin-top: 0.375rem;
+}
+
+.decisions-error-details > summary {
+  width: fit-content;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.decisions-error-details > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.decisions-error-details > small {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+
+/* Right under the decision bar's error, inside the bar's insets. */
+.decisions-under-bar {
+  margin: 0 var(--ui-pad-end, 1.75rem) 0.75rem var(--ui-pad-start, 1.75rem);
+}
+
+/* The row right above the reason: the reason's helper text, then "Use AI
+   summary" as a quiet action at the end. */
 .decisions-assist {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.decisions-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.decisions-intro + .decisions-help {
+  margin-top: 0.375rem;
 }
 
 /* ---------- More decisions ---------- */

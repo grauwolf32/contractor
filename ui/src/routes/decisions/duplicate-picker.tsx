@@ -54,8 +54,9 @@ function Candidate({
 /**
  * Chooses the original of a duplicate among the other possible issues of the
  * same check. It reads up to five pages of the check's possible issues and
- * searches them by title or ID; an exact ID from beyond those pages can be
- * used as typed (S19: the Server validates the target).
+ * searches them by title or ID. An exact ID can always be used as typed, also
+ * from beyond those pages and while the list loads or after it failed (S19:
+ * the Server validates the target).
  */
 export function DuplicatePicker({
   auditId,
@@ -98,8 +99,9 @@ export function DuplicatePicker({
       ? matches
       : [selected, ...matches];
   const typed = query.trim();
+  // Without the list (loading or failed) `others` is empty, so a well-formed
+  // ID is offered as typed.
   const offerTyped =
-    candidates.data !== undefined &&
     typed !== "" &&
     typed !== value &&
     typed !== findingId &&
@@ -157,7 +159,10 @@ export function DuplicatePicker({
         </div>
       ) : null}
       {candidates.isPending ? (
-        <p className="decisions-duplicate-note">Loading possible issues…</p>
+        <p className="decisions-duplicate-note">
+          Loading possible issues… You can also enter the exact ID of the
+          original.
+        </p>
       ) : candidates.isError ? (
         <p className="decisions-duplicate-note" role="alert">
           The possible issues of this check could not be loaded. You can still

@@ -209,20 +209,17 @@ export function AuditReviews({ audit }: { audit: Audit }) {
                   </div>
                 </dl>
               </details>
-              {review.decision === undefined ? (
-                <>
-                  {review.state === "pending" ? null : (
-                    <p className="muted-copy">No decision recorded.</p>
-                  )}
-                  {review.state === "pending" &&
-                  review.subjectKind === "audit-item-action" ? (
-                    <div className="decisions-inline">
-                      <ActionDecision auditId={audit.auditId} review={review} />
-                    </div>
-                  ) : null}
-                </>
-              ) : (
+              {review.subjectKind === "audit-item-action" &&
+              (review.state === "pending" || review.decision !== undefined) ? (
+                // Stays mounted once decided (it shows the decision then), so
+                // its "Decision recorded" announcement is read out.
+                <div className="decisions-inline">
+                  <ActionDecision auditId={audit.auditId} review={review} />
+                </div>
+              ) : review.decision !== undefined ? (
                 <DecisionRecord decision={review.decision} />
+              ) : review.state === "pending" ? null : (
+                <p className="muted-copy">No decision recorded.</p>
               )}
             </li>
           ))}

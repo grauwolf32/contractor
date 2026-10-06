@@ -1,15 +1,19 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState, type ReactNode } from "react";
 
 import {
   decideAuditAction,
+  getAuditReport,
   type AuditReport,
   type AuditReviewAction,
   type AuditReviewRequest,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
+import { reviewKindLabel } from "../../app/vocabulary";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import { DecisionBar, type DecisionOption } from "../../ui";
+import { focusIfLost, useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import {
   decisionErrorMessage,
@@ -21,6 +25,7 @@ import {
   type AuditActionDecisionResult,
 } from "./model";
 import { refreshAfterDecision } from "./refresh";
+import { RequestDetails } from "./request-details";
 
 import "./decisions.css";
 
@@ -34,6 +39,11 @@ interface RequestDecisionProps {
   onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
   /** What the actions do, shown under them. */
   intro?: ReactNode;
+  /**
+   * Why this pending request cannot be decided here (yet); shown instead of
+   * the actions.
+   */
+  blocked?: ReactNode;
 }
 
 /**
@@ -46,16 +56,19 @@ function RequestDecision({
   review,
   onDecided,
   intro,
+  blocked,
 }: RequestDecisionProps) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const root = useRef<HTMLDivElement>(null);
   const [action, setAction] = useState<AuditReviewAction | undefined>();
   const [rationale, setRationale] = useState("");
   const [problem, setProblem] = useState<string | undefined>();
-  const [recorded, setRecorded] = useState<{
-    revision: number;
-    label: string;
-  } | null>(null);
+  // The request revision a recorded decision was made on: until the
+  // refetched request replaces it, nothing is offered.
+  const [recordedRevision, setRecordedRevision] = useState<number | null>(null);
+  // "Decision recorded: …" outlives that gate, so screen readers read it.
+  const announcement = useAnnouncement();
   const [keyring] = useState(
     () =>
       new MutationDraftKeyring<Record<string, string | number>>(
@@ -84,20 +97,22 @@ function RequestDecision({
       }),
     onSuccess: async (result, choice) => {
       await refreshAfterDecision(queryClient, auditId);
-      setRecorded({
-        revision: choice.revision,
-        label: decisionOutcome(result.decision).label,
-      });
+      setRecordedRevision(choice.revision);
+      announcement.announce(
+        `Decision recorded: ${decisionOutcome(result.decision).label}.`,
+      );
       setAction(undefined);
       setRationale("");
+      // The bar goes away; keep keyboard and screen reader users here.
+      focusIfLost(root.current);
       onDecided?.(result);
     },
     onError: () => refreshAfterDecision(queryClient, auditId),
   });
 
-  // Until the refetched request arrives, say what the Server recorded.
+  // Until the refetched request arrives, only the announcement shows.
   const awaitingRefresh =
-    recorded !== null && recorded.revision === review.revision;
+    recordedRevision !== null && recordedRevision === review.revision;
   const options: DecisionOption[] = REVIEW_ACTIONS.filter((candidate) =>
     review.requestedActions.includes(candidate.action),
   ).map((candidate) => ({
@@ -105,6 +120,17 @@ function RequestDecision({
     label: candidate.label,
     tone: candidate.action === "approve" ? "primary" : "secondary",
   }));
+  const decideMessage =
+    decide.error === null
+      ? undefined
+      : decisionErrorMessage(decide.error, "request");
+
+  // Every edit of the draft: the last answer's announcement and a client-side
+  // problem no longer apply.
+  function edited() {
+    setProblem(undefined);
+    announcement.clear();
+  }
 
   function submit() {
     if (action === undefined) return;
@@ -132,6 +158,7 @@ function RequestDecision({
         This request expired without a decision.
       </p>
     );
+  else if (blocked !== undefined && blocked !== null) body = blocked;
   else if (options.length === 0)
     body = (
       <p className="decisions-quiet">
@@ -140,51 +167,66 @@ function RequestDecision({
     );
   else
     body = (
-      <DecisionBar
-        options={options}
-        selected={action}
-        onSelect={(id) => {
-          if (isAction(id)) {
-            setAction(id);
-            setProblem(undefined);
+      <>
+        <DecisionBar
+          options={options}
+          selected={action}
+          onSelect={(id) => {
+            if (isAction(id)) {
+              setAction(id);
+              edited();
+            }
+          }}
+          rationale={{
+            value: rationale,
+            onChange: (value) => {
+              setRationale(value);
+              edited();
+            },
+            maxLength: MAX_RATIONALE_BYTES,
+          }}
+          onSubmit={submit}
+          pending={decide.isPending}
+          error={problem ?? decideMessage}
+          extra={
+            <>
+              {intro === undefined ? null : (
+                <p className="decisions-intro">{intro}</p>
+              )}
+              {/* Right above "Why" until DecisionBar takes a hint. */}
+              <p className="decisions-help">{RATIONALE_HELP}</p>
+            </>
           }
-        }}
-        rationale={{
-          value: rationale,
-          onChange: (value) => {
-            setRationale(value);
-            setProblem(undefined);
-          },
-          placeholder: RATIONALE_HELP,
-          maxLength: MAX_RATIONALE_BYTES,
-        }}
-        onSubmit={submit}
-        pending={decide.isPending}
-        error={
-          problem ??
-          (decide.error === null
-            ? undefined
-            : decisionErrorMessage(decide.error, "request"))
-        }
-        extra={
-          intro === undefined ? undefined : (
-            <p className="decisions-intro">{intro}</p>
-          )
-        }
-      />
+        />
+        {problem === undefined ? (
+          // DecisionBar's error slot is a paragraph; the disclosure follows.
+          <RequestDetails
+            error={decide.error}
+            explanation={decideMessage}
+            className="decisions-under-bar"
+          />
+        ) : null}
+      </>
     );
 
   return (
-    <div className="decisions-request">
+    <div
+      ref={root}
+      className="decisions-request"
+      role="group"
+      aria-label={`Decision on ${reviewKindLabel(review.kind).toLowerCase()}`}
+      tabIndex={-1}
+    >
       <p className="decisions-status" role="status">
-        {awaitingRefresh ? `Decision recorded: ${recorded.label}.` : ""}
+        {announcement.text}
       </p>
       {review.state !== "pending" && decide.error !== null ? (
         // The refetch after a refused decision shows the request settled
         // elsewhere; the explanation stays.
-        <p className="decisions-notice decisions-inset" role="alert">
-          {decisionErrorMessage(decide.error, "request")}
-        </p>
+        <div className="decisions-notice decisions-inset" role="alert">
+          <p>{decideMessage}</p>
+          <RequestDetails error={decide.error} explanation={decideMessage} />
+        </div>
       ) : null}
       {body}
     </div>
@@ -238,32 +280,63 @@ export interface ReportDecisionProps {
   /** The report acceptance request. */
   review: AuditReviewRequest;
   /**
-   * The report read with the request. A pending request is only decided
-   * next to the proposed report it was opened for.
+   * The report shown next to the decision. Omitted, the component reads the
+   * check's report itself. Either way a pending request is decided only while
+   * that report is proposed and carries this request.
    */
   report?: AuditReport | undefined;
   /** Called once the Server recorded the decision and the reads refetched. */
   onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
 }
 
-/**
- * Accepts or rejects a proposed report. The report is not accepted until the
- * Server records an approval; a request that does not belong to the report
- * shown cannot be decided here.
- */
-export function ReportDecision({
+const REPORT_INTRO =
+  "Approving accepts this report and finishes the check. Rejecting ends the check without an accepted report.";
+
+function ReportAcceptance({
   auditId,
   review,
   report,
   onDecided,
 }: ReportDecisionProps) {
-  if (review.kind !== "report-acceptance") return null;
-  const mismatch =
-    report !== undefined &&
-    (report.status !== "proposed" ||
-      report.review?.requestId !== review.requestId);
-  if (review.state === "pending" && mismatch)
-    return (
+  const api = usePublicAPI();
+  const pending = review.state === "pending";
+  // The same read as the report page, so both share one cached report.
+  const read = useQuery({
+    queryKey: queryKeys.audits.report(auditId),
+    queryFn: () => getAuditReport(api, auditId),
+    enabled: report === undefined && pending,
+  });
+  const current = report ?? read.data;
+  // Decided and expired requests need no report.
+  let blocked: ReactNode;
+  if (pending && current === undefined)
+    blocked = read.isError ? (
+      <div className="decisions-notice" role="alert">
+        <p>
+          The report could not be loaded, so this request cannot be decided here
+          yet.{" "}
+          <button
+            type="button"
+            className="decisions-text-button"
+            onClick={() => void read.refetch()}
+          >
+            Try again
+          </button>
+        </p>
+        <RequestDetails error={read.error} />
+      </div>
+    ) : (
+      <p className="decisions-quiet" role="status">
+        Loading the report…
+      </p>
+    );
+  else if (
+    pending &&
+    current !== undefined &&
+    (current.status !== "proposed" ||
+      current.review?.requestId !== review.requestId)
+  )
+    blocked = (
       <p className="decisions-notice" role="status">
         This report no longer matches its acceptance request. Load the current
         report before deciding.
@@ -271,11 +344,21 @@ export function ReportDecision({
     );
   return (
     <RequestDecision
-      key={review.requestId}
       auditId={auditId}
       review={review}
       onDecided={onDecided}
-      intro="Approving accepts this report and finishes the check. Rejecting ends the check without an accepted report."
+      intro={REPORT_INTRO}
+      blocked={blocked}
     />
   );
+}
+
+/**
+ * Accepts or rejects a proposed report. The report is not accepted until the
+ * Server records an approval; a request that does not belong to the current
+ * proposed report cannot be decided here.
+ */
+export function ReportDecision(props: ReportDecisionProps) {
+  if (props.review.kind !== "report-acceptance") return null;
+  return <ReportAcceptance key={props.review.requestId} {...props} />;
 }

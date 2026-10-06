@@ -38,6 +38,10 @@ interface FakeOptions {
   pending?: AuditReviewRequest[];
   decided?: AuditReviewRequest[];
   others?: AuditFinding[];
+  /** Answers the list of the check's possible issues instead of the Server. */
+  listFindings?: () => Response | Promise<Response>;
+  /** Answers the open-request lookup, when it returns a response. */
+  pendingLookup?: () => Response | undefined;
   /** Answers a decision instead of recording it, when it returns a response. */
   refuseDecision?: (
     attempt: number,
@@ -80,9 +84,16 @@ function fakeServer(options: FakeOptions) {
       });
     }
     if (request.method === "GET" && path === `${base}/findings`)
-      return page([state.finding, ...(options.others ?? [])]);
+      return (
+        options.listFindings?.() ??
+        page([state.finding, ...(options.others ?? [])])
+      );
     if (request.method === "GET" && path === `${base}/reviews`) {
       expect(url.searchParams.get("finding")).toBe(FINDING_ID);
+      if (url.searchParams.get("state") === "pending") {
+        const answer = options.pendingLookup?.();
+        if (answer !== undefined) return answer;
+      }
       return page(
         url.searchParams.get("state") === "decided"
           ? state.decided
@@ -378,6 +389,163 @@ describe("FindingDecision", () => {
     });
   });
 
+  it("marks a duplicate by the exact ID when the possible issues cannot be listed", async () => {
+    // The 5-page list is revision-fenced: an active check can answer 409.
+    const { user, sent } = setup({
+      finding: makeFinding(),
+      listFindings: () =>
+        failure(409, "conflict", "audit revision changed while paging"),
+    });
+    await readyBar();
+    await user.click(screen.getByRole("button", { name: "More decisions" }));
+    await user.click(screen.getByRole("button", { name: "Duplicate…" }));
+    const picker = screen.getByRole("group", { name: "Duplicate of" });
+    expect(
+      await within(picker).findByText(
+        /The possible issues of this check could not be loaded\. You can still enter the exact ID of the original\./u,
+      ),
+    ).toBeVisible();
+    // Not the possible issue itself, and not a malformed ID.
+    const search = within(picker).getByRole("searchbox", {
+      name: "Search possible issues in this check",
+    });
+    await user.type(search, FINDING_ID);
+    expect(within(picker).queryAllByRole("radio")).toHaveLength(0);
+    await user.clear(search);
+    await user.type(search, "finding 77");
+    expect(within(picker).queryAllByRole("radio")).toHaveLength(0);
+    await user.clear(search);
+    await user.type(search, "finding_77");
+    await user.click(
+      within(picker).getByRole("radio", { name: "Use this ID finding_77" }),
+    );
+    expect(
+      within(picker).getByRole("radio", {
+        name: "ID entered by you finding_77",
+      }),
+    ).toBeChecked();
+    await user.type(reasonField(), "Same handler as finding 77.");
+    await user.click(recordButton());
+
+    const region = await screen.findByRole("region", {
+      name: "Current decision",
+    });
+    expect(within(region).getByText("Duplicate")).toBeVisible();
+    expect(
+      await bodyOf(sent("POST", "/reviews/review_new/decisions")[0]),
+    ).toEqual({
+      verdict: "duplicate",
+      duplicateTargetId: "finding_77",
+      rationale: "Same handler as finding 77.",
+    });
+  });
+
+  it("offers the exact ID while the possible issues are still loading", async () => {
+    let release: (() => void) | undefined;
+    const listed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, sent } = setup({
+      finding: makeFinding(),
+      listFindings: async () => {
+        await listed;
+        return json({
+          items: [],
+          page: { hasMore: false },
+          total: 0,
+          auditRevision: 1,
+          asOf: NOW,
+        });
+      },
+    });
+    await readyBar();
+    await user.click(screen.getByRole("button", { name: "More decisions" }));
+    await user.click(screen.getByRole("button", { name: "Duplicate…" }));
+    const picker = screen.getByRole("group", { name: "Duplicate of" });
+    expect(within(picker).getByText(/Loading possible issues…/u)).toBeVisible();
+    await user.type(
+      within(picker).getByRole("searchbox", {
+        name: "Search possible issues in this check",
+      }),
+      "finding_77",
+    );
+    await user.click(
+      within(picker).getByRole("radio", { name: "Use this ID finding_77" }),
+    );
+    await user.type(reasonField(), "Same handler as finding 77.");
+    await user.click(recordButton());
+    await waitFor(() =>
+      expect(sent("POST", "/reviews/review_new/decisions")).toHaveLength(1),
+    );
+    expect(
+      await bodyOf(sent("POST", "/reviews/review_new/decisions")[0]),
+    ).toMatchObject({ verdict: "duplicate", duplicateTargetId: "finding_77" });
+    release?.();
+    expect(
+      await screen.findByRole("region", { name: "Current decision" }),
+    ).toBeVisible();
+  });
+
+  it("announces the recorded decision after the refetch until the next action", async () => {
+    const { user } = setup({ finding: makeFinding() });
+    await readyBar();
+    await user.click(screen.getByRole("button", { name: "Not an issue" }));
+    await user.type(reasonField(), "Guarded by the gateway.");
+    await user.click(recordButton());
+
+    const region = await screen.findByRole("region", {
+      name: "Current decision",
+    });
+    expect(within(region).getByText("Not an issue")).toBeVisible();
+    // The refetched possible issue replaced the bar; the live region still
+    // says what was recorded, and focus stays on this decision.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Decision recorded: Not an issue.",
+    );
+    expect(
+      screen.getByRole("group", {
+        name: "Decision on Missing object authorization",
+      }),
+    ).toHaveFocus();
+    await user.click(
+      within(region).getByRole("button", { name: "Change decision" }),
+    );
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("explains a review status that cannot be read, with its request details", async () => {
+    let lookupFails = true;
+    const { user } = setup({
+      finding: makeFinding(),
+      pendingLookup: () =>
+        lookupFails
+          ? failure(503, "unavailable", "review store unavailable")
+          : undefined,
+    });
+    const bar = await decisionBar();
+    await waitFor(() =>
+      expect(recordButton()).toHaveAccessibleDescription(
+        "The review status could not be loaded.",
+      ),
+    );
+    expect(within(bar).getByRole("alert")).toHaveTextContent(
+      "review store unavailable",
+    );
+    expect(
+      screen.getByRole("button", { name: "Confirm issue" }),
+    ).toBeDisabled();
+    await user.click(screen.getByText("Request details"));
+    expect(screen.getByText("Code unavailable · Status 503")).toBeVisible();
+    expect(screen.getByText("Request req_1")).toBeVisible();
+    // The message is already on screen; the details do not repeat it.
+    expect(screen.queryByText(/^Message:/u)).toBeNull();
+
+    lookupFails = false;
+    await user.click(within(bar).getByRole("button", { name: "Try again" }));
+    await readyBar();
+    expect(screen.queryByText("Request details")).toBeNull();
+  });
+
   it("reopens a decided possible issue through Change decision", async () => {
     const decided = makeFinding({
       state: "confirmed",
@@ -507,6 +675,15 @@ describe("FindingDecision", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Not saved: this possible issue or its check changed first. The latest version is now shown.",
     );
+    // The request details stay one click away, as in every error notice.
+    await user.click(screen.getByText("Request details"));
+    expect(
+      screen.getByText("Code precondition_failed · Status 412"),
+    ).toBeVisible();
+    expect(screen.getByText("Request req_1")).toBeVisible();
+    expect(
+      screen.getByText("Message: resource revision precondition failed"),
+    ).toBeVisible();
     expect(state.findingReads).toBeGreaterThan(readsBefore);
     expect(sent("POST", "/decisions")).toHaveLength(1);
     // The choice and reason stay for an explicit second attempt.
@@ -552,9 +729,14 @@ describe("FindingDecision", () => {
       name: "Current decision",
     });
     expect(within(region).getByText("user_colleague")).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent(
       "Not saved: this possible issue or its check changed first.",
     );
+    await user.click(within(notice).getByText("Request details"));
+    expect(
+      within(notice).getByText("Code precondition_failed · Status 412"),
+    ).toBeVisible();
     expect(
       screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
@@ -656,17 +838,18 @@ describe("FindingDecision", () => {
 
   it("copies the AI's conclusion into the reason only on request", async () => {
     const { user } = setup({ finding: makeFinding() }, { autoFocus: true });
-    await decisionBar();
+    const bar = await decisionBar();
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Confirm issue" }),
       ).toHaveFocus(),
     );
     expect(reasonField()).toHaveValue("");
-    expect(reasonField()).toHaveAttribute(
-      "placeholder",
-      "Required. Saved with the decision.",
-    );
+    // The helper text is visible text, not a placeholder that typing hides.
+    expect(
+      within(bar).getByText("Required. Saved with the decision."),
+    ).toBeVisible();
+    expect(reasonField()).not.toHaveAttribute("placeholder");
     await user.click(screen.getByRole("button", { name: "Use AI summary" }));
     expect(reasonField()).toHaveValue(
       "Missing object authorization. The order endpoint may read another owner's record.",

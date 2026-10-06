@@ -161,8 +161,9 @@ export function AuditFindingCard({
   audit: Audit;
   finding: AuditFinding;
   /**
-   * Not read any more: the decision's duplicate picker reads the check's
-   * possible issues itself. Kept until the callers stop passing it.
+   * Unused: the decision's duplicate picker reads the check's possible issues
+   * itself. Issues removes it together with its call sites in
+   * audit-findings.tsx and findings.tsx (files owned by Issues).
    */
   findings?: AuditFinding[];
   /** The finding's open review request; omitted when it has none. */

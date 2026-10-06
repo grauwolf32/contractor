@@ -93,13 +93,19 @@ FindingDecision(props: {
 
 - **Verdicts.** Confirm issue (C, needs a severity), Not an issue (R), Needs
   evidence (E); **More** holds Duplicate… (opens a picker over the same
-  check's possible issues, searchable by title or ID, or an exact ID) and
-  Reopen (decided possible issues only). Only the verdicts an open review
-  request names are offered. The chosen More verdict shows as a pressed
-  button. API mapping: `true_positive` + `severity`, `false_positive`,
-  `needs_evidence`, `duplicate` + `duplicateTargetId`, `reopen`.
+  check's possible issues, searchable by title or ID) and Reopen (decided
+  possible issues only). An exact ID of the same check can always be used as
+  typed: beyond the five pages read, and while that list loads or after it
+  failed (it is revision-fenced and answers 409 while an active check
+  changes). Only the verdicts an open review request names are offered. The
+  chosen More verdict shows as a pressed button. API mapping:
+  `true_positive` + `severity`, `false_positive`, `needs_evidence`,
+  `duplicate` + `duplicateTargetId`, `reopen`.
 - **Reason.** Required, trimmed, at most 64 KiB; "Use AI summary" inserts the
-  title and first sentence of what the AI found, only when pressed.
+  title and first sentence of what the AI found, only when pressed. The
+  helper text "Required. Saved with the decision." is a visible line right
+  above the reason (not a placeholder) until `DecisionBar` can show a hint
+  under its label.
 - **Recording.** Reuses the open finding-triage request of the finding's
   current revision; without one it first opens it
   (`POST /v1/audits/{auditId}/findings/{findingId}/reviews`, `If-Match` the
@@ -109,9 +115,17 @@ FindingDecision(props: {
 - **After the Server answers** (recorded or refused) it invalidates the check's
   detail key (findings, reviews, workspace, report, provenance), project
   check lists and the cross-project lists (`invalidateCrossProject`), and
-  waits for the refetch. A refused decision (409, 412, …) is explained and
+  waits for the refetch. A refused decision (409, 412, …) is explained in
+  one sentence with a "Request details" disclosure (code, status, request
+  ID, and the Server's message when the sentence does not carry it) and
   never retried; the choice and reason stay for an explicit new attempt.
   Nothing shows as decided before the Server says so.
+- **Recorded.** "Decision recorded: …" goes to a polite live region and
+  stays there for 8 s or until the next edit, also after the refetched
+  finding replaced the bar. Focus moves to the decision itself, a group named
+  "Decision on <title>". A page that unmounts the component on success (for
+  example by moving to the next item in `onDecided`) loses that message and
+  should announce the outcome itself.
 - **Decided** possible issues show the current decision (outcome, severity,
   who, when, why) with **Change decision**. Duplicate and needs-evidence
   states load their reason on request ("Show the reason").
@@ -135,18 +149,24 @@ ActionDecision(props: {
 ReportDecision(props: {
   auditId: string;
   review: AuditReviewRequest;     // report-acceptance
-  report?: AuditReport;           // the report shown next to it
+  report?: AuditReport;           // the report shown next to it; omitted, it is read
   onDecided?: (result: AuditActionDecisionResult) => void;
 })
 ```
 
 Approve / Reject / Not applicable, only those in `review.requestedActions`,
 with a required reason; `If-Match` the request revision and an
-`Idempotency-Key` (`audit-action-review-ui-…`), the same refresh and refusal
-rules. A decided request shows its `DecisionRecord`, an expired one says so.
-`ReportDecision` decides only next to the proposed report that carries this
-request; otherwise it says the report no longer matches. A proposed report
-is never presented as accepted.
+`Idempotency-Key` (`audit-action-review-ui-…`), the same refresh, refusal
+and announcement rules (groups "Decision on active test approval",
+"Decision on requirement applicability", "Decision on report acceptance").
+A decided request shows its `DecisionRecord`, an expired one says so.
+`ReportDecision` decides a pending request only while the report is
+proposed and carries this request; otherwise it says the report no longer
+matches. Without `report` it reads the check's report
+(`queryKeys.audits.report`) and offers nothing while that read loads
+("Loading the report…") or failed (an alert with "Try again" and the
+request details). The page still shows the report next to the decision. A
+proposed report is never presented as accepted.
 
 ## `DecisionRecord`
 
@@ -161,8 +181,10 @@ duplicate, and the reason (Markdown).
 ## Copy
 
 "Confirm issue", "Not an issue", "Needs evidence", "Duplicate…", "Reopen",
-"More" (named "More decisions"), "Record decision", "Why" with the
-placeholder "Required. Saved with the decision.", "Use AI summary", "Change
-decision", "Keep current decision", "Approve", "Reject", "Not applicable".
+"More" (named "More decisions"), "Record decision", "Why" with the helper
+line "Required. Saved with the decision.", "Use AI summary", "Change
+decision", "Keep current decision", "Approve", "Reject", "Not applicable",
+"Decision recorded: …", "Request details".
 Regions: "Your decision" (the bar), "Current decision" (a decided possible
-issue), "Duplicate of" (the picker group).
+issue). Groups: "Decision on …" (each component's root), "Duplicate of"
+(the picker).

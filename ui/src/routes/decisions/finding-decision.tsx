@@ -25,6 +25,7 @@ import {
   type DecisionOption,
   type DecisionSeverity,
 } from "../../ui";
+import { useAnnouncement } from "./announcement";
 import { DecisionRecord } from "./decision-record";
 import { DuplicatePicker } from "./duplicate-picker";
 import { DecisionIcon } from "./icons";
@@ -49,6 +50,7 @@ import {
 } from "./model";
 import { MoreDecisions, type MoreDecision } from "./more-menu";
 import { refreshAfterDecision } from "./refresh";
+import { RequestDetails } from "./request-details";
 import { aiSummary } from "./text";
 
 import "./decisions.css";
@@ -302,10 +304,11 @@ function FindingDecisionPanel({
   const [duplicateTarget, setDuplicateTarget] = useState("");
   const [changing, setChanging] = useState(false);
   const [problem, setProblem] = useState<string | undefined>();
-  const [recorded, setRecorded] = useState<{
-    revision: number;
-    label: string;
-  } | null>(null);
+  // The finding revision a recorded decision was made on: until the
+  // refetched finding replaces it, the bar stays closed.
+  const [recordedRevision, setRecordedRevision] = useState<number | null>(null);
+  // "Decision recorded: …" outlives that gate, so screen readers read it.
+  const announcement = useAnnouncement();
   const [keyrings] = useState(() => ({
     create: new MutationDraftKeyring<Record<string, string | number>>(
       "audit-finding-review",
@@ -400,10 +403,10 @@ function FindingDecisionPanel({
     },
     onSuccess: async (result, { findingRevision }) => {
       await refreshAfterDecision(queryClient, auditId);
-      setRecorded({
-        revision: findingRevision,
-        label: decisionOutcome(result.decision).label,
-      });
+      setRecordedRevision(findingRevision);
+      announcement.announce(
+        `Decision recorded: ${decisionOutcome(result.decision).label}.`,
+      );
       setVerdict(undefined);
       setChosenSeverity(undefined);
       setRationale("");
@@ -417,9 +420,9 @@ function FindingDecisionPanel({
   });
 
   const decided = finding.state !== "proposed";
-  // Until the refetched finding arrives, say what the Server recorded.
+  // Until the refetched finding arrives, only the announcement shows.
   const awaitingRefresh =
-    recorded !== null && recorded.revision === finding.revision;
+    recordedRevision !== null && recordedRevision === finding.revision;
   const open =
     !awaitingRefresh && (!decided || changing || status.review !== undefined);
 
@@ -437,9 +440,16 @@ function FindingDecisionPanel({
     );
   }
 
+  // Every edit of the draft: the last answer's announcement and a client-side
+  // problem no longer apply.
+  function edited() {
+    setProblem(undefined);
+    announcement.clear();
+  }
+
   function choose(candidate: AuditAnalystVerdict, focus?: FocusTarget) {
     setVerdict(candidate);
-    setProblem(undefined);
+    edited();
     if (focus !== undefined) requestFocus(focus);
   }
 
@@ -452,7 +462,7 @@ function FindingDecisionPanel({
           ? summary
           : `${current.trimEnd()}\n\n${summary}`,
     );
-    setProblem(undefined);
+    edited();
     requestFocus("reason");
   }
 
@@ -480,6 +490,7 @@ function FindingDecisionPanel({
 
   function startChange() {
     setChanging(true);
+    announcement.clear();
     requestFocus("start");
   }
 
@@ -490,7 +501,7 @@ function FindingDecisionPanel({
     setChosenSeverity(undefined);
     setRationale("");
     setDuplicateTarget("");
-    setProblem(undefined);
+    edited();
     decide.reset();
     requestFocus("start");
   }
@@ -545,7 +556,9 @@ function FindingDecisionPanel({
         options: SEVERITY_OPTIONS,
         value: severity,
         onChange: (value) => {
-          if (isSeverity(value)) setChosenSeverity(value);
+          if (!isSeverity(value)) return;
+          setChosenSeverity(value);
+          announcement.clear();
         },
         required: verdict === "true_positive",
         hint:
@@ -566,6 +579,10 @@ function FindingDecisionPanel({
       : status.stale
         ? "This possible issue changed since it was loaded."
         : undefined;
+  const decideMessage =
+    decide.error === null
+      ? undefined
+      : decisionErrorMessage(decide.error, "finding");
   const error =
     statusError !== null ? (
       <>
@@ -590,25 +607,36 @@ function FindingDecisionPanel({
         </button>
       </>
     ) : (
-      (problem ??
-      (decide.error === null
-        ? undefined
-        : decisionErrorMessage(decide.error, "finding")))
+      (problem ?? decideMessage)
     );
+  // The Public API error behind the bar's message, for "Request details".
+  const barError: { error: unknown; text: string | undefined } | null =
+    statusError !== null
+      ? { error: statusError, text: statusError.message }
+      : status.stale || problem !== undefined || decide.error === null
+        ? null
+        : { error: decide.error, text: decideMessage };
 
   const canKeep = changing && status.review === undefined;
 
   return (
-    <div ref={root} className="decisions-finding" tabIndex={-1}>
+    <div
+      ref={root}
+      className="decisions-finding"
+      role="group"
+      aria-label={`Decision on ${finding.firstProposal.document.title}`}
+      tabIndex={-1}
+    >
       <p className="decisions-status" role="status">
-        {awaitingRefresh ? `Decision recorded: ${recorded.label}.` : ""}
+        {announcement.text}
       </p>
       {!open && !awaitingRefresh && decide.error !== null ? (
         // The refetch after a refused decision closed the bar (someone else
         // decided); the explanation stays.
-        <p className="decisions-notice decisions-inset" role="alert">
-          {decisionErrorMessage(decide.error, "finding")}
-        </p>
+        <div className="decisions-notice decisions-inset" role="alert">
+          <p>{decideMessage}</p>
+          <RequestDetails error={decide.error} explanation={decideMessage} />
+        </div>
       ) : null}
       {awaitingRefresh ? null : (
         <>
@@ -676,9 +704,8 @@ function FindingDecisionPanel({
                 value: rationale,
                 onChange: (value) => {
                   setRationale(value);
-                  setProblem(undefined);
+                  edited();
                 },
-                placeholder: RATIONALE_HELP,
                 maxLength: MAX_RATIONALE_BYTES,
               }}
               onSubmit={submit}
@@ -706,12 +733,14 @@ function FindingDecisionPanel({
                       value={duplicateTarget}
                       onChange={(target) => {
                         setDuplicateTarget(target);
-                        setProblem(undefined);
+                        edited();
                       }}
                       searchId={searchId}
                     />
                   ) : null}
                   <div className="decisions-assist">
+                    {/* Right above "Why" until DecisionBar takes a hint. */}
+                    <p className="decisions-help">{RATIONALE_HELP}</p>
                     <button
                       type="button"
                       className="ui-btn"
@@ -724,6 +753,14 @@ function FindingDecisionPanel({
                   </div>
                 </>
               }
+            />
+          ) : null}
+          {open && barError !== null ? (
+            // DecisionBar's error slot is a paragraph; the disclosure follows.
+            <RequestDetails
+              error={barError.error}
+              explanation={barError.text}
+              className="decisions-under-bar"
             />
           ) : null}
         </>
