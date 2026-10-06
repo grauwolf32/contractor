@@ -18,9 +18,9 @@ the [specification](../../spec/README.md).
 | Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** chosen; implementation paused until the main journey is settled |
 
 V3B Panes is the target for the `ui/` redesign. The
-[comparison](#variants-at-a-glance) gives the reasoning. Two borrowings were
-suggested but not decided: V3A's quieter rail and typography, and V3C's lanes
-as an alternative view of a running check.
+[comparison](#variants-at-a-glance) gives the reasoning, and the [V3B
+implementation plan](v3b-implementation.md) records the agreed decisions and
+build order.
 
 ## What is wrong today
 
@@ -132,19 +132,13 @@ They do not invent a value. V2 labels two project rows "Nothing running" and
 "No checks yet" without a source. V1's collapsed *Technical details* keeps the
 demo stand's run and Audit IDs to show where that information moves.
 
-## Open questions before implementation
+## Implementation
 
-- **Borrowings.** Whether V3B takes V3A's quieter rail and typography, and
-  V3C's lanes as a second view of a running check.
-- **Duplicates.** `AuditFindingState` also has `duplicate`, and the Audit review
-  API also has `reopen`. No mockup shows either; decide where they live, for
-  example a secondary menu on the decision bar.
-- **Shortcut for "Not an issue".** V2 uses X; the V3 family uses R.
-- **Issues list.** V3B adds a cross-project *Issues* rail entry and list. It
-  needs an issue listing across Projects; the public API lists findings only
-  per Audit (`/v1/audits/{auditId}/findings`).
-- **Check-type suggestions.** The intent-driven start ("why this fits") needs a
-  source. That could be a static mapping from objective keywords and materials
-  to AuditProfiles, or a model call; neither exists yet.
-- **"Ready for N of 9 check types."** Materials readiness per check type needs
-  an AuditProfile input-requirement projection that the UI can read.
+The decisions on navigation, vocabulary, visible identifiers and API gaps were
+agreed on 2026-10-06 and are recorded in the [V3B implementation
+plan](v3b-implementation.md). The plan also lists the constraints to keep and
+the build order. The [coverage map](v3b-coverage.html) maps all 118
+capabilities of today's UI to their place in V3B; open it in a browser.
+
+Still open: whether V3B borrows V3A's quieter rail and typography, and V3C's
+lanes as a second view of a running check.

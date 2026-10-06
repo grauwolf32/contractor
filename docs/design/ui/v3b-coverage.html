@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V3B Coverage Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one 1240px reading column; sections stack: summary → migration diagram → destination board → capability list → gaps → conflicts → next screens. */
+:root{
+  --bg:#eceff3;--surface:#ffffff;--sunken:#f4f6f9;--chrome:#e3e8ee;
+  --text:#10151d;--muted:#4a5466;--line:#dde2e9;--line-strong:#c3cbd6;
+  --accent:#1f2630;--on-accent:#ffffff;--ink:#2f5d8a;--sel:#e6eef7;--edge:#b8c3d1;
+  --s-drawn:#17703a;--s-drawn-bg:#e2f2e7;
+  --s-design:#1d4fbf;--s-design-bg:#e3eafb;
+  --s-keep:#4a5466;--s-keep-bg:#e9edf2;
+  --s-tech:#5a3fb0;--s-tech-bg:#ece8fa;
+  --s-admin:#0e6570;--s-admin-bg:#ddf0f1;
+  --s-work:#7a4a10;--s-work-bg:#f3ead9;
+  --s-gap:#b3261e;--s-gap-bg:#fbe5e2;
+  --s-decide:#8a4a00;--s-decide-bg:#fbeed6;
+  --f-sans:Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(16,21,29,.06),0 10px 28px -16px rgba(16,21,29,.25);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b0e13;--surface:#121720;--sunken:#0e131a;--chrome:#1b2331;
+  --text:#e9edf3;--muted:#a8b3c3;--line:#222b38;--line-strong:#344155;
+  --accent:#d3dbe6;--on-accent:#0b1017;--ink:#9fbde0;--sel:#172334;--edge:#3a4658;
+  --s-drawn:#72d895;--s-drawn-bg:#10261a;--s-design:#8fb3ff;--s-design-bg:#14213b;
+  --s-keep:#a8b3c3;--s-keep-bg:#1b2331;--s-tech:#b9a6ff;--s-tech-bg:#221b3d;
+  --s-admin:#6fd0da;--s-admin-bg:#0e2a2e;--s-work:#e2b980;--s-work-bg:#2a2114;
+  --s-gap:#ff8e85;--s-gap-bg:#311614;--s-decide:#f3b54a;--s-decide-bg:#2a2010;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -16px rgba(0,0,0,.7);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b0e13;--surface:#121720;--sunken:#0e131a;--chrome:#1b2331;
+  --text:#e9edf3;--muted:#a8b3c3;--line:#222b38;--line-strong:#344155;
+  --accent:#d3dbe6;--on-accent:#0b1017;--ink:#9fbde0;--sel:#172334;--edge:#3a4658;
+  --s-drawn:#72d895;--s-drawn-bg:#10261a;--s-design:#8fb3ff;--s-design-bg:#14213b;
+  --s-keep:#a8b3c3;--s-keep-bg:#1b2331;--s-tech:#b9a6ff;--s-tech-bg:#221b3d;
+  --s-admin:#6fd0da;--s-admin-bg:#0e2a2e;--s-work:#e2b980;--s-work-bg:#2a2114;
+  --s-gap:#ff8e85;--s-gap-bg:#311614;--s-decide:#f3b54a;--s-decide-bg:#2a2010;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -16px rgba(0,0,0,.7);color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--f-sans);font-size:14px;line-height:1.5;margin:0}
+a{color:var(--ink);text-underline-offset:3px}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:clamp(16px,3vw,32px);padding-block:28px 64px;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{text-wrap:balance;margin:0;letter-spacing:-.015em}
+h1{font-size:clamp(26px,3.4vw,34px);font-weight:800;line-height:1.1}
+h2{font-size:21px;font-weight:800;line-height:1.2}
+h3{font-size:14.5px;font-weight:800}
+p{margin:0}
+.lede{color:var(--muted);max-width:76ch;font-size:15px}
+.eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec-head{display:flex;flex-direction:column;gap:6px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+
+/* header */
+header.top{display:flex;flex-direction:column;gap:14px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--muted);font-size:13px}
+.meta b{color:var(--text);font-weight:700}
+
+/* summary */
+.summary{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.sum-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.sum-top .big{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.bar{display:flex;gap:2px;height:12px;border-radius:4px;overflow:hidden}
+.bar span{display:block;height:100%;min-width:3px;cursor:pointer}
+.bar span:focus-visible{outline:2px solid var(--text);outline-offset:1px}
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+.lg{display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 8px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.lg[aria-pressed="true"]{background:var(--sel);border-color:var(--ink)}
+.lg .n{font-family:var(--f-mono);font-weight:600;color:var(--muted);font-size:12px}
+.lg .desc{font-weight:500;color:var(--muted)}
+
+/* status chip */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 6px;border-radius:999px;font-size:12px;font-weight:700;line-height:1.35;white-space:nowrap}
+.chip svg{flex:none}
+.sw{width:10px;height:10px;border-radius:3px;flex:none;display:inline-block}
+.s-drawn{--c:var(--s-drawn);--cb:var(--s-drawn-bg)}
+.s-design{--c:var(--s-design);--cb:var(--s-design-bg)}
+.s-keep{--c:var(--s-keep);--cb:var(--s-keep-bg)}
+.s-tech{--c:var(--s-tech);--cb:var(--s-tech-bg)}
+.s-admin{--c:var(--s-admin);--cb:var(--s-admin-bg)}
+.s-work{--c:var(--s-work);--cb:var(--s-work-bg)}
+.s-gap{--c:var(--s-gap);--cb:var(--s-gap-bg)}
+.s-decide{--c:var(--s-decide);--cb:var(--s-decide-bg)}
+.chip{color:var(--c);background:var(--cb)}
+.sw,.bar span{background:var(--c)}
+
+/* migration diagram */
+.diagram{padding:16px 12px 8px;overflow-x:auto}
+.diagram svg{display:block;min-width:660px;width:100%;height:auto}
+.dg-node rect{fill:var(--sunken);stroke:var(--line-strong);stroke-width:1}
+.dg-node.right rect{fill:var(--surface)}
+.dg-node text{fill:var(--text);font-family:var(--f-sans);font-size:13px;font-weight:700}
+.dg-node .sub{fill:var(--muted);font-size:11px;font-weight:500;font-family:var(--f-mono)}
+.dg-node .tag{font-size:10.5px;font-weight:800;letter-spacing:.04em}
+.dg-node{cursor:pointer}
+.dg-node:focus{outline:none}
+.dg-node:focus-visible rect,.dg-node.hot rect{stroke:var(--ink);stroke-width:2}
+.dg-link{fill:none;stroke:var(--edge);stroke-width:1.6;transition:stroke .12s,opacity .12s}
+.dg-link.hot{stroke:var(--ink);stroke-width:2.4}
+.diagram.focus .dg-link:not(.hot){opacity:.25}
+.dg-col{fill:var(--muted);font-family:var(--f-sans);font-size:11px;font-weight:800;letter-spacing:.08em}
+.dg-note{padding:0 10px 10px;color:var(--muted);font-size:12.5px}
+
+/* board */
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:14px}
+.dest{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-width:0}
+.dest-h{display:flex;align-items:flex-start;gap:10px;padding:14px 14px 10px;border-bottom:1px solid var(--line)}
+.dest-ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--chrome);color:var(--text)}
+.dest-h h3{font-size:15px}
+.dest-h .kind{font-size:12px;color:var(--muted);font-weight:600}
+.dest-h button{margin-left:auto;flex:none}
+.screens{list-style:none;margin:0;padding:6px 0 8px}
+.screens li{padding:8px 14px;display:flex;flex-direction:column;gap:4px}
+.screens li+li{border-top:1px solid var(--line)}
+.scr-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.scr-name{font-weight:700;font-size:13.5px;line-height:1.35}
+.from{display:flex;flex-wrap:wrap;gap:4px}
+.from code{font-size:11px;padding:1px 6px;border-radius:5px;background:var(--sunken);border:1px solid var(--line);color:var(--muted);overflow-wrap:anywhere}
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn:focus-visible,.lg:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* matrix */
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.filters label{font-size:12.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:6px}
+select,input[type=search]{font:inherit;font-size:13px;height:32px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);padding:0 10px}
+input[type=search]{width:min(320px,100%)}
+.count{margin-left:auto;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.area{border-top:1px solid var(--line)}
+.area:first-child{border-top:0}
+.area-h{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--sunken)}
+.area-h h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.area-h .mini{display:flex;gap:2px;margin-left:auto}
+.area-h .mini span{width:8px;height:8px;border-radius:2px;background:var(--c)}
+.row{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1.6fr) minmax(0,1.6fr) 150px;gap:6px 18px;padding:11px 14px;border-top:1px solid var(--line);align-items:start}
+.row .cap{font-weight:700;font-size:13.5px;line-height:1.4}
+.row .api{font-family:var(--f-mono);font-size:11px;color:var(--muted);overflow-wrap:anywhere;margin-top:3px}
+.row .lbl{display:none;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.row .fromto{font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.row .fromto .old{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.row .note{grid-column:1/-1;font-size:12.5px;color:var(--muted);line-height:1.5;max-width:110ch}
+.row.hl{background:color-mix(in srgb,var(--cb) 45%,transparent)}
+.colh{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1.6fr) minmax(0,1.6fr) 150px;gap:18px;padding:8px 14px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.empty{padding:28px 14px;color:var(--muted);text-align:center}
+
+/* gaps */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:14px}
+.card{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.card .ttl{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.card dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+.card dt{font-weight:800;color:var(--muted);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;padding-top:2px}
+.card dd{margin:0;line-height:1.45;min-width:0}
+.rec{font-size:13px;padding:8px 10px;border-radius:9px;background:var(--sunken);border:1px solid var(--line)}
+.rec b{font-weight:800}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--line)}
+td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:top;line-height:1.45}
+td .src{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+
+/* next screens + decisions */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:14px;align-items:start}
+ol.steps{margin:0;padding:6px 0;list-style:none;counter-reset:s}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 16px;border-top:1px solid var(--line)}
+ol.steps li:first-child{border-top:0}
+ol.steps li::before{content:counter(s);font-family:var(--f-mono);font-weight:600;font-size:12px;color:var(--muted);text-align:right;padding-top:1px}
+ol.steps b{font-weight:800}
+ol.steps .d{color:var(--muted);font-size:12.5px;margin-top:2px}
+.dec{padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+.dec:first-of-type{border-top:0}
+.dec .q{font-weight:800;font-size:14px}
+.opts{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.opts div{display:flex;gap:8px}
+.opts .r{color:var(--s-drawn);font-weight:800;white-space:nowrap}
+.opts .o{color:var(--muted);font-weight:800;white-space:nowrap}
+
+@media (max-width:860px){
+  .row,.colh{grid-template-columns:1fr}
+  .colh{display:none}
+  .row .lbl{display:block}
+  .count{margin-left:0;width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Contractor UI · V3B Panes · coverage audit</span>
+    <h1>Where every current feature goes in V3B</h1>
+    <p class="lede">Decisions agreed on 2026-10-06 are folded in. Every route, action and data block of today’s UI is mapped to its place in the V3B design. The status shows whether the mockups already cover it, whether a screen is still missing, or whether it moves behind <i>Technical details</i> or into Operations. It also marks where V3B as drawn needs an API that does not exist, and which choices are still open.</p>
+    <div class="meta">
+      <span>Sources: <b>4 code inventories of <code>ui/</code></b>, public OpenAPI, <code>docs/spec</code>, <code>ui/e2e</code></span>
+      <span>Base: <b>main 52ec1b36</b></span>
+      <span>As of <b>2026-10-06</b></span>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-sum">
+    <div class="panel summary">
+      <div class="sum-top">
+        <span class="big" id="total">0</span>
+        <h2 id="h-sum" style="font-size:16px">capabilities in today’s UI, by where they land</h2>
+      </div>
+      <div class="bar" id="bar" role="group" aria-label="Capabilities by status; select a segment to filter the list"></div>
+      <div class="legend" id="legend" role="group" aria-label="Filter capabilities by status"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-mig">
+    <div class="sec-head">
+      <span class="eyebrow">1 · Navigation</span>
+      <h2 id="h-mig">Today’s navigation → V3B destinations</h2>
+      <p class="lede">Each current top-level destination splits across the new rail. Select a box to see where its content goes.</p>
+    </div>
+    <div class="panel diagram" id="diagram"></div>
+  </section>
+
+  <section aria-labelledby="h-board">
+    <div class="sec-head">
+      <span class="eyebrow">2 · Destinations</span>
+      <h2 id="h-board">Every V3B destination and its screens</h2>
+      <p class="lede">The five rail items from the mockups, plus four destinations V3B needs and does not draw yet: Runs, Library, Evals and the account menu. Grey paths under each screen are today’s routes that feed it. <i>Show capabilities</i> filters the list in section 3.</p>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section aria-labelledby="h-mx">
+    <div class="sec-head">
+      <span class="eyebrow">3 · Capabilities</span>
+      <h2 id="h-mx">Every capability, from today’s place to V3B</h2>
+      <p class="lede">From the code inventories. Each row names the API it uses, so gaps are checked against the real contract.</p>
+    </div>
+    <div class="panel">
+      <div class="filters">
+        <label for="f-status">Status
+          <select id="f-status"><option value="">All</option></select></label>
+        <label for="f-area">Area
+          <select id="f-area"><option value="">All</option></select></label>
+        <label for="f-dest">V3B destination
+          <select id="f-dest"><option value="">All</option></select></label>
+        <input type="search" id="f-q" placeholder="Search capability, route, API" aria-label="Search capabilities">
+        <span class="count" id="count" role="status"></span>
+      </div>
+      <div class="colh" aria-hidden="true"><span>Capability · API</span><span>Today</span><span>In V3B</span><span>Status</span></div>
+      <div id="matrix"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-gaps">
+    <div class="sec-head">
+      <span class="eyebrow">4 · API gaps</span>
+      <h2 id="h-gaps">What V3B draws that the API cannot serve yet</h2>
+      <p class="lede">Checked against <code>api/openapi/contractor-public-v1.yaml</code>. Each gap has a way to ship without new server work first.</p>
+    </div>
+    <div class="cards" id="gaps"></div>
+  </section>
+
+  <section aria-labelledby="h-spec">
+    <div class="sec-head">
+      <span class="eyebrow">5 · Specs and tests</span>
+      <h2 id="h-spec">Contracts that must change together with the UI</h2>
+      <p class="lede">The specification and the browser gates pin today’s navigation, wording and some visible IDs. Each change below lands in the same commit as the UI step that needs it.</p>
+    </div>
+    <div class="panel tbl-wrap"><table id="spec"><thead><tr><th style="width:24%">Contract</th><th style="width:38%">What it requires today</th><th>What V3B does and how to resolve it</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section aria-labelledby="h-next">
+    <div class="sec-head">
+      <span class="eyebrow">6 · Next</span>
+      <h2 id="h-next">Screens to draw and decisions to make</h2>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div style="padding:14px 16px 4px"><h3>Screens and states still to draw, in build order</h3></div>
+        <ol class="steps" id="steps"></ol>
+      </div>
+      <div class="panel" id="decisions">
+        <div style="padding:14px 16px 4px"><h3>Decisions agreed on 2026-10-06</h3></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const STATUS = {
+  drawn:  {label:"Drawn in V3B",        desc:"covered by the mockups"},
+  design: {label:"Screen to draw",      desc:"has a place, not drawn yet"},
+  keep:   {label:"Kept, restyled",      desc:"same function, new look"},
+  tech:   {label:"Technical details",   desc:"kept, off the main path"},
+  admin:  {label:"Operations",          desc:"admin area, restyled"},
+  work:   {label:"Engineering",         desc:"build or test work"},
+  gap:    {label:"API gap",             desc:"needs API that doesn’t exist"},
+  decide: {label:"Your decision",       desc:"placement or contract open"}
+};
+const ORDER = ["drawn","design","keep","tech","admin","work","gap","decide"];
+const ICON = {
+  drawn:'<path d="M5 12.5l4.2 4.2L19 7"/>',
+  design:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  keep:'<circle cx="12" cy="12" r="6"/>',
+  tech:'<path d="M9.5 6l6 6-6 6"/>',
+  admin:'<rect x="4" y="5" width="16" height="6" rx="1.5"/><rect x="4" y="13" width="16" height="6" rx="1.5"/>',
+  work:'<path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-3-3z"/>',
+  gap:'<path d="M9 15l-2 2a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0M15 9l2-2a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0M8 4l1 3M4 8l3 1M16 20l-1-3M20 16l-3-1"/>',
+  decide:'<path d="M12 3.2l8.8 8.8-8.8 8.8L3.2 12z"/><path d="M10.4 9.6a1.8 1.8 0 0 1 3.4.8c0 1.3-1.8 1.5-1.8 2.6M12 15.6v.01"/>'
+};
+function svgIcon(k,size=12){return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`}
+function chip(k){return `<span class="chip s-${k}">${svgIcon(k)}${STATUS[k].label}</span>`}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+/* area, capability, today, V3B place, status, API, note, destination */
+const ROWS = [
+["Shell","Primary navigation","Sidebar: Home · Projects · Runs · Catalog · Artifacts · Evals · Operations","Rail: Inbox · Projects · Checks · Issues · Reports; under a divider Runs · Library · Evals; at the bottom Operations and the account menu","work","—","Decided. S06:17-41, S18:24-44 and UUS:26-28 are rewritten in the shell commit. runs-navigation.spec asserts “Primary navigation” contains “Runs”.","Shell"],
+["Shell","Sign in","/login","Sign-in screen, restyled","design","POST /v1/auth/login","Username pattern, password cleared after each try, safe return path, UI version.","Account"],
+["Shell","Session guard, sign-in on 401, CSRF replay, API version check","guard.tsx, api/client.ts","Unchanged","keep","GET /v1/auth/session","“Your session changed in another tab” stays.","Shell"],
+["Shell","Sign out","Sidebar footer, always visible","Account menu","work","POST /v1/auth/logout","Decided: account menu. stack.spec.ts:187 is changed to open the menu first.","Account"],
+["Shell","Signed-in user and UI version","Sidebar header","Account menu; version also on sign-in","design","—","","Account"],
+["Shell","Theme choice: light, dark, black, system","—","Account menu","design","—","New. Loads from a same-origin module: the CSP blocks inline scripts, so no inline theme bootstrap.","Account"],
+["Shell","Command bar “Search or start a check” (Ctrl K)","—","Top bar on every page","design","existing list endpoints","New. No search API: searches loaded projects, checks and check types on the client.","Shell"],
+["Shell","Keyboard decisions J / K / C / R / E","— (no global shortcuts today)","List and detail panes","design","—","New. Must not fire inside inputs; declared with aria-keyshortcuts.","Shell"],
+["Shell","Phone layout: menu toggle ≤ 820 px, section picker ≤ 760 px","shell.tsx, MobileSectionPicker","Rail becomes a bottom bar; list and detail stack; section picker stays a select","design","—","Browser gates check 320, 390 and 1440 px with no horizontal overflow.","Shell"],
+["Shell","Skip link, focus target main#main-content","shell.tsx","Unchanged","keep","—","","Shell"],
+["Shell","Shared dialog: focus trap, inert background, Escape, focus return, stacking","app/dialog.tsx","Unchanged; V3B sheets reuse it","keep","—","","Shell"],
+["Shell","Loading, empty, error with retry, stale-data warning, 409/412 notices","QueryView, ErrorNotice, StaleDataWarning","Same components in every pane","keep","—","“Request details” disclosure stays.","Shell"],
+["Shell","Reload prompt after a failed chunk, Not found page","route-error.tsx, placeholders.tsx","Restyled","keep","—","","Shell"],
+["Shell","Document titles “{page} · Contractor”","16 call sites","New page names","keep","—","","Shell"],
+
+["Inbox","Possible issues waiting for review, all projects","Project overview “Needs your attention” (3 audits, one project)","Inbox · Decide","drawn","GET /v1/projects/{id}/audits?state=waiting_review","Per project only, so the Inbox fans out over every project.","Inbox"],
+["Inbox","Active-check approval, requirement applicability, report acceptance","Audit → Reviews tab","Inbox · Decide","design","GET /v1/audits/{id}/reviews?state=pending","Mockups show finding triage only. These kinds answer approve / reject / not applicable, each with a rationale.","Inbox"],
+["Inbox","Failed or stuck work","Home “Recent failures” (Runs)","Inbox · Unblock","design","GET /v1/runs?state=failed","Keeps Repeat, Continue from failed stage and Retry model connection as three separate actions (S06:332-379).","Inbox"],
+["Inbox","Finished results with their primary output","Home “Recent successful Runs”","Inbox · Ready","drawn","GET /v1/runs?state=succeeded","No primary output means no guessed file (UUS:102-103).","Inbox"],
+["Inbox","Running checks and Runs","Home “Active Runs”","Inbox · Running","drawn","GET /v1/runs (active states)","","Inbox"],
+["Inbox","Queue admission paused or open","Home banner, polled every 10 s","Inbox banner only while paused; the control lives in Runs","design","GET /v1/queue/control","","Inbox"],
+["Inbox","Tiles: active Runs, failures, idle slots, published versions","Home","Runs and Operations","tech","GET /v1/runs, /v1/operations/snapshot","Off the main path.","Runs"],
+["Inbox","Runtime health","Home (operators only)","Operations overview","admin","GET /v1/operations/snapshot","","Operations"],
+["Inbox","Quick start by workflow family","Home","Command bar, Start a check, Library","design","GET /v1/workflows","","Library"],
+["Inbox","One list across all projects","—","Inbox","gap","none","Needs N × (audits + reviews + findings) requests, or a new endpoint. See section 4.","Inbox"],
+
+["Projects","Project list with paging and deletion progress","/projects","Projects list pane","drawn","GET /v1/projects","","Projects"],
+["Projects","New project: name, description","/projects dialog","“New project” in the list pane","design","POST /v1/projects","Idempotency key is reused for an identical request.","Projects"],
+["Projects","Delete project: type the name, then deletion phases","Project actions menu","Project actions menu","design","DELETE /v1/projects/{id}","lifecycle-controls.spec walks “Project actions” → “Delete Project”.","Projects"],
+["Projects","Overview: materials, next step, recent checks, Runs and results","/projects/:id","Project detail: material chips, “What do you want to check?”, timeline, four-cell strip","drawn","several","Today the finding summary counts only the 3 newest audits but reads like a total; fix the wording.","Projects"],
+["Projects","Primary result of recent Runs","Overview “Recent results”","Timeline item opens the primary output","design","GET /v1/runs/{id}, /v1/workflows/{n}/versions/{v}","US-05.","Projects"],
+["Projects","Section URLs: artifacts, workflows, runs, audits, findings, settings","/projects/:id/{section}","Tabs: Overview · Materials · Checks · Issues · Settings; Runs and Workflows under Advanced","keep","—","Decided: every existing URL stays and loads directly (S06:1374-1375).","Projects"],
+["Projects","Edit name and description","Project Settings","Project settings","design","PATCH /v1/projects/{id}","","Projects"],
+["Projects","Live target URL and authorization, incl. a new Basic or Bearer credential","Project Settings → target dialog","Material chip “Live target · Add” opens a target sheet","design","PATCH /v1/projects/{id}, POST /v1/operations/runtime-credentials","“Show secret while entering” is on by default today: turn it off. “Remove target” has no confirmation.","Projects"],
+["Projects","Runtime configuration link (operators)","Project Settings","Technical details","admin","—","","Operations"],
+
+["Materials","Material list with namespace filter","/projects/:id/artifacts","Project → Materials","design","GET /v1/projects/{id}/artifacts","Namespaces read as kinds: Source code, API spec, Architecture, Docs, Diffs, Other.","Projects"],
+["Materials","Upload a file: drag and drop, 64 MiB, media type","Add artifact dialog","“Add material” sheet","design","PUT /v1/projects/{id}/artifacts/{ns}/{name}","A lost response reconciles; it never retries blindly.","Projects"],
+["Materials","Import from Git: URL, ref, replace, cancel","Git import dialog","“Add material → From Git”","design","POST …/artifacts/{ns}/{name}/git-import","The recorded commit stays visible after import (S24:26-27). Links to the SSH key.","Projects"],
+["Materials","Material detail: download, upload a new version","/projects/:id/artifacts/:ns/:name","Material detail pane","design","GET / PUT …/artifacts/{ns}/{name}","","Projects"],
+["Materials","Previews: Markdown, OpenAPI (Scalar), LikeC4, diff, text, scanner summary","loaded-preview.tsx","Material detail pane","design","GET bytes (≤ 256 KiB)","Scalar and LikeC4 are forced to dark today.","Projects"],
+["Materials","Archive browser for ZIP and Skills","archive-preview.tsx","Material detail pane","keep","GET …/archive, …/archive/file","","Projects"],
+["Materials","Versions and lineage","“Versions and lineage” disclosure","Technical details","tech","GET …/versions, …/lineage","","Projects"],
+["Materials","Personal artifact library and upload","/artifacts","Library → Files","keep","GET / PUT /v1/artifacts","Decided: Library tab “Files” (US-09, S06:383-397).","Library"],
+
+["Start a check","Pick a check type, grouped by readiness","New Audit dialog: profile select + compatibility notice","Start: “Ready with your materials” and “Needs more materials”","drawn","GET /v1/audit-profiles, …/versions/{v}","Readiness comes from the server’s compatibility reasons.","Checks"],
+["Start a check","Suggested type and “Why this fits” from an objective","—","Start detail pane","gap","none","Nothing produces it. See section 4.","Checks"],
+["Start a check","Inputs picked from the project’s materials","One select per profile input","Materials row, attached automatically","drawn","GET /v1/projects/{id}/artifacts","A single compatible input is preselected; several mean a choice.","Checks"],
+["Start a check","Scope: all endpoints or chosen areas","—","Scope choice","design","—","Maps to item limit or pinned selection; check what each profile accepts.","Checks"],
+["Start a check","Standard selection: levels and requirement count","Optional settings","Advanced options","design","GET /v1/audit-standards/{scheme}/versions/{v}","Not drawn.","Checks"],
+["Start a check","Mode, item limit, attempts, objective, target, authorization scope, runtime labels","Optional settings","Advanced options","design","POST /v1/projects/{id}/audits","Runtime labels are free text here but a checkbox picker in the Run form.","Checks"],
+["Start a check","Time limit: 7 days, 24 hours, none, custom","Start Audit dialog","Start footer","design","POST /v1/audits/{id}/start","Today: create a draft, then start. V3B does create + start in one step.","Checks"],
+["Start a check","Drafts: create now, start later","Audit in state draft","Checks list, “Drafts” filter","design","GET /v1/projects/{id}/audits","Drafts cannot be edited, only deleted.","Checks"],
+
+["Check","All checks across projects","—","Checks list pane","gap","GET /v1/projects/{id}/audits per project","No cross-project endpoint.","Checks"],
+["Check","Checks of one project","/projects/:id/audits","Project → Checks tab","drawn","GET /v1/projects/{id}/audits","","Projects"],
+["Check","Pause new work, Continue with remaining time, Cancel, Delete","Audit detail controls","Header: Pause / Continue / Stop; Delete in the menu","design","POST …/pause, …/resume, …/cancel; DELETE /v1/audits/{id}","Mockups show Stop and Pause only. Cancel and Delete keep their confirmations.","Checks"],
+["Check","Exact Audit ID with copy, in the heading","Audit header","Compact ID chip with copy in the header","design","—","Decided: short ID chip, full ID on hover; S19:1816-1817 unchanged.","Checks"],
+["Check","Stop reasons (19 codes)","Overview banner","One plain sentence in the header","design","GET /v1/audits/{id}","Two more codes are pending (V360-001).","Checks"],
+["Check","Progress counters with deep links","Overview “Progress and decisions”","Progress header and legend","drawn","GET /v1/audits/{id}/workspace","Technical outcome, coverage and the decision stay separate (UUS:127-128).","Checks"],
+["Check","Endpoint list for API traces","Coverage tab","List pane","drawn","GET /v1/audits/{id}/coverage","","Checks"],
+["Check","Requirement checks (Top 10, ASVS, WSTG): satisfied, violated, not applicable, inconclusive, unmapped, excluded","Coverage tab","List pane with requirement states","design","same","Not drawn: the mockups show endpoint traces only.","Checks"],
+["Check","Coverage search and filters, revision pin, “newer revision” notice","Coverage tab","List pane filters","design","GET coverage + items","URL keeps result, q and auditRevision.","Checks"],
+["Check","Item result: conclusion, rationale, limitations, evidence checklist","Coverage row","Detail pane","drawn","GET /v1/audits/{id}/items","","Checks"],
+["Check","Attempts, task package, accepted result refs, item key","Coverage row","Technical details","tech","same","","Checks"],
+["Check","Retry one endpoint","—","“Retry” on a blocked endpoint","gap","none","Items retry by themselves up to the attempt limit; there is no per-item retry action.","Checks"],
+["Check","Activity narrative, whole check and per endpoint","—","“All activity” row and per-endpoint log","gap","none","No Audit event stream (S19:1858-1860, deferred).","Checks"],
+["Check","Profile, scope, limits and consumption, baseline and standards","Overview sections","Technical details; the time limit stays visible","tech","GET /v1/audits/{id}/workspace","","Checks"],
+["Check","Child Runs","Audit → Runs tab","Technical details → Runs","tech","GET /v1/audits/{id}/items","","Checks"],
+["Check","Review requests with a state filter","Audit → Reviews tab","Check → Decisions","design","GET /v1/audits/{id}/reviews","Return links keep the filters and cursor (S19:1835-1838).","Checks"],
+["Check","Old /checks URL redirect","audits/detail.tsx","Remove","work","—","Pre-production: drop it together with audits.spec.ts:461-466.","Checks"],
+
+["Issues","All possible issues across projects","—","Issues list pane","gap","GET /v1/audits/{id}/findings per audit","The project findings page already aggregates one project on the client.","Issues"],
+["Issues","Project findings with search and filters","/projects/:id/findings","Project → Issues tab","drawn","same","Its severity filter mixes analyst and model severity today.","Projects"],
+["Issues","Filters: state, verdict, severity","Audit → Findings tab","Chips: Needs review · Confirmed · Not an issue · Duplicate · Needs evidence","design","server-side filters","Mockups show three of the five states.","Issues"],
+["Issues","Finding summary: description, locations, sources used","Finding card","Summary tab","drawn","GET …/findings/{id}","","Issues"],
+["Issues","Captured HTTP evidence: headers and body","Finding card","Evidence tab","design","same","Headers are shown unredacted; consider masking credentials.","Issues"],
+["Issues","Model suggestion next to the analyst rating","Finding card","Summary facts","design","same","Proposed and confirmed stay separate (S19:1791-1793).","Issues"],
+["Issues","Decide: true positive + severity, false positive, needs evidence","Review form","Decision bar C / R / E","drawn","POST …/findings/{id}/reviews, …/reviews/{id}/decisions","","Issues"],
+["Issues","Decision rationale, required","Review form (“Analyst rationale”)","Decision bar","gap","rationale minLength 1","The mockups decide with one key and no text.","Issues"],
+["Issues","Duplicate of another finding, Reopen","Review form","Decision bar, “More” menu","design","duplicateTargetId","Not drawn.","Issues"],
+["Issues","Provenance records","“Show provenance”","History tab","tech","GET …/findings/{id}/provenance","","Issues"],
+["Issues","Deep link to one finding and review","?finding=&review=","Same query on the Issues route","keep","—","","Issues"],
+
+["Reports","All reports across projects","—","Reports list pane","gap","GET /v1/audits/{id}/report per audit","","Reports"],
+["Reports","Report status, summary, link to coverage gaps","Audit → Report tab","Report detail","design","GET /v1/audits/{id}/report","A proposed report never reads as accepted (S19:1848-1852).","Reports"],
+["Reports","Download JSON and summary","Report tab","Report detail","design","built in the browser","","Reports"],
+["Reports","Accept a report: approve, reject, not applicable, with rationale","Report tab","Report detail and Inbox · Decide","design","POST …/reviews/{id}/decisions","","Reports"],
+["Reports","“Not a security or compliance certification” notice","Report tab","Report detail","keep","—","audits.spec.ts:815.","Reports"],
+
+["Runs","Queue with state and context filters, live updates","/runs","Runs","keep","GET /v1/queue + WebSocket","S18: one Runs destination, Queue is the default view.","Runs"],
+["Runs","Pause and resume the queue","/runs","Runs header","keep","PUT /v1/queue/control","","Runs"],
+["Runs","Completed Runs, label and eval filters, delete","/runs?view=completed","Runs → Completed","keep","GET /v1/runs, DELETE /v1/runs/{id}","","Runs"],
+["Runs","Run triage: primary cause and next step","/runs/:id","Run page, reached from Technical details and Inbox · Unblock","keep","GET /v1/runs/{id}","","Runs"],
+["Runs","Retry model connection","Run detail","Run page; Inbox · Unblock","keep","POST /v1/runs/{id}/retry-gateway","Separate from Repeat and Continue.","Runs"],
+["Runs","Continue from failed stage","Run detail","Run page; Inbox · Unblock","keep","POST /v1/runs/{id}/resume","The confirmation names the stage and warns that side effects repeat.","Runs"],
+["Runs","Configure another Run from a finished one","Run detail","Run page","keep","GET /v1/runs/{id}/repeat-draft","Audit-managed Runs route back to their check.","Runs"],
+["Runs","Cancel a Run with a reason","Bottom of Run detail","Run page header","keep","POST /v1/runs/{id}/cancel","Move it up to the header.","Runs"],
+["Runs","Stages, attempts, Planner subtasks, resolved config, tokens, allocations","Run detail","Run page, technical sections","tech","GET /v1/runs/{id} + WebSocket","S06:922-935: stays reachable.","Runs"],
+["Runs","Output gallery and Run artifacts","Run detail","Run page","keep","GET /v1/runs/{id}/artifacts…","","Runs"],
+
+["Library","Workflow catalog: families, versions, search, contract","/catalog/workflows","Library → Workflows","keep","GET /v1/workflows","Decided: Library tab. The exact version stays visible before launch (UUS:62-63).","Library"],
+["Library","Run a workflow: parameters, inputs, upload, Git, placement, labels, overrides, drafts","Catalog drawer; /projects/:id/workflows/:n/:v/run","“Run a workflow” sheet, from Library and Project → Advanced","keep","POST /v1/runs, /v1/projects/{id}/runs","Everything stays. V61-008 adds toolset requirements here. Suggestions only say “format matches” (UUS:80-81).","Library"],
+["Library","Workflow recommendations for one project","Project → Workflows tab","Project → Advanced → Run a workflow","design","GET /v1/workflows + project artifacts","","Projects"],
+["Library","Check types with their checks and standards","/catalog/audit-presets","Library → Check types; “See all check types” in Start","design","GET /v1/audit-profiles…, /v1/audit-standards…","“N checks” collides with the new meaning of “check”.","Library"],
+["Library","Agents: prompt preview, source, copy, where used","/catalog/agents","Library → Agents","keep","GET /v1/configurations/agent-templates…","Editor studio B lands here later.","Library"],
+["Library","Skills: list and upload","/catalog/skills","Library → Skills","keep","GET / PUT /v1/artifacts/skills/…","","Library"],
+
+["Evals","Experiment list with filters","/evals","Evals","keep","GET /v1/eval-experiments","","Evals"],
+["Evals","Setup wizard: variants, cases, assessment, readiness","/evals/new","Evals","keep","POST / PATCH /v1/eval-experiments…","A/B stay blue and orange in every theme; every chart keeps its data table (S30:593-596).","Evals"],
+["Evals","Datasets: import or author, private rubrics","/evals/datasets","Evals","keep","…/eval-datasets","","Evals"],
+["Evals","Experiment: controls, overview, comparison, attempts, pairs, human review, export","/evals/experiments/:id/…","Evals","keep","…/commands, …/charts, …/pairs, …/report","","Evals"],
+["Evals","Evaluation workspaces (older model)","/evals/legacy, /evals/:projectId","Evals → Workspaces","keep","GET /v1/projects?kind=evaluation","Still required: experiments and datasets live inside them.","Evals"],
+
+["Operations","Overview: idle, busy, reserved, draining, fenced; diagnostics","/operations","Operations","admin","GET /v1/operations/snapshot + WebSocket","Observation only: no force, release or reassign (stack.spec.ts:599).","Operations"],
+["Operations","Runtime agents: edit labels, forget an offline identity","/operations/runtime-agents","Operations","admin","PUT …/labels, DELETE …/runtime-agent-principals/{id}","","Operations"],
+["Operations","Allocations, current and completed","/operations/allocations","Operations","admin","snapshot, GET /v1/operations/allocation-history","","Operations"],
+["Operations","Performance charts including GPU","/operations/performance","Operations","admin","GET /v1/operations/performance…","GPU colours are pastels picked for dark; they need a palette per theme, and an e2e test compares computed colours.","Operations"],
+["Operations","Runtime configs: publish, label bindings, runtime credentials","/operations/configuration","Operations","admin","POST / PUT / DELETE /v1/operations/runtime-*","","Operations"],
+["Operations","LLM configurations: model policies and gateways, publish and clone","/operations/configurations","Operations","admin","POST /v1/configurations/{kind}","","Operations"],
+["Operations","Managed LLM credentials: create, delete","/operations/credentials","Operations","admin","POST / DELETE /v1/operations/credentials","","Operations"],
+["Operations","Scheduler: maximum concurrent Runs","/operations/settings (operator part)","Operations → Settings","admin","PUT /v1/operations/settings/scheduler","","Operations"],
+
+["Settings","Git SSH key, for every user","/operations/settings","Account menu → Settings (same URL)","keep","GET / PUT / DELETE /v1/settings/git-key","S24:18-22: no separate /settings route; reachable without the Operations capability.","Account"],
+
+["Build","Fonts: Manrope and JetBrains Mono","Inter is named in CSS but never loaded","Bundle woff2 files through Vite","work","—","The CSP (font-src 'self') blocks Google Fonts.","Shell"],
+["Build","About 195 distinct hard-coded colours","styles.css and route CSS","Tokens for light, dark and black","work","—","Includes alpha-suffixed lime accents, diff colours and chart series.","Shell"],
+["Build","Dark forced outside CSS: index.html meta, :root, Scalar, LikeC4, server 404 page","5 places","All follow the theme","work","—","Scalar and LikeC4 need theme props from React state.","Shell"],
+["Build","New routes in the static server allowlist","server/static-server.mjs","Add /checks, /issues, /reports, …","work","—","Without it, reloading a deep link returns 404.","Shell"],
+["Build","Global button style leaks into Scalar and LikeC4","styles.css","Scope base styles","work","—","","Shell"],
+["Build","Browser gates and matrices bound to labels and test titles","ui/e2e, tests/e2e/*matrix*.yml","Update with each UI step","work","—","20+ specs assert labels with Audit, Run, Artifact. Any ui/src change runs both live browser shards in PR CI.","Shell"]
+].map(r=>({area:r[0],cap:r[1],from:r[2],to:r[3],s:r[4],api:r[5],note:r[6],dest:r[7]}));
+
+/* V3B destinations with their screens: [screen, status, [today's routes]] */
+const BOARD = [
+ {id:"Inbox",kind:"Rail · in mockups",ic:'<path d="M4 13l2.5-7h11L20 13v5H4z"/><path d="M4 13h4.5l1 2h5l1-2H20"/>',screens:[
+  ["Decide · possible issues","drawn",["/projects/:id → Needs your attention"]],
+  ["Decide · approvals, applicability, report acceptance","design",["…/audits/:aid/reviews"]],
+  ["Unblock · failed and stuck work","design",["/ → Recent failures","/runs/:id"]],
+  ["Ready · finished results","drawn",["/ → Recent successful Runs"]],
+  ["Running","drawn",["/ → Active Runs"]],
+  ["Cross-project list","gap",[]]]},
+ {id:"Projects",kind:"Rail · in mockups",ic:'<path d="M4 7.5h6l1.5 2H20v9H4z"/>',screens:[
+  ["Project list, new project","drawn",["/projects"]],
+  ["Overview: chips, composer, timeline","drawn",["/projects/:id"]],
+  ["Materials: list, add, Git import","design",["/projects/:id/artifacts"]],
+  ["Material detail: preview, versions","design",["/projects/:id/artifacts/:ns/:name"]],
+  ["Checks and Issues tabs","drawn",["/projects/:id/audits","/projects/:id/findings"]],
+  ["Settings: name, live target, delete","design",["/projects/:id/settings"]],
+  ["Advanced: Runs, Run a workflow","keep",["/projects/:id/runs","/projects/:id/workflows"]]]},
+ {id:"Checks",kind:"Rail · in mockups",ic:'<path d="M12 3.5l7 3v5.5c0 4.3-3 7.2-7 8.5-4-1.3-7-4.2-7-8.5V6.5z"/>',screens:[
+  ["All checks","gap",[]],
+  ["Start a check","drawn",["New Audit dialog","/catalog/audit-presets"]],
+  ["Advanced options, standards, time limit","design",["New Audit → Optional settings","Start Audit dialog"]],
+  ["Running check: API trace","drawn",["…/audits/:aid","…/coverage"]],
+  ["Running check: requirements","design",["…/coverage"]],
+  ["Pause, Continue, Stop, Delete, stop reasons","design",["Audit controls"]],
+  ["Decisions","design",["…/reviews"]],
+  ["Technical details: limits, baseline, Runs","tech",["…/audits/:aid (overview)","…/runs"]]]},
+ {id:"Issues",kind:"Rail · in mockups",ic:'<path d="M12 3.2l8.8 8.8-8.8 8.8L3.2 12z"/><path d="M12 8.2v4.6M12 15.8v.01"/>',screens:[
+  ["All possible issues","gap",[]],
+  ["Summary and evidence","drawn",["…/audits/:aid/findings"]],
+  ["Captured HTTP evidence","design",["Finding card"]],
+  ["Decision bar with rationale","gap",["Review form"]],
+  ["Duplicate and Reopen","design",["Review form"]],
+  ["History and provenance","tech",["Show provenance"]]]},
+ {id:"Reports",kind:"Rail · not drawn",ic:'<path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4M9.5 12h6M9.5 15.5h6"/>',screens:[
+  ["All reports","gap",[]],
+  ["Report detail, downloads","design",["…/audits/:aid/report"]],
+  ["Report acceptance","design",["…/audits/:aid/report","…/reviews"]]]},
+ {id:"Runs",kind:"Proposed · secondary rail",ic:'<path d="M5 6.5h14M5 12h14M5 17.5h9"/>',screens:[
+  ["Queue, pause and resume","keep",["/runs"]],
+  ["Completed Runs","keep",["/runs?view=completed"]],
+  ["Run page","keep",["/runs/:id","/runs/:id/artifacts/:ns/:name"]],
+  ["Stages, attempts, config","tech",["/runs/:id"]]]},
+ {id:"Library",kind:"Proposed · secondary rail",ic:'<path d="M5 4.5h4v15H5zM10.5 4.5h4v15h-4zM16 5.5l3.6-.9 2.4 14.4-3.6.9z"/>',screens:[
+  ["Workflows and Run a workflow","keep",["/catalog/workflows","…/:name/:version"]],
+  ["Check types","design",["/catalog/audit-presets"]],
+  ["Agents","keep",["/catalog/agents"]],
+  ["Skills","keep",["/catalog/skills"]],
+  ["Files (personal library)","keep",["/artifacts","/artifacts/:ns/:name"]]]},
+ {id:"Evals",kind:"Proposed · secondary rail",ic:'<path d="M5 19.5V11M10 19.5V5M15 19.5v-6M20 19.5V8"/>',screens:[
+  ["Experiments, setup, datasets","keep",["/evals","/evals/new","/evals/datasets"]],
+  ["Experiment detail, pairs, review","keep",["/evals/experiments/:id/…"]],
+  ["Evaluation workspaces","keep",["/evals/legacy","/evals/:projectId"]]]},
+ {id:"Operations",kind:"Rail bottom · operators",ic:'<rect x="4" y="5" width="16" height="6" rx="1.5"/><rect x="4" y="13" width="16" height="6" rx="1.5"/>',screens:[
+  ["Overview, diagnostics","admin",["/operations"]],
+  ["Runtime agents, allocations","admin",["/operations/runtime-agents","/operations/allocations"]],
+  ["Performance","admin",["/operations/performance"]],
+  ["Configuration, LLM configs, credentials","admin",["/operations/configuration","/operations/configurations","/operations/credentials"]],
+  ["Scheduler settings","admin",["/operations/settings"]]]},
+ {id:"Account",kind:"Rail bottom · menu",ic:'<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/>',screens:[
+  ["Settings: Git SSH key","keep",["/operations/settings"]],
+  ["Theme: light, dark, black, system","design",[]],
+  ["Sign out, user, UI version","design",["Sidebar footer"]],
+  ["Sign-in screen","design",["/login"]]]}
+];
+
+/* Today's nav → V3B destinations */
+const LEFT = [
+ {id:"Home",sub:"/"},{id:"Projects",sub:"/projects"},{id:"Runs",sub:"/runs"},{id:"Catalog",sub:"/catalog"},
+ {id:"Artifacts",sub:"/artifacts"},{id:"Evals",sub:"/evals"},{id:"Operations",sub:"/operations"},{id:"Settings",sub:"/operations/settings"}];
+const RIGHT = [
+ {id:"Inbox",tag:"RAIL"},{id:"Projects",tag:"RAIL"},{id:"Checks",tag:"RAIL"},{id:"Issues",tag:"RAIL"},{id:"Reports",tag:"RAIL"},
+ {id:"Runs",tag:"PROPOSED"},{id:"Library",tag:"PROPOSED"},{id:"Evals",tag:"PROPOSED"},{id:"Operations",tag:"OPERATORS"},{id:"Account",tag:"MENU"}];
+const LINKS = [
+ ["Home","Inbox"],["Home","Operations"],["Home","Runs"],
+ ["Projects","Projects"],["Projects","Checks"],["Projects","Issues"],["Projects","Reports"],["Projects","Inbox"],
+ ["Runs","Runs"],["Runs","Inbox"],
+ ["Catalog","Library"],["Catalog","Checks"],
+ ["Artifacts","Library"],["Artifacts","Projects"],
+ ["Evals","Evals"],["Operations","Operations"],["Settings","Account"]];
+
+const GAPS = [
+ {t:"Lists across all projects",s:"gap",v3b:"Inbox, Checks, Issues and Reports each show one list across every project.",api:"Audits are listed per project; findings, reviews and reports per audit. There is no cross-project endpoint.",ship:"Decided: client fan-out in the first version (first page of projects, ≤ 50; Inbox reads only active and waiting_review checks; polling 15–30 s; refetch after each action). A follow-up task adds GET /v1/audits, /v1/reviews?state=pending and /v1/findings?verdict=unreviewed."},
+ {t:"A decision needs a rationale",s:"gap",v3b:"Confirm (C), Not an issue (R) and Needs evidence (E) decide with one key.",api:"Every decision requires rationale with minLength 1. True positive also requires severity.",ship:"Decided: a required short rationale field in the decision bar. C / R / E pick the verdict and focus the field; Enter records. No automatic prefill; a “Use AI summary” button copies the conclusion on request."},
+ {t:"Retry one endpoint",s:"gap",v3b:"A blocked endpoint has its own Retry button.",api:"No per-item retry. Items retry by themselves up to the attempt limit; only the whole Audit pauses, resumes or cancels. Child Runs have retry-gateway and resume.",ship:"Decided: no Retry button. Show “Retried automatically · attempt 2 of 3”; once attempts run out, link to the child Run and the recovery actions the server offers there."},
+ {t:"Activity narrative",s:"gap",v3b:"A plain-language live log for the whole check and for each endpoint.",api:"No Audit event stream (S19:1858-1860, deferred). Items, attempts, findings and reviews carry timestamps.",ship:"Build the log from those timestamps, refreshed by the existing polling. Move to an Audit event stream when it exists."},
+ {t:"Suggested check type and “Why this fits”",s:"gap",v3b:"The user writes an objective; the product suggests a check type with a reason.",api:"Nothing produces suggestions. Profiles expose compatibility reasons and required inputs only.",ship:"Start with static rules: available materials plus keywords → profile, with a fixed reason per rule. A model call can come later. Never claim more than a format match (UUS:80-81)."},
+ {t:"Review kinds beyond finding triage",s:"design",v3b:"Decide shows possible issues only.",api:"Already served: active-check-approval, requirement-applicability and report-acceptance, with approve / reject / not applicable.",ship:"No API work. Draw these three items for the Inbox and the check’s Decisions section."}
+];
+
+const SPEC = [
+ ["S06:17-41 · S18:24-44 · UUS:26-28 <span class='src'>navigation</span>","Navigation is Projects / Evals / Catalog / Artifacts / Runs / Operations. One top-level Runs destination with Queue as its default view; no separate Queue item.","Rail becomes Inbox · Projects · Checks · Issues · Reports, with Runs, Library and Evals as a secondary group. Rewrite these sections in the shell commit; keep /runs as one destination."],
+ ["UUS:93 <span class='src'>US-04</span>","“Existing Home, Queue and Run triage remain.”","The Inbox replaces Home. Queue and Run triage stay in Runs. Update the story."],
+ ["S19:1816-1817 <span class='src'>Audit heading</span>","The Audit heading shows the exact ID with a copy action.","V3B hides IDs on the main path. Keep a compact ID chip with copy in the check header, or change the spec."],
+ ["UUS:62-63 <span class='src'>US-02</span>","The exact Workflow version is visible before launch.","Keep name@version in the Run a workflow sheet. Check types can show their version in Technical details."],
+ ["S24:18-22 <span class='src'>Repository access</span>","The Git key lives at /operations/settings, linked beside the user, available without the Operations capability; no /settings route.","Account menu → Settings opens the same URL. Operations stays operator-only except this page."],
+ ["S19:1809-1814 <span class='src'>finding decisions</span>","True / False positive, severity, rationale, duplicate, reopen and decision history.","Add rationale, Duplicate (with a target picker) and Reopen to the decision bar."],
+ ["S06:225-230 <span class='src'>frontend contract</span>","No optimistic lifecycle state.","“Act in place” refetches after each action; rows change only after the server confirms."],
+ ["S06:332-379 · spec 04:89-92 <span class='src'>Run recovery</span>","Repeat, Continue from failed stage and Retry model connection are different actions with their own confirmations.","Inbox · Unblock offers whichever of the three applies and never merges them into one Retry."],
+ ["ui/e2e (20+ specs) <span class='src'>browser gates</span>","Accessible names contain Audit, Run, Artifact, Workflow; nav “Primary navigation”, “Project sections”, “Run views”; “Sign out” visible after sign-in; matrices bind test titles and file paths.","Update specs, gate lists and matrices in the same commit as each screen. Any ui/src change runs both live browser shards in PR CI."],
+ ["Vocabulary <span class='src'>“check”</span>","Today “check” already means an Audit work item (Coverage, “N checks” in presets, “View checks”) and an eval assessment check.","Using “check” for an Audit needs one consistent vocabulary first. See the decision on the right."]
+];
+
+const STEPS = [
+ ["Shell","Rail with the secondary group, account menu (theme, Settings, Sign out, version), command bar, phone layout."],
+ ["Start a check, complete","Check types with readiness, standard selection, advanced options, time limit, drafts."],
+ ["Running check, all states","Requirement-based checks; draft, paused, time limit reached, completed, cancelled, failed; stop reasons; Cancel and Delete confirmations."],
+ ["Decisions","Active-check approval, requirement applicability, report acceptance: in the Inbox and in the check."],
+ ["Issue decision, complete","Rationale field, Duplicate with target picker, Reopen, captured HTTP evidence, model vs analyst severity."],
+ ["Reports","List pane and report detail with acceptance and downloads."],
+ ["Project, complete","New project, Materials (add, Git, kinds), material detail with previews, settings with live target, delete."],
+ ["Runs, Library, Evals, Operations","Restyle in V3B panes, keeping every action. Run a workflow sheet. Charts in three themes."],
+ ["Sign-in, empty, error and loading states","Including “Operations capability required” and session errors."]
+];
+
+const DECISIONS = [
+ {q:"Runs, Library and Evals",o:[["Agreed","A second rail group under a divider: Runs · Library · Evals. Library has tabs Check types · Workflows · Agents · Skills · Files."]]},
+ {q:"Vocabulary",o:[["Agreed","Audit → Check; AuditProfile → Check type; work items → Endpoint, Requirement or Scenario (Item as fallback); preset “N checks” → “N requirements” / “N scenarios”; eval assessment check → Criterion; Artifact → Material in projects, File in Library; Run and Workflow unchanged."]]},
+ {q:"IDs the spec requires",o:[["Agreed","Small copyable mono chips: check ID in the header, name@version before a Workflow Run and on check types, Git commit after import. Specs unchanged."]]},
+ {q:"Lists across all projects",o:[["Agreed","Client fan-out first, with limits; a follow-up task adds server list endpoints."]]},
+ {q:"Retry for one endpoint",o:[["Agreed","No button. Automatic attempts are shown; then a link to the child Run’s recovery actions."]]},
+ {q:"Smaller defaults",o:[["Agreed","Rationale field with “Use AI summary”; Duplicate and Reopen under More; rule-based check-type suggestions; activity log from timestamps; existing URLs kept plus /, /checks, /issues, /reports; Sign out in the account menu; theme follows the system, black on request, saved in localStorage; bundled woff2 fonts; evaluation workspaces stay."]]}
+];
+
+/* ---------- render ---------- */
+const state={status:"",area:"",dest:"",q:""};
+const counts=Object.fromEntries(ORDER.map(k=>[k,ROWS.filter(r=>r.s===k).length]));
+document.getElementById("total").textContent=ROWS.length;
+
+const bar=document.getElementById("bar"), legend=document.getElementById("legend");
+ORDER.filter(k=>counts[k]>0).forEach(k=>{
+  const seg=document.createElement("span");
+  seg.className="s-"+k; seg.style.flex=counts[k]; seg.tabIndex=0; seg.setAttribute("role","button");
+  seg.setAttribute("aria-label",`${STATUS[k].label}: ${counts[k]}`); seg.title=`${STATUS[k].label}: ${counts[k]}`;
+  seg.addEventListener("click",()=>setStatus(k)); seg.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setStatus(k)}});
+  bar.appendChild(seg);
+  const b=document.createElement("button");
+  b.type="button"; b.className="lg s-"+k; b.dataset.k=k; b.setAttribute("aria-pressed","false");
+  b.innerHTML=`<span class="sw"></span>${STATUS[k].label}<span class="n">${counts[k]}</span><span class="desc">${STATUS[k].desc}</span>`;
+  b.addEventListener("click",()=>setStatus(state.status===k?"":k));
+  legend.appendChild(b);
+});
+
+const fStatus=document.getElementById("f-status"), fArea=document.getElementById("f-area"), fDest=document.getElementById("f-dest"), fQ=document.getElementById("f-q");
+ORDER.filter(k=>counts[k]>0).forEach(k=>fStatus.insertAdjacentHTML("beforeend",`<option value="${k}">${STATUS[k].label} (${counts[k]})</option>`));
+[...new Set(ROWS.map(r=>r.area))].forEach(a=>fArea.insertAdjacentHTML("beforeend",`<option>${esc(a)}</option>`));
+BOARD.map(b=>b.id).concat(["Shell"]).forEach(d=>fDest.insertAdjacentHTML("beforeend",`<option>${esc(d)}</option>`));
+fStatus.addEventListener("change",()=>setStatus(fStatus.value));
+fArea.addEventListener("change",()=>{state.area=fArea.value;renderMatrix()});
+fDest.addEventListener("change",()=>{state.dest=fDest.value;renderMatrix()});
+fQ.addEventListener("input",()=>{state.q=fQ.value.trim().toLowerCase();renderMatrix()});
+
+function setStatus(k){
+  state.status=k; fStatus.value=k;
+  legend.querySelectorAll(".lg").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.k===k)));
+  renderMatrix();
+}
+function setDest(d){
+  state.dest=d; fDest.value=d; renderMatrix();
+  document.getElementById("h-mx").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"});
+}
+
+function renderMatrix(){
+  const m=document.getElementById("matrix");
+  const rows=ROWS.filter(r=>(!state.status||r.s===state.status)&&(!state.area||r.area===state.area)&&(!state.dest||r.dest===state.dest)&&
+    (!state.q||[r.cap,r.from,r.to,r.api,r.note,r.area].join(" ").toLowerCase().includes(state.q)));
+  document.getElementById("count").textContent=`${rows.length} of ${ROWS.length} shown`;
+  if(!rows.length){m.innerHTML=`<div class="empty">No capability matches these filters.</div>`;return}
+  const groups={};rows.forEach(r=>(groups[r.area]=groups[r.area]||[]).push(r));
+  m.innerHTML=Object.entries(groups).map(([a,rs])=>`
+    <div class="area"><div class="area-h"><h3>${esc(a)}</h3><span class="mini" aria-hidden="true">${rs.map(r=>`<span class="s-${r.s}"></span>`).join("")}</span></div>
+    ${rs.map(r=>`<div class="row s-${r.s}${r.s==="gap"||r.s==="decide"?" hl":""}">
+      <div><div class="cap">${esc(r.cap)}</div>${r.api&&r.api!=="—"?`<div class="api">${esc(r.api)}</div>`:""}</div>
+      <div class="fromto"><span class="lbl">Today</span><span class="old">${esc(r.from)}</span></div>
+      <div class="fromto"><span class="lbl">In V3B</span>${esc(r.to)}</div>
+      <div>${chip(r.s)}</div>
+      ${r.note?`<div class="note">${esc(r.note)}</div>`:""}
+    </div>`).join("")}</div>`).join("");
+}
+
+function renderBoard(){
+  document.getElementById("board").innerHTML=BOARD.map(d=>{
+    const n=ROWS.filter(r=>r.dest===d.id).length;
+    return `<article class="dest" aria-labelledby="d-${d.id}">
+      <div class="dest-h"><span class="dest-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d.ic}</svg></span>
+        <div><h3 id="d-${d.id}">${d.id}</h3><div class="kind">${d.kind}</div></div>
+        ${n?`<button type="button" class="btn" data-dest="${d.id}" aria-label="Show ${n} capabilities for ${d.id}">${n} capabilities</button>`:""}</div>
+      <ul class="screens">${d.screens.map(([s,k,f])=>`<li>
+        <div class="scr-top"><span class="scr-name">${esc(s)}</span>${chip(k)}</div>
+        ${f.length?`<div class="from">${f.map(x=>`<code>${esc(x)}</code>`).join("")}</div>`:""}</li>`).join("")}</ul></article>`;
+  }).join("");
+  document.querySelectorAll("[data-dest]").forEach(b=>b.addEventListener("click",()=>setDest(b.dataset.dest)));
+}
+
+function renderDiagram(){
+  const W=760,top=34,gap=10,lh=44,rh=36;
+  const lx=8,lw=196,rx=W-8-196,rw=196;
+  const lspan=LEFT.length*lh+(LEFT.length-1)*gap, rspan=RIGHT.length*rh+(RIGHT.length-1)*gap;
+  const H=top+Math.max(lspan,rspan)+12;
+  const ly0=top+(Math.max(lspan,rspan)-lspan)/2, ry0=top;
+  const lpos={},rpos={};
+  LEFT.forEach((n,i)=>lpos[n.id]={y:ly0+i*(lh+gap),c:ly0+i*(lh+gap)+lh/2});
+  RIGHT.forEach((n,i)=>rpos[n.id]={y:ry0+i*(rh+gap),c:ry0+i*(rh+gap)+rh/2});
+  const inL={},inR={};LINKS.forEach(([a,b])=>{(inL[a]=inL[a]||[]).push(b);(inR[b]=inR[b]||[]).push(a)});
+  const offs=(list,item,h)=>{const n=list.length,i=list.indexOf(item);return n<2?0:(-(h*.5-9)+i*((h-18)/(n-1)))};
+  let paths="";
+  LINKS.forEach(([a,b])=>{
+    const y1=lpos[a].c+offs(inL[a],b,lh), y2=rpos[b].c+offs(inR[b],a,rh), x1=lx+lw, x2=rx, mx=(x1+x2)/2;
+    paths+=`<path class="dg-link" data-l="${a}" data-r="${b}" d="M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}"/>`;
+  });
+  let nodes="";
+  LEFT.forEach(n=>{const p=lpos[n.id];nodes+=`<g class="dg-node left" tabindex="0" role="button" data-side="l" data-id="${n.id}" aria-label="${n.id}: goes to ${inL[n.id].join(", ")}">
+    <rect x="${lx}" y="${p.y}" width="${lw}" height="${lh}" rx="9"/><text x="${lx+14}" y="${p.y+19}">${n.id}</text><text class="sub" x="${lx+14}" y="${p.y+34}">${esc(n.sub)}</text></g>`});
+  RIGHT.forEach(n=>{const p=rpos[n.id];nodes+=`<g class="dg-node right" tabindex="0" role="button" data-side="r" data-id="${n.id}" aria-label="${n.id}: fed by ${(inR[n.id]||[]).join(", ")}">
+    <rect x="${rx}" y="${p.y}" width="${rw}" height="${rh}" rx="9"/><text x="${rx+14}" y="${p.y+23}">${n.id}</text><text class="sub tag" x="${rx+rw-12}" y="${p.y+22}" text-anchor="end">${n.tag}</text></g>`});
+  const el=document.getElementById("diagram");
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="Today’s navigation mapped to V3B destinations">
+    <text class="dg-col" x="${lx}" y="16">TODAY · SIDEBAR</text><text class="dg-col" x="${rx}" y="16">V3B · RAIL AND MENU</text>
+    ${paths}${nodes}</svg><p class="dg-note">Home splits three ways: decisions into the Inbox, Runs tiles into Runs, runtime health into Operations. Projects feeds four rail items, because audits, findings and reports become destinations of their own.</p>`;
+  const clear=()=>{el.classList.remove("focus");el.querySelectorAll(".hot").forEach(x=>x.classList.remove("hot"))};
+  el.querySelectorAll(".dg-node").forEach(g=>{
+    const on=()=>{clear();el.classList.add("focus");g.classList.add("hot");const s=g.dataset.side,id=g.dataset.id;
+      el.querySelectorAll(".dg-link").forEach(p=>{if((s==="l"&&p.dataset.l===id)||(s==="r"&&p.dataset.r===id)){p.classList.add("hot");
+        const other=s==="l"?p.dataset.r:p.dataset.l;el.querySelector(`.dg-node[data-side="${s==="l"?"r":"l"}"][data-id="${other}"]`)?.classList.add("hot")}})};
+    g.addEventListener("mouseenter",on);g.addEventListener("focus",on);g.addEventListener("click",on);
+    g.addEventListener("mouseleave",clear);g.addEventListener("blur",clear);
+  });
+}
+
+function renderRest(){
+  document.getElementById("gaps").innerHTML=GAPS.map(g=>`<article class="panel card"><div class="ttl"><h3>${esc(g.t)}</h3>${chip(g.s)}</div>
+    <dl><dt>V3B</dt><dd>${esc(g.v3b)}</dd><dt>API</dt><dd>${esc(g.api)}</dd></dl>
+    <p class="rec"><b>Ship it by:</b> ${esc(g.ship)}</p></article>`).join("");
+  document.querySelector("#spec tbody").innerHTML=SPEC.map(r=>`<tr><td><b>${r[0]}</b></td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join("");
+  document.getElementById("steps").innerHTML=STEPS.map(s=>`<li><div><b>${esc(s[0])}</b><div class="d">${esc(s[1])}</div></div></li>`).join("");
+  document.getElementById("decisions").insertAdjacentHTML("beforeend",DECISIONS.map(d=>`<div class="dec"><div class="q">${esc(d.q)}</div>
+    <div class="opts">${d.o.map(([k,t])=>`<div><span class="${k==="Agreed"||k==="Recommended"?"r":"o"}">${k}</span><span>${esc(t)}</span></div>`).join("")}</div></div>`).join(""));
+}
+
+renderDiagram();renderBoard();renderMatrix();renderRest();
+</script>
+</body>
+</html>
