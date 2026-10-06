@@ -79,6 +79,25 @@ describe("IdChip", () => {
     );
     expect(window.getSelection()?.toString()).toBe(CHECK_ID);
   });
+
+  it("names ⌘+C on Apple platforms", async () => {
+    stubClipboard(undefined);
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "MacIntel",
+    });
+    try {
+      const { container } = render(
+        <IdChip value={CHECK_ID} label="check ID" />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Copy check ID" }));
+      expect(await screen.findByText("Press ⌘+C to copy")).toBe(
+        liveRegion(container),
+      );
+    } finally {
+      Reflect.deleteProperty(navigator, "platform");
+    }
+  });
 });
 
 describe("MethodChip and Kbd", () => {

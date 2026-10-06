@@ -423,8 +423,12 @@ span.ui-row-control {
   line-height: 1.4;
 }
 
+/* Inline actions, and controls or identifiers in the meta line, sit above the
+   title's row-wide click area; the rest of the row still opens it. */
 .ui-row-extra,
-.ui-row-trailing {
+.ui-row-trailing,
+.ui-row-meta
+  :is(a, button, input, select, textarea, summary, [tabindex], .ui-id) {
   position: relative;
   z-index: 1;
 }
@@ -704,10 +708,6 @@ span.ui-row-control {
   gap: 2px;
 }
 
-.ui-segments[data-density="dense"] {
-  gap: 1px;
-}
-
 .ui-segment {
   flex: 1 1 0;
   min-width: 0;
@@ -719,6 +719,22 @@ span.ui-row-control {
 .ui-segments[data-size="sm"] .ui-segment {
   height: 4px;
   border-radius: 2px;
+}
+
+/* Long lines: one bar per run of equal tones, sized by its item count (an
+   inline flex-grow). Neighbouring runs differ in tone, so no gaps; only the
+   line's ends are rounded. */
+.ui-segments[data-density="runs"] {
+  gap: 0;
+  border-radius: 3px;
+}
+
+.ui-segments[data-density="runs"][data-size="sm"] {
+  border-radius: 2px;
+}
+
+.ui-segments[data-density="runs"] .ui-segment {
+  border-radius: 0;
 }
 
 .ui-segment:is([data-tone="done"], [data-tone="success"]) {
@@ -1133,6 +1149,25 @@ span.ui-row-control {
   gap: 0.5rem;
 }
 
+/* The bar's own buttons carry free text (Next, Record): they shrink and wrap
+   instead of overflowing a phone-width pane. One line stays 38 px tall. */
+.ui-decision-actions > .ui-btn,
+.ui-decision-compose > .ui-btn {
+  max-width: 100%;
+  height: auto;
+  min-height: 2.375rem;
+  padding-block: 0.375rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.ui-decision-actions > .ui-btn > span:not(.ui-kbd-hint),
+.ui-decision-compose > .ui-btn > span:not(.ui-kbd-hint) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
 .ui-decision-spacer {
   flex: 1 1 0;
   min-width: 0.5rem;
@@ -1193,7 +1228,7 @@ span.ui-row-control {
 }
 
 .ui-decision-compose > .ui-btn {
-  flex: none;
+  flex: 0 1 auto;
 }
 
 .ui-decision-hint {
@@ -1220,5 +1255,17 @@ span.ui-row-control {
 
   .ui-decision-compose > .ui-btn {
     margin-left: auto;
+  }
+
+  /* Phone-width bars drop the key hints; aria-keyshortcuts stays. */
+  .ui-decision .ui-kbd-hint {
+    display: none;
+  }
+}
+
+/* Touch-only devices have no keys to hint at. */
+@media (hover: none) and (pointer: coarse) {
+  .ui-decision .ui-kbd-hint {
+    display: none;
   }
 }

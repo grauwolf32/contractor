@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { shortenId } from "./format";
+import { modKeyLabel } from "./shortcuts";
 
 /** HTTP method in a small monospace chip ("GET", "POST", …). */
 export function MethodChip({ method }: { method: string }) {
@@ -13,7 +14,6 @@ export function Kbd({ children }: { children: ReactNode }) {
 }
 
 const COPIED = "Copied";
-const COPY_BY_HAND = "Press Ctrl+C to copy";
 
 export interface IdChipProps {
   /** The full identifier; copied and shown on hover. */
@@ -29,7 +29,8 @@ export interface IdChipProps {
  * shortened to its first 8 and last 4 characters; the full value is the
  * hover title. Copying uses the Clipboard API. When it is missing or
  * refused, the full value is selected in a hidden element and the chip asks
- * the user to press Ctrl+C. Results are announced politely.
+ * the user to press Ctrl+C (⌘+C on Apple platforms). Results are announced
+ * politely.
  */
 export function IdChip({ value, label, display }: IdChipProps) {
   const [message, setMessage] = useState("");
@@ -55,7 +56,7 @@ export function IdChip({ value, label, display }: IdChipProps) {
 
   function copyByHand() {
     setSelectRequest((request) => request + 1);
-    announce(COPY_BY_HAND, 8000);
+    announce(`Press ${modKeyLabel()}+C to copy`, 8000);
   }
 
   function copy() {

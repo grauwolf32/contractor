@@ -130,18 +130,63 @@ export interface ProgressSegmentsProps {
   size?: "sm" | "md" | undefined;
 }
 
-/** Equal-width segment line, one bar per item, coloured by tone. */
+/** Above this many items, per-item bars sit 2 px apart instead of 3 px. */
+const COMPACT_ABOVE = 40;
+/**
+ * Above this many items, per-item bars get too thin to see in a list row, so
+ * consecutive items of one tone merge into one bar.
+ */
+const RUNS_ABOVE = 60;
+/** Labels named in a merged bar's hover title before "and N more". */
+const TITLE_LABELS = 3;
+
+interface SegmentRun {
+  tone: StatusTone;
+  labels: string[];
+}
+
+function toRuns(segments: readonly ProgressSegment[]): SegmentRun[] {
+  const runs: SegmentRun[] = [];
+  for (const segment of segments) {
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last.tone === segment.tone) {
+      last.labels.push(segment.label);
+    } else {
+      runs.push({ tone: segment.tone, labels: [segment.label] });
+    }
+  }
+  return runs;
+}
+
+/** "Met (12)", "Met (3), Fully traced (2)": labels in order, with counts. */
+function runTitle(labels: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+  const parts = Array.from(counts, ([label, count]) =>
+    count === 1 ? label : `${label} (${count})`,
+  );
+  const named = parts.slice(0, TITLE_LABELS).join(", ");
+  return parts.length > TITLE_LABELS
+    ? `${named} and ${parts.length - TITLE_LABELS} more`
+    : named;
+}
+
+/**
+ * Segment line coloured by tone. Up to 60 items it shows one equal-width bar
+ * per item; longer lines merge consecutive items of one tone into a bar as
+ * wide as their share, so order and proportions survive in a narrow row.
+ */
 export function ProgressSegments({
   segments,
   label,
   size = "md",
 }: ProgressSegmentsProps) {
-  const density =
-    segments.length > 80
-      ? "dense"
-      : segments.length > 40
-        ? "compact"
-        : undefined;
+  const merged = segments.length > RUNS_ABOVE;
+  const density = merged
+    ? "runs"
+    : segments.length > COMPACT_ABOVE
+      ? "compact"
+      : undefined;
   return (
     <div
       className="ui-segments"
@@ -150,15 +195,26 @@ export function ProgressSegments({
       data-size={size}
       data-density={density}
     >
-      {segments.map((segment, position) => (
-        <span
-          // Segments are positional: the n-th bar is the n-th item.
-          key={position}
-          className="ui-segment"
-          data-tone={segment.tone}
-          title={segment.label}
-        />
-      ))}
+      {merged
+        ? toRuns(segments).map((run, position) => (
+            <span
+              // Runs are positional, in list order.
+              key={position}
+              className="ui-segment"
+              data-tone={run.tone}
+              title={runTitle(run.labels)}
+              style={{ flexGrow: run.labels.length }}
+            />
+          ))
+        : segments.map((segment, position) => (
+            <span
+              // Segments are positional: the n-th bar is the n-th item.
+              key={position}
+              className="ui-segment"
+              data-tone={segment.tone}
+              title={segment.label}
+            />
+          ))}
     </div>
   );
 }

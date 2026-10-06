@@ -39,8 +39,12 @@ hairline.
   tall and each pane scrolls on its own.
 - **≤ 820 px:** one pane at a time in normal page flow. The list shows by
   default; with `showDetail` the detail shows, with `← backLink.label` above it.
-  Switching panes moves focus to the pane that appears (or back to the
-  selected row).
+  Opening the detail moves focus to the detail pane. Going back moves focus
+  to the row the user was on, which scrolls it into view: the selected row if
+  the selection stays, else the row that was selected last while the detail
+  showed (Back usually clears the selection), else what had focus in the
+  list. When there is no such row, or it has left the list, focus goes to the
+  list pane, scrolled to its top.
 
 Selection belongs in the URL. `showDetail` is usually "an item is selected".
 
@@ -140,9 +144,11 @@ ListRow(props: {
 
 Renders an `<li>`. The title link or button covers the whole row (one click
 target, one focus ring). Inline actions in `children` and `trailing` are
-separate controls above it: never put a button inside the title. The glyph is
-decorative, so say the status in words in `meta`. With a method chip, keep a
-space before the path so the name reads "GET /path".
+separate controls above it: never put a button inside the title. `meta` is
+for text and identifiers: an `IdChip` (or a link) there stays clickable, but
+actions belong in `children` or `trailing`. The glyph is decorative, so say
+the status in words in `meta`. With a method chip, keep a space before the
+path so the name reads "GET /path".
 
 ```tsx
 <ListRow
@@ -282,10 +288,14 @@ ProgressSegments(props: {
 })
 ```
 
-One `role="img"` element with equal-width bars, one per item in list order,
-3 px apart. Gaps shrink above 40 and 80 items. Colours: done/success `--m-done`,
-partial/review/warning `--m-partial`, progress/info `--m-progress`, blocked
-`--m-blocked`, idle/neutral `--m-idle`.
+One `role="img"` element named by `label`. Up to 60 items it shows
+equal-width bars, one per item in list order, 3 px apart (2 px above 40
+items). Above 60 items (an ASVS check has about 280 requirements) per-item
+bars would vanish in a list row, so consecutive items of one tone merge into
+one bar as wide as their share, without gaps. List order and proportions
+stay, and the bar's hover title names its labels with counts ("Met (12)").
+Colours: done/success `--m-done`, partial/review/warning `--m-partial`,
+progress/info `--m-progress`, blocked `--m-blocked`, idle/neutral `--m-idle`.
 
 ```tsx
 <ProgressSegments
@@ -306,7 +316,9 @@ MethodChip(props: { method: string })   // upper-cased, monospace, on --chrome
 ```
 
 ```tsx
-<MethodChip method="get" /> / workshop / api / mechanic / mechanic_report;
+<>
+  <MethodChip method="get" /> /workshop/api/mechanic/mechanic_report
+</>
 ```
 
 ### `Kbd`
@@ -338,8 +350,9 @@ characters (`shortenId`). Values up to 16 characters are kept whole. The
 full value is the hover title. The copy button is named "Copy " + label. It
 uses `navigator.clipboard.writeText` and announces "Copied". When the
 Clipboard API is missing or refuses, it selects the full value in a hidden
-element and says "Press Ctrl+C to copy". Both messages use an
-`aria-live="polite"` region.
+element and says "Press Ctrl+C to copy" ("Press ⌘+C to copy" on Apple
+platforms, from `modKeyLabel()`). Both messages use an `aria-live="polite"`
+region.
 
 ```tsx
 <IdChip value={audit.id} label="check ID" />
@@ -454,6 +467,10 @@ bar. Put it in `DetailPane`'s `footer` to pin it.
   read-only (focus stays) and makes `more` and `extra` inert.
 - **`next`:** a quiet button. Its key is bound as well; if the page already
   binds the same key to the same action, only one handler runs.
+- **Narrow panes:** the verdict, Next and Record buttons shrink and wrap
+  their labels instead of overflowing (long `next.label` or `submitLabel`
+  texts stay whole). In bars up to 34rem wide, and on touch-only devices, the
+  key hints are hidden; `aria-keyshortcuts` stays.
 
 ```tsx
 <DecisionBar
@@ -555,8 +572,10 @@ inline actions, keeps their own action. Use one `useListNavigation` per page.
 const { containerProps } = useListNavigation({
   count: items.length,
   index: items.findIndex((item) => item.id === selectedId),
-  onMove: (next) =>
-    navigate(`/issues/${items[next].auditId}/${items[next].id}`),
+  onMove: (next) => {
+    const item = items[next];
+    if (item) navigate(`/issues/${item.auditId}/${item.id}`);
+  },
 });
 return (
   <div {...containerProps}>

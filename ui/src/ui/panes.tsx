@@ -16,12 +16,16 @@ export interface PaneLayoutProps {
   detailLabel: string;
 }
 
+/** The row ListRow marks as selected. */
+const SELECTED_ROW = '[aria-current="true"]';
+
 /**
  * List + detail frame. From 1100 px the list is 360 px wide, from 821 px
  * 300 px; both panes then fill the viewport below the shell top bar and
  * scroll on their own. At 820 px and below one pane shows at a time in
  * normal page flow, and switching panes moves focus to the pane that
- * appears.
+ * appears. Going back to the list moves focus to the row the user was on,
+ * which scrolls it into view, even when Back clears the selection.
  */
 export function PaneLayout({
   list,
@@ -34,35 +38,53 @@ export function PaneLayout({
   const listPane = useRef<HTMLElement>(null);
   const detailPane = useRef<HTMLElement>(null);
   const shown = useRef(showDetail);
+  // Where going back returns to: the list stays mounted, so the node survives.
+  const place = useRef<HTMLElement | null>(null);
+  // The last element focused inside the list, for lists without a selection.
+  const listFocus = useRef<HTMLElement | null>(null);
 
+  // Runs after every render: the selected row can change while the detail
+  // shows (J / K), not only when the pane switches.
   useEffect(() => {
-    if (shown.current === showDetail) return;
+    const listNode = listPane.current;
+    const detailNode = detailPane.current;
+    if (listNode === null || detailNode === null) return;
+    const switched = shown.current !== showDetail;
     shown.current = showDetail;
-    const target = showDetail ? detailPane.current : listPane.current;
-    const hidden = showDetail ? listPane.current : detailPane.current;
-    // Only the one-pane layout hides a pane; elsewhere focus stays put.
-    if (
-      target === null ||
-      hidden === null ||
-      getComputedStyle(hidden).display !== "none"
-    ) {
-      return;
+    if (showDetail) {
+      const row = listNode.querySelector<HTMLElement>(SELECTED_ROW);
+      if (row !== null) place.current = row;
+      else if (switched) place.current = listFocus.current;
     }
+    if (!switched) return;
+    const target = showDetail ? detailNode : listNode;
+    const hidden = showDetail ? listNode : detailNode;
+    // Only the one-pane layout hides a pane; elsewhere focus stays put.
+    if (getComputedStyle(hidden).display !== "none") return;
     const active = document.activeElement;
     if (active !== null && active !== document.body && !hidden.contains(active))
       return;
-    const selectedRow = showDetail
-      ? null
-      : target.querySelector<HTMLElement>('[aria-current="true"]');
-    if (selectedRow !== null) {
-      selectedRow.focus();
-      return;
+    if (!showDetail) {
+      const remembered = place.current;
+      place.current = null;
+      const row =
+        listNode.querySelector<HTMLElement>(SELECTED_ROW) ??
+        (remembered !== null &&
+        remembered.isConnected &&
+        listNode.contains(remembered)
+          ? remembered
+          : null);
+      if (row !== null) {
+        // Focusing scrolls the row back into view.
+        row.focus();
+        if (document.activeElement === row) return;
+      }
     }
     target.focus({ preventScroll: true });
     if (typeof target.scrollIntoView === "function") {
       target.scrollIntoView({ block: "start" });
     }
-  }, [showDetail]);
+  });
 
   return (
     <div className="ui-panes" data-show={showDetail ? "detail" : "list"}>
@@ -71,6 +93,14 @@ export function PaneLayout({
         className="ui-panes-list"
         aria-label={listLabel}
         tabIndex={-1}
+        onFocus={(event) => {
+          if (
+            event.target !== event.currentTarget &&
+            event.target instanceof HTMLElement
+          ) {
+            listFocus.current = event.target;
+          }
+        }}
       >
         {list}
       </section>

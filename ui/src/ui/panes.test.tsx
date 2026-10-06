@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ListRow } from "./list";
 import { DetailHeader, DetailPane, ListPane, PaneLayout } from "./panes";
@@ -51,44 +51,122 @@ describe("PaneLayout", () => {
 });
 
 describe("PaneLayout on one-pane screens", () => {
-  it("moves focus to the pane that appears", () => {
-    // jsdom has no media queries: apply the ≤ 820 px rule directly.
-    const style = document.createElement("style");
+  // jsdom has no media queries: apply the ≤ 820 px rule directly.
+  let style: HTMLStyleElement;
+  beforeEach(() => {
+    style = document.createElement("style");
     style.textContent = `
       .ui-panes[data-show="detail"] > .ui-panes-list,
       .ui-panes[data-show="list"] > .ui-panes-detail { display: none; }`;
     document.head.append(style);
-    function Layout({ showDetail }: { showDetail: boolean }) {
-      return (
-        <MemoryRouter>
-          <PaneLayout
-            listLabel="Checks"
-            detailLabel="Selected check"
-            showDetail={showDetail}
-            backLink={{ to: "/checks", label: "Back to checks" }}
-            list={
-              <ul>
-                <ListRow to="/checks?check=1" title="crapi-workshop" selected />
-              </ul>
-            }
-            detail={<p>Detail</p>}
-          />
-        </MemoryRouter>
-      );
-    }
-    try {
-      const { rerender } = render(<Layout showDetail={false} />);
-      const row = screen.getByRole("link", { name: "crapi-workshop" });
-      row.focus();
-      rerender(<Layout showDetail />);
-      expect(
-        screen.getByRole("region", { name: "Selected check" }),
-      ).toHaveFocus();
-      rerender(<Layout showDetail={false} />);
-      expect(row).toHaveFocus();
-    } finally {
-      style.remove();
-    }
+  });
+  afterEach(() => style.remove());
+
+  /** Like a page: the selection is the URL, and Back clears it. */
+  function Layout({
+    selected,
+    showDetail = selected !== undefined,
+    marksSelection = true,
+    rows = ["crapi-workshop", "vampi", "crapi-identity"],
+  }: {
+    selected?: string;
+    showDetail?: boolean;
+    marksSelection?: boolean;
+    rows?: string[];
+  }) {
+    return (
+      <MemoryRouter>
+        <PaneLayout
+          listLabel="Checks"
+          detailLabel="Selected check"
+          showDetail={showDetail}
+          backLink={{ to: "/checks", label: "Back to checks" }}
+          list={
+            <ul>
+              {rows.map((name) => (
+                <ListRow
+                  key={name}
+                  to={`/checks?check=${name}`}
+                  title={name}
+                  selected={marksSelection && name === selected}
+                >
+                  <button type="button">Open the run of {name}</button>
+                </ListRow>
+              ))}
+            </ul>
+          }
+          detail={<p>Detail of {selected}</p>}
+        />
+      </MemoryRouter>
+    );
+  }
+
+  it("moves focus to the detail, and back to the row it came from", () => {
+    const { rerender } = render(<Layout />);
+    // A tap on a phone does not focus the link: focus stays on the body.
+    rerender(<Layout selected="vampi" />);
+    expect(
+      screen.getByRole("region", { name: "Selected check" }),
+    ).toHaveFocus();
+    // Back clears the selection; focus still returns to the row.
+    rerender(<Layout />);
+    expect(screen.getByRole("link", { name: "vampi" })).toHaveFocus();
+  });
+
+  it("returns to the selected row when the selection stays", () => {
+    const { rerender } = render(<Layout selected="vampi" showDetail={false} />);
+    screen.getByRole("link", { name: "vampi" }).focus();
+    rerender(<Layout selected="vampi" />);
+    rerender(<Layout selected="vampi" showDetail={false} />);
+    expect(screen.getByRole("link", { name: "vampi" })).toHaveFocus();
+  });
+
+  it("follows J / K moves made while the detail shows", () => {
+    const { rerender } = render(<Layout />);
+    rerender(<Layout selected="crapi-workshop" />);
+    rerender(<Layout selected="vampi" />);
+    rerender(<Layout selected="crapi-identity" />);
+    rerender(<Layout />);
+    expect(screen.getByRole("link", { name: "crapi-identity" })).toHaveFocus();
+  });
+
+  it("returns to what had focus when the list marks no selection", () => {
+    const { rerender } = render(<Layout marksSelection={false} />);
+    const action = screen.getByRole("button", {
+      name: "Open the run of vampi",
+    });
+    action.focus();
+    rerender(<Layout marksSelection={false} selected="vampi" />);
+    expect(
+      screen.getByRole("region", { name: "Selected check" }),
+    ).toHaveFocus();
+    rerender(<Layout marksSelection={false} />);
+    expect(action).toHaveFocus();
+  });
+
+  it("focuses the list when the row is gone", () => {
+    const { rerender } = render(<Layout />);
+    rerender(<Layout selected="vampi" />);
+    rerender(<Layout rows={["crapi-workshop", "crapi-identity"]} />);
+    expect(screen.getByRole("region", { name: "Checks" })).toHaveFocus();
+  });
+
+  it("leaves focus alone when it is outside the hidden pane", () => {
+    const { rerender } = render(
+      <>
+        <button type="button">Command palette</button>
+        <Layout />
+      </>,
+    );
+    const outside = screen.getByRole("button", { name: "Command palette" });
+    outside.focus();
+    rerender(
+      <>
+        <button type="button">Command palette</button>
+        <Layout selected="vampi" />
+      </>,
+    );
+    expect(outside).toHaveFocus();
   });
 });
 
