@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   Audit,
   AuditFinding,
+  AuditFindingSeverity,
   AuditFindingState,
   AuditReport,
   AuditReviewRequest,
@@ -15,6 +16,7 @@ import { PublicAPI } from "./client";
 import { PublicAPIProvider } from "./context";
 import {
   CROSS_PROJECT_LIMITS,
+  INBOX_CHECK_STATES,
   invalidateCrossProject,
   useAllChecks,
   useAllPossibleIssues,
@@ -88,6 +90,7 @@ function finding(
     state?: AuditFindingState;
     createdAt?: string;
     verdict?: "true_positive" | "false_positive";
+    severity?: AuditFindingSeverity;
   } = {},
 ): AuditFinding {
   const createdAt = options.createdAt ?? "2026-10-02T10:00:00Z";
@@ -142,6 +145,9 @@ function finding(
     ...(options.verdict === undefined
       ? {}
       : { analystVerdict: options.verdict }),
+    ...(options.severity === undefined
+      ? {}
+      : { analystSeverity: options.severity }),
     revision: 1,
     createdAt,
     updatedAt: createdAt,
@@ -220,10 +226,16 @@ function json(value: unknown, status = 200): Response {
 }
 
 function failure(status: number): Response {
+  const [code, message] =
+    status === 404
+      ? ["not_found", "Not found"]
+      : status === 400
+        ? ["invalid_argument", "Invalid request"]
+        : ["internal_error", "Server failed"];
   return json(
     {
-      code: status === 404 ? "not_found" : "internal_error",
-      message: status === 404 ? "Not found" : "Server failed",
+      code,
+      message,
       retryable: false,
       requestId: "request_test",
     },
@@ -282,13 +294,19 @@ function setup(state: ServerState) {
       if (state.failingFindings?.includes(auditId)) return failure(500);
       const wantedState = url.searchParams.get("state");
       const wantedVerdict = url.searchParams.get("verdict");
+      const wantedSeverity = url.searchParams.get("severity");
+      // validateFindingList: an unreviewed finding has no analyst severity.
+      if (wantedVerdict === "unreviewed" && wantedSeverity !== null)
+        return failure(400);
       const items = (state.findings?.[auditId] ?? []).filter(
         (candidate) =>
           (wantedState === null || candidate.state === wantedState) &&
           (wantedVerdict === null ||
             (wantedVerdict === "unreviewed"
               ? candidate.analystVerdict === undefined
-              : candidate.analystVerdict === wantedVerdict)),
+              : candidate.analystVerdict === wantedVerdict)) &&
+          (wantedSeverity === null ||
+            candidate.analystSeverity === wantedSeverity),
       );
       return json({ ...summary, total: items.length, ...page(items, url) });
     }
@@ -445,6 +463,7 @@ describe("useAllChecks", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.errors).toHaveLength(1);
     expect(result.current.errors[0]).toMatchObject({
+      scope: "project",
       projectId: "project_b",
       error: { status: 500 },
     });
@@ -461,6 +480,40 @@ describe("useAllChecks", () => {
     expect(result.current.error).toMatchObject({ status: 500 });
     expect(result.current.checks).toEqual([]);
     expect(result.current.partial).toBe(false);
+    expect(result.current.errors).toEqual([]);
+  });
+
+  it("keeps the last project index when a refresh fails and lists the failure", async () => {
+    const current = state();
+    const server = setup(current);
+    const { result } = renderHook(
+      () => ({ index: useProjectsIndex(), checks: useAllChecks() }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(result.current.checks.isPending).toBe(false));
+    expect(result.current.checks.errors).toEqual([]);
+
+    current.projectsFail = true;
+    await act(() =>
+      server.queryClient.refetchQueries({
+        queryKey: queryKeys.crossProject.projects,
+      }),
+    );
+    await waitFor(() => expect(result.current.checks.partial).toBe(true));
+
+    const failed = {
+      scope: "index",
+      error: expect.objectContaining({ status: 500 }),
+    };
+    expect(result.current.index).toMatchObject({
+      partial: true,
+      error: null,
+      errors: [failed],
+    });
+    expect(result.current.index.projects).toHaveLength(2);
+    expect(result.current.checks.error).toBeNull();
+    expect(result.current.checks.errors).toEqual([failed]);
+    expect(result.current.checks.checks).toHaveLength(4);
   });
 
   it("flags truncated project and check pages", async () => {
@@ -661,24 +714,52 @@ describe("useAllPossibleIssues", () => {
     ]);
     expect(result.current.partial).toBe(true);
     expect(result.current.errors).toEqual([
-      expect.objectContaining({
+      {
+        scope: "check",
         projectId: "project_b",
         auditId: "audit_b1",
         error: expect.objectContaining({ status: 500 }),
-      }),
+      },
     ]);
-    // A failed check read retries on the poll interval; settled ones do not poll.
+    // A failed check read retries on the poll interval and stays fetchable;
+    // a settled one is pinned to its revision and never polls.
     const failed = server.queryClient.getQueryCache().findAll({
-      queryKey: queryKeys.crossProject.findingsOf("audit_b1", null, null),
+      queryKey: queryKeys.crossProject.findingsOf("audit_b1", null, null, null),
     })[0]!;
     const settled = server.queryClient.getQueryCache().findAll({
-      queryKey: queryKeys.crossProject.findingsOf("audit_a1", null, null),
+      queryKey: queryKeys.crossProject.findingsOf("audit_a1", null, null, null),
     })[0]!;
     const interval = failed.observers[0]!.options.refetchInterval as (
       query: unknown,
     ) => number | false;
     expect(interval(failed)).toBe(CROSS_PROJECT_LIMITS.pollMs);
     expect(interval(settled)).toBe(false);
+    expect(failed.isStatic()).toBe(false);
+    expect(settled.isStatic()).toBe(true);
+  });
+
+  it("refresh refetches the heads and failed check reads, not settled ones", async () => {
+    const current: ServerState = { ...state(), failingFindings: ["audit_b1"] };
+    const server = setup(current);
+    const { result } = renderHook(() => useAllPossibleIssues(), {
+      wrapper: server.wrapper,
+    });
+    await settle(result);
+    expect(result.current.partial).toBe(true);
+
+    current.failingFindings = [];
+    await act(() => result.current.refetch());
+    await waitFor(() => expect(result.current.partial).toBe(false));
+
+    expect(
+      result.current.issues.map(({ finding }) => finding.findingId),
+    ).toContain("finding_b1");
+    expect(server.requested(/^\/v1\/projects$/)).toHaveLength(2);
+    expect(server.requested(/project_a\/audits$/)).toHaveLength(2);
+    expect(server.requested(/project_b\/audits$/)).toHaveLength(2);
+    expect(server.requested(/audit_b1\/findings$/)).toHaveLength(2);
+    expect(server.requested(/audit_a1\/findings$/)).toHaveLength(1);
+    expect(server.requested(/audit_b2\/findings$/)).toHaveLength(1);
   });
 
   it("keeps issue references across renders and unchanged refetches", async () => {
@@ -696,15 +777,51 @@ describe("useAllPossibleIssues", () => {
         queryKey: queryKeys.crossProject.all,
       }),
     );
-    expect(server.requested(/audit_a1\/findings$/)).toHaveLength(2);
+    // The heads refetched with unchanged data; check reads stay pinned.
+    expect(server.requested(/^\/v1\/projects$/)).toHaveLength(2);
+    expect(server.requested(/audit_a1\/findings$/)).toHaveLength(1);
     expect(result.current.issues).toBe(first.issues);
   });
 
-  it("caps each check's page and counts the rest on the Server", async () => {
+  it("looks up previous revisions once per change of the checks, not per render", async () => {
+    const current = state();
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    current.hold = (url) =>
+      url.pathname.endsWith("/audit_a1/findings") ? held : undefined;
+    const server = setup(current);
+    const { result, rerender } = renderHook(() => useAllPossibleIssues(), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() =>
+      expect(
+        result.current.issues.map(({ finding }) => finding.findingId),
+      ).toEqual(["finding_b1", "finding_b2_rejected"]),
+    );
+    expect(result.current.isPending).toBe(true);
+
+    // Rendering while a check read loads never scans the query cache.
+    const scan = vi.spyOn(server.queryClient.getQueryCache(), "findAll");
+    rerender();
+    rerender();
+    rerender();
+    expect(scan).not.toHaveBeenCalled();
+
+    release();
+    await settle(result);
+    expect(result.current.issues).toHaveLength(4);
+  });
+
+  it("caps each check's oldest page and counts the rest on the Server", async () => {
+    // The Server lists possible issues oldest first.
     const many = Array.from(
       { length: CROSS_PROJECT_LIMITS.findingsPerAudit + 2 },
       (_, index) =>
-        finding("audit_a1", `finding_many_${String(index).padStart(3, "0")}`),
+        finding("audit_a1", `finding_many_${String(index).padStart(3, "0")}`, {
+          createdAt: new Date(Date.UTC(2026, 9, 2, 0, index)).toISOString(),
+        }),
     );
     const server = setup({ ...state(), findings: { audit_a1: many } });
     const { result } = renderHook(() => useAllPossibleIssues(), {
@@ -712,13 +829,119 @@ describe("useAllPossibleIssues", () => {
     });
     await settle(result);
 
-    expect(result.current.issues).toHaveLength(
-      CROSS_PROJECT_LIMITS.findingsPerAudit,
+    const listed = result.current.issues.map(
+      ({ finding }) => finding.findingId,
     );
+    expect(listed).toHaveLength(CROSS_PROJECT_LIMITS.findingsPerAudit);
+    // The newest two are the ones left out; the check says where to look.
+    expect(listed).not.toContain("finding_many_051");
+    expect(listed).not.toContain("finding_many_050");
+    expect(listed[0]).toBe("finding_many_049");
     expect(result.current.truncated).toBe(true);
+    expect(result.current.truncatedAuditIds).toEqual(["audit_a1"]);
     expect(result.current.total).toBe(
       CROSS_PROJECT_LIMITS.findingsPerAudit + 2,
     );
+  });
+
+  it("reads only the wanted check states that can hold possible issues", async () => {
+    const server = setup(state());
+    const { result } = renderHook(
+      () =>
+        useAllPossibleIssues({ checkStates: ["active", "completed", "draft"] }),
+      { wrapper: server.wrapper },
+    );
+    await settle(result);
+    expect(
+      result.current.issues.map(({ finding }) => finding.findingId),
+    ).toEqual(["finding_a1_confirmed", "finding_b1", "finding_a1_old"]);
+    expect(
+      server
+        .requested(/\/findings$/)
+        .map((url) => url.pathname)
+        .sort(),
+    ).toEqual(["/v1/audits/audit_a1/findings", "/v1/audits/audit_b1/findings"]);
+
+    // No wanted state can hold possible issues: nothing is listed.
+    const other = setup(state());
+    const none = renderHook(
+      () => useAllPossibleIssues({ checkStates: ["draft", "deleting"] }),
+      { wrapper: other.wrapper },
+    );
+    await settle(none.result);
+    expect(none.result.current.issues).toEqual([]);
+    expect(none.result.current.total).toBe(0);
+    expect(none.result.current.partial).toBe(false);
+    expect(other.requested(/\/findings$/)).toEqual([]);
+  });
+
+  it("filters analyst severities on the Server and never with unreviewed", async () => {
+    const server = setup({
+      ...state(),
+      findings: {
+        audit_a1: [
+          finding("audit_a1", "finding_high", {
+            state: "confirmed",
+            verdict: "true_positive",
+            severity: "high",
+          }),
+          finding("audit_a1", "finding_low", {
+            state: "confirmed",
+            verdict: "true_positive",
+            severity: "low",
+          }),
+          finding("audit_a1", "finding_open"),
+        ],
+      },
+    });
+    const { result } = renderHook(
+      () =>
+        useAllPossibleIssues({
+          verdicts: ["true_positive", "unreviewed"],
+          severities: ["high", "critical"],
+        }),
+      { wrapper: server.wrapper },
+    );
+    await settle(result);
+
+    expect(
+      result.current.issues.map(({ finding }) => finding.findingId),
+    ).toEqual(["finding_high"]);
+    expect(result.current.partial).toBe(false);
+    expect(result.current.total).toBe(1);
+    const filters = server
+      .requested(/\/audits\/audit_a1\/findings$/)
+      .map(
+        (url) =>
+          `${url.searchParams.get("verdict")}+${url.searchParams.get("severity")}`,
+      )
+      .sort();
+    expect(filters).toEqual(["true_positive+critical", "true_positive+high"]);
+    expect(
+      server.queryClient.getQueryCache().findAll({
+        queryKey: queryKeys.crossProject.findingsOf(
+          "audit_a1",
+          null,
+          "true_positive",
+          "high",
+        ),
+      }),
+    ).toHaveLength(1);
+
+    // An unreviewed possible issue has no analyst severity: nothing to read.
+    const other = setup(state());
+    const none = renderHook(
+      () =>
+        useAllPossibleIssues({
+          verdicts: ["unreviewed"],
+          severities: ["high"],
+        }),
+      { wrapper: other.wrapper },
+    );
+    await settle(none.result);
+    expect(none.result.current.issues).toEqual([]);
+    expect(none.result.current.total).toBe(0);
+    expect(other.requested(/\/findings$/)).toEqual([]);
   });
 
   it("refetches only checks whose revision changed and keeps showing them meanwhile", async () => {
@@ -856,6 +1079,67 @@ describe("usePendingDecisions", () => {
     ).toEqual(["active-check-approval", "report-acceptance"]);
     expect(server.requested(/audit_active\/reviews$/)).toHaveLength(1);
   });
+
+  it("reads only the wanted check states that can ask for decisions", async () => {
+    const server = setup(state());
+    const { result } = renderHook(
+      () => usePendingDecisions({ checkStates: INBOX_CHECK_STATES }),
+      { wrapper: server.wrapper },
+    );
+    await settle(result);
+    expect(
+      result.current.decisions.map(({ review }) => review.requestId),
+    ).toEqual(["review_active_test", "review_report", "review_triage"]);
+    expect(
+      server
+        .requested(/\/reviews$/)
+        .map((url) => url.pathname)
+        .sort(),
+    ).toEqual([
+      "/v1/audits/audit_active/reviews",
+      "/v1/audits/audit_waiting/reviews",
+    ]);
+
+    // Finished checks cannot ask for decisions: nothing is listed.
+    const other = setup(state());
+    const none = renderHook(
+      () => usePendingDecisions({ checkStates: ["completed"] }),
+      { wrapper: other.wrapper },
+    );
+    await settle(none.result);
+    expect(none.result.current.decisions).toEqual([]);
+    expect(other.requested(/\/reviews$/)).toEqual([]);
+  });
+
+  it("names the checks whose oldest page of requests was capped", async () => {
+    const many = Array.from(
+      { length: CROSS_PROJECT_LIMITS.findingsPerAudit + 1 },
+      (_, index) =>
+        review(
+          "audit_waiting",
+          `review_many_${String(index).padStart(3, "0")}`,
+          "requirement-applicability",
+          new Date(Date.UTC(2026, 9, 3, 0, index)).toISOString(),
+        ),
+    );
+    const base = state();
+    const server = setup({
+      ...base,
+      reviews: { ...base.reviews, audit_waiting: many },
+    });
+    const { result } = renderHook(() => usePendingDecisions(), {
+      wrapper: server.wrapper,
+    });
+    await settle(result);
+
+    const listed = result.current.decisions
+      .filter(({ audit }) => audit.auditId === "audit_waiting")
+      .map(({ review }) => review.requestId);
+    expect(listed).toHaveLength(CROSS_PROJECT_LIMITS.findingsPerAudit);
+    expect(listed).not.toContain("review_many_050");
+    expect(result.current.truncated).toBe(true);
+    expect(result.current.truncatedAuditIds).toEqual(["audit_waiting"]);
+  });
 });
 
 describe("useAllReports", () => {
@@ -982,10 +1266,10 @@ describe("enabled: false", () => {
 });
 
 describe("useInboxSummary", () => {
-  it("counts possible issues to review and other pending decisions", async () => {
+  it("counts possible issues to review and other decisions of running and waiting checks", async () => {
     const many = Array.from(
       { length: CROSS_PROJECT_LIMITS.findingsPerAudit + 1 },
-      (_, index) => finding("audit_done", `finding_done_${index}`),
+      (_, index) => finding("audit_waiting", `finding_waiting_${index}`),
     );
     const server = setup({
       projects: [project("project_a"), project("project_b")],
@@ -993,8 +1277,12 @@ describe("useInboxSummary", () => {
         project_a: [
           audit("project_a", "audit_active", "active"),
           audit("project_a", "audit_waiting", "waiting_review"),
+          audit("project_a", "audit_paused", "paused"),
         ],
-        project_b: [audit("project_b", "audit_done", "completed")],
+        project_b: [
+          audit("project_b", "audit_done", "completed"),
+          audit("project_b", "audit_finishing", "finalizing"),
+        ],
       },
       findings: {
         audit_active: [
@@ -1003,11 +1291,14 @@ describe("useInboxSummary", () => {
             state: "confirmed",
             verdict: "true_positive",
           }),
-          finding("audit_active", "finding_waiting", {
+          finding("audit_active", "finding_evidence", {
             state: "needs-evidence",
           }),
         ],
-        audit_done: many,
+        audit_waiting: many,
+        audit_paused: [finding("audit_paused", "finding_paused")],
+        audit_done: [finding("audit_done", "finding_done")],
+        audit_finishing: [finding("audit_finishing", "finding_finishing")],
       },
       reviews: {
         audit_active: [
@@ -1017,6 +1308,12 @@ describe("useInboxSummary", () => {
         audit_waiting: [
           review("audit_waiting", "review_report", "report-acceptance"),
           review("audit_waiting", "review_scope", "requirement-applicability"),
+        ],
+        audit_paused: [
+          review("audit_paused", "review_paused", "active-check-approval"),
+        ],
+        audit_finishing: [
+          review("audit_finishing", "review_finishing", "report-acceptance"),
         ],
       },
     });
@@ -1033,11 +1330,53 @@ describe("useInboxSummary", () => {
       partial: false,
       truncated: false,
     });
+    const inboxChecks = ["/v1/audits/audit_active", "/v1/audits/audit_waiting"];
+    expect(
+      server
+        .requested(/\/findings$/)
+        .map((url) => url.pathname)
+        .sort(),
+    ).toEqual(inboxChecks.map((path) => `${path}/findings`));
     expect(
       server
         .requested(/\/findings$/)
         .every((url) => url.searchParams.get("state") === "proposed"),
     ).toBe(true);
+    expect(
+      server
+        .requested(/\/reviews$/)
+        .map((url) => url.pathname)
+        .sort(),
+    ).toEqual(inboxChecks.map((path) => `${path}/reviews`));
+  });
+
+  it("does not read possible issues of finished checks", async () => {
+    const server = setup({
+      projects: [project("project_a")],
+      audits: {
+        project_a: [
+          audit("project_a", "audit_done", "completed"),
+          audit("project_a", "audit_failed", "failed"),
+          audit("project_a", "audit_stopped", "cancelled"),
+        ],
+      },
+      findings: {
+        audit_done: [finding("audit_done", "finding_untriaged")],
+        audit_failed: [finding("audit_failed", "finding_failed")],
+      },
+    });
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() => expect(result.current.needsDecision).toBeDefined());
+
+    expect(result.current).toMatchObject({
+      needsDecision: 0,
+      possibleIssues: 0,
+      otherDecisions: 0,
+    });
+    expect(server.requested(/\/findings$/)).toEqual([]);
+    expect(server.requested(/\/reviews$/)).toEqual([]);
   });
 
   it("stays unknown when the project index fails", async () => {
@@ -1065,8 +1404,8 @@ describe("invalidateCrossProject", () => {
       projects: [project("project_a")],
       audits: {
         project_a: [
-          audit("project_a", "audit_one", "completed", { revision: 5 }),
-          audit("project_a", "audit_two", "completed", { revision: 7 }),
+          audit("project_a", "audit_one", "active", { revision: 5 }),
+          audit("project_a", "audit_two", "waiting_review", { revision: 7 }),
         ],
       },
       findings: {
@@ -1075,13 +1414,13 @@ describe("invalidateCrossProject", () => {
       },
     };
     const server = setup(current);
-    const { result } = renderHook(
-      () => ({
-        issues: useAllPossibleIssues({ states: ["proposed"] }),
-        summary: useInboxSummary(),
-      }),
-      { wrapper: server.wrapper },
-    );
+    const useLists = () => ({
+      issues: useAllPossibleIssues({ states: ["proposed"] }),
+      summary: useInboxSummary(),
+    });
+    const { result, unmount } = renderHook(useLists, {
+      wrapper: server.wrapper,
+    });
     await waitFor(() => expect(result.current.summary.needsDecision).toBe(2));
 
     // The user confirms finding_one: the Server advances audit_one.
@@ -1091,14 +1430,9 @@ describe("invalidateCrossProject", () => {
         verdict: "true_positive",
       }),
     ];
-    current.audits.project_a![0] = audit(
-      "project_a",
-      "audit_one",
-      "completed",
-      {
-        revision: 6,
-      },
-    );
+    current.audits.project_a![0] = audit("project_a", "audit_one", "active", {
+      revision: 6,
+    });
     await act(() => invalidateCrossProject(server.queryClient));
 
     await waitFor(() => expect(result.current.summary.needsDecision).toBe(1));
@@ -1109,13 +1443,32 @@ describe("invalidateCrossProject", () => {
     expect(server.requested(/project_a\/audits$/)).toHaveLength(2);
     expect(server.requested(/audit_one\/findings$/)).toHaveLength(2);
     expect(server.requested(/audit_two\/findings$/)).toHaveLength(1);
-    // The unchanged check's read is stale for its next observer.
+    // The unchanged check's read keeps its data and is not invalidated...
     const unchanged = server.queryClient.getQueryCache().find({
       queryKey: [
-        ...queryKeys.crossProject.findingsOf("audit_two", "proposed", null),
+        ...queryKeys.crossProject.findingsOf(
+          "audit_two",
+          "proposed",
+          null,
+          null,
+        ),
         7,
       ],
     });
-    expect(unchanged?.state.isInvalidated).toBe(true);
+    expect(unchanged?.state.isInvalidated).toBe(false);
+
+    // ...so lists mounted again (fresh heads, pinned check reads) read
+    // nothing.
+    const reads = server.requests.length;
+    unmount();
+    const again = renderHook(useLists, { wrapper: server.wrapper });
+    await waitFor(() =>
+      expect(again.result.current.summary.needsDecision).toBe(1),
+    );
+    expect(again.result.current.issues.isPending).toBe(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(server.requests).toHaveLength(reads);
   });
 });

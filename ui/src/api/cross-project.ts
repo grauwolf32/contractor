@@ -8,27 +8,33 @@
  *   being deleted;
  * - the first (newest) page of checks of each project;
  * - per check, the first page of its possible issues or pending review
- *   requests, or its report.
+ *   requests, or its report. The Server lists possible issues and review
+ *   requests oldest first, so a check with more than one page contributes
+ *   its oldest records and leaves out its newest; `truncatedAuditIds` names
+ *   those checks.
  *
  * Freshness. The project index and the check pages are the polled heads:
  * they refetch every CROSS_PROJECT_LIMITS.pollMs while the page is visible.
  * A per-check read is keyed by the check's revision, which the Server
  * advances on every finding, assessment, review and lifecycle change
  * (S19 §14.1), so a head that reports a new revision refetches exactly the
- * checks that changed and per-check reads never poll. While the new revision
- * loads, the previous one stays listed. A failed per-check read retries on
- * the poll interval.
+ * checks that changed. A per-check read that has data is pinned to its
+ * revision: polling, invalidation, a refresh or a remount never refetch it.
+ * While the new revision loads, the previous one stays listed. A failed
+ * per-check read retries on the poll interval and on a refresh.
  *
- * Failures never throw. A failed project or check is listed in `errors` and
- * sets `partial`; everything else stays listed. `error` is set only when the
- * project index failed and nothing can be listed. `truncated` says that a
- * bounded read had more records than it returned.
+ * Failures never throw. A failed read (the project index, one project's
+ * checks or one check's read) is listed in `errors` and sets `partial`;
+ * everything else stays listed. `error` is set only when the project index
+ * failed and nothing can be listed. `truncated` says that a bounded read had
+ * more records than it returned.
  *
  * Results keep their references while their data is unchanged (TanStack
  * `combine` with structural sharing), so they can feed memo and effect
  * dependencies without render loops.
  */
 import {
+  hashKey,
   type Query,
   type QueryClient,
   type QueryKey,
@@ -43,6 +49,7 @@ import {
   type Audit,
   type AuditFinding,
   type AuditFindingPage,
+  type AuditFindingSeverity,
   type AuditFindingState,
   type AuditPage,
   type AuditReport,
@@ -61,12 +68,21 @@ import type { components, operations } from "./generated/public";
 import { listProjects, type Project, type ProjectPage } from "./projects";
 import { queryKeys } from "./query-keys";
 
+/**
+ * Bounds of the fan-out. Per-check pages hold the oldest records: the Server
+ * lists possible issues and review requests oldest first, so when a check
+ * has more than one page, its newest records are the ones left out
+ * (`truncatedAuditIds` names those checks).
+ */
 export const CROSS_PROJECT_LIMITS = {
   /** Projects read: the first page of `kind=project` projects. */
   projects: 50,
   /** Checks read per project: its first, newest page. */
   auditsPerProject: 50,
-  /** Possible issues read per check and filter: its first page. */
+  /**
+   * Possible issues read per check and filter, and pending review requests
+   * read per check: the first, oldest page.
+   */
   findingsPerAudit: 50,
   /** Poll interval of the project index and check pages while visible. */
   pollMs: 20_000,
@@ -101,13 +117,20 @@ export interface CrossProjectReport extends CrossProjectCheck {
   report: AuditReport;
 }
 
-/** A project or check whose read failed. */
-export interface CrossProjectError {
-  projectId: string;
-  /** Set when one check's read failed rather than its project's checks. */
-  auditId?: string;
-  error: Error;
-}
+/**
+ * A read that failed, by `scope`: a refresh of the project index (its last
+ * page stays listed), one project's checks, or one read about one check.
+ * `projectId` and `auditId` are set where the scope has them.
+ */
+export type CrossProjectError =
+  | {
+      scope: "index";
+      projectId?: undefined;
+      auditId?: undefined;
+      error: Error;
+    }
+  | { scope: "project"; projectId: string; auditId?: undefined; error: Error }
+  | { scope: "check"; projectId: string; auditId: string; error: Error };
 
 /** Completeness and loading state shared by every cross-project list. */
 export interface CrossProjectStatus {
@@ -115,13 +138,17 @@ export interface CrossProjectStatus {
   truncated: boolean;
   /** Some read failed; everything else is still listed. */
   partial: boolean;
-  /** The failed projects and checks behind `partial`. */
+  /** The failed reads behind `partial`. */
   errors: CrossProjectError[];
   /** The project index failed, so nothing can be listed. */
   error: Error | null;
   /** Some read has not settled yet; what has settled is already listed. */
   isPending: boolean;
-  /** Refetches every cross-project read now. */
+  /**
+   * Refetches the project index and check pages now, and every per-check
+   * read that failed. Per-check reads with data are pinned to their check's
+   * revision and are not refetched.
+   */
   refetch: () => Promise<void>;
 }
 
@@ -162,6 +189,18 @@ const ISSUE_CHECK_STATES = statesWith("issues");
 const DECISION_CHECK_STATES = statesWith("decisions");
 // Finishing and ended checks can have a report.
 const REPORT_CHECK_STATES = statesWith("report");
+
+/**
+ * The checks the Inbox reads: running ones and those waiting for the user
+ * (docs/design/ui/v3b-implementation.md, "API gaps"). useInboxSummary counts
+ * only these. The Inbox page passes them as `checkStates` so its lists match
+ * the badge and share its reads; possible issues of other checks stay on the
+ * Issues page and the check's own page.
+ */
+export const INBOX_CHECK_STATES: readonly AuditState[] = [
+  "active",
+  "waiting_review",
+];
 
 /** Review kinds that need the user beyond triaging a possible issue. */
 const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {
@@ -242,54 +281,58 @@ function newerDecision(
   );
 }
 
+/**
+ * The check revision a per-check read's key ends with; undefined for the
+ * polled heads (project index, check pages), whose keys end otherwise.
+ */
+function checkRevisionOf(key: QueryKey): number | undefined {
+  const last = key.at(-1);
+  return typeof last === "number" ? last : undefined;
+}
+
 function useCrossProjectRefetch(): () => Promise<void> {
   const queryClient = useQueryClient();
   return useCallback(async () => {
     await queryClient.refetchQueries({
       queryKey: queryKeys.crossProject.all,
       type: "active",
+      // The heads, and per-check reads that failed: one with data is pinned
+      // to its revision, and a loading one is already on its way.
+      predicate: (query) =>
+        checkRevisionOf(query.queryKey) === undefined ||
+        query.state.status === "error",
     });
   }, [queryClient]);
 }
 
 /**
  * Refreshes the cross-project lists after a decision or any other mutation.
- * Every cross-project read is marked stale and the polled heads (project
- * index, check pages) refetch at once. Per-check reads follow from there: the
+ * The polled heads (project index, check pages) are invalidated and the
+ * mounted ones refetch at once. Per-check reads follow from there: the
  * mutation advanced the changed check's revision, so its reads move to a new
- * key, while unchanged checks keep their data until their next observer
- * mounts.
+ * key, while the reads of unchanged checks keep their data.
  */
 export async function invalidateCrossProject(
   queryClient: QueryClient,
 ): Promise<void> {
-  await queryClient.invalidateQueries({
-    queryKey: queryKeys.crossProject.all,
-    refetchType: "none",
-  });
   await Promise.all([
-    queryClient.refetchQueries({
+    queryClient.invalidateQueries({
       queryKey: queryKeys.crossProject.projects,
-      type: "active",
     }),
-    queryClient.refetchQueries({
+    queryClient.invalidateQueries({
       queryKey: queryKeys.crossProject.allAudits,
-      type: "active",
     }),
   ]);
 }
 
-export interface ProjectsIndex {
+/**
+ * The project index. `partial`: the latest refresh failed and the last page
+ * read is still listed; `errors` then holds that failure (scope "index").
+ * `error`: the index failed and there is no earlier page to list.
+ */
+export interface ProjectsIndex extends CrossProjectStatus {
   /** Projects of the first page, newest first, without those in deletion. */
   projects: Project[];
-  /** More projects exist beyond the first page. */
-  truncated: boolean;
-  /** The latest refresh failed; the last page read is still listed. */
-  partial: boolean;
-  /** The index failed and there is no earlier page to list. */
-  error: Error | null;
-  isPending: boolean;
-  refetch: () => Promise<void>;
 }
 
 interface ProjectSelection {
@@ -311,6 +354,7 @@ function selectProjects(page: ProjectPage): ProjectSelection {
 }
 
 const NO_PROJECTS: Project[] = [];
+const NO_ERRORS: CrossProjectError[] = [];
 
 /** The first page of projects (kind `project`), polled while visible. */
 export function useProjectsIndex(
@@ -325,17 +369,18 @@ export function useProjectsIndex(
     enabled: options.enabled ?? true,
     ...POLLED,
   });
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const failedRefresh = data !== undefined && error !== null;
+    return {
       projects: data?.projects ?? NO_PROJECTS,
       truncated: data?.truncated ?? false,
-      partial: data !== undefined && error !== null,
+      partial: failedRefresh,
+      errors: failedRefresh ? [{ scope: "index", error }] : NO_ERRORS,
       error: data === undefined ? error : null,
       isPending,
       refetch,
-    }),
-    [data, error, isPending, refetch],
-  );
+    };
+  }, [data, error, isPending, refetch]);
 }
 
 export interface AllChecksOptions {
@@ -379,7 +424,11 @@ function combineChecks(
     if (project === undefined) return;
     if (result.isPending) pending = true;
     if (result.isError)
-      errors.push({ projectId: project.projectId, error: result.error });
+      errors.push({
+        scope: "project",
+        projectId: project.projectId,
+        error: result.error,
+      });
     const page = result.data;
     if (page === undefined) return;
     if (page.page.hasMore || page.items.length > limit) truncated = true;
@@ -431,12 +480,45 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
       checks: combined.checks,
       truncated: index.truncated || combined.truncated,
       partial: index.partial || combined.errors.length > 0,
-      errors: combined.errors,
+      errors:
+        index.errors.length === 0
+          ? combined.errors
+          : [...index.errors, ...combined.errors],
       error: index.error,
       isPending: index.isPending || combined.pending,
       refetch: index.refetch,
     }),
     [combined, index],
+  );
+}
+
+const NO_CHECKS: CrossProjectCheck[] = [];
+
+/**
+ * Listed checks in the `wanted` states that can have a per-check read
+ * (`applicable`); every applicable state when `wanted` is omitted or empty.
+ * When no wanted state is applicable, no check is listed; the shared check
+ * pages are still read, so the status matches every other list.
+ */
+function useScopedChecks(
+  wanted: readonly AuditState[] | undefined,
+  applicable: readonly AuditState[],
+  enabled: boolean,
+): AllChecks {
+  const wantedKey = filterKey(wanted);
+  const scope = useMemo(() => {
+    const states = filterValues<AuditState>(wantedKey);
+    return states.length === 0
+      ? applicable
+      : applicable.filter((state) => states.includes(state));
+  }, [applicable, wantedKey]);
+  const checks = useAllChecks({
+    states: scope.length === 0 ? applicable : scope,
+    enabled,
+  });
+  return useMemo(
+    () => (scope.length === 0 ? { ...checks, checks: NO_CHECKS } : checks),
+    [checks, scope],
   );
 }
 
@@ -459,28 +541,30 @@ interface CheckReads<R> {
   pending: boolean;
 }
 
-/** Data of the newest cached revision of a per-check read. */
-function latestRevision<T>(
-  queryClient: QueryClient,
-  prefix: QueryKey,
-): T | undefined {
-  let latest: T | undefined;
-  let latestRevisionSeen = 0;
-  for (const [key, data] of queryClient.getQueriesData<T>({
-    queryKey: prefix,
-  })) {
-    const revision = key[prefix.length];
-    if (
-      data !== undefined &&
-      key.length === prefix.length + 1 &&
-      typeof revision === "number" &&
-      revision > latestRevisionSeen
-    ) {
-      latest = data;
-      latestRevisionSeen = revision;
-    }
+interface CachedRevision {
+  revision: number;
+  data: unknown;
+}
+
+/**
+ * The newest cached revision that has data, of every per-check read, by the
+ * hash of its key prefix (the key without the revision). One pass over the
+ * cache.
+ */
+function cachedRevisions(queryClient: QueryClient) {
+  const newest = new Map<string, CachedRevision>();
+  for (const query of queryClient
+    .getQueryCache()
+    .findAll({ queryKey: queryKeys.crossProject.all })) {
+    const revision = checkRevisionOf(query.queryKey);
+    const data: unknown = query.state.data;
+    if (revision === undefined || data === undefined) continue;
+    const prefix = hashKey(query.queryKey.slice(0, -1));
+    const known = newest.get(prefix);
+    if (known === undefined || revision > known.revision)
+      newest.set(prefix, { revision, data });
   }
-  return latest;
+  return newest;
 }
 
 function useCheckReads<T, R>(
@@ -489,24 +573,33 @@ function useCheckReads<T, R>(
   merge: (settled: SettledRead<T>[]) => R,
 ): CheckReads<R> {
   const queryClient = useQueryClient();
-  const queries = useMemo(
-    () =>
-      reads.map((read) => ({
+  const queries = useMemo(() => {
+    // Looked up once per change of the reads, not on every render: the
+    // previous revision of a check stays listed while its new one loads.
+    const previous =
+      reads.length === 0 ? undefined : cachedRevisions(queryClient);
+    return reads.map((read) => {
+      const placeholder = previous?.get(hashKey(read.key));
+      return {
         queryKey: [...read.key, read.check.audit.revision],
         queryFn: read.load,
         enabled,
-        // A revision of a check never changes; a change advances the key.
-        staleTime: Number.POSITIVE_INFINITY,
+        // A revision of a check never changes, so a read that has data is
+        // never refetched: not on mount, invalidation or refresh. A read
+        // without data (failed, or not loaded yet) can still be fetched.
+        staleTime: (query: Query<T, Error, T, QueryKey>) =>
+          query.state.data === undefined ? 0 : ("static" as const),
         refetchInterval: (query: Query<T, Error, T, QueryKey>) =>
           query.state.status === "error" ? CROSS_PROJECT_LIMITS.pollMs : false,
         refetchIntervalInBackground: false,
         refetchOnWindowFocus: false,
         retry: false,
-        // The previous revision stays listed while the new one loads.
-        placeholderData: () => latestRevision<T>(queryClient, read.key),
-      })),
-    [enabled, queryClient, reads],
-  );
+        ...(placeholder === undefined
+          ? {}
+          : { placeholderData: placeholder.data as T }),
+      };
+    });
+  }, [enabled, queryClient, reads]);
   const combine = useCallback(
     (results: UseQueryResult<T>[]): CheckReads<R> => {
       const settled: SettledRead<T>[] = [];
@@ -518,6 +611,7 @@ function useCheckReads<T, R>(
         if (result.isPending) pending = true;
         if (result.isError)
           errors.push({
+            scope: "check",
             projectId: read.check.project.projectId,
             auditId: read.check.audit.auditId,
             error: result.error,
@@ -552,9 +646,15 @@ function statusOf(
 
 export interface PossibleIssuesOptions {
   /**
+   * Only checks in these states; omit (or pass none) for every check that
+   * can hold possible issues (every state but draft and deleting). The Inbox
+   * passes INBOX_CHECK_STATES. Filtered like AllChecksOptions.states.
+   */
+  checkStates?: readonly AuditState[];
+  /**
    * Only possible issues in these states; omit (or pass none) for every
    * state. Filtered by the Server: one read per check and state (and
-   * verdict), so each state gets its own first page.
+   * verdict and severity), so each state gets its own first page.
    */
   states?: readonly AuditFindingState[];
   /**
@@ -562,13 +662,29 @@ export interface PossibleIssuesOptions {
    * effective decision); filtered by the Server like `states`.
    */
   verdicts?: readonly FindingVerdictFilter[];
+  /**
+   * Only possible issues the analyst rated with these severities (the
+   * Worker's suggestion is never a rating); filtered by the Server like
+   * `states`. An unreviewed possible issue has no analyst severity, so with
+   * this filter the verdict "unreviewed" matches nothing and is not read.
+   */
+  severities?: readonly AuditFindingSeverity[];
   /** False keeps every read idle (and `isPending` true). */
   enabled?: boolean;
 }
 
 export interface AllPossibleIssues extends CrossProjectStatus {
-  /** Possible issues newest first. */
+  /**
+   * Possible issues newest first. Each check contributes the first page of
+   * each filter, and the Server lists those oldest first: for a check in
+   * `truncatedAuditIds`, its newest matches are the ones missing.
+   */
   issues: CrossProjectIssue[];
+  /**
+   * Checks with more matching possible issues than listed, newest check
+   * first. Link to the check's own list for the rest.
+   */
+  truncatedAuditIds: string[];
   /**
    * The Server's count of matching possible issues in the listed checks,
    * including those beyond each check's first page; undefined until every
@@ -579,7 +695,7 @@ export interface AllPossibleIssues extends CrossProjectStatus {
 
 interface MergedIssues {
   issues: CrossProjectIssue[];
-  truncated: boolean;
+  truncatedAuditIds: string[];
   total: number;
 }
 
@@ -587,10 +703,11 @@ function mergeIssues(settled: SettledRead<AuditFindingPage>[]): MergedIssues {
   const limit = CROSS_PROJECT_LIMITS.findingsPerAudit;
   const issues: CrossProjectIssue[] = [];
   const seen = new Set<string>();
-  let truncated = false;
+  const truncated = new Set<string>();
   let total = 0;
   for (const { check, data } of settled) {
-    if (data.page.hasMore || data.items.length > limit) truncated = true;
+    if (data.page.hasMore || data.items.length > limit)
+      truncated.add(check.audit.auditId);
     total +=
       Number.isSafeInteger(data.total) && data.total >= data.items.length
         ? data.total
@@ -603,39 +720,75 @@ function mergeIssues(settled: SettledRead<AuditFindingPage>[]): MergedIssues {
     }
   }
   issues.sort(newerIssue);
-  return { issues, truncated, total };
+  return { issues, truncatedAuditIds: [...truncated], total };
+}
+
+interface FindingFilter {
+  state: AuditFindingState | undefined;
+  verdict: FindingVerdictFilter | undefined;
+  severity: AuditFindingSeverity | undefined;
+}
+
+/**
+ * One filter per read: the Server takes one state, verdict and severity per
+ * request, and rejects a severity with the verdict "unreviewed" (an
+ * unreviewed possible issue has no analyst severity, so the pair matches
+ * nothing and is left out).
+ */
+function findingFilters(
+  stateKey: string,
+  verdictKey: string,
+  severityKey: string,
+): FindingFilter[] {
+  const states = orUnfiltered(filterValues<AuditFindingState>(stateKey));
+  const verdicts = orUnfiltered(filterValues<FindingVerdictFilter>(verdictKey));
+  const severities = orUnfiltered(
+    filterValues<AuditFindingSeverity>(severityKey),
+  );
+  return states.flatMap((state) =>
+    verdicts.flatMap((verdict) =>
+      severities
+        .filter(
+          (severity) => severity === undefined || verdict !== "unreviewed",
+        )
+        .map((severity) => ({ state, verdict, severity })),
+    ),
+  );
 }
 
 function usePossibleIssueReads(options: PossibleIssuesOptions) {
   const enabled = options.enabled ?? true;
   const stateKey = filterKey(options.states);
   const verdictKey = filterKey(options.verdicts);
+  const severityKey = filterKey(options.severities);
   const api = usePublicAPI();
-  const checks = useAllChecks({ states: ISSUE_CHECK_STATES, enabled });
+  const checks = useScopedChecks(
+    options.checkStates,
+    ISSUE_CHECK_STATES,
+    enabled,
+  );
   const reads = useMemo(() => {
-    const states = orUnfiltered(filterValues<AuditFindingState>(stateKey));
-    const verdicts = orUnfiltered(
-      filterValues<FindingVerdictFilter>(verdictKey),
-    );
-    // The Server takes one state and one verdict per read.
+    const filters = findingFilters(stateKey, verdictKey, severityKey);
     return checks.checks.flatMap((check) =>
-      states.flatMap((state) =>
-        verdicts.map((verdict): CheckRead<AuditFindingPage> => ({
+      filters.map(
+        ({ state, verdict, severity }): CheckRead<AuditFindingPage> => ({
           check,
           key: queryKeys.crossProject.findingsOf(
             check.audit.auditId,
             state ?? null,
             verdict ?? null,
+            severity ?? null,
           ),
           load: () =>
             listAuditFindings(api, check.audit.auditId, {
               ...(state === undefined ? {} : { state }),
               ...(verdict === undefined ? {} : { verdict }),
+              ...(severity === undefined ? {} : { severity }),
             }),
-        })),
+        }),
       ),
     );
-  }, [api, checks.checks, stateKey, verdictKey]);
+  }, [api, checks.checks, severityKey, stateKey, verdictKey]);
   const findings = useCheckReads(reads, enabled, mergeIssues);
   return { checks, findings };
 }
@@ -646,19 +799,24 @@ export function useAllPossibleIssues(
 ): AllPossibleIssues {
   const { checks, findings } = usePossibleIssueReads(options);
   return useMemo(() => {
-    const status = statusOf(checks, findings, findings.merged.truncated);
+    const { issues, truncatedAuditIds, total } = findings.merged;
+    const status = statusOf(checks, findings, truncatedAuditIds.length > 0);
     return {
       ...status,
-      issues: findings.merged.issues,
-      total:
-        status.isPending || status.error !== null
-          ? undefined
-          : findings.merged.total,
+      issues,
+      truncatedAuditIds,
+      total: status.isPending || status.error !== null ? undefined : total,
     };
   }, [checks, findings]);
 }
 
 export interface PendingDecisionsOptions {
+  /**
+   * Only checks in these states; omit (or pass none) for every check that
+   * can ask for a decision (running, waiting, paused or finishing). The
+   * Inbox passes INBOX_CHECK_STATES. Filtered like AllChecksOptions.states.
+   */
+  checkStates?: readonly AuditState[];
   /**
    * Only these kinds of review request; omit (or pass none) for every kind.
    * Filtered on the client, so every kind shares one read per check.
@@ -669,24 +827,36 @@ export interface PendingDecisionsOptions {
 }
 
 export interface PendingDecisions extends CrossProjectStatus {
-  /** Pending review requests of every kind, newest first. */
+  /**
+   * Pending review requests of every kind, newest first. Each check
+   * contributes its first page of pending requests, which the Server lists
+   * oldest first: for a check in `truncatedAuditIds`, its newest requests
+   * are the ones missing.
+   */
   decisions: CrossProjectDecision[];
+  /**
+   * Checks with more pending requests than listed, newest check first. Link
+   * to the check's own list for the rest.
+   */
+  truncatedAuditIds: string[];
 }
 
 interface MergedDecisions {
   decisions: CrossProjectDecision[];
-  truncated: boolean;
+  truncatedAuditIds: string[];
 }
 
 function decisionMerger(kindKey: string) {
   const kinds = kindKey === "" ? undefined : new Set(kindKey.split(","));
+  const limit = CROSS_PROJECT_LIMITS.findingsPerAudit;
   return (settled: SettledRead<AuditReviewPage>[]): MergedDecisions => {
     const decisions: CrossProjectDecision[] = [];
     const seen = new Set<string>();
-    let truncated = false;
+    const truncated = new Set<string>();
     for (const { check, data } of settled) {
-      if (data.page.hasMore) truncated = true;
-      for (const review of data.items) {
+      if (data.page.hasMore || data.items.length > limit)
+        truncated.add(check.audit.auditId);
+      for (const review of data.items.slice(0, limit)) {
         const id = `${review.auditId}/${review.requestId}`;
         if (
           review.auditId !== check.audit.auditId ||
@@ -700,7 +870,7 @@ function decisionMerger(kindKey: string) {
       }
     }
     decisions.sort(newerDecision);
-    return { decisions, truncated };
+    return { decisions, truncatedAuditIds: [...truncated] };
   };
 }
 
@@ -711,7 +881,11 @@ export function usePendingDecisions(
   const enabled = options.enabled ?? true;
   const kindKey = filterKey(options.kinds);
   const api = usePublicAPI();
-  const checks = useAllChecks({ states: DECISION_CHECK_STATES, enabled });
+  const checks = useScopedChecks(
+    options.checkStates,
+    DECISION_CHECK_STATES,
+    enabled,
+  );
   const reads = useMemo(
     () =>
       checks.checks.map((check): CheckRead<AuditReviewPage> => ({
@@ -724,13 +898,14 @@ export function usePendingDecisions(
   );
   const merge = useMemo(() => decisionMerger(kindKey), [kindKey]);
   const reviews = useCheckReads(reads, enabled, merge);
-  return useMemo(
-    () => ({
-      ...statusOf(checks, reviews, reviews.merged.truncated),
-      decisions: reviews.merged.decisions,
-    }),
-    [checks, reviews],
-  );
+  return useMemo(() => {
+    const { decisions, truncatedAuditIds } = reviews.merged;
+    return {
+      ...statusOf(checks, reviews, truncatedAuditIds.length > 0),
+      decisions,
+      truncatedAuditIds,
+    };
+  }, [checks, reviews]);
 }
 
 export interface AllReportsOptions {
@@ -810,13 +985,14 @@ export interface InboxSummary {
   needsDecision: number | undefined;
   /**
    * Possible issues in state `proposed` (never decided, reopened, or assessed
-   * again since the last decision), counted by the Server per check.
+   * again since the last decision) of Inbox checks (INBOX_CHECK_STATES),
+   * counted by the Server per check.
    */
   possibleIssues: number | undefined;
   /**
    * Pending active test approvals, requirement applicability and report
-   * acceptance requests. Pending finding-triage requests are not counted
-   * again: their possible issue is.
+   * acceptance requests of Inbox checks. Pending finding-triage requests are
+   * not counted again: their possible issue is.
    */
   otherDecisions: number | undefined;
   /** Some read failed: the counts are lower bounds. */
@@ -825,10 +1001,19 @@ export interface InboxSummary {
   truncated: boolean;
 }
 
-/** Counts for the Inbox badge and header. */
+/**
+ * Counts for the Inbox badge and header. Like the Inbox, they cover only
+ * running checks and checks waiting for the user (INBOX_CHECK_STATES).
+ */
 export function useInboxSummary(): InboxSummary {
-  const { checks, findings } = usePossibleIssueReads({ states: NEEDS_REVIEW });
-  const decisions = usePendingDecisions({ kinds: OTHER_DECISION_KINDS });
+  const { checks, findings } = usePossibleIssueReads({
+    checkStates: INBOX_CHECK_STATES,
+    states: NEEDS_REVIEW,
+  });
+  const decisions = usePendingDecisions({
+    checkStates: INBOX_CHECK_STATES,
+    kinds: OTHER_DECISION_KINDS,
+  });
   return useMemo(() => {
     const possibleIssues =
       checks.isPending || findings.pending || checks.error !== null

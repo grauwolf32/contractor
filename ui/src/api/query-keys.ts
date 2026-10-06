@@ -459,7 +459,9 @@ export const queryKeys = {
       auditId: string,
       state: string | null,
       verdict: string | null,
-    ) => ["cross-project", "findings", auditId, state, verdict] as const,
+      severity: string | null,
+    ) =>
+      ["cross-project", "findings", auditId, state, verdict, severity] as const,
     pendingReviewsOf: (auditId: string) =>
       ["cross-project", "pending-reviews", auditId] as const,
     reportOf: (auditId: string) =>
