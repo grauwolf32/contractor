@@ -467,6 +467,22 @@ export const queryKeys = {
     reportOf: (auditId: string) =>
       ["cross-project", "report", auditId] as const,
   },
+  /**
+   * Reads of the Issues destination (src/routes/issues). They sit under the
+   * check's detail key, so a decision's refresh, which invalidates
+   * `audits.detail(auditId)`, refetches them too.
+   */
+  issues: {
+    /** One possible issue, read exactly (shared with FindingSummary). */
+    finding: (auditId: string, findingId: string) =>
+      ["audits", "detail", auditId, "findings", findingId, "exact"] as const,
+    /** Every review request of one possible issue, for its history. */
+    history: (auditId: string, findingId: string) =>
+      ["audits", "detail", auditId, "reviews", findingId, "history"] as const,
+    /** One review request named by a deep link (`?review=`). */
+    review: (auditId: string, requestId: string) =>
+      ["audits", "detail", auditId, "reviews", requestId] as const,
+  },
 };
 
 /** Artifact binding keys of one scope; each maps to its scope's family. */

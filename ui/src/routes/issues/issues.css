@@ -1,0 +1,962 @@
+/*
+ * Issues (src/routes/issues and the possible-issue parts of the check and
+ * project pages). Every class starts with issues-; colours come only from
+ * theme.css tokens. Sizes follow docs/design/ui/mockups/v3b/issue.html.
+ *
+ * Global element rules (button, code, the check page's .route-page h2)
+ * would otherwise win, so rules that restyle those elements carry two
+ * classes or reset what they inherit.
+ */
+
+/* ---------- Shared text ---------- */
+
+.issues-quiet {
+  color: var(--muted);
+  font-size: 0.78125rem;
+  line-height: 1.45;
+}
+
+p.issues-quiet {
+  margin: 0;
+}
+
+.issues-mono {
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.issues-heading {
+  margin: 0 0 0.375rem;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+.issues-field-label {
+  color: var(--text);
+  font-size: 0.78125rem;
+  font-weight: 700;
+}
+
+/* ---------- Filter controls ---------- */
+
+.issues-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.issues-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+}
+
+.issues-select-field,
+.issues-search-field {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.issues-search-field {
+  flex: 1 1 14rem;
+}
+
+.issues-select,
+.issues-search {
+  min-width: 0;
+  max-width: 100%;
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78125rem;
+  font-weight: 700;
+}
+
+.issues-search {
+  flex: 1 1 10rem;
+  font-weight: 500;
+}
+
+.issues-search::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.issues-select:focus-visible,
+.issues-search:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* ---------- Notices ---------- */
+
+.issues-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.issues-notice[data-tone="warning"] {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+.issues-notice[data-tone="error"] {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.issues-notice > p,
+.issues-notice > ul {
+  margin: 0;
+}
+
+.issues-notice > ul {
+  padding-left: 1.125rem;
+}
+
+.issues-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/* Inside a pane's list body the notices line up with the rows. */
+.ui-list-pane-body > .issues-notice {
+  margin: 0.75rem var(--ui-pad-end) 0 var(--ui-pad-start);
+}
+
+/* ---------- List rows ---------- */
+
+.issues-row-meta {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+}
+
+.issues-row-endpoint {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+  margin-top: 0.0625rem;
+  color: var(--text);
+}
+
+.issues-row-path {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.issues-row-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.375rem;
+  min-width: 0;
+}
+
+.issues-row-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.issues-row-context {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.issues-row-state {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.issues-row-suggestion {
+  font-style: normal;
+}
+
+/* ---------- List pane extras ---------- */
+
+/* Live region for decisions that move on; takes no room while empty. */
+.issues-announcement {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.issues-announcement:not(:empty) {
+  padding: 0.75rem var(--ui-pad-end, 1.75rem) 0.75rem
+    var(--ui-pad-start, 1.75rem);
+  border-bottom: 1px solid var(--line);
+  background: var(--sunken);
+}
+
+.ui-panes-detail > .issues-announcement:not(:empty) {
+  padding-inline: 1.75rem;
+}
+
+.issues-list-status {
+  margin: 0;
+  padding: 0.875rem var(--ui-pad-end) 0 var(--ui-pad-start);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.issues-list-nav:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.issues-list-nav > .ui-empty {
+  padding-inline: var(--ui-pad-start) var(--ui-pad-end);
+}
+
+.issues-end-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin: 1.125rem var(--ui-pad-end) 0 var(--ui-pad-start);
+  color: var(--muted);
+  font-size: 0.78125rem;
+  line-height: 1.5;
+}
+
+.issues-end-note > .ui-glyph {
+  margin-top: 0.0625rem;
+}
+
+.ui-list-pane-body > .issues-notice[role="note"] {
+  margin-top: 1rem;
+}
+
+.issues-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Touch-only devices have no keys to hint at (as in DecisionBar). */
+@media (hover: none) and (pointer: coarse) {
+  .ui-list-pane-footer:has(> .issues-keys) {
+    display: none;
+  }
+}
+
+.issues-detail-empty {
+  padding: 1.75rem;
+}
+
+@media (max-width: 820px) {
+  .issues-detail-empty,
+  .ui-panes-detail > .issues-announcement:not(:empty) {
+    padding-inline: 1rem;
+  }
+}
+
+/* ---------- Detail header bar ---------- */
+
+.issues-detail-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-height: 3.5rem;
+  padding: 0.625rem var(--ui-pad-end, 1.75rem) 0.625rem
+    var(--ui-pad-start, 1.75rem);
+  border-bottom: 1px solid var(--line);
+}
+
+/* A programmatic focus target after moving on; its content says where. */
+.issues-detail-bar:focus {
+  outline: none;
+}
+
+.issues-detail-bar:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.issues-detail-position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.issues-detail-position > strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.issues-detail-context {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.issues-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.issues-detail-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.ui-btn.issues-step {
+  width: 2rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.ui-btn.issues-step:not(:disabled):hover {
+  color: var(--text);
+}
+
+/* ---------- Tabs ---------- */
+
+.issues-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.375rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.issues-tab,
+.issues-tab:not(:disabled):hover,
+.issues-tab:not(:disabled):active {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 0;
+  height: 2.5rem;
+  margin-bottom: -1px;
+  padding: 0 0.125rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  transform: none;
+}
+
+.issues-tab:not(:disabled):hover {
+  color: var(--text);
+}
+
+.issues-tab[aria-selected="true"],
+.issues-tab[aria-selected="true"]:not(:disabled):hover {
+  border-bottom-color: var(--sel-bar);
+  color: var(--text);
+}
+
+.issues-tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.issues-tab-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.71875rem;
+  font-weight: 600;
+}
+
+.issues-tabpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.issues-tabpanel:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.issues-panel-title {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Locations and captured HTTP evidence ---------- */
+
+.issues-locations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.issues-location-list,
+.issues-file-list,
+.issues-history-list,
+.issues-provenance-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.issues-location-list > li,
+.issues-file-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 1rem;
+  min-width: 0;
+  padding: 0.375rem 0;
+  font-size: 0.84375rem;
+}
+
+.issues-location-list > li + li,
+.issues-file-list > li + li,
+.issues-history-list > li + li,
+.issues-provenance-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.issues-location-list code,
+.issues-location-web code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.issues-location-web {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.issues-exchange {
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.issues-exchange > summary {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.issues-exchange > summary:hover {
+  color: var(--text);
+}
+
+.issues-exchange-title {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.issues-exchange-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+details.issues-exchange > .issues-exchange-body {
+  margin-top: 0.625rem;
+}
+
+.issues-attempt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.issues-attempt-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.issues-attempt-number {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+code.issues-attempt-request {
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.issues-attempt-outcome {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.issues-exchange-part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.issues-exchange-label {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.78125rem;
+  font-weight: 800;
+}
+
+.issues-headers {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.issues-headers > div {
+  display: contents;
+}
+
+.issues-headers dt,
+.issues-headers dd {
+  min-width: 0;
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  overflow-wrap: anywhere;
+}
+
+.issues-headers dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.issues-headers dd {
+  color: var(--text);
+}
+
+.issues-headers > div + div > dt,
+.issues-headers > div + div > dd {
+  border-top: 1px solid var(--line);
+}
+
+.issues-header-secret {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.5rem;
+  max-width: 100%;
+}
+
+.issues-header-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.issues-masked {
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.ui-btn.issues-reveal {
+  height: 1.375rem;
+  padding: 0 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 0.71875rem;
+  color: var(--link);
+}
+
+.issues-code {
+  max-width: 100%;
+  max-height: 20rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--code-bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.issues-evidence-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.issues-evidence-section > .issues-heading {
+  margin-bottom: 0;
+}
+
+/* Two columns for name and value collapse on a phone-width pane. */
+@container (max-width: 30rem) {
+  .issues-headers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .issues-headers dd {
+    padding-top: 0;
+  }
+
+  .issues-headers > div + div > dd {
+    border-top: 0;
+  }
+}
+
+/* ---------- Files, sources and facts ---------- */
+
+.issues-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.issues-sources > .issues-heading {
+  margin-bottom: 0;
+}
+
+.issues-file-name {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.issues-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+.issues-facts > div {
+  min-width: 0;
+}
+
+.issues-facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.issues-facts dd {
+  margin: 0.125rem 0 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- History and provenance ---------- */
+
+.issues-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.issues-history > .issues-heading {
+  margin-bottom: 0;
+}
+
+.issues-history-list > li {
+  padding: 0.625rem 0;
+}
+
+.issues-history-request {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  margin: 0;
+}
+
+.issues-provenance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.issues-provenance > div {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.issues-provenance-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.625rem 0;
+  font-size: 0.8125rem;
+}
+
+.issues-provenance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.issues-provenance-head code,
+.issues-provenance-attempt code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.issues-provenance-line {
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.issues-provenance-attempt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--sunken);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Sections inside the check and project pages ---------- */
+
+.issues-section,
+.issues-project {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.issues-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  min-width: 0;
+}
+
+.issues-section .issues-section-title,
+.issues-project .issues-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.issues-section-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.issues-section-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.issues-section-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.issues-embedded-list {
+  --ui-pad-start: 0.875rem;
+  --ui-pad-end: 0.875rem;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.issues-embedded-list .ui-row + .ui-row {
+  border-top: 1px solid var(--line);
+}
+
+.issues-embedded-empty {
+  padding: 0 0.875rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.issues-project-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.issues-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  scroll-margin-top: 5rem;
+}
+
+.issues-card-decision {
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--sunken);
+}
+
+@media (max-width: 480px) {
+  .issues-card {
+    padding: 0.875rem;
+  }
+}
+
+/* ---------- Check queue pager ---------- */
+
+.issues-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.issues-queue-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.issues-queue-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.issues-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.issues-queue-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}

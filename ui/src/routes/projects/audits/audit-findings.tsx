@@ -1,73 +1,100 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useId, type ReactNode } from "react";
+import { Link, useLocation } from "react-router";
 
 import {
   getAuditFinding,
   getAuditReview,
   listAuditFindings,
-  listAuditReviews,
   type Audit,
-  type AuditFinding,
-  type AuditFindingSeverity,
-  type AuditFindingState,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
+import { EmptyState, FilterChips, ListSection } from "../../../ui";
+import { IssueRow } from "../../issues/issue-row";
+import { issueHref, type StateFilter } from "../../issues/links";
 import { AuditFindingCard } from "./finding-card";
-import { FINDING_SEVERITIES } from "./finding-options";
+import {
+  DECISION_OPTIONS,
+  SEVERITY_OPTIONS,
+  STATE_OPTIONS,
+  isFindingSeverity,
+  isFindingState,
+  isVerdictFilter,
+} from "./finding-options";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
 import { AuditAnchor } from "./shared";
 
-function FindingInQueue({
+import "../../issues/issues.css";
+
+const STATE_CHIPS: readonly { value: StateFilter; label: string }[] = [
+  ...STATE_OPTIONS.map((option) => ({
+    value: option.value as StateFilter,
+    label: option.label,
+  })),
+  { value: "all", label: "All" },
+];
+
+interface ListLocation {
+  to: { pathname: string; search: string };
+  /** The page's navigation state, so its return link survives. */
+  state: unknown;
+}
+
+/** The section's own URL without the deep link to one possible issue. */
+function useListLocation(): ListLocation {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.delete("finding");
+  params.delete("review");
+  const search = params.toString();
+  return {
+    to: {
+      pathname: location.pathname,
+      search: search === "" ? "" : `?${search}`,
+    },
+    state: location.state,
+  };
+}
+
+function SectionHead({
   audit,
-  finding,
-  siblings,
+  headingId,
+  back,
 }: {
   audit: Audit;
-  finding: AuditFinding;
-  siblings: AuditFinding[];
+  headingId: string;
+  back?: ListLocation | undefined;
 }) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const reviews = useQuery({
-    queryKey: [
-      ...queryKeys.audits.reviews(audit.auditId, finding.findingId),
-      "pending",
-    ],
-    queryFn: () =>
-      listAuditReviews(api, audit.auditId, {
-        finding: finding.findingId,
-        state: "pending",
-      }),
-  });
-  const pending = reviews.data?.items.find(
-    (review) => review.state === "pending",
-  );
   return (
-    <AuditFindingCard
-      audit={audit}
-      finding={finding}
-      findings={siblings}
-      {...(pending === undefined ? {} : { pendingReview: pending })}
-      reviewLoading={reviews.isPending}
-      reviewError={
-        reviews.error ??
-        (pending !== undefined && pending.subjectRevision !== finding.revision
-          ? new Error(
-              "Finding evidence changed. Refresh the context before deciding.",
-            )
-          : null)
-      }
-      onRetryReview={() =>
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.audits.detail(audit.auditId),
-        })
-      }
-    />
+    <header className="issues-section-head">
+      <h2 id={headingId} className="issues-section-title">
+        Possible issues
+      </h2>
+      <div className="issues-section-links">
+        {back === undefined ? null : (
+          <Link to={back.to} state={back.state}>
+            All possible issues in this check
+          </Link>
+        )}
+        <ContextLink
+          returnLabel="Check possible issues"
+          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
+        >
+          All possible issues in this project
+        </ContextLink>
+      </div>
+    </header>
   );
 }
 
+/**
+ * One possible issue in full inside its check (`?finding=`, optionally with
+ * the `?review=` it was opened for). A review that no longer matches the
+ * possible issue's revision blocks deciding until the context is refreshed.
+ */
 function ExactFinding({
   audit,
   findingId,
@@ -79,82 +106,119 @@ function ExactFinding({
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const headingId = useId();
+  const back = useListLocation();
   const finding = useQuery({
-    queryKey: [
-      ...queryKeys.audits.detail(audit.auditId),
-      "findings",
-      findingId,
-      "exact",
-    ],
+    queryKey: queryKeys.issues.finding(audit.auditId, findingId),
     queryFn: () => getAuditFinding(api, audit.auditId, findingId),
   });
   const review = useQuery({
-    queryKey: [...queryKeys.audits.detail(audit.auditId), "reviews", reviewId],
-    queryFn: () => getAuditReview(api, audit.auditId, reviewId!),
+    queryKey: queryKeys.issues.review(audit.auditId, reviewId ?? ""),
+    queryFn: () => getAuditReview(api, audit.auditId, reviewId ?? ""),
     enabled: reviewId !== null,
   });
   const refresh = () =>
     void queryClient.invalidateQueries({
       queryKey: queryKeys.audits.detail(audit.auditId),
     });
+  const head = <SectionHead audit={audit} headingId={headingId} back={back} />;
+  let content: ReactNode;
   if (finding.error !== null || review.error !== null)
-    return (
+    content = (
       <AuditQueueError
-        error={(finding.error ?? review.error)!}
+        error={(finding.error ?? review.error) as Error}
         onRefresh={refresh}
       />
     );
-  if (finding.isPending || (reviewId !== null && review.isPending))
-    return <p role="status">Loading finding and review…</p>;
-  const stale =
-    review.data !== undefined &&
-    (review.data.subjectKind !== "finding" ||
-      review.data.findingId !== findingId ||
-      (review.data.state === "pending" &&
-        review.data.subjectRevision !== finding.data.revision));
-  return (
-    <div className="audit-finding-list">
-      <AuditAnchor />
-      {stale ? (
-        <div className="notice notice-error">
-          The requested review no longer matches this finding revision. Refresh
-          the context before making a decision.
-          <button type="button" className="secondary-button" onClick={refresh}>
-            Refresh context
-          </button>
-        </div>
-      ) : null}
-      {stale || review.data?.state === "pending" ? (
+  else if (finding.isPending || (reviewId !== null && review.isPending))
+    content = (
+      <p className="issues-quiet" role="status">
+        Loading the possible issue and its review…
+      </p>
+    );
+  else {
+    const requested = review.data;
+    const stale =
+      requested !== undefined &&
+      (requested.subjectKind !== "finding" ||
+        requested.findingId !== findingId ||
+        (requested.state === "pending" &&
+          requested.subjectRevision !== finding.data.revision));
+    content = (
+      <>
+        {stale ? (
+          <div className="issues-notice" data-tone="warning" role="alert">
+            <p>
+              The requested review no longer matches this possible issue&apos;s
+              current version. Refresh the context before making a decision.
+            </p>
+            <div className="issues-notice-actions">
+              <button
+                type="button"
+                className="ui-btn"
+                data-size="xs"
+                onClick={refresh}
+              >
+                Refresh context
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <p className="issues-section-note">
+          <Link
+            to={issueHref(finding.data, {
+              state: "all",
+              project: audit.projectId,
+            })}
+          >
+            Open in Issues
+          </Link>
+        </p>
         <AuditFindingCard
           audit={audit}
           finding={finding.data}
-          findings={[finding.data]}
-          {...(!stale && review.data?.state === "pending"
-            ? { pendingReview: review.data }
-            : {})}
+          pendingReview={
+            !stale && requested?.state === "pending" ? requested : undefined
+          }
           reviewError={
-            stale ? new Error("Review subject revision changed") : null
+            stale
+              ? new Error(
+                  "Deciding is closed until the context is refreshed: the requested review changed.",
+                )
+              : null
           }
         />
-      ) : null}
-      {!stale && review.data?.state !== "pending" ? (
-        <FindingInQueue
-          audit={audit}
-          finding={finding.data}
-          siblings={[finding.data]}
-        />
-      ) : null}
-    </div>
+      </>
+    );
+  }
+  return (
+    <section className="issues-section" aria-labelledby={headingId}>
+      <AuditAnchor ready={finding.data !== undefined} />
+      {head}
+      {content}
+    </section>
   );
 }
 
+/**
+ * The check's possible issues, filtered on the Server by state, decision
+ * and the analyst's severity, one page at a time pinned to the check's
+ * revision. Each row opens the possible issue on the Issues destination;
+ * `?finding=` shows one in full here.
+ */
 export function AuditFindings({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const headingId = useId();
+  const decisionId = useId();
+  const severityId = useId();
   const queue = useAuditQueue();
-  const state = queue.params.get("state") ?? "";
-  const verdict = queue.params.get("verdict") ?? "";
-  const severity = queue.params.get("severity") ?? "";
+  const rawState = queue.params.get("state") ?? "";
+  const rawVerdict = queue.params.get("verdict") ?? "";
+  const rawSeverity = queue.params.get("severity") ?? "";
+  const state = isFindingState(rawState) ? rawState : undefined;
+  const verdict = isVerdictFilter(rawVerdict) ? rawVerdict : undefined;
+  const severity = isFindingSeverity(rawSeverity) ? rawSeverity : undefined;
   const exactId = queue.params.get("finding");
   const findings = useQuery({
     queryKey: [
@@ -164,24 +228,9 @@ export function AuditFindings({ audit }: { audit: Audit }) {
     queryFn: () =>
       listAuditFindings(api, audit.auditId, {
         ...queue.request,
-        ...([
-          "proposed",
-          "confirmed",
-          "rejected",
-          "duplicate",
-          "needs-evidence",
-        ].includes(state)
-          ? { state: state as AuditFindingState }
-          : {}),
-        ...(["unreviewed", "true_positive", "false_positive"].includes(verdict)
-          ? {
-              verdict: verdict as
-                "unreviewed" | "true_positive" | "false_positive",
-            }
-          : {}),
-        ...(FINDING_SEVERITIES.includes(severity as AuditFindingSeverity)
-          ? { severity: severity as AuditFindingSeverity }
-          : {}),
+        ...(state === undefined ? {} : { state }),
+        ...(verdict === undefined ? {} : { verdict }),
+        ...(severity === undefined ? {} : { severity }),
       }),
     enabled: exactId === null,
   });
@@ -200,71 +249,62 @@ export function AuditFindings({ audit }: { audit: Audit }) {
       />
     );
   return (
-    <section className="audit-finding-list">
-      <AuditAnchor />
-      <div className="section-heading">
-        <h3>Findings in this audit</h3>
-        <ContextLink
-          returnLabel="Audit findings"
-          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
-        >
-          View all project findings →
-        </ContextLink>
+    <section className="issues-section" aria-labelledby={headingId}>
+      <AuditAnchor ready={findings.data !== undefined} />
+      <SectionHead audit={audit} headingId={headingId} />
+      <div className="issues-section-filters">
+        <FilterChips
+          label="Filter by state"
+          options={STATE_CHIPS}
+          value={state ?? "all"}
+          onChange={(value) => queue.change("state", value)}
+        />
+        <div className="issues-filter-row">
+          <span className="issues-select-field">
+            <label htmlFor={decisionId} className="issues-field-label">
+              Decision
+            </label>
+            <select
+              id={decisionId}
+              className="issues-select"
+              value={verdict ?? ""}
+              onChange={(event) => queue.change("verdict", event.target.value)}
+            >
+              {DECISION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </span>
+          <span className="issues-select-field">
+            <label htmlFor={severityId} className="issues-field-label">
+              Severity
+            </label>
+            <select
+              id={severityId}
+              className="issues-select"
+              aria-describedby={`${severityId}-hint`}
+              value={severity ?? ""}
+              onChange={(event) => queue.change("severity", event.target.value)}
+            >
+              {SEVERITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </div>
+        <p id={`${severityId}-hint`} className="issues-quiet">
+          Severity is the analyst&apos;s rating. The AI&apos;s suggestion stays
+          with each possible issue and is never filtered on.
+        </p>
       </div>
-      <div className="audit-review-fields">
-        <label>
-          Finding disposition
-          <select
-            value={state}
-            onChange={(event) => queue.change("state", event.target.value)}
-          >
-            <option value="">All dispositions</option>
-            {[
-              "proposed",
-              "confirmed",
-              "rejected",
-              "duplicate",
-              "needs-evidence",
-            ].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Analyst verdict
-          <select
-            value={verdict}
-            onChange={(event) => queue.change("verdict", event.target.value)}
-          >
-            <option value="">All verdicts</option>
-            <option value="unreviewed">Unreviewed</option>
-            <option value="true_positive">True positive</option>
-            <option value="false_positive">False positive</option>
-          </select>
-        </label>
-        <label>
-          Analyst severity
-          <select
-            value={severity}
-            onChange={(event) => queue.change("severity", event.target.value)}
-          >
-            <option value="">All severities</option>
-            {FINDING_SEVERITIES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="muted-copy">
-        Severity filters apply to analyst decisions. Model proposals remain
-        separate from accepted findings.
-      </p>
       {findings.isPending ? (
-        <p role="status">Loading findings…</p>
+        <p className="issues-quiet" role="status">
+          Loading possible issues…
+        </p>
       ) : findings.error !== null ? (
         <AuditQueueError error={findings.error} onRefresh={refresh} />
       ) : (
@@ -276,21 +316,31 @@ export function AuditFindings({ audit }: { audit: Audit }) {
             onRefresh={refresh}
           />
           {findings.data.items.length === 0 ? (
-            <div className="empty-state panel">
-              <h3>No matching finding candidates</h3>
-              <p>
-                A successful Run alone does not create or confirm a finding.
-              </p>
+            <div className="issues-embedded-empty">
+              <EmptyState title="No matching possible issues">
+                <p>
+                  A successful Run alone does not create or confirm a possible
+                  issue.
+                </p>
+              </EmptyState>
             </div>
           ) : (
-            findings.data.items.map((finding) => (
-              <FindingInQueue
-                key={finding.findingId}
-                audit={audit}
-                finding={finding}
-                siblings={findings.data.items}
-              />
-            ))
+            <div className="issues-embedded-list">
+              <ListSection>
+                {findings.data.items.map((finding) => (
+                  <IssueRow
+                    key={finding.findingId}
+                    id={`finding-${audit.auditId}-${finding.findingId}`}
+                    finding={finding}
+                    to={issueHref(finding, {
+                      state: state ?? "all",
+                      project: audit.projectId,
+                      severity,
+                    })}
+                  />
+                ))}
+              </ListSection>
+            </div>
           )}
         </>
       )}
