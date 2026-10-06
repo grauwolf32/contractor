@@ -29,7 +29,7 @@ export function RouteErrorPanel() {
           Reload application
         </a>
         <Link className="secondary-button" to="/">
-          Go home
+          Go to Inbox
         </Link>
       </div>
     </section>

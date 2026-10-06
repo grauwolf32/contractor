@@ -380,7 +380,7 @@ test("browser 404 offers recovery without widening SPA or API fallbacks", async 
   assert.match(response.headers.get("content-type"), /text\/html/);
   const body = await response.text();
   assert.match(body, /Page not found/);
-  assert.match(body, /href="\/"/);
+  assert.match(body, /<a href="\/">Inbox<\/a>/);
   assert.match(body, /href="\/projects"/);
   assert.doesNotMatch(body, /<script/);
   const head = await fetch(`${origin}/missing-page`, {

@@ -446,7 +446,7 @@ describe("Catalog", () => {
       name: "Primary navigation",
     });
     expect(
-      within(primary).getByRole("link", { name: "Catalog" }),
+      within(primary).getByRole("link", { name: "Library" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
       within(primary).queryByRole("link", { name: "Skills" }),

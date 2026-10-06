@@ -135,9 +135,14 @@ describe("Evals and global Skills routes", () => {
       name: "OpenAPI regression",
     });
     expect(evalLink).toHaveAttribute("href", "/evals/evaluation-openapi");
-    const listRequest = requests.find(
-      (request) => new URL(request.url).pathname === "/v1/projects",
-    );
+    // The shell's Inbox badge lists kind=project on every page.
+    const listRequest = requests.find((request) => {
+      const url = new URL(request.url);
+      return (
+        url.pathname === "/v1/projects" &&
+        url.searchParams.get("kind") !== "project"
+      );
+    });
     expect(new URL(listRequest!.url).searchParams.get("kind")).toBe(
       "evaluation",
     );

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -117,7 +117,7 @@ describe("application session shell", () => {
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Go to Inbox" })).toHaveAttribute(
       "href",
       "/",
     );
@@ -148,15 +148,26 @@ describe("application session shell", () => {
     expect(
       await screen.findByRole("heading", { name: "Runs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("owner")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute(
+    const primary = within(
+      screen.getByRole("navigation", { name: "Primary navigation" }),
+    );
+    expect(primary.getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(primary.getByRole("link", { name: "Projects" })).toHaveAttribute(
       "href",
       "/projects",
     );
-    expect(screen.getByRole("link", { name: "Operations" })).toHaveAttribute(
+    expect(primary.getByRole("link", { name: "Operations" })).toHaveAttribute(
       "href",
       "/operations",
     );
+    await userEvent
+      .setup()
+      .click(primary.getByRole("button", { name: "Account" }));
+    expect(primary.getByText("owner")).toBeVisible();
+    expect(primary.getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 
   it("shows session bootstrap incompatibility on the login route", async () => {

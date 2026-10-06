@@ -65,9 +65,58 @@ const shapes = {
     <path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" />
   ),
   refresh: <path d="M20 12a8 8 0 1 1-2.35-5.65M20 4v5h-5" />,
+  // Shell rail and command palette (docs/design/ui/mockups/v3b).
+  inbox: (
+    <>
+      <path d="M3.5 13.5h4.6l1.4 2.5h5l1.4-2.5h4.6" />
+      <path d="M6 5h12l2.5 8.5V19h-17v-5.5z" />
+    </>
+  ),
+  checks: (
+    <>
+      <path d="M12 3.5l7 2.8v5.2c0 4.3-2.9 7.9-7 9-4.1-1.1-7-4.7-7-9V6.3z" />
+      <path d="M9.2 12l2 2 3.8-3.8" />
+    </>
+  ),
+  issues: (
+    <>
+      <path d="M12 3.2l8.8 8.8-8.8 8.8L3.2 12z" />
+      <path d="M12 8.2v4.6M12 15.8v.01" />
+    </>
+  ),
+  reports: (
+    <>
+      <path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12z" />
+      <path d="M14 3.5V8h4.5" />
+      <path d="M9.5 12.5h6M9.5 16h6" />
+    </>
+  ),
+  library: (
+    <path d="M4.5 4.5h4v15h-4zM10 4.5h4v15h-4zM15.6 5.4l3.5-.9 2.4 14.5-3.5.9z" />
+  ),
+  checklist: (
+    <path d="M10 6.5h10M10 12h10M10 17.5h10M3.5 6.5l1.5 1.5 2.5-2.5M3.5 12l1.5 1.5 2.5-2.5M3.5 17.5 5 19l2.5-2.5" />
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4 4" />
+    </>
+  ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  user: (
+    <>
+      <circle cx="12" cy="9" r="3.5" />
+      <path d="M5.5 19.5c1.2-3.2 3.6-4.8 6.5-4.8s5.3 1.6 6.5 4.8" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
-export function Icon({ name }: { name: keyof typeof shapes }) {
+export type IconName = keyof typeof shapes;
+
+export function Icon({ name }: { name: IconName }) {
   return (
     <svg
       className="app-icon"
