@@ -43,6 +43,8 @@ export interface DecisionRationale {
   label?: string | undefined;
   placeholder?: string | undefined;
   maxLength?: number | undefined;
+  /** Standing help for the reason, shown above it and linked to the field. */
+  hint?: ReactNode;
 }
 
 export interface DecisionNext {
@@ -269,6 +271,11 @@ export function DecisionBar({
           {extra}
         </div>
       ) : null}
+      {isShown(rationale.hint) ? (
+        <p id={`${id}-reason-hint`} className="ui-decision-note">
+          {rationale.hint}
+        </p>
+      ) : null}
       <div className="ui-decision-compose">
         <label htmlFor={`${id}-reason`} className="ui-decision-label">
           {rationale.label ?? "Why"}
@@ -282,7 +289,11 @@ export function DecisionBar({
           placeholder={rationale.placeholder}
           maxLength={rationale.maxLength}
           aria-required="true"
-          aria-describedby={hintId}
+          aria-describedby={
+            [isShown(rationale.hint) ? `${id}-reason-hint` : undefined, hintId]
+              .filter((part) => part !== undefined)
+              .join(" ") || undefined
+          }
           aria-keyshortcuts="Control+Enter Meta+Enter"
           readOnly={pending}
           disabled={disabledReason !== undefined}

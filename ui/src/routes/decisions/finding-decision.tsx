@@ -707,6 +707,7 @@ function FindingDecisionPanel({
                   edited();
                 },
                 maxLength: MAX_RATIONALE_BYTES,
+                hint: RATIONALE_HELP,
               }}
               onSubmit={submit}
               pending={decide.isPending}
@@ -739,8 +740,6 @@ function FindingDecisionPanel({
                     />
                   ) : null}
                   <div className="decisions-assist">
-                    {/* Right above "Why" until DecisionBar takes a hint. */}
-                    <p className="decisions-help">{RATIONALE_HELP}</p>
                     <button
                       type="button"
                       className="ui-btn"

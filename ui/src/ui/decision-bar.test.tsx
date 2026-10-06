@@ -237,4 +237,23 @@ describe("DecisionBar", () => {
     await user.keyboard("j");
     expect(onNext).toHaveBeenCalledTimes(2);
   });
+
+  it("links the standing reason hint to the field with the live hint", () => {
+    render(
+      <DecisionBar
+        options={OPTIONS}
+        onSelect={vi.fn()}
+        rationale={{
+          value: "",
+          onChange: vi.fn(),
+          hint: "Required. Saved with the decision.",
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    const field = reasonField();
+    expect(field).toHaveAccessibleDescription(
+      "Required. Saved with the decision. Choose a decision.",
+    );
+  });
 });

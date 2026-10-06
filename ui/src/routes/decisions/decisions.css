@@ -510,24 +510,14 @@ p.decisions-quiet {
   margin: 0 var(--ui-pad-end, 1.75rem) 0.75rem var(--ui-pad-start, 1.75rem);
 }
 
-/* The row right above the reason: the reason's helper text, then "Use AI
-   summary" as a quiet action at the end. */
+/* The row right above the reason: "Use AI summary" as a quiet action at the
+   end. The reason's helper text is DecisionBar's rationale hint. */
 .decisions-assist {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.25rem 0.75rem;
-}
-
-.decisions-help {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.78125rem;
-}
-
-.decisions-intro + .decisions-help {
-  margin-top: 0.375rem;
 }
 
 /* ---------- More decisions ---------- */

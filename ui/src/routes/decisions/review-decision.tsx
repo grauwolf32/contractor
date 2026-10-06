@@ -184,6 +184,7 @@ function RequestDecision({
               edited();
             },
             maxLength: MAX_RATIONALE_BYTES,
+            hint: RATIONALE_HELP,
           }}
           onSubmit={submit}
           pending={decide.isPending}
@@ -193,8 +194,6 @@ function RequestDecision({
               {intro === undefined ? null : (
                 <p className="decisions-intro">{intro}</p>
               )}
-              {/* Right above "Why" until DecisionBar takes a hint. */}
-              <p className="decisions-help">{RATIONALE_HELP}</p>
             </>
           }
         />
