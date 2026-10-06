@@ -130,7 +130,7 @@ summary:focus-visible,
 .optional-settings {
   border: 1px solid var(--line);
   border-radius: 0.7rem;
-  background: #0c1016aa;
+  background: var(--surface-subtle);
 }
 
 .optional-settings > summary {
@@ -162,15 +162,15 @@ summary:focus-visible,
   min-height: var(--control-height);
   border: 1px solid transparent;
   border-radius: var(--control-radius);
-  background: var(--accent);
-  color: #11170a;
+  background: var(--primary);
+  color: var(--on-primary);
   padding: 0.55rem 0.9rem;
   font-weight: 700;
   text-decoration: none;
 }
 
 .button-link:hover {
-  background: var(--accent-hover);
+  background: var(--primary-hover);
 }
 
 .project-dialog .inline-actions {
@@ -229,7 +229,7 @@ summary:focus-visible,
 
 .delete-icon-button:not(:disabled):hover {
   border-color: var(--danger);
-  background: #301d22;
+  background: var(--danger-bg-strong);
   color: var(--danger);
 }
 
@@ -288,7 +288,7 @@ summary:focus-visible,
 
 .section-navigation a.active,
 .section-navigation a[aria-current="page"] {
-  border-color: #52622d;
+  border-color: var(--accent-line);
   background: var(--accent-dark);
   color: var(--accent);
 }

@@ -37,7 +37,7 @@
   border-top: 1px solid var(--line);
 }
 .project-finding-summary.has-findings {
-  border-color: #e2b66e;
+  border-color: var(--warning);
 }
 .eval-card-activity {
   display: grid;

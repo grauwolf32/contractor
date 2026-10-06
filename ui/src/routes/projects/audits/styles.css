@@ -254,7 +254,7 @@
 
 .audit-mutation-dialog {
   width: min(100%, 42rem);
-  border-color: #753f42;
+  border-color: var(--danger-line);
 }
 
 .audit-mutation-identity code {
@@ -669,17 +669,17 @@
 
 .audit-summary-issues strong,
 .audit-assessment-issues {
-  color: #ef939c;
+  color: var(--danger);
 }
 
 .audit-summary-uncertain strong,
 .audit-assessment-uncertain {
-  color: #e4bd73;
+  color: var(--warning);
 }
 
 .audit-summary-complete strong,
 .audit-assessment-complete {
-  color: #83cfac;
+  color: var(--success);
 }
 
 .audit-coverage-note {
@@ -852,15 +852,15 @@
 }
 
 .audit-result-card.audit-result-issues {
-  border-left-color: #bd6472;
+  border-left-color: var(--danger);
 }
 
 .audit-result-card.audit-result-uncertain {
-  border-left-color: #b49659;
+  border-left-color: var(--warning);
 }
 
 .audit-result-card.audit-result-complete {
-  border-left-color: #5a9c7d;
+  border-left-color: var(--success);
 }
 
 .audit-assessment {
@@ -919,18 +919,18 @@
 }
 
 .audit-evidence-complete > span {
-  color: #83cfac;
+  color: var(--success);
 }
 
 .audit-evidence-missing {
-  color: #e4bd73;
+  color: var(--warning);
 }
 
 .audit-evidence-gaps {
   margin-top: 0.8rem;
   padding: 0.85rem;
   border-radius: 0.5rem;
-  background: color-mix(in srgb, #e4bd73 7%, var(--surface));
+  background: var(--warning-bg);
   color: var(--muted-strong);
   font-size: 0.85rem;
 }
@@ -1175,7 +1175,7 @@
   background: var(--surface);
 }
 .audit-coverage-outcome.is-partial {
-  border-color: #e2b66e;
+  border-color: var(--warning);
 }
 .audit-coverage-outcome > strong {
   font-size: 1.15rem;
@@ -1187,7 +1187,7 @@
 .audit-coverage-outcome progress {
   width: 100%;
   height: 0.6rem;
-  accent-color: #e2b66e;
+  accent-color: var(--warning);
 }
 .audit-control-reason {
   flex-basis: 100%;

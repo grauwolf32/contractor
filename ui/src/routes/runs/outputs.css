@@ -5,13 +5,12 @@
   border: 1px solid var(--line);
   border-radius: 0.85rem;
   padding: 1rem;
-  background: #121720bf;
+  background: var(--surface);
 }
 
 .run-result-primary {
-  border-color: #677a34;
-  background:
-    linear-gradient(115deg, rgb(184 216 91 / 8%), transparent 55%), #121720bf;
+  border-color: var(--accent-line);
+  background: var(--accent-dark);
 }
 
 .run-result-heading,
@@ -50,7 +49,7 @@
 
 .run-result-primary .run-result-role,
 .run-result-primary .run-result-state {
-  color: #c8e678;
+  color: var(--accent);
 }
 
 .run-result-state {

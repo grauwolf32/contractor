@@ -1,6 +1,8 @@
 import { ApiReferenceReact } from "@scalar/api-reference-react";
 import "@scalar/api-reference-react/style.css";
 
+import { useResolvedTheme } from "../../../app/theme";
+
 const rejectNetworkRequest: typeof fetch = async () => {
   throw new TypeError("Network access is disabled in Artifact preview");
 };
@@ -10,6 +12,7 @@ export default function OpenApiArtifactPreview({
 }: {
   document: Record<string, unknown>;
 }) {
+  const theme = useResolvedTheme();
   return (
     <div>
       <div className="artifact-renderer-toolbar">
@@ -23,7 +26,7 @@ export default function OpenApiArtifactPreview({
             mcp: { disabled: true },
             customFetch: rejectNetworkRequest,
             documentDownloadType: "none",
-            forceDarkModeState: "dark",
+            forceDarkModeState: theme === "light" ? "light" : "dark",
             hiddenClients: true,
             hideClientButton: true,
             hideDarkModeToggle: true,

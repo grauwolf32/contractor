@@ -6,6 +6,11 @@
 (`#d8ff72`) with a neutral system and ships three themes: light (default),
 dark and black.
 
+**Implementation:** `ui/src/app/theme.css` holds the tokens; `ui/src/app/theme.ts`
+applies the choice (Settings → Appearance), which follows the system by default.
+The base primary button is `--primary` (graphite); `--accent` is the steel-blue
+emphasis colour for links, focus and selection.
+
 ![V3B check, light](screenshots/v3b-check.webp)
 
 | Dark | Black |

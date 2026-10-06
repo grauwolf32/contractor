@@ -7,6 +7,7 @@ import {
 } from "@likec4/diagram";
 import { useEffect, useMemo, useState } from "react";
 
+import { useResolvedTheme } from "../../../app/theme";
 import type { LikeC4WorkerResponse } from "./likec4-protocol";
 
 type Diagram = LikeC4DiagramProps["view"];
@@ -30,6 +31,7 @@ function errorMessage(error: unknown): string {
 export default function LikeC4ArtifactPreview({ source }: { source: string }) {
   const [state, setState] = useState<DiagramState>({ status: "loading" });
   const [selectedView, setSelectedView] = useState<string>();
+  const colorScheme = useResolvedTheme() === "light" ? "light" : "dark";
 
   useEffect(() => {
     const worker = new Worker(new URL("./likec4.worker.ts", import.meta.url), {
@@ -90,7 +92,10 @@ export default function LikeC4ArtifactPreview({ source }: { source: string }) {
   }
 
   return (
-    <div className="likec4-artifact-preview" data-mantine-color-scheme="dark">
+    <div
+      className="likec4-artifact-preview"
+      data-mantine-color-scheme={colorScheme}
+    >
       <div className="artifact-renderer-toolbar">
         <label>
           View
@@ -113,7 +118,7 @@ export default function LikeC4ArtifactPreview({ source }: { source: string }) {
           className="likec4-artifact-canvas"
           viewId={diagram.view.id}
           background="dots"
-          colorScheme="dark"
+          colorScheme={colorScheme}
           controls
           enableElementDetails={false}
           enableRelationshipBrowser={false}

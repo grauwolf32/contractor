@@ -54,7 +54,7 @@
   border-radius: 0.65rem;
   background: var(--surface);
   padding: 0.8rem;
-  box-shadow: 0 1rem 2.5rem #0008;
+  box-shadow: var(--shadow-lg);
 }
 
 .additional-actions-menu small {

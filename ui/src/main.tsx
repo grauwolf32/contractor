@@ -4,7 +4,11 @@ import { createRoot } from "react-dom/client";
 import { PublicAPI } from "./api/client";
 import { Application } from "./app/application";
 import { createApplicationRouter } from "./app/router";
+import { initializeTheme } from "./app/theme";
 import { loadRuntimeConfig } from "./config/runtime-config";
+import "@fontsource-variable/manrope";
+import "@fontsource-variable/jetbrains-mono";
+import "./app/theme.css";
 import "./styles.css";
 import "./app/ui-primitives.css";
 
@@ -25,6 +29,7 @@ function renderBootstrapFailure(root: HTMLElement, error: unknown): void {
 }
 
 async function bootstrap(): Promise<void> {
+  initializeTheme();
   const root = document.getElementById("root");
   if (root === null) {
     throw new Error("UI root element is missing");

@@ -1,0 +1,351 @@
+/*
+ * Colour and type tokens for the light, dark and black themes
+ * (docs/design/ui/themes.md). Every colour in the UI comes from these tokens.
+ *
+ * Light is the base. With no data-theme attribute the system preference
+ * decides between light and dark; data-theme="light|dark|black" is an
+ * explicit choice (src/app/theme.ts).
+ */
+:root {
+  color-scheme: light;
+  --font-sans:
+    "Manrope Variable", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+
+  --background: #eceff3;
+  --surface: #ffffff;
+  --surface-subtle: #f4f6f9;
+  --surface-raised: #f1f4f8;
+  --surface-hover: #e9eef4;
+  --sunken: #f7f9fb;
+  --row-hover: #f3f6f9;
+  --line: #dde2e9;
+  --line-strong: #c3cbd6;
+  --text: #10151d;
+  --muted: #4a5466;
+  --muted-strong: #2c3542;
+
+  --primary: #1f2630;
+  --primary-hover: #353f4d;
+  --on-primary: #ffffff;
+  --accent: #2f5d8a;
+  --accent-dark: #e6eef7;
+  --accent-line: #b3c6dc;
+  --link: #2f5d8a;
+  --focus: #2f5d8a;
+  --focus-ring: rgb(47 93 138 / 24%);
+
+  --success: #17703a;
+  --success-bg: #e2f2e7;
+  --success-line: #a7d3b6;
+  --warning: #8a4a00;
+  --warning-bg: #fbeed6;
+  --warning-line: #e4c38a;
+  --danger: #b3261e;
+  --danger-bg: #fbe5e2;
+  --danger-bg-strong: #f6d0cb;
+  --danger-line: #eab1ab;
+  --danger-ink: #8f1d17;
+  --danger-strong: #951f18;
+  --on-danger: #ffffff;
+  --info: #1d4fbf;
+  --info-bg: #e3eafb;
+  --info-line: #b2c4ef;
+
+  --code-ink: #24415f;
+  --scrim: rgb(16 21 29 / 42%);
+  --shadow-lg:
+    0 24px 64px -20px rgb(16 21 29 / 35%), 0 2px 6px rgb(16 21 29 / 8%);
+  --brand-bg: #050505;
+
+  --diff-add-bg: #e6f4ea;
+  --diff-add-ink: #14532b;
+  --diff-add-num-bg: #cfe9d7;
+  --diff-add-num-ink: #17703a;
+  --diff-del-bg: #fbe9e7;
+  --diff-del-ink: #7f1a14;
+  --diff-del-num-bg: #f5d0cc;
+  --diff-del-num-ink: #a3221a;
+  --diff-hunk-bg: #e8eefa;
+  --diff-hunk-ink: #1d4fbf;
+  --diff-hunk-num-bg: #d6e1f6;
+  --diff-file-bg: #eef1f5;
+  --diff-file-ink: #10151d;
+  --diff-num-ink: #5f6a7a;
+  --diff-num-line: #e3e7ed;
+  --diff-add-count: #17703a;
+  --diff-del-count: #b3261e;
+
+  /* Evals: variant A is always blue, B always orange (S30:593-596). */
+  --eval-a: #1f6fd1;
+  --eval-b: #c25a00;
+  --eval-b-stripe: #8a3f00;
+  --chart-axis: #9aa5b4;
+  /* GPU series: Okabe-Ito based; every series also has a named legend entry. */
+  --gpu-1: #0072b2;
+  --gpu-2: #b86e00;
+  --gpu-3: #00805e;
+  --gpu-4: #7d7200;
+  --gpu-5: #b4447f;
+  --gpu-6: #c24e00;
+  --gpu-7: #5b4bc4;
+  --gpu-8: #4b5566;
+  --gpu-9: #004f7c;
+  --gpu-10: #8a5200;
+  --gpu-11: #005a42;
+  --gpu-12: #5a5200;
+  --gpu-13: #8a2e5f;
+  --gpu-14: #933a00;
+  --gpu-15: #3f3196;
+  --gpu-16: #2f3744;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --background: #0b0e13;
+    --surface: #121720;
+    --surface-subtle: #0e131a;
+    --surface-raised: #1a202b;
+    --surface-hover: #1e2633;
+    --sunken: #090d12;
+    --row-hover: #161d28;
+    --line: #222b38;
+    --line-strong: #344155;
+    --text: #e9edf3;
+    --muted: #a8b3c3;
+    --muted-strong: #c9d2de;
+    --primary: #d3dbe6;
+    --primary-hover: #e6ebf2;
+    --on-primary: #0b1017;
+    --accent: #9fbde0;
+    --accent-dark: #172334;
+    --accent-line: #3a5677;
+    --link: #9fbde0;
+    --focus: #9fbde0;
+    --focus-ring: rgb(159 189 224 / 28%);
+    --success: #72d895;
+    --success-bg: #10261a;
+    --success-line: #2c6343;
+    --warning: #f3b54a;
+    --warning-bg: #2a2010;
+    --warning-line: #6b5424;
+    --danger: #ff8e85;
+    --danger-bg: #311614;
+    --danger-bg-strong: #45201d;
+    --danger-line: #6e3431;
+    --danger-ink: #ffc2bc;
+    --danger-strong: #ffa49c;
+    --on-danger: #2a0b09;
+    --info: #8fb3ff;
+    --info-bg: #14213b;
+    --info-line: #2f4878;
+    --code-ink: #cdd9e8;
+    --scrim: rgb(4 6 9 / 72%);
+    --shadow-lg:
+      0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+    --diff-add-bg: #10291b;
+    --diff-add-ink: #b9f6ca;
+    --diff-add-num-bg: #174127;
+    --diff-add-num-ink: #91dca9;
+    --diff-del-bg: #30171a;
+    --diff-del-ink: #ffd0d4;
+    --diff-del-num-bg: #512027;
+    --diff-del-num-ink: #f3a1a8;
+    --diff-hunk-bg: #10233a;
+    --diff-hunk-ink: #9dcaff;
+    --diff-hunk-num-bg: #142c49;
+    --diff-file-bg: #171d26;
+    --diff-file-ink: #d7e5f8;
+    --diff-num-ink: #7d8a9c;
+    --diff-num-line: rgb(255 255 255 / 6%);
+    --diff-add-count: #75d89a;
+    --diff-del-count: #ff938a;
+    --eval-a: #78b9ff;
+    --eval-b: #ffb56e;
+    --eval-b-stripe: #925621;
+    --chart-axis: #4d5968;
+    --gpu-1: #56b4e9;
+    --gpu-2: #e69f00;
+    --gpu-3: #2fc79a;
+    --gpu-4: #f0e442;
+    --gpu-5: #cc79a7;
+    --gpu-6: #ff7a45;
+    --gpu-7: #a99cff;
+    --gpu-8: #c9d2de;
+    --gpu-9: #9fd3f5;
+    --gpu-10: #f5c45c;
+    --gpu-11: #7ee0bf;
+    --gpu-12: #f7ef8a;
+    --gpu-13: #e3a6c8;
+    --gpu-14: #ffa883;
+    --gpu-15: #cbc3ff;
+    --gpu-16: #e6ebf2;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0e13;
+  --surface: #121720;
+  --surface-subtle: #0e131a;
+  --surface-raised: #1a202b;
+  --surface-hover: #1e2633;
+  --sunken: #090d12;
+  --row-hover: #161d28;
+  --line: #222b38;
+  --line-strong: #344155;
+  --text: #e9edf3;
+  --muted: #a8b3c3;
+  --muted-strong: #c9d2de;
+  --primary: #d3dbe6;
+  --primary-hover: #e6ebf2;
+  --on-primary: #0b1017;
+  --accent: #9fbde0;
+  --accent-dark: #172334;
+  --accent-line: #3a5677;
+  --link: #9fbde0;
+  --focus: #9fbde0;
+  --focus-ring: rgb(159 189 224 / 28%);
+  --success: #72d895;
+  --success-bg: #10261a;
+  --success-line: #2c6343;
+  --warning: #f3b54a;
+  --warning-bg: #2a2010;
+  --warning-line: #6b5424;
+  --danger: #ff8e85;
+  --danger-bg: #311614;
+  --danger-bg-strong: #45201d;
+  --danger-line: #6e3431;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #2a0b09;
+  --info: #8fb3ff;
+  --info-bg: #14213b;
+  --info-line: #2f4878;
+  --code-ink: #cdd9e8;
+  --scrim: rgb(4 6 9 / 72%);
+  --shadow-lg:
+    0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --diff-add-bg: #10291b;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #174127;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #30171a;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #512027;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #10233a;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #142c49;
+  --diff-file-bg: #171d26;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7d8a9c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #4d5968;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}
+
+:root[data-theme="black"] {
+  color-scheme: dark;
+  --background: #000000;
+  --surface: #0a0a0b;
+  --surface-subtle: #050506;
+  --surface-raised: #141518;
+  --surface-hover: #1a1c20;
+  --sunken: #000000;
+  --row-hover: #101113;
+  --line: #1e2024;
+  --line-strong: #2d3036;
+  --text: #ececec;
+  --muted: #a3a7ad;
+  --muted-strong: #c9ccd1;
+  --primary: #e6e8eb;
+  --primary-hover: #f4f5f7;
+  --on-primary: #000000;
+  --accent: #a9c3e0;
+  --accent-dark: #0f1722;
+  --accent-line: #2c3e55;
+  --link: #a9c3e0;
+  --focus: #a9c3e0;
+  --focus-ring: rgb(169 195 224 / 28%);
+  --success: #72d895;
+  --success-bg: #0a1a10;
+  --success-line: #24503a;
+  --warning: #f3b54a;
+  --warning-bg: #1c1508;
+  --warning-line: #4f3e1c;
+  --danger: #ff8e85;
+  --danger-bg: #200c0b;
+  --danger-bg-strong: #331412;
+  --danger-line: #57302d;
+  --danger-ink: #ffc2bc;
+  --danger-strong: #ffa49c;
+  --on-danger: #1a0605;
+  --info: #8fb3ff;
+  --info-bg: #0c1529;
+  --info-line: #24385c;
+  --code-ink: #d6dde6;
+  --scrim: rgb(0 0 0 / 80%);
+  --shadow-lg: 0 0 0 1px #2d3036, 0 24px 64px -16px rgb(0 0 0 / 90%);
+  --diff-add-bg: #0b1f14;
+  --diff-add-ink: #b9f6ca;
+  --diff-add-num-bg: #12331f;
+  --diff-add-num-ink: #91dca9;
+  --diff-del-bg: #22100f;
+  --diff-del-ink: #ffd0d4;
+  --diff-del-num-bg: #3d181d;
+  --diff-del-num-ink: #f3a1a8;
+  --diff-hunk-bg: #0b1a2c;
+  --diff-hunk-ink: #9dcaff;
+  --diff-hunk-num-bg: #10223a;
+  --diff-file-bg: #111214;
+  --diff-file-ink: #d7e5f8;
+  --diff-num-ink: #7f848c;
+  --diff-num-line: rgb(255 255 255 / 6%);
+  --diff-add-count: #75d89a;
+  --diff-del-count: #ff938a;
+  --eval-a: #78b9ff;
+  --eval-b: #ffb56e;
+  --eval-b-stripe: #925621;
+  --chart-axis: #3a3e45;
+  --gpu-1: #56b4e9;
+  --gpu-2: #e69f00;
+  --gpu-3: #2fc79a;
+  --gpu-4: #f0e442;
+  --gpu-5: #cc79a7;
+  --gpu-6: #ff7a45;
+  --gpu-7: #a99cff;
+  --gpu-8: #c9d2de;
+  --gpu-9: #9fd3f5;
+  --gpu-10: #f5c45c;
+  --gpu-11: #7ee0bf;
+  --gpu-12: #f7ef8a;
+  --gpu-13: #e3a6c8;
+  --gpu-14: #ffa883;
+  --gpu-15: #cbc3ff;
+  --gpu-16: #e6ebf2;
+}

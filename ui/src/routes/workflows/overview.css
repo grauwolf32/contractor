@@ -273,7 +273,7 @@
   padding: 0;
   place-items: stretch end;
   overflow: hidden;
-  background: #05070b99;
+  background: var(--scrim);
   backdrop-filter: blur(2px);
 }
 
@@ -285,7 +285,7 @@
   scroll-padding-bottom: 8rem;
   background: var(--surface);
   border-left: 1px solid var(--line-strong);
-  box-shadow: -1rem 0 4rem #0008;
+  box-shadow: var(--shadow-lg);
   padding: 1.5rem;
 }
 

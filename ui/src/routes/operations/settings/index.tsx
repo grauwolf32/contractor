@@ -14,6 +14,7 @@ import { queryKeys } from "../../../api/query-keys";
 import { useSession } from "../../../auth/session";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
+import { AppearanceSettings } from "../../settings/appearance";
 import { GitKeySettings } from "../../settings/git-key";
 import "./settings.css";
 
@@ -130,8 +131,8 @@ export function OperationsSettingsRoute() {
           <h3>Settings</h3>
           <p className="lede">
             {canManageScheduler
-              ? "Tune execution admission and manage the credentials used by repository imports."
-              : "Manage the personal credential used by your private repository imports."}
+              ? "Tune execution admission, manage the credentials used by repository imports and choose the theme."
+              : "Manage the personal credential used by your private repository imports and choose the theme."}
           </p>
         </div>
       </header>
@@ -162,6 +163,19 @@ export function OperationsSettingsRoute() {
             <p>
               Configure the write-only SSH key used for private Git imports.
             </p>
+          </span>
+          <span className="settings-directory-arrow" aria-hidden="true">
+            ↓
+          </span>
+        </a>
+        <a href="#appearance">
+          <span className="settings-directory-number" aria-hidden="true">
+            {canManageScheduler ? "03" : "02"}
+          </span>
+          <span>
+            <small>This browser</small>
+            <strong>Appearance</strong>
+            <p>Choose the light, dark or black theme.</p>
           </span>
           <span className="settings-directory-arrow" aria-hidden="true">
             ↓
@@ -358,6 +372,7 @@ export function OperationsSettingsRoute() {
       ) : null}
 
       <GitKeySettings ordinal={canManageScheduler ? "02" : "01"} />
+      <AppearanceSettings ordinal={canManageScheduler ? "03" : "02"} />
     </div>
   );
 }

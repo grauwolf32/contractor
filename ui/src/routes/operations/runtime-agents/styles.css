@@ -7,7 +7,7 @@
   padding: 0;
   overflow: hidden;
   border-radius: 0.9rem;
-  background: #131a23;
+  background: var(--surface);
 }
 
 .runtime-agent-summary {
@@ -27,10 +27,10 @@
   height: 2.7rem;
   flex: none;
   place-items: center;
-  border: 1px solid #354152;
+  border: 1px solid var(--line-strong);
   border-radius: 0.7rem;
-  background: #1b2430;
-  color: #bccad8;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
 }
 
 .runtime-agent-identity {
@@ -68,7 +68,7 @@
 }
 
 .runtime-agent-copy:hover {
-  background: #243040;
+  background: var(--surface-hover);
   color: var(--text);
 }
 
@@ -86,11 +86,11 @@
   width: 0.4rem;
   height: 0.4rem;
   border-radius: 50%;
-  background: #b2d480;
+  background: var(--success);
 }
 
 .runtime-agent-dot.is-offline {
-  background: #8995a4;
+  background: var(--muted);
 }
 
 .runtime-agent-status {
@@ -106,24 +106,24 @@
 }
 
 .runtime-agent-status.status-available {
-  background: #26351e;
-  color: #cfeba9;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .runtime-agent-status.status-busy {
-  background: #203247;
-  color: #afd3ff;
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 .runtime-agent-status.status-offline {
-  background: #29313b;
-  color: #c2cad5;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
 }
 
 .runtime-agent-status.status-slot-unavailable,
 .runtime-agent-status.status-adapter-capability-mismatch {
-  background: #3c2d18;
-  color: #f3c781;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .runtime-agent-metrics {
@@ -191,7 +191,7 @@
 
 .runtime-agent-edit:not(:disabled):hover {
   background: transparent;
-  color: #e3f6bd;
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -207,11 +207,11 @@
 }
 
 .runtime-agent-label-chip {
-  border: 1px solid #3f4d30;
+  border: 1px solid var(--accent-line);
   border-radius: 0.4rem;
-  background: #222d1c;
+  background: var(--accent-dark);
   padding: 0.2rem 0.65rem;
-  color: #cee3b0;
+  color: var(--text);
 }
 
 .runtime-agent-capabilities {
@@ -222,7 +222,7 @@
   border: 1px solid var(--line);
   border-radius: 0.35rem;
   padding: 0.15rem 0.5rem;
-  color: #b5c1d0;
+  color: var(--muted-strong);
 }
 
 .runtime-agent-diagnostics {
@@ -235,7 +235,7 @@
 .runtime-process-inventory > summary {
   min-height: 1.5rem;
   cursor: pointer;
-  color: #b6c2d0;
+  color: var(--muted-strong);
 }
 
 .runtime-agent-diagnostics > summary:hover,
@@ -298,9 +298,9 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  border: 1px solid #354e6b;
-  background: #1b2a3b;
-  color: #c0dcff;
+  border: 1px solid var(--info-line);
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 .runtime-agent-allocation > div {
@@ -340,7 +340,7 @@
 .runtime-offline-identities > summary {
   min-height: 1.5rem;
   cursor: pointer;
-  color: #b6c2d0;
+  color: var(--muted-strong);
   font-size: 0.85rem;
 }
 
@@ -367,7 +367,7 @@
   gap: 0.35rem 1rem;
   padding: 0.45rem 0.6rem;
   border-radius: 0.5rem;
-  background: #161d27;
+  background: var(--surface-subtle);
   font-size: 0.8rem;
 }
 
@@ -377,7 +377,7 @@
   flex-wrap: wrap;
   gap: 0.45rem;
   min-width: 0;
-  color: #c2cad5;
+  color: var(--muted-strong);
   overflow-wrap: anywhere;
 }
 
@@ -401,13 +401,13 @@
   border: 0;
   padding: 0.25rem 0.1rem;
   background: transparent;
-  color: #e79aa0;
+  color: var(--danger);
   font-size: 0.75rem;
 }
 
 .runtime-agent-forget:not(:disabled):hover {
   background: transparent;
-  color: #ffc4c8;
+  color: var(--danger-ink);
   text-decoration: underline;
 }
 
@@ -418,7 +418,7 @@
 
 .runtime-agent-forget-dialog {
   width: min(100%, 38rem);
-  border-color: #753f42;
+  border-color: var(--danger-line);
 }
 
 .runtime-agent-forget-dialog > p {

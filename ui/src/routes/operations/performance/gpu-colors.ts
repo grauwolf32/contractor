@@ -2,23 +2,25 @@ import { useState } from "react";
 
 import type { PerformanceHistory } from "../../../api/performance";
 
+// Theme tokens --gpu-1 … --gpu-16 (src/app/theme.css) keep series legible in
+// light, dark and black.
 const palette = [
-  "#d8ff72",
-  "#77c7ff",
-  "#ffbc70",
-  "#c5a1ff",
-  "#ff8cae",
-  "#68dfc2",
-  "#ff8e78",
-  "#bbc9e8",
-  "#e9c46a",
-  "#a3d9ff",
-  "#e0aaff",
-  "#96e6a1",
-  "#f7a8b8",
-  "#87dfef",
-  "#dccf91",
-  "#b4b4ff",
+  "var(--gpu-1)",
+  "var(--gpu-2)",
+  "var(--gpu-3)",
+  "var(--gpu-4)",
+  "var(--gpu-5)",
+  "var(--gpu-6)",
+  "var(--gpu-7)",
+  "var(--gpu-8)",
+  "var(--gpu-9)",
+  "var(--gpu-10)",
+  "var(--gpu-11)",
+  "var(--gpu-12)",
+  "var(--gpu-13)",
+  "var(--gpu-14)",
+  "var(--gpu-15)",
+  "var(--gpu-16)",
 ] as const;
 
 export type GPUColors = ReadonlyMap<string, string>;

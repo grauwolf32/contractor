@@ -23,6 +23,8 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource-variable/manrope": "5.3.0",
     "@likec4/core": "1.56.0",
     "@likec4/diagram": "1.56.0",
     "@likec4/language-services": "1.56.0",

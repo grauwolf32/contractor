@@ -51,18 +51,18 @@
 
 .archive-file-button[aria-pressed="true"] {
   border-color: var(--line);
-  background: #243143;
+  background: var(--accent-dark);
 }
 
 .archive-file-button:not(:disabled):hover {
   border-color: var(--line-strong);
-  background: #304157;
+  background: var(--surface-hover);
   color: var(--text);
 }
 
 .archive-file-button[aria-pressed="true"]:not(:disabled):hover {
   border-color: var(--accent);
-  background: #304157;
+  background: var(--surface-hover);
 }
 
 .archive-file-button span,

@@ -1,6 +1,4 @@
 .eval-page {
-  --eval-a: #78b9ff;
-  --eval-b: #ffb56e;
   max-width: 1380px;
   margin: 0 auto;
   min-width: 0;
@@ -376,8 +374,8 @@
     45deg,
     var(--eval-b),
     var(--eval-b) 4px,
-    #925621 4px,
-    #925621 6px
+    var(--eval-b-stripe) 4px,
+    var(--eval-b-stripe) 6px
   );
 }
 .eval-chart svg {

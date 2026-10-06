@@ -20,6 +20,10 @@ export default defineConfig({
     ]),
   },
   build: {
+    // The UI CSP allows fonts only from 'self' (server/static-server.mjs), so
+    // small woff2 subsets must stay files instead of inlined data: URIs.
+    assetsInlineLimit: (filePath: string) =>
+      filePath.endsWith(".woff2") ? false : undefined,
     rolldownOptions: {
       output: {
         codeSplitting: {

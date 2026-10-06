@@ -121,7 +121,7 @@ applicability, report acceptance) are already served by
 
 ## Build order
 
-1. **Visual foundation.**
+1. **Visual foundation** (done on `feat/ui-v3b`).
    - Bundled fonts and the token set for light, dark and black (see [Themes](themes.md)), replacing every hard-coded colour in the CSS.
    - Theme preference with a control in Settings.
    - Scalar, LikeC4, the GPU palette, the eval A/B colours, `index.html` and the server 404 page follow the theme.

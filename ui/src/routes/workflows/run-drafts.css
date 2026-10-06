@@ -161,7 +161,7 @@
   max-height: 18rem;
   margin: 0;
   border-radius: 0.5rem;
-  background: #080b10;
+  background: var(--sunken);
   padding: 0.75rem;
   font-size: 0.75rem;
 }
@@ -228,7 +228,7 @@
 }
 
 .run-input-review-facts dt {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;

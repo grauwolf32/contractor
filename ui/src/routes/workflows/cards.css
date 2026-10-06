@@ -153,12 +153,12 @@
   font-size: 0.7rem;
 }
 .workflow-card-status.is-found {
-  background: #27371f;
-  color: #c0d6ab;
+  background: var(--success-bg);
+  color: var(--success);
 }
 .workflow-card-status.is-missing {
-  background: #383023;
-  color: #e5cb8e;
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 .workflow-card-inputs {
   display: flex;
@@ -169,14 +169,14 @@
 .workflow-card-inputs > span {
   padding: 0.3rem 0.45rem;
   font-size: 0.7rem;
-  border: 1px solid #344132;
+  border: 1px solid var(--success-line);
   border-radius: 0.4rem;
-  color: #c0d6ab;
+  color: var(--success);
   overflow-wrap: anywhere;
 }
 .workflow-card-inputs > .needs-attention {
-  color: #e5cb8e;
-  border-color: #594f34;
+  color: var(--warning);
+  border-color: var(--warning-line);
 }
 .workflow-card-footer {
   display: flex;
@@ -212,7 +212,7 @@
   flex: none;
   min-height: 2.3rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #52622d;
+  border: 1px solid var(--accent-line);
   border-radius: 0.45rem;
   background: transparent;
   color: var(--accent);
@@ -247,7 +247,7 @@
 .workflow-filter-tabs [aria-pressed="true"] {
   color: var(--accent);
   background: var(--accent-dark);
-  border-color: #52622d;
+  border-color: var(--accent-line);
 }
 @media (max-width: 1100px) {
   .workflow-family-grid {

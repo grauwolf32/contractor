@@ -254,7 +254,7 @@ for (const viewport of [
       await expect(page.getByLabel("View")).toBeVisible();
       await expect(page.locator(".likec4-artifact-canvas")).toBeVisible();
       await expect(
-        page.locator(".likec4-artifact-canvas .react-flow.dark"),
+        page.locator(".likec4-artifact-canvas .react-flow.light"),
       ).toBeVisible();
       await expect(
         page.getByText("Contractor API", { exact: true }).first(),
