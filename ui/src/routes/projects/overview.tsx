@@ -1,511 +1,515 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-import { usePublicAPI } from "../../api/context";
-import { listProjectAudits } from "../../api/audits";
-import { listProjectArtifacts } from "../../api/project-artifacts";
-import { ProjectFindingSummary } from "./review-summary";
-import { listProjectRuns, type Project } from "../../api/projects";
-import { queryKeys } from "../../api/query-keys";
-import { getRun, type RunSummary } from "../../api/runs";
-import { getWorkflow } from "../../api/workflows";
+import { useId, type ReactNode } from "react";
+import { Link, useLocation, useSearchParams } from "react-router";
+
+import type { Audit } from "../../api/audits";
+import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
+import type { Project } from "../../api/projects";
+import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactId, formatTimestamp } from "../../app/format";
-import { StateBadge } from "../runs/components";
-import {
-  organizeRunOutputs,
-  parseWorkflowIdentity,
-  requireWorkflowOutputs,
-} from "../runs/output-model";
-import { workflowFormats } from "../workflows/formats";
-import { auditProfileLabel } from "./audits/labels";
-import { ProjectRunIdentity } from "./run-history";
+import { Icon } from "../../app/icon";
+import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
-import { ProjectSectionActions } from "./navigation";
-import { QueryView } from "../../app/query-view";
+import { StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
+import { auditProfileLabel } from "./audits/labels";
+import { CheckComposer } from "./check-composer";
+import { MaterialKindIcon } from "./material-icon";
+import {
+  MATERIAL_KIND_ORDER,
+  materialFormat,
+  materialKind,
+  materialKindLabel,
+} from "./material-kinds";
+import { ProjectSectionActions } from "./navigation";
+import {
+  type MaterialsSample,
+  type PossibleIssuesToReview,
+  useMaterialsSample,
+  usePossibleIssuesToReview,
+  useProjectChecks,
+  useRecentRuns,
+  useSuccessfulRuns,
+  useWaitingChecks,
+} from "./overview-data";
+import { RecentResults, RecentRuns } from "./overview-runs";
+import { RUNNING_CHECK_STATES } from "./project-activity";
+import { projectPath } from "./project-sections";
+import { ProjectTimeline } from "./timeline";
+import { parseTimelineFilter, type TimelineFilter } from "./timeline-filter";
 
-function RecentRunResults({
-  summary,
-  projectId,
+const NO_CHECKS: Audit[] = [];
+
+/** Material chips shown before "All materials". */
+const CHIP_LIMIT = 4;
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/** Source code, API spec, … and the live target, with "Add material". */
+function MaterialChips({
+  project,
+  materials,
 }: {
-  summary: RunSummary;
-  projectId: string;
+  project: Project;
+  materials: MaterialsSample;
 }) {
-  const api = usePublicAPI();
-  const identity = parseWorkflowIdentity(summary.workflow);
-  const run = useQuery({
-    queryKey: queryKeys.runs.detail(summary.runId),
-    queryFn: () => getRun(api, summary.runId),
-  });
-  const contract = useQuery({
-    queryKey: [
-      ...queryKeys.workflows.detail(
-        identity?.name ?? "",
-        identity?.version ?? "",
-      ),
-      "outputs",
-    ],
-    queryFn: async () => {
-      if (!identity) throw new Error("Workflow identity is invalid");
-      return requireWorkflowOutputs(
-        await getWorkflow(api, identity.name, identity.version),
-        identity,
-      );
-    },
-    enabled: identity !== undefined,
-  });
-  const entries = organizeRunOutputs(run.data?.outputs ?? {}, contract.data);
-  const primary = entries.filter((entry) => entry.kind === "primary");
-  const shown = (primary.length ? primary : entries).slice(0, 2);
+  const projectId = project.projectId;
+  const shown = materials.items.slice(0, CHIP_LIMIT);
+  const hidden = materials.items.length - shown.length;
+  const target = project.httpTarget;
+  const settings = `${projectPath(projectId, "settings")}#live-target`;
   return (
-    <div className="project-recent-result">
-      <ContextLink
-        returnLabel="Project Overview"
-        to={`/runs/${encodeURIComponent(summary.runId)}`}
-        className="project-result-workflow"
-      >
-        {summary.workflow} ↗
-      </ContextLink>
-      <small className="project-summary-caption">
-        <code title={summary.runId}>{compactId(summary.runId)}</code>
-        {" · "}
-        {formatTimestamp(summary.updatedAt)}
-      </small>
-      {run.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading outputs…
-        </p>
-      ) : run.error ? (
-        <>
-          <ErrorNotice error={run.error} />
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void run.refetch()}
-          >
-            Retry outputs
-          </button>
-        </>
-      ) : run.data.projectId !== projectId ? (
-        <p className="form-error">Run does not belong to this project.</p>
-      ) : (
-        <>
-          {contract.error ? (
-            <p className="muted-copy">
-              Output roles unavailable.{" "}
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void contract.refetch()}
-              >
-                Retry output roles
-              </button>
-            </p>
-          ) : null}
-          {shown.length === 0 ? (
-            <p className="compact-empty">No output published by this Run.</p>
-          ) : (
-            shown.map((entry) => (
-              <div className="project-overview-file" key={entry.slot}>
-                {entry.artifact ? (
-                  <ContextLink
-                    returnLabel="Project Overview"
-                    to={artifactDetailPath(
-                      { kind: "run", id: summary.runId },
-                      entry.artifact,
-                    )}
-                  >
-                    <strong>{entry.slot}</strong>
-                    <small>
-                      {entry.kind === "primary"
-                        ? "Primary result"
-                        : entry.kind === "declared"
-                          ? "Supporting result"
-                          : "Run output"}
-                      {entry.declaration
-                        ? ` · ${entry.declaration.mediaTypes.map((type) => workflowFormats[type] ?? type).join(" / ")}`
-                        : ""}
-                    </small>
-                  </ContextLink>
-                ) : (
-                  <p className="muted-copy">
-                    {entry.kind === "primary" ? "Primary result" : "Output"}{" "}
-                    <code>{entry.slot}</code> was not published.
-                  </p>
+    <div className="projects-materials">
+      <ul role="list" aria-label="Materials" className="projects-chips">
+        {materials.isPending ? (
+          <li>
+            <span className="projects-chip" data-variant="quiet" role="status">
+              Loading materials…
+            </span>
+          </li>
+        ) : null}
+        {shown.map((item) => {
+          const kind = materialKind(item);
+          const { namespace, name } = item.artifact;
+          return (
+            <li key={`${namespace}/${name}`}>
+              <ContextLink
+                className="projects-chip"
+                returnLabel="Project Overview"
+                to={artifactDetailPath(
+                  { kind: "project", id: projectId },
+                  {
+                    namespace,
+                    name,
+                  },
                 )}
-              </div>
-            ))
+                title={`${namespace}/${name}`}
+              >
+                <span className="projects-chip-icon">
+                  <MaterialKindIcon kind={kind} />
+                </span>
+                <span className="projects-chip-label">
+                  {materialKindLabel(kind)}
+                </span>
+                <span className="projects-chip-detail">
+                  {name} · {materialFormat(item)}
+                </span>
+              </ContextLink>
+            </li>
+          );
+        })}
+        {hidden > 0 || materials.more ? (
+          <li>
+            <Link
+              className="projects-chip"
+              data-variant="quiet"
+              to={projectPath(projectId, "artifacts")}
+            >
+              {hidden > 0 && !materials.more
+                ? `${hidden} more`
+                : "All materials"}
+            </Link>
+          </li>
+        ) : null}
+        <li>
+          {target === undefined ? (
+            <span className="projects-chip" data-variant="missing">
+              <span className="projects-chip-icon">
+                <MaterialKindIcon kind="target" />
+              </span>
+              <span className="projects-chip-label">Live target</span>
+              <span className="projects-chip-detail">not configured</span>
+              <Link to={settings} aria-label="Add a live target">
+                Add
+              </Link>
+            </span>
+          ) : (
+            <Link className="projects-chip" to={settings} title={target.url}>
+              <span className="projects-chip-icon">
+                <MaterialKindIcon kind="target" />
+              </span>
+              <span className="projects-chip-label">Live target</span>
+              <span className="projects-chip-detail">{hostOf(target.url)}</span>
+            </Link>
           )}
-        </>
+        </li>
+        <li>
+          <Link
+            className="projects-chip"
+            data-variant="add"
+            to={`${projectPath(projectId, "artifacts")}?add=artifact`}
+          >
+            <Icon name="plus" />
+            Add material
+          </Link>
+        </li>
+      </ul>
+      {materials.error === null ? null : (
+        <ErrorNotice
+          error={materials.error}
+          context="Could not load materials"
+          onRetry={materials.refetch}
+          retryPending={materials.isFetching}
+        />
       )}
     </div>
   );
 }
 
-export function ProjectOverview({ project }: { project: Project }) {
-  const api = usePublicAPI();
-  const projectId = project.projectId;
-  const root = `/projects/${encodeURIComponent(projectId)}`;
-  const recentOptions = { limit: 5 };
-  const resultOptions = { limit: 3, state: "succeeded" as const };
-  const recent = useQuery({
-    queryKey: queryKeys.projects.runView(projectId, recentOptions),
-    queryFn: () => listProjectRuns(api, { projectId, ...recentOptions }),
-    refetchInterval: 10_000,
-  });
-  const successful = useQuery({
-    queryKey: queryKeys.projects.runView(projectId, resultOptions),
-    queryFn: () => listProjectRuns(api, { projectId, ...resultOptions }),
-    refetchInterval: 15_000,
-  });
-  const audits = useQuery({
-    queryKey: [...queryKeys.projects.audits.all(projectId), "overview"],
-    queryFn: () => listProjectAudits(api, { projectId, limit: 3 }),
-    refetchInterval: 10_000,
-  });
-  const decisions = useQuery({
-    queryKey: [...queryKeys.projects.audits.all(projectId), "waiting-review"],
-    queryFn: () =>
-      listProjectAudits(api, { projectId, state: "waiting_review", limit: 3 }),
-    refetchInterval: 10_000,
-  });
-  const materials = useQuery({
-    queryKey: [...queryKeys.projects.artifacts.all(projectId), "overview"],
-    queryFn: () => listProjectArtifacts(api, { projectId, limit: 5 }),
-  });
-  const sourceMaterials = useQuery({
-    queryKey: [
-      ...queryKeys.projects.artifacts.all(projectId),
-      "overview-sources",
-    ],
-    queryFn: () =>
-      listProjectArtifacts(api, { projectId, namespace: "sources", limit: 3 }),
-  });
-  const materialItems = [
-    ...new Map(
-      [
-        ...(sourceMaterials.data?.items ?? []),
-        ...(materials.data?.items ?? []),
-      ].map((item) => [
-        `${item.artifact.namespace}/${item.artifact.name}`,
-        item,
-      ]),
-    ).values(),
-  ];
-  const empty =
-    materials.isSuccess &&
-    materials.data.items.length === 0 &&
-    !materials.data.page.hasMore;
-
-  const materialGroups = [
-    {
-      label: "Sources",
-      matches: (namespace: string, mediaType: string) =>
-        ["source", "sources"].includes(namespace) ||
-        (mediaType === "application/zip" && namespace !== "outputs"),
-    },
-    {
-      label: "Results",
-      matches: (namespace: string) => namespace === "outputs",
-    },
-    { label: "Documents and other inputs", matches: () => true },
-  ];
-  const groupedMaterials = materialGroups.map((group, index) => ({
-    ...group,
-    items: materialItems.filter(
-      (item) =>
-        materialGroups.findIndex((candidate) =>
-          candidate.matches(item.artifact.namespace, item.mediaType),
-        ) === index,
-    ),
-  }));
-  const queries = [
-    recent,
-    successful,
-    audits,
-    decisions,
-    materials,
-    sourceMaterials,
-  ];
+function Cell({
+  label,
+  value,
+  caption,
+}: {
+  label: string;
+  value: ReactNode;
+  caption?: ReactNode;
+}) {
   return (
-    <section className="project-overview-section">
+    <div className="projects-glance-cell">
+      <dt>{label}</dt>
+      <dd>
+        <span className="projects-glance-value">{value}</span>
+        {caption === undefined || caption === null ? null : (
+          <span className="projects-glance-caption">{caption}</span>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+interface LastActivity {
+  time: string;
+  what: string;
+}
+
+function lastActivity(
+  project: Project,
+  checks: readonly Audit[],
+  runs: readonly RunSummary[],
+  materials: MaterialsSample,
+): LastActivity {
+  const candidates: LastActivity[] = [
+    { time: project.updatedAt, what: "Project updated" },
+    ...checks.map((audit) => ({
+      time: audit.updatedAt,
+      what: `${auditProfileLabel(audit)} updated`,
+    })),
+    ...runs.map((run) => ({
+      time: run.updatedAt,
+      what: `Run of ${run.workflow} updated`,
+    })),
+    ...materials.items.map((item) => ({
+      time: item.createdAt,
+      what: `${item.artifact.namespace}/${item.artifact.name} saved`,
+    })),
+  ];
+  return candidates.reduce((newest, candidate) =>
+    Date.parse(candidate.time) > Date.parse(newest.time) ? candidate : newest,
+  );
+}
+
+/** The four-cell "at a glance" strip. */
+function GlanceStrip({
+  project,
+  checks,
+  checksTruncated,
+  checksState,
+  issues,
+  runs,
+  materials,
+}: {
+  project: Project;
+  checks: readonly Audit[];
+  checksTruncated: boolean;
+  checksState: "pending" | "error" | "ready";
+  issues: PossibleIssuesToReview;
+  runs: readonly RunSummary[];
+  materials: MaterialsSample;
+}) {
+  const heading = useId();
+  const projectId = project.projectId;
+  const running = checks.filter((audit) =>
+    RUNNING_CHECK_STATES.includes(audit.state),
+  ).length;
+  const waiting = checks.filter(
+    (audit) => audit.state === "waiting_review",
+  ).length;
+  const newest = `In the ${CROSS_PROJECT_LIMITS.auditsPerProject} newest checks`;
+
+  let issuesValue: ReactNode;
+  let issuesCaption: ReactNode;
+  if (
+    checksState === "pending" ||
+    (checksState === "ready" && !issues.settled)
+  ) {
+    issuesValue = "Counting…";
+  } else if (checksState === "error") {
+    issuesValue = "Unavailable";
+  } else if (issues.total > 0) {
+    issuesValue = (
+      <Link
+        to={`/issues?${new URLSearchParams({ state: "proposed", project: projectId }).toString()}`}
+      >
+        <StatusGlyph tone="review" />
+        {issues.partial ? "At least " : ""}
+        {issues.total} to review
+      </Link>
+    );
+  } else {
+    issuesValue = issues.partial ? "Partly unavailable" : "None to review";
+  }
+  if (checksState === "ready") {
+    issuesCaption = issues.partial
+      ? "Some checks could not be read"
+      : checksTruncated
+        ? newest
+        : undefined;
+  }
+
+  let runningValue: ReactNode;
+  if (checksState === "pending") runningValue = "Loading…";
+  else if (checksState === "error") runningValue = "Unavailable";
+  else if (running > 0)
+    runningValue = (
+      <Link to={projectPath(projectId, "audits")}>
+        <StatusGlyph tone="progress" />
+        {running} running
+      </Link>
+    );
+  else runningValue = "None running";
+  const runningCaption =
+    checksState !== "ready"
+      ? undefined
+      : waiting > 0
+        ? `${waiting} waiting for you`
+        : checks.length === 0
+          ? "No checks yet"
+          : checksTruncated
+            ? newest
+            : plural(checks.length, "check", "checks") + " in total";
+
+  const kinds = [
+    ...new Set(materials.items.map((item) => materialKind(item))),
+  ].sort(
+    (left, right) =>
+      MATERIAL_KIND_ORDER.indexOf(left) - MATERIAL_KIND_ORDER.indexOf(right),
+  );
+  let materialsValue: ReactNode;
+  if (materials.isPending) materialsValue = "Loading…";
+  else if (materials.error !== null) materialsValue = "Unavailable";
+  else if (materials.items.length === 0) materialsValue = "No materials yet";
+  else
+    materialsValue = (
+      <Link to={projectPath(projectId, "artifacts")}>
+        {materials.more
+          ? `${materials.items.length}+ materials`
+          : plural(materials.items.length, "material", "materials")}
+      </Link>
+    );
+
+  const last = lastActivity(project, checks, runs, materials);
+
+  return (
+    <section className="projects-glance" aria-labelledby={heading}>
+      <h3 className="ui-visually-hidden" id={heading}>
+        At a glance
+      </h3>
+      <dl>
+        <Cell
+          label="Possible issues"
+          value={issuesValue}
+          caption={issuesCaption}
+        />
+        <Cell
+          label="Running checks"
+          value={runningValue}
+          caption={runningCaption}
+        />
+        <Cell
+          label="Materials"
+          value={materialsValue}
+          caption={kinds.map(materialKindLabel).join(", ") || undefined}
+        />
+        <Cell
+          label="Last activity"
+          value={<RecordedTime value={last.time} />}
+          caption={last.what}
+        />
+      </dl>
+    </section>
+  );
+}
+
+/** Checks waiting for the user's decision. */
+function Attention({
+  projectId,
+  waiting,
+}: {
+  projectId: string;
+  waiting: ReturnType<typeof useWaitingChecks>;
+}) {
+  const heading = useId();
+  if (waiting.error !== null && waiting.data === undefined) {
+    return (
+      <ErrorNotice
+        error={waiting.error}
+        context="Could not check for decisions"
+        onRetry={() => void waiting.refetch()}
+        retryPending={waiting.isFetching}
+      />
+    );
+  }
+  const items = waiting.data?.items ?? [];
+  if (items.length === 0) return null;
+  return (
+    <section
+      className="projects-panel projects-attention"
+      aria-labelledby={heading}
+    >
+      <div className="projects-section-heading">
+        <h3 id={heading}>
+          <StatusGlyph tone="review" />
+          Needs your attention
+        </h3>
+        {waiting.data?.page.hasMore ? (
+          <Link to={projectPath(projectId, "audits")}>All checks</Link>
+        ) : null}
+      </div>
+      <ul role="list" className="projects-rows">
+        {items.map((audit) => (
+          <li className="projects-row" key={audit.auditId}>
+            <StatusGlyph tone="review" />
+            <div className="projects-row-main">
+              <strong>{auditProfileLabel(audit)}</strong>
+              <span className="projects-row-meta">
+                <span>Waiting for you</span>
+                <span>
+                  updated <RecordedTime value={audit.updatedAt} />
+                </span>
+              </span>
+            </div>
+            <ContextLink
+              className="ui-btn"
+              data-size="sm"
+              returnLabel="Project Overview"
+              to={`${projectPath(projectId, "audits")}/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
+            >
+              Review decisions
+            </ContextLink>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The project Overview (V3B): materials, the "at a glance" strip, checks
+ * waiting for a decision, the check composer, the timeline, recent results
+ * and recent Runs. Every read is bounded (S06 "Project section navigation");
+ * counts say when they cover only the newest checks.
+ */
+export function ProjectOverview({ project }: { project: Project }) {
+  const projectId = project.projectId;
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const timelineFilter = parseTimelineFilter(searchParams.get("timeline"));
+  const checks = useProjectChecks(projectId);
+  const checkItems = checks.data?.items ?? NO_CHECKS;
+  const waiting = useWaitingChecks(projectId);
+  const issues = usePossibleIssuesToReview(checkItems);
+  const runs = useRecentRuns(projectId);
+  const results = useSuccessfulRuns(projectId);
+  const materials = useMaterialsSample(projectId);
+  const checksState =
+    checks.data !== undefined
+      ? "ready"
+      : checks.error !== null
+        ? "error"
+        : "pending";
+
+  function setTimelineFilter(filter: TimelineFilter) {
+    const next = new URLSearchParams(searchParams);
+    if (filter === "all") next.delete("timeline");
+    else next.set("timeline", filter);
+    setSearchParams(next, {
+      replace: true,
+      preventScrollReset: true,
+      state: location.state,
+    });
+  }
+
+  const fetching =
+    checks.isFetching ||
+    waiting.isFetching ||
+    runs.isFetching ||
+    results.isFetching ||
+    materials.isFetching;
+
+  return (
+    <div className="projects-overview">
       <ProjectSectionActions>
         <RefreshButton
-          isFetching={queries.some((query) => query.isFetching)}
-          onRefresh={() =>
-            void Promise.all(queries.map((query) => query.refetch()))
-          }
+          isFetching={fetching}
+          onRefresh={() => {
+            void checks.refetch();
+            void waiting.refetch();
+            void runs.refetch();
+            void results.refetch();
+            materials.refetch();
+          }}
         />
       </ProjectSectionActions>
-      <div className="project-overview-grid">
-        <div className="project-overview-stack">
-          <section
-            className={`panel ${decisions.data?.items.length ? "project-overview-attention" : ""}`}
-          >
-            <p className="eyebrow">
-              {decisions.data?.items.length
-                ? "Needs your attention"
-                : "Next steps"}
-            </p>
-            <QueryView
-              query={decisions}
-              loading={
-                <p className="loading-copy" role="status">
-                  Checking Audit decisions…
-                </p>
-              }
-              onRetry={() => void decisions.refetch()}
-            >
-              {(data) =>
-                data.items.length ? (
-                  <>
-                    <h3>Audits waiting for review</h3>
-                    {data.items.map((audit) => (
-                      <div className="project-overview-row" key={audit.auditId}>
-                        <strong>{auditProfileLabel(audit)}</strong>
-                        <ContextLink
-                          returnLabel="Project Overview"
-                          className="audit-open-link"
-                          to={`${root}/audits/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
-                        >
-                          Review decisions →
-                        </ContextLink>
-                      </div>
-                    ))}
-                    {data.page.hasMore ? (
-                      <Link to={`${root}/audits`}>All audits →</Link>
-                    ) : null}
-                  </>
-                ) : empty ? (
-                  <>
-                    <h3>Prepare your first analysis</h3>
-                    <p>
-                      Add source material, choose a Workflow and review its
-                      inputs before starting.
-                    </p>
-                    <Link
-                      className="audit-open-link"
-                      to={`${root}/artifacts?add=artifact`}
-                    >
-                      Add sources →
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <h3>No Audits are waiting for review</h3>
-                    <p>
-                      Choose a Workflow to continue analysis, or inspect your
-                      Audit progress.
-                    </p>
-                    <Link className="audit-open-link" to={`${root}/workflows`}>
-                      Choose workflow →
-                    </Link>
-                  </>
-                )
-              }
-            </QueryView>
-            <ProjectFindingSummary
-              projectId={projectId}
-              audits={audits.data?.items ?? []}
-            />
-          </section>
-          <section className="panel">
-            <div className="project-overview-heading">
-              <h3>Recent results</h3>
-              <Link to={`${root}/runs?view=completed&state=succeeded`}>
-                Successful Runs →
-              </Link>
-            </div>
-            <p className="project-summary-caption">
-              Outputs from the three most recent successful Runs.
-            </p>
-            <QueryView
-              query={successful}
-              loading={
-                <p className="loading-copy" role="status">
-                  Loading successful Runs…
-                </p>
-              }
-              onRetry={() => void successful.refetch()}
-              isEmpty={(data) => data.items.length === 0}
-              empty={
-                <p className="compact-empty">
-                  No successful Runs yet. Published results will appear here.
-                </p>
-              }
-            >
-              {(data) =>
-                data.items.map((run) => (
-                  <RecentRunResults
-                    key={run.runId}
-                    summary={run}
-                    projectId={projectId}
-                  />
-                ))
-              }
-            </QueryView>
-          </section>
-          <section className="panel">
-            <div className="project-overview-heading">
-              <h3>Recent Runs</h3>
-              <Link to={`${root}/runs`}>All Runs →</Link>
-            </div>
-            <QueryView
-              query={recent}
-              loading={
-                <p className="loading-copy" role="status">
-                  Loading recent Runs…
-                </p>
-              }
-              onRetry={() => void recent.refetch()}
-              isEmpty={(data) => data.items.length === 0}
-              empty={
-                <p className="compact-empty">
-                  No Runs yet. Choose a Workflow when your inputs are ready.
-                </p>
-              }
-            >
-              {(data) =>
-                data.items.map((run) => (
-                  <div className="project-overview-row" key={run.runId}>
-                    <div>
-                      <ProjectRunIdentity
-                        run={run}
-                        returnLabel="Project Overview"
-                      />
-                      <small>{formatTimestamp(run.updatedAt)}</small>
-                    </div>
-                    <StateBadge state={run.state} />
-                  </div>
-                ))
-              }
-            </QueryView>
-          </section>
-        </div>
-        <div className="project-overview-stack">
-          <section className="panel">
-            <div className="project-overview-heading">
-              <h3>Project context</h3>
-              <Link to={`${root}/settings`}>Settings →</Link>
-            </div>
-            <p className="eyebrow">Materials</p>
-            {sourceMaterials.error ? (
-              <p className="muted-copy">
-                Source summary unavailable. Open all artifacts to review
-                materials.
-              </p>
-            ) : null}
-            <QueryView
-              query={materials}
-              loading={
-                <p className="loading-copy" role="status">
-                  Loading materials…
-                </p>
-              }
-              onRetry={() => void materials.refetch()}
-            >
-              {() =>
-                empty ? (
-                  <p className="compact-empty">No materials added yet.</p>
-                ) : (
-                  <>
-                    {groupedMaterials
-                      .filter((group) => group.items.length > 0)
-                      .map((group) => (
-                        <div
-                          className="project-material-group"
-                          key={group.label}
-                        >
-                          <h4>
-                            {group.label}{" "}
-                            <small>({group.items.length} shown)</small>
-                          </h4>
-                          {group.items.slice(0, 3).map((item) => (
-                            <div
-                              className="project-overview-file"
-                              key={`${item.artifact.namespace}/${item.artifact.name}`}
-                            >
-                              <ContextLink
-                                returnLabel="Project Overview"
-                                to={artifactDetailPath(
-                                  { kind: "project", id: projectId },
-                                  item.artifact,
-                                )}
-                              >
-                                <strong>
-                                  {item.artifact.namespace}/{item.artifact.name}
-                                </strong>
-                                <small>
-                                  {workflowFormats[item.mediaType] ??
-                                    item.mediaType}
-                                </small>
-                              </ContextLink>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    <Link
-                      className="project-summary-link"
-                      to={`${root}/artifacts`}
-                    >
-                      All artifacts →
-                    </Link>
-                  </>
-                )
-              }
-            </QueryView>
-            <dl className="project-overview-target">
-              <dt>Application target</dt>
-              <dd>{project.httpTarget?.url ?? "Not configured"}</dd>
-            </dl>
-            <div className="project-overview-actions">
-              <Link to={`${root}/artifacts?add=artifact`}>Add sources →</Link>
-              <Link to={`${root}/workflows`}>Choose workflow →</Link>
-            </div>
-          </section>
-          <section className="panel">
-            <div className="project-overview-heading">
-              <h3>Recent audits</h3>
-              <Link to={`${root}/audits`}>All audits →</Link>
-            </div>
-            <QueryView
-              query={audits}
-              loading={
-                <p className="loading-copy" role="status">
-                  Loading Audits…
-                </p>
-              }
-              onRetry={() => void audits.refetch()}
-              isEmpty={(data) => data.items.length === 0}
-              empty={<p className="compact-empty">No Audits yet.</p>}
-            >
-              {(data) =>
-                data.items.map((audit) => (
-                  <div className="project-overview-row" key={audit.auditId}>
-                    <div>
-                      <ContextLink
-                        returnLabel="Project Overview"
-                        to={`${root}/audits/${encodeURIComponent(audit.auditId)}`}
-                      >
-                        {auditProfileLabel(audit)}
-                      </ContextLink>
-                      {audit.stopReason ? (
-                        <small>
-                          {audit.stopReason.code === "deadline_exhausted"
-                            ? "Time limit reached"
-                            : audit.stopReason.message}
-                        </small>
-                      ) : null}
-                    </div>
-                    <StateBadge state={audit.state} />
-                  </div>
-                ))
-              }
-            </QueryView>
-          </section>
-        </div>
+      <MaterialChips project={project} materials={materials} />
+      <GlanceStrip
+        project={project}
+        checks={checkItems}
+        checksTruncated={checks.data?.page.hasMore === true}
+        checksState={checksState}
+        issues={issues}
+        runs={runs.data?.items ?? []}
+        materials={materials}
+      />
+      <Attention projectId={projectId} waiting={waiting} />
+      <CheckComposer project={project} materials={materials.items} />
+      {checks.error !== null && checks.data === undefined ? (
+        <ErrorNotice
+          error={checks.error}
+          context="Could not load checks"
+          onRetry={() => void checks.refetch()}
+          retryPending={checks.isFetching}
+        />
+      ) : null}
+      {checksState === "pending" ? (
+        <p className="loading-copy" role="status">
+          Loading the timeline…
+        </p>
+      ) : (
+        <ProjectTimeline
+          project={project}
+          checks={checkItems}
+          issues={issues.checks}
+          runs={runs.data?.items ?? []}
+          materials={materials.items}
+          filter={timelineFilter}
+          onFilter={setTimelineFilter}
+        />
+      )}
+      <div className="projects-overview-columns">
+        <RecentResults projectId={projectId} results={results} />
+        <RecentRuns projectId={projectId} runs={runs} />
       </div>
-    </section>
+    </div>
   );
 }

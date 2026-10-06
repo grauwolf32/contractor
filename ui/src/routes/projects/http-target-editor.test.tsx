@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -202,6 +202,108 @@ describe("Project HTTP credential picker", () => {
     expect(screen.getByLabelText("Active HTTP origin credential")).toHaveValue(
       "current-origin",
     );
+  });
+
+  it("masks new secrets unless the user asks to see them while typing", async () => {
+    const { user } = fixture(async () =>
+      response({ items: [], page: { hasMore: false } }),
+    );
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.selectOptions(screen.getByLabelText("Authorization"), "basic");
+    const password = screen.getByLabelText("Password · write only");
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveAttribute("autocomplete", "new-password");
+    const reveal = screen.getByRole("checkbox", {
+      name: "Show secret while entering",
+    });
+    expect(reveal).not.toBeChecked();
+    await user.click(reveal);
+    expect(password).toHaveAttribute("type", "text");
+    await user.selectOptions(screen.getByLabelText("Authorization"), "bearer");
+    expect(screen.getByLabelText("Bearer token · write only")).toHaveAttribute(
+      "type",
+      "text",
+    );
+  });
+
+  it("asks before removing the target and removes the one it showed", async () => {
+    const targeted: Project = {
+      ...project,
+      revision: "4",
+      httpTarget: {
+        url: "https://app.example.test/",
+        credential: {
+          credentialId: "current-origin",
+          kind: "http-origin-bearer@1",
+        },
+      },
+    };
+    const writes: Request[] = [];
+    const { user } = fixture(async (request) => {
+      if (request.method === "PATCH") {
+        writes.push(request.clone());
+        const updated: Project = { ...project, revision: "5" };
+        return response(updated, 200, { ETag: '"5"' });
+      }
+      return response({ items: [], page: { hasMore: false } });
+    }, targeted);
+    expect(screen.getByText("current-origin")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    let dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    expect(dialog).toHaveTextContent("https://app.example.test/");
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(writes).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove target" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.headers.get("If-Match")).toBe('"4"');
+    await expect(writes[0]?.json()).resolves.toEqual({ httpTarget: null });
+  });
+
+  it("keeps a refused removal open with the reason and does not retry it", async () => {
+    const targeted: Project = {
+      ...project,
+      httpTarget: { url: "https://app.example.test/" },
+    };
+    const writes: Request[] = [];
+    const { user } = fixture(async (request) => {
+      if (request.method === "PATCH") {
+        writes.push(request);
+        return response(
+          {
+            code: "precondition_failed",
+            message: "resource revision precondition failed",
+            retryable: false,
+          },
+          412,
+        );
+      }
+      return response({ items: [], page: { hasMore: false } });
+    }, targeted);
+    await user.click(screen.getByRole("button", { name: "Remove target" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Remove the live target?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove target" }),
+    );
+    expect(
+      await within(dialog).findByText("resource revision precondition failed"),
+    ).toBeVisible();
+    expect(writes).toHaveLength(1);
   });
 
   it("rejects cyclic pagination instead of treating the first page as complete", async () => {

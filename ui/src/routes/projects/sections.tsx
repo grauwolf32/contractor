@@ -1,14 +1,96 @@
-import { Link, useOutletContext } from "react-router";
+import { useId } from "react";
+import { Link } from "react-router";
+
 import type { Project } from "../../api/projects";
 import { RUNTIME_CONFIGURATION_PATH } from "../../app/navigation";
 import { useSession } from "../../auth/session";
+import { TechnicalDetails } from "../../ui";
 import { ProjectArtifactRegion } from "./artifact-region";
 import { ProjectAuditWorkspace } from "./audits/list";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
-import { ProjectMetadataEditor } from "./metadata-editor";
+import { ProjectFacts, ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectOverview } from "./overview";
 import { ProjectRunsRegion } from "./runs-region";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
+import { useProjectWorkspace } from "./workspace-context";
+
+import "./projects.css";
+
+/** Settings: details, live target, technical details and deletion. */
+function ProjectSettings({
+  project,
+  operator,
+  requestDeletion,
+}: {
+  project: Project;
+  operator: boolean;
+  requestDeletion: () => void;
+}) {
+  const details = useId();
+  const target = useId();
+  const danger = useId();
+  return (
+    <div className="projects-settings">
+      <section className="projects-panel" aria-labelledby={details}>
+        <div className="projects-section-heading">
+          <h3 id={details}>Project details</h3>
+        </div>
+        <ProjectMetadataEditor key={project.projectId} project={project} />
+      </section>
+      <section
+        className="projects-panel"
+        id="live-target"
+        aria-labelledby={target}
+      >
+        <div className="projects-section-heading">
+          <h3 id={target}>Live target</h3>
+        </div>
+        <p className="projects-caption">
+          The running application that active checks of this project may send
+          requests to, and the authorization they use.
+        </p>
+        <ProjectHTTPTargetEditor key={project.projectId} project={project} />
+      </section>
+      <TechnicalDetails description="Identifiers, revision and where execution defaults live.">
+        <ProjectFacts project={project} showId={false} />
+        <p className="projects-caption">
+          These settings apply to this project only. Server-wide execution
+          defaults live under Operations.
+          {operator ? (
+            <>
+              {" "}
+              <Link to={RUNTIME_CONFIGURATION_PATH}>Runtime configuration</Link>
+            </>
+          ) : null}
+        </p>
+      </TechnicalDetails>
+      <section
+        className="projects-panel projects-danger"
+        aria-labelledby={danger}
+      >
+        <div className="projects-section-heading">
+          <h3 id={danger}>Delete this project</h3>
+        </div>
+        <p className="projects-caption">
+          Deletion cancels every active Run and permanently removes the
+          project&apos;s Runs, history and materials. You confirm by typing the
+          project&apos;s name.
+        </p>
+        <div className="projects-form-actions">
+          <button
+            type="button"
+            className="ui-btn"
+            data-variant="danger"
+            data-size="sm"
+            onClick={requestDeletion}
+          >
+            Delete this project
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export function ProjectSectionRoute({
   section,
@@ -16,7 +98,7 @@ export function ProjectSectionRoute({
   section:
     "overview" | "artifacts" | "workflows" | "runs" | "audits" | "settings";
 }) {
-  const project = useOutletContext<Project>();
+  const { project, requestDeletion } = useProjectWorkspace();
   const { session } = useSession();
   const operator =
     session?.principal.capabilities.includes("operations") === true;
@@ -57,32 +139,12 @@ export function ProjectSectionRoute({
       );
     case "settings":
       return (
-        <section className="project-settings-section">
-          <header className="section-heading project-settings-scope">
-            <div>
-              <span className="state-badge">Project</span>
-              <p className="muted-copy">
-                These settings apply to this Project only. Server-wide execution
-                defaults live under Operations.
-              </p>
-            </div>
-            {operator ? (
-              <Link to={RUNTIME_CONFIGURATION_PATH}>
-                Runtime configuration →
-              </Link>
-            ) : null}
-          </header>
-          <section className="panel">
-            <h3>Project details</h3>
-            <ProjectMetadataEditor key={project.projectId} project={project} />
-          </section>
-          <section className="panel">
-            <ProjectHTTPTargetEditor
-              key={project.projectId}
-              project={project}
-            />
-          </section>
-        </section>
+        <ProjectSettings
+          key={project.projectId}
+          project={project}
+          operator={operator}
+          requestDeletion={requestDeletion}
+        />
       );
   }
 }

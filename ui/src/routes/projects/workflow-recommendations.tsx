@@ -1,7 +1,7 @@
 import { useLocation, useSearchParams } from "react-router";
 import { WorkflowRunDrawer } from "../workflows/run-drawer";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import { useProjectArtifactInventory } from "./inventory";
@@ -23,6 +23,18 @@ import {
 } from "./recommendations";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
+import { FilterChips } from "../../ui";
+
+import "./projects.css";
+
+type WorkflowFilter = "recommended" | "all" | "missing";
+
+/** Matching is by media type only, so the views say "format matches". */
+const WORKFLOW_FILTERS: readonly { value: WorkflowFilter; label: string }[] = [
+  { value: "recommended", label: "Format matches" },
+  { value: "all", label: "All workflows" },
+  { value: "missing", label: "Missing inputs" },
+];
 
 function selector(item: WorkflowCompatibility): string {
   return workflowSelector(item.workflow);
@@ -104,6 +116,7 @@ export function ProjectWorkflowRecommendations({
 }: {
   projectId: string;
 }) {
+  const heading = useId();
   const [selection, setSelection] = useState<WorkflowCompatibility | null>(
     null,
   );
@@ -117,11 +130,10 @@ export function ProjectWorkflowRecommendations({
   const { families, selectVersion } = useWorkflowFamilies(workflows.data ?? []);
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
-  const filter = ["recommended", "all", "missing"].includes(
-    filters.get("workflowFilter") ?? "",
-  )
-    ? filters.get("workflowFilter")!
-    : "recommended";
+  const filter: WorkflowFilter =
+    WORKFLOW_FILTERS.find(
+      (option) => option.value === filters.get("workflowFilter"),
+    )?.value ?? "recommended";
   const search = filters.get("workflowQ") ?? "";
   function updateFilter(key: string, value: string) {
     setFilters(
@@ -134,7 +146,8 @@ export function ProjectWorkflowRecommendations({
       { replace: true, preventScrollReset: true, state: location.state },
     );
   }
-  const setFilter = (value: string) => updateFilter("workflowFilter", value);
+  const setFilter = (value: WorkflowFilter) =>
+    updateFilter("workflowFilter", value);
   const setSearch = (value: string) => updateFilter("workflowQ", value);
   const selectedItems = families.map((family) => {
     const selected =
@@ -169,61 +182,68 @@ export function ProjectWorkflowRecommendations({
 
   if (workflows.isPending || artifacts.isPending) {
     return (
-      <section className="panel project-region" id="project-workflows">
+      <section
+        className="projects-workflows"
+        id="project-workflows"
+        aria-label="Workflows"
+      >
         <p className="loading-copy" role="status">
-          Matching Workflows to Project Artifacts…
+          Matching Workflows to project materials…
         </p>
       </section>
     );
   }
   if (workflows.error !== null || artifacts.error !== null) {
     return (
-      <section className="panel project-region" id="project-workflows">
-        <p className="eyebrow">Workflow matching</p>
-        <h3>Recommended Workflows</h3>
+      <section
+        className="projects-workflows"
+        id="project-workflows"
+        aria-labelledby={heading}
+      >
+        <div className="projects-section-heading">
+          <h3 id={heading}>Workflows whose formats match</h3>
+        </div>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={workflows.isFetching || artifacts.isFetching}
-          onClick={() => {
-            void workflows.refetch();
-            void artifacts.refetch();
-          }}
-        >
-          Retry matching
-        </button>
+        <div className="projects-form-actions">
+          <button
+            className="ui-btn"
+            data-size="sm"
+            type="button"
+            disabled={workflows.isFetching || artifacts.isFetching}
+            onClick={() => {
+              void workflows.refetch();
+              void artifacts.refetch();
+            }}
+          >
+            Retry matching
+          </button>
+        </div>
       </section>
     );
   }
 
   return (
-    <section className="panel project-region" id="project-workflows">
+    <section
+      className="projects-workflows"
+      id="project-workflows"
+      aria-label="Workflows"
+    >
       <ProjectSectionActions>
-        <span className="muted-copy">
-          {families.length} workflows · {workflows.data?.length ?? 0} versions
+        <span className="projects-caption">
+          {families.length} {families.length === 1 ? "workflow" : "workflows"} ·{" "}
+          {workflows.data?.length ?? 0}{" "}
+          {workflows.data?.length === 1 ? "version" : "versions"}
         </span>
       </ProjectSectionActions>
-      <div className="workflow-discovery-toolbar">
-        <div className="workflow-filter-tabs" aria-label="Workflow filters">
-          {[
-            ["recommended", "Format matches"],
-            ["all", "All workflows"],
-            ["missing", "Missing inputs"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className="secondary-button"
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value!)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="catalog-search">
-          Find workflow
+      <div className="projects-toolbar">
+        <FilterChips
+          label="Workflow filters"
+          options={WORKFLOW_FILTERS}
+          value={filter}
+          onChange={setFilter}
+        />
+        <label className="projects-inline-field projects-search">
+          <span>Find workflow</span>
           <input
             type="search"
             value={search}
@@ -233,18 +253,19 @@ export function ProjectWorkflowRecommendations({
         </label>
       </div>
       {visible.length === 0 ? (
-        <div className="compact-empty">
-          <strong>
+        <div className="projects-empty">
+          <p className="projects-empty-title">
             {filter === "recommended" && recommended.length === 0
               ? "No new format matches."
               : "No matching Workflows."}
-          </strong>
+          </p>
           <p>
             Inspect all Workflows to review missing inputs or explicitly run
             again.
           </p>
           <button
-            className="secondary-button"
+            className="ui-btn"
+            data-size="sm"
             type="button"
             onClick={() => {
               setFilters(
@@ -282,7 +303,7 @@ export function ProjectWorkflowRecommendations({
           ))}
         </div>
       )}
-      <p className="muted-copy workflow-card-parameters">
+      <p className="projects-caption">
         Input matches compare media types. Review content and parameters in the
         Run form.
       </p>

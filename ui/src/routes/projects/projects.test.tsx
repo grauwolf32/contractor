@@ -65,7 +65,7 @@ function renderProjectApplication(
 }
 
 describe("Project routes", () => {
-  it("loads bounded Overview summaries and preserves section filters through navigation", async () => {
+  it("loads a bounded Overview and preserves section filters through navigation", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
       runtimeConfig,
@@ -85,16 +85,36 @@ describe("Project routes", () => {
       "/projects/project_example",
     );
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: "Prepare your first analysis" });
-    const summaries = requests.filter((url) =>
-      /\/(runs|audits|artifacts)$/.test(url.pathname),
-    );
-    expect(summaries).toHaveLength(6);
+    await screen.findByRole("heading", { name: "Timeline" });
+    const reads = (suffix: string) =>
+      requests.filter(
+        (url) => url.pathname === `/v1/projects/project_example/${suffix}`,
+      );
+    await waitFor(() => expect(reads("artifacts")).toHaveLength(3));
+    // Bounded samples only (S06): no complete material or Workflow inventory.
     expect(
-      summaries.some((url) => url.searchParams.get("namespace") === "sources"),
+      reads("artifacts").map((url) => url.searchParams.get("namespace")),
+    ).toEqual(expect.arrayContaining([null, "sources", "openapi"]));
+    expect(
+      reads("artifacts").every(
+        (url) => Number(url.searchParams.get("limit")) <= 5,
+      ),
     ).toBe(true);
     expect(
-      summaries.every((url) => Number(url.searchParams.get("limit")) <= 5),
+      reads("runs").map((url) => [
+        url.searchParams.get("limit"),
+        url.searchParams.get("state"),
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        ["5", null],
+        ["3", "succeeded"],
+      ]),
+    );
+    expect(
+      reads("audits").every(
+        (url) => Number(url.searchParams.get("limit")) <= 50,
+      ),
     ).toBe(true);
     expect(requests.some((url) => url.pathname === "/v1/workflows")).toBe(
       false,
@@ -185,11 +205,8 @@ describe("Project routes", () => {
     );
   });
 
-  it("deletes from the Project list after confirmation and removes the completed deletion without navigation", async () => {
-    const deleteRequests: Request[] = [];
-    let deleting = false;
+  it("polls a Project in deletion in the list and drops it once the Server has removed it", async () => {
     let complete = false;
-    let finishDelete!: () => void;
     const deletingProject = {
       ...project,
       lifecycle: "deleting",
@@ -204,90 +221,30 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/auth/session") return jsonResponse(session);
         if (url.pathname === "/v1/projects") {
           return jsonResponse({
-            items: complete ? [] : [deleting ? deletingProject : project],
+            items: complete ? [] : [deletingProject],
             page: { hasMore: false },
-          });
-        }
-        if (
-          url.pathname === "/v1/projects/project_example" &&
-          request.method === "DELETE"
-        ) {
-          deleteRequests.push(request.clone());
-          return new Promise<Response>((resolve) => {
-            finishDelete = () => {
-              deleting = true;
-              resolve(
-                jsonResponse(deletingProject, {
-                  status: 202,
-                  headers: { ETag: '"2"' },
-                }),
-              );
-            };
           });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
     const { router } = renderProjectApplication(api, "/projects");
-    const user = userEvent.setup();
-    const trigger = await screen.findByRole("button", {
-      name: "Delete Project Payment service",
-    });
-    expect(trigger).toHaveAttribute("title", "Delete Project");
-    await user.click(trigger);
-    let dialog = screen.getByRole("alertdialog", {
-      name: "Delete Payment service?",
-    });
-    expect(
-      within(dialog).getByRole("button", { name: "Cancel" }),
-    ).toHaveFocus();
-    expect(
-      within(dialog).getByRole("button", { name: "Delete Project" }),
-    ).toBeDisabled();
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    expect(deleteRequests).toHaveLength(0);
-    await user.click(trigger);
-    dialog = screen.getByRole("alertdialog", {
-      name: "Delete Payment service?",
-    });
-    await user.type(
-      within(dialog).getByLabelText("Type Payment service to confirm"),
-      project.name,
-    );
-    await user.click(
-      within(dialog).getByRole("button", { name: "Delete Project" }),
-    );
-    expect(
-      await within(dialog).findByRole("button", { name: "Starting deletion…" }),
-    ).toBeDisabled();
-    expect(
-      within(dialog).getByRole("button", { name: "Cancel" }),
-    ).toBeDisabled();
-    expect(deleteRequests).toHaveLength(1);
-    expect(deleteRequests[0]?.headers.get("If-Match")).toBe('"1"');
-    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
-      session.csrfToken,
-    );
-    finishDelete();
-    await screen.findByText("Deletion in progress");
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Delete Project Payment service" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("link", { name: "View deletion status →" }),
-    ).toHaveAttribute("href", "/projects/project_example");
+    const row = await screen.findByRole("link", { name: project.name });
+    expect(row).toHaveAttribute("href", "/projects/project_example");
+    expect(row.closest("li")).toHaveTextContent("Deleting");
+    // Deletion lives in the project's actions menu and Settings, not in rows.
+    expect(screen.queryByRole("button", { name: /Delete/ })).toBeNull();
     complete = true;
     await waitFor(
       () =>
         expect(screen.queryByRole("link", { name: project.name })).toBeNull(),
       { timeout: 3_000 },
     );
+    expect(screen.getByText("No projects yet")).toBeVisible();
     expect(router.state.location.pathname).toBe("/projects");
-    expect(deleteRequests).toHaveLength(1);
   });
 
-  it("keeps a failed list deletion open and refreshes the Project before a new confirmation", async () => {
+  it("keeps a refused deletion open and confirms again against the re-read Project", async () => {
     let current = project;
     const deleteRequests: Request[] = [];
     const api = new PublicAPI(
@@ -299,31 +256,31 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/projects") {
           return jsonResponse({ items: [current], page: { hasMore: false } });
         }
-        if (
-          url.pathname === "/v1/projects/project_example" &&
-          request.method === "DELETE"
-        ) {
-          deleteRequests.push(request.clone());
-          current = { ...project, name: "Renamed project", revision: "2" };
-          return jsonResponse(
-            {
-              code: "precondition_failed",
-              message: "resource revision precondition failed",
-              retryable: false,
-            },
-            { status: 412 },
-          );
+        if (url.pathname === "/v1/projects/project_example") {
+          if (request.method === "DELETE") {
+            deleteRequests.push(request.clone());
+            current = { ...project, name: "Renamed project", revision: "2" };
+            return jsonResponse(
+              {
+                code: "precondition_failed",
+                message: "resource revision precondition failed",
+                retryable: false,
+              },
+              { status: 412 },
+            );
+          }
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
         }
-        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+        return jsonResponse({ items: [], page: { hasMore: false } });
       }),
     );
-    renderProjectApplication(api, "/projects");
+    renderProjectApplication(api, "/projects/project_example");
     const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Delete Project Payment service",
-      }),
-    );
+    await screen.findByRole("heading", { name: "Payment service" });
+    await user.click(screen.getByLabelText("Project actions"));
+    await user.click(screen.getByRole("button", { name: "Delete Project" }));
     const dialog = screen.getByRole("alertdialog", {
       name: "Delete Payment service?",
     });
@@ -345,11 +302,12 @@ describe("Project routes", () => {
       ).toBeEnabled(),
     );
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Delete Project Renamed project",
-      }),
-    );
+    // The refusal re-reads the Project: the header and a new confirmation
+    // follow its current name and revision.
+    expect(
+      await screen.findByRole("heading", { name: "Renamed project" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete Project" }));
     const reopened = screen.getByRole("alertdialog", {
       name: "Delete Renamed project?",
     });
@@ -359,6 +317,7 @@ describe("Project routes", () => {
     expect(
       within(reopened).getByRole("button", { name: "Delete Project" }),
     ).toBeDisabled();
+    expect(deleteRequests).toHaveLength(1);
   });
 
   it.each(["metadata", "target"] as const)(
@@ -588,7 +547,11 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/projects/project_example") {
           return jsonResponse(project, { headers: { ETag: '"1"' } });
         }
-        if (url.pathname.endsWith("/artifacts")) {
+        if (
+          url.pathname.endsWith("/artifacts") ||
+          url.pathname.endsWith("/audits") ||
+          url.pathname === "/v1/audit-profiles"
+        ) {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         if (url.pathname === "/v1/workflows") {
@@ -605,14 +568,26 @@ describe("Project routes", () => {
 
     await screen.findByRole("heading", { name: "Projects" });
     await user.click(
-      screen.getAllByRole("button", { name: "New Project" })[0]!,
+      screen.getAllByRole("button", { name: "New project" })[0]!,
     );
-    await user.type(screen.getByLabelText("Name"), "Payment service");
+    const dialog = screen.getByRole("dialog", { name: "New project" });
+    expect(within(dialog).getByLabelText("Name")).toHaveFocus();
+    expect(within(dialog).getByLabelText("Name")).toHaveAttribute(
+      "maxlength",
+      "160",
+    );
+    expect(within(dialog).getByLabelText("Description")).toHaveAttribute(
+      "maxlength",
+      "4096",
+    );
+    await user.type(within(dialog).getByLabelText("Name"), "Payment service");
     await user.type(
-      screen.getByLabelText("Description"),
+      within(dialog).getByLabelText("Description"),
       "Reusable service analysis",
     );
-    await user.click(screen.getByRole("button", { name: "Create Project" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create project" }),
+    );
 
     await vi.waitFor(() =>
       expect(router.state.location.pathname).toBe("/projects/project_example"),
@@ -633,6 +608,52 @@ describe("Project routes", () => {
     });
     expect(body).not.toHaveProperty("owner_id");
     expect(body).not.toHaveProperty("scope_kind");
+  });
+
+  it("opens New project from ?new=1, reuses the key for the same request and clears the parameter on close", async () => {
+    const creates: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects" && request.method === "POST") {
+          creates.push(request.clone());
+          return jsonResponse(
+            {
+              code: "unavailable",
+              message: "Project store unavailable",
+              retryable: true,
+            },
+            { status: 503 },
+          );
+        }
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderProjectApplication(api, "/projects?new=1");
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole("dialog", { name: "New project" });
+    await user.type(within(dialog).getByLabelText("Name"), "Payment service");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create project" }),
+    );
+    expect(
+      await within(dialog).findByText("Project store unavailable"),
+    ).toBeVisible();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create project" }),
+    );
+    await waitFor(() => expect(creates).toHaveLength(2));
+    // The same request after an unknown outcome carries the same key.
+    expect(creates[1]?.headers.get("Idempotency-Key")).toBe(
+      creates[0]?.headers.get("Idempotency-Key"),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(router.state.location.pathname).toBe("/projects");
+    expect(router.state.location.search).toBe("");
   });
 
   it("drops a ZIP on Sources and shows the authoritative exact binding", async () => {
@@ -798,7 +819,17 @@ describe("Project routes", () => {
       "bearer",
     );
     const token = within(dialog).getByLabelText("Bearer token · write only");
+    // Secrets stay masked unless the user asks to see them.
+    expect(token).toHaveAttribute("type", "password");
+    expect(token).toHaveAttribute("autocomplete", "new-password");
+    const reveal = within(dialog).getByRole("checkbox", {
+      name: "Show secret while entering",
+    });
+    expect(reveal).not.toBeChecked();
+    await user.click(reveal);
     expect(token).toHaveAttribute("type", "text");
+    await user.click(reveal);
+    expect(token).toHaveAttribute("type", "password");
     await user.type(token, secret);
     await user.click(
       within(dialog).getByRole("button", { name: "Save target" }),
@@ -868,7 +899,7 @@ describe("Project routes", () => {
     );
     await userEvent
       .setup()
-      .click(screen.getByRole("link", { name: "Add sources →" }));
+      .click(screen.getByRole("link", { name: "Add material" }));
     expect(
       await screen.findByRole("button", { name: "Sources" }),
     ).toBeEnabled();

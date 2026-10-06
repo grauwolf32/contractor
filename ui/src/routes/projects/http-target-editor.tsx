@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
-import { Dialog, DialogHeader } from "../../app/dialog";
+
 import { usePublicAPI } from "../../api/context";
 import {
   createRuntimeCredential,
@@ -14,23 +14,40 @@ import {
   type Project,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
+
+import "./projects.css";
 
 type TargetAuthMode = "none" | "existing" | "basic" | "bearer";
 type OriginCredential = RuntimeCredentialMetadata & {
   kind: "http-origin-basic@1" | "http-origin-bearer@1";
 };
 
+const CREDENTIAL_KIND_LABELS: Record<OriginCredential["kind"], string> = {
+  "http-origin-basic@1": "Basic credential",
+  "http-origin-bearer@1": "Bearer token",
+};
+
+/**
+ * The project's live target: the URL active checks may call and the origin
+ * credential they authorize with. Secrets are write-only: they go to a new
+ * Runtime credential and only its reference is stored on the project.
+ */
 export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
   const [editing, setEditing] = useState<Project | null>(null);
+  // The project as it was when removal was asked for: its revision guards
+  // the removal, so a target changed meanwhile is not removed unseen.
+  const [removing, setRemoving] = useState<Project | null>(null);
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: () =>
+  const removal = useMutation({
+    mutationFn: (target: Project) =>
       updateProject(api, {
-        projectId: project.projectId,
-        expectedRevision: project.revision,
+        projectId: target.projectId,
+        expectedRevision: target.revision,
         request: { httpTarget: null },
       }),
     onSuccess: async (updated) => {
@@ -38,60 +55,65 @@ export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
         queryKeys.projects.detail(project.projectId),
         updated,
       );
+      setRemoving(null);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.projects.lists(project.kind),
       });
     },
   });
+  const target = project.httpTarget;
 
   return (
-    <div className="project-target-card">
-      <div>
-        <h4>Application target</h4>
-        {project.httpTarget === undefined ? (
-          <p className="muted-copy">
-            No target is configured. Workers receive no Project Authorization.
-          </p>
-        ) : (
-          <dl className="metadata-grid project-target-metadata">
-            <div>
-              <dt>URL</dt>
-              <dd>
-                <code>{project.httpTarget.url}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Authorization</dt>
-              <dd>
-                {project.httpTarget.credential === undefined
-                  ? "None"
-                  : `${project.httpTarget.credential.kind} · ${project.httpTarget.credential.credentialId}`}
-              </dd>
-            </div>
-          </dl>
-        )}
-      </div>
-      {mutation.error === null ? null : (
-        <ErrorNotice error={mutation.error} reconcileWrite />
+    <div className="projects-editor">
+      {target === undefined ? (
+        <p className="projects-caption">
+          No target is configured. Workers receive no Project Authorization.
+        </p>
+      ) : (
+        <dl className="projects-facts">
+          <div className="projects-facts-wide">
+            <dt>URL</dt>
+            <dd>
+              <code>{target.url}</code>
+            </dd>
+          </div>
+          <div className="projects-facts-wide">
+            <dt>Authorization</dt>
+            <dd>
+              {target.credential === undefined ? (
+                "None"
+              ) : (
+                <>
+                  {CREDENTIAL_KIND_LABELS[target.credential.kind]} ·{" "}
+                  <code>{target.credential.kind}</code> ·{" "}
+                  <code>{target.credential.credentialId}</code>
+                </>
+              )}
+            </dd>
+          </div>
+        </dl>
       )}
-      <div className="project-form-actions">
+      <div className="projects-form-actions">
         <button
-          className="secondary-button"
+          className="ui-btn"
+          data-size="sm"
           type="button"
           onClick={() => setEditing(project)}
         >
-          {project.httpTarget === undefined
-            ? "Configure target"
-            : "Edit target"}
+          {target === undefined ? "Configure target" : "Edit target"}
         </button>
-        {project.httpTarget === undefined ? null : (
+        {target === undefined ? null : (
           <button
-            className="secondary-button"
+            className="ui-btn"
+            data-variant="danger"
+            data-size="sm"
             type="button"
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate()}
+            onClick={() => {
+              removal.reset();
+              setRemoving(project);
+            }}
           >
-            {mutation.isPending ? "Removing…" : "Remove target"}
+            Remove target
           </button>
         )}
       </div>
@@ -101,6 +123,32 @@ export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
           onClose={() => setEditing(null)}
         />
       ) : null}
+      {removing === null || removing.httpTarget === undefined ? null : (
+        <ConfirmRemovalDialog
+          eyebrow="Live target"
+          title="Remove the live target?"
+          description={
+            <>
+              Checks of this project will no longer receive{" "}
+              <code>{removing.httpTarget.url}</code> or its authorization. The
+              Runtime credential itself is kept under Operations.
+            </>
+          }
+          confirmLabel="Remove target"
+          pending={removal.isPending}
+          dismissOnBackdrop={false}
+          error={
+            removal.error === null ? undefined : (
+              <ErrorNotice error={removal.error} reconcileWrite />
+            )
+          }
+          onCancel={() => {
+            setRemoving(null);
+            removal.reset();
+          }}
+          onConfirm={() => removal.mutate(removing)}
+        />
+      )}
     </div>
   );
 }
@@ -127,7 +175,8 @@ function ProjectHTTPTargetDialog({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
-  const [showSecrets, setShowSecrets] = useState(true);
+  // Secrets stay masked unless the user asks to see them while typing.
+  const [showSecrets, setShowSecrets] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const credentials = useQuery({
@@ -261,6 +310,8 @@ function ProjectHTTPTargetDialog({
       ]);
       onClose();
     } catch (reason) {
+      // The credential exists but the project still points elsewhere: offer
+      // the new credential for a plain retry instead of creating another.
       if (createdCredentialID !== undefined) {
         setError(
           new Error(
@@ -283,7 +334,7 @@ function ProjectHTTPTargetDialog({
 
   return (
     <Dialog
-      className="project-dialog panel"
+      className="project-dialog panel projects-target-dialog"
       labelledBy={heading}
       initialFocusRef={urlInput}
       onRequestClose={() => {
@@ -292,7 +343,7 @@ function ProjectHTTPTargetDialog({
     >
       <DialogHeader
         id={heading}
-        eyebrow="Project HTTP target"
+        eyebrow="Live target"
         title="Application access"
         close={{
           label: "Close target dialog",
@@ -300,17 +351,17 @@ function ProjectHTTPTargetDialog({
           onClose: onClose,
         }}
       />
-      <p className="muted-copy">
+      <p className="projects-caption">
         The URL and credential reference are safe metadata. Secret material is
         write-only and reaches only matching HTTP-enabled allocations.
       </p>
       <form
-        className="configuration-draft project-target-form"
+        className="projects-form"
         autoComplete="off"
         onSubmit={(event) => void submit(event)}
       >
-        <label>
-          Application URL
+        <label className="projects-field">
+          <span>Application URL</span>
           <input
             required
             ref={urlInput}
@@ -320,8 +371,8 @@ function ProjectHTTPTargetDialog({
             onChange={(event) => setURL(event.target.value)}
           />
         </label>
-        <label>
-          Authorization
+        <label className="projects-field">
+          <span>Authorization</span>
           <select
             value={authMode}
             onChange={(event) => {
@@ -343,16 +394,14 @@ function ProjectHTTPTargetDialog({
               </p>
             ) : null}
             {credentials.error === null ? null : (
-              <>
-                <ErrorNotice
-                  error={credentials.error}
-                  onRetry={() => void credentials.refetch()}
-                  retryPending={credentials.isFetching}
-                />
-              </>
+              <ErrorNotice
+                error={credentials.error}
+                onRetry={() => void credentials.refetch()}
+                retryPending={credentials.isFetching}
+              />
             )}
-            <label>
-              Active HTTP origin credential
+            <label className="projects-field">
+              <span>Active HTTP origin credential</span>
               <select
                 required
                 value={credentialID}
@@ -378,17 +427,17 @@ function ProjectHTTPTargetDialog({
             </label>
           </>
         ) : authMode === "basic" ? (
-          <div className="form-grid">
-            <label>
-              Username
+          <div className="projects-field-row">
+            <label className="projects-field">
+              <span>Username</span>
               <input
                 autoComplete="off"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
               />
             </label>
-            <label>
-              Password · write only
+            <label className="projects-field">
+              <span>Password · write only</span>
               <input
                 type={showSecrets ? "text" : "password"}
                 autoComplete="new-password"
@@ -398,8 +447,8 @@ function ProjectHTTPTargetDialog({
             </label>
           </div>
         ) : authMode === "bearer" ? (
-          <label>
-            Bearer token · write only
+          <label className="projects-field">
+            <span>Bearer token · write only</span>
             <input
               type={showSecrets ? "text" : "password"}
               autoComplete="new-password"
@@ -409,7 +458,7 @@ function ProjectHTTPTargetDialog({
           </label>
         ) : null}
         {authMode === "basic" || authMode === "bearer" ? (
-          <label className="checkbox-label">
+          <label className="projects-checkbox">
             <input
               type="checkbox"
               checked={showSecrets}
@@ -419,8 +468,10 @@ function ProjectHTTPTargetDialog({
           </label>
         ) : null}
         {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
-        <div className="project-form-actions">
+        <div className="projects-form-actions">
           <button
+            className="ui-btn"
+            data-variant="primary"
             type="submit"
             disabled={
               pending ||
@@ -431,7 +482,7 @@ function ProjectHTTPTargetDialog({
             {pending ? "Saving…" : "Save target"}
           </button>
           <button
-            className="secondary-button"
+            className="ui-btn"
             type="button"
             disabled={pending}
             onClick={onClose}

@@ -1,36 +1,43 @@
-import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, Outlet, useParams } from "react-router";
-import { ActionMenu } from "../../app/action-menu";
+import { useId } from "react";
+import { Link, useParams } from "react-router";
+
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import { ActionMenu } from "../../app/action-menu";
+import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
+import { AuditAnchor } from "./audits/shared";
 import { ProjectArtifactBindings, ProjectRegion } from "./common";
-import { ProjectMetadataEditor } from "./metadata-editor";
-import { ProjectHTTPTargetEditor } from "./http-target-editor";
-import { ProjectRunsRegion } from "./runs-region";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
+import { ProjectHTTPTargetEditor } from "./http-target-editor";
+import { ProjectFacts, ProjectMetadataEditor } from "./metadata-editor";
+import { ProjectsRoute } from "./projects-route";
+import { ProjectRunsRegion } from "./runs-region";
 import { useProjectDeletion } from "./use-project-deletion";
 
-import { ProjectNavigation } from "./navigation";
-import { ProjectSectionActionsContext } from "./section-actions-context";
-import { AuditAnchor } from "./audits/shared";
-
 import "../primary-actions.css";
-import "./workspace.css";
+import "./collection.css";
+import "./projects.css";
 
-function ProjectWorkspaceRoute({
-  expectedKind,
-}: {
-  expectedKind: "project" | "evaluation";
-}) {
+/**
+ * /projects/:projectId and its sections. The same component serves
+ * /projects, so choosing a project keeps the list pane mounted (see
+ * ProjectsRoute).
+ */
+export const ProjectDetailRoute = ProjectsRoute;
+
+/**
+ * A legacy evaluation workspace at /evals/:projectId. It keeps its layout
+ * (S06: "Eval workspaces retain their existing layout and scope, including
+ * their in-page anchors"): Runs, read-only Artifacts and Workspace settings.
+ */
+export function EvaluationDetailRoute() {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
   const validProject = PROJECT_ID_PATTERN.test(projectId);
-  const destination = expectedKind === "evaluation" ? "/evals" : "/projects";
   const project = useQuery({
     queryKey: queryKeys.projects.detail(projectId),
     queryFn: () => getProject(api, projectId),
@@ -42,66 +49,43 @@ function ProjectWorkspaceRoute({
       failureCount < 2,
   });
   const { deletion, deletionObserved, deleteOpen, setDeleteOpen } =
-    useProjectDeletion(project, destination);
+    useProjectDeletion(project, "/evals");
   const activeProject =
-    project.data?.kind === expectedKind && project.data.lifecycle === "active"
+    project.data?.kind === "evaluation" && project.data.lifecycle === "active"
       ? project.data
       : undefined;
-  const deleteLabel =
-    expectedKind === "evaluation" ? "Delete Eval" : "Delete Project";
-  const [sectionActions, setSectionActions] = useState<HTMLDivElement | null>(
-    null,
-  );
   const description =
-    expectedKind === "evaluation"
-      ? project.data?.description ||
-        "Legacy evaluation workspace: execution history and recorded inputs."
-      : project.data?.description ||
-        "Sources, audits and results in one workspace.";
-  useDocumentTitle(
-    project.data?.name ?? (expectedKind === "evaluation" ? "Eval" : "Project"),
-  );
+    project.data?.description ||
+    "Legacy evaluation workspace: execution history and recorded inputs.";
+  useDocumentTitle(project.data?.name ?? "Eval");
+  const targetHeading = useId();
 
   if (!validProject) {
     return (
       <section className="route-page">
-        <ErrorNotice
-          error={
-            new Error(
-              expectedKind === "evaluation"
-                ? "Eval route is invalid"
-                : "Project route is invalid",
-            )
-          }
-        />
-        <Link to={expectedKind === "evaluation" ? "/evals" : "/projects"}>
-          Return to {expectedKind === "evaluation" ? "Evals" : "Projects"}
-        </Link>
+        <ErrorNotice error={new Error("Eval route is invalid")} />
+        <Link to="/evals">Return to Evals</Link>
       </section>
     );
   }
 
   return (
-    <section
-      className={`route-page projects-page project-detail-page ${expectedKind === "evaluation" ? "eval-detail-page" : "project-section-layout"}`}
-    >
+    <section className="route-page projects-page project-detail-page eval-detail-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to={destination}>
-            ← All {expectedKind === "evaluation" ? "Evals" : "Projects"}
+          <Link className="back-link" to="/evals">
+            ← All Evals
           </Link>
           <h2>{project.data?.name ?? projectId}</h2>
           <p className="lede" title={description}>
             {description}
           </p>
         </div>
-        <ActionMenu
-          label={
-            expectedKind === "evaluation" ? "Eval actions" : "Project actions"
-          }
-        >
+        <ActionMenu label="Eval actions">
           <button
-            className="secondary-button"
+            className="ui-btn"
+            data-variant="ghost"
+            data-size="sm"
             type="button"
             disabled={project.isFetching}
             onClick={() => void project.refetch()}
@@ -110,14 +94,16 @@ function ProjectWorkspaceRoute({
           </button>
           {activeProject === undefined ? null : (
             <button
-              className="danger-button"
+              className="ui-btn"
+              data-variant="danger"
+              data-size="sm"
               type="button"
               onClick={() => {
                 deletion.reset();
                 setDeleteOpen(true);
               }}
             >
-              {deleteLabel}
+              Delete Eval
             </button>
           )}
         </ActionMenu>
@@ -131,8 +117,7 @@ function ProjectWorkspaceRoute({
         project.error instanceof PublicAPIError &&
         project.error.status === 404 ? (
         <p className="loading-copy" role="status">
-          Project deleted. Returning to{" "}
-          {expectedKind === "evaluation" ? "Evals" : "Projects"}…
+          Project deleted. Returning to Evals…
         </p>
       ) : project.error !== null ? (
         <ErrorNotice
@@ -140,26 +125,12 @@ function ProjectWorkspaceRoute({
           onRetry={() => void project.refetch()}
           retryPending={project.isFetching}
         />
-      ) : project.data.kind !== expectedKind ? (
+      ) : project.data.kind !== "evaluation" ? (
         <ErrorNotice
-          error={
-            new Error(
-              expectedKind === "evaluation"
-                ? "This workspace is available in Projects."
-                : "Evaluation workspaces are available in Evals.",
-            )
-          }
+          error={new Error("This workspace is available in Projects.")}
         />
       ) : project.data.lifecycle === "deleting" ? (
         <ProjectDeletionProgress project={project.data} />
-      ) : expectedKind === "project" ? (
-        <ProjectSectionActionsContext value={sectionActions}>
-          <ProjectNavigation
-            projectId={projectId}
-            actionsRef={setSectionActions}
-          />
-          <Outlet context={project.data} />
-        </ProjectSectionActionsContext>
       ) : (
         <>
           <nav
@@ -187,10 +158,17 @@ function ProjectWorkspaceRoute({
                 key={project.data.projectId}
                 project={project.data}
               />
-              <ProjectHTTPTargetEditor
-                key={`target-${project.data.projectId}`}
-                project={project.data}
-              />
+              <ProjectFacts project={project.data} />
+              <section
+                className="eval-workspace-target"
+                aria-labelledby={targetHeading}
+              >
+                <h4 id={targetHeading}>Live target</h4>
+                <ProjectHTTPTargetEditor
+                  key={`target-${project.data.projectId}`}
+                  project={project.data}
+                />
+              </section>
             </ProjectRegion>
           </details>
         </>
@@ -211,12 +189,4 @@ function ProjectWorkspaceRoute({
       ) : null}
     </section>
   );
-}
-
-export function ProjectDetailRoute() {
-  return <ProjectWorkspaceRoute expectedKind="project" />;
-}
-
-export function EvaluationDetailRoute() {
-  return <ProjectWorkspaceRoute expectedKind="evaluation" />;
 }
