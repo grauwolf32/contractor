@@ -1,130 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { collectAuditPages } from "../../../api/audit-collections";
 import {
-  decideAuditAction,
   listAuditItems,
   listAuditReviews,
   type Audit,
-  type AuditReviewAction,
   type AuditReviewRequest,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { formatTimestamp } from "../../../app/format";
 import { StateBadge } from "../../runs/components";
-import { AuditMutationNotice } from "./controls";
+import { ActionDecision, DecisionRecord } from "../../decisions";
 import { useAuditCollection } from "./collections";
 import { LoadMoreControl } from "./load-more";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
-import { AuditAnchor, AuditMarkdown } from "./shared";
-
-export function ActionReviewControls({
-  audit,
-  review,
-}: {
-  audit: Audit;
-  review: AuditReviewRequest;
-}) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [rationale, setRationale] = useState("");
-  const [keyring] = useState(
-    () =>
-      new MutationDraftKeyring<Record<string, string | number>>(
-        "audit-action-review",
-      ),
-  );
-  // The Audit detail key prefixes its reviews and items queries.
-  async function invalidate(): Promise<void> {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.detail(audit.auditId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.report(audit.auditId),
-      }),
-    ]);
-  }
-  const decision = useMutation({
-    mutationFn: (action: AuditReviewAction) => {
-      const trimmed = rationale.trim();
-      const draft = {
-        auditId: audit.auditId,
-        requestId: review.requestId,
-        revision: review.revision,
-        action,
-        rationale: trimmed,
-      };
-      return decideAuditAction(api, {
-        auditId: audit.auditId,
-        requestId: review.requestId,
-        expectedRevision: review.revision,
-        idempotencyKey: keyring.keyFor(draft),
-        action,
-        rationale: trimmed,
-      });
-    },
-    onSuccess: async () => {
-      setRationale("");
-      await invalidate();
-    },
-    onError: invalidate,
-  });
-  const unavailable = rationale.trim().length === 0 || decision.isPending;
-  return (
-    <div className="audit-finding-review-actions">
-      <label>
-        Rationale
-        <textarea
-          value={rationale}
-          maxLength={65_536}
-          rows={3}
-          onChange={(event) => setRationale(event.target.value)}
-          placeholder="Explain your decision. Markdown is supported."
-        />
-      </label>
-      <div className="button-row">
-        {review.requestedActions.includes("approve") ? (
-          <button
-            type="button"
-            disabled={unavailable}
-            onClick={() => decision.mutate("approve")}
-          >
-            Approve subject
-          </button>
-        ) : null}
-        {review.requestedActions.includes("reject") ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={unavailable}
-            onClick={() => decision.mutate("reject")}
-          >
-            Reject
-          </button>
-        ) : null}
-        {review.requestedActions.includes("not_applicable") ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={unavailable}
-            onClick={() => decision.mutate("not_applicable")}
-          >
-            Mark not applicable
-          </button>
-        ) : null}
-      </div>
-      {decision.error === null ? null : (
-        <AuditMutationNotice error={decision.error} />
-      )}
-    </div>
-  );
-}
+import { AuditAnchor } from "./shared";
 
 export function AuditReviews({ audit }: { audit: Audit }) {
   const queue = useAuditQueue();
@@ -316,28 +209,17 @@ export function AuditReviews({ audit }: { audit: Audit }) {
                   </div>
                 </dl>
               </details>
-              {review.decision === undefined ? (
-                <>
-                  {review.state === "pending" ? null : (
-                    <p className="muted-copy">No decision recorded.</p>
-                  )}
-                  {review.state === "pending" &&
-                  review.subjectKind === "audit-item-action" ? (
-                    <ActionReviewControls audit={audit} review={review} />
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <span>
-                    {review.decision.action ?? review.decision.verdict}
-                    {review.decision.severity === undefined
-                      ? ""
-                      : ` · ${review.decision.severity}`}
-                    {" · "}
-                    {review.decision.actorId}
-                  </span>
-                  <AuditMarkdown source={review.decision.rationale} />
-                </>
+              {review.subjectKind === "audit-item-action" &&
+              (review.state === "pending" || review.decision !== undefined) ? (
+                // Stays mounted once decided (it shows the decision then), so
+                // its "Decision recorded" announcement is read out.
+                <div className="decisions-inline">
+                  <ActionDecision auditId={audit.auditId} review={review} />
+                </div>
+              ) : review.decision !== undefined ? (
+                <DecisionRecord decision={review.decision} />
+              ) : review.state === "pending" ? null : (
+                <p className="muted-copy">No decision recorded.</p>
               )}
             </li>
           ))}

@@ -1,263 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
-  createAuditFindingReview,
-  decideAuditFinding,
   listAuditFindingProvenance,
   type Audit,
-  type AuditAnalystVerdict,
   type AuditFinding,
-  type AuditFindingSeverity,
   type AuditReviewRequest,
-  type DecideAuditFindingRequest,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
-import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatBytes } from "../../../app/format";
+import { QueryView } from "../../../app/query-view";
 import { StateBadge } from "../../runs/components";
+import { FindingDecision } from "../../decisions";
 import { exactArtifactLink } from "./artifact-links";
-import { AuditMutationNotice } from "./controls";
-import { FINDING_SEVERITIES } from "./finding-options";
 import { FindingLocations } from "./finding-locations";
 import { auditProfileLabel } from "./labels";
 import { AuditMarkdown, ExactArtifactLink } from "./shared";
-import { QueryView } from "../../../app/query-view";
-
-const FINDING_VERDICTS: readonly {
-  value: AuditAnalystVerdict;
-  label: string;
-}[] = [
-  { value: "true_positive", label: "True positive" },
-  { value: "false_positive", label: "False positive" },
-  { value: "needs_evidence", label: "Needs evidence" },
-  { value: "duplicate", label: "Duplicate" },
-  { value: "reopen", label: "Reopen" },
-];
-
-function FindingReviewControls({
-  audit,
-  finding,
-  pendingReview,
-  findings,
-}: {
-  audit: Audit;
-  finding: AuditFinding;
-  pendingReview?: AuditReviewRequest;
-  findings: AuditFinding[];
-}) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [verdict, setVerdict] = useState<AuditAnalystVerdict>("true_positive");
-  const [severity, setSeverity] = useState<AuditFindingSeverity>(
-    finding.analystSeverity ?? "medium",
-  );
-  const [rationale, setRationale] = useState("");
-  const duplicateCandidates = findings.filter(
-    (candidate) => candidate.findingId !== finding.findingId,
-  );
-  const [duplicateTargetId, setDuplicateTargetId] = useState(
-    duplicateCandidates[0]?.findingId ?? "",
-  );
-  const [keyring] = useState(
-    () =>
-      new MutationDraftKeyring<Record<string, string | number | undefined>>(
-        "audit-finding-review",
-      ),
-  );
-
-  // The Audit detail key prefixes its findings and reviews queries.
-  async function invalidate(): Promise<void> {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.detail(audit.auditId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.audits.all(audit.projectId),
-      }),
-    ]);
-  }
-
-  const createReview = useMutation({
-    mutationFn: () => {
-      const draft = {
-        operation: "create",
-        auditId: audit.auditId,
-        findingId: finding.findingId,
-        revision: finding.revision,
-      };
-      return createAuditFindingReview(api, {
-        auditId: audit.auditId,
-        findingId: finding.findingId,
-        expectedRevision: finding.revision,
-        idempotencyKey: keyring.keyFor(draft),
-      });
-    },
-    onSuccess: invalidate,
-    onError: invalidate,
-  });
-  const decide = useMutation({
-    mutationFn: () => {
-      if (pendingReview === undefined) {
-        throw new Error("The finding review is no longer pending");
-      }
-      const decision: DecideAuditFindingRequest =
-        verdict === "true_positive"
-          ? { verdict, rationale: rationale.trim(), severity }
-          : verdict === "duplicate"
-            ? { verdict, rationale: rationale.trim(), duplicateTargetId }
-            : { verdict, rationale: rationale.trim() };
-      const draft = {
-        operation: "decide",
-        auditId: audit.auditId,
-        requestId: pendingReview.requestId,
-        revision: pendingReview.revision,
-        verdict,
-        severity:
-          decision.verdict === "true_positive" ? decision.severity : undefined,
-        rationale: decision.rationale,
-        duplicateTargetId:
-          decision.verdict === "duplicate"
-            ? decision.duplicateTargetId
-            : undefined,
-      };
-      return decideAuditFinding(api, {
-        auditId: audit.auditId,
-        requestId: pendingReview.requestId,
-        expectedRevision: pendingReview.revision,
-        idempotencyKey: keyring.keyFor(draft),
-        decision,
-      });
-    },
-    onSuccess: async () => {
-      setRationale("");
-      await invalidate();
-    },
-    onError: invalidate,
-  });
-
-  if (pendingReview === undefined) {
-    return (
-      <div className="audit-finding-review-actions">
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={createReview.isPending}
-          onClick={() => createReview.mutate()}
-        >
-          {createReview.isPending
-            ? "Opening review…"
-            : finding.analystVerdict === undefined
-              ? "Review finding"
-              : "Correct analyst rating"}
-        </button>
-        {createReview.error === null ? null : (
-          <AuditMutationNotice error={createReview.error} />
-        )}
-      </div>
-    );
-  }
-
-  const invalidDuplicate =
-    verdict === "duplicate" && duplicateTargetId.length === 0;
-  return (
-    <form
-      className="audit-finding-review-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        decide.mutate();
-      }}
-    >
-      <p className="eyebrow">
-        Finding review · revision {pendingReview.subjectRevision}
-      </p>
-      <div className="audit-review-fields">
-        <label>
-          Decision
-          <select
-            value={verdict}
-            onChange={(event) =>
-              setVerdict(event.target.value as AuditAnalystVerdict)
-            }
-          >
-            {FINDING_VERDICTS.map((candidate) => (
-              <option key={candidate.value} value={candidate.value}>
-                {candidate.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {verdict === "true_positive" ? (
-          <label>
-            Severity
-            <select
-              value={severity}
-              onChange={(event) =>
-                setSeverity(event.target.value as AuditFindingSeverity)
-              }
-            >
-              {FINDING_SEVERITIES.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {verdict === "duplicate" ? (
-          <label>
-            Linked finding
-            <select
-              aria-label="Linked finding"
-              value={duplicateTargetId}
-              onChange={(event) => setDuplicateTargetId(event.target.value)}
-            >
-              {duplicateCandidates.length === 0 ? (
-                <option value="">No other finding</option>
-              ) : null}
-              {duplicateCandidates.map((candidate) => (
-                <option key={candidate.findingId} value={candidate.findingId}>
-                  {candidate.firstProposal.document.title} ·{" "}
-                  {candidate.findingId}
-                </option>
-              ))}
-            </select>
-            <span>Or enter a finding ID from another page in this Audit</span>
-            <input
-              aria-label="Linked finding ID"
-              value={duplicateTargetId}
-              onChange={(event) => setDuplicateTargetId(event.target.value)}
-            />
-          </label>
-        ) : null}
-      </div>
-      <label className="audit-review-rationale">
-        Analyst rationale
-        <textarea
-          required
-          rows={2}
-          value={rationale}
-          onChange={(event) => setRationale(event.target.value)}
-          placeholder="Explain the evidence for this decision. Markdown is supported."
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={
-          decide.isPending || rationale.trim() === "" || invalidDuplicate
-        }
-      >
-        {decide.isPending ? "Recording decision…" : "Record decision"}
-      </button>
-      {decide.error === null ? null : (
-        <AuditMutationNotice error={decide.error} />
-      )}
-    </form>
-  );
-}
 
 function FindingProvenanceView({
   audit,
@@ -390,7 +151,6 @@ function FindingProvenanceView({
 export function AuditFindingCard({
   audit,
   finding,
-  findings,
   pendingReview,
   showAudit = false,
   reviewLoading = false,
@@ -400,7 +160,13 @@ export function AuditFindingCard({
 }: {
   audit: Audit;
   finding: AuditFinding;
-  findings: AuditFinding[];
+  /**
+   * Unused: the decision's duplicate picker reads the check's possible issues
+   * itself. Issues removes it together with its call sites in
+   * audit-findings.tsx and findings.tsx (files owned by Issues).
+   */
+  findings?: AuditFinding[];
+  /** The finding's open review request; omitted when it has none. */
   pendingReview?: AuditReviewRequest;
   showAudit?: boolean;
   reviewLoading?: boolean;
@@ -457,12 +223,15 @@ export function AuditFindingCard({
             </button>
           </div>
         ) : (
-          <FindingReviewControls
-            audit={audit}
-            finding={finding}
-            findings={findings}
-            {...(pendingReview === undefined ? {} : { pendingReview })}
-          />
+          <div className="decisions-inline">
+            {/* Several cards share the page, so no single-key shortcuts. */}
+            <FindingDecision
+              auditId={audit.auditId}
+              finding={finding}
+              pendingReview={pendingReview ?? null}
+              shortcuts={false}
+            />
+          </div>
         )}
       </div>
       <div className="audit-finding-description">

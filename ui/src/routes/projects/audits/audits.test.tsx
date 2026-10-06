@@ -1486,15 +1486,21 @@ describe("Project Audit routes", () => {
         .getByRole("heading", { name: first.firstProposal.document.title })
         .closest(".audit-finding-card") as HTMLElement,
     );
-    await user.selectOptions(
-      await firstCard.findByLabelText("Decision"),
-      "duplicate",
+    await user.click(
+      await firstCard.findByRole("button", { name: "More decisions" }),
     );
+    await user.click(firstCard.getByRole("button", { name: "Duplicate…" }));
+    const original = firstCard.getByRole("group", { name: "Duplicate of" });
     expect(
-      within(firstCard.getByLabelText("Linked finding"))
-        .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toEqual(["Missing rate limit · finding_sibling"]);
+      await within(original).findByRole("radio", {
+        name: "Missing rate limit finding_sibling",
+      }),
+    ).not.toBeChecked();
+    expect(
+      within(original)
+        .getAllByRole("radio")
+        .map((option) => option.closest("label")?.textContent),
+    ).toEqual(["Missing rate limit finding_sibling"]);
     expect(
       screen.getByRole("link", {
         name: "OpenAPI · Operation trace · it_trace",
@@ -1853,23 +1859,32 @@ describe("Project Audit routes", () => {
       ).toBeVisible();
       expect(screen.getByText("verify-authorization@1")).toBeVisible();
       expect(screen.getByText("inventory entry check-one")).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Review finding" }));
       const findingCard = within(
         screen
           .getByRole("heading", { name: "Missing object authorization" })
           .closest(".audit-finding-card") as HTMLElement,
       );
-      await user.selectOptions(
-        await findingCard.findByLabelText("Severity"),
-        "high",
+      await user.click(
+        await findingCard.findByRole("button", { name: "Confirm issue" }),
       );
+      await user.click(findingCard.getByRole("radio", { name: "High" }));
       await user.type(
-        screen.getByLabelText("Analyst rationale"),
+        findingCard.getByRole("textbox", { name: "Why" }),
         "Confirmed from exact source evidence.",
       );
-      await user.click(screen.getByRole("button", { name: "Record decision" }));
+      await user.click(
+        findingCard.getByRole("button", { name: "Record decision" }),
+      );
 
       expect(await screen.findByText("true_positive · high")).toBeVisible();
+      expect(
+        within(
+          findingCard.getByRole("region", { name: "Current decision" }),
+        ).getByText("Confirmed · High"),
+      ).toBeVisible();
+      expect(
+        findingCard.getByRole("button", { name: "Change decision" }),
+      ).toBeVisible();
       const mutationRequests = requests.filter(
         (request) => request.method === "POST",
       );
@@ -2013,14 +2028,20 @@ describe("Project Audit routes", () => {
       "href",
       "/projects/project_example/audits/audit_example/coverage#check-item_active_check",
     );
+    const decision = screen.getByRole("region", { name: "Your decision" });
+    // Only the actions the request offers.
+    expect(
+      within(decision).queryByRole("button", { name: "Not applicable" }),
+    ).toBeNull();
+    await user.click(within(decision).getByRole("button", { name: "Approve" }));
     await user.type(
-      screen.getByLabelText("Rationale"),
+      within(decision).getByRole("textbox", { name: "Why" }),
       "The target and exact active request are **approved**.",
     );
-    await user.click(screen.getByRole("button", { name: "Approve subject" }));
-    expect(
-      await screen.findByText("approve", { exact: false, selector: "span" }),
-    ).toBeVisible();
+    await user.click(
+      within(decision).getByRole("button", { name: "Record decision" }),
+    );
+    expect(await screen.findByText("Approved")).toBeVisible();
     expect(
       await screen.findByText("approved", { selector: "strong" }),
     ).toBeVisible();
@@ -2128,19 +2149,25 @@ describe("Project Audit routes", () => {
       "/projects/project_example/audits/audit_example/reviews",
     );
     const user = userEvent.setup();
+    const decision = await screen.findByRole("region", {
+      name: "Your decision",
+    });
+    await user.click(
+      within(decision).getByRole("button", { name: "Not applicable" }),
+    );
     await user.type(
-      await screen.findByLabelText("Rationale"),
+      within(decision).getByRole("textbox", { name: "Why" }),
       "Documentation is outside this exact application scope.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Mark not applicable" }),
+      within(decision).getByRole("button", { name: "Record decision" }),
     );
-    expect(
-      await screen.findByText("not_applicable", {
-        exact: false,
-        selector: "span",
-      }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Not applicable")).toBeVisible();
     expect(decided).toBe(true);
   });
 
@@ -3223,14 +3250,18 @@ describe("Bounded Audit collections", () => {
         }),
       );
       renderApplication(api, "/projects/project_example/findings");
-      if (!alreadyPending)
-        await userEvent
-          .setup()
-          .click(await screen.findByRole("button", { name: "Review finding" }));
-      expect(await screen.findByLabelText("Decision")).toBeVisible();
+      const decision = await screen.findByRole("region", {
+        name: "Your decision",
+      });
       expect(
-        screen.getByRole("button", { name: "Record decision" }),
+        within(decision).getByRole("button", { name: "Record decision" }),
       ).toBeVisible();
+      // An open request offers only its requested verdicts; without one,
+      // recording opens a request that offers every verdict.
+      expect(
+        within(decision).queryByRole("button", { name: "Needs evidence" }) ===
+          null,
+      ).toBe(alreadyPending);
       expect(reads).not.toHaveLength(0);
       for (const query of reads) {
         expect(query.has("finding")).toBe(false);
@@ -3340,11 +3371,15 @@ describe("Bounded Audit collections", () => {
     const loadMore = await screen.findAllByRole("button", {
       name: "Load more pending reviews",
     });
-    expect(screen.queryByRole("button", { name: "Review finding" })).toBeNull();
-    expect(screen.queryByLabelText("Decision")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Your decision" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Record decision" }),
+    ).toBeNull();
     expect(reviewReads).toHaveLength(5);
     await userEvent.setup().click(loadMore[0]!);
-    expect(await screen.findByLabelText("Decision")).toBeVisible();
+    expect(
+      await screen.findByRole("region", { name: "Your decision" }),
+    ).toBeVisible();
     expect(reviewReads).toHaveLength(6);
     expect(reviewReads.every((query) => query.get("state") === "pending")).toBe(
       true,
@@ -3540,8 +3575,12 @@ describe("Audit workspace snapshot navigation", () => {
     expect(
       await screen.findByText("Exact retained evidence for owner acceptance."),
     ).toBeVisible();
+    const decision = screen.getByRole("region", { name: "Your decision" });
     expect(
-      screen.getByRole("button", { name: "Approve subject" }),
+      within(decision).getByRole("button", { name: "Approve" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(decision).getByRole("button", { name: "Record decision" }),
     ).toBeDisabled();
     await user.click(screen.getByRole("link", { name: "← Audit reviews" }));
     expect(router.state.location.pathname + router.state.location.search).toBe(
@@ -3554,7 +3593,7 @@ describe("Audit workspace snapshot navigation", () => {
       await screen.findByText(/requested report review is unavailable/),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Approve subject" }),
+      screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
     expect(mutations).toEqual([]);
   });

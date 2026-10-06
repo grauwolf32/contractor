@@ -1,0 +1,705 @@
+/*
+ * Decision and finding components (src/routes/decisions). Every class starts
+ * with decisions-; colours come only from theme.css tokens. Sizes follow
+ * docs/design/ui/mockups/v3b/issue.html and home.html. Blocks that sit next
+ * to the DecisionBar use the same --ui-pad-start / --ui-pad-end insets.
+ */
+
+/* ---------- Shared text ---------- */
+
+.decisions-quiet {
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+p.decisions-quiet {
+  margin: 0;
+}
+
+.decisions-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.decisions-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin: 0 0 0.375rem;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+}
+
+.decisions-heading svg {
+  flex: none;
+  color: var(--muted);
+}
+
+/* A quiet link-like action inside text (Try again, Show the reason). */
+.decisions-text-button,
+.decisions-text-button:not(:disabled):hover,
+.decisions-text-button:not(:disabled):active {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  color: var(--link);
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+  transform: none;
+}
+
+.decisions-text-button:not(:disabled):hover {
+  text-decoration-thickness: 2px;
+}
+
+.decisions-text-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Markdown ---------- */
+
+.decisions-markdown {
+  min-width: 0;
+}
+
+.decisions-markdown .markdown-artifact-preview {
+  max-width: 76ch;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  font-size: 0.90625rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.decisions-markdown .markdown-artifact-preview p {
+  margin: 0 0 0.625rem;
+}
+
+.decisions-markdown .markdown-artifact-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.decisions-markdown .markdown-artifact-preview h1,
+.decisions-markdown .markdown-artifact-preview h2,
+.decisions-markdown .markdown-artifact-preview h3,
+.decisions-markdown .markdown-artifact-preview h4 {
+  margin: 1em 0 0.4em;
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: 0.875rem;
+}
+
+.decisions-markdown .markdown-artifact-preview :not(pre) > code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--sunken);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.decisions-markdown .markdown-artifact-preview pre {
+  max-width: 100%;
+  border-radius: 0.75rem;
+  background: var(--code-bg);
+  font-size: 0.8125rem;
+}
+
+.decisions-markdown .markdown-artifact-preview table {
+  max-width: 100%;
+}
+
+/* ---------- Finding summary ---------- */
+
+.decisions-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.decisions-summary-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.decisions-summary-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.decisions-summary-kind {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.decisions-summary-title {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -0.028em;
+  overflow-wrap: anywhere;
+}
+
+.decisions-summary[data-variant="compact"] .decisions-summary-title {
+  font-size: 1.6875rem;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+
+@container (max-width: 36rem) {
+  .decisions-summary .decisions-summary-title {
+    font-size: 1.375rem;
+  }
+}
+
+.decisions-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.875rem;
+  margin: 0.25rem 0 0;
+}
+
+.decisions-facts > div {
+  min-width: 0;
+}
+
+.decisions-facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.decisions-facts dd {
+  margin: 0.125rem 0 0;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.decisions-facts dd .decisions-quiet,
+.decisions-suggestion {
+  color: var(--muted);
+  font-size: 0.78125rem;
+  font-weight: 600;
+}
+
+.decisions-fact-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.decisions-fact-endpoint .decisions-mono {
+  font-weight: 500;
+}
+
+.decisions-fact-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.75rem;
+}
+
+.decisions-section {
+  min-width: 0;
+}
+
+.decisions-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: 1rem 1.75rem;
+  align-items: start;
+}
+
+.decisions-unsure {
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--sunken);
+  font-size: 0.84375rem;
+  line-height: 1.55;
+}
+
+.decisions-unsure p,
+.decisions-unsure ul {
+  margin: 0;
+}
+
+.decisions-unsure ul {
+  padding-left: 1.125rem;
+}
+
+.decisions-unsure li + li {
+  margin-top: 0.25rem;
+}
+
+.decisions-unsure .decisions-unsure-label {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.78125rem;
+  font-weight: 700;
+}
+
+/* Location and evidence rows: monospace references between hairlines. */
+.decisions-locations ul,
+.decisions-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.decisions-locations li,
+.decisions-rows > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 1rem;
+  min-width: 0;
+  padding: 0.375rem 0;
+  font-size: 0.84375rem;
+}
+
+.decisions-locations li + li,
+.decisions-rows > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.decisions-locations code {
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.decisions-locations details {
+  margin-top: 0.5rem;
+  font-size: 0.78125rem;
+}
+
+.decisions-locations summary {
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.decisions-locations details details {
+  margin-left: 1rem;
+}
+
+.decisions-locations pre {
+  max-width: 100%;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.decisions-locations > .decisions-quiet {
+  margin-top: 0.375rem;
+}
+
+.decisions-row-main {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* ---------- Decision footer blocks ---------- */
+
+.decisions-finding,
+.decisions-request {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.decisions-finding:focus {
+  outline: none;
+}
+
+/* Live region for "Decision recorded"; empty most of the time. */
+.decisions-status {
+  margin: 0;
+  padding-inline: var(--ui-pad-start, 1.75rem) var(--ui-pad-end, 1.75rem);
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 700;
+}
+
+.decisions-status:not(:empty) {
+  padding-block: 0.875rem;
+  border-top: 1px solid var(--line);
+}
+
+.decisions-current {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem var(--ui-pad-end, 1.75rem) 0.75rem
+    var(--ui-pad-start, 1.75rem);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.decisions-current-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  container: decisions-actions / inline-size;
+}
+
+/* Key hints only where keys exist and the row has room, as in DecisionBar. */
+@container decisions-actions (max-width: 34rem) {
+  .decisions-current-actions .ui-kbd-hint {
+    display: none;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .decisions-current-actions .ui-kbd-hint {
+    display: none;
+  }
+}
+
+.decisions-record {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.decisions-record-head,
+.decisions-record-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.decisions-record-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.decisions-record-actor {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.decisions-record-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.decisions-record-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.decisions-record .markdown-artifact-preview {
+  font-size: 0.84375rem;
+  line-height: 1.55;
+}
+
+.decisions-state-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.78125rem;
+}
+
+.decisions-state-reason > button {
+  align-self: flex-start;
+}
+
+.decisions-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.decisions-notice {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 0.5rem;
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.decisions-notice > p {
+  margin: 0;
+}
+
+/* A notice that lines up with the decision bar's insets. */
+.decisions-inset {
+  margin: 0.75rem var(--ui-pad-end, 1.75rem) 0 var(--ui-pad-start, 1.75rem);
+}
+
+/* "Request details" of a refused or failed request, as in ErrorNotice. */
+.decisions-error-details {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.decisions-notice > .decisions-error-details {
+  margin-top: 0.375rem;
+}
+
+.decisions-error-details > summary {
+  width: fit-content;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.decisions-error-details > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.decisions-error-details > small {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+
+/* Right under the decision bar's error, inside the bar's insets. */
+.decisions-under-bar {
+  margin: 0 var(--ui-pad-end, 1.75rem) 0.75rem var(--ui-pad-start, 1.75rem);
+}
+
+/* The row right above the reason: the reason's helper text, then "Use AI
+   summary" as a quiet action at the end. */
+.decisions-assist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.decisions-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.decisions-intro + .decisions-help {
+  margin-top: 0.375rem;
+}
+
+/* ---------- More decisions ---------- */
+
+.decisions-more,
+.decisions-more-items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.decisions-more-items[hidden] {
+  display: none;
+}
+
+.decisions-more .ui-btn {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.decisions-more-chevron {
+  transition: transform 140ms ease;
+}
+
+.decisions-more > [aria-expanded="true"] .decisions-more-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decisions-more-chevron {
+    transition: none;
+  }
+}
+
+/* ---------- Duplicate picker ---------- */
+
+.decisions-duplicate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.decisions-duplicate-legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.decisions-duplicate-search {
+  width: 100%;
+  max-width: 28rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.decisions-duplicate-search::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.decisions-duplicate-search:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.decisions-duplicate-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--surface);
+}
+
+.decisions-duplicate-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.decisions-duplicate-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 0.625rem;
+  min-width: 0;
+}
+
+.decisions-duplicate-option + .decisions-duplicate-option {
+  border-top: 1px solid var(--line);
+}
+
+.decisions-duplicate-option:hover {
+  background: var(--row-hover);
+}
+
+.decisions-duplicate-option:has(input:checked) {
+  background: var(--sel);
+}
+
+.decisions-duplicate-option > input {
+  margin: 0.1875rem 0 0;
+  accent-color: var(--sel-bar);
+}
+
+.decisions-duplicate-option > input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.decisions-duplicate-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.decisions-duplicate-id {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.decisions-duplicate-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+/* ---------- Inside a card instead of a pane ---------- */
+
+/* The bar sits in the card's own decision box: no pane insets or divider. */
+.decisions-inline {
+  --ui-pad-start: 0;
+  --ui-pad-end: 0;
+}
+
+.decisions-inline .ui-decision,
+.decisions-inline .decisions-current {
+  padding-block: 0.25rem;
+  border-top: 0;
+  background: transparent;
+}
+
+.decisions-inline .decisions-current + .ui-decision {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.decisions-inline .decisions-status:not(:empty) {
+  padding-block: 0.25rem;
+  border-top: 0;
+}
