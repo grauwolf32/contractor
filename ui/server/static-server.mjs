@@ -6,6 +6,10 @@ import { extname, resolve, sep } from "node:path";
 const CLIENT_ROUTES = new Set([
   "/",
   "/login",
+  "/checks",
+  "/checks/new",
+  "/issues",
+  "/reports",
   "/projects",
   "/evals",
   "/evals/new",
@@ -24,6 +28,8 @@ const CLIENT_ROUTES = new Set([
   "/operations/allocations/completed",
 ]);
 const CLIENT_ROUTE_PATTERNS = [
+  /^\/issues\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
+  /^\/reports\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}(?:\/(?:overview|comparison|attempts|setup))?$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/pairs\/[a-f0-9]{64}$/,
   /^\/catalog\/(?:workflows|agents|audit-presets)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,

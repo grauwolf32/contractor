@@ -113,7 +113,17 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
   for (const route of [
     "/",
     "/login",
+    "/checks",
+    "/checks?state=waiting_review&project=project_example&check=audit_example",
+    "/checks/new",
+    "/checks/new?project=project_example&objective=Find%20IDOR&type=owasp-top10",
+    "/issues",
+    "/issues?state=proposed&project=project_example&severity=high",
+    "/issues/audit_example/finding_example",
+    "/reports",
+    "/reports/audit_example",
     "/projects",
+    "/projects?new=1",
     "/projects/project_example",
     "/projects/project_example/artifacts",
     "/projects/project_example/workflows",
@@ -238,6 +248,59 @@ test("encoded client identities serve the same shell on direct GET and HEAD", as
   }
 });
 
+test("check, issue and report URLs serve the shell only in their exact shapes", async (t) => {
+  const { origin } = await fixture(t);
+  const audit = encodeURIComponent("audit:example");
+  const finding = encodeURIComponent("finding:example");
+  for (const path of [
+    "/checks/new?project=project_example&objective=Check%20%2Fapi%2Fusers",
+    "/issues/a/b",
+    `/issues/${audit}/${finding}`,
+    `/issues/${"a".repeat(256)}/${"f".repeat(256)}`,
+    `/reports/${audit}`,
+    `/reports/${"a".repeat(256)}`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>", path);
+    assert.equal(get.headers["cache-control"], "no-store", path);
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "", path);
+    assert.equal(head.headers["content-length"], get.headers["content-length"]);
+  }
+  for (const path of [
+    "/inbox",
+    "/checks/audit_example",
+    "/checks/new/extra",
+    "/issues/a",
+    "/issues/a/b/c",
+    "/issues/_invalid/finding_example",
+    "/issues/audit_example/_invalid",
+    `/issues/${"a".repeat(257)}/finding_example`,
+    `/issues/audit_example/${"f".repeat(257)}`,
+    "/issues/audit%253Aexample/finding_example",
+    "/reports/audit_example/extra",
+    "/reports/_invalid",
+    `/reports/${"a".repeat(257)}`,
+  ]) {
+    const page = await rawRequest(origin, path, "GET", { Accept: "text/html" });
+    assert.equal(page.status, 404, path);
+    assert.doesNotMatch(page.body, /<title>UI<\/title>/, path);
+    const plain = await rawRequest(origin, path);
+    assert.equal(plain.status, 404, path);
+    assert.equal(plain.body, "not found\n", path);
+  }
+  for (const path of [
+    "/issues/audit_example/%2e%2e",
+    "/issues/audit%2Fexample/finding_example",
+    "/reports/%2e%2e",
+    "/reports/audit%5Cexample",
+  ]) {
+    assert.equal((await rawRequest(origin, path)).status, 400, path);
+  }
+});
+
 test("decoding client identities preserves route and traversal boundaries", async (t) => {
   const { origin } = await fixture(t);
   for (const path of [
@@ -317,6 +380,7 @@ test("browser 404 offers recovery without widening SPA or API fallbacks", async 
   assert.match(response.headers.get("content-type"), /text\/html/);
   const body = await response.text();
   assert.match(body, /Page not found/);
+  assert.match(body, /href="\/"/);
   assert.match(body, /href="\/projects"/);
   assert.doesNotMatch(body, /<script/);
   const head = await fetch(`${origin}/missing-page`, {

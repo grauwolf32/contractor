@@ -14,36 +14,36 @@ security Workflows, Project-bound Audits and single-VM operational visibility.
 The UI uses Server's public API; it does not become a second Scheduler,
 configuration resolver or source of lifecycle truth.
 
-The target navigation contains:
+The target navigation is a rail of three groups (main, secondary, bottom):
 
 ```text
-Projects
-Evals
-Catalog
-  -> Workflows
-  -> Agents (AgentTemplates and base prompts)
-  -> Skills
-Artifacts
-Runs
-  -> Queue (default)
-  -> Completed
-  -> Run details
-     -> Stages / attempts
-     -> Inputs / outputs
-     -> Metrics
+Inbox (/)             decisions, blocked work, finished results, running checks
+Projects (/projects)
+Checks (/checks)      Audits across Projects
+Issues (/issues)      findings across Projects
+Reports (/reports)    Audit reports across Projects
 
-Operations
-  -> Runtime Agents
-  -> Allocations
-  -> LLM configurations
-  -> Credentials
-  -> Settings
+Runs (/runs)          Queue (default), Completed, Run details
+Library (/catalog)    Check types, Workflows, Agents, Skills, Files (/artifacts)
+Evals (/evals)
+
+Operations            Runtime Agents, Allocations, LLM configurations,
+(/operations)         Credentials, Settings
+Account menu          signed-in user, Settings, Theme, Sign out, UI version
 ```
 
+Library is the user-facing name of the Catalog; Check types are AuditProfiles.
+Inbox decisions come first: pending Audit reviews for finding triage of possible
+issues, active-check approval, requirement applicability and report acceptance.
+An Audit page under `/projects/:projectId/audits/:auditId` marks Checks as
+current. Operations appears only with the `operations` capability; Settings
+(`/operations/settings`, with the Git SSH key) does not need it. Every existing
+destination stays reachable and every existing URL loads directly.
+
 Catalog groups reusable execution definitions. Its canonical routes are
-`/catalog/workflows`, `/catalog/agents` and `/catalog/skills`; `/catalog` opens
-Workflows. Exact Workflow details use `/catalog/workflows/:name/:version`.
-Runtime Agent processes remain in Operations.
+`/catalog/audit-presets` (Check types), `/catalog/workflows`, `/catalog/agents`
+and `/catalog/skills`; `/catalog` opens Workflows. Exact Workflow details use
+`/catalog/workflows/:name/:version`. Runtime Agent processes stay in Operations.
 
 Agents lists exact published AgentTemplate versions, with description and links
 to a read-only detail at `/catalog/agents/:name/:version`. Detail emphasizes the
@@ -1296,13 +1296,13 @@ removal, Project HTTP target configuration and Skill upload use the shared modal
 focus containment, inert background and return-focus behavior. A keyboard skip
 link targets the main content.
 
-Home Quick start uses the complete Workflow inventory and the same numeric
+Workflow quick starts use the complete Workflow inventory and the same numeric
 version policy as Project/Catalog cards. Project Workflow matching loads every
 Artifact page before considering a unique MIME match; incomplete or cyclic
 pagination displays an error with explicit retry and supplies no partial match.
 
 Run and Artifact drill-down links retain the originating URL and nested return
-context. Library and Project Artifact namespace/cursor filters are URL-backed;
+context. Global and Project Artifact namespace/cursor filters are URL-backed;
 Artifact revision selection retains the origin. Direct detail links continue to
 have a deterministic parent destination. Preview tabs support arrows, Home/End
 and a single tab stop for the selected tab.

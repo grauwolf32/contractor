@@ -23,9 +23,9 @@ perform all three functions; Server continues to determine access.
 
 The primary journey is **Project → materials → Workflow → Run setup → execution →
 result → next Run or Audit review**. Starting a Run without a Project remains a
-supported standalone scenario. The main navigation is owned by
-[06](06-server-ui-and-operations.md#purpose); the stories add no navigation
-items.
+supported standalone scenario. [06](06-server-ui-and-operations.md#purpose) owns
+the main navigation; the stories add no navigation items. The Inbox at `/` puts
+decisions first, then blocked work, finished results and running checks.
 
 ## User stories
 
@@ -90,7 +90,7 @@ Done when Run and Queue show the reason known to Server, the next available step
 and a link to the relevant diagnostics. An already scheduled Scheduler retry,
 a wait for Runtime capacity and the option to create another Run are distinct.
 An unknown reason remains unknown; an idle Runtime is not presented as a
-guarantee of compatible capacity. Existing Home, Queue and Run triage remain.
+guarantee of compatible capacity. Queue and Run triage remain in Runs.
 
 ### US-05 — Retrieve and use a result
 

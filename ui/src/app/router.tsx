@@ -32,6 +32,11 @@ function lazyElement<M>(
 
 const projectSections = () => import("../routes/projects/sections");
 const projectFindings = () => import("../routes/projects/audits/findings");
+const inbox = () => import("../routes/inbox");
+const checks = () => import("../routes/checks");
+const startCheck = () => import("../routes/checks/start");
+const issues = () => import("../routes/issues");
+const reports = () => import("../routes/reports");
 
 function projectSection(
   section:
@@ -54,9 +59,25 @@ export function applicationRoutes(): RouteObject[] {
           errorElement: <ApplicationShell error={<RouteErrorPanel />} />,
           hydrateFallbackElement: <RouteChunkLoading />,
           children: [
+            { index: true, lazy: lazyRoute(inbox, "InboxRoute") },
+            { path: "/checks", lazy: lazyRoute(checks, "ChecksRoute") },
+            // A static segment outranks any `/checks/:param` route.
             {
-              index: true,
-              lazy: lazyRoute(() => import("../routes/home"), "HomeRoute"),
+              path: "/checks/new",
+              lazy: lazyRoute(startCheck, "StartCheckRoute"),
+            },
+            // Issues and Reports keep the selected item in the path. A list
+            // and its item route share one component, so selecting an item
+            // keeps the list mounted.
+            { path: "/issues", lazy: lazyRoute(issues, "IssuesRoute") },
+            {
+              path: "/issues/:auditId/:findingId",
+              lazy: lazyRoute(issues, "IssuesRoute"),
+            },
+            { path: "/reports", lazy: lazyRoute(reports, "ReportsRoute") },
+            {
+              path: "/reports/:auditId",
+              lazy: lazyRoute(reports, "ReportsRoute"),
             },
             {
               path: "/projects",
