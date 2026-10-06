@@ -1,11 +1,24 @@
 import { render, screen, within } from "@testing-library/react";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI, type AuthSession } from "../api/client";
 import { Application } from "../app/application";
 import { applicationRoutes } from "../app/router";
 import type { RuntimeConfig } from "../config/runtime-config";
+import { HomeRoute } from "./home";
+
+/** "/" routes to the Inbox; this suite mounts Home there until it is removed. */
+function homeRoutes(): RouteObject[] {
+  const routes = applicationRoutes();
+  const index = routes[1]?.children?.[0]?.children?.find(
+    (route) => route.index === true,
+  );
+  if (index === undefined) throw new Error("Index route is missing");
+  delete index.lazy;
+  index.element = <HomeRoute />;
+  return routes;
+}
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -171,7 +184,7 @@ describe("Action center", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    const router = createMemoryRouter(applicationRoutes(), {
+    const router = createMemoryRouter(homeRoutes(), {
       initialEntries: ["/"],
     });
     const view = render(

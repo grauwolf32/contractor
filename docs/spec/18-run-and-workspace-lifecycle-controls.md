@@ -21,7 +21,8 @@ their existing safe terminal/released boundaries.
 
 ## One Runs surface
 
-The top-level UI has one **Runs** destination with two views:
+The navigation rail ([06](06-server-ui-and-operations.md#purpose)) has one
+**Runs** destination, in its secondary group, with two views:
 
 ```text
 Runs
@@ -40,8 +41,7 @@ all filters are bound into the cursor kind.
 
 The two tabs deliberately need not use the same endpoint: their ordering and
 display projections are different even though both read `workflow_runs`.
-The Queue view opens at `/runs`; Queue is not a separate top-level navigation
-item.
+The Queue view opens at `/runs`; Queue is not a separate rail item.
 
 ## Durable owner queue gate
 

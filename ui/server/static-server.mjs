@@ -6,6 +6,10 @@ import { extname, resolve, sep } from "node:path";
 const CLIENT_ROUTES = new Set([
   "/",
   "/login",
+  "/checks",
+  "/checks/new",
+  "/issues",
+  "/reports",
   "/projects",
   "/evals",
   "/evals/new",
@@ -24,6 +28,8 @@ const CLIENT_ROUTES = new Set([
   "/operations/allocations/completed",
 ]);
 const CLIENT_ROUTE_PATTERNS = [
+  /^\/issues\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
+  /^\/reports\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}(?:\/(?:overview|comparison|attempts|setup))?$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/pairs\/[a-f0-9]{64}$/,
   /^\/catalog\/(?:workflows|agents|audit-presets)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
@@ -53,7 +59,7 @@ const NOT_FOUND_HTML = Buffer.from(`<!doctype html>
 <title>Page not found · Contractor</title>
 <meta name="color-scheme" content="light dark">
 <style>:root{--bg:#eceff3;--fg:#10151d;--muted:#4a5466;--line:#c3cbd6;--focus:#2f5d8a}@media (prefers-color-scheme:dark){:root{--bg:#0b0e13;--fg:#e9edf3;--muted:#a8b3c3;--line:#344155;--focus:#9fbde0}}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui}main{max-width:36rem;margin:15vh auto;padding:2rem}p{color:var(--muted)}a{display:inline-block;margin:1rem 1rem 0 0;padding:.65rem 1rem;border:1px solid var(--line);border-radius:.5rem;color:var(--fg)}a:focus-visible{outline:3px solid var(--focus);outline-offset:4px}</style>
-<main><p>Contractor · 404</p><h1>Page not found</h1><p>This address may be incomplete or the page may have moved. Return to your workspace to continue.</p><nav aria-label="Recovery"><a href="/">Home</a><a href="/projects">Projects</a></nav></main></html>`);
+<main><p>Contractor · 404</p><h1>Page not found</h1><p>This address may be incomplete or the page may have moved. Return to your workspace to continue.</p><nav aria-label="Recovery"><a href="/">Inbox</a><a href="/projects">Projects</a></nav></main></html>`);
 
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],

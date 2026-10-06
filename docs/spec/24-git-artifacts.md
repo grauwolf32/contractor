@@ -16,7 +16,7 @@ Private HTTPS tokens, multiple named keys, repository browsing and Git writes
 are deferred.
 
 The personal **Repository access** editor lives directly at
-`/operations/settings`, linked beside the signed-in user. It remains available
+`/operations/settings`, linked from the account menu. It remains available
 without the Operations capability; in that case the page omits server-wide
 Scheduler settings and every other Operations section. There is no separate
 `/settings` route and no compatibility redirect. The same Git-import dialog
