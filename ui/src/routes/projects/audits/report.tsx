@@ -11,9 +11,9 @@ import { usePublicAPI } from "../../../api/context";
 import { StaleDataWarning } from "../../../app/query-view";
 import { queryKeys } from "../../../api/query-keys";
 import { StateBadge } from "../../runs/components";
+import { ReportDecision } from "../../decisions";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 import { AuditQueueError } from "./queue";
-import { ActionReviewControls } from "./reviews";
 import { ExactArtifactLink } from "./shared";
 import { saveBlob } from "../../../app/download";
 
@@ -170,7 +170,13 @@ export function AuditReportView({
       report.data.review?.state === "pending" &&
       (requestedReview === null ||
         requestedReview === report.data.review.requestId) ? (
-        <ActionReviewControls audit={audit} review={report.data.review} />
+        <div className="decisions-inline">
+          <ReportDecision
+            auditId={audit.auditId}
+            review={report.data.review}
+            report={report.data}
+          />
+        </div>
       ) : null}
     </section>
   );
