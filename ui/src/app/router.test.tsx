@@ -1,8 +1,9 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import {
   createMemoryRouter,
   matchRoutes,
+  useLocation,
   useParams,
   type RouteObject,
 } from "react-router";
@@ -80,6 +81,12 @@ async function routeComponent(path: string) {
   return (await lazy()).Component;
 }
 
+/** Stands in for the page a URL renders, independent of the area's content. */
+function PageProbe() {
+  const { pathname } = useLocation();
+  return <p>Page at {pathname}</p>;
+}
+
 const listMounts = vi.fn();
 
 /** Stands in for a list + detail destination; counts its mounts. */
@@ -133,22 +140,27 @@ describe("V3B destinations", () => {
     );
   });
 
+  // The page is a probe, so this holds whatever each area renders; the
+  // route-to-component mapping is proven by identity above.
   it.each([
-    ["/", "Inbox"],
-    ["/checks", "Checks"],
-    ["/checks/new", "Start a check"],
-    ["/issues/audit_example/finding_example", "Issues"],
-    ["/reports/audit_example", "Reports"],
-  ])("opens %s directly inside the shell", async (path, title) => {
-    renderAt(path);
-    expect(
-      await screen.findByRole("heading", { level: 1, name: title }),
-    ).toBeVisible();
-    expect(screen.getByText("This page is being built.")).toBeVisible();
+    "/",
+    "/checks",
+    "/checks/new",
+    "/issues",
+    "/issues/audit_example/finding_example",
+    "/reports",
+    "/reports/audit_example",
+  ])("opens %s directly inside the shell", async (path) => {
+    const routes = applicationRoutes();
+    const page = leafRoute(path, routes);
+    if (page === undefined) throw new Error(`${path} has no route`);
+    page.lazy = lazyRoute(async () => ({ PageProbe }), "PageProbe");
+    renderAt(path, routes);
+    const content = await screen.findByText(`Page at ${path}`);
+    expect(screen.getByRole("main")).toContainElement(content);
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toBeVisible();
-    await waitFor(() => expect(document.title).toBe(`${title} · Contractor`));
   });
 
   it.each([

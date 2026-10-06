@@ -41,9 +41,9 @@ current. Operations appears only with the `operations` capability; Settings
 destination stays reachable and every existing URL loads directly.
 
 Catalog groups reusable execution definitions. Its canonical routes are
-`/catalog/workflows`, `/catalog/agents` and `/catalog/skills`; `/catalog` opens
-Workflows. Exact Workflow details use `/catalog/workflows/:name/:version`.
-Runtime Agent processes remain in Operations.
+`/catalog/audit-presets` (Check types), `/catalog/workflows`, `/catalog/agents`
+and `/catalog/skills`; `/catalog` opens Workflows. Exact Workflow details use
+`/catalog/workflows/:name/:version`. Runtime Agent processes stay in Operations.
 
 Agents lists exact published AgentTemplate versions, with description and links
 to a read-only detail at `/catalog/agents/:name/:version`. Detail emphasizes the
