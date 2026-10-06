@@ -23,9 +23,16 @@
 
 /* ---------- Rail ---------- */
 
+/*
+ * The rail is positioned (sticky here, relative on phones), so it is the
+ * stacking context of the account popover and the phone drawer. Its z-index
+ * keeps both above page content (ListRow, sticky section bars: z-index ≤ 5,
+ * later in the DOM) and below dialogs (the backdrop is at 50).
+ */
 .shell-rail {
   position: sticky;
   top: 0;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -730,7 +737,6 @@
    */
   .shell-rail {
     position: relative;
-    z-index: 30;
     display: block;
     height: auto;
     overflow: visible;

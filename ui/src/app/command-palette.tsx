@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import {
   useEffect,
   useId,
@@ -9,19 +8,17 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import { listAuditPresets } from "../api/audit-presets";
 import type { AuditProfile } from "../api/audits";
-import type { PublicAPI } from "../api/client";
-import { usePublicAPI } from "../api/context";
 import {
   type CrossProjectCheck,
   useAllChecks,
   useProjectsIndex,
 } from "../api/cross-project";
 import type { Project } from "../api/projects";
-import { queryKeys } from "../api/query-keys";
-import { listWorkflows, type WorkflowSummary } from "../api/workflows";
+import type { WorkflowSummary } from "../api/workflows";
 import { useSession } from "../auth/session";
+import { useAuditPresets } from "../routes/catalog/audit-preset-data";
+import { useWorkflowInventory } from "../routes/workflows/inventory";
 import { Kbd, modKeyLabel, useShortcuts } from "../ui";
 import { type Destination, destinationsFor, projectIdOf } from "./destinations";
 import { Dialog } from "./dialog";
@@ -30,9 +27,6 @@ import { capitalize, checkStateLabel, TERMS } from "./vocabulary";
 
 /** Results each group shows for a search. */
 export const RESULTS_PER_GROUP = 6;
-
-// Catalog data changes rarely; reopening the palette reuses it for a while.
-const CATALOG_STALE_MS = 60_000;
 
 interface PaletteOption {
   readonly key: string;
@@ -224,11 +218,17 @@ function newestByName<T>(
     .map(([, item]) => item);
 }
 
+/**
+ * Check types to start a check with: one per name, at its newest version
+ * this Server can run. A check type with no such version is left out, as
+ * the check form does not start one (projects/audits/list.tsx).
+ */
 function checkTypeOptions(
   profiles: readonly AuditProfile[],
   projectId: string | undefined,
 ): PaletteOption[] {
-  return newestByName(profiles, (profile) => profile.ref).map((profile) =>
+  const runnable = profiles.filter((profile) => profile.serverCompatible);
+  return newestByName(runnable, (profile) => profile.ref).map((profile) =>
     option(
       {
         key: `check-type:${profile.ref.name}`,
@@ -299,34 +299,7 @@ function search(
     .map(({ candidate }) => candidate);
 }
 
-async function workflowInventory(
-  api: PublicAPI,
-  signal: AbortSignal,
-): Promise<WorkflowSummary[]> {
-  // The same complete inventory the Library reads under this key.
-  const items: WorkflowSummary[] = [];
-  const cursors = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    const page = await listWorkflows(api, {
-      ...(cursor === undefined ? {} : { cursor }),
-      signal,
-    });
-    items.push(...page.items);
-    if (!page.page.hasMore) return items;
-    cursor = page.page.nextCursor;
-    if (!cursor || cursors.has(cursor))
-      throw new Error(
-        "Workflow inventory could not be completed. Refresh to retry.",
-      );
-    cursors.add(cursor);
-  } while (!signal.aborted);
-  signal.throwIfAborted();
-  return items;
-}
-
 function PaletteDialog({ onClose }: { onClose: () => void }) {
-  const api = usePublicAPI();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { session } = useSession();
@@ -341,20 +314,12 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
 
   // The dialog is mounted only while the palette is open, so these reads
   // run (and the check pages poll) only then. Project and check pages are
-  // shared with the Inbox badge; check types and workflows with the
-  // Library.
+  // shared with the Inbox badge; check types and workflows come from the
+  // Library's own hooks, so both read one cache entry in one shape.
   const projects = useProjectsIndex();
   const checks = useAllChecks();
-  const checkTypes = useQuery({
-    queryKey: queryKeys.catalog.auditPresets,
-    queryFn: ({ signal }) => listAuditPresets(api, signal),
-    staleTime: CATALOG_STALE_MS,
-  });
-  const workflows = useQuery({
-    queryKey: queryKeys.workflows.inventory,
-    queryFn: ({ signal }) => workflowInventory(api, signal),
-    staleTime: CATALOG_STALE_MS,
-  });
+  const checkTypes = useAuditPresets();
+  const workflows = useWorkflowInventory();
 
   useShortcuts({ "mod+k": onClose }, { allowInDialog: true });
 

@@ -127,8 +127,9 @@ const CONTROL = `${FOCUSABLE}, select, textarea, summary, [contenteditable]:not(
 
 /**
  * The account button at the bottom of the rail and its popover. Opening
- * focuses the first item; Escape and a click outside close it and return
- * focus to the button; following a link closes it.
+ * focuses the first item; Escape, a click outside and following a link close
+ * it and return focus to the button (a click outside leaves focus on the
+ * control it chose); any other navigation closes it.
  */
 export function AccountMenu() {
   const { session } = useSession();
@@ -136,6 +137,9 @@ export function AccountMenu() {
   const username = session?.principal.username;
   // Open for the location it was opened at, so any navigation closes it.
   const [openAt, setOpenAt] = useState<string | null>(null);
+  // Forget that location once it is left: Back and Forward restore entry
+  // keys, and returning to the entry must not reopen the menu.
+  if (openAt !== null && openAt !== location.key) setOpenAt(null);
   const open = openAt === location.key;
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -211,7 +215,14 @@ export function AccountMenu() {
       </button>
       {open ? (
         <div ref={popover} id={popoverId} className="shell-account-popover">
-          <AccountPanel onNavigate={() => setOpenAt(null)} />
+          <AccountPanel
+            onNavigate={() => {
+              setOpenAt(null);
+              // The followed link leaves with the popover; as on Escape,
+              // focus goes back to the button instead of the page start.
+              button.current?.focus();
+            }}
+          />
         </div>
       ) : null}
     </div>

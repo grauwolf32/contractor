@@ -19,9 +19,9 @@ import { PublicAPIProvider } from "../api/context";
 import type { Project } from "../api/projects";
 import { queryKeys } from "../api/query-keys";
 import type { WorkflowSummary } from "../api/workflows";
+import { createApplicationQueryClient } from "../app/query-client";
+import { ApplicationShell } from "../app/shell";
 import { SessionProvider, type SessionAPI } from "../auth/session";
-import { createApplicationQueryClient } from "./query-client";
-import { ApplicationShell } from "./shell";
 
 type Capability = AuthSession["principal"]["capabilities"][number];
 

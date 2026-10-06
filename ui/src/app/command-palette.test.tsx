@@ -2,18 +2,19 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import type { AuditProfile } from "../api/audits";
 import {
   newerPresetFixture,
   presetFixture,
 } from "../test/audit-presets-fixture";
-import { RESULTS_PER_GROUP } from "./command-palette";
 import {
   auditFixture,
   type FakeServer,
   projectFixture,
   renderShell,
   workflowFixture,
-} from "./shell-test-harness";
+} from "../test/shell-harness";
+import { RESULTS_PER_GROUP } from "./command-palette";
 
 const server: FakeServer = {
   projects: [
@@ -267,6 +268,30 @@ describe("command palette", () => {
       );
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     }
+  });
+
+  it("offers only check types this Server can run", async () => {
+    const unsupported: AuditProfile = {
+      ...presetFixture,
+      ref: { ...presetFixture.ref, name: "legacy-review" },
+      serverCompatible: false,
+      compatibilityReasons: ["multiple_rounds_unsupported"],
+    };
+    renderShell("/runs", {
+      server: { profiles: [presetFixture, unsupported] },
+    });
+    const { user, field } = await openWithKeyboard();
+    await user.type(field, "review");
+    expect(
+      await within(group("Check types")).findAllByRole("option"),
+    ).toHaveLength(1);
+    expect(options()).toEqual(["source-review"]);
+
+    await user.clear(field);
+    await user.type(field, "legacy");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("No matches"),
+    );
   });
 
   it("lists one entry per check type and workflow, at its newest version", async () => {

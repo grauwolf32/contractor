@@ -1,11 +1,11 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UI_VERSION } from "../build";
 import { sessionRunDraftStore } from "../run-drafts/session-stores";
+import { renderShell, TEST_USERNAME } from "../test/shell-harness";
 import { MemoryStorage } from "../test/storage";
-import { renderShell, TEST_USERNAME } from "./shell-test-harness";
 import { setThemePreference } from "./theme";
 
 async function openMenu() {
@@ -98,7 +98,7 @@ describe("account menu", () => {
     expect(button).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("closes after following Settings", async () => {
+  it("closes after following Settings and returns focus to the button", async () => {
     const { router } = renderShell("/runs");
     const { user, button } = await openMenu();
     await user.click(screen.getByRole("link", { name: "Settings" }));
@@ -107,6 +107,33 @@ describe("account menu", () => {
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/operations/settings");
     expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveFocus();
+  });
+
+  it("stays closed when history returns to where it was opened", async () => {
+    const { router } = renderShell("/issues");
+    await act(async () => {
+      await router.navigate("/runs");
+    });
+    const { button } = await openMenu();
+    expect(button).toHaveAttribute("aria-expanded", "true");
+
+    // Back and Forward restore the entry the menu was opened at.
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(await screen.findByText("Page at /issues")).toBeVisible();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    button.focus();
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(await screen.findByText("Page at /runs")).toBeVisible();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("button", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
+    expect(button).toHaveFocus();
   });
 
   it("sets the theme from the radio group", async () => {

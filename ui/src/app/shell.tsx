@@ -145,6 +145,9 @@ export function ApplicationShell({ error }: { error?: ReactNode }) {
   const destinations = destinationsFor(session?.principal.capabilities);
   // Open for the location it was opened at, so any navigation closes it.
   const [menuOpenAt, setMenuOpenAt] = useState<string | null>(null);
+  // Forget that location once it is left: Back and Forward restore entry
+  // keys, and returning to the entry must not reopen the drawer.
+  if (menuOpenAt !== null && menuOpenAt !== location.key) setMenuOpenAt(null);
   const menuOpen = menuOpenAt === location.key;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);

@@ -2,13 +2,13 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { activeDestination } from "./destinations";
 import {
   auditFixture,
   projectFixture,
   renderShell,
   reviewFixture,
-} from "./shell-test-harness";
+} from "../test/shell-harness";
+import { activeDestination } from "./destinations";
 
 function primaryNavigation() {
   return screen.getByRole("navigation", { name: "Primary navigation" });
@@ -241,6 +241,41 @@ describe("phone menu", () => {
     await act(async () => {
       await router.navigate("/reports");
     });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("stays closed when history returns to where it was opened", async () => {
+    const user = userEvent.setup();
+    const { router } = renderShell("/issues");
+    await act(async () => {
+      await router.navigate("/runs");
+    });
+    const toggle = screen.getByRole("button", { name: "Menu" });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // Back and Forward restore the entry the drawer was opened at.
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(await screen.findByText("Page at /issues")).toBeVisible();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(await screen.findByText("Page at /runs")).toBeVisible();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("main").parentElement).not.toHaveAttribute("inert");
+
+    // A navigation that does not go through the drawer, then Back.
+    await user.click(toggle);
+    await act(async () => {
+      await router.navigate("/reports");
+    });
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(await screen.findByText("Page at /runs")).toBeVisible();
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 });
