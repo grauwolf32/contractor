@@ -281,4 +281,51 @@ rows you implemented and any row you could not; open questions.
 
 ## 11. As built
 
-Filled in by the foundation: final signatures and usage notes for §6–7.
+### Primitives (`ui/src/ui`)
+
+The full API with one example per component is in `ui/src/ui/README.md`;
+read it before using a primitive. Highlights:
+
+- `PaneLayout({ list, detail, showDetail, backLink?, listLabel, detailLabel })`
+  manages focus when switching panes on narrow screens; selection must be in
+  the URL so Back restores it.
+- `ListRow`: the title covers the row as one click area; put actions in
+  `children` or `trailing`, never inside `meta`.
+- `DecisionBar` is presentational: the caller owns verdict, severity and
+  rationale state and performs the mutation in `onSubmit`.
+- `useShortcuts` / `useListNavigation` implement the keyboard guards of §4.
+- All optional props accept `undefined` (`exactOptionalPropertyTypes`).
+
+### Vocabulary (`ui/src/app/vocabulary.ts`)
+
+Tables keyed by the generated API enums (`CHECK_STATE_LABELS`,
+`COVERAGE_STATUS_LABELS`, `FINDING_STATE_LABELS`, `VERDICT_LABELS`,
+`REVIEW_ACTION_LABELS`, `REVIEW_STATE_LABELS`, `REPORT_STATUS_LABELS`,
+`REVIEW_KIND_LABELS`, `SEVERITY_LABELS`) and lookups returning
+`{ label, tone }`; `TERMS` for shared nouns; `ItemKind`, `itemNoun`,
+`itemCount` and `checkItemKind(source)` (work item kind → profile inventory
+and standards → audit baseline standards → profile name → "item").
+
+### Cross-project data (`ui/src/api/cross-project.ts`)
+
+- `CROSS_PROJECT_LIMITS = { projects: 50, auditsPerProject: 50, findingsPerAudit: 50, pollMs: 20_000 }`.
+- `INBOX_CHECK_STATES = ["active", "waiting_review"]`: pass it as
+  `checkStates` on the Inbox so lists match the rail badge and share reads.
+- Hooks return `CrossProjectStatus` (`truncated`, `partial`, `errors` keyed by
+  `scope: "index" | "project" | "check"`, `error`, `isPending`, `refetch`) plus:
+  `useProjectsIndex() → projects`; `useAllChecks({ states? }) → checks`;
+  `useAllPossibleIssues({ checkStates?, states?, verdicts?, severities? }) → issues, truncatedAuditIds, total`;
+  `usePendingDecisions({ checkStates?, kinds? }) → decisions, truncatedAuditIds`;
+  `useAllReports({ statuses? }) → reports` (default proposed and ready; 404 = no report);
+  `useInboxSummary() → { needsDecision, possibleIssues, otherDecisions, partial, truncated }`.
+- `invalidateCrossProject(queryClient)` after every decision or lifecycle
+  mutation. Keys live in `queryKeys.crossProject`.
+
+### Routes
+
+New routes (§5) are registered with stubs; owners replace the stub body and
+keep the export name (`ui/src/app/router.test.tsx` checks identity). List and
+item routes share one component, so selection keeps the list mounted; read
+`auditId` / `findingId` with `useParams()`. The static server allows the new
+paths; query strings are ignored when matching. Unknown shapes
+(`/checks/:x`, `/issues/:a`, …) are 404.
