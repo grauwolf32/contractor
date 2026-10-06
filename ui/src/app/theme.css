@@ -61,6 +61,29 @@
     0 24px 64px -20px rgb(16 21 29 / 35%), 0 2px 6px rgb(16 21 29 / 8%);
   --brand-bg: #050505;
 
+  /*
+   * V3B parts (src/ui): chrome for method chips and rail states, faint
+   * secondary text, the selected-row tint with its bar and outline, code
+   * blocks and highlighted lines, the rail count badge, and progress
+   * segments (m-*). The selection tokens alias the accent family, so the
+   * dark and black blocks only redefine the rest.
+   */
+  --chrome: #e3e8ee;
+  --chrome-2: #d6dde6;
+  --faint: #56606f;
+  --sel: var(--accent-dark);
+  --sel-bar: var(--accent);
+  --sel-line: var(--accent-line);
+  --code-bg: #f6f8fa;
+  --code-hl: #e6eef7;
+  --badge-bg: #10151d;
+  --badge-ink: #ffffff;
+  --m-idle: #cfd6e0;
+  --m-partial: #c08600;
+  --m-progress: #3f6fe0;
+  --m-blocked: #a3221a;
+  --m-done: #1f8a4c;
+
   --diff-add-bg: #e6f4ea;
   --diff-add-ink: #14532b;
   --diff-add-num-bg: #cfe9d7;
@@ -147,6 +170,18 @@
     --scrim: rgb(4 6 9 / 72%);
     --shadow-lg:
       0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+    --chrome: #1b2331;
+    --chrome-2: #243044;
+    --faint: #99a5b7;
+    --code-bg: #0e131a;
+    --code-hl: #172334;
+    --badge-bg: #d3dbe6;
+    --badge-ink: #0b1017;
+    --m-idle: #2b3546;
+    --m-partial: #f6c35c;
+    --m-progress: #6f9bff;
+    --m-blocked: #e0483f;
+    --m-done: #5cc983;
     --diff-add-bg: #10291b;
     --diff-add-ink: #b9f6ca;
     --diff-add-num-bg: #174127;
@@ -230,6 +265,18 @@
   --scrim: rgb(4 6 9 / 72%);
   --shadow-lg:
     0 24px 64px -16px rgb(0 0 0 / 75%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --chrome: #1b2331;
+  --chrome-2: #243044;
+  --faint: #99a5b7;
+  --code-bg: #0e131a;
+  --code-hl: #172334;
+  --badge-bg: #d3dbe6;
+  --badge-ink: #0b1017;
+  --m-idle: #2b3546;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
   --diff-add-bg: #10291b;
   --diff-add-ink: #b9f6ca;
   --diff-add-num-bg: #174127;
@@ -311,6 +358,18 @@
   --code-ink: #d6dde6;
   --scrim: rgb(0 0 0 / 80%);
   --shadow-lg: 0 0 0 1px #2d3036, 0 24px 64px -16px rgb(0 0 0 / 90%);
+  --chrome: #141518;
+  --chrome-2: #1c1e22;
+  --faint: #94989f;
+  --code-bg: #050506;
+  --code-hl: #0f1722;
+  --badge-bg: #e6e8eb;
+  --badge-ink: #000000;
+  --m-idle: #26292e;
+  --m-partial: #f6c35c;
+  --m-progress: #6f9bff;
+  --m-blocked: #e0483f;
+  --m-done: #5cc983;
   --diff-add-bg: #0b1f14;
   --diff-add-ink: #b9f6ca;
   --diff-add-num-bg: #12331f;
