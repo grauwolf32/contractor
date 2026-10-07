@@ -1469,6 +1469,13 @@ describe("Workflow routes", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Upload local file for source",
     });
+    // The dialog title labels the form; no "Artifact" heading of its own.
+    expect(
+      within(dialog).getByRole("form", {
+        name: "Upload local file for source",
+      }),
+    ).toBeVisible();
+    expect(within(dialog).queryByText(/artifact/i)).not.toBeInTheDocument();
     await user.upload(
       within(dialog).getByLabelText("Drop a file here"),
       new File(["zip"], "service-source.zip", {

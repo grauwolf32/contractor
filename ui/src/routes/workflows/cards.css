@@ -61,6 +61,17 @@
   min-width: 0;
 }
 
+/* The exact name@version stays whole (UUS:62-63): a chip too wide for the
+   card wraps instead of losing the version to an ellipsis. */
+.workflow-card-version > .ui-id {
+  min-width: 0;
+}
+
+.workflow-card .ui-id-chip-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .workflow-card-select {
   display: inline-flex;
   align-items: center;

@@ -161,10 +161,18 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Slot and parameter names come from the Workflow (an input name may have
+   128 characters), so a field's parts may shrink below their content and a
+   long name breaks instead of widening the sheet. */
 .run-draft .run-field {
   display: grid;
   align-content: start;
   gap: 0.375rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.run-draft .run-field > * {
   min-width: 0;
 }
 
@@ -306,6 +314,21 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* "Upload local file for …" and "Confirm input for …" name their slot: a
+   long name wraps inside the button. */
+.run-draft
+  :is(.run-field-actions, .run-input-review-actions)
+  .ui-btn:not(.git-import-icon-button) {
+  max-width: 100%;
+  height: auto;
+  min-height: 2rem;
+  padding-block: 0.375rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .run-draft .git-import-icon-button {
@@ -974,6 +997,12 @@
 .run-draft-discard-dialog,
 .run-input-upload-dialog {
   width: min(100%, 42rem);
+}
+
+/* The title names the slot: a long name breaks instead of widening the
+   dialog. */
+.run-input-upload-dialog .project-dialog-heading h2 {
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Submit ---------- */

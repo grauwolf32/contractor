@@ -114,8 +114,9 @@ export function SkillsRoute() {
           isEmpty={(queryData) => queryData.items.length === 0}
           empty={
             <EmptyState title="No global Skill packages found.">
-              Bundled initialization or an ordinary User Artifact upload can
-              create the first package.
+              Upload a Skill ZIP to create the first package. Skills bundled
+              with the server configuration can also be added when the server
+              starts.
             </EmptyState>
           }
         >

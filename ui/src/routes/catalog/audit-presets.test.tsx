@@ -236,6 +236,52 @@ describe("Library check types", () => {
     expect(screen.getByText("2 check types")).toBeVisible();
   });
 
+  it("names the items of a WSTG check type scenarios and counts them", async () => {
+    const user = userEvent.setup();
+    const name = "owasp-wstg-4-2-source-review";
+    const profile: AuditProfile = {
+      ...presetFixture,
+      ref: { ...presetFixture.ref, name },
+      standards: [{ scheme: "owasp-wstg", version: "4.2" }],
+      inventory: {
+        ...presetFixture.inventory,
+        standardSelection: {
+          ...presetFixture.inventory.standardSelection!,
+          scope: "Selected source review tests",
+        },
+      },
+    };
+    setup("/catalog/audit-presets", {
+      profiles: [profile],
+      standard: {
+        ...standardFixture,
+        reference: { scheme: "owasp-wstg", version: "4.2" },
+        title: "Web Security Testing Guide",
+      },
+    });
+    const card = (
+      await screen.findByRole("link", { name: auditPresetLabel(name) })
+    ).closest("article")!;
+    const view = within(card).getByRole("link", { name: "View scenarios" });
+    expect(view).toHaveAttribute("href", `/catalog/audit-presets/${name}/1`);
+
+    await user.click(view);
+    await screen.findByText("Check authorization");
+    expect(screen.getByRole("heading", { name: "Scenarios" })).toBeVisible();
+    expect(screen.getByText("2 scenarios")).toBeVisible();
+    expect(screen.getByText("2 scenarios selected · Levels 1")).toBeVisible();
+    await user.type(
+      screen.getByLabelText("Search scenarios"),
+      "trust boundary",
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Check authorization")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Check input validation")).toBeVisible();
+    expect(screen.getByText("1 of 2 scenarios")).toBeVisible();
+    expect(screen.queryByText(/\d requirements?\b/)).not.toBeInTheDocument();
+  });
+
   it("shows the exact selected requirements, reads their details and searches their text", async () => {
     const user = userEvent.setup();
     setup("/catalog/audit-presets/source-review/1");

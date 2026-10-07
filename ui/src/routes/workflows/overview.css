@@ -172,9 +172,13 @@
   background: none;
 }
 
+/* Direction and alignment are set explicitly: src/routes/primary-actions.css
+   (still loaded by the Project page) styles the same class as a column. */
 .workflow-overview-page .workflow-technical-details > summary {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.25rem;
   width: fit-content;
   max-width: 100%;
@@ -537,13 +541,19 @@
   line-height: 1.2;
 }
 
-/* The exact version (UUS:62-63) as an identifier chip. */
+/* The exact version (UUS:62-63) as an identifier chip; a long name wraps
+   instead of losing the version to an ellipsis. */
 .workflow-drawer-selector {
   width: fit-content;
   max-width: 100%;
   color: inherit;
   font-family: inherit;
   font-size: inherit;
+}
+
+.workflow-drawer-selector .ui-id-chip-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .workflow-drawer-heading .workflow-drawer-close {

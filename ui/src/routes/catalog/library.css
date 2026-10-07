@@ -294,6 +294,18 @@
   margin-top: auto;
 }
 
+/* name@version stays whole (contract §2.9): a chip too wide for its line
+   moves to its own line and wraps there instead of losing the version to
+   an ellipsis. */
+.library-card-meta > .ui-id {
+  min-width: 0;
+}
+
+:is(.library-card, .library-sheet) .ui-id-chip-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .library-card-footer {
   display: flex;
   flex-wrap: wrap;

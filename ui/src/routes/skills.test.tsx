@@ -174,6 +174,35 @@ describe("Skills catalog", () => {
     expect(brokenArchiveReads).toBe(2);
   });
 
+  it("explains how to create the first package in Library words", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === "/v1/artifacts") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const router = createMemoryRouter(applicationRoutes(), {
+      initialEntries: ["/catalog/skills"],
+    });
+    render(<Application api={api} publicAPI={api} router={router} />);
+
+    const empty = (await screen.findByText("No global Skill packages found."))
+      .parentElement!;
+    expect(empty).toHaveTextContent(
+      "Upload a Skill ZIP to create the first package.",
+    );
+    expect(empty).toHaveTextContent(/bundled with the server configuration/);
+    // Files refuses the skills namespace, so the hint does not send users there.
+    expect(empty).not.toHaveTextContent(/artifact|Files/i);
+    expect(screen.getByRole("button", { name: "Upload Skills" })).toBeVisible();
+  });
+
   it("lists packages with size, files and revision, and uploads a Skill ZIP", async () => {
     const puts: Request[] = [];
     let stored = false;
