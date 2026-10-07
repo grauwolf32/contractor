@@ -184,7 +184,11 @@ test("Run list prioritizes compact facts on narrow screens", async ({
   await expect(row.locator(".run-list-workflow-cell")).toBeVisible();
   await expect(row.locator(".run-list-finished-cell")).toBeVisible();
   await expect(row.locator(".run-list-labels-cell")).toBeVisible();
-  await expect(row.locator(".state-badge")).toHaveCSS("white-space", "nowrap");
+  // The state is a V3B status chip: a glyph and the capitalized state word.
+  await expect(row.getByText("Succeeded", { exact: true })).toHaveCSS(
+    "white-space",
+    "nowrap",
+  );
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBe(320);

@@ -212,6 +212,17 @@ async function installFixture(page: Page, apiOrigin: string) {
   return uploads;
 }
 
+// Files (/artifacts) has no rail item in V3B: every Library page, the workflow
+// page included, links to it from its section tabs, which wrap and stay in
+// the page at every width (no Menu drawer needed on phones).
+async function leaveForFiles(page: Page): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Library sections", exact: true })
+    .getByRole("link", { name: "Files", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/artifacts$/);
+}
+
 for (const viewport of [
   { width: 1440, height: 1000 },
   { width: 390, height: 844 },
@@ -239,10 +250,7 @@ for (const viewport of [
         .selectOption("sources/existing@revision-existing");
 
       await page.getByRole("button", { name: "Close Run setup" }).click();
-      if (viewport.width === 390)
-        await page.getByRole("button", { name: "Menu", exact: true }).click();
-      await page.getByRole("link", { name: "Artifacts", exact: true }).click();
-      await expect(page).toHaveURL(/\/artifacts$/);
+      await leaveForFiles(page);
       await page.goBack();
       await page
         .getByRole("button", { name: "Configure Run", exact: true })
@@ -318,9 +326,7 @@ for (const viewport of [
       ).toBeVisible();
       expect(submissions).toHaveLength(1);
       await page.getByRole("button", { name: "Close Run setup" }).click();
-      if (viewport.width === 390)
-        await page.getByRole("button", { name: "Menu", exact: true }).click();
-      await page.getByRole("link", { name: "Artifacts", exact: true }).click();
+      await leaveForFiles(page);
       await page.goBack();
       await page
         .getByRole("button", { name: "Configure Run", exact: true })
