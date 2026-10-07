@@ -4,7 +4,8 @@
 [V3B Panes](v3b-panes.md) · [Themes](themes.md)
 
 This is the working agreement for everyone (people and agents) building the V3B
-redesign of `ui/` on the `feat/ui-v3b` branch. The plan says *what* and *why*;
+redesign of `ui/`, developed on `feat/ui-v3b` and now integrated into `main`.
+The plan says *what* and *why*;
 this contract says *how*: file ownership, shared building blocks, copy, keyboard,
 layout and the checks every change must pass. When the code and this contract
 disagree, fix one of them in the same commit.

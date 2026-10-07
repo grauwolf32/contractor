@@ -4,20 +4,20 @@
 
 This directory records the 2026-10 exploration of a simpler Web UI: the main
 user journey redrawn in several directions, and a visual editor for
-Workflows, Audits and Agent templates. All of it is design exploration. Nothing
-here is implemented, and nothing here is normative: accepted behaviour belongs in
-the [specification](../../spec/README.md).
+Workflows, Audits and Agent templates. The static mockups remain design
+exploration; the chosen V3B journey is now implemented in `ui/` on `main`.
+Accepted behaviour belongs in the [specification](../../spec/README.md).
 
-## Decision status (2026-10-05)
+## Decision status (2026-10-07)
 
 | Track | Variants | State |
 | --- | --- | --- |
 | Main journey, first round | [V1 Guided](v1-guided.md), [V2 Workspace](v2-workspace.md), [V3 Inbox](v3-inbox.md) | **V3 Inbox** chosen as the base |
-| Main journey, V3 variations | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md) | **V3B Panes** chosen for implementation |
+| Main journey, V3 variations | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md) | **V3B Panes** implemented on `main` |
 | Palette and themes | [Themes](themes.md) | Accepted: neutral accent instead of lime; light, dark and black themes |
-| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** chosen; implementation paused until the main journey is settled |
+| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** chosen; implementation remains a separate next phase |
 
-V3B Panes is the target for the `ui/` redesign. The
+V3B Panes is the implemented direction for the `ui/` redesign. The
 [comparison](#variants-at-a-glance) gives the reasoning, and the [V3B
 implementation plan](v3b-implementation.md) records the agreed decisions and
 build order.
@@ -137,8 +137,9 @@ demo stand's run and Audit IDs to show where that information moves.
 The decisions on navigation, vocabulary, visible identifiers and API gaps were
 agreed on 2026-10-06 and are recorded in the [V3B implementation
 plan](v3b-implementation.md). The plan also lists the constraints to keep and
-the build order. The [coverage map](v3b-coverage.html) maps all 118
-capabilities of today's UI to their place in V3B; open it in a browser.
+the original build order and remaining work. The [coverage map](v3b-coverage.html)
+is the original inventory of 118 capabilities and their intended place in V3B;
+it is a design inventory rather than a current verification report.
 
 Still open: whether V3B borrows V3A's quieter rail and typography, and V3C's
 lanes as a second view of a running check.

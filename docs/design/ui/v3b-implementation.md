@@ -3,11 +3,26 @@
 [UI redesign explorations](README.md) · [V3B Panes](v3b-panes.md) ·
 [Coverage map](v3b-coverage.html)
 
-V3B Panes is the target for the `ui/` redesign. This document records the
-decisions agreed on 2026-10-06, the constraints the redesign must keep, and the
-build order. The [coverage map](v3b-coverage.html) lists every capability of
-today's UI (118 rows) with its place in V3B, the API it uses, and its status.
-Open it in a browser.
+V3B Panes is the implemented direction for the `ui/` redesign. This document
+records the decisions agreed on 2026-10-06, the constraints the redesign must
+keep, and the build order. The [coverage map](v3b-coverage.html) records the
+original UI inventory (118 rows) with its intended place in V3B, the API it
+uses, and its status. Open it in a browser.
+
+## Implementation status (2026-10-07)
+
+All nine steps in the build order below are implemented and integrated into
+`main`. The order records how the redesign was built; it is no longer an open
+task list. The shared component contract is in
+[v3b-build-contract.md](v3b-build-contract.md), with the component APIs in
+[`ui/src/ui/README.md`](../../../ui/src/ui/README.md).
+
+Browser journeys now follow the V3B names, account menu, Materials and Library
+tabs, check item panes and decision bars. They retain exact request payload,
+revision, evidence, browser storage and destructive-action checks.
+
+The API gaps below remain: global lists still use bounded client fan-out,
+activity is assembled from snapshots, and suggestions use static rules.
 
 The map was built from four read-only inventories of `ui/` (projects and
 audits; runs, artifacts, catalog and evals; shell, operations and the visual
@@ -72,8 +87,8 @@ Revisions, digests, rounds, slots, tokens and allocations move behind
 | No check-type suggestions | Static rules: project materials plus keywords in the objective map to a check type; "Why this fits" is the rule's fixed text. Never claim more than the rule checks. | Optional model call |
 
 Review kinds other than finding triage (active-check approval, requirement
-applicability, report acceptance) are already served by
-`/v1/audits/{auditId}/reviews` and only need screens.
+applicability, report acceptance) are served by
+`/v1/audits/{auditId}/reviews` and have V3B decision screens.
 
 ### Smaller defaults
 
@@ -109,19 +124,18 @@ applicability, report acceptance) are already served by
 
 ## Specification and test changes that travel with the UI
 
-- S06:17-41, S18:24-44 and UUS:26-28, 93 describe today's navigation and Home;
-  rewrite them in the shell step.
-- Browser specs assert accessible names that contain Audit, Run, Artifact and
-  Workflow, the nav labels "Primary navigation", "Project sections" and
-  "Run views", and a visible "Sign out". Update them in the same commit as the
-  screen they test, together with `ui/server/mocked-browser-gate.mjs`,
-  `tests/ui-stack/stack_test.go` and the `tests/e2e/*matrix*.yml` bindings.
+- S06, S18 and UUS now describe the V3B navigation and Inbox.
+- Browser specs follow the V3B accessible names and account menu while
+  retaining the "Primary navigation", "Project sections" and "Run views"
+  landmarks. Keep them aligned with the screens they test and the browser
+  gates in `ui/server/mocked-browser-gate.mjs`, `tests/ui-stack/stack_test.go`
+  and the `tests/e2e/*matrix*.yml` bindings.
 - Any `ui/src` change runs both live browser shards in PR CI
   (`release-verify-browser-a`, `-b`).
 
 ## Build order
 
-1. **Visual foundation** (done on `feat/ui-v3b`).
+1. **Visual foundation** (implemented on `main`).
    - Bundled fonts and the token set for light, dark and black (see [Themes](themes.md)), replacing every hard-coded colour in the CSS.
    - Theme preference with a control in Settings.
    - Scalar, LikeC4, the GPU palette, the eval A/B colours, `index.html` and the server 404 page follow the theme.
@@ -139,5 +153,21 @@ applicability, report acceptance) are already served by
 9. **Runs, Library, Evals, Operations, sign-in.** Restyled into the pane
    frame with every action kept.
 
-Each step is one or more commits on `feat/ui-v3b`, verified with
-`make ui-verify` and the mocked browser gate before moving on.
+These steps were developed on `feat/ui-v3b` and integrated into `main`.
+Verification uses `make ui-verify`, the mocked browser gate and both live
+browser shards.
+
+## Remaining work
+
+1. **Cross-project APIs.** Add owner-scoped, paginated lists for checks,
+   pending decisions and findings, then replace the client fan-out. This
+   removes the current first-page limits and reduces polling requests.
+2. **Check events.** Provide the Audit event stream described by S19 before
+   replacing the activity assembled from item, attempt and review timestamps.
+3. **Visual editor.** Implement the chosen
+   [B node studio](editor-studio.md) as a separate phase: authored YAML import,
+   graph and inspector, validation and YAML export, using the V3B themes.
+
+Per-item retry and model-assisted suggestions remain conditional on a proven
+need. Borrowing V3A's quieter rail and typography or adding V3C's column view
+still needs a design decision; neither is part of the completed V3B rollout.

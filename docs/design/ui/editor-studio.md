@@ -5,11 +5,11 @@
 A visualiser and editor for Workflow definitions, AuditProfiles with a live
 Audit overlay, and Agent templates.
 
-**Status:** direction **B (full-screen node studio)** was chosen on
-2026-10-04. Implementation is paused until the [main journey
-redesign](README.md) lands. The studio will then adopt the redesign's
-vocabulary and [themes](themes.md). These mockups predate the palette decision
-and use today's dark theme with the lime accent and Inter.
+**Status (2026-10-07):** direction **B (full-screen node studio)** was chosen
+on 2026-10-04. The [main journey redesign](README.md) is implemented on `main`;
+the studio remains a separate planned phase. It will adopt the V3B vocabulary
+and [themes](themes.md). These mockups predate the palette decision and use
+the former dark theme with the lime accent and Inter.
 
 ## Scope decisions
 
