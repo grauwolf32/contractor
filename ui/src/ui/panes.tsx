@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { Link, type To } from "react-router";
 
 export interface PaneLayoutProps {
@@ -127,9 +127,17 @@ export interface ListPaneProps {
   title?: ReactNode;
   /** Title level. Default "h1". */
   titleAs?: "h1" | "h2" | undefined;
+  /**
+   * The title heading. With a ref the heading can take focus (tabIndex -1),
+   * e.g. once the selected item left the list. Not used with `header`.
+   */
+  titleRef?: Ref<HTMLHeadingElement> | undefined;
   /** One line under the title. */
   subtitle?: ReactNode;
-  /** Controls at the right of the title. */
+  /**
+   * Controls at the right of the title. They wrap under it in a narrow pane
+   * and shrink with it, so a select with long options needs no width cap.
+   */
   actions?: ReactNode;
   /** Replaces the title block, e.g. a DetailHeader with a breadcrumb. */
   header?: ReactNode;
@@ -147,6 +155,7 @@ export interface ListPaneProps {
 export function ListPane({
   title,
   titleAs: Title = "h1",
+  titleRef,
   subtitle,
   actions,
   header,
@@ -165,7 +174,13 @@ export function ListPane({
         <header className="ui-list-pane-header">
           <div className="ui-list-pane-heading">
             {title === undefined ? null : (
-              <Title className="ui-list-pane-title">{title}</Title>
+              <Title
+                ref={titleRef}
+                className="ui-list-pane-title"
+                tabIndex={titleRef === undefined ? undefined : -1}
+              >
+                {title}
+              </Title>
             )}
             {subtitle === undefined ? null : (
               <p className="ui-list-pane-subtitle">{subtitle}</p>
@@ -197,7 +212,11 @@ export function ListPane({
 export interface DetailPaneProps {
   /** Usually a DetailHeader. */
   header?: ReactNode;
-  /** Pinned to the bottom of the pane on wide screens, e.g. a DecisionBar. */
+  /**
+   * Pinned to the bottom of the pane on wide screens, e.g. a DecisionBar.
+   * Content with the `ui-footer-record` class (a recorded decision) is
+   * capped there and scrolls on its own.
+   */
   footer?: ReactNode;
   children: ReactNode;
   /** Renders a `<section>` with this name; omit inside PaneLayout. */
@@ -240,6 +259,11 @@ export interface DetailHeaderProps {
   title: ReactNode;
   /** Title level. Default "h2". */
   titleAs?: "h1" | "h2" | undefined;
+  /**
+   * The title heading. With a ref the heading can take focus (tabIndex -1),
+   * e.g. when the control that had focus went away.
+   */
+  titleRef?: Ref<HTMLHeadingElement> | undefined;
   /** Next to the title, usually a StatusChip. */
   status?: ReactNode;
   /** Line under the title (dates, owner, IdChip). */
@@ -273,6 +297,7 @@ export function DetailHeader({
   breadcrumb,
   title,
   titleAs: Title = "h2",
+  titleRef,
   status,
   meta,
   actions,
@@ -303,7 +328,13 @@ export function DetailHeader({
       )}
       <div className="ui-detail-header-main">
         <div className="ui-detail-header-title">
-          <Title className="ui-detail-header-heading">{title}</Title>
+          <Title
+            ref={titleRef}
+            className="ui-detail-header-heading"
+            tabIndex={titleRef === undefined ? undefined : -1}
+          >
+            {title}
+          </Title>
           {status}
         </div>
         {actions === undefined ? null : (

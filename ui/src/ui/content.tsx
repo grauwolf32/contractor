@@ -12,6 +12,13 @@ export interface TechnicalDetailsProps {
   children: ReactNode;
   /** Start expanded. Default false. */
   defaultOpen?: boolean | undefined;
+  /** Added next to "ui-tech" on the `<details>`, e.g. a hook for specs. */
+  className?: string | undefined;
+  /**
+   * Called with the new state whenever it opens or closes, e.g. to render
+   * costly content only while it is open.
+   */
+  onToggle?: ((open: boolean) => void) | undefined;
 }
 
 /**
@@ -23,9 +30,19 @@ export function TechnicalDetails({
   description,
   children,
   defaultOpen = false,
+  className,
+  onToggle,
 }: TechnicalDetailsProps) {
   return (
-    <details className="ui-tech" open={defaultOpen || undefined}>
+    <details
+      className={className === undefined ? "ui-tech" : `ui-tech ${className}`}
+      open={defaultOpen || undefined}
+      onToggle={
+        onToggle === undefined
+          ? undefined
+          : (event) => onToggle(event.currentTarget.open)
+      }
+    >
       <summary>
         <span className="ui-tech-label">
           <svg

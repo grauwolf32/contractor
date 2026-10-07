@@ -33,6 +33,9 @@ import {
 import { auditProfileLabel } from "../../projects/audits/labels";
 import { CHECK_FILTERS, type CheckFilter } from "./filters";
 
+/** Keys that move through the list and open a check (useListNavigation). */
+const LIST_KEYS = "J K ArrowDown ArrowUp Home End Enter";
+
 /** A check's progress line in a list row, from its workspace counts. */
 function RowProgress({ workspace }: { workspace: AuditWorkspace }) {
   const counts = workCounts(workspace);
@@ -258,12 +261,7 @@ export function ChecksListPane({
           see all of its checks.
         </p>
       ) : null}
-      {/* The footer shows these keys; the rows declare them. */}
-      <div
-        className="checks-list-rows"
-        aria-keyshortcuts="J K ArrowDown ArrowUp Home End Enter"
-        {...navigation}
-      >
+      <div className="checks-list-rows" {...navigation}>
         <ListSection>
           {rows.map(({ project, audit }) => {
             const label = checkStateLabel(audit.state);
@@ -274,6 +272,8 @@ export function ChecksListPane({
                 id={`check-${audit.auditId}`}
                 to={rowHref(audit.auditId)}
                 selected={audit.auditId === selectedId}
+                // The footer shows these keys; the rows declare them.
+                ariaKeyShortcuts={LIST_KEYS}
                 glyph={<StatusGlyph tone={label.tone} />}
                 title={
                   <>

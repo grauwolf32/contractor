@@ -198,6 +198,63 @@ describe("useShortcuts", () => {
     fireEvent.keyDown(document.body, { key: "j" });
     expect(first.mock.calls.length + second.mock.calls.length).toBe(1);
   });
+
+  it("leaves an event alone when the binding declines it", () => {
+    const onStart = vi.fn();
+    const when = vi.fn(
+      (event: KeyboardEvent) =>
+        !(event.target instanceof Element && event.target.closest("a[href]")),
+    );
+    render(
+      <>
+        <Shortcuts bindings={{ "mod+enter": { handler: onStart, when } }} />
+        <a href="/projects">Change project</a>
+        <button type="button">Save</button>
+      </>,
+    );
+    const link = screen.getByRole("link", { name: "Change project" });
+    // Declined: no preventDefault, so Ctrl/⌘+Enter opens the link.
+    expect(fireEvent.keyDown(link, { key: "Enter", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(link, { key: "Enter", metaKey: true })).toBe(true);
+    expect(onStart).not.toHaveBeenCalled();
+    expect(when).toHaveBeenCalledTimes(2);
+    // Taken: prevented and handled, like the function form.
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(fireEvent.keyDown(button, { key: "Enter", ctrlKey: true })).toBe(
+      false,
+    );
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStart.mock.calls[0]?.[0]).toBeInstanceOf(KeyboardEvent);
+  });
+
+  it("asks a binding only once the other guards let the event through", () => {
+    const when = vi.fn(() => true);
+    render(
+      <>
+        <Shortcuts bindings={{ j: { handler: vi.fn(), when } }} />
+        <input aria-label="Search" />
+      </>,
+    );
+    fireEvent.keyDown(screen.getByLabelText("Search"), { key: "j" });
+    fireEvent.keyDown(document.body, { key: "j", ctrlKey: true });
+    expect(when).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: "j" });
+    expect(when).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes a declined key on to the next listener", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    render(
+      <>
+        <Shortcuts bindings={{ j: { handler: first, when: () => false } }} />
+        <Shortcuts bindings={{ j: second }} />
+      </>,
+    );
+    expect(fireEvent.keyDown(document.body, { key: "j" })).toBe(false);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
 });
 
 const ITEMS = ["Alpha", "Beta", "Gamma"];

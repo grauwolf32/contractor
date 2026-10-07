@@ -364,6 +364,62 @@ describe("Managed Eval comparisons", () => {
     },
   );
 
+  it("focuses the page title when the reviewed pair cannot be read again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const answer = fixture.fetch;
+    let pairFails = false;
+    fixture.fetch = async (request: Request) =>
+      pairFails &&
+      request.method === "GET" &&
+      new URL(request.url).pathname.includes("/pairs/")
+        ? new Response(
+            JSON.stringify({
+              code: "unavailable",
+              message: "Pair store unavailable",
+            }),
+            {
+              status: 503,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Contractor-API-Version": EVAL_API_VERSION,
+              },
+            },
+          )
+        : answer(request);
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}?viewSnapshot=view-7`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Checked the retained source",
+    );
+    pairFails = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    expect(
+      await screen.findByText("Assessment recorded and selected for A."),
+    ).toHaveAttribute("role", "status");
+    // The reload drops the snapshot and fails, so the arm is gone: the
+    // page title takes focus instead of the page body.
+    const title = await screen.findByRole("heading", {
+      level: 1,
+      name: "Paired evidence",
+    });
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(
+      screen.queryByRole("heading", { name: "A · a" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the pairs page when the selected pair filter is pressed again", async () => {
     const fixture = createEvalFixture({ prepared: true });
     fixture.state.secondPairPage = true;

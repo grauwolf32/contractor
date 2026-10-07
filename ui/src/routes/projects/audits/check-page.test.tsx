@@ -546,10 +546,11 @@ describe("Check page", () => {
       within(list).getByRole("link", { name: "All activity" }),
     ).toHaveAttribute("aria-current", "true");
     // The rows declare their keys; the footer hint is for sighted users.
-    expect(list.querySelector(".checks-list-rows")).toHaveAttribute(
-      "aria-keyshortcuts",
-      "J K ArrowDown ArrowUp Home End",
-    );
+    for (const name of ["All activity", "A03:2025 Supply chain."])
+      expect(within(list).getByRole("link", { name })).toHaveAttribute(
+        "aria-keyshortcuts",
+        "J K ArrowDown ArrowUp Home End",
+      );
     expect(list.querySelector(".checks-key-hint")).toHaveAttribute(
       "aria-hidden",
       "true",

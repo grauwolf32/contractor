@@ -1,8 +1,4 @@
-import {
-  useIsMutating,
-  useQuery,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
@@ -87,6 +83,8 @@ export interface ReportAcceptance {
   retrying: boolean;
   /** Pass to ReportDecision: keeps the recorded decision on the page. */
   onDecided: (result: AuditActionDecisionResult) => void;
+  /** Pass to ReportDecision: keeps a decision that is recording on the page. */
+  onRecording: (recording: boolean) => void;
 }
 
 /** The page shows the acceptance part: a request, or why it cannot be read. */
@@ -120,9 +118,11 @@ function newestRevision(
  * report's own status decides what the page shows.
  *
  * A decision recorded on this page stays mounted through that change, so
- * its "Decision recorded" announcement and its focus stay: ReportDecision's
- * mutation is pending until the refreshed reads arrive and `onDecided` runs,
- * and meanwhile the decision stays next to the report it was opened on.
+ * its "Decision recorded" announcement and its focus stay: ReportDecision
+ * reports (`onRecording`) while it records, until the refreshed reads
+ * arrive and `onDecided` runs, and meanwhile the page keeps offering the
+ * request it showed. ReportDecision keeps its bar while it records, even
+ * next to the report that moved on.
  *
  * `requestedReview` is the `?review=` of review links: only that request is
  * offered, and a report that does not carry it is a mismatch.
@@ -158,11 +158,8 @@ export function useReportAcceptance(
     queryFn: () => getAuditReview(api, auditId, requestId ?? ""),
     enabled: requestId !== undefined && !carriedNow,
   });
-  // A decision recorded here keeps its mutation pending until the refreshed
-  // reads arrive. Other mutations of the page cannot be told apart from it;
-  // they only keep the decision as it was opened until the request is read,
-  // and the Server still refuses a decision on a settled request (If-Match).
-  const recording = useIsMutating() > 0;
+  // A decision of this page is recording (ReportDecision's onRecording).
+  const [recording, setRecording] = useState(false);
   const mismatch = requestedReview !== null && requestId !== requestedReview;
   const base = {
     report,
@@ -172,6 +169,7 @@ export function useReportAcceptance(
     retrying: read.isFetching,
     onDecided: (result: AuditActionDecisionResult) =>
       setDecided(result.request),
+    onRecording: setRecording,
   };
   if (requestId === undefined || mismatch)
     return { ...base, review: undefined };
@@ -190,9 +188,8 @@ export function useReportAcceptance(
       ...base,
       review: newestRevision([decided, read.data, shown?.review], requestId),
     };
-  // Until then, a decision of this page that is refreshing stays next to
-  // the report it was opened on.
-  if (recording) return { ...base, review: shown?.review, report: shown };
+  // Until then, a decision of this page that is recording stays.
+  if (recording) return { ...base, review: shown?.review };
   // Decided elsewhere, or moved on for another reason: nothing to offer
   // until the request is read.
   return { ...base, review: undefined, error: read.error };

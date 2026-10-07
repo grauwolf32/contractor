@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getAuditReport,
   getAuditReview,
   type AuditReport,
   type AuditReviewAction,
@@ -261,6 +262,94 @@ describe("ActionDecision", () => {
     ).toBeVisible();
   });
 
+  describe("where a recorded decision scrolls on its own", () => {
+    /** Reports sizes when the test says they changed; jsdom lays nothing out. */
+    class FakeResizeObserver implements ResizeObserver {
+      static readonly watching = new Set<FakeResizeObserver>();
+      readonly #callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.#callback = callback;
+      }
+      observe() {
+        FakeResizeObserver.watching.add(this);
+      }
+      unobserve() {}
+      disconnect() {
+        FakeResizeObserver.watching.delete(this);
+      }
+      static report() {
+        for (const observer of FakeResizeObserver.watching)
+          observer.#callback([], observer);
+      }
+    }
+
+    /** Gives `element` these heights and reports the resize. */
+    function layOut(
+      element: HTMLElement,
+      heights: { scrollHeight: number; clientHeight: number },
+    ) {
+      for (const [name, value] of Object.entries(heights))
+        Object.defineProperty(element, name, { configurable: true, value });
+      act(() => FakeResizeObserver.report());
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      FakeResizeObserver.watching.clear();
+    });
+
+    it("is a tab stop while it scrolls, so the keyboard reaches all of a long reason", async () => {
+      const decided = makeActionReview({
+        state: "decided",
+        decision: { ...makeDecision({ action: "approve" }) },
+      });
+      delete decided.decision?.verdict;
+      delete decided.decision?.severity;
+      renderWithServer(
+        <ActionDecision auditId={AUDIT_ID} review={decided} />,
+        () => {
+          throw new Error("no request expected");
+        },
+      );
+      const user = userEvent.setup();
+      const group = screen.getByRole("group", {
+        name: "Decision on active test approval",
+      });
+      // All of it fits: there is nothing to scroll, so Tab passes it.
+      layOut(group, { scrollHeight: 160, clientHeight: 160 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+      await user.tab();
+      expect(group).not.toHaveFocus();
+      // A long reason under the pinned footer's cap: Tab reaches the record,
+      // and from there the arrow keys scroll it.
+      layOut(group, { scrollHeight: 900, clientHeight: 384 });
+      expect(group).toHaveAttribute("tabindex", "0");
+      await user.tab();
+      expect(group).toHaveFocus();
+      // Back under the cap (a wider or taller window): no tab stop again.
+      layOut(group, { scrollHeight: 300, clientHeight: 300 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("leaves a pending request's group out of the tab order", () => {
+      renderWithServer(
+        <ActionDecision auditId={AUDIT_ID} review={makeActionReview()} />,
+        () => {
+          throw new Error("no request expected");
+        },
+      );
+      const group = screen.getByRole("group", {
+        name: "Decision on active test approval",
+      });
+      // The bar has controls of its own and is never capped.
+      layOut(group, { scrollHeight: 900, clientHeight: 384 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+    });
+  });
+
   it("renders nothing for a request that is not an item action", () => {
     const { container } = renderWithServer(
       <ActionDecision auditId={AUDIT_ID} review={makeTriageReview()} />,
@@ -350,6 +439,165 @@ describe("ReportDecision", () => {
     expect(
       screen.queryByRole("region", { name: "Your decision" }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("next to a report the page reads", () => {
+    /** Reads the report and the request like a page, with both refreshed. */
+    function ReportPage({
+      onRecording,
+    }: {
+      onRecording: (recording: boolean) => void;
+    }) {
+      const api = usePublicAPI();
+      const report = useQuery({
+        queryKey: queryKeys.audits.report(AUDIT_ID),
+        queryFn: () => getAuditReport(api, AUDIT_ID),
+      });
+      const review = useQuery({
+        queryKey: [...queryKeys.audits.detail(AUDIT_ID), "reviews", "report"],
+        queryFn: () => getAuditReview(api, AUDIT_ID, "review_report"),
+      });
+      return report.data === undefined || review.data === undefined ? (
+        <p>Loading</p>
+      ) : (
+        <>
+          <p>Report {report.data.status}</p>
+          <ReportDecision
+            auditId={AUDIT_ID}
+            review={review.data}
+            report={report.data}
+            onRecording={onRecording}
+          />
+        </>
+      );
+    }
+
+    /**
+     * A report that is ready once its request is decided. A refused
+     * decision moves the report to `refusedReport`; `afterDecision` answers
+     * the request reads that follow a decision (e.g. holds them).
+     */
+    function reportServer(options: {
+      refuse?: () => Response | undefined;
+      refusedReport?: AuditReport;
+      afterDecision?: () => Promise<void>;
+    }) {
+      let report: AuditReport = proposedReport(reportReview());
+      const ready: AuditReport = { ...report, status: "ready" };
+      delete ready.review;
+      let sentDecision = false;
+      const server = reviewServer(reportReview(), () => {
+        const refused = options.refuse?.();
+        if (refused !== undefined && options.refusedReport !== undefined)
+          report = options.refusedReport;
+        return refused;
+      });
+      const handle: Handler = async (request, url) => {
+        const path = url.pathname;
+        if (
+          request.method === "GET" &&
+          path === `/v1/audits/${AUDIT_ID}/report`
+        )
+          return json(server.state.review.state === "decided" ? ready : report);
+        if (request.method === "POST") {
+          sentDecision = true;
+          return server.handle(request, url);
+        }
+        if (sentDecision) await options.afterDecision?.();
+        return server.handle(request, url);
+      };
+      return { ...server, handle };
+    }
+
+    it("keeps the bar while recording, even once the report moved on", async () => {
+      let release: (() => void) | undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const onRecording = vi.fn();
+      const server = reportServer({ afterDecision: () => held });
+      renderWithServer(<ReportPage onRecording={onRecording} />, server.handle);
+      const user = userEvent.setup();
+      const region = await bar();
+      const group = screen.getByRole("group", {
+        name: "Decision on report acceptance",
+      });
+      expect(group).not.toHaveClass("ui-footer-record");
+      await user.click(within(region).getByRole("button", { name: "Approve" }));
+      await user.keyboard("Coverage and gaps are stated plainly.");
+      await user.click(
+        within(region).getByRole("button", { name: "Record decision" }),
+      );
+      await waitFor(() => expect(onRecording.mock.calls).toEqual([[true]]));
+      // The refresh shows the report ready while the request read is held:
+      // the decision is still recording, so its bar stays.
+      expect(await screen.findByText("Report ready")).toBeVisible();
+      expect(screen.getByRole("region", { name: "Your decision" })).toBe(
+        region,
+      );
+      expect(
+        within(region).getByRole("button", { name: "Record decision" }),
+      ).toHaveAccessibleDescription("Recording…");
+      expect(
+        screen.queryByText(/no longer matches its acceptance request/),
+      ).toBeNull();
+      expect(onRecording.mock.calls).toEqual([[true]]);
+
+      release?.();
+      expect(await screen.findByText("Approved")).toBeVisible();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Decision recorded: Approved.",
+      );
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument();
+      // A shown decision is capped where a pane footer is pinned.
+      expect(group).toHaveClass("decisions-request", "ui-footer-record");
+      await waitFor(() =>
+        expect(onRecording.mock.calls).toEqual([[true], [false]]),
+      );
+    });
+
+    it("explains a refused decision next to a report that no longer matches", async () => {
+      const onRecording = vi.fn();
+      const server = reportServer({
+        refuse: () =>
+          failure(
+            409,
+            "conflict",
+            "the review request conflicts with the report",
+          ),
+        refusedReport: { status: "pending" },
+      });
+      renderWithServer(<ReportPage onRecording={onRecording} />, server.handle);
+      const user = userEvent.setup();
+      const region = await bar();
+      await user.click(within(region).getByRole("button", { name: "Reject" }));
+      await user.keyboard("The summary misses the export endpoint.");
+      await user.keyboard("{Control>}{Enter}{/Control}");
+
+      expect(
+        await screen.findByText(
+          "This report no longer matches its acceptance request. Load the current report before deciding.",
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("region", { name: "Your decision" }),
+      ).not.toBeInTheDocument();
+      // The refusal stays explained next to the report that moved on.
+      const notice = screen.getByRole("alert");
+      expect(notice).toHaveTextContent(
+        "Not saved: the decision conflicts with the current state, so nothing was retried.",
+      );
+      await user.click(within(notice).getByText("Request details"));
+      expect(
+        within(notice).getByText("Code conflict · Status 409"),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(onRecording.mock.calls).toEqual([[true], [false]]),
+      );
+      expect(server.state.attempts).toBe(1);
+    });
   });
 
   describe("without a report from the page", () => {

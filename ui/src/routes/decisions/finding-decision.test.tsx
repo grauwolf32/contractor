@@ -767,6 +767,94 @@ describe("FindingDecision", () => {
     ).toBeVisible();
   });
 
+  it("keeps recording while the refreshed reads already show a newer open request", async () => {
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const onRecording = vi.fn();
+    const server = fakeServer({ finding: makeFinding() });
+    // After the decision the Server opens a request for the new revision,
+    // while the read that shows that revision is held.
+    const handle: Handler = async (request, url) => {
+      if (
+        server.state.decisionAttempts > 0 &&
+        request.method === "GET" &&
+        url.pathname === `/v1/audits/${AUDIT_ID}/findings/${FINDING_ID}`
+      )
+        await held;
+      const answer = await server.handle(request, url);
+      if (request.method === "POST" && url.pathname.endsWith("/decisions"))
+        server.state.pending = [
+          makeTriageReview({
+            requestId: "review_next",
+            subjectRevision: server.state.finding.revision,
+          }),
+        ];
+      return answer;
+    };
+    const { queryClient } = renderWithServer(
+      <LiveDecision onRecording={onRecording} />,
+      handle,
+    );
+    const user = userEvent.setup();
+    await readyBar();
+    expect(onRecording).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Needs evidence" }));
+    await user.type(reasonField(), "We need the gateway configuration.");
+    await user.click(recordButton());
+    await waitFor(() => expect(onRecording.mock.calls).toEqual([[true]]));
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<{ items: AuditReviewRequest[] }>([
+          ...queryKeys.audits.reviews(AUDIT_ID, FINDING_ID),
+          "pending",
+        ])?.items[0]?.requestId,
+      ).toBe("review_next"),
+    );
+    // Not "changed since it was loaded": this decision is still recording.
+    await waitFor(() =>
+      expect(recordButton()).toHaveAccessibleDescription("Recording…"),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Load the latest version" }),
+    ).toBeNull();
+    expect(reasonField()).toBeEnabled();
+
+    release?.();
+    expect(
+      await screen.findByText("Decision recorded: Needs evidence."),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("region", { name: "Current decision" }),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(onRecording.mock.calls).toEqual([[true], [false]]),
+    );
+  });
+
+  it("marks a shown decision for the pinned footer's cap, never the bar", async () => {
+    const { user } = setup({
+      finding: makeFinding({
+        state: "rejected",
+        rejectionReason: "false-positive",
+        analystDecision: makeDecision({ verdict: "false_positive" }),
+        analystVerdict: "false_positive",
+      }),
+    });
+    const change = await screen.findByRole("button", {
+      name: "Change decision",
+    });
+    const group = screen.getByRole("group", {
+      name: "Decision on Missing object authorization",
+    });
+    expect(group).toHaveClass("decisions-finding", "ui-footer-record");
+    await user.click(change);
+    expect(await decisionBar()).toBeVisible();
+    // With the bar open the decision is not capped, so the bar stays whole.
+    expect(group).not.toHaveClass("ui-footer-record");
+  });
+
   it("chooses verdicts with C, R and E and records with Ctrl+Enter", async () => {
     const { user, sent } = setup({ finding: makeFinding() });
     await readyBar();

@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ActivityLog, EmptyState, TechnicalDetails } from "./content";
 import { clockTime } from "./format";
@@ -76,6 +76,40 @@ describe("TechnicalDetails", () => {
     );
     expect(container.querySelector("details")).toHaveAttribute("open");
     expect(screen.getByText("Run details")).toBeInTheDocument();
+  });
+
+  it("adds a class name and reports opening and closing", async () => {
+    const onToggle = vi.fn();
+    const { container } = render(
+      <TechnicalDetails
+        summary="Diagnostics"
+        className="ops-diagnostics operations-snapshot-record"
+        onToggle={onToggle}
+      >
+        <p>Generation 4</p>
+      </TechnicalDetails>,
+    );
+    const details = container.querySelector("details");
+    expect(details).toHaveClass(
+      "ui-tech",
+      "ops-diagnostics",
+      "operations-snapshot-record",
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Diagnostics"));
+    await waitFor(() => expect(onToggle).toHaveBeenLastCalledWith(true));
+    await user.click(screen.getByText("Diagnostics"));
+    await waitFor(() => expect(onToggle).toHaveBeenLastCalledWith(false));
+    expect(onToggle).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps only the base class without a class name", () => {
+    const { container } = render(
+      <TechnicalDetails>
+        <p>Round 3</p>
+      </TechnicalDetails>,
+    );
+    expect(container.querySelector("details")?.className).toBe("ui-tech");
   });
 });
 

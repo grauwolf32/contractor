@@ -8,6 +8,7 @@ import {
   useState,
   type ComponentProps,
   type ReactNode,
+  type Ref,
 } from "react";
 import { PublicAPIError } from "../../api/error";
 import { ErrorNotice } from "../../app/error-notice";
@@ -24,6 +25,7 @@ import "./evals.css";
  */
 export function EvalFrame({
   title,
+  titleRef,
   children,
   action,
   description,
@@ -33,6 +35,8 @@ export function EvalFrame({
   back,
 }: {
   title: ReactNode;
+  /** The h1, which can then take focus (DetailHeader titleRef). */
+  titleRef?: Ref<HTMLHeadingElement> | undefined;
   children: ReactNode;
   /** Controls at the right of the title. */
   action?: ReactNode;
@@ -54,6 +58,7 @@ export function EvalFrame({
           breadcrumb={breadcrumb}
           title={title}
           titleAs="h1"
+          titleRef={titleRef}
           status={status}
           meta={description}
           actions={action}

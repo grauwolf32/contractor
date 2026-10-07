@@ -49,6 +49,7 @@ import {
   type PendingReviewStatus,
 } from "./model";
 import { MoreDecisions, type MoreDecision } from "./more-menu";
+import { useRecordingCallback } from "./recording";
 import { refreshAfterDecision } from "./refresh";
 import { RequestDetails } from "./request-details";
 import { aiSummary } from "./text";
@@ -66,6 +67,12 @@ export interface FindingDecisionProps {
   finding: AuditFinding;
   /** Called once the Server recorded the decision and the reads refetched. */
   onDecided?: ((result: AuditFindingDecisionResult) => void) | undefined;
+  /**
+   * True once a decision is sent, false once its refetched finding arrived
+   * (or it was refused and the reads refreshed). Keep the decision mounted
+   * meanwhile, even when the page's own reads already moved on.
+   */
+  onRecording?: ((recording: boolean) => void) | undefined;
   /** A quiet "next" button; J moves on when shortcuts are on. */
   next?: FindingDecisionNext | undefined;
   /** Moves focus to the first decision control when it appears. */
@@ -262,6 +269,7 @@ function FindingDecisionPanel({
   auditId,
   finding,
   onDecided,
+  onRecording,
   next,
   autoFocus = false,
   pendingReview,
@@ -423,6 +431,13 @@ function FindingDecisionPanel({
   // Until the refetched finding arrives, only the announcement shows.
   const awaitingRefresh =
     recordedRevision !== null && recordedRevision === finding.revision;
+  // From sending a decision until the refetched finding arrives. The reads
+  // refresh meanwhile and can show the open request bound to a newer
+  // revision before this decision's answer is shown: the bar keeps saying
+  // "Recording…" instead of asking for the latest version.
+  const recording = decide.isPending || awaitingRefresh;
+  useRecordingCallback(recording, onRecording);
+  const stale = status.stale && !recording;
   const open =
     !awaitingRefresh && (!decided || changing || status.review !== undefined);
 
@@ -576,7 +591,7 @@ function FindingDecisionPanel({
     ? "Checking for an open review…"
     : statusError !== null
       ? "The review status could not be loaded."
-      : status.stale
+      : stale
         ? "This possible issue changed since it was loaded."
         : undefined;
   const decideMessage =
@@ -595,7 +610,7 @@ function FindingDecisionPanel({
           Try again
         </button>
       </>
-    ) : status.stale ? (
+    ) : stale ? (
       <>
         Load the latest version before deciding.{" "}
         <button
@@ -613,16 +628,21 @@ function FindingDecisionPanel({
   const barError: { error: unknown; text: string | undefined } | null =
     statusError !== null
       ? { error: statusError, text: statusError.message }
-      : status.stale || problem !== undefined || decide.error === null
+      : stale || problem !== undefined || decide.error === null
         ? null
         : { error: decide.error, text: decideMessage };
 
   const canKeep = changing && status.review === undefined;
+  // Only the current decision, without the bar: capped where the pane
+  // footer is pinned (ui.css).
+  const record = decided && !open && !awaitingRefresh;
 
   return (
     <div
       ref={root}
-      className="decisions-finding"
+      className={
+        record ? "decisions-finding ui-footer-record" : "decisions-finding"
+      }
       role="group"
       aria-label={`Decision on ${finding.firstProposal.document.title}`}
       tabIndex={-1}

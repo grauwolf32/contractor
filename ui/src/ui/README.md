@@ -74,6 +74,7 @@ and gives pane pages a content area without padding.
 ListPane(props: {
   title?: ReactNode;
   titleAs?: "h1" | "h2";      // default "h1"
+  titleRef?: Ref<HTMLHeadingElement>; // the title can take focus (tabIndex -1)
   subtitle?: ReactNode;
   actions?: ReactNode;        // right of the title
   header?: ReactNode;         // replaces title/subtitle/actions
@@ -87,6 +88,28 @@ ListPane(props: {
 Rows and section headings line up with the pane edges through
 `--ui-pad-start` / `--ui-pad-end`. A direct `EmptyState` or `TechnicalDetails`
 child is padded to match; give other direct children the same inline padding.
+
+`actions` sit right of the title and wrap under it when the pane is narrow.
+They never grow past the pane, also at 320 px: the actions block shrinks
+(`flex: 0 1 auto`, `min-width: 0`, `max-width: 100%`), and so do its direct
+children and any select, input or textarea in it. A select sizes to the pane
+instead of to its longest option, so it needs no width cap of its own. Long
+button labels do not wrap there; keep them short.
+
+With `titleRef` the title heading gets `tabIndex={-1}` and the ref, so a page
+can move focus to it once what had focus went away, for example after the
+last item of a filtered list was decided. It shows a focus ring only for
+keyboard users. With `header`, give the `DetailHeader` the ref instead.
+
+```tsx
+const title = useRef<HTMLHeadingElement>(null);
+// …once the selection left the list:
+title.current?.focus();
+
+<ListPane title="Possible issues" titleRef={title}>
+  …
+</ListPane>;
+```
 
 ```tsx
 <ListPane
@@ -112,17 +135,27 @@ ListSection(props: {
   count?: number | string;
   aside?: ReactNode;
   titleAs?: "h2" | "h3";      // default "h2"
+  "aria-label"?: string;      // names the <ul> itself
+  "aria-keyshortcuts"?: string; // keys declared on the <ul>
   children: ReactNode;        // ListRow elements
 })
 ```
 
 A `<section>` labelled by its small uppercase heading, then
-`<ul role="list">`.
+`<ul role="list">`. `aria-label` and `aria-keyshortcuts` go on the `<ul>`, so
+a page can name a list without a title and declare the keys that move
+through it (J / K, arrows, Enter) on the list itself; the visible hint is a
+`Kbd` line, usually in the pane's footer. To declare them on every row's
+focusable link or button instead, use `ListRow`'s `ariaKeyShortcuts`.
 
 ```tsx
 <ListSection title="Endpoints" count={5} aside="under /workshop/api/">
   {rows}
 </ListSection>
+
+<div {...containerProps}>
+  <ListSection aria-keyshortcuts="J K ArrowDown ArrowUp Enter">{rows}</ListSection>
+</div>
 ```
 
 ### `ListRow`
@@ -139,6 +172,7 @@ ListRow(props: {
   clamp?: 1 | 2 | false;      // title lines, default 2
   children?: ReactNode;       // inline actions, progress
   id?: string;
+  ariaKeyShortcuts?: string;  // aria-keyshortcuts of the link or button
 })
 ```
 
@@ -148,7 +182,11 @@ separate controls above it: never put a button inside the title. `meta` is
 for text and identifiers: an `IdChip` (or a link) there stays clickable, but
 actions belong in `children` or `trailing`. The glyph is decorative, so say
 the status in words in `meta`. With a method chip, keep a space before the
-path so the name reads "GET /path".
+path so the name reads "GET /path". `ariaKeyShortcuts` declares the keys that
+act on the row on its link or button, where screen readers announce them on
+focus (e.g. `"J K ArrowDown ArrowUp Home End Enter"` with
+`useListNavigation`); a row without `to` or `onSelect` has no focusable
+control and ignores it.
 
 ```tsx
 <ListRow
@@ -180,7 +218,9 @@ FilterChips<T extends string>(props: {
 ```
 
 `role="group"` of `aria-pressed` pill buttons. Each button is named
-"label count", e.g. "Needs review 1".
+"label count", e.g. "Needs review 1". Pressing the chip that is already
+pressed changes nothing: `onChange` runs only for another value, so a page
+keeps its cursor, open rows and other state without guarding against it.
 
 ```tsx
 <FilterChips
@@ -211,6 +251,18 @@ DetailPane(props: {
 </DetailPane>
 ```
 
+Where the footer is pinned (above 820 px wide and 560 px tall), content
+that shows a recorded decision carries the `ui-footer-record` class: it is
+capped at `min(45vh, 24rem)` and scrolls on its own, so a long reason never
+covers the pane, and it draws the divider above it so the line stays put
+while it scrolls (its first block drops its own divider). The decision
+components (`src/routes/decisions`) set the class themselves when they show
+a `DecisionRecord` or a current decision without the bar, and keep the
+capped content usable from the keyboard: a record without a control of its
+own is a tab stop while it scrolls, and actions inside it stay in view. The
+pending `DecisionBar` never carries the class and stays whole. Pages need no
+cap of their own.
+
 ### `DetailHeader`
 
 ```ts
@@ -218,6 +270,7 @@ DetailHeader(props: {
   breadcrumb?: readonly { label: ReactNode; to?: To }[];
   title: ReactNode;
   titleAs?: "h1" | "h2";      // default "h2"
+  titleRef?: Ref<HTMLHeadingElement>; // the title can take focus (tabIndex -1)
   status?: ReactNode;         // usually StatusChip
   meta?: ReactNode;
   actions?: ReactNode;
@@ -227,7 +280,9 @@ DetailHeader(props: {
 Breadcrumb items with `to` are links; a last item without `to` gets
 `aria-current="page"`. The title is 20 px in a list pane and up to 28 px in a
 wide detail pane. It also serves as a list pane `header`, for example the
-check page's breadcrumb, h1 and state.
+check page's breadcrumb, h1 and state. `titleRef` works as in `ListPane`: the
+heading gets `tabIndex={-1}`, so the page can focus it when the control that
+had focus (a closed panel, the item it showed) went away.
 
 ```tsx
 <DetailHeader
@@ -342,12 +397,15 @@ On a control that declares `aria-keyshortcuts`, wrap hints in
 ### `IdChip`
 
 ```ts
-IdChip(props: { value: string; label: string; display?: string })
+IdChip(props: { value: string; label: string; display?: string; wrap?: boolean })
 ```
 
 Shows `display`, or the value shortened to its first 8 and last 4
 characters (`shortenId`). Values up to 16 characters are kept whole. The
-full value is the hover title. The copy button is named "Copy " + label. It
+full value is the hover title. Text too long for its line ends in an
+ellipsis; with `wrap` it breaks anywhere onto more lines instead, for full
+identifiers that must stay readable where there is no hover (a stage
+execution ID on a phone). The copy button is named "Copy " + label. It
 uses `navigator.clipboard.writeText` and announces "Copied". When the
 Clipboard API is missing or refuses, it selects the full value in a hidden
 element and says "Press Ctrl+C to copy" ("Press ⌘+C to copy" on Apple
@@ -357,6 +415,7 @@ region.
 ```tsx
 <IdChip value={audit.id} label="check ID" />
 <IdChip value={`${ref.name}@${ref.version}`} display={`${ref.name}@${ref.version}`} label="workflow version" />
+<IdChip value={attempt.stageExecutionId} display={attempt.stageExecutionId} label="stage execution ID" wrap />
 ```
 
 ## Content
@@ -364,15 +423,29 @@ region.
 ### `TechnicalDetails`
 
 ```ts
-TechnicalDetails(props: { summary?: string /* "Technical details" */; description?: ReactNode; children: ReactNode; defaultOpen?: boolean })
+TechnicalDetails(props: {
+  summary?: string;           // default "Technical details"
+  description?: ReactNode;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;         // added next to "ui-tech", e.g. a spec hook
+  onToggle?: (open: boolean) => void;
+})
 ```
 
 A native `<details>` styled as a quiet link. Revisions, digests, rounds,
-slots, tokens and allocations go here.
+slots, tokens and allocations go here. `onToggle` runs with the new state
+whenever it opens or closes, for example to render costly content only while
+it is open. The chevron turns only for its own summary, so a closed
+disclosure inside an open one keeps pointing right.
 
 ```tsx
 <TechnicalDetails description="Steps, limits and AI usage, for admins and debugging.">
   <dl>…</dl>
+</TechnicalDetails>
+
+<TechnicalDetails summary="Detailed counters" className="ops-counters" onToggle={setOpen}>
+  {open ? <Counters /> : null}
 </TechnicalDetails>
 ```
 
@@ -513,7 +586,11 @@ bar. Put it in `DetailPane`'s `footer` to pin it.
 
 ```ts
 useShortcuts(
-  bindings: Record<string, (event: KeyboardEvent) => void>,
+  bindings: Record<
+    string,
+    | ((event: KeyboardEvent) => void)
+    | { handler: (event: KeyboardEvent) => void; when?: (event: KeyboardEvent) => boolean }
+  >,
   options?: { enabled?: boolean; allowInDialog?: boolean },
 ): void
 ```
@@ -536,14 +613,27 @@ A binding is skipped when:
 - a focused control uses the key itself (Enter, Space, arrows, Home, End,
   Page Up and Page Down on links, buttons, inputs and widgets);
 - an element with `aria-modal="true"` exists, unless `allowInDialog` is set.
-  The handler then only reacts to keys pressed inside a dialog.
+  The handler then only reacts to keys pressed inside a dialog;
+- the binding's own `when` returns false. It is asked last, right before the
+  binding would take the event.
 
 A binding that fires calls `preventDefault`, so when two hooks bind the same
-key the first listener wins. Handlers can change on every render without
-re-subscribing.
+key the first listener wins. A skipped or declined event is left alone: no
+`preventDefault`, so a later listener or the browser acts on it. Handlers can
+change on every render without re-subscribing.
 
 ```tsx
 useShortcuts({ "mod+k": openPalette, "?": showHelp });
+
+// Page-wide Ctrl/⌘+Enter that leaves a focused link its own Ctrl/⌘+Enter
+// (open in a new tab).
+useShortcuts({
+  "mod+enter": {
+    when: (event) =>
+      !(event.target instanceof Element && event.target.closest("a[href]")),
+    handler: start,
+  },
+});
 ```
 
 ### `useListNavigation`
@@ -602,6 +692,10 @@ return (
   - `aria-pressed="true"` gets the selected look.
 - **`.ui-visually-hidden`:** hides text visually but keeps it for screen
   readers.
+- **`.ui-footer-record`:** content of a `DetailPane` footer that shows a
+  recorded decision. Where the footer is pinned it is capped and scrolls on
+  its own (see `DetailPane`). The decision components set it and keep the
+  content reachable from the keyboard while it scrolls.
 
 ## Tokens used
 

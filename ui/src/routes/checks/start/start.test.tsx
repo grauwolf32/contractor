@@ -1,4 +1,10 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { AuditProfile } from "../../../api/audits";
@@ -863,8 +869,12 @@ describe("Start a check: options and starting", () => {
       { profiles: [top10], materials: [sourceZip] },
     );
     await waitForTypes();
-    // On a link the key belongs to the link.
-    within(list()).getByRole("link", { name: "Change project" }).focus();
+    // On a link the key belongs to the link: the page leaves the event
+    // alone, so Ctrl/⌘+Enter opens the link in a new tab.
+    const link = within(list()).getByRole("link", { name: "Change project" });
+    link.focus();
+    expect(fireEvent.keyDown(link, { key: "Enter", ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(link, { key: "Enter", metaKey: true })).toBe(true);
     await user.keyboard("{Control>}{Enter}{/Control}");
     expect(sent("POST", "/audits")).toHaveLength(0);
     await user.click(screen.getByText("Advanced options"));

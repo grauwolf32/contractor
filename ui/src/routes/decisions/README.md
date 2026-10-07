@@ -43,6 +43,17 @@ Inside a card or panel instead of a pane, wrap the decision in
 `<div className="decisions-inline">`: it drops the pane insets and the
 divider above the bar.
 
+When a component shows a recorded decision without the bar (a
+`DecisionRecord`, a current decision), its root carries `ui-footer-record`:
+where `DetailPane`'s footer is pinned it is capped at `min(45vh, 24rem)` and
+scrolls on its own, drawing the divider above it (`src/ui` README,
+`DetailPane`). The keyboard reaches all of it: a request's decision record
+is a tab stop while it scrolls (the arrow keys scroll it; the focus ring is
+drawn inside), and a possible issue's Change decision and Next stay in view
+at the bottom while its reason scrolls under them (with focus on them, the
+arrow keys scroll it). The pending bar is never capped. Pages need no cap of
+their own.
+
 ## `FindingSummary`
 
 ```ts
@@ -84,6 +95,7 @@ FindingDecision(props: {
   auditId: string;
   finding: AuditFinding;
   onDecided?: (result: AuditFindingDecisionResult) => void;
+  onRecording?: (recording: boolean) => void;
   next?: { label: string; onNext: () => void };
   autoFocus?: boolean;
   pendingReview?: AuditReviewRequest | null;
@@ -119,7 +131,10 @@ FindingDecision(props: {
   one sentence with a "Request details" disclosure (code, status, request
   ID, and the Server's message when the sentence does not carry it) and
   never retried; the choice and reason stay for an explicit new attempt.
-  Nothing shows as decided before the Server says so.
+  Nothing shows as decided before the Server says so. While a decision
+  records, until the refetched finding arrives, the bar keeps saying
+  "Recording…": refreshed reads that already show an open request for a
+  newer revision do not turn it into "changed since it was loaded".
 - **Recorded.** "Decision recorded: …" goes to a polite live region and
   stays there for 8 s or until the next edit, also after the refetched
   finding replaced the bar. Focus moves to the decision itself, a group named
@@ -144,6 +159,7 @@ ActionDecision(props: {
   auditId: string;
   review: AuditReviewRequest;     // active-check-approval or requirement-applicability
   onDecided?: (result: AuditActionDecisionResult) => void;
+  onRecording?: (recording: boolean) => void;
 })
 
 ReportDecision(props: {
@@ -151,6 +167,7 @@ ReportDecision(props: {
   review: AuditReviewRequest;     // report-acceptance
   report?: AuditReport;           // the report shown next to it; omitted, it is read
   onDecided?: (result: AuditActionDecisionResult) => void;
+  onRecording?: (recording: boolean) => void;
 })
 ```
 
@@ -162,11 +179,24 @@ and announcement rules (groups "Decision on active test approval",
 A decided request shows its `DecisionRecord`, an expired one says so.
 `ReportDecision` decides a pending request only while the report is
 proposed and carries this request; otherwise it says the report no longer
-matches. Without `report` it reads the check's report
-(`queryKeys.audits.report`) and offers nothing while that read loads
-("Loading the report…") or failed (an alert with "Try again" and the
-request details). The page still shows the report next to the decision. A
-proposed report is never presented as accepted.
+matches. A decision made here is the exception while it records: the
+refresh after it can show the report moved on before the refetched request
+arrives, and until then its bar stays ("Recording…"). A refused decision
+stays explained next to the notice that replaces the bar. Without `report`
+it reads the check's report (`queryKeys.audits.report`) and offers nothing
+while that read loads ("Loading the report…") or failed (an alert with "Try
+again" and the request details). The page still shows the report next to
+the decision. A proposed report is never presented as accepted.
+
+## `onRecording`
+
+All three decision components take `onRecording(recording)`: `true` once a
+decision is sent, `false` once its refetched subject (finding or request)
+arrived, after a refused decision's refresh, or when the component unmounts
+before that. It is called only on changes. A page whose own reads can drop
+the subject meanwhile (a report that moved on no longer carries its
+request) uses it to keep the decision mounted, so its "Decision recorded"
+announcement and focus stay; other mutations of the page do not count.
 
 ## `DecisionRecord`
 

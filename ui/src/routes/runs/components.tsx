@@ -208,10 +208,11 @@ function Digest({ value }: { value: string }) {
 /**
  * A stage execution ID in full, with a copy button: Technical details are
  * where people match attempts and search logs, so the exact value stays
- * readable and copyable (the attempt summary shows only a compact form).
+ * readable and copyable (the attempt summary shows only a compact form). On
+ * a phone it wraps instead of ending in an ellipsis.
  */
 function ExecutionId({ value, label }: { value: string; label: string }) {
-  return <IdChip value={value} display={value} label={label} />;
+  return <IdChip value={value} display={value} label={label} wrap />;
 }
 
 function ConsumerConfigView({

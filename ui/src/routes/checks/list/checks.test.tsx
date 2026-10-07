@@ -280,9 +280,18 @@ describe("Checks list", () => {
     await within(list).findByRole("link", {
       name: "WSTG 4.2 · Source review · crapi-workshop",
     });
-    expect(list.querySelector(".checks-list-rows")).toHaveAttribute(
+    // Every row declares the keys; the footer hint is for sighted users.
+    const rows = within(within(list).getByRole("list")).getAllByRole(
+      "listitem",
+    );
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows)
+      expect(within(row).getByRole("link")).toHaveAttribute(
+        "aria-keyshortcuts",
+        "J K ArrowDown ArrowUp Home End Enter",
+      );
+    expect(list.querySelector(".checks-list-rows")).not.toHaveAttribute(
       "aria-keyshortcuts",
-      "J K ArrowDown ArrowUp Home End Enter",
     );
     await user.keyboard("j");
     await waitFor(() =>

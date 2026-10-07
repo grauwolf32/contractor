@@ -403,19 +403,18 @@ describe("Issues", () => {
     expect(pageStatus()).toHaveTextContent(outcome);
     const list = screen.getByRole("region", { name: "Possible issues" });
     expect(within(list).getByText(outcome)).toBeVisible();
-    // The decision and its row go away, so focus moves to the list.
+    // The decision and its row go away, so focus moves to the list's title.
     const title = within(list).getByRole("heading", {
       level: 1,
       name: "Possible issues",
     });
-    await waitFor(() =>
-      expect(within(title).getByText("Possible issues")).toHaveFocus(),
-    );
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveAttribute("tabindex", "-1");
     // The decided possible issue leaves the list once its check is read again.
     expect(
       await within(list).findByText("That is everything that needs review."),
     ).toBeVisible();
-    expect(within(title).getByText("Possible issues")).toHaveFocus();
+    expect(title).toHaveFocus();
 
     // A possible issue outside the list (here: already decided) stays open.
     await act(async () => {

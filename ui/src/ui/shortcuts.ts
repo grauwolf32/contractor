@@ -9,12 +9,25 @@ import {
 
 export type ShortcutHandler = (event: KeyboardEvent) => void;
 
+/** A handler that can decline an event before the binding takes it. */
+export interface ShortcutBinding {
+  handler: ShortcutHandler;
+  /**
+   * Asked last, right before the binding would take the event. False leaves
+   * the event alone: no preventDefault and no handler, so the browser or a
+   * later listener acts on it (e.g. Ctrl+Enter on a focused link).
+   */
+  when?: ((event: KeyboardEvent) => boolean) | undefined;
+}
+
 /**
- * Key name → handler. Names are lowercase `KeyboardEvent.key` values ("j",
- * "?", "enter", "escape", "arrowdown", "space") or "mod+<key>" for Ctrl on
- * Windows and Linux and ⌘ on macOS ("mod+k", "mod+enter").
+ * Key name → handler or binding. Names are lowercase `KeyboardEvent.key`
+ * values ("j", "?", "enter", "escape", "arrowdown", "space") or "mod+<key>"
+ * for Ctrl on Windows and Linux and ⌘ on macOS ("mod+k", "mod+enter").
  */
-export type ShortcutBindings = Readonly<Record<string, ShortcutHandler>>;
+export type ShortcutBindings = Readonly<
+  Record<string, ShortcutHandler | ShortcutBinding>
+>;
 
 export interface ShortcutOptions {
   /** Default true. */
@@ -188,7 +201,7 @@ function keyNames(event: KeyboardEvent): string[] {
 interface ShortcutMatch {
   key: string;
   mod: boolean;
-  handler: ShortcutHandler;
+  binding: ShortcutBinding;
 }
 
 function findShortcut(
@@ -197,13 +210,14 @@ function findShortcut(
 ): ShortcutMatch | undefined {
   const names = keyNames(event);
   const modHeld = event.ctrlKey || event.metaKey;
-  for (const [binding, handler] of Object.entries(bindings)) {
-    const normalized = binding.trim().toLowerCase();
+  for (const [name, value] of Object.entries(bindings)) {
+    const normalized = name.trim().toLowerCase();
     const mod = normalized.startsWith("mod+") && normalized.length > 4;
     const key = mod ? normalized.slice(4) : normalized;
     if (!names.includes(key)) continue;
     if (event.altKey || modHeld !== mod) continue;
-    return { key, mod, handler };
+    const binding = typeof value === "function" ? { handler: value } : value;
+    return { key, mod, binding };
   }
   return undefined;
 }
@@ -228,9 +242,10 @@ function blockedByModal(
  * binding meets Ctrl, ⌘ or Alt; when focus is in a text field, textarea,
  * select or contenteditable (except "escape" and "mod+…" bindings); when a
  * focused control uses Enter, Space, arrows, Home, End or Page keys itself;
- * and while a modal dialog is open unless `allowInDialog` is set. A binding
- * that fires calls `preventDefault`, so when two hooks bind the same key the
- * first listener wins.
+ * while a modal dialog is open unless `allowInDialog` is set; and when a
+ * binding's own `when` declines the event. A binding that fires calls
+ * `preventDefault`, so when two hooks bind the same key the first listener
+ * wins; a declined event stays free for the next one.
  */
 export function useShortcuts(
   bindings: ShortcutBindings,
@@ -264,8 +279,10 @@ export function useShortcuts(
         return;
       }
       if (blockedByModal(target, allowInDialog)) return;
+      const { handler, when } = match.binding;
+      if (when !== undefined && !when(event)) return;
       event.preventDefault();
-      match.handler(event);
+      handler(event);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

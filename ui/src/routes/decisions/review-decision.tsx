@@ -24,8 +24,10 @@ import {
   utf8Length,
   type AuditActionDecisionResult,
 } from "./model";
+import { useRecordingCallback } from "./recording";
 import { refreshAfterDecision } from "./refresh";
 import { RequestDetails } from "./request-details";
+import { useScrollsOnItsOwn } from "./scrolling";
 
 import "./decisions.css";
 
@@ -37,11 +39,12 @@ interface RequestDecisionProps {
   auditId: string;
   review: AuditReviewRequest;
   onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  onRecording?: ((recording: boolean) => void) | undefined;
   /** What the actions do, shown under them. */
   intro?: ReactNode;
   /**
    * Why this pending request cannot be decided here (yet); shown instead of
-   * the actions.
+   * the actions, except while a decision made here is being recorded.
    */
   blocked?: ReactNode;
 }
@@ -55,6 +58,7 @@ function RequestDecision({
   auditId,
   review,
   onDecided,
+  onRecording,
   intro,
   blocked,
 }: RequestDecisionProps) {
@@ -113,6 +117,20 @@ function RequestDecision({
   // Until the refetched request arrives, only the announcement shows.
   const awaitingRefresh =
     recordedRevision !== null && recordedRevision === review.revision;
+  // From sending a decision until the refetched request arrives. The reads
+  // refresh meanwhile, so the page can see the subject move on (a report
+  // that is no longer proposed) before this decision's answer is shown:
+  // the bar stays until then instead of turning into `blocked`.
+  const recording = decide.isPending || awaitingRefresh;
+  useRecordingCallback(recording, onRecording);
+  // A recorded decision is capped where the pane footer is pinned (ui.css).
+  // At most links in its reason take focus, so while it scrolls there it is
+  // a tab stop: otherwise the keyboard could not reach all of a long reason.
+  const record =
+    !awaitingRefresh &&
+    review.state === "decided" &&
+    review.decision !== undefined;
+  const scrolls = useScrollsOnItsOwn(root, record);
   const options: DecisionOption[] = REVIEW_ACTIONS.filter((candidate) =>
     review.requestedActions.includes(candidate.action),
   ).map((candidate) => ({
@@ -144,6 +162,7 @@ function RequestDecision({
   }
 
   let body: ReactNode;
+  let bar = false;
   if (awaitingRefresh) body = null;
   else if (review.state === "decided")
     body =
@@ -158,14 +177,16 @@ function RequestDecision({
         This request expired without a decision.
       </p>
     );
-  else if (blocked !== undefined && blocked !== null) body = blocked;
+  else if (blocked !== undefined && blocked !== null && !recording)
+    body = blocked;
   else if (options.length === 0)
     body = (
       <p className="decisions-quiet">
         This request offers no decision that can be made here.
       </p>
     );
-  else
+  else {
+    bar = true;
     body = (
       <>
         <DecisionBar
@@ -207,21 +228,26 @@ function RequestDecision({
         ) : null}
       </>
     );
+  }
 
   return (
     <div
       ref={root}
-      className="decisions-request"
+      className={
+        record ? "decisions-request ui-footer-record" : "decisions-request"
+      }
       role="group"
       aria-label={`Decision on ${reviewKindLabel(review.kind).toLowerCase()}`}
-      tabIndex={-1}
+      // Focus also comes here from code once a decision is recorded
+      // (focusIfLost); a record that scrolls is a tab stop as well.
+      tabIndex={scrolls ? 0 : -1}
     >
       <p className="decisions-status" role="status">
         {announcement.text}
       </p>
-      {review.state !== "pending" && decide.error !== null ? (
+      {!bar && decide.error !== null ? (
         // The refetch after a refused decision shows the request settled
-        // elsewhere; the explanation stays.
+        // elsewhere, or no longer decidable here; the explanation stays.
         <div className="decisions-notice decisions-inset" role="alert">
           <p>{decideMessage}</p>
           <RequestDetails error={decide.error} explanation={decideMessage} />
@@ -238,6 +264,12 @@ export interface ActionDecisionProps {
   review: AuditReviewRequest;
   /** Called once the Server recorded the decision and the reads refetched. */
   onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  /**
+   * True once a decision is sent, false once its refetched request arrived
+   * (or it was refused and the reads refreshed). Keep the decision mounted
+   * meanwhile, even when the page's own reads already moved on.
+   */
+  onRecording?: ((recording: boolean) => void) | undefined;
 }
 
 const ACTION_INTROS: Partial<Record<AuditReviewRequest["kind"], string>> = {
@@ -256,6 +288,7 @@ export function ActionDecision({
   auditId,
   review,
   onDecided,
+  onRecording,
 }: ActionDecisionProps) {
   if (review.subjectKind !== "audit-item-action") return null;
   const intro =
@@ -269,6 +302,7 @@ export function ActionDecision({
       auditId={auditId}
       review={review}
       onDecided={onDecided}
+      onRecording={onRecording}
       intro={intro}
     />
   );
@@ -286,6 +320,12 @@ export interface ReportDecisionProps {
   report?: AuditReport | undefined;
   /** Called once the Server recorded the decision and the reads refetched. */
   onDecided?: ((result: AuditActionDecisionResult) => void) | undefined;
+  /**
+   * True once a decision is sent, false once its refetched request arrived
+   * (or it was refused and the reads refreshed). Meanwhile the decision
+   * stays, even next to a report that already moved on: keep it mounted.
+   */
+  onRecording?: ((recording: boolean) => void) | undefined;
 }
 
 const REPORT_INTRO =
@@ -296,6 +336,7 @@ function ReportAcceptance({
   review,
   report,
   onDecided,
+  onRecording,
 }: ReportDecisionProps) {
   const api = usePublicAPI();
   const pending = review.state === "pending";
@@ -346,6 +387,7 @@ function ReportAcceptance({
       auditId={auditId}
       review={review}
       onDecided={onDecided}
+      onRecording={onRecording}
       intro={REPORT_INTRO}
       blocked={blocked}
     />

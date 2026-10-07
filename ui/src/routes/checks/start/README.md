@@ -105,4 +105,5 @@ J / K move through check types. Ctrl+Enter / ⌘+Enter (`useShortcuts`
 "mod+enter", declared on the Start check button) starts the check from any
 field of the setup, or with focus anywhere else but on a link, when nothing
 keeps it from starting and the Start check button is shown (a narrow layout
-showing the list hides it).
+showing the list hides it). On a link the binding declines the key (its
+`when`), so the browser opens the link in a new tab as usual.

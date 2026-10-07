@@ -41,6 +41,7 @@ export function EvalPairRoute() {
   const [recorded, setRecorded] = useState("");
   const focusAfterSave = useRef<Arm | null>(null);
   const armHeadings = useRef<Partial<Record<Arm, HTMLHeadingElement>>>({});
+  const pageTitle = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const arm = focusAfterSave.current;
     if (
@@ -52,10 +53,11 @@ export function EvalPairRoute() {
       return;
     focusAfterSave.current = null;
     // Focus lost with the closed review moves on; focus the user moved
-    // elsewhere meanwhile stays there.
+    // elsewhere meanwhile stays there. Without the arm (the pair could not
+    // be read again) the page title takes it.
     const active = document.activeElement;
     if (active === null || active === document.body || !active.isConnected)
-      armHeadings.current[arm]?.focus();
+      (armHeadings.current[arm] ?? pageTitle.current)?.focus();
   });
   function refresh() {
     setReview(null);
@@ -77,6 +79,7 @@ export function EvalPairRoute() {
   return (
     <EvalFrame
       title={title}
+      titleRef={pageTitle}
       back={
         <ReturnLink
           to={experimentPath(experimentId, "comparison")}
