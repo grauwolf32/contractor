@@ -3,7 +3,11 @@ import { useSearchParams } from "react-router";
 
 import type { Audit } from "../../../api/audits";
 import type { PublicAPI } from "../../../api/client";
-import { useAuditReport, useReportAcceptance } from "../../reports/report-data";
+import {
+  showsAcceptance,
+  useAuditReport,
+  useReportAcceptance,
+} from "../../reports/report-data";
 import {
   ReportAcceptanceDecision,
   ReportContent,
@@ -34,7 +38,7 @@ function CheckReport({ audit, api }: { audit: Audit; api: PublicAPI }) {
         )}
       </header>
       <ReportContent audit={audit} query={query} acceptance={acceptance} />
-      {acceptance.review === undefined ? null : (
+      {showsAcceptance(acceptance) ? (
         <section
           className="reports-check-decision"
           aria-labelledby={decisionHeadingId}
@@ -49,7 +53,7 @@ function CheckReport({ audit, api }: { audit: Audit; api: PublicAPI }) {
             />
           </div>
         </section>
-      )}
+      ) : null}
     </section>
   );
 }

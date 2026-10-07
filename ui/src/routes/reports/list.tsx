@@ -205,13 +205,17 @@ export function ReportsList({
     );
   }
 
-  // Counts only once every read has settled; until then they would grow.
-  const settled = !reports.isPending;
+  // Counts only once every read has settled; until then they would grow. A
+  // list that could not be read has no counts: unknown is not zero.
+  const indexError = reports.error;
+  const settled = !reports.isPending && indexError === null;
   const empty = emptyCopy(filters);
   return (
     <ListPane
       title="Reports"
-      subtitle={subtitle(counts, reports.isPending)}
+      subtitle={
+        indexError === null ? subtitle(counts, reports.isPending) : undefined
+      }
       toolbar={
         <div className="reports-filters">
           <FilterChips<ReportFilter>
@@ -251,7 +255,7 @@ export function ReportsList({
         ) : undefined
       }
     >
-      {reports.error !== null ? (
+      {indexError !== null ? (
         <EmptyState
           title="Reports could not be loaded"
           action={
@@ -265,7 +269,7 @@ export function ReportsList({
             </button>
           }
         >
-          <p>{reports.error.message}</p>
+          <p>{indexError.message}</p>
         </EmptyState>
       ) : (
         <>

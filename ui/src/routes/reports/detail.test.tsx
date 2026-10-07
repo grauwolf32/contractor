@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useParams } from "react-router";
@@ -13,9 +13,11 @@ import {
   audit,
   failure,
   fakeServer,
+  gate,
   project,
   renderRoutes,
   report,
+  type FakeServer,
   type ServerState,
 } from "./test-support";
 
@@ -50,6 +52,47 @@ function state(): ServerState {
 function detail() {
   return screen.getByRole("region", { name: "Report" });
 }
+
+/**
+ * Another session approves the proposed report of audit_proposed: its
+ * request is decided, and the next read of the report shows it ready.
+ */
+function approveElsewhere(server: FakeServer) {
+  const review = acceptanceReview("audit_proposed");
+  server.reviews.set(review.requestId, {
+    ...review,
+    state: "decided",
+    revision: 2,
+    decision: {
+      decisionId: "decision_elsewhere",
+      requestId: review.requestId,
+      auditId: review.auditId,
+      action: "approve",
+      actorId: "user_other",
+      rationale: "Accepted in the review meeting.",
+      subjectRevision: review.subjectRevision,
+      subjectDigest: review.subjectDigest,
+      createdAt: review.createdAt,
+    },
+  });
+  server.state.reports.audit_proposed = report("audit_proposed", "ready");
+}
+
+/** Reads the report of audit_proposed again, as polling would. */
+function rereadReport(queryClient: QueryClient) {
+  return act(() =>
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.report("audit_proposed"),
+    }),
+  );
+}
+
+/** Lets scheduled query notifications render. */
+function settle() {
+  return act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+}
+
+const ACCEPTANCE_READ = "/reviews/review_audit_proposed";
 
 afterEach(() => {
   document.title = "";
@@ -150,41 +193,166 @@ describe("Report detail", () => {
     const server = fakeServer(state());
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
-    const review = acceptanceReview("audit_proposed");
-    // Another session approves the report; the next read shows it ready.
-    server.reviews.set(review.requestId, {
-      ...review,
-      state: "decided",
-      revision: 2,
-      decision: {
-        decisionId: "decision_elsewhere",
-        requestId: review.requestId,
-        auditId: review.auditId,
-        action: "approve",
-        actorId: "user_other",
-        rationale: "Accepted in the review meeting.",
-        subjectRevision: review.subjectRevision,
-        subjectDigest: review.subjectDigest,
-        createdAt: review.createdAt,
-      },
-    });
-    server.state.reports.audit_proposed = report("audit_proposed", "ready");
-    await act(() =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.report("audit_proposed"),
-      }),
-    );
+    approveElsewhere(server);
+    await rereadReport(queryClient);
     const pane = detail();
-    const record = await within(pane).findByRole("group", {
+    // The request is read once the report moves on; its decision follows.
+    expect(await within(pane).findByText("user_other")).toBeVisible();
+    const record = within(pane).getByRole("group", {
       name: "Decision on report acceptance",
     });
-    expect(await within(record).findByText("user_other")).toBeVisible();
+    expect(within(record).getByText("user_other")).toBeVisible();
     expect(within(record).getByText("Approved")).toBeVisible();
     expect(within(pane).getByText("Ready")).toBeVisible();
     expect(
       within(pane).queryByRole("region", { name: "Your decision" }),
     ).toBeNull();
     expect(server.sent("POST", "/decisions")).toEqual([]);
+  });
+
+  it("offers nothing while it reads the request of a report that moved on", async () => {
+    const server = fakeServer(state());
+    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
+    await screen.findByRole("region", { name: "Your decision" });
+    const read = gate();
+    server.state.hold = {
+      path: /\/reviews\/review_audit_proposed$/,
+      until: read.until,
+    };
+    approveElsewhere(server);
+    await rereadReport(queryClient);
+    await waitFor(() =>
+      expect(server.sent("GET", ACCEPTANCE_READ)).toHaveLength(1),
+    );
+    const pane = detail();
+    expect(within(pane).getByText("Ready")).toBeVisible();
+    // The request it showed may be settled already: nothing to decide.
+    expect(
+      within(pane).queryByRole("region", { name: "Your decision" }),
+    ).toBeNull();
+    expect(within(pane).queryByRole("button", { name: "Approve" })).toBeNull();
+
+    read.release();
+    const record = await within(pane).findByRole("group", {
+      name: "Decision on report acceptance",
+    });
+    expect(await within(record).findByText("user_other")).toBeVisible();
+  });
+
+  it("says when the request of a report that moved on cannot be read", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(state());
+    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
+    await screen.findByRole("region", { name: "Your decision" });
+    server.state.reviewRead = () => failure(503, "Review store unavailable");
+    approveElsewhere(server);
+    await rereadReport(queryClient);
+    const pane = detail();
+    const problem = await within(pane).findByRole("alert");
+    expect(problem).toHaveTextContent("Could not load the acceptance request");
+    expect(problem).toHaveTextContent("Review store unavailable");
+    expect(within(pane).getByText("Ready")).toBeVisible();
+    // Neither the request it showed nor a report mismatch is offered.
+    expect(
+      within(pane).queryByRole("region", { name: "Your decision" }),
+    ).toBeNull();
+    expect(
+      within(pane).queryByText(/no longer matches its acceptance request/),
+    ).toBeNull();
+
+    server.state.reviewRead = undefined;
+    await user.click(
+      within(problem).getByRole("button", { name: "Try again" }),
+    );
+    const record = await within(pane).findByRole("group", {
+      name: "Decision on report acceptance",
+    });
+    expect(await within(record).findByText("user_other")).toBeVisible();
+    expect(within(record).getByText("Approved")).toBeVisible();
+    expect(
+      within(pane).queryByText("Could not load the acceptance request"),
+    ).toBeNull();
+    expect(server.sent("POST", "/decisions")).toEqual([]);
+  });
+
+  it("keeps a decision made here while its refresh cannot read the request", async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(state());
+    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
+    const decision = await screen.findByRole("region", {
+      name: "Your decision",
+    });
+    // The decision's refresh waits for the project index; meanwhile the
+    // report moves on and reading its request fails.
+    const refresh = gate();
+    server.state.hold = { path: /^\/v1\/projects$/, until: refresh.until };
+    server.state.reviewRead = () => failure(503, "Review store unavailable");
+    await user.click(within(decision).getByRole("button", { name: "Approve" }));
+    await user.type(
+      within(decision).getByRole("textbox", { name: "Why" }),
+      "Coverage and gaps are stated plainly.",
+    );
+    await user.click(
+      within(decision).getByRole("button", { name: "Record decision" }),
+    );
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(
+          queryKeys.reports.acceptance(
+            "audit_proposed",
+            "review_audit_proposed",
+          ),
+        )?.status,
+      ).toBe("error"),
+    );
+    await settle();
+    const pane = detail();
+    expect(within(pane).getByText("Ready")).toBeVisible();
+    // The decision stays as it was opened, still recording.
+    expect(within(pane).getByRole("region", { name: "Your decision" })).toBe(
+      decision,
+    );
+    expect(within(decision).getByText("Recording…")).toBeVisible();
+    expect(within(pane).queryByRole("alert")).toBeNull();
+
+    refresh.release();
+    expect(
+      await screen.findByText("Decision recorded: Approved."),
+    ).toBeVisible();
+    const record = within(pane).getByRole("group", {
+      name: "Decision on report acceptance",
+    });
+    expect(within(record).getByText("Approved")).toBeVisible();
+    expect(
+      await within(record).findByText("Coverage and gaps are stated plainly."),
+    ).toBeVisible();
+    expect(record).toHaveFocus();
+    expect(
+      within(pane).queryByText("Could not load the acceptance request"),
+    ).toBeNull();
+  });
+
+  it("follows the read request over another change in flight", async () => {
+    const server = fakeServer(state());
+    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
+    await screen.findByRole("region", { name: "Your decision" });
+    // Another change of the page is in flight while the report moves on
+    // and its request stays pending.
+    const other = gate();
+    void queryClient
+      .getMutationCache()
+      .build(queryClient, { mutationFn: () => other.until })
+      .execute(undefined);
+    server.state.reports.audit_proposed = report("audit_proposed", "pending");
+    await rereadReport(queryClient);
+    const pane = detail();
+    expect(
+      await within(pane).findByText(/no longer matches its acceptance request/),
+    ).toBeVisible();
+    expect(
+      within(pane).queryByRole("region", { name: "Your decision" }),
+    ).toBeNull();
+    other.release();
   });
 
   it("ends without an accepted report when the owner rejects it", async () => {
@@ -527,6 +695,47 @@ describe("AuditReportView", () => {
     expect(
       within(section).getByRole("button", { name: "Download JSON" }),
     ).toBeVisible();
+  });
+
+  it("keeps the recorded acceptance in the section after approval", async () => {
+    const user = userEvent.setup();
+    renderRoutes(
+      "/projects/project_payment/audits/audit_proposed/report",
+      fakeServer(state()),
+      routes,
+    );
+    const section = await screen.findByRole("region", { name: "Report" });
+    const acceptance = await within(section).findByRole("region", {
+      name: "Report acceptance",
+    });
+    const decision = within(acceptance).getByRole("region", {
+      name: "Your decision",
+    });
+    await user.click(within(decision).getByRole("button", { name: "Approve" }));
+    await user.type(
+      within(decision).getByRole("textbox", { name: "Why" }),
+      "Coverage and gaps are stated plainly.",
+    );
+    await user.click(
+      within(decision).getByRole("button", { name: "Record decision" }),
+    );
+
+    expect(
+      await within(acceptance).findByText("Decision recorded: Approved."),
+    ).toBeVisible();
+    // The same section keeps the recorded decision, and focus stays on it.
+    expect(
+      within(section).getByRole("region", { name: "Report acceptance" }),
+    ).toBe(acceptance);
+    const record = within(acceptance).getByRole("group", {
+      name: "Decision on report acceptance",
+    });
+    expect(within(record).getByText("Approved")).toBeVisible();
+    expect(record).toHaveFocus();
+    expect(await within(section).findByText("Ready")).toBeVisible();
+    expect(
+      within(acceptance).queryByRole("region", { name: "Your decision" }),
+    ).toBeNull();
   });
 
   it("offers no decision on a ready report", async () => {

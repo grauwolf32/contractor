@@ -363,7 +363,8 @@ export function ReportContent({
 
 /**
  * ReportDecision for the report's acceptance request, when the page has one
- * to show; null otherwise.
+ * to show; why the request cannot be read, when that read failed; null
+ * otherwise (see showsAcceptance).
  */
 export function ReportAcceptanceDecision({
   auditId,
@@ -372,6 +373,15 @@ export function ReportAcceptanceDecision({
   auditId: string;
   acceptance: ReportAcceptance;
 }) {
+  if (acceptance.error !== null)
+    return (
+      <ErrorNotice
+        error={acceptance.error}
+        context="Could not load the acceptance request"
+        onRetry={acceptance.retry}
+        retryPending={acceptance.retrying}
+      />
+    );
   if (acceptance.review === undefined) return null;
   return (
     <ReportDecision

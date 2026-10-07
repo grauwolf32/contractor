@@ -1,4 +1,8 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useQuery,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
@@ -62,7 +66,7 @@ export function useAuditReport(
 export interface ReportAcceptance {
   /**
    * The acceptance request to decide, or the decided one this page showed;
-   * undefined when there is nothing to decide here.
+   * undefined when there is nothing to decide or show here.
    */
   review: AuditReviewRequest | undefined;
   /** The report the decision is made next to (ReportDecision's `report`). */
@@ -72,8 +76,22 @@ export interface ReportAcceptance {
    * the report cannot be used to decide it.
    */
   mismatch: boolean;
+  /**
+   * The report stopped carrying the request this page showed and reading
+   * the request failed: nothing is offered until `retry` reads it.
+   */
+  error: Error | null;
+  /** Reads the request again after `error`. */
+  retry: () => void;
+  /** That read is running. */
+  retrying: boolean;
   /** Pass to ReportDecision: keeps the recorded decision on the page. */
   onDecided: (result: AuditActionDecisionResult) => void;
+}
+
+/** The page shows the acceptance part: a request, or why it cannot be read. */
+export function showsAcceptance(acceptance: ReportAcceptance): boolean {
+  return acceptance.review !== undefined || acceptance.error !== null;
 }
 
 function newestRevision(
@@ -94,12 +112,17 @@ function newestRevision(
  *
  * A proposed report carries its request; once the request is decided the
  * check moves on and the report no longer carries it (a ready report has no
- * request). The page keeps the decision mounted through that change, so the
- * recorded decision and its announcement stay: the request's own state comes
- * from the decision's answer and from a read of the request, and while that
- * read loads the decision stays next to the report it was opened on. Nothing
- * reads as accepted before the Server says so: the report's own status
- * decides what the page shows.
+ * request). The page then shows what the request says now: the answer of a
+ * decision recorded here, else a read of the request. Until that read
+ * answers nothing is offered, and when it fails `error` says so, so a
+ * request the Server may have settled is never offered next to a report
+ * that moved on. Nothing reads as accepted before the Server says so: the
+ * report's own status decides what the page shows.
+ *
+ * A decision recorded on this page stays mounted through that change, so
+ * its "Decision recorded" announcement and its focus stay: ReportDecision's
+ * mutation is pending until the refreshed reads arrive and `onDecided` runs,
+ * and meanwhile the decision stays next to the report it was opened on.
  *
  * `requestedReview` is the `?review=` of review links: only that request is
  * offered, and a report that does not carry it is a mismatch.
@@ -135,27 +158,44 @@ export function useReportAcceptance(
     queryFn: () => getAuditReview(api, auditId, requestId ?? ""),
     enabled: requestId !== undefined && !carriedNow,
   });
+  // A decision recorded here keeps its mutation pending until the refreshed
+  // reads arrive. Other mutations of the page cannot be told apart from it;
+  // they only keep the decision as it was opened until the request is read,
+  // and the Server still refuses a decision on a settled request (If-Match).
+  const recording = useIsMutating() > 0;
   const mismatch = requestedReview !== null && requestId !== requestedReview;
-  const onDecided = (result: AuditActionDecisionResult) =>
-    setDecided(result.request);
-  if (requestId === undefined || mismatch)
-    return { review: undefined, report, mismatch, onDecided };
-  const review = newestRevision(
-    [
-      carriedNow ? report?.review : undefined,
-      decided,
-      read.data,
-      shown?.review,
-    ],
-    requestId,
-  );
-  const reading = !carriedNow && (read.isPending || read.isFetching);
-  return {
-    review,
-    report: reading ? shown : report,
+  const base = {
+    report,
     mismatch,
-    onDecided,
+    error: null,
+    retry: () => void read.refetch(),
+    retrying: read.isFetching,
+    onDecided: (result: AuditActionDecisionResult) =>
+      setDecided(result.request),
   };
+  if (requestId === undefined || mismatch)
+    return { ...base, review: undefined };
+  if (carriedNow)
+    return {
+      ...base,
+      review: newestRevision(
+        [report?.review, decided, read.data, shown?.review],
+        requestId,
+      ),
+    };
+  // The report moved on: show what the request says now, from this page's
+  // decision or from the read of the request.
+  if (newestRevision([decided, read.data], requestId) !== undefined)
+    return {
+      ...base,
+      review: newestRevision([decided, read.data, shown?.review], requestId),
+    };
+  // Until then, a decision of this page that is refreshing stays next to
+  // the report it was opened on.
+  if (recording) return { ...base, review: shown?.review, report: shown };
+  // Decided elsewhere, or moved on for another reason: nothing to offer
+  // until the request is read.
+  return { ...base, review: undefined, error: read.error };
 }
 
 const CERTIFICATION_NOTICE = "not a security or compliance certification";

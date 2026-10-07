@@ -174,6 +174,23 @@ export interface ServerState {
   reports: Record<string, AuditReport | (() => Response)>;
   failingProjects?: string[];
   indexFails?: boolean;
+  /**
+   * Answers reads of review requests instead of the stored request (e.g. to
+   * fail them); answering undefined falls back to the stored request.
+   */
+  reviewRead?:
+    (() => Response | undefined | Promise<Response | undefined>) | undefined;
+  /** Requests whose path matches wait for `until` before they are answered. */
+  hold?: { path: RegExp; until: Promise<void> } | undefined;
+}
+
+/** A promise for ServerState.hold and the function that settles it. */
+export function gate(): { until: Promise<void>; release: () => void } {
+  let release: () => void = () => undefined;
+  const until = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { until, release };
 }
 
 /**
@@ -193,6 +210,7 @@ export function fakeServer(state: ServerState) {
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    if (state.hold?.path.test(path) === true) await state.hold.until;
     if (path === "/v1/projects") {
       if (state.indexFails === true) return failure(500, "Index failed");
       return json({ items: state.projects, page: { hasMore: false } });
@@ -266,6 +284,8 @@ export function fakeServer(state: ServerState) {
     }
     match = /^\/v1\/audits\/([^/]+)\/reviews\/([^/]+)$/.exec(path);
     if (match !== null) {
+      const answer = await state.reviewRead?.();
+      if (answer !== undefined) return answer;
       const review = reviews.get(match[2] ?? "");
       return review === undefined
         ? failure(404, "not found")

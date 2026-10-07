@@ -157,12 +157,19 @@ describe("Reports list", () => {
         name: "ASVS 5.0 · Level 1 source review · Payment service",
       }),
     ).toHaveAttribute("aria-current", "true");
-    // Changing a filter keeps the selected report.
+    // One-pane screens go back to the list as it was filtered.
+    expect(
+      screen.getByRole("link", { name: "Back to reports" }),
+    ).toHaveAttribute("href", "/reports?status=ready&project=project_payment");
+    // Changing a filter keeps the selected report, and Back follows it.
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Project" }),
       "",
     );
     expect(location()).toBe("/reports/audit_ready?status=ready");
+    expect(
+      screen.getByRole("link", { name: "Back to reports" }),
+    ).toHaveAttribute("href", "/reports?status=ready");
   });
 
   it("filters by project in the URL", async () => {
@@ -275,6 +282,15 @@ describe("Reports list", () => {
       await screen.findByText("Reports could not be loaded"),
     ).toBeVisible();
     expect(screen.getByText("Index failed")).toBeVisible();
+    // Unknown is not zero: no counts, and nothing says there are no reports.
+    const filters = screen.getByRole("group", { name: "Filter by status" });
+    expect(
+      within(filters)
+        .getAllByRole("button")
+        .map((chip) => chip.textContent),
+    ).toEqual(["Waiting for acceptance", "Ready", "All"]);
+    expect(screen.queryByRole("button", { name: "All 0" })).toBeNull();
+    expect(screen.queryByText("No reports yet.")).toBeNull();
 
     server.state.indexFails = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));

@@ -11,7 +11,11 @@ import { RecordedTime } from "../../app/recorded-time";
 import { DetailHeader, DetailPane, EmptyState, IdChip } from "../../ui";
 import { auditProfileLabel } from "../projects/audits/labels";
 import { checkPath } from "./filters";
-import { useAuditReport, useReportAcceptance } from "./report-data";
+import {
+  showsAcceptance,
+  useAuditReport,
+  useReportAcceptance,
+} from "./report-data";
 import {
   ReportAcceptanceDecision,
   ReportContent,
@@ -79,14 +83,14 @@ function LoadedReport({ audit }: { audit: Audit }) {
         />
       }
       footer={
-        acceptance.review === undefined ? undefined : (
+        showsAcceptance(acceptance) ? (
           <div className="reports-decision-footer">
             <ReportAcceptanceDecision
               auditId={audit.auditId}
               acceptance={acceptance}
             />
           </div>
-        )
+        ) : undefined
       }
     >
       <ReportContent audit={audit} query={query} acceptance={acceptance} />

@@ -280,9 +280,29 @@
   border-top: 0;
 }
 
-.reports-decision-footer .decisions-request > .decisions-notice {
+.reports-decision-footer .decisions-request > .decisions-notice,
+.reports-decision-footer > .notice {
   margin: 0.75rem var(--ui-pad-end, 1.75rem) 0.75rem
     var(--ui-pad-start, 1.75rem);
+}
+
+/* Where the footer is pinned (ui.css), a recorded decision stays bounded so
+   a long reason never covers the report: it scrolls inside the footer, which
+   also holds the decision's focus, so the keyboard scrolls it. The footer
+   draws the divider, so it stays put while the decision scrolls. */
+@media (min-width: 821px) and (min-height: 560px) {
+  .reports-decision-footer:has(.decisions-record) {
+    max-height: min(45vh, 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--line);
+  }
+
+  .reports-decision-footer:has(.decisions-record)
+    .decisions-request
+    > :is(.decisions-status, .decisions-record) {
+    border-top: 0;
+  }
 }
 
 /* Header meta of /reports/:auditId: "Check ID" and its chip on one line. */
@@ -460,6 +480,10 @@
   border: 1px solid var(--line);
   border-radius: 0.75rem;
   background: var(--surface);
+}
+
+.reports-check-decision .notice {
+  margin: 0;
 }
 
 @media (max-width: 820px) {
