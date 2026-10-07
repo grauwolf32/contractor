@@ -336,7 +336,10 @@ describe("Project materials", () => {
     const notice = await screen.findByRole("status", {
       name: "Material added to this project",
     });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The notice (state) and the closed sheet (URL) commit separately.
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
     expect(notice).toHaveTextContent("openapi/shop");
     expect(notice).toHaveTextContent("API spec · YAML · 14 B");
     expect(
@@ -355,7 +358,7 @@ describe("Project materials", () => {
       within(notice).getByRole("link", { name: "Run a workflow" }),
     ).toHaveAttribute("href", `/projects/${PROJECT}/workflows`);
     await waitFor(() => expect(notice).toHaveFocus());
-    expect(router.state.location.search).toBe("");
+    await waitFor(() => expect(router.state.location.search).toBe(""));
     expect(
       await screen.findByRole("link", { name: "openapi/shop" }),
     ).toBeVisible();

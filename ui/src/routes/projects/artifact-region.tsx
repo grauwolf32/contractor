@@ -59,12 +59,19 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       }),
   });
 
-  // The dialog that made a write has closed by now: move focus to its outcome.
+  // Move focus to the outcome of a write once the dialog that made it has
+  // closed. The outcome (state) and the closed sheet (the URL) commit
+  // separately; while the sheet is open the rest of the page is inert, and on
+  // closing it restores focus itself, so focusing earlier would be lost.
+  const focusOutcome = useRef(false);
   useEffect(() => {
-    if (written === null) return undefined;
-    const timer = window.setTimeout(() => notice.current?.focus(), 0);
+    if (written === null || addOpen || !focusOutcome.current) return undefined;
+    const timer = window.setTimeout(() => {
+      focusOutcome.current = false;
+      notice.current?.focus();
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [written]);
+  }, [written, addOpen]);
 
   function changeFilters(
     change: (next: URLSearchParams) => void,
@@ -107,6 +114,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   }
 
   function finishAdd(result: ArtifactWriteResponse | GitImportResult): void {
+    focusOutcome.current = true;
     setWritten(result);
     // Show the new material: back to the first page of every namespace.
     changeFilters((next) => {
