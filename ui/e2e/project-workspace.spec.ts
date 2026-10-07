@@ -307,11 +307,13 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Project sections" })
-    .getByRole("link", { name: "Artifacts", exact: true })
+    .getByRole("link", { name: "Materials", exact: true })
     .click();
-  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Sources" });
+  await page.getByRole("button", { name: "Add material", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Source code ZIP", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Source code ZIP" });
   await dialog.getByLabel("Drop a file here").setInputFiles({
     name: "browser-source.zip",
     mimeType: "application/zip",
@@ -355,7 +357,7 @@ test("Project dashboard remains usable at 320px", async ({
   await page
     .getByRole("combobox", { name: "Project section", exact: true })
     .selectOption("artifacts");
-  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
+  await page.getByRole("button", { name: "Add material", exact: true }).click();
   await expect(page.getByRole("button", { name: "Other" })).toBeVisible();
   await page.getByRole("button", { name: "Other" }).click();
   await expect(page.getByRole("dialog", { name: "Other" })).toBeVisible();
@@ -455,18 +457,24 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
   await expect(
     page.getByRole("button", { name: "Delete Project" }),
   ).toBeHidden();
-  await page.getByRole("link", { name: "Add sources →" }).click();
-  const chooser = page.getByRole("dialog", { name: "Add artifact" });
+  // The overview's Materials chips end with the link that opens the sheet.
+  await page
+    .getByRole("list", { name: "Materials" })
+    .getByRole("link", { name: "Add material", exact: true })
+    .click();
+  const chooser = page.getByRole("dialog", { name: "Add material" });
   await expect(chooser).toBeVisible();
-  await chooser.getByRole("button", { name: "Sources", exact: true }).click();
-  const upload = page.getByRole("dialog", { name: "Sources" });
+  await chooser
+    .getByRole("button", { name: "Source code ZIP", exact: true })
+    .click();
+  const upload = page.getByRole("dialog", { name: "Source code ZIP" });
   await expect(
     upload.getByRole("button", { name: "Close upload dialog" }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(upload).toBeHidden();
   await expect(
-    chooser.getByRole("button", { name: "Sources", exact: true }),
+    chooser.getByRole("button", { name: "Source code ZIP", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(chooser).toBeHidden();

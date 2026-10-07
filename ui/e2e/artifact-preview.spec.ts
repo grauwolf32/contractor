@@ -120,6 +120,12 @@ async function installArtifactAPI(page: Page, uiOrigin: string): Promise<void> {
       return;
     }
 
+    if (url.pathname === "/v1/projects") {
+      // The Inbox badge reads the projects index on every page.
+      await fulfillJson(route, { items: [], page: { hasMore: false } });
+      return;
+    }
+
     const match =
       /^\/v1\/artifacts\/projects\/([^/]+)(?:\/(metadata|versions|lineage))?$/.exec(
         url.pathname,
@@ -251,7 +257,9 @@ for (const viewport of [
       ).toHaveCount(1);
 
       await openPreview(page, "architecture");
-      await expect(page.getByLabel("View")).toBeVisible();
+      await expect(
+        page.getByRole("combobox", { name: "View", exact: true }),
+      ).toBeVisible();
       await expect(page.locator(".likec4-artifact-canvas")).toBeVisible();
       await expect(
         page.locator(".likec4-artifact-canvas .react-flow.light"),

@@ -325,13 +325,13 @@ test("Project import validates ASCII names, reports host errors and restores foc
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Import Git repository" });
   await dialog.getByLabel("Repository URL").fill("git@example.test:repo.git");
-  await dialog.getByLabel("Artifact name", { exact: true }).fill("bad name");
+  await dialog.getByLabel("Name", { exact: true }).fill("bad name");
   await dialog.getByRole("button", { name: "Import snapshot" }).click();
   await expect(dialog.getByRole("alert")).toContainText(
     "Spaces are not allowed",
   );
   expect(writes).toHaveLength(0);
-  await dialog.getByLabel("Artifact name", { exact: true }).fill("source");
+  await dialog.getByLabel("Name", { exact: true }).fill("source");
   await dialog.getByRole("button", { name: "Import snapshot" }).click();
   await expect(dialog.getByRole("alert")).toContainText("host trust");
   expect(writes).toHaveLength(1);

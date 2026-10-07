@@ -8,7 +8,7 @@ import {
   standardFixture,
 } from "../src/test/audit-presets-fixture";
 
-test("Audit presets expose selected checks and remain usable on mobile", async ({
+test("Check types expose selected requirements and remain usable on mobile", async ({
   page,
 }, testInfo) => {
   const origin = new URL(String(testInfo.project.use.baseURL)).origin;
@@ -65,18 +65,18 @@ test("Audit presets expose selected checks and remain usable on mobile", async (
 
   await page.goto("/catalog/audit-presets");
   await expect(
-    page.getByRole("heading", { name: "Audit presets", exact: true }),
+    page.getByRole("heading", { name: "Check types", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Version of source-review")).toHaveValue("10");
-  await page.getByLabel("Search audit presets").fill("source review");
+  await page.getByLabel("Search check types").fill("source review");
   await expect(page.getByRole("article")).toHaveCount(1);
   await page.getByLabel("Version of source-review").selectOption("1");
   await page.screenshot({
     path: testInfo.outputPath("audit-presets-desktop.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "View checks →" }).click();
-  await expect(page.getByText("2 checks", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "View requirements" }).click();
+  await expect(page.getByText("2 requirements", { exact: true })).toBeVisible();
   await expect(page.getByText("Check transport security")).toHaveCount(0);
   await page.getByText("Check authorization", { exact: true }).click();
   await expect(
@@ -88,7 +88,7 @@ test("Audit presets expose selected checks and remain usable on mobile", async (
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByLabel("Search checks")).toBeVisible();
+  await expect(page.getByLabel("Search requirements")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -98,18 +98,28 @@ test("Audit presets expose selected checks and remain usable on mobile", async (
     path: testInfo.outputPath("audit-preset-checks-mobile.png"),
     fullPage: true,
   });
-  await page.getByLabel("Search checks").fill("trust boundary");
-  await expect(page.getByText("1 of 2 checks", { exact: true })).toBeVisible();
+  await page.getByLabel("Search requirements").fill("trust boundary");
+  await expect(
+    page.getByText("1 of 2 requirements", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Check authorization", { exact: true }),
   ).toHaveCount(0);
   await page.reload();
-  await expect(page.getByLabel("Search checks")).toHaveValue("trust boundary");
-  await expect(page.getByText("1 of 2 checks", { exact: true })).toBeVisible();
-  await page.getByLabel("Preset version").selectOption("10");
-  await expect(page.getByText("3 checks", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "← Audit presets" }).click();
-  await expect(page.getByLabel("Search audit presets")).toHaveValue(
+  await expect(page.getByLabel("Search requirements")).toHaveValue(
+    "trust boundary",
+  );
+  await expect(
+    page.getByText("1 of 2 requirements", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Check type version", { exact: true })
+    .selectOption("10");
+  await expect(page.getByText("3 requirements", { exact: true })).toBeVisible();
+  await page
+    .getByRole("link", { name: "All check types", exact: true })
+    .click();
+  await expect(page.getByLabel("Search check types")).toHaveValue(
     "source review",
   );
   expect(

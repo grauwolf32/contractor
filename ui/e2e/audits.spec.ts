@@ -1,10 +1,20 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Locator, type Route } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
 
 const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_audit_browser";
 const PROFILE_DIGEST = `sha256:${"2".repeat(64)}`;
+
+/** The definition a description list in `scope` gives for `term`. */
+function fact(scope: Locator, term: string): Locator {
+  const exactTerm = term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return scope
+    .getByRole("term")
+    .filter({ hasText: new RegExp(`^${exactTerm}$`, "u") })
+    .locator("..")
+    .getByRole("definition");
+}
 
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -150,6 +160,8 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     headers: Record<string, string>;
     body: unknown;
   }> = [];
+  const objective =
+    "Verify that a user can only read and update orders belonging to their own account. Check both the API handler and the service layer.";
 
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
@@ -217,6 +229,24 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
       } else {
         await fulfillJSON(route, { items: [], page: { hasMore: false } });
       }
+      return;
+    }
+    if (path === "/v1/audits/audit_browser/workspace") {
+      await fulfillJSON(route, {
+        auditId: audit.auditId,
+        auditRevision: audit.revision,
+        asOf: audit.updatedAt,
+        executionState: audit.state,
+        outstandingRuns: 0,
+        totalChecks: audit.state === "draft" ? 0 : 1,
+        completedChecks: audit.state === "draft" ? 0 : 1,
+        issues: 0,
+        gaps: audit.state === "draft" ? 0 : 1,
+        unchecked: 0,
+        findings: 0,
+        unreviewedFindings: 0,
+        pendingReviews: 0,
+      });
       return;
     }
     if (path === "/v1/audits/audit_browser/start") {
@@ -313,8 +343,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
             itemKey: "check-authz",
             subjectKey: "Authorization controls",
             details: {
-              objective:
-                "Verify that a user can only read and update orders belonging to their own account. Check both the API handler and the service layer.",
+              objective,
               methods: ["source-analysis"],
               taskDocument: {
                 schema: "contractor.audit.item-task.v1",
@@ -360,78 +389,111 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   });
 
   await page.goto(`/projects/${PROJECT_ID}/audits`);
-  await page.getByRole("button", { name: "New Audit" }).click();
-  await expect(page.getByRole("heading", { name: "New Audit" })).toBeVisible();
-  const input = page.getByLabel("Input sources");
-  const artifactOption = input
-    .locator("option")
-    .filter({ hasText: "browser-service@revision-browser-3" });
-  const artifactValue = await artifactOption.getAttribute("value");
-  if (artifactValue === null || artifactValue === "") {
-    throw new Error("exact Artifact option is missing");
-  }
-  await input.selectOption(artifactValue);
-  await page.getByRole("button", { name: "Create Audit draft" }).click();
-  await expect(page).toHaveURL(/\/audits\/audit_browser$/u);
-  await page.getByRole("button", { name: "Start Audit" }).click();
+  // Checks start on the Start page; the empty list repeats the tab's link.
   await page
-    .getByRole("dialog", { name: "Start Audit" })
-    .getByRole("button", { name: "Start Audit", exact: true })
+    .getByRole("link", { name: "Start a check", exact: true })
+    .first()
     .click();
-  await expect(page.getByText("revision 2")).toBeVisible();
-  await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.getByText("Inconclusive", { exact: true })).toBeVisible();
-  const taskAndResult = page.locator("details.audit-result-reading").filter({
-    has: page.getByText("Inconclusive", { exact: true }),
-  });
-  await taskAndResult.locator(":scope > summary").click();
-  await expect(taskAndResult.getByText("test evidence missing")).toBeVisible();
+  await expect(page).toHaveURL(`/checks/new?project=${PROJECT_ID}`);
   await expect(
-    taskAndResult.getByText(/Verify that a user can only read/u),
-  ).toBeVisible();
-  // The conclusion appears as a summary excerpt and as the full body copy.
-  await expect(
-    taskAndResult.getByRole("paragraph").filter({
-      hasText: /The service checks ownership/u,
+    page.getByRole("heading", {
+      name: "Start a check on Audit browser fixture",
     }),
   ).toBeVisible();
-  // The former Checks tab lives inside the row: attempts, Run and identity.
-  await expect(page.getByRole("link", { name: "Checks" })).toHaveCount(0);
-  const attempts = taskAndResult.getByRole("region", { name: "Attempts" });
+  // The only ZIP material is pinned at its exact revision.
+  const materials = page.getByRole("region", { name: "Materials" });
   await expect(
-    attempts.getByText("check · accepted-result · 1 attempts"),
+    materials.getByText("sources/browser-service@revision-browser-3", {
+      exact: true,
+    }),
   ).toBeVisible();
-  await expect(attempts.getByText("Attempt 1 · settled")).toBeVisible();
-  await expect(attempts.getByText("succeeded · accepted-result")).toBeVisible();
+  await expect(
+    materials.getByText("Attached: the only material in a matching format."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Save as draft" }).click();
+  await expect(page).toHaveURL(/\/audits\/audit_browser$/u);
+  await page.getByRole("button", { name: "Start check", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Start check" })
+    .getByRole("button", { name: "Start check", exact: true })
+    .click();
+  const listPane = page.getByRole("region", { name: "Check and items" });
+  await expect(listPane.getByText("Running", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("The counts of this check could not be loaded."),
+  ).toHaveCount(0);
+  // The revision is a technical detail of the whole check.
+  const allActivity = page.getByRole("region", { name: "All activity" });
+  await allActivity.getByText("Technical details", { exact: true }).click();
+  const revision = fact(allActivity, "Current revision");
+  await expect(revision).toBeVisible();
+  await expect(revision).toHaveText("2");
+  const sections = page.getByRole("navigation", { name: "Check sections" });
+  await sections.getByRole("link", { name: "Items", exact: true }).click();
+  const itemList = listPane.getByRole("region", { name: "Items" });
+  await expect(
+    itemList.getByText("Inconclusive", { exact: true }),
+  ).toBeVisible();
+  const itemTitle = `Authorization controls ${objective}`;
+  await itemList.getByRole("link", { name: itemTitle, exact: true }).click();
+  const item = page.getByRole("article", { name: itemTitle, exact: true });
+  await expect(item.getByText("Inconclusive", { exact: true })).toBeVisible();
+  await expect(item.getByText("test evidence missing")).toBeVisible();
+  await expect(
+    item
+      .getByRole("region", { name: "What the AI was asked" })
+      .getByText(/Verify that a user can only read/u),
+  ).toBeVisible();
+  // The conclusion is the full body copy; the activity log repeats it.
+  await expect(
+    item
+      .getByRole("region", { name: "Conclusion" })
+      .getByRole("paragraph")
+      .filter({ hasText: /The service checks ownership/u }),
+  ).toBeVisible();
+  // The former Checks tab lives inside the item: attempts, Run and identity.
+  await expect(sections.getByRole("link", { name: "Checks" })).toHaveCount(0);
+  await item.getByText("Technical details", { exact: true }).click();
+  const attempts = item.getByRole("table", { name: "Attempts" });
+  // Attempt, state, outcome, collection, Run and result of the one attempt.
+  const attemptRows = attempts
+    .getByRole("row")
+    .filter({ has: page.getByRole("cell") });
+  const attemptCells = [
+    "1",
+    "settled",
+    "succeeded",
+    "accepted-result",
+    "run_browser",
+    "None",
+  ];
+  await expect(attempts).toBeVisible();
+  await expect(attemptRows).toHaveCount(1);
+  await expect(attemptRows.getByRole("cell")).toHaveText(attemptCells);
   await expect(
     attempts.getByRole("link", { name: "run_browser" }),
   ).toHaveAttribute("href", "/runs/run_browser");
-  await expect(attempts.getByText("Task package")).toBeVisible();
-  // The check key names both the Task package and the attempt identity.
-  await expect(
-    attempts.locator("code", { hasText: "check-authz" }),
-  ).toBeVisible();
-  await expect(
-    attempts.getByText("check-authz", { exact: true }).last(),
-  ).toBeVisible();
+  await expect(item.getByText("Task package", { exact: true })).toBeVisible();
+  await expect(fact(item, "Workflow role")).toHaveText("check");
+  await expect(fact(item, "Disposition")).toHaveText("accepted-result");
+  // The check key names both the item and its inventory origin.
+  await expect(fact(item, "Item key").getByRole("code")).toHaveText(
+    "check-authz",
+  );
+  await expect(fact(item, "Origin")).toHaveText("check-authz");
   await page.screenshot({
     path: testInfo.outputPath("audit-coverage-desktop.png"),
     fullPage: true,
   });
   await page
-    .getByRole("searchbox", { name: "Search checks" })
+    .getByRole("searchbox", { name: "Search items" })
     .fill("cross-account");
-  await expect(page.getByText("Showing 1 of 1 checks")).toBeVisible();
-  // The row keeps its open state across the search; open it only if needed.
-  const firstReading = page.locator("details.audit-result-reading").first();
-  if (
-    !(await firstReading.evaluate(
-      (element: HTMLDetailsElement) => element.open,
-    ))
-  ) {
-    await firstReading.locator(":scope > summary").click();
-  }
-  await expect(page.getByText(/compares the order owner/u)).toBeVisible();
+  await expect(page.getByText("Showing 1 of 1 items")).toBeVisible();
+  // The selection lives in the URL, so the item stays open across the search.
+  await expect(
+    itemList.getByRole("link", { name: itemTitle, exact: true }),
+  ).toHaveAttribute("aria-current", "true");
+  await expect(item.getByText(/compares the order owner/u)).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
     path: testInfo.outputPath("audit-coverage-mobile.png"),
@@ -458,18 +520,16 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   expect(JSON.stringify(storage)).not.toContain("PROFILE_PACKAGE");
   expect(storage.search).toBe("?q=cross-account");
 
-  // The old Checks route redirects to Coverage and keeps the check anchor.
+  // The old Checks route redirects to the items and selects the linked one.
   await page.goto(
     `/projects/${PROJECT_ID}/audits/audit_browser/checks#check-item_browser`,
   );
   await expect(page).toHaveURL(
     /\/audits\/audit_browser\/coverage#check-item_browser$/u,
   );
-  await expect(
-    page
-      .locator("article#check-item_browser details.audit-result-reading")
-      .getByText("Attempt 1 · settled"),
-  ).toBeVisible();
+  await item.getByText("Technical details", { exact: true }).click();
+  await expect(attempts).toBeVisible();
+  await expect(attemptRows.getByRole("cell")).toHaveText(attemptCells);
 });
 
 test("audit program library renders exact Top 10 and ASVS evidence boundaries", async ({
@@ -797,36 +857,50 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
     );
   });
 
+  const allActivity = page.getByRole("region", { name: "All activity" });
+  const sections = page.getByRole("navigation", { name: "Check sections" });
+  const requirements = page
+    .getByRole("region", { name: "Check and requirements" })
+    .getByRole("region", { name: "Requirements" });
+
   await page.goto(`/projects/${PROJECT_ID}/audits/${top10.auditId}`);
-  const top10Standards = await page.getByTestId("audit-baseline-standards");
+  // The pinned baseline is a technical detail of the whole check.
+  await allActivity.getByText("Technical details", { exact: true }).click();
+  const top10Standards = page.getByTestId("audit-baseline-standards");
+  await expect(top10Standards).toBeVisible();
   await expect(top10Standards).toContainText("OWASP Top 10:2025");
   await expect(top10Standards).toContainText("owasp-web-top10@2025");
   await expect(top10Standards).toContainText("CC-BY-SA-4.0");
-  await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.locator(".audit-result-card")).toHaveCount(10);
+  await sections.getByRole("link", { name: "Requirements" }).click();
+  await expect(requirements.getByRole("listitem")).toHaveCount(10);
   await expect(
-    page.getByText("Inconclusive", { exact: true }).first(),
+    requirements.getByText("Inconclusive", { exact: true }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("Not checked yet", { exact: true }).first(),
+    requirements.getByText("Not checked yet", { exact: true }).first(),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Report" }).click();
+  await sections.getByRole("link", { name: "Report" }).click();
   await expect(
     page.getByText(/not a security or compliance certification/u),
   ).toBeVisible();
 
   await page.goto(`/projects/${PROJECT_ID}/audits/${asvs.auditId}`);
-  const asvsStandards = await page.getByTestId("audit-baseline-standards");
+  await allActivity.getByText("Technical details", { exact: true }).click();
+  const asvsStandards = page.getByTestId("audit-baseline-standards");
+  await expect(asvsStandards).toBeVisible();
   await expect(asvsStandards).toContainText("OWASP ASVS 5.0.0");
   await expect(asvsStandards).toContainText("owasp-asvs@5.0.0");
   await expect(asvsStandards).toContainText("CC-BY-SA-4.0");
   const selected = page.getByTestId("audit-baseline-standard-selection");
+  await expect(selected).toBeVisible();
   await expect(selected).toContainText("Level 1 · 5 requirements");
   await expect(selected).toContainText("v5.0.0-2.1.1");
-  await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.locator(".audit-result-card")).toHaveCount(5);
-  await expect(page.getByText("Not applicable", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Report" }).click();
+  await sections.getByRole("link", { name: "Requirements" }).click();
+  await expect(requirements.getByRole("listitem")).toHaveCount(5);
+  await expect(
+    requirements.getByText("Not applicable", { exact: true }),
+  ).toBeVisible();
+  await sections.getByRole("link", { name: "Report" }).click();
   await expect(page.getByText("Exact selected requirements: 5.")).toBeVisible();
   await expect(
     page.getByText(/not a security or compliance certification/u),
@@ -1257,17 +1331,17 @@ for (const viewport of [
     await expect(
       page.getByText(/Showing 2 of 51 matching records/),
     ).toBeVisible();
-    await page.getByRole("link", { name: "Review finding →" }).click();
+    await page.getByRole("link", { name: "Review possible issue →" }).click();
     await expect(
-      page.getByRole("link", { name: "← Audit reviews" }),
+      page.getByRole("link", { name: "← Check decisions" }),
     ).toBeVisible();
-    await page.getByRole("link", { name: "← Audit reviews" }).click();
+    await page.getByRole("link", { name: "← Check decisions" }).click();
     await expect(page).toHaveURL(
       new RegExp(
         "reviews\\?state=pending&cursor=review-page-two&auditRevision=1$",
       ),
     );
-    await page.getByRole("link", { name: "Review finding →" }).click();
+    await page.getByRole("link", { name: "Review possible issue →" }).click();
     await expect(
       page.getByRole("heading", { name: "Retained authorization bypass" }),
     ).toBeVisible();
@@ -1276,60 +1350,91 @@ for (const viewport of [
       page.getByText("source-review", { exact: true }),
     ).toBeVisible();
     await expect(page.getByText(/Run deleted/u)).toBeVisible();
+    // Confirm issue needs a severity; none is preset from the AI suggestion.
+    await page.getByRole("button", { name: "Confirm issue" }).click();
+    await page.getByRole("radio", { name: "High", exact: true }).check();
     await page
-      .getByRole("combobox", { name: "Severity", exact: true })
-      .selectOption("high");
-    await page
-      .getByLabel("Analyst rationale")
+      .getByRole("textbox", { name: "Why", exact: true })
       .fill("Confirmed against the retained exact source revision.");
     await page.getByRole("button", { name: "Record decision" }).click();
-    await expect(page.getByText("true_positive · high")).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Current decision" })
+        .getByText("Confirmed · High", { exact: true }),
+    ).toBeVisible();
+    // The analyst rating is a technical detail of the possible issue.
+    const possibleIssue = page.getByRole("region", { name: "Possible issues" });
+    await possibleIssue.getByText("Technical details", { exact: true }).click();
+    const rating = fact(possibleIssue, "Analyst rating");
+    await expect(rating).toBeVisible();
+    await expect(rating).toHaveText("Confirmed · High");
 
-    await page.getByRole("link", { name: "← Audit reviews" }).click();
-    await expect(page.getByText(/This Audit changed/)).toBeVisible();
+    await page.getByRole("link", { name: "← Check decisions" }).click();
+    await expect(page.getByText(/This check changed/)).toBeVisible();
     await page
       .getByRole("button", { name: "Refresh context", exact: true })
       .click();
     await page.getByRole("link", { name: "Review report →" }).click();
+    // Accepting the report needs a written reason as well as the choice.
+    const acceptance = page.getByRole("region", { name: "Report acceptance" });
+    const recordAcceptance = acceptance.getByRole("button", {
+      name: "Record decision",
+    });
+    await expect(recordAcceptance).toBeDisabled();
+    await acceptance
+      .getByRole("button", { name: "Approve", exact: true })
+      .click();
     await expect(
-      page.getByRole("button", { name: "Approve subject" }),
-    ).toBeDisabled();
+      acceptance.getByRole("button", { name: "Approve", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(recordAcceptance).toBeDisabled();
+    await expect(recordAcceptance).toHaveAccessibleDescription(
+      "Write a short reason.",
+    );
     await expect(
       page.getByText("This report is awaiting owner acceptance."),
     ).toBeVisible();
     await expect(page.getByText(/not a certification/u)).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
+    // The state is a chip by the check's title in the list pane; one-pane
+    // screens name the check and its state above the detail instead.
+    const checkState = (label: string) =>
+      viewport.width > 820
+        ? page
+            .getByRole("region", { name: "Check and items" })
+            .getByText(label, { exact: true })
+        : page.getByText(`Source checklist · ${label}`, { exact: true });
+    await page.getByRole("button", { name: "Stop check", exact: true }).click();
     let confirmation = page.getByRole("alertdialog", {
-      name: "Cancel this Audit?",
+      name: "Stop this check?",
     });
     await expect(confirmation).toContainText(project.name);
     await expect(confirmation).toContainText(auditId);
     await expect(
-      confirmation.getByRole("button", { name: "Keep Audit unchanged" }),
+      confirmation.getByRole("button", { name: "Keep the check running" }),
     ).toBeFocused();
     await confirmation
-      .getByRole("button", { name: "Keep Audit unchanged" })
+      .getByRole("button", { name: "Keep the check running" })
       .click();
     expect(mutations).toHaveLength(1);
 
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Stop check", exact: true }).click();
     confirmation = page.getByRole("alertdialog", {
-      name: "Cancel this Audit?",
+      name: "Stop this check?",
     });
     await confirmation
-      .getByRole("button", { name: "Confirm cancellation" })
+      .getByRole("button", { name: "Stop check", exact: true })
       .click();
-    await expect(page.getByText("cancelled", { exact: true })).toBeVisible();
-    await page.getByLabel("Audit actions").click();
-    await page.getByRole("button", { name: "Delete Audit" }).click();
+    await expect(checkState("Stopped")).toBeVisible();
+    await page.getByLabel("Check actions").click();
+    await page.getByRole("button", { name: "Delete check" }).click();
     confirmation = page.getByRole("alertdialog", {
-      name: "Delete this Audit?",
+      name: "Delete this check?",
     });
-    await expect(confirmation).toContainText("Permanently delete this audit");
+    await expect(confirmation).toContainText("Permanently delete this check");
     await confirmation
-      .getByRole("button", { name: "Begin Audit deletion" })
+      .getByRole("button", { name: "Delete check", exact: true })
       .click();
-    await expect(page.getByText("deleting", { exact: true })).toBeVisible();
+    await expect(checkState("Deleting")).toBeVisible();
 
     expect(mutations).toEqual([
       {

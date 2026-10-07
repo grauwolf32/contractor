@@ -94,25 +94,40 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
       .getByLabel("Password")
       .fill(requiredEnvironment("CONTRACTOR_UI_E2E_PASSWORD"));
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-    await page.getByRole("button", { name: "New Project" }).first().click();
-    const projectForm = page.getByRole("dialog", { name: "New Project" });
+    // Sign out sits in the account menu of the signed-in shell.
+    const account = page.getByRole("button", { name: "Account", exact: true });
+    await account.click();
+    await expect(
+      page.getByRole("button", { name: "Sign out", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(account).toHaveAttribute("aria-expanded", "false");
+    await page
+      .getByRole("button", { name: "New project", exact: true })
+      .first()
+      .click();
+    const projectForm = page.getByRole("dialog", {
+      name: "New project",
+      exact: true,
+    });
     await projectForm
       .getByLabel("Name", { exact: true })
       .fill("Scan browser fixture");
     await projectForm
       .getByLabel("Description", { exact: true })
       .fill("Controlled local ffuf upload and report journey");
-    await projectForm.getByRole("button", { name: "Create Project" }).click();
+    await projectForm
+      .getByRole("button", { name: "Create project", exact: true })
+      .click();
     await expect(page).toHaveURL(/\/projects\/project_[A-Za-z0-9_-]+$/);
     const projectId = new URL(page.url()).pathname.split("/").at(-1)!;
     evidence.projectId = projectId;
     await page
       .getByRole("navigation", { name: "Project sections" })
-      .getByRole("link", { name: "Artifacts", exact: true })
+      .getByRole("link", { name: "Materials", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Add artifact", exact: true })
+      .getByRole("button", { name: "Add material", exact: true })
       .click();
     await page.getByRole("button", { name: "Other", exact: true }).click();
     const upload = page.getByRole("dialog").filter({
@@ -142,7 +157,6 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
     await upload.getByRole("button", { name: "Create binding" }).click();
     const storedResponse = await stored;
     expect(storedResponse.ok(), await storedResponse.text()).toBe(true);
-    expect(storedResponse.request().postDataBuffer()).toEqual(payload);
     const written =
       (await storedResponse.json()) as components["schemas"]["ArtifactWriteResponse"];
     expect(written.mediaType).toBe("text/vnd.contractor.wordlist");
@@ -151,6 +165,15 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
       name: "paths",
     });
     expect(written.artifact.revision).not.toBe("");
+    expect(written.size).toBe(payload.length);
+    // Chromium can omit a File upload's body from its request event. Verify
+    // the bytes persisted by the real API at the returned exact revision.
+    const persisted = await context.request.get(
+      `${apiURL}/v1/projects/${projectId}/artifacts/lists/paths`,
+      { params: { revision: written.artifact.revision } },
+    );
+    expect(persisted.status()).toBe(200);
+    expect(await persisted.body()).toEqual(payload);
     evidence.uploadedArtifact = written.artifact;
     await expect(upload).toBeHidden();
     await page.getByRole("link", { name: "lists/paths", exact: true }).click();
@@ -191,6 +214,18 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
     await expect(inputReview).toContainText("Confirmed");
     await expect(inputReview).toContainText(selected);
     await captureScreenshot(page, evidence, directory, "selected-input");
+    // As in the real-stack gate, routing exposes fetch(Request) bodies
+    // before forwarding the request unchanged to the real Server.
+    let submittedBody: string | null = null;
+    await page.route(
+      `${apiURL}/v1/projects/${projectId}/runs`,
+      async (route) => {
+        if (route.request().method() === "POST") {
+          submittedBody = route.request().postData();
+        }
+        await route.continue();
+      },
+    );
     const created = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -201,7 +236,9 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
       .click();
     const createdResponse = await created;
     expect(createdResponse.status(), await createdResponse.text()).toBe(202);
-    const submitted = createdResponse.request().postDataJSON() as {
+    expect(await createdResponse.finished()).toBeNull();
+    expect(submittedBody).not.toBeNull();
+    const submitted = JSON.parse(submittedBody ?? "null") as {
       workflow: string;
       parameters: Record<string, string>;
       artifacts: Record<string, ExactArtifactRef>;

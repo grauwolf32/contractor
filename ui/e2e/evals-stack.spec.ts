@@ -83,7 +83,7 @@ async function authorWorkflowCases(page: Page) {
   await page
     .getByRole("button", { name: "Add human rubric", exact: true })
     .click();
-  await page.getByLabel("Review check ID", { exact: true }).fill("review");
+  await page.getByLabel("Review criterion ID", { exact: true }).fill("review");
   await page.getByLabel("Rubric revision", { exact: true }).fill("r1");
   await page
     .getByLabel("Private rubric", { exact: true })
@@ -174,7 +174,7 @@ test("real native setup, restart, exact evidence and review; independent externa
     for (const arm of ["A", "B"]) {
       await page
         .getByLabel(
-          `${arm} ${kind === "workflow" ? "Workflow" : "AuditProfile"} family`,
+          `${arm} ${kind === "workflow" ? "Workflow" : "Check type"} family`,
           { exact: true },
         )
         .selectOption(
@@ -208,13 +208,13 @@ test("real native setup, restart, exact evidence and review; independent externa
       .click();
     await page.getByRole("button", { name: "Next step", exact: true }).click();
     await page
-      .getByRole("button", { name: "Add assessment check", exact: true })
+      .getByRole("button", { name: "Add criterion", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Add assessment check", exact: true })
+      .getByRole("button", { name: "Add criterion", exact: true })
       .click();
     const human = page.locator(".eval-check").nth(1);
-    await human.getByLabel("Check ID", { exact: true }).fill("review");
+    await human.getByLabel("Criterion ID", { exact: true }).fill("review");
     await human
       .getByLabel("Evaluator", { exact: true })
       .selectOption("human-review@1");
@@ -223,10 +223,12 @@ test("real native setup, restart, exact evidence and review; independent externa
       .fill("r1");
     if (kind === "workflow") {
       await page
-        .getByRole("button", { name: "Add assessment check", exact: true })
+        .getByRole("button", { name: "Add criterion", exact: true })
         .click();
       const media = page.locator(".eval-check").nth(2);
-      await media.getByLabel("Check ID", { exact: true }).fill("report-media");
+      await media
+        .getByLabel("Criterion ID", { exact: true })
+        .fill("report-media");
       await media
         .getByLabel("Evaluator", { exact: true })
         .selectOption("media-type@1");
