@@ -34,22 +34,56 @@ interface ActionParts {
  */
 type ActionDone = (announcement: string) => void;
 
+/**
+ * Moves focus to the page heading. Used when the user closes a confirmation
+ * after the Run stopped offering its action, so its button is gone too.
+ */
+type FocusHeading = () => void;
+
+type Recovery = NonNullable<RunStatus["recovery"]>;
+
+/** The failed stage a Continue confirmation was opened for. */
+interface ContinueTarget {
+  /** The stage execution the Server offered as the continuation source. */
+  source: string;
+  /** Its stage name, as the confirmation shows it. */
+  stage: string;
+}
+
+/**
+ * Retry model connection. The confirmation keeps the recovery it was opened
+ * for: it stays open, with any refusal, until the user closes it, even when
+ * a refetch ends that recovery, and a later recovery never reopens it
+ * without a click.
+ */
 function useRetryModelConnection(
   run: RunStatus,
   onDone: ActionDone,
+  focusHeading: FocusHeading,
 ): ActionParts {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
+  const [target, setTarget] = useState<Recovery>();
   const retry = useMutation({
     mutationFn: () => retryRunGateway(api, run.runId),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
   });
-  const recovery = run.recovery;
+  const offer = run.recovery?.requiresRetry === true ? run.recovery : undefined;
+
+  function clear(): void {
+    setTarget(undefined);
+    retry.reset();
+  }
+
+  function dismiss(): void {
+    clear();
+    if (offer === undefined) focusHeading();
+  }
+
   return {
     control:
-      recovery?.requiresRetry === true ? (
+      offer === undefined ? null : (
         <button
           className="ui-btn"
           data-size="sm"
@@ -57,45 +91,49 @@ function useRetryModelConnection(
           type="button"
           onClick={() => {
             retry.reset();
-            setConfirming(true);
+            setTarget(offer);
           }}
         >
           <Icon name="refresh" />
           Retry model connection
         </button>
-      ) : null,
+      ),
     overlay:
-      confirming && recovery !== undefined ? (
+      target === undefined ? null : (
         <RetryModelDialog
-          recovery={recovery}
+          recovery={target}
           pending={retry.isPending}
           error={retry.error}
           onConfirm={() =>
             retry.mutate(undefined, {
               onSuccess: () => {
-                setConfirming(false);
+                clear();
                 onDone("Model connection retry requested.");
               },
             })
           }
-          onCancel={() => setConfirming(false)}
+          onCancel={dismiss}
         />
-      ) : null,
+      ),
   };
 }
 
+/**
+ * Continue from failed stage. Like the retry, the confirmation keeps the
+ * stage it was opened for until the user closes it, and it sends that
+ * stage's source.
+ */
 function useContinueFromFailedStage(
   run: RunStatus,
   onDone: ActionDone,
+  focusHeading: FocusHeading,
 ): ActionParts {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
+  const [target, setTarget] = useState<ContinueTarget>();
   const inFlight = useRef(false);
-  const source = run.resumeStageExecutionId;
-  const stage =
-    run.attempts.find((attempt) => attempt.stageExecutionId === source)
-      ?.stage ?? source;
+  const source =
+    run.state === "failed" ? run.resumeStageExecutionId : undefined;
   const mutation = useMutation({
     mutationFn: (sourceID: string) => resumeRun(api, run.runId, sourceID),
     onSettled: async () => {
@@ -117,20 +155,32 @@ function useContinueFromFailedStage(
     },
   });
 
-  function confirm(sourceID: string): void {
+  function clear(): void {
+    setTarget(undefined);
+    mutation.reset();
+  }
+
+  function dismiss(): void {
+    clear();
+    if (source === undefined) focusHeading();
+  }
+
+  // Sends the source the confirmation names, never a newer one: the Server
+  // refuses a source that is no longer current.
+  function confirm(captured: ContinueTarget): void {
     if (inFlight.current) return;
     inFlight.current = true;
-    mutation.mutate(sourceID, {
+    mutation.mutate(captured.source, {
       onSuccess: () => {
-        setConfirming(false);
-        onDone(`Continuation of stage ${stage ?? ""} requested.`);
+        clear();
+        onDone(`Continuation of stage ${captured.stage} requested.`);
       },
     });
   }
 
   return {
     control:
-      run.state === "failed" && source !== undefined ? (
+      source === undefined ? null : (
         <button
           className="ui-btn"
           data-size="sm"
@@ -138,23 +188,29 @@ function useContinueFromFailedStage(
           type="button"
           onClick={() => {
             mutation.reset();
-            setConfirming(true);
+            setTarget({
+              source,
+              stage:
+                run.attempts.find(
+                  (attempt) => attempt.stageExecutionId === source,
+                )?.stage ?? source,
+            });
           }}
         >
           <Icon name="play" />
           Continue from failed stage
         </button>
-      ) : null,
+      ),
     overlay:
-      confirming && source !== undefined ? (
+      target === undefined ? null : (
         <ContinueRunDialog
-          stage={stage ?? source}
+          stage={target.stage}
           pending={mutation.isPending}
           error={mutation.error}
-          onConfirm={() => confirm(source)}
-          onCancel={() => setConfirming(false)}
+          onConfirm={() => confirm(target)}
+          onCancel={dismiss}
         />
-      ) : null,
+      ),
   };
 }
 
@@ -282,7 +338,11 @@ function useConfigureAnotherRun(run: RunStatus): ActionParts {
   };
 }
 
-function useCancelRun(run: RunStatus, onDone: ActionDone): ActionParts {
+function useCancelRun(
+  run: RunStatus,
+  onDone: ActionDone,
+  focusHeading: FocusHeading,
+): ActionParts {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -296,11 +356,14 @@ function useCancelRun(run: RunStatus, onDone: ActionDone): ActionParts {
       await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
     },
   });
+  const cancellable =
+    !isTerminalRunState(run.state) && run.state !== "cancelling";
 
   function close(): void {
     setOpen(false);
     setValidationError(undefined);
     mutation.reset();
+    if (!cancellable) focusHeading();
   }
 
   async function submit(): Promise<void> {
@@ -334,8 +397,6 @@ function useCancelRun(run: RunStatus, onDone: ActionDone): ActionParts {
     );
   }
 
-  const cancellable =
-    !isTerminalRunState(run.state) && run.state !== "cancelling";
   return {
     control: cancellable ? (
       <button
@@ -381,15 +442,17 @@ export function RunActions({
   run,
   refresh,
   onDone,
+  focusHeading,
 }: {
   run: RunStatus;
   refresh: ReactNode;
   onDone: ActionDone;
+  focusHeading: FocusHeading;
 }) {
-  const retry = useRetryModelConnection(run, onDone);
-  const resume = useContinueFromFailedStage(run, onDone);
+  const retry = useRetryModelConnection(run, onDone, focusHeading);
+  const resume = useContinueFromFailedStage(run, onDone, focusHeading);
   const repeat = useConfigureAnotherRun(run);
-  const cancel = useCancelRun(run, onDone);
+  const cancel = useCancelRun(run, onDone, focusHeading);
   const hasNotice = repeat.notice !== undefined && repeat.notice !== null;
   return (
     <>

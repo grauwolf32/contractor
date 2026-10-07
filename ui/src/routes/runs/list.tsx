@@ -91,6 +91,18 @@ function selectorLabel(selector: RunMetadataLabelSelector): string {
     : `${selector.key}:${selector.value}`;
 }
 
+/**
+ * The URL parameters for a change made inside Completed. A terminal
+ * `?state=` without a `view` opens Completed (S18), so the view is named
+ * before a change can drop that state: pressing "All" must not switch to
+ * the Queue.
+ */
+function completedParams(current: URLSearchParams): URLSearchParams {
+  return current.has("view")
+    ? new URLSearchParams(current)
+    : new URLSearchParams([["view", "completed"], ...current]);
+}
+
 function firstSelectorValue(
   selectors: readonly RunMetadataLabelSelector[],
   key: string,
@@ -448,7 +460,7 @@ export function CompletedRunsPanel() {
   });
 
   function replaceState(selected: WorkflowRunState | ""): void {
-    const next = new URLSearchParams(searchParams);
+    const next = completedParams(searchParams);
     next.delete("cursor");
     if (selected === "") {
       next.delete("state");
@@ -462,7 +474,7 @@ export function CompletedRunsPanel() {
     nextSelectors: readonly RunMetadataLabelSelector[],
   ): void {
     const normalized = normalizeRunMetadataLabelSelectors(nextSelectors);
-    const next = new URLSearchParams(searchParams);
+    const next = completedParams(searchParams);
     next.delete("cursor");
     next.delete("label");
     for (const selector of normalized) {

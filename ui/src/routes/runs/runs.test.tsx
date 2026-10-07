@@ -576,7 +576,17 @@ describe("Run routes", () => {
     );
     expect(posts).toBe(1);
     expect(requestBody).toEqual({ stageExecutionId: "stage-router-1" });
-    expect(await screen.findByText("stage-router-2")).toBeInTheDocument();
+    // The new attempt comes only from the refetched Run, linked to its source.
+    const continued = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>(
+        "#attempt-stage-router-2",
+      );
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    expect(within(continued).getByText(/^Continues/)).toHaveTextContent(
+      "Continues stage-router-1",
+    );
   });
 
   it("does not offer continuation without the Server capability", async () => {
@@ -644,6 +654,186 @@ describe("Run routes", () => {
     expect(
       screen.getByRole("button", { name: "Continue from failed stage" }),
     ).toBeEnabled();
+  });
+
+  it("keeps a refused continuation on its own stage and never reopens it unasked", async () => {
+    const posts: unknown[] = [];
+    const analysis = {
+      ...runFixture().attempts[0]!,
+      state: "failed" as const,
+    };
+    const review = {
+      ...analysis,
+      stageExecutionId: "stage-review-1",
+      stage: "review",
+    };
+    const failedAt = (attempt: typeof analysis) =>
+      runFixture({
+        state: "failed",
+        eventCursor: undefined,
+        activeStageExecutionId: undefined,
+        attempts: attempt === analysis ? [analysis] : [analysis, attempt],
+        resumeStageExecutionId: attempt.stageExecutionId,
+      });
+    let current = failedAt(analysis);
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router/resume" && request.method === "POST") {
+        posts.push(await request.json());
+        // Another tab continued the Run first: it is queued again.
+        current = runFixture({
+          state: "pending",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [analysis],
+        });
+        return apiResponse(
+          {
+            code: "conflict",
+            message: "The Run is no longer failed",
+            retryable: false,
+          },
+          { status: 409 },
+        );
+      }
+      if (path === "/v1/runs/run-router") return apiResponse(current);
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    const view = renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Continue from failed stage" }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Continue from failed stage?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm continuation" }),
+    );
+    expect(
+      await within(dialog).findByText("The Run is no longer failed"),
+    ).toBeInTheDocument();
+    // The refetched Run offers no continuation, yet the confirmation stays
+    // with its stage and the refusal until the user closes it.
+    await waitFor(() =>
+      expect(view.container.querySelector(".run-triage")).toHaveClass(
+        "run-triage-pending",
+      ),
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: "Continue from failed stage",
+        hidden: true,
+      }),
+    ).toBeNull();
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("Retry stage analysis?");
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    // The button that opened it is gone, so the page heading takes focus.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
+    );
+
+    // The Run fails again at another stage: nothing opens until a click.
+    current = failedAt(review);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    const trigger = await screen.findByRole("button", {
+      name: "Continue from failed stage",
+    });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await user.click(trigger);
+    const next = screen.getByRole("alertdialog", {
+      name: "Continue from failed stage?",
+    });
+    expect(next).toHaveTextContent("Retry stage review?");
+    expect(within(next).queryByText("The Run is no longer failed")).toBeNull();
+    expect(posts).toEqual([{ stageExecutionId: "stage-router-1" }]);
+  });
+
+  it("keeps a refused model retry on its own recovery and never reopens it unasked", async () => {
+    let posts = 0;
+    const waitingFor = (code: "model_unavailable" | "gateway_timeout") =>
+      runFixture({
+        state: "waiting",
+        eventCursor: undefined,
+        recovery: {
+          code,
+          since: "2026-09-20T20:00:00Z",
+          automaticUntil: "2026-09-20T20:05:00Z",
+          requiresRetry: true,
+        },
+      });
+    let current = waitingFor("model_unavailable");
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (
+        path === "/v1/runs/run-router/retry-gateway" &&
+        request.method === "POST"
+      ) {
+        posts++;
+        // The model came back and the Run resumed before this request.
+        current = runFixture({ eventCursor: undefined });
+        return apiResponse(
+          {
+            code: "conflict",
+            message: "The Run is not waiting for a model retry",
+            retryable: false,
+          },
+          { status: 409 },
+        );
+      }
+      if (path === "/v1/runs/run-router") return apiResponse(current);
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    const view = renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Retry model connection" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Retry the model connection?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm retry" }),
+    );
+    expect(
+      await within(dialog).findByText(
+        "The Run is not waiting for a model retry",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(view.container.querySelector(".run-triage")).toHaveClass(
+        "run-triage-running",
+      ),
+    );
+    expect(dialog).toHaveTextContent(
+      "The model was unloaded or is unavailable.",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Not now" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
+    );
+
+    // A later recovery waits for its own click and names its own cause.
+    current = waitingFor("gateway_timeout");
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    const trigger = await screen.findByRole("button", {
+      name: "Retry model connection",
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(trigger);
+    expect(
+      screen.getByRole("dialog", { name: "Retry the model connection?" }),
+    ).toHaveTextContent("The model request timed out.");
+    expect(posts).toBe(1);
   });
 
   it("offers confirmed deletion only for server-deletable completed Runs", async () => {
@@ -925,6 +1115,64 @@ describe("Run routes", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.searchParams.get("state")).toBe("failed");
     expect(requests[0]?.searchParams.get("lifecycle")).toBe("terminal");
+  });
+
+  it("stays in Completed when a state deep link is cleared or filtered further", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs") {
+          requests.push(url);
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderRunApplication(api, "/runs?state=failed");
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText("No completed Runs match this view."),
+    ).toBeInTheDocument();
+    const completedLink = () =>
+      within(screen.getByRole("navigation", { name: "Run views" })).getByRole(
+        "link",
+        { name: "Completed" },
+      );
+
+    // "All" drops the state that selected Completed, so the view is named.
+    await user.click(
+      within(screen.getByRole("group", { name: "State" })).getByRole("button", {
+        name: "All",
+      }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?view=completed"),
+    );
+    expect(completedLink()).toHaveAttribute("aria-current", "page");
+    expect(document.title).toBe("Completed · Runs · Contractor");
+    await waitFor(() =>
+      expect(requests.at(-1)?.searchParams.has("state")).toBe(false),
+    );
+    expect(requests.at(-1)?.searchParams.get("lifecycle")).toBe("terminal");
+
+    // A metadata filter added to a state deep link keeps the view as well.
+    await act(() => router.navigate("/runs?state=cancelled"));
+    await user.click(await screen.findByText("Metadata & eval filters"));
+    await user.type(screen.getByLabelText("Label key"), "team");
+    await user.type(screen.getByLabelText("Label value"), "red");
+    await user.click(screen.getByRole("button", { name: "Add filter" }));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(
+        "?view=completed&state=cancelled&label=team%3Dred",
+      ),
+    );
+    expect(completedLink()).toHaveAttribute("aria-current", "page");
   });
 
   it("keeps exact metadata selectors across paging and resets the cursor when they change", async () => {
@@ -2073,6 +2321,29 @@ describe("Run routes", () => {
       screen.getByText("Worker result did not match StageContentResult."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("escalation 1")).toHaveLength(2);
+    // Stage execution IDs stay readable in full and copyable, so attempts,
+    // continuations and Scheduler decisions can be matched exactly.
+    expect(
+      screen.getAllByRole("button", { name: "Copy stage execution ID" }),
+    ).toHaveLength(2);
+    const second = view.container.querySelector<HTMLElement>(
+      "#attempt-stage-router-2",
+    )!;
+    expect(
+      within(second).getByText("stage-router-2", {
+        selector: ".ui-id-chip-value",
+      }),
+    ).toHaveAttribute("title", "stage-router-2");
+    expect(
+      within(second).getByRole("button", {
+        name: "Copy previous stage execution ID",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        view.container.querySelector<HTMLElement>("#attempt-stage-router-1")!,
+      ).getByRole("button", { name: "Copy target stage execution ID" }),
+    ).toBeInTheDocument();
     expect(
       await screen.findAllByRole("link", { name: /outputs\/report@output-r2/ }),
     ).toHaveLength(2);

@@ -94,6 +94,7 @@
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 /* Run metadata labels as small mono chips inside the Runs pages. */
@@ -954,6 +955,7 @@
 
 .runs-block-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   min-width: 0;
   scroll-margin-top: 1rem;
@@ -986,6 +988,7 @@
 /* Triage summary. */
 .runs-triage {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.875rem;
   min-width: 0;
 }
@@ -1024,6 +1027,7 @@
 
 .runs-cause {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   border-color: var(--danger-line);
   background: var(--danger-bg);
@@ -1045,6 +1049,7 @@
   color: var(--text);
   font-size: 0.8125rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .runs-cause-message {
@@ -1059,6 +1064,7 @@
 .runs-cause small {
   color: var(--muted);
   font-size: 0.75rem;
+  overflow-wrap: anywhere;
 }
 
 .runs-recovery {
@@ -1086,6 +1092,7 @@
 
 .runs-next {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
 }
 
@@ -1126,11 +1133,13 @@
 
 .runs-result-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
 }
 
 .runs-result {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   min-width: 0;
   padding: 0.875rem 1rem;
@@ -1233,6 +1242,7 @@
 
 .runs-publication-list > li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   min-width: 0;
   padding: 0.75rem 0.875rem;
@@ -1248,6 +1258,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem 0.625rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .runs-publication-head small {
@@ -1360,10 +1372,12 @@ a.runs-publication-ref {
   color: var(--muted);
   font-size: 0.75rem;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .runs-section-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.875rem;
   min-width: 0;
   padding: 0.25rem 0.875rem 1rem 2.25rem;
@@ -1424,6 +1438,7 @@ a.runs-publication-ref {
 .runs-binding,
 .runs-block {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 0.5rem;
   min-width: 0;
@@ -1435,7 +1450,13 @@ a.runs-publication-ref {
 
 .runs-ref-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
+}
+
+.runs-ref-list > .artifact-ref-link {
+  grid-template-columns: minmax(0, 1fr);
+  overflow-wrap: anywhere;
 }
 
 .runs-facts-list {
@@ -1455,6 +1476,7 @@ a.runs-publication-ref {
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .runs-facts-list dd {
@@ -1475,6 +1497,7 @@ a.runs-publication-ref {
 
 .runs-pin {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   min-width: 0;
   padding: 0.625rem 0.75rem;
@@ -1557,6 +1580,7 @@ a.runs-publication-ref {
   color: var(--text);
   font-size: 0.8125rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .runs-attempt-number {
@@ -1627,6 +1651,7 @@ a.runs-publication-ref {
   color: var(--muted);
   font-size: 0.78125rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .runs-block > .notice {
@@ -1649,10 +1674,13 @@ a.runs-publication-ref {
   margin: 0;
 }
 
+/* A fact whose value does not fit beside its label (an execution ID chip on
+   a phone) moves the value to its own line. */
 .runs-inline-facts > div {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.125rem 0.375rem;
   min-width: 0;
   max-width: 100%;
 }
@@ -1678,10 +1706,12 @@ a.runs-publication-ref {
   border-radius: 0.5rem;
   background: var(--info-bg);
   font-size: 0.78125rem;
+  overflow-wrap: anywhere;
 }
 
 .runs-dispatch > span {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.0625rem;
   min-width: 0;
 }
@@ -1696,6 +1726,7 @@ a.runs-publication-ref {
 .runs-consumer-list,
 .runs-origin-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   margin: 0;
   padding: 0;
@@ -1714,6 +1745,7 @@ a.runs-publication-ref {
 
 .runs-subtask-list > li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
 }
 
@@ -1791,17 +1823,20 @@ a.runs-publication-ref {
 
 .runs-allocation-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
 
 .runs-allocation {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
   min-width: 0;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
   background: var(--surface);
+  overflow-wrap: anywhere;
 }
 
 .runs-allocation-head {
@@ -1828,6 +1863,7 @@ a.runs-publication-ref {
 
 .runs-record-list > li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
 }
 
@@ -1837,6 +1873,7 @@ a.runs-publication-ref {
   align-items: center;
   gap: 0.25rem 0.5rem;
   font-size: 0.78125rem;
+  overflow-wrap: anywhere;
 }
 
 .runs-record-head span {
@@ -1853,6 +1890,7 @@ a.runs-publication-ref {
 
 .runs-terminal-record {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem;
   min-width: 0;
 }
@@ -1875,6 +1913,13 @@ a.runs-publication-ref {
   align-items: baseline;
   gap: 0.25rem 0.625rem;
   font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+/* A long execution ID chip shrinks to the line (with an ellipsis). */
+.runs-transition > span {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .runs-transition small {
@@ -1966,6 +2011,7 @@ a.runs-publication-ref {
   margin: 0.5rem 0 0;
   color: var(--muted-strong);
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .runs-dialog-text p {

@@ -9,7 +9,7 @@ import type {
   WorkflowRunState,
 } from "../../api/runs";
 import { compactDigest, compactId, formatTimestamp } from "../../app/format";
-import { StatusChip, StatusGlyph } from "../../ui";
+import { IdChip, StatusChip, StatusGlyph } from "../../ui";
 import type { PlannerProjection } from "./live";
 import { artifactDetailPath } from "../artifacts/paths";
 import {
@@ -203,6 +203,15 @@ function Digest({ value }: { value: string }) {
       {compactDigest(value)}
     </code>
   );
+}
+
+/**
+ * A stage execution ID in full, with a copy button: Technical details are
+ * where people match attempts and search logs, so the exact value stays
+ * readable and copyable (the attempt summary shows only a compact form).
+ */
+function ExecutionId({ value, label }: { value: string; label: string }) {
+  return <IdChip value={value} display={value} label={label} />;
 }
 
 function ConsumerConfigView({
@@ -631,7 +640,11 @@ function TransitionView({ transition }: { transition: StageTransition }) {
       )}
       {transition.targetExecutionId === undefined ? null : (
         <span>
-          execution <code>{transition.targetExecutionId}</code>
+          execution{" "}
+          <ExecutionId
+            value={transition.targetExecutionId}
+            label="target stage execution ID"
+          />
         </span>
       )}
       {transition.escalationOrdinal === undefined ? null : (
@@ -645,7 +658,7 @@ function TransitionView({ transition }: { transition: StageTransition }) {
   );
 }
 
-function AttemptTimestamps({ attempt }: { attempt: StageAttempt }) {
+function AttemptFacts({ attempt }: { attempt: StageAttempt }) {
   const values: Array<[string, string | undefined]> = [
     ["Created", attempt.createdAt],
     ["Updated", attempt.updatedAt],
@@ -654,6 +667,15 @@ function AttemptTimestamps({ attempt }: { attempt: StageAttempt }) {
   ];
   return (
     <dl className="runs-inline-facts">
+      <div>
+        <dt>Stage execution ID</dt>
+        <dd>
+          <ExecutionId
+            value={attempt.stageExecutionId}
+            label="stage execution ID"
+          />
+        </dd>
+      </div>
       {values.map(([label, value]) =>
         value === undefined ? null : (
           <div key={label}>
@@ -715,10 +737,14 @@ export function StageAttemptView({
           </h3>
           {attempt.previousExecutionId === undefined ? null : (
             <p className="runs-block-note">
-              Continues <code>{attempt.previousExecutionId}</code>
+              Continues{" "}
+              <ExecutionId
+                value={attempt.previousExecutionId}
+                label="previous stage execution ID"
+              />
             </p>
           )}
-          <AttemptTimestamps attempt={attempt} />
+          <AttemptFacts attempt={attempt} />
         </div>
         <PlannerPlanView
           projection={projection}

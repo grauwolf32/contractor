@@ -951,11 +951,14 @@ function LoadedRunDetail({
       );
     });
   }
-  function actionDone(message: string): void {
-    setAnnouncement(message);
+  function focusHeading(): void {
     // The Dialog returns focus to its trigger first; the trigger is usually
     // gone with the new state, so the page heading takes focus instead.
     window.setTimeout(() => heading.current?.focus(), 0);
+  }
+  function actionDone(message: string): void {
+    setAnnouncement(message);
+    focusHeading();
   }
 
   return (
@@ -967,7 +970,12 @@ function LoadedRunDetail({
           <RunTitle workflow={run.workflow} headingRef={heading} />
           <RunStateChip state={run.state} size="md" />
         </div>
-        <RunActions run={run} refresh={refresh} onDone={actionDone} />
+        <RunActions
+          run={run}
+          refresh={refresh}
+          onDone={actionDone}
+          focusHeading={focusHeading}
+        />
         <RunFacts
           run={run}
           {...(triage.durationMs === undefined
