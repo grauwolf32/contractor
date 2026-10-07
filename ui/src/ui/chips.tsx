@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { shortenId } from "./format";
 import { modKeyLabel } from "./shortcuts";
@@ -45,7 +51,7 @@ export function IdChip({ value, label, display, wrap = false }: IdChipProps) {
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (selectRequest === 0) return;
     const node = selectable.current;
     const selection = window.getSelection();
