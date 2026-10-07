@@ -1,25 +1,10 @@
-/**
- * Activity logs of a check and of one item, built from the timestamps the
- * Server keeps on the check, its items, attempts, possible issues and review
- * requests. There is no event stream yet (S19:1858-1860), so a log is as
- * complete as those records.
- */
-import type {
-  Audit,
-  AuditFinding,
-  AuditItem,
-  AuditReviewRequest,
-} from "../../../api/audits";
+/** Current item activity comes from its retained attempts and results.
+ * Whole-check history uses the immutable event API in event-history.tsx. */
+import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
 import type { StatusTone } from "../../../app/status-tone";
-import {
-  itemNoun,
-  reviewKindLabel,
-  verdictLabel,
-  type ItemKind,
-} from "../../../app/vocabulary";
+import { itemNoun, verdictLabel, type ItemKind } from "../../../app/vocabulary";
 import type { ActivityEntry } from "../../../ui";
-import { entryName, firstLine, type CheckEntry } from "./check-model";
-import { describeStopReason } from "./stop-reason";
+import { firstLine, type CheckEntry } from "./check-model";
 
 type AuditItemAttempt = AuditItem["attempts"][number];
 
@@ -108,14 +93,6 @@ export function dispositionOf(attempt: AuditItemAttempt): {
   )
     return { text: undefined, tone: "blocked" };
   return { text: undefined, tone: "neutral" };
-}
-
-function attemptFailed(attempt: AuditItemAttempt): boolean {
-  return (
-    attempt.terminalOutcome === "failed" ||
-    attempt.terminalOutcome === "submission-failed" ||
-    attempt.collectionDisposition === "execution-failed"
-  );
 }
 
 function findingEvents(
@@ -225,114 +202,4 @@ export function nowSentence(
     default:
       return undefined;
   }
-}
-
-const END_EVENTS: Partial<
-  Record<Audit["state"], { title: string; tone: StatusTone }>
-> = {
-  completed: { title: "Check finished.", tone: "done" },
-  cancelled: { title: "Check stopped.", tone: "neutral" },
-  failed: { title: "Check failed.", tone: "blocked" },
-};
-
-const NOW_TONES: Partial<Record<Audit["state"], StatusTone>> = {
-  draft: "idle",
-  waiting_review: "review",
-  paused: "warning",
-  cancelling: "warning",
-  deleting: "neutral",
-};
-
-/** The most entries the whole-check log shows. */
-export const CHECK_ACTIVITY_LIMIT = 30;
-
-/**
- * What happened in the whole check, newest first: its lifecycle, results of
- * its items, failed attempts, possible issues, decisions and the decisions
- * waiting for the user. `total` counts every event before the limit.
- */
-export function checkActivity({
-  audit,
-  entries,
-  findings,
-  waiting,
-  now,
-}: {
-  audit: Audit;
-  entries: readonly CheckEntry[];
-  findings: readonly AuditFinding[];
-  waiting: readonly AuditReviewRequest[];
-  /** What the check is doing now, shown first. */
-  now: string | undefined;
-}): { entries: ActivityEntry[]; total: number } {
-  const events: TimedEntry[] = [];
-  push(events, "created", audit.createdAt, {
-    tone: "neutral",
-    title: "Check created.",
-  });
-  push(events, "started", audit.startedAt, {
-    tone: "progress",
-    title: "Check started.",
-  });
-  if (audit.state === "paused")
-    push(events, "paused", audit.pausedAt, {
-      tone: "warning",
-      title: "Paused.",
-    });
-  const end = END_EVENTS[audit.state];
-  if (end !== undefined)
-    push(events, "finished", audit.finishedAt, {
-      ...end,
-      text: describeStopReason(audit)?.sentence,
-    });
-  push(events, "deletion", audit.deletionRequestedAt, {
-    tone: "neutral",
-    title: "Deletion requested.",
-  });
-  for (const entry of entries) {
-    const name = entryName(entry);
-    if (entry.row.coverage.status !== "not-tested")
-      push(events, `result-${entry.row.itemId}`, entry.row.updatedAt, {
-        tone: entry.status.tone,
-        title: `${entry.status.label}:`,
-        text: name,
-      });
-    for (const attempt of entry.item?.attempts ?? []) {
-      if (!attemptFailed(attempt)) continue;
-      push(
-        events,
-        `failed-${attempt.executionItemId}`,
-        attempt.collectedAt ?? attempt.createdAt,
-        {
-          tone: "blocked",
-          title: `Attempt ${attempt.itemAttempt} ${outcomeWords(attempt.terminalOutcome)}:`,
-          text: name,
-        },
-      );
-    }
-  }
-  for (const finding of findings) findingEvents(events, finding, "check-");
-  for (const review of waiting)
-    push(events, `waiting-${review.requestId}`, review.createdAt, {
-      tone: "review",
-      title: "Waiting for your decision:",
-      text: reviewKindLabel(review.kind),
-    });
-  const sorted = newestFirst(events);
-  const shown = sorted.slice(0, CHECK_ACTIVITY_LIMIT);
-  return {
-    entries:
-      now === undefined
-        ? shown
-        : [
-            {
-              id: "now",
-              time: "now",
-              tone: NOW_TONES[audit.state] ?? "progress",
-              title: now,
-            },
-            ...shown,
-          ],
-    total: sorted.length,
-  };
 }

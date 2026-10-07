@@ -13,6 +13,8 @@ export type AuditProfile = components["schemas"]["AuditProfile"];
 export type AuditProfilePage = components["schemas"]["AuditProfilePage"];
 export type Audit = components["schemas"]["Audit"];
 export type AuditPage = components["schemas"]["AuditPage"];
+export type AuditEvent = components["schemas"]["AuditEvent"];
+export type AuditEventPage = components["schemas"]["AuditEventPage"];
 export type AuditState = components["schemas"]["AuditState"];
 export type AuditItem = components["schemas"]["AuditItem"];
 export type AuditItemPage = components["schemas"]["AuditItemPage"];
@@ -55,6 +57,52 @@ export interface ReviewPageRequest extends PageRequest {
 
 export interface PageRequest {
   cursor?: string;
+}
+
+export async function listAuditEvents(
+  api: PublicAPI,
+  auditId: string,
+  request: PageRequest = {},
+  signal?: AbortSignal,
+): Promise<AuditEventPage> {
+  requireAuditID(auditId);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/events", {
+      ...(signal === undefined ? {} : { signal }),
+      params: {
+        path: { auditId },
+        query: { limit: AUDIT_PAGE_SIZE, ...request },
+      },
+    }),
+  );
+  const value = requireData(result);
+  const page = safePage(value, result.response.status);
+  if (
+    !Number.isSafeInteger(value.throughSequence) ||
+    value.throughSequence < 0 ||
+    !Number.isSafeInteger(value.total) ||
+    value.total < page.items.length ||
+    (page.page.hasMore &&
+      (page.items.length === 0 ||
+        page.page.nextCursor === undefined ||
+        page.page.nextCursor === "")) ||
+    page.items.some(
+      (event, index) =>
+        event.auditId !== auditId ||
+        !Number.isSafeInteger(event.sequence) ||
+        event.sequence < 1 ||
+        event.sequence > value.throughSequence ||
+        (index > 0 && event.sequence >= page.items[index - 1]!.sequence) ||
+        !AUDIT_ID_PATTERN.test(event.entityId) ||
+        !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(event.kind) ||
+        !Number.isFinite(Date.parse(event.createdAt)) ||
+        event.summary === null ||
+        typeof event.summary !== "object" ||
+        Array.isArray(event.summary),
+    )
+  )
+    throw invalidAuditResponse(result.response.status);
+  return structuredClone(value);
 }
 
 export interface ProjectAuditPageRequest extends PageRequest {

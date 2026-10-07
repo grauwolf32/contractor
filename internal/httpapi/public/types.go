@@ -170,6 +170,7 @@ type ProjectManagement interface {
 }
 
 type AuditManagement interface {
+	ListEventsPage(context.Context, auditservice.EventListParams) (auditservice.EventPage, error)
 	ListOwnerFindings(context.Context, auditservice.OwnerFindingListParams) ([]auditservice.Finding, error)
 	ListOwnerReviews(context.Context, auditservice.OwnerReviewListParams) ([]auditservice.ReviewRequest, error)
 	GetWorkspace(context.Context, string, string) (auditservice.WorkspaceSummary, error)

@@ -129,6 +129,8 @@ export const queryKeys = {
   },
   audits: {
     detail: (auditId: string) => ["audits", "detail", auditId] as const,
+    events: (auditId: string) =>
+      ["audits", "detail", auditId, "events"] as const,
     allCoverage: (auditId: string) =>
       ["audits", "detail", auditId, "coverage", "all"] as const,
     report: (auditId: string) =>

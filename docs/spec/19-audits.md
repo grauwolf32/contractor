@@ -1851,6 +1851,22 @@ denominator. Other item and report reviews remain approve/reject. A proposed rep
 is readable before acceptance and links back to that request; it is never
 presented as an accepted result.
 
+`GET /v1/audits/{auditId}/events` serves the durable owner-scoped history,
+newest sequence first, in pages of at most 200 events. The first read fixes
+`throughSequence`; signed cursors bind owner, Audit, that immutable prefix
+and the next exclusive sequence boundary. `total` counts the frozen prefix,
+before pagination. New events do not invalidate continuations: refresh begins
+a new prefix. Summaries project only bounded structured identifiers, counters
+and known states/actions; free-form messages, rationale, nested data and request
+digests are omitted. Events remain until Audit purge.
+
+All activity reads 50 events at a time, exposes Load older activity, keeps
+settled events visible on continuation errors and refreshes the complete loaded
+cursor chain while nonterminal or after a mutation/reconnect. The current-state
+sentence is separate from recorded history. Per-item activity summarizes its
+retained attempts and current results, without claiming an immutable per-item
+ledger.
+
 The UI uses bounded polling of authoritative Audit/profile reads while an
 Audit is nonterminal or deleting, keyed by Audit revision/ETag, and stops when
 the route is inactive or terminal. It refetches immediately after a mutation

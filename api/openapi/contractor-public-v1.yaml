@@ -4324,6 +4324,36 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/events:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: listAuditEvents
+      tags: [Audits]
+      summary: Read the immutable event history of an owned Audit
+      description: |
+        Newest sequence first, independent of timestamps. The first page freezes
+        throughSequence; signed continuations bind owner, Audit and that immutable
+        prefix. New events do not invalidate older pages and appear on refresh.
+        total counts the entire frozen prefix, before the cursor. Events are
+        retained until Audit purge. Summaries expose only bounded structured
+        fields; free-form messages, rationale and nested stored data are omitted.
+        This HTTP history uses polling; it does not extend the Run WebSocket.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Owner-scoped immutable event prefix
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditEventPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/audits/{auditId}/workspace:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -11609,6 +11639,50 @@ components:
           not: {required: [currentRoundId]}
         - properties: {phase: {const: rounds}}
           required: [currentRoundId]
+    AuditEventSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        state: {type: string, maxLength: 32}
+        from: {type: string, maxLength: 32}
+        to: {type: string, maxLength: 32}
+        role: {$ref: '#/components/schemas/AuditExecutionRole'}
+        outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
+        disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
+        subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
+        kind: {enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
+        action: {$ref: '#/components/schemas/AuditReviewAction'}
+        verdict: {enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        subjectId: {$ref: '#/components/schemas/ResourceId'}
+        findingId: {$ref: '#/components/schemas/ResourceId'}
+        workflowRole: {$ref: '#/components/schemas/ResourceId'}
+        round: {type: integer, minimum: 0, maximum: 2147483647}
+        items: {type: integer, minimum: 0, maximum: 2147483647}
+        reviews: {type: integer, minimum: 0, maximum: 2147483647}
+        members: {type: integer, minimum: 0, maximum: 2147483647}
+        count: {type: integer, minimum: 0, maximum: 2147483647}
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [auditId, sequence, kind, entityId, summary, createdAt]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        sequence: {type: integer, minimum: 1}
+        kind: {type: string, pattern: '^[a-z][a-z0-9_]*[.][a-z][a-z0-9_]*$', maxLength: 128}
+        entityId: {$ref: '#/components/schemas/ResourceId'}
+        entityRevision: {type: integer, minimum: 1}
+        summary: {$ref: '#/components/schemas/AuditEventSummary'}
+        createdAt: {type: string, format: date-time}
+    AuditEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, throughSequence, total]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditEvent'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+        throughSequence: {type: integer, minimum: 0}
+        total: {type: integer, minimum: 0}
     AuditPage:
       type: object
       additionalProperties: false

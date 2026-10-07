@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  CHECK_ACTIVITY_LIMIT,
-  checkActivity,
-  itemActivity,
-  nowSentence,
-} from "./activity-model";
+import { itemActivity, nowSentence } from "./activity-model";
 import { buildEntries } from "./check-model";
 import {
   endpointRow,
@@ -13,7 +8,6 @@ import {
   makeAudit,
   makeFinding,
   makeItem,
-  makeReview,
 } from "./check-test-support";
 
 describe("activity", () => {
@@ -77,45 +71,5 @@ describe("activity", () => {
     expect(
       nowSentence(makeAudit("a", "p", "completed"), [], "item"),
     ).toBeUndefined();
-  });
-
-  it("keeps the whole-check log to the latest events", () => {
-    const audit = makeAudit("audit_1", "project_1", "completed", {
-      finishedAt: "2026-10-05T12:00:00Z",
-    });
-    const rows = Array.from({ length: CHECK_ACTIVITY_LIMIT + 5 }, (_, index) =>
-      endpointRow(
-        `item_${index}`,
-        index,
-        "GET",
-        `/r${index}`,
-        "traced-complete",
-      ),
-    );
-    const log = checkActivity({
-      audit,
-      entries: buildEntries(rows, [], [], "endpoint"),
-      findings: [],
-      waiting: [makeReview("audit_1", "review_1")],
-      now: undefined,
-    });
-    expect(log.entries).toHaveLength(CHECK_ACTIVITY_LIMIT);
-    expect(log.total).toBe(CHECK_ACTIVITY_LIMIT + 5 + 4);
-    expect(log.entries[0]).toMatchObject({
-      title: "Check finished.",
-      tone: "done",
-    });
-    const withNow = checkActivity({
-      audit: makeAudit("audit_1", "project_1", "waiting_review"),
-      entries: [],
-      findings: [],
-      waiting: [makeReview("audit_1", "review_1")],
-      now: "Waiting for your decisions before it can go on.",
-    });
-    expect(withNow.entries[0]).toMatchObject({ time: "now", tone: "review" });
-    expect(withNow.entries[1]).toMatchObject({
-      title: "Waiting for your decision:",
-      text: "Active test approval",
-    });
   });
 });

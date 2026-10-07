@@ -404,3 +404,16 @@ item routes share one component, so selection keeps the list mounted; read
 `auditId` / `findingId` with `useParams()`. The static server allows the new
 paths; query strings are ignored when matching. Unknown shapes
 (`/checks/:x`, `/issues/:a`, …) are 404.
+
+## Check history API follow-up (2026-10-07)
+
+All activity uses `GET /v1/audits/{auditId}/events` and its immutable sequence
+order. Read 50 events per page and expose Load older activity. Continuations
+keep the same `throughSequence` and `total`; a refresh starts a new prefix and
+rebuilds every loaded continuation. Keep settled pages visible when a later
+request fails, with an explicit retry. Poll at most once every 5 seconds while
+the check can change; stop off-route or terminal, with a final refresh when it
+becomes terminal and immediate invalidation after mutations. The current-state
+sentence is not a recorded event. Never reconstruct missing check events from
+current timestamps. Per-item activity still summarizes retained attempts and
+results; WebSocket transport is deferred by S19.

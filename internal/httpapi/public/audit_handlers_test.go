@@ -555,6 +555,8 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
+	events              auditservice.EventPage
+	eventParams         auditservice.EventListParams
 	ownerFindings       auditservice.OwnerFindingListParams
 	ownerReviews        auditservice.OwnerReviewListParams
 	profiles            []auditservice.ProfileProjection
@@ -612,6 +614,11 @@ func (f *fakeFindingProposalManagement) ImportIntoAudit(
 
 func (f *fakeAuditManagement) Profiles() []auditservice.ProfileProjection {
 	return append([]auditservice.ProfileProjection(nil), f.profiles...)
+}
+
+func (f *fakeAuditManagement) ListEventsPage(_ context.Context, p auditservice.EventListParams) (auditservice.EventPage, error) {
+	f.eventParams = p
+	return f.events, f.err
 }
 
 func (f *fakeAuditManagement) Profile(selector auditservice.ProfileSelector) (auditservice.ProfileProjection, error) {

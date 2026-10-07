@@ -402,7 +402,7 @@ describe("Issues", () => {
       "Decision recorded: Not an issue. That was the last possible issue in this list.";
     expect(pageStatus()).toHaveTextContent(outcome);
     const list = screen.getByRole("region", { name: "Possible issues" });
-    expect(within(list).getByText(outcome)).toBeVisible();
+    expect(await within(list).findByText(outcome)).toBeVisible();
     // The decision and its row go away, so focus moves to the list's title.
     const title = within(list).getByRole("heading", {
       level: 1,

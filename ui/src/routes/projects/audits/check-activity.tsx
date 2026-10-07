@@ -18,13 +18,10 @@ import {
   reviewKindLabel,
   type ItemKind,
 } from "../../../app/vocabulary";
-import { ActivityLog, StatusChip, StatusGlyph } from "../../../ui";
+import { StatusChip, StatusGlyph } from "../../../ui";
 import { ActionDecision } from "../../decisions";
-import {
-  CHECK_ACTIVITY_LIMIT,
-  checkActivity,
-  nowSentence,
-} from "./activity-model";
+import { nowSentence } from "./activity-model";
+import { CheckEventHistory } from "./event-history";
 import type { CheckLinks } from "./check-links";
 import { findingsReadable, REPORT_STATES } from "./check-data";
 import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
@@ -362,17 +359,6 @@ export function CheckActivity({
   technicalOpen?: boolean;
 }) {
   const now = nowSentence(audit, entries, kind);
-  const log = useMemo(
-    () =>
-      checkActivity({
-        audit,
-        entries,
-        findings: findings.items,
-        waiting: waiting.data?.items ?? [],
-        now,
-      }),
-    [audit, entries, findings.items, now, waiting.data],
-  );
   return (
     <div className="checks-activity">
       <div className="checks-section-heading">
@@ -392,16 +378,7 @@ export function CheckActivity({
         <Report audit={audit} report={report} links={links} />
       </div>
       <Block title="Activity on this check">
-        <ActivityLog
-          aria-label="Activity on this check"
-          entries={log.entries}
-        />
-        {log.total > CHECK_ACTIVITY_LIMIT ? (
-          <p className="checks-quiet">
-            Showing the latest {CHECK_ACTIVITY_LIMIT} of{" "}
-            {log.total.toLocaleString("en-US")} events.
-          </p>
-        ) : null}
+        <CheckEventHistory audit={audit} now={now} links={links} />
       </Block>
       {/* A "#technical-details" link reopens only this disclosure; the
           decisions above keep what the user typed. */}

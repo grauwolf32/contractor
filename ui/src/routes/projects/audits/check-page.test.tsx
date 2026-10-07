@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   Audit,
   AuditCoverageRow,
+  AuditEvent,
   AuditFinding,
   AuditItem,
   AuditReviewRequest,
@@ -62,6 +63,7 @@ interface CheckServer {
   reviews?: (url: URL) => Response | AuditReviewRequest[];
   workspace?: (audit: Audit) => Response | object;
   report?: () => unknown;
+  events?: (url: URL) => Response | AuditEvent[];
   /** Asked first, e.g. for mutations. */
   handle?: Handler;
 }
@@ -108,6 +110,17 @@ function serveCheck(server: CheckServer) {
     }
     if (path === `/v1/audits/audit_example/report`)
       return jsonResponse(server.report?.() ?? { status: "pending" });
+    if (path === `/v1/audits/audit_example/events`) {
+      const events = server.events?.(url) ?? [];
+      return events instanceof Response
+        ? events
+        : jsonResponse({
+            items: events,
+            page: { hasMore: false },
+            total: events.length,
+            throughSequence: events[0]?.sequence ?? 0,
+          });
+    }
     return emptyPage();
   });
 }
@@ -836,6 +849,32 @@ describe("Check page", () => {
     );
     const { api } = serveCheck({
       audit: () => current,
+      events: () => [
+        {
+          auditId: current.auditId,
+          sequence: 3,
+          kind: "review.requested",
+          entityId: "review_report",
+          summary: { kind: "report-acceptance" },
+          createdAt: current.updatedAt,
+        },
+        {
+          auditId: current.auditId,
+          sequence: 2,
+          kind: "review.requested",
+          entityId: "review_item",
+          summary: { kind: "requirement-applicability" },
+          createdAt: current.updatedAt,
+        },
+        {
+          auditId: current.auditId,
+          sequence: 1,
+          kind: "round.accepted",
+          entityId: "round_1",
+          summary: { round: 1, items: 1 },
+          createdAt: current.startedAt!,
+        },
+      ],
       coverage: () => [
         requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
       ],
@@ -903,7 +942,7 @@ describe("Check page", () => {
     expect(
       within(log).getByText("Waiting for your decisions before it can go on."),
     ).toBeVisible();
-    expect(within(log).getByText("Check started.")).toBeVisible();
+    expect(await within(log).findByText("Check started.")).toBeVisible();
     expect(within(log).getAllByText("Waiting for your decision:")).toHaveLength(
       2,
     );

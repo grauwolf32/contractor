@@ -1093,6 +1093,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the immutable event history of an owned Audit
+         * @description Newest sequence first, independent of timestamps. The first page freezes
+         *     throughSequence; signed continuations bind owner, Audit and that immutable
+         *     prefix. New events do not invalidate older pages and appear on refresh.
+         *     total counts the entire frozen prefix, before the cursor. Events are
+         *     retained until Audit purge. Summaries expose only bounded structured
+         *     fields; free-form messages, rationale and nested stored data are omitted.
+         *     This HTTP history uses polling; it does not extend the Run WebSocket.
+         */
+        get: operations["listAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/workspace": {
         parameters: {
             query?: never;
@@ -3470,6 +3498,45 @@ export interface components {
             /** @constant */
             phase?: "rounds";
         });
+        AuditEventSummary: {
+            state?: string;
+            from?: string;
+            to?: string;
+            role?: components["schemas"]["AuditExecutionRole"];
+            outcome?: components["schemas"]["AuditTerminalOutcome"];
+            disposition?: components["schemas"]["AuditCollectionDisposition"];
+            subjectKind?: components["schemas"]["AuditReviewSubjectKind"];
+            /** @enum {unknown} */
+            kind?: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
+            action?: components["schemas"]["AuditReviewAction"];
+            /** @enum {unknown} */
+            verdict?: "true_positive" | "false_positive" | "needs_evidence" | "duplicate" | "reopen";
+            runId?: components["schemas"]["ResourceId"];
+            subjectId?: components["schemas"]["ResourceId"];
+            findingId?: components["schemas"]["ResourceId"];
+            workflowRole?: components["schemas"]["ResourceId"];
+            round?: number;
+            items?: number;
+            reviews?: number;
+            members?: number;
+            count?: number;
+        };
+        AuditEvent: {
+            auditId: components["schemas"]["ResourceId"];
+            sequence: number;
+            kind: string;
+            entityId: components["schemas"]["ResourceId"];
+            entityRevision?: number;
+            summary: components["schemas"]["AuditEventSummary"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AuditEventPage: {
+            items: components["schemas"]["AuditEvent"][];
+            page: components["schemas"]["PageInfo"];
+            throughSequence: number;
+            total: number;
+        };
         AuditPage: {
             items: components["schemas"]["Audit"][];
             page: components["schemas"]["PageInfo"];
@@ -9188,6 +9255,38 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listAuditEvents: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped immutable event prefix */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

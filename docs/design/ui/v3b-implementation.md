@@ -22,7 +22,8 @@ tabs, check item panes and decision bars. They retain exact request payload,
 revision, evidence, browser storage and destructive-action checks.
 
 The API gaps below remain:
-activity is assembled from snapshots, and suggestions use static rules.
+suggestions use static rules. Check history now reads durable events;
+per-item detail still summarizes its retained attempts and results.
 Report reads share a queue of two concurrent requests per API client, including
 Inbox, Reports and check details, to avoid exhausting Server's file transfer
 capacity when opening a list.
@@ -86,7 +87,7 @@ Revisions, digests, rounds, slots, tokens and allocations move behind
 | Decisions require a rationale (`minLength: 1`) | Required short field in the decision bar. C / R / E choose the verdict and focus the field; Enter records. "Use AI summary" copies the conclusion on request; no automatic prefill. | — |
 | Duplicate and Reopen | In the decision bar's More menu. Duplicate opens a finding search within the same check. | — |
 | No per-item retry | No Retry button on an endpoint. Show "Retried automatically · attempt N of M". After the last attempt, link to the child Run and the recovery actions the server offers there. | Item retry API only if this proves too indirect |
-| No Audit event stream | The activity log is built from item, attempt, finding and review timestamps. | Audit events (S19:1858-1860) |
+| Check events | Implemented: owner-scoped `GET /v1/audits/{auditId}/events`, ordered by durable sequence, with a frozen prefix and signed continuations. All activity reads 50 events at a time and offers Load older activity; polling refreshes loaded pages while the check can change. | Per-item activity summarizes retained attempts/results; it does not claim a complete per-item event ledger. Audit WebSocket transport remains deferred by S19. |
 | No check-type suggestions | Static rules: project materials plus keywords in the objective map to a check type; "Why this fits" is the rule's fixed text. Never claim more than the rule checks. | Optional model call |
 
 Review kinds other than finding triage (active-check approval, requirement
@@ -168,9 +169,13 @@ also follows every page. These are live keyset lists, not a cross-project
 snapshot: polling and refresh reconcile membership changes. Per-check detail
 pages and mutations retain their existing revision fences.
 
-1. **Check events.** Provide the Audit event stream described by S19 before
-   replacing the activity assembled from item, attempt and review timestamps.
-2. **Visual editor.** Implement the chosen
+Check events were completed on 2026-10-07. All activity reads the durable
+owner-scoped event history rather than reconstructing lifecycle and decisions
+from current records. Older pages remain stable as new events arrive; refresh
+starts a fresh prefix and failed continuations keep settled events visible.
+The current-state sentence is separate from the recorded event count.
+
+1. **Visual editor.** Implement the chosen
    [B node studio](editor-studio.md) as a separate phase: authored YAML import,
    graph and inspector, validation and YAML export, using the V3B themes.
 

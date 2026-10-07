@@ -10,6 +10,7 @@ const mockedSpecs = [
   "e2e/artifact-preview.spec.ts",
   "e2e/audit-presets.spec.ts",
   "e2e/catalog.spec.ts",
+  "e2e/check-events.spec.ts",
   "e2e/dialogs.spec.ts",
   "e2e/evals-comparison.spec.ts",
   "e2e/evals-design.spec.ts",
