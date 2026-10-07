@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { listArtifacts, type ArtifactWriteResponse } from "../../api/artifacts";
@@ -39,7 +39,6 @@ export function ArtifactListRoute() {
   const pages = useURLCursorStack();
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const uploadHeading = useId();
   const titleId = useId();
   const notice = useRef<HTMLDivElement>(null);
   const uploadButton = useRef<HTMLButtonElement>(null);
@@ -82,7 +81,7 @@ export function ArtifactListRoute() {
     <div className="route-page materials-page materials-files">
       <header className="materials-library-head">
         <h1 className="materials-library-title">Library</h1>
-        <LibraryTabs className="materials-library-tabs" />
+        <LibraryTabs />
       </header>
 
       <section className="materials-panel" aria-labelledby={titleId}>
@@ -191,36 +190,76 @@ export function ArtifactListRoute() {
       </section>
 
       {uploadOpen ? (
-        <Dialog
-          className="project-dialog panel materials-sheet"
-          labelledBy={uploadHeading}
-          onRequestClose={() => setUploadOpen(false)}
-        >
-          <DialogHeader
-            id={uploadHeading}
-            eyebrow="Library"
-            title="Upload file"
-            close={{
-              label: "Close file upload",
-              onClose: () => setUploadOpen(false),
-            }}
-          />
-          <ArtifactWriteForm
-            excludedNamespace={{
-              namespace: EXCLUDED_SKILL_NAMESPACE,
-              destination: SKILLS_PATH,
-              label: "Skills",
-            }}
-            headingId={uploadHeading}
-            onCancel={() => setUploadOpen(false)}
-            onWritten={(result) => {
-              setWritten(result);
-              pages.reset();
-              setUploadOpen(false);
-            }}
-          />
-        </Dialog>
+        <FileUploadDialog
+          onClose={() => setUploadOpen(false)}
+          onWritten={(result) => {
+            setWritten(result);
+            pages.reset();
+            setUploadOpen(false);
+          }}
+        />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Upload of one file to the personal library, as Materials uploads one
+ * material: closing the dialog (or "Cancel upload") aborts a running
+ * upload, which the Server may still have stored, so the dialog says to
+ * look before retrying; a refused or lost write is explained and never
+ * retried.
+ */
+function FileUploadDialog({
+  onClose,
+  onWritten,
+}: {
+  onClose: () => void;
+  onWritten: (result: ArtifactWriteResponse) => void;
+}) {
+  const heading = useId();
+  const cancelNote = useId();
+  const operation = useRef<AbortController | null>(null);
+  useEffect(() => () => operation.current?.abort(), []);
+  const startOperation = useCallback(() => {
+    const controller = new AbortController();
+    operation.current = controller;
+    return controller.signal;
+  }, []);
+  function close() {
+    operation.current?.abort();
+    onClose();
+  }
+
+  return (
+    <Dialog
+      className="project-dialog panel materials-sheet"
+      labelledBy={heading}
+      describedBy={cancelNote}
+      onRequestClose={close}
+    >
+      <DialogHeader
+        id={heading}
+        eyebrow="Library"
+        title="Upload file"
+        close={{ label: "Close file upload", onClose: close }}
+      />
+      <p id={cancelNote} className="materials-quiet">
+        Closing this dialog cancels a running upload. If you cancel it or lose
+        the response, look for the file in the list before trying again: it may
+        already be stored.
+      </p>
+      <ArtifactWriteForm
+        excludedNamespace={{
+          namespace: EXCLUDED_SKILL_NAMESPACE,
+          destination: SKILLS_PATH,
+          label: "Skills",
+        }}
+        headingId={heading}
+        startOperation={startOperation}
+        onCancel={close}
+        onWritten={onWritten}
+      />
+    </Dialog>
   );
 }

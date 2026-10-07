@@ -250,8 +250,10 @@ function deleteHint(audit: Audit): string {
 /**
  * Start, Pause new work, Continue, Stop and Delete for one check, as its
  * state allows. Start and Continue ask for a time limit; Stop and Delete ask
- * for confirmation. Nothing changes before the Server answers; the check,
- * its project lists and the cross-project lists are read again afterwards.
+ * for confirmation. Nothing changes before the Server answers; the check and
+ * its project lists are read again afterwards, and the cross-project lists
+ * (Checks, Inbox, the projects list and overview) refresh alongside, also
+ * after a refused request.
  *
  * `compact`: icon buttons for list rows. `menu`: Delete moves into a "Check
  * actions" menu next to the other controls (headers).
@@ -316,6 +318,10 @@ export function AuditControls({
         queryKeys.audits.detail(updated.auditId),
         updated,
       );
+      // The cross-project lists (Checks, Inbox, Issues, Reports, the projects
+      // list and a project's overview) follow; the controls do not wait for
+      // every project's checks to be read again.
+      void invalidateCrossProject(queryClient);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.projects.audits.all(updated.projectId),
@@ -337,10 +343,11 @@ export function AuditControls({
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.report(updated.auditId),
         }),
-        invalidateCrossProject(queryClient),
       ]);
     },
     onError: async () => {
+      // A refused or lost request may still have changed the check.
+      void invalidateCrossProject(queryClient);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.detail(audit.auditId),
@@ -348,7 +355,6 @@ export function AuditControls({
         queryClient.invalidateQueries({
           queryKey: queryKeys.projects.audits.all(audit.projectId),
         }),
-        invalidateCrossProject(queryClient),
       ]);
     },
     onSettled: () => {

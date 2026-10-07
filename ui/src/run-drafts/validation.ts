@@ -141,24 +141,25 @@ export function validateRunDraft(
     const key = values.artifacts[name] ?? "";
     if (key === "") {
       if (slot.required) {
-        errors[`artifact:${name}`] = "Required Artifact input is missing.";
+        errors[`artifact:${name}`] =
+          "Choose a revision for this required input.";
       }
       continue;
     }
     const metadata = artifacts.get(key);
     if (metadata === undefined) {
       errors[`artifact:${name}`] =
-        "Selected Artifact revision is no longer in the loaded inventory.";
+        "The selected revision is no longer in the loaded list.";
       continue;
     }
     if (!artifactAccepts(slot.mediaTypes, metadata)) {
       errors[`artifact:${name}`] =
-        `Artifact media type ${metadata.mediaType} is not accepted.`;
+        `Media type ${metadata.mediaType} is not accepted by this input.`;
       continue;
     }
     if (values.artifactReviews[name] !== key) {
       errors[`artifactReview:${name}`] =
-        "Review and confirm this exact Artifact for the input slot.";
+        "Review and confirm this exact revision for this input.";
       continue;
     }
     inputRefs[name] = metadata.artifact;

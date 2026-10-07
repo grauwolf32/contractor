@@ -17,6 +17,7 @@ import {
   type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
+import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
@@ -539,9 +540,14 @@ export function ProjectAuditDetailRoute() {
   });
   useEffect(() => {
     if (audit.error instanceof PublicAPIError && audit.error.status === 404) {
+      // The check is gone (deleted in another tab or by someone else): the
+      // project's lists and the cross-project ones (the overview, the
+      // projects list, Checks, Inbox) stop listing it now, not at their
+      // next poll.
       void queryClient.invalidateQueries({
         queryKey: queryKeys.projects.audits.all(projectId),
       });
+      void invalidateCrossProject(queryClient);
       void navigate(`/projects/${encodeURIComponent(projectId)}/audits`, {
         replace: true,
       });

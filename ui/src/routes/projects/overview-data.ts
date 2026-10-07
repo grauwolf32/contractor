@@ -1,6 +1,5 @@
 import {
   hashKey,
-  partialMatchKey,
   type Query,
   type QueryClient,
   type QueryKey,
@@ -9,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import {
@@ -33,10 +32,9 @@ const OVERVIEW_POLL_MS = 10_000;
 /**
  * The project's newest checks: the first page, as the cross-project lists
  * read it (same key and request), so the overview shares the read the rail's
- * Inbox badge already polls. Decisions refresh it through
- * invalidateCrossProject; check lifecycle actions refresh only the project's
- * own check lists, so it is read again whenever the overview opens and, while
- * the project is open, follows those refreshes (useFollowProjectCheckChanges).
+ * Inbox badge already polls. Decisions and check lifecycle actions (start,
+ * pause, continue, stop, delete) refresh it through invalidateCrossProject,
+ * so an overview that opens after one reads it again.
  */
 export function useProjectChecks(projectId: string) {
   const api = usePublicAPI();
@@ -49,42 +47,8 @@ export function useProjectChecks(projectId: string) {
       }),
     staleTime: OVERVIEW_POLL_MS,
     refetchInterval: OVERVIEW_POLL_MS,
-    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
-}
-
-/**
- * Starting, stopping or deleting a check (projects/audits) refreshes the
- * project's own check lists (`projects.audits.all`), not the cross-project
- * check page that the overview and the projects list read. While a project
- * is open, every such refresh also refreshes that page, so the overview's
- * strip and timeline and the project's row change together with "Needs your
- * attention".
- */
-export function useFollowProjectCheckChanges(projectId: string): void {
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    const own = queryKeys.projects.audits.all(projectId);
-    let scheduled = false;
-    return queryClient.getQueryCache().subscribe((event) => {
-      if (
-        scheduled ||
-        event.type !== "updated" ||
-        event.action.type !== "invalidate" ||
-        !partialMatchKey(event.query.queryKey, own)
-      )
-        return;
-      // One invalidation marks every query under the prefix: refresh once.
-      scheduled = true;
-      queueMicrotask(() => {
-        scheduled = false;
-        void queryClient.invalidateQueries({
-          queryKey: [...queryKeys.crossProject.allAudits, projectId],
-        });
-      });
-    });
-  }, [projectId, queryClient]);
 }
 
 /** Checks waiting for the user's decision: three, newest first. */

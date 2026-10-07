@@ -7,7 +7,6 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
 import { PublicAPI } from "../../api/client";
 import type { Project } from "../../api/projects";
-import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
 import { Application } from "../../app/application";
@@ -165,6 +164,8 @@ interface FakeServer {
   createProject?: (request: Request) => Response | Promise<Response>;
   /** Answers PATCH /v1/projects/:projectId. */
   updateProject?: (request: Request) => Response | Promise<Response>;
+  /** Answers POST /v1/audits/:auditId/{start,pause,resume,cancel}. */
+  mutateAudit?: (auditId: string, action: string) => Response;
   /** Holds a check's possible-issue read until the promise settles. */
   holdFindings?: (auditId: string) => Promise<void> | undefined;
   /** Leaves every read of a project's checks unanswered while true. */
@@ -215,6 +216,25 @@ function serve(server: FakeServer) {
           (audit) => state === null || audit.state === state,
         );
         return json(page(items, server.moreAudits === true && state === null));
+      }
+      match = /^\/v1\/audits\/([^/]+)\/(start|pause|resume|cancel)$/.exec(path);
+      if (match !== null && request.method === "POST") {
+        if (server.mutateAudit === undefined)
+          throw new Error(`unexpected POST ${path}`);
+        return server.mutateAudit(match[1]!, match[2]!);
+      }
+      match = /^\/v1\/audits\/([^/]+)$/.exec(path);
+      if (match !== null && request.method === "GET") {
+        const auditId = match[1];
+        const found = Object.values(server.audits ?? {})
+          .flat()
+          .find((audit) => audit.auditId === auditId);
+        return found === undefined
+          ? json(
+              { code: "not_found", message: "not found", retryable: false },
+              { status: 404 },
+            )
+          : json(found, { headers: { ETag: `"${found.revision}"` } });
       }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
@@ -300,16 +320,12 @@ function renderAt(server: FakeServer, path: string, earlier: string[] = []) {
   return { router, requests, queryClient, user: userEvent.setup() };
 }
 
-/** GET requests to `pathname`; `unfiltered`: only those without a state. */
-function reads(requests: Request[], pathname: string, unfiltered = false) {
-  return requests.filter((request) => {
-    const url = new URL(request.url);
-    return (
-      request.method === "GET" &&
-      url.pathname === pathname &&
-      (!unfiltered || url.searchParams.get("state") === null)
-    );
-  }).length;
+/** GET requests to `pathname`. */
+function reads(requests: Request[], pathname: string) {
+  return requests.filter(
+    (request) =>
+      request.method === "GET" && new URL(request.url).pathname === pathname,
+  ).length;
 }
 
 const projectA = projectFixture("project_a", {
@@ -1075,23 +1091,99 @@ describe("Project overview", () => {
     expect(within(glance).getByText("1 finishing · 1 stopping")).toBeVisible();
   });
 
-  it("re-reads its checks when a check action refreshes the project's check lists", async () => {
-    const { requests, queryClient } = renderAt(
-      overviewServer,
+  it("shows a check paused on the Checks tab when the overview opens again", async () => {
+    const checks = [...overviewServer.audits!.project_a!];
+    const server: FakeServer = {
+      ...overviewServer,
+      audits: { project_a: checks },
+      mutateAudit: (auditId, action) => {
+        const index = checks.findIndex((audit) => audit.auditId === auditId);
+        const audit = checks[index];
+        if (audit === undefined || action !== "pause")
+          throw new Error(`unexpected ${action} of ${auditId}`);
+        const paused: Audit = {
+          ...audit,
+          state: "paused",
+          revision: audit.revision + 1,
+        };
+        checks[index] = paused;
+        return json(paused, { headers: { ETag: `"${paused.revision}"` } });
+      },
+    };
+    const { user } = renderAt(server, "/projects/project_a");
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    expect(
+      await within(glance).findByRole("link", { name: "1 running" }),
+    ).toBeVisible();
+    const sections = screen.getByRole("navigation", {
+      name: "Project sections",
+    });
+    await user.click(within(sections).getByRole("link", { name: "Checks" }));
+    // The section loads lazily, and the overview's timeline links the same
+    // check by the same name: look for its row once the overview has left.
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "At a glance" })).toBeNull(),
+    );
+    const row = (
+      await screen.findByRole("link", { name: "OpenAPI · Operation trace" })
+    ).closest("li")!;
+    await user.click(
+      within(row).getByRole("button", { name: "Pause new work" }),
+    );
+    expect(await within(row).findByText("Paused")).toBeVisible();
+    // Back within the overview's polling interval: the pause refreshed the
+    // check page the overview reads, so it does not show the old state.
+    await user.click(within(sections).getByRole("link", { name: "Overview" }));
+    const after = await screen.findByRole("region", { name: "At a glance" });
+    expect(await within(after).findByText("None running")).toBeVisible();
+    expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
+  });
+
+  it("stops listing a check deleted elsewhere once its page finds it gone", async () => {
+    const checks = [...overviewServer.audits!.project_a!];
+    const { router, user } = renderAt(
+      { ...overviewServer, audits: { project_a: checks } },
       "/projects/project_a",
     );
     const glance = await screen.findByRole("region", { name: "At a glance" });
-    await within(glance).findByRole("link", { name: "3 to review" });
-    const checkReads = () =>
-      reads(requests, "/v1/projects/project_a/audits", true);
-    const before = checkReads();
-    // Start, Cancel and Delete (projects/audits) refresh only these lists.
-    await act(() =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.audits.all("project_a"),
-      }),
+    expect(
+      await within(glance).findByRole("link", { name: "1 running" }),
+    ).toBeVisible();
+    const timeline = screen.getByRole("region", { name: "Timeline" });
+    const link = await within(timeline).findByRole("link", {
+      name: "OpenAPI · Operation trace",
+    });
+    // The running check is deleted in another tab; the overview still lists
+    // it and links to it.
+    checks.splice(
+      checks.findIndex((audit) => audit.auditId === "audit_running"),
+      1,
     );
-    await waitFor(() => expect(checkReads()).toBeGreaterThan(before));
+    await user.click(link);
+    // The check page answers 404 and returns to the project's checks.
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_a/audits"),
+    );
+    const sections = await screen.findByRole("navigation", {
+      name: "Project sections",
+    });
+    // Back within the overview's polling interval: the 404 refreshed the
+    // check page the overview reads, so it neither counts nor links the
+    // deleted check.
+    await user.click(within(sections).getByRole("link", { name: "Overview" }));
+    const after = await screen.findByRole("region", { name: "At a glance" });
+    expect(await within(after).findByText("None running")).toBeVisible();
+    expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
+    // Its possible issue ("Order IDOR") is no longer counted either.
+    expect(
+      await within(after).findByRole("link", { name: "2 to review" }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Timeline" })).queryByRole(
+        "link",
+        { name: "OpenAPI · Operation trace" },
+      ),
+    ).toBeNull();
   });
 });
 

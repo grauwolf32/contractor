@@ -55,8 +55,47 @@ describe("Run draft validation", () => {
     );
     expect(result.request).toBeUndefined();
     expect(result.errors).toEqual({
-      "artifact:source": "Artifact media type text/plain is not accepted.",
+      "artifact:source": "Media type text/plain is not accepted by this input.",
       "parameter:objective": "Required string parameter is missing.",
+    });
+  });
+
+  it("asks for a revision of a required input and for one still in the loaded list", () => {
+    const missing = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: {},
+        artifactReviews: {},
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map(),
+    );
+    expect(missing.request).toBeUndefined();
+    // The optional input may stay empty.
+    expect(missing.errors).toEqual({
+      "artifact:source": "Choose a revision for this required input.",
+    });
+
+    const key = artifactOptionKey(source.artifact);
+    const unloaded = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: { source: key },
+        artifactReviews: { source: key },
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map(),
+    );
+    expect(unloaded.request).toBeUndefined();
+    expect(unloaded.errors).toEqual({
+      "artifact:source":
+        "The selected revision is no longer in the loaded list.",
     });
   });
 
@@ -172,7 +211,7 @@ describe("Run draft validation", () => {
     expect(result.request).toBeUndefined();
     expect(result.errors).toEqual({
       "artifactReview:source":
-        "Review and confirm this exact Artifact for the input slot.",
+        "Review and confirm this exact revision for this input.",
     });
   });
 
@@ -204,7 +243,7 @@ describe("Run draft validation", () => {
     );
     expect(partial.errors).toEqual({
       "artifactReview:project_report":
-        "Review and confirm this exact Artifact for the input slot.",
+        "Review and confirm this exact revision for this input.",
     });
 
     const complete = validateRunDraft(

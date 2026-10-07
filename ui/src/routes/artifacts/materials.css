@@ -1187,13 +1187,6 @@ form.materials-filter.inline-form button {
   line-height: 1.2;
 }
 
-/* Files is the last Library tab: wrap the tabs on narrow screens instead
-   of scrolling the current one out of view. */
-.section-navigation.materials-library-tabs {
-  flex-wrap: wrap;
-  overflow-x: visible;
-}
-
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 820px) {
