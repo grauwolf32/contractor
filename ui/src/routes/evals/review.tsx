@@ -1,6 +1,6 @@
 import { artifactHref } from "./links";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import {
   getEvalReview,
@@ -11,6 +11,7 @@ import {
   type EvalMember,
 } from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
+import { IdChip, TechnicalDetails } from "../../ui";
 import { EvalError, EvalField } from "./common";
 import { useEvalOwner } from "./queries";
 import { finishMutation, recoverableMutation } from "./recovery";
@@ -32,6 +33,12 @@ export function EvalHumanReview({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient();
+  const heading = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The review opens below the pair; take the reader there.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
   const reviewKey = queryKeys.evals.review(
     experiment.experimentId,
     member.member.memberId,
@@ -172,12 +179,16 @@ export function EvalHumanReview({
   const changed =
     review.data && review.data.resultSha256 !== member.resultSha256;
   return (
-    <section className="panel eval-panel">
-      <h3>Review result</h3>
-      <p>
-        This decision is recorded under your account and cannot be changed
-        later.
-      </p>
+    <section className="eval-panel eval-review" aria-labelledby={heading}>
+      <div className="eval-step-heading">
+        <h2 id={heading} ref={headingRef} tabIndex={-1}>
+          Review result
+        </h2>
+        <p className="eval-muted">
+          This decision is recorded under your account and cannot be changed
+          later.
+        </p>
+      </div>
       <EvalError
         error={review.error ?? save.error}
         reload={
@@ -189,52 +200,59 @@ export function EvalHumanReview({
         }
       />
       {changed ? (
-        <p role="alert">
+        <p className="eval-callout" role="alert">
           A newer result is selected. Close this review and refresh the pair
           before judging it.
         </p>
       ) : null}
       {review.data && !changed ? (
         <>
-          <p className="eval-digest">
-            Result: <code>{review.data.resultSha256}</code>
-          </p>
           {review.data.gaps.map((gap) => (
-            <p key={gap}>{gap}</p>
+            <p className="eval-muted" key={gap}>
+              {gap}
+            </p>
           ))}
           {review.data.checks.map((rubric) => (
-            <fieldset key={rubric.id} disabled={save.isPending}>
+            <fieldset
+              className="eval-rubric-review"
+              key={rubric.id}
+              disabled={save.isPending}
+            >
               <legend>
-                {rubric.id} · rubric {rubric.revision}
+                <code>{rubric.id}</code> · rubric {rubric.revision}
               </legend>
               <p className="eval-rubric">{rubric.rubric}</p>
-              <dl>
-                {Object.entries(rubric.expected).map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{key}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <EvalField label={`Decision for ${rubric.id}`}>
-                <select
-                  value={decisions[rubric.id]?.status ?? ""}
-                  onChange={(e) =>
-                    update(rubric.id, {
-                      status: e.target.value as Decision | "",
-                    })
-                  }
-                >
-                  <option value="">Choose after review</option>
-                  <option value="pass">Pass</option>
-                  <option value="fail">Fail</option>
-                  <option value="incomplete">Incomplete evidence</option>
-                  {review.data?.policy?.find((c) => c.id === rubric.id)
-                    ?.allowNotApplicable ? (
-                    <option value="not_applicable">Not applicable</option>
-                  ) : null}
-                </select>
-              </EvalField>
+              {Object.keys(rubric.expected).length ? (
+                <dl className="eval-facts">
+                  {Object.entries(rubric.expected).map(([key, value]) => (
+                    <Fragment key={key}>
+                      <dt>{key}</dt>
+                      <dd>{value}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              ) : null}
+              <div className="eval-grid">
+                <EvalField label={`Decision for ${rubric.id}`}>
+                  <select
+                    value={decisions[rubric.id]?.status ?? ""}
+                    onChange={(e) =>
+                      update(rubric.id, {
+                        status: e.target.value as Decision | "",
+                      })
+                    }
+                  >
+                    <option value="">Choose after review</option>
+                    <option value="pass">Pass</option>
+                    <option value="fail">Fail</option>
+                    <option value="incomplete">Incomplete evidence</option>
+                    {review.data?.policy?.find((c) => c.id === rubric.id)
+                      ?.allowNotApplicable ? (
+                      <option value="not_applicable">Not applicable</option>
+                    ) : null}
+                  </select>
+                </EvalField>
+              </div>
               <EvalField label={`Reason for ${rubric.id}`}>
                 <textarea
                   rows={3}
@@ -244,48 +262,58 @@ export function EvalHumanReview({
                   }
                 />
               </EvalField>
-              <fieldset>
+              <fieldset className="eval-subfieldset">
                 <legend>Cited evidence</legend>
-                {review.data?.evidence.map((evidence) => (
-                  <label key={evidence.id}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        decisions[rubric.id]?.evidence.includes(evidence.id) ??
-                        false
-                      }
-                      onChange={(e) =>
-                        update(rubric.id, {
-                          evidence: e.target.checked
-                            ? [
-                                ...(decisions[rubric.id]?.evidence ?? []),
-                                evidence.id,
-                              ]
-                            : (decisions[rubric.id]?.evidence ?? []).filter(
-                                (id) => id !== evidence.id,
-                              ),
-                        })
-                      }
-                    />
-                    <ContextLink
-                      to={artifactHref(evidence.artifact)}
-                      returnLabel="Human review"
-                    >
-                      {evidence.id}
-                    </ContextLink>
-                  </label>
-                ))}
+                {review.data?.evidence.length ? (
+                  review.data.evidence.map((evidence) => (
+                    <label className="eval-checkbox" key={evidence.id}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          decisions[rubric.id]?.evidence.includes(
+                            evidence.id,
+                          ) ?? false
+                        }
+                        onChange={(e) =>
+                          update(rubric.id, {
+                            evidence: e.target.checked
+                              ? [
+                                  ...(decisions[rubric.id]?.evidence ?? []),
+                                  evidence.id,
+                                ]
+                              : (decisions[rubric.id]?.evidence ?? []).filter(
+                                  (id) => id !== evidence.id,
+                                ),
+                          })
+                        }
+                      />
+                      <ContextLink
+                        to={artifactHref(evidence.artifact)}
+                        returnLabel="Human review"
+                      >
+                        {evidence.id}
+                      </ContextLink>
+                    </label>
+                  ))
+                ) : (
+                  <p className="eval-muted">No evidence files to cite.</p>
+                )}
               </fieldset>
             </fieldset>
           ))}
+          <TechnicalDetails summary="Result digest">
+            <IdChip value={review.data.resultSha256} label="result digest" />
+          </TechnicalDetails>
         </>
       ) : null}
       <div className="eval-actions">
-        <button type="button" className="secondary-button" onClick={onClose}>
+        <button type="button" className="ui-btn" onClick={onClose}>
           Close review
         </button>
         <button
           type="button"
+          className="ui-btn"
+          data-variant="primary"
           disabled={!review.data?.checks.length || !!changed || save.isPending}
           onClick={() => save.mutate()}
         >

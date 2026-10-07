@@ -75,9 +75,7 @@ describe("Managed Evals setup", () => {
         await screen.findByRole("button", { name: "Select all 2 cases" }),
       );
       await user.click(screen.getByRole("button", { name: "Next step" }));
-      await user.click(
-        screen.getByRole("button", { name: "Add assessment check" }),
-      );
+      await user.click(screen.getByRole("button", { name: "Add criterion" }));
       await user.clear(screen.getByLabelText("Repetitions"));
       await user.type(screen.getByLabelText("Repetitions"), "2");
       await user.click(screen.getByRole("button", { name: "Next step" }));

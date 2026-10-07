@@ -1,10 +1,11 @@
 import type { EvalExperiment } from "../../api/evals";
+import { StatusGlyph, TechnicalDetails } from "../../ui";
 
 const MESSAGES: Record<string, string> = {
   eval_pin_mismatch:
     "The selected versions, inputs or required-equal settings do not match. Review the versions and equality policy before preparing again.",
   eval_invalid:
-    "Some setup values are invalid. Review the variants, cases and assessment checks, then save the corrected draft.",
+    "Some setup values are invalid. Review the variants, cases and criteria, then save the corrected draft.",
   eval_not_ready:
     "The experiment is not ready for this action. Review its setup and required inputs.",
   eval_preparation_unavailable:
@@ -22,25 +23,33 @@ export function EvalDiagnostics({
 }) {
   if (!experiment.diagnostics?.length) return null;
   return (
-    <section className="notice-error eval-diagnostics" role="alert">
-      <strong>
-        {experiment.state === "draft" || experiment.state === "preparing"
-          ? "Preparation needs attention"
-          : "Experiment needs attention"}
-      </strong>
-      {experiment.diagnostics.map((diagnostic, index) => (
-        <div key={index}>
-          <p>
-            {MESSAGES[diagnostic.code] ??
-              `The server could not complete this action. Suggested recovery: ${diagnostic.recovery.replaceAll("_", " ")}.`}
-          </p>
-          {diagnostic.field ? <p>Check: {diagnostic.field}</p> : null}
-          <details className="error-details">
-            <summary>Diagnostic details</summary>
-            <code>{diagnostic.code}</code>
-          </details>
-        </div>
-      ))}
+    <section className="eval-diagnostics" role="alert">
+      <span className="eval-status-glyph">
+        <StatusGlyph tone="blocked" size={18} />
+      </span>
+      <div className="eval-status-body">
+        <strong className="eval-diagnostics-title">
+          {experiment.state === "draft" || experiment.state === "preparing"
+            ? "Preparation needs attention"
+            : "Experiment needs attention"}
+        </strong>
+        {experiment.diagnostics.map((diagnostic, index) => (
+          <div className="eval-diagnostic" key={index}>
+            <p>
+              {MESSAGES[diagnostic.code] ??
+                `The server could not complete this action. Suggested recovery: ${diagnostic.recovery.replaceAll("_", " ")}.`}
+            </p>
+            {diagnostic.field ? (
+              <p>
+                Field: <code>{diagnostic.field}</code>
+              </p>
+            ) : null}
+            <TechnicalDetails summary="Diagnostic details">
+              <code>{diagnostic.code}</code>
+            </TechnicalDetails>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

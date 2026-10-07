@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -6,8 +7,35 @@ import {
   listEvalMembers,
   type EvalExperiment,
 } from "../../api/evals";
-import { EvalError } from "./common";
 import { queryKeys } from "../../api/query-keys";
+import { StatusGlyph, type StatusTone } from "../../ui";
+import { EvalError } from "./common";
+
+function StatusCallout({
+  tone,
+  title,
+  children,
+}: {
+  tone: StatusTone;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="eval-status"
+      data-tone={tone}
+      aria-label="Execution status"
+    >
+      <span className="eval-status-glyph">
+        <StatusGlyph tone={tone} size={18} />
+      </span>
+      <div className="eval-status-body">
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </section>
+  );
+}
 
 export function EvalExecutionStatus({
   experiment,
@@ -26,36 +54,48 @@ export function EvalExecutionStatus({
 
   if (experiment.state === "paused" || experiment.state === "pausing") {
     return (
-      <section className="panel eval-panel" aria-label="Execution status">
-        <h2>
-          {experiment.state === "paused"
+      <StatusCallout
+        tone="warning"
+        title={
+          experiment.state === "paused"
             ? "Dispatch paused"
-            : "Waiting for active executions"}
-        </h2>
+            : "Waiting for active executions"
+        }
+      >
         <p>
           {experiment.state === "paused"
             ? "Use Resume to continue this experiment. Its original deadline still applies."
             : "Accepted executions are draining. Resume becomes available when they finish."}
         </p>
-      </section>
+      </StatusCallout>
     );
   }
   if (!finished && !(experiment.state === "ready" && excluded > 0)) return null;
 
   let title = "Execution finished";
-  if (experiment.state === "ready") title = "Some attempts cannot be started";
-  else if (submitted === 0) title = "No executions started";
-  else if (terminal < submitted) title = "Execution evidence is incomplete";
-  else if (failed > 0) title = "Some executions ended without success";
-  else if (total("scored") < terminal)
+  let tone: StatusTone = "done";
+  if (experiment.state === "ready") {
+    title = "Some attempts cannot be started";
+    tone = "warning";
+  } else if (submitted === 0) {
+    title = "No executions started";
+    tone = "warning";
+  } else if (terminal < submitted) {
+    title = "Execution evidence is incomplete";
+    tone = "warning";
+  } else if (failed > 0) {
+    title = "Some executions ended without success";
+    tone = "blocked";
+  } else if (total("scored") < terminal) {
     title = "Execution finished; assessment is incomplete";
+    tone = "partial";
+  }
 
   let reasonFilter: "unsupported" | "blocked" | "failed" = "failed";
   if (total("blocked") > 0) reasonFilter = "blocked";
   if (total("unsupported") > 0) reasonFilter = "unsupported";
   return (
-    <section className="panel eval-panel" aria-label="Execution status">
-      <h2>{title}</h2>
+    <StatusCallout tone={tone} title={title}>
       <p>
         {submitted} / {total("expected")} submitted · {terminal} finished ·{" "}
         {total("scored")} scored.
@@ -86,10 +126,12 @@ export function EvalExecutionStatus({
           checks compatibility again; the original results stay available.
         </p>
       ) : null}
-      <Link to={`${base}/attempts?filter=all`}>
-        Inspect all attempts and execution evidence
-      </Link>
-    </section>
+      <p>
+        <Link to={`${base}/attempts?filter=all`}>
+          Inspect all attempts and execution evidence
+        </Link>
+      </p>
+    </StatusCallout>
   );
 }
 
@@ -125,7 +167,7 @@ function ExecutionReasons({
     <>
       <EvalError error={members.error} reload={() => void members.refetch()} />
       {reasons.length ? (
-        <ul>
+        <ul className="eval-reasons">
           {reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}

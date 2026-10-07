@@ -6,36 +6,65 @@ import {
   listEvalExecutions,
   type EvalMember,
 } from "../../api/evals";
-import { ContextLink } from "../../app/context-navigation";
-import { EvalError } from "./common";
 import { queryKeys } from "../../api/query-keys";
+import { ContextLink } from "../../app/context-navigation";
+import { StatusChip, type StatusTone } from "../../ui";
+import { EvalError } from "./common";
+import { executionRefLabel } from "./labels";
 
-function memberQuality(member: EvalMember): string {
-  if (member.conflicting) return "Conflicting evidence";
+function capitalized(value: string): string {
+  const words = value.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * What is known about one attempt's quality. Execution success, collection
+ * and assessment stay distinct: a successful run without an assessment is not
+ * a pass, and a missing result is not a failure of the candidate.
+ */
+function memberQuality(member: EvalMember): {
+  label: string;
+  tone: StatusTone;
+} {
+  if (member.conflicting)
+    return { label: "Conflicting evidence", tone: "blocked" };
   if (member.member.eligibility !== "eligible")
-    return member.member.eligibility;
+    return { label: capitalized(member.member.eligibility), tone: "warning" };
   if (!member.execution || member.execution.state === "not_submitted")
-    return "Not submitted";
-  if (member.execution.state === "failed") return "Failed execution";
-  if (member.execution.state === "cancelled") return "Cancelled execution";
-  if (member.assessment === "fail") return "Failed check";
+    return { label: "Not submitted", tone: "idle" };
+  if (member.execution.state === "failed")
+    return { label: "Failed execution", tone: "blocked" };
+  if (member.execution.state === "cancelled")
+    return { label: "Cancelled execution", tone: "neutral" };
+  if (member.assessment === "fail")
+    return { label: "Failed criteria", tone: "blocked" };
   if (member.assessment === "unscored")
     return member.resultSha256
-      ? "Awaiting assessment / review"
-      : "Results not collected";
-  return {
-    pass: "Passed checks",
-    error: "Assessment error",
-    incomplete: "Incomplete assessment",
-  }[member.assessment];
+      ? { label: "Awaiting assessment / review", tone: "review" }
+      : { label: "Results not collected", tone: "warning" };
+  return (
+    {
+      pass: { label: "Passed criteria", tone: "success" },
+      error: { label: "Assessment error", tone: "blocked" },
+      incomplete: { label: "Incomplete assessment", tone: "warning" },
+    } as const
+  )[member.assessment];
 }
 
 export function MemberSummary({ member }: { member: EvalMember }) {
   const usage = member.usage;
+  const quality = memberQuality(member);
   return (
-    <>
-      <strong>{memberQuality(member)}</strong>
-      <p>Execution: {member.execution?.state ?? "not submitted"}</p>
+    <div className="eval-member">
+      <p className="eval-member-quality">
+        <StatusChip tone={quality.tone} size="sm">
+          {quality.label}
+        </StatusChip>
+        <span className="eval-muted">
+          Execution:{" "}
+          {member.execution?.state.replaceAll("_", " ") ?? "not submitted"}
+        </span>
+      </p>
       {member.member.reason ? <p>{member.member.reason}</p> : null}
       <dl className="eval-facts">
         <dt>Tokens</dt>
@@ -59,7 +88,7 @@ export function MemberSummary({ member }: { member: EvalMember }) {
           Open Run
         </ContextLink>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -81,7 +110,7 @@ export function MemberExecutions({
         : false,
   });
   return (
-    <section>
+    <section className="eval-executions">
       <h4>Owned executions</h4>
       <EvalError
         error={inventory.error}
@@ -92,16 +121,18 @@ export function MemberExecutions({
       />
       {inventory.data ? (
         <>
-          <p>
+          <p className="eval-muted">
             {inventory.data.inventoryComplete
               ? "Complete inventory"
               : "Incomplete inventory"}
             ; child Runs are evidence, not additional evaluation samples.
           </p>
           {inventory.data.gaps.map((gap) => (
-            <p key={gap}>{gap}</p>
+            <p className="eval-muted" key={gap}>
+              {gap}
+            </p>
           ))}
-          <ul>
+          <ul className="eval-execution-list" role="list">
             {inventory.data.items.map((entry, index) => {
               const ref = entry.execution;
               const href =
@@ -114,16 +145,22 @@ export function MemberExecutions({
                       : null;
               return (
                 <li key={entry.intentId ?? ref?.id ?? index}>
-                  {entry.role ?? "Parent"}
-                  {entry.round === null ? "" : ` · round ${entry.round}`} ·{" "}
-                  {entry.state} ·{" "}
-                  {href ? (
+                  <span className="eval-muted">
+                    {entry.role ?? "Parent"}
+                    {entry.round === null
+                      ? ""
+                      : ` · round ${entry.round}`} · {entry.state}
+                  </span>{" "}
+                  {href && ref ? (
                     <ContextLink returnLabel="Evaluation evidence" to={href}>
-                      {ref?.kind} {ref?.id}
+                      {executionRefLabel(ref.kind)} {ref.id}
                     </ContextLink>
                   ) : (
                     <span>
-                      {ref?.id ?? "Unresolved submission"} · unavailable
+                      {ref
+                        ? `${executionRefLabel(ref.kind)} ${ref.id}`
+                        : "Unresolved submission"}{" "}
+                      · unavailable
                     </span>
                   )}
                 </li>
@@ -133,7 +170,8 @@ export function MemberExecutions({
           <div className="eval-actions">
             <button
               type="button"
-              className="secondary-button"
+              className="ui-btn"
+              data-size="xs"
               disabled={!cursor}
               onClick={() => setCursor(undefined)}
             >
@@ -142,7 +180,8 @@ export function MemberExecutions({
             {inventory.data.page.hasMore ? (
               <button
                 type="button"
-                className="secondary-button"
+                className="ui-btn"
+                data-size="xs"
                 onClick={() =>
                   setCursor(inventory.data?.page.nextCursor ?? undefined)
                 }

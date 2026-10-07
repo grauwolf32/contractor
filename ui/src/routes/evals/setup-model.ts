@@ -26,7 +26,7 @@ export const PIN_DIMENSIONS = [
 ] as const;
 export const COMPARISON_PURPOSES = {
   workflow: {
-    label: "Workflow or Audit configuration",
+    label: "Workflow or check configuration",
     equal: ["source", "tasks", "scorers"],
     different: [
       "instructions",
@@ -162,7 +162,7 @@ export function draftProblem(name: string, draft: EvalDraft): string | null {
   if (!Number.isSafeInteger(draft.budgets.wallMs) || draft.budgets.wallMs <= 0)
     return "Set a positive time allowance.";
   if (!draft.checks.length || !draft.checks.some((c) => c.required))
-    return "Select at least one required assessment check.";
+    return "Select at least one required criterion.";
   if (
     draft.checks.some(
       (c) =>
@@ -170,8 +170,8 @@ export function draftProblem(name: string, draft: EvalDraft): string | null {
         (c.evaluator === "human-review@1" && !c.rubricRevision),
     )
   )
-    return "Give each check an ID and pin the human review rubric revision.";
+    return "Give each criterion an ID and pin the human review rubric revision.";
   if (new Set(draft.checks.map((c) => c.id)).size !== draft.checks.length)
-    return "Check IDs must be distinct.";
+    return "Criterion IDs must be distinct.";
   return null;
 }

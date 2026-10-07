@@ -57,7 +57,12 @@ describe("Managed Eval comparisons", () => {
     expect(
       within(heading.closest("section")!).getByRole("cell", { name: "130" }),
     ).toBeVisible();
-    await user.selectOptions(screen.getByLabelText("Pair filter"), "all");
+    await user.click(
+      within(screen.getByRole("group", { name: "Pair filter" })).getByRole(
+        "button",
+        { name: "All pairs" },
+      ),
+    );
     await screen.findByText(/4 matching pairs/);
     expect(screen.getAllByText(/Unavailable/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Quality regression/).length).toBeGreaterThan(0);
@@ -301,13 +306,13 @@ describe("Managed Eval comparisons", () => {
     ).toBe(false);
   });
 
-  it("uses the Audit execution workspace for diagnostics without counting child Runs as samples", async () => {
+  it("uses the check's execution workspace for diagnostics without counting child Runs as samples", async () => {
     const fixture = createEvalFixture({ prepared: true, audit: true });
     start(
       fixture,
       `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
     );
-    const links = await screen.findAllByRole("link", { name: "audit audit-1" });
+    const links = await screen.findAllByRole("link", { name: "Check audit-1" });
     expect(links[0]).toHaveAttribute(
       "href",
       "/projects/member-project/audits/audit-1",

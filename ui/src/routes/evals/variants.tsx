@@ -12,14 +12,17 @@ import {
   type EvalCapabilities,
   type EvalVariant,
 } from "../../api/evals";
+import { queryKeys } from "../../api/query-keys";
+import { IdChip } from "../../ui";
 import {
+  ArmKey,
   CommaSeparatedInput,
   EvalError,
   EvalField,
   KeyValueEditor,
 } from "./common";
+import { executableLabel } from "./labels";
 import { sortedBindings } from "./setup-model";
-import { queryKeys } from "../../api/query-keys";
 
 function ExecutionOverrides({
   value,
@@ -65,7 +68,7 @@ function ExecutionOverrides({
     <>
       <EvalError error={inventory.error} />
       {(["planner", "workers"] as const).map((role) => (
-        <fieldset key={role}>
+        <fieldset className="eval-subfieldset" key={role}>
           <legend>{role === "planner" ? "Planner" : "Workers"}</legend>
           {(
             [
@@ -124,7 +127,7 @@ function ExecutionOverrides({
         </fieldset>
       ))}
       {value.stages && Object.keys(value.stages).length ? (
-        <p>
+        <p className="eval-muted">
           Per-stage overrides from the saved draft are retained. Review them in
           Setup before Prepare.
         </p>
@@ -160,14 +163,15 @@ export function VariantEditor({
   const optionsForFamily = options.filter((x) =>
     x.selector.startsWith(name + "@"),
   );
+  const arm = label === "A" ? "a" : "b";
   return (
     <fieldset className={`eval-variant eval-arm-${label.toLowerCase()}`}>
       <legend>
-        {label} · {label === "A" ? "Baseline" : "Candidate"}
+        <ArmKey arm={arm}>
+          {label} · {label === "A" ? "Baseline" : "Candidate"}
+        </ArmKey>
       </legend>
-      <EvalField
-        label={`${label} ${value.kind === "audit" ? "AuditProfile" : "Workflow"} family`}
-      >
+      <EvalField label={`${label} ${executableLabel(value.kind)} family`}>
         <select
           value={name}
           onChange={(e) => {
@@ -224,12 +228,18 @@ export function VariantEditor({
       <EvalError error={contract.error} />
       {contract.data ? (
         <div className="eval-contract">
-          <p>
-            Definition: {contract.data.ref.name}@{contract.data.ref.version}
+          <p className="eval-contract-definition">
+            <span>Definition</span>{" "}
+            <IdChip
+              value={`${contract.data.ref.name}@${contract.data.ref.version}`}
+              display={`${contract.data.ref.name}@${contract.data.ref.version}`}
+              label={`${label} definition`}
+            />
           </p>
           {Object.entries(inputs).map(([key, slot]) => (
             <p key={key}>
-              Input {key}: {slot.required ? "required" : "optional"} ·{" "}
+              Input <code>{key}</code>:{" "}
+              {slot.required ? "required" : "optional"} ·{" "}
               {slot.mediaTypes.join(", ")}
             </p>
           ))}
@@ -245,7 +255,7 @@ export function VariantEditor({
             </p>
           ) : (
             <p>
-              Audit scope supports objective, target and authorizationScope.
+              Check scope supports objective, target and authorizationScope.
             </p>
           )}
           {value.kind === "workflow" ? (
@@ -259,54 +269,61 @@ export function VariantEditor({
           ) : null}
         </div>
       ) : null}
-      <details>
+      <details className="eval-disclosure">
         <summary>Input/output mapping and parameters</summary>
-        <p>
-          Map case roles to executable input/output names. Omitted roles retain
-          their name. Use $task.objective for the visible task objective.
-        </p>
-        <KeyValueEditor
-          label={`${label} input mapping`}
-          value={value.inputMapping ?? {}}
-          onChange={(inputMapping) => onChange({ ...value, inputMapping })}
-        />
-        <KeyValueEditor
-          label={`${label} output mapping`}
-          value={value.outputMapping ?? {}}
-          onChange={(outputMapping) => onChange({ ...value, outputMapping })}
-        />
-        <KeyValueEditor
-          label={`${label} parameters`}
-          value={value.parameters ?? {}}
-          onChange={(parameters) => onChange({ ...value, parameters })}
-        />
+        <div className="eval-disclosure-body">
+          <p className="eval-muted">
+            Map case roles to executable input/output names. Omitted roles
+            retain their name. Use $task.objective for the visible task
+            objective.
+          </p>
+          <KeyValueEditor
+            label={`${label} input mapping`}
+            value={value.inputMapping ?? {}}
+            onChange={(inputMapping) => onChange({ ...value, inputMapping })}
+          />
+          <KeyValueEditor
+            label={`${label} output mapping`}
+            value={value.outputMapping ?? {}}
+            onChange={(outputMapping) => onChange({ ...value, outputMapping })}
+          />
+          <KeyValueEditor
+            label={`${label} parameters`}
+            value={value.parameters ?? {}}
+            onChange={(parameters) => onChange({ ...value, parameters })}
+          />
+        </div>
       </details>
-      <details>
+      <details className="eval-disclosure">
         <summary>Execution settings</summary>
-        {value.kind === "workflow" ? (
-          <ExecutionOverrides
-            value={value.executionConfig}
-            onChange={(executionConfig) =>
-              onChange({ ...value, executionConfig })
-            }
-          />
-        ) : (
-          <p>Execution settings come from the pinned AuditProfile.</p>
-        )}
-        <EvalField
-          label={`${label} runtime labels`}
-          hint="Optional labels, separated by commas; availability is checked during preparation."
-        >
-          <CommaSeparatedInput
-            value={value.runtimeLabels ?? []}
-            onChange={(runtimeLabels) =>
-              onChange({
-                ...value,
-                runtimeLabels,
-              })
-            }
-          />
-        </EvalField>
+        <div className="eval-disclosure-body">
+          {value.kind === "workflow" ? (
+            <ExecutionOverrides
+              value={value.executionConfig}
+              onChange={(executionConfig) =>
+                onChange({ ...value, executionConfig })
+              }
+            />
+          ) : (
+            <p className="eval-muted">
+              Execution settings come from the pinned check type.
+            </p>
+          )}
+          <EvalField
+            label={`${label} runtime labels`}
+            hint="Optional labels, separated by commas; availability is checked during preparation."
+          >
+            <CommaSeparatedInput
+              value={value.runtimeLabels ?? []}
+              onChange={(runtimeLabels) =>
+                onChange({
+                  ...value,
+                  runtimeLabels,
+                })
+              }
+            />
+          </EvalField>
+        </div>
       </details>
     </fieldset>
   );
