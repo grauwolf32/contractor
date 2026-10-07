@@ -290,11 +290,41 @@ read it before using a primitive. Highlights:
   manages focus when switching panes on narrow screens; selection must be in
   the URL so Back restores it.
 - `ListRow`: the title covers the row as one click area; put actions in
-  `children` or `trailing`, never inside `meta`.
+  `children` or `trailing`, never inside `meta`. An array `meta` renders "·"
+  separators that start the part they precede; the meta line clips the one
+  that starts a wrapped line (`data-parts`), so no line ends in "·".
+  `ariaKeyShortcuts` declares the row's keys; `ListSection` takes
+  `aria-keyshortcuts` and `aria-label` for its list.
+- `ListPane` and `DetailHeader` take `titleRef`: the heading becomes a focus
+  target (`tabIndex={-1}`) for when the selected item goes away.
+- `FilterChips`: pressing the current chip does nothing.
+- `TechnicalDetails` takes `className` and `onToggle(open)`; `IdChip` takes
+  `wrap` for long values.
 - `DecisionBar` is presentational: the caller owns verdict, severity and
   rationale state and performs the mutation in `onSubmit`.
-- `useShortcuts` / `useListNavigation` implement the keyboard guards of §4.
+- `useShortcuts` / `useListNavigation` implement the keyboard guards of §4; a
+  binding can be `{ handler, when }` to decline an event before
+  `preventDefault` (e.g. Ctrl/⌘+Enter on a focused link).
+- `DetailPane`'s pinned footer caps a recorded decision (`ui-footer-record`)
+  at `min(45vh, 24rem)`; the pending bar is never capped.
 - All optional props accept `undefined` (`exactOptionalPropertyTypes`).
+
+### App parts (`ui/src/app`)
+
+- `ActionMenu({ label, children })` is the "⋯" menu. Its panel is a manual
+  popover in the top layer, placed next to the trigger in viewport
+  coordinates (`menu-placement.ts`), so scrolling panes never clip it; its
+  whole look is in `action-menu.css`. Do not restyle it per area.
+- `usePageLocationNow()` returns where the user is now while that is still
+  this page (the destination of a navigation in progress, else the router's
+  location), or `undefined`. React Router applies navigations in a
+  transition, so a page being left stays mounted with its old location; ask
+  this before navigating on the user's behalf after a late answer (a
+  recorded decision, a started check).
+- Route CSS loads with its route chunk. A component imports the stylesheet
+  that defines its classes (shared parts keep theirs next to them), never
+  relying on CSS another route happens to have loaded, or its look depends
+  on which page the user opened first.
 
 ### Vocabulary (`ui/src/app/vocabulary.ts`)
 
@@ -351,10 +381,13 @@ and standards → audit baseline standards → profile name → "item").
   (If-Match + Idempotency-Key), refreshes the check, project lists and
   cross-project queries, announces "Decision recorded" and calls
   `onDecided`. Pass `shortcuts={false}` when several decisions share a page.
-- `ActionDecision({ auditId, review, onDecided? })` (approvals and
-  applicability) and `ReportDecision({ auditId, review, report?, onDecided? })`
-  (report acceptance) follow the same rules; `DecisionRecord({ decision })`
-  shows a recorded decision.
+- `ActionDecision({ auditId, review, onDecided?, onRecording? })` (approvals
+  and applicability) and `ReportDecision({ auditId, review, report?,
+  onDecided?, onRecording? })` (report acceptance) follow the same rules;
+  `DecisionRecord({ decision })` shows a recorded decision. While a decision
+  is being recorded, and until the refreshed request arrives, the bar is not
+  swapped for a "no longer matches" state; `onRecording(recording)` tells the
+  page.
 - If your page unmounts the decision on success (for example it moves to the
   next item), announce the outcome yourself in a page-level status region and
   move focus to the next item.
