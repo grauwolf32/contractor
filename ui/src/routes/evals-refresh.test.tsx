@@ -1,5 +1,5 @@
 import { webcrypto } from "node:crypto";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { createMemoryRouter } from "react-router";
@@ -86,6 +86,14 @@ async function release(pending: (() => void)[], index = 0) {
   await act(async () => pending[index]!());
 }
 
+/** A filter chip ("Unresolved pairs") in its filter group ("Pair filter"). */
+function filterChip(group: string, name: string) {
+  return within(screen.getByRole("group", { name: group })).getByRole(
+    "button",
+    { name },
+  );
+}
+
 it("preserves comparison filters selected while refreshing to a newer snapshot", async () => {
   const context = refreshFixture();
   const user = userEvent.setup();
@@ -93,7 +101,7 @@ it("preserves comparison filters selected while refreshing to a newer snapshot",
     context.fixture,
     "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7&chartCursor=old-chart&binFilter=old-bin",
   );
-  await screen.findByLabelText("Pair filter");
+  await screen.findByRole("group", { name: "Pair filter" });
   context.fixture.state.experiment.viewSnapshot = "view-8";
   context.hold();
   await user.click(screen.getByRole("button", { name: "Refresh" }));
@@ -102,7 +110,7 @@ it("preserves comparison filters selected while refreshing to a newer snapshot",
     screen.getByLabelText("Comparison metric"),
     "duration",
   );
-  await user.selectOptions(screen.getByLabelText("Pair filter"), "unresolved");
+  await user.click(filterChip("Pair filter", "Unresolved pairs"));
   await release(context.pending);
 
   await waitFor(() =>
@@ -110,7 +118,10 @@ it("preserves comparison filters selected while refreshing to a newer snapshot",
       new URLSearchParams(router.state.location.search).get("viewSnapshot"),
     ).toBe("view-8"),
   );
-  expect(screen.getByLabelText("Pair filter")).toHaveValue("unresolved");
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   expect(screen.getByLabelText("Comparison metric")).toHaveValue("duration");
   const params = new URLSearchParams(router.state.location.search);
   expect(params.has("cursor")).toBe(false);
@@ -141,7 +152,7 @@ it("preserves an attempt filter selected while retrying a failed page", async ()
   context.hold();
   await user.click(screen.getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(context.pending).toHaveLength(1));
-  await user.selectOptions(screen.getByLabelText("Attempt filter"), "failed");
+  await user.click(filterChip("Attempt filter", "Failed"));
   context.failMembers(false);
   await release(context.pending);
 
@@ -155,7 +166,10 @@ it("preserves an attempt filter selected while retrying a failed page", async ()
       ),
     ).toBe(true),
   );
-  expect(screen.getByLabelText("Attempt filter")).toHaveValue("failed");
+  expect(filterChip("Attempt filter", "Failed")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   const params = new URLSearchParams(router.state.location.search);
   expect(params.get("filter")).toBe("failed");
   expect(params.has("viewSnapshot")).toBe(false);
@@ -171,7 +185,7 @@ it.each(["section", "experiment"] as const)(
       context.fixture,
       "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7",
     );
-    await screen.findByLabelText("Pair filter");
+    await screen.findByRole("group", { name: "Pair filter" });
     context.hold();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(context.pending).toHaveLength(1));
@@ -215,16 +229,19 @@ it("lets only the latest overlapping refresh apply its snapshot", async () => {
     context.fixture,
     "/evals/experiments/experiment-1/comparison?filter=all&viewSnapshot=view-7",
   );
-  await screen.findByLabelText("Pair filter");
+  await screen.findByRole("group", { name: "Pair filter" });
   context.hold();
   context.fixture.state.experiment.viewSnapshot = "view-8";
   await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(context.pending).toHaveLength(1));
-  await user.selectOptions(screen.getByLabelText("Pair filter"), "unresolved");
+  await user.click(filterChip("Pair filter", "Unresolved pairs"));
   context.fixture.state.experiment.viewSnapshot = "view-9";
   await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(context.pending).toHaveLength(2));
-  expect(screen.getByLabelText("Pair filter")).toHaveValue("unresolved");
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   expect(
     new URLSearchParams(router.state.location.search).get("viewSnapshot"),
   ).toBe("view-7");
@@ -238,5 +255,8 @@ it("lets only the latest overlapping refresh apply its snapshot", async () => {
   expect(
     new URLSearchParams(router.state.location.search).get("viewSnapshot"),
   ).toBe("view-9");
-  expect(screen.getByLabelText("Pair filter")).toHaveValue("unresolved");
+  expect(filterChip("Pair filter", "Unresolved pairs")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

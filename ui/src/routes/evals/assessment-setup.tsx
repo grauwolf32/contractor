@@ -1,13 +1,7 @@
 import type { EvalCapabilities, EvalDraft, EvalCheck } from "../../api/evals";
 import { EvalField } from "./common";
+import { evaluatorLabel } from "./labels";
 import { MAX_EVAL_MEMBERS, MAX_EVAL_REPETITIONS } from "./setup-model";
-
-const CHECK_LABELS: Record<string, string> = {
-  "required-artifact@1": "Required output artifacts",
-  "media-type@1": "Output media type",
-  "json-schema@1": "Registered JSON schema",
-  "human-review@1": "Human review",
-};
 
 export function AssessmentSetup({
   draft,
@@ -34,16 +28,24 @@ export function AssessmentSetup({
   }
   return (
     <>
-      <h2>Assessment and repetitions</h2>
-      <p>
-        Checks assess their declared property. Human review uses a private
-        rubric saved with the selected dataset revision.
-      </p>
+      <div className="eval-step-heading">
+        <h2>Assessment and repetitions</h2>
+        <p className="eval-muted">
+          Each criterion assesses its declared property. Human review uses a
+          private rubric saved with the selected dataset revision.
+        </p>
+      </div>
+      <h3 className="eval-subheading">Criteria</h3>
+      {draft.checks.length === 0 ? (
+        <p className="eval-muted">
+          No criteria yet. Add at least one required criterion.
+        </p>
+      ) : null}
       {draft.checks.map((check, index) => (
         <fieldset className="eval-check" key={index}>
-          <legend>Check {index + 1}</legend>
-          <div className="form-grid">
-            <EvalField label="Check ID">
+          <legend>Criterion {index + 1}</legend>
+          <div className="eval-grid">
+            <EvalField label="Criterion ID">
               <input
                 value={check.id}
                 onChange={(e) => updateCheck(index, { id: e.target.value })}
@@ -79,14 +81,14 @@ export function AssessmentSetup({
                     key={c.evaluator}
                     disabled={!c.available}
                   >
-                    {CHECK_LABELS[c.evaluator] ?? c.evaluator}
+                    {evaluatorLabel(c.evaluator)}
                     {c.reason ? ` · ${c.reason}` : ""}
                   </option>
                 ))}
               </select>
             </EvalField>
           </div>
-          <label>
+          <label className="eval-checkbox">
             <input
               type="checkbox"
               checked={check.required}
@@ -94,12 +96,12 @@ export function AssessmentSetup({
                 updateCheck(index, { required: e.target.checked })
               }
             />
-            Required for quality to pass
+            <span>Required for quality to pass</span>
           </label>
           {check.evaluator === "human-review@1" ? (
             <EvalField
               label="Pinned rubric revision"
-              hint="Check ID and revision must match the private rubric in this dataset."
+              hint="Criterion ID and revision must match the private rubric in this dataset."
             >
               <input
                 value={check.rubricRevision ?? ""}
@@ -109,7 +111,7 @@ export function AssessmentSetup({
               />
             </EvalField>
           ) : (
-            <>
+            <div className="eval-grid">
               <EvalField
                 label="Checked output role"
                 hint={
@@ -165,49 +167,57 @@ export function AssessmentSetup({
                   </select>
                 </EvalField>
               ) : null}
-            </>
+            </div>
           )}
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() =>
-              onChange({
-                ...draft,
-                checks: draft.checks.filter((_, i) => i !== index),
-              })
-            }
-          >
-            Remove check
-          </button>
+          <div className="eval-actions">
+            <button
+              type="button"
+              className="ui-btn"
+              data-variant="ghost"
+              data-size="sm"
+              onClick={() =>
+                onChange({
+                  ...draft,
+                  checks: draft.checks.filter((_, i) => i !== index),
+                })
+              }
+            >
+              Remove criterion
+            </button>
+          </div>
         </fieldset>
       ))}
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => {
-          const evaluator =
-            capabilities?.checks.find(
-              (c) => c.available && c.evaluator === "required-artifact@1",
-            ) ?? capabilities?.checks.find((c) => c.available);
-          onChange({
-            ...draft,
-            checks: [
-              ...draft.checks,
-              {
-                id: `check-${draft.checks.length + 1}`,
-                evaluator: evaluator?.evaluator ?? "",
-                required: true,
-                ...(evaluator
-                  ? { implementationSha256: evaluator.implementationSha256 }
-                  : {}),
-              },
-            ],
-          });
-        }}
-      >
-        Add assessment check
-      </button>
-      <div className="form-grid">
+      <div className="eval-actions">
+        <button
+          type="button"
+          className="ui-btn"
+          data-size="sm"
+          onClick={() => {
+            const evaluator =
+              capabilities?.checks.find(
+                (c) => c.available && c.evaluator === "required-artifact@1",
+              ) ?? capabilities?.checks.find((c) => c.available);
+            onChange({
+              ...draft,
+              checks: [
+                ...draft.checks,
+                {
+                  id: `criterion-${draft.checks.length + 1}`,
+                  evaluator: evaluator?.evaluator ?? "",
+                  required: true,
+                  ...(evaluator
+                    ? { implementationSha256: evaluator.implementationSha256 }
+                    : {}),
+                },
+              ],
+            });
+          }}
+        >
+          Add criterion
+        </button>
+      </div>
+      <h3 className="eval-subheading">Repetitions and limits</h3>
+      <div className="eval-grid">
         <EvalField label="Repetitions">
           <input
             type="number"
@@ -299,8 +309,8 @@ export function AssessmentSetup({
           </EvalField>
         ) : null}
       </div>
-      <h3>Comparison gates</h3>
-      <div className="form-grid">
+      <h3 className="eval-subheading">Comparison gates</h3>
+      <div className="eval-grid">
         {(
           [
             {

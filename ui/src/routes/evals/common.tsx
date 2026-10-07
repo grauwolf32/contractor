@@ -9,37 +9,94 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { Link } from "react-router";
 import { PublicAPIError } from "../../api/error";
 import { ErrorNotice } from "../../app/error-notice";
+import { DetailHeader, StatusChip, type BreadcrumbItem } from "../../ui";
 import { KeyValueValidityContext } from "./key-value-validity";
+import { evalStateLabel, type EvalState } from "./labels";
 import "./evals.css";
 
+/**
+ * A full Evals page (V3B): one flat sheet with a header (breadcrumb, h1
+ * title, status, a meta line and actions), an optional row such as the
+ * section tabs, and a padded body. The experiments list is a PaneLayout
+ * instead.
+ */
 export function EvalFrame({
   title,
   children,
   action,
   description,
+  breadcrumb,
+  status,
+  tabs,
+  back,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
+  /** Controls at the right of the title. */
   action?: ReactNode;
-  description?: string;
+  /** The line under the title: a short description or the page's facts. */
+  description?: ReactNode;
+  breadcrumb?: readonly BreadcrumbItem[] | undefined;
+  /** Next to the title, usually an EvalStateChip. */
+  status?: ReactNode;
+  /** Between the header and the body, e.g. section tabs. */
+  tabs?: ReactNode;
+  /** A contextual back link above the header. */
+  back?: ReactNode;
 }) {
   return (
-    <section className="route-page eval-page">
-      <header className="route-header-row">
-        <div>
-          <p className="eyebrow">
-            <Link to="/evals">Evals</Link>
-          </p>
-          <h2>{title}</h2>
-          {description ? <p className="lede">{description}</p> : null}
-        </div>
-        {action}
-      </header>
-      {children}
-    </section>
+    <div className="eval-page">
+      <div className="eval-sheet">
+        {back ? <div className="eval-sheet-back">{back}</div> : null}
+        <DetailHeader
+          breadcrumb={breadcrumb}
+          title={title}
+          titleAs="h1"
+          status={status}
+          meta={description}
+          actions={action}
+        />
+        {tabs}
+        <div className="eval-sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Lifecycle state of an experiment as a status chip (word and glyph). */
+export function EvalStateChip({
+  state,
+  size,
+}: {
+  state: EvalState;
+  size?: "sm" | "md" | undefined;
+}) {
+  const { label, tone } = evalStateLabel(state);
+  return (
+    <StatusChip tone={tone} size={size}>
+      {label}
+    </StatusChip>
+  );
+}
+
+/**
+ * Variant identity: A is always a blue circle, B an orange striped square
+ * (S30:593-596), so the arm never depends on colour alone.
+ */
+export function ArmKey({
+  arm,
+  children,
+}: {
+  arm: "a" | "b";
+  children: ReactNode;
+}) {
+  return (
+    <span className="eval-arm-key" data-arm={arm}>
+      <span className="eval-arm-swatch" aria-hidden="true" />
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -91,7 +148,7 @@ export function EvalError({
     "eval_member_conflict",
   ].includes(code);
   return (
-    <div role="alert">
+    <div className="eval-error" role="alert">
       <ErrorNotice error={error} />
       {changed ? (
         <p>
@@ -100,7 +157,12 @@ export function EvalError({
         </p>
       ) : null}
       {reload ? (
-        <button type="button" className="secondary-button" onClick={reload}>
+        <button
+          type="button"
+          className="ui-btn"
+          data-size="sm"
+          onClick={reload}
+        >
           {changed ? "Reload current revision" : "Try again"}
         </button>
       ) : null}
@@ -127,7 +189,11 @@ export function EvalField({
             ...(hint ? { "aria-describedby": `${id}-hint` } : {}),
           })
         : children}
-      {hint ? <small id={`${id}-hint`}>{hint}</small> : null}
+      {hint ? (
+        <small className="eval-field-hint" id={`${id}-hint`}>
+          {hint}
+        </small>
+      ) : null}
     </div>
   );
 }
@@ -247,7 +313,9 @@ export function KeyValueEditor({
           />
           <button
             type="button"
-            className="secondary-button"
+            className="ui-btn"
+            data-variant="ghost"
+            data-size="sm"
             aria-label={`Remove ${label} ${index + 1}`}
             onClick={() => update(rows.filter((item) => item.id !== row.id))}
           >
@@ -262,7 +330,8 @@ export function KeyValueEditor({
       ))}
       <button
         type="button"
-        className="secondary-button"
+        className="ui-btn"
+        data-size="sm"
         onClick={() => {
           let number = 1;
           while (rows.some((row) => row.name === `field-${number}`)) number++;

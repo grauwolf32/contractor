@@ -1,31 +1,57 @@
 import { useState } from "react";
 import type { EvalExperiment } from "../../api/evals";
+import { StatusChip } from "../../ui";
 import { EvalChartPanel } from "./charts";
-import { EvalField } from "./common";
+import { ArmKey, EvalField } from "./common";
+import { evalConclusionLabel, evalFreshnessText } from "./labels";
 
+const COUNTS = [
+  ["terminal", "Terminal"],
+  ["scored", "Scored"],
+  ["endToEndPassed", "End-to-end passed"],
+] as const;
+
+/**
+ * The comparison conclusion and each arm's execution and assessment coverage
+ * against every expected member. A missing summary is not zero: nothing is
+ * concluded until observations arrive.
+ */
 export function EvalOverviewSummary({
   experiment,
 }: {
   experiment: EvalExperiment;
 }) {
   const summary = experiment.summary;
-  if (!summary) return <p>Comparison is waiting for collected observations.</p>;
+  if (!summary)
+    return (
+      <p className="eval-muted">
+        Comparison is waiting for collected observations.
+      </p>
+    );
   const comparison =
     experiment.setup?.comparison ?? experiment.draft?.comparison;
   const variants = comparison
     ? [comparison.baseline, comparison.candidate]
     : Object.keys(summary.counts);
+  const conclusion = evalConclusionLabel(summary.conclusion);
+  const freshness = evalFreshnessText(experiment.freshness);
   return (
     <section className="eval-overview-summary" aria-label="Experiment coverage">
-      <p className="eval-conclusion" data-conclusion={summary.conclusion}>
-        <strong>Conclusion: {summary.conclusion}</strong>
-        <span>
-          {experiment.freshness === "stale"
-            ? "Evidence changed · refresh to review the current result"
-            : experiment.freshness}
-        </span>
-      </p>
-      <div className="eval-variants">
+      <dl className="eval-conclusion">
+        <dt>Conclusion</dt>
+        <dd>
+          <StatusChip tone={conclusion.tone}>{conclusion.label}</StatusChip>
+          {freshness ? (
+            <span
+              className="eval-conclusion-note"
+              data-stale={experiment.freshness === "stale" || undefined}
+            >
+              {freshness}
+            </span>
+          ) : null}
+        </dd>
+      </dl>
+      <div className="eval-arms">
         {variants.map((id) => {
           const counts = summary.counts[id];
           if (!counts) return null;
@@ -35,39 +61,26 @@ export function EvalOverviewSummary({
               : "b"
             : undefined;
           return (
-            <section
-              className={`panel eval-panel ${arm ? `eval-arm-${arm}` : ""}`}
-              key={id}
-            >
+            <section className="eval-panel eval-arm" data-arm={arm} key={id}>
               <h3>
-                {arm === "a"
-                  ? "A · Baseline"
-                  : arm === "b"
-                    ? "B · Candidate"
-                    : id}
+                {arm ? (
+                  <ArmKey arm={arm}>
+                    {arm === "a" ? "A · Baseline" : "B · Candidate"}
+                  </ArmKey>
+                ) : (
+                  id
+                )}
               </h3>
               <dl className="eval-coverage">
-                <div>
-                  <dt>Terminal</dt>
-                  <dd>
-                    {counts.terminal}
-                    <span> / {counts.expected}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Scored</dt>
-                  <dd>
-                    {counts.scored}
-                    <span> / {counts.expected}</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>End-to-end passed</dt>
-                  <dd>
-                    {counts.endToEndPassed}
-                    <span> / {counts.expected}</span>
-                  </dd>
-                </div>
+                {COUNTS.map(([key, label]) => (
+                  <div key={key}>
+                    <dt>{label}</dt>
+                    <dd>
+                      {counts[key]}
+                      <span> / {counts.expected}</span>
+                    </dd>
+                  </div>
+                ))}
               </dl>
             </section>
           );

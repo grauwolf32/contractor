@@ -76,45 +76,57 @@ export function EvalArtifactPicker({
           }}
         >
           <option value="project">Evaluation workspace</option>
-          <option value="user">My artifacts</option>
+          <option value="user">My files</option>
         </select>
       </EvalField>
       <EvalError error={inventory.error} />
       <EvalError error={select.error} />
       {select.isPending ? <p role="status">Pinning input…</p> : null}
-      <ul className="eval-choice-list">
-        {inventory.data?.items.map((item) => (
-          <li key={item.artifact.revision}>
-            <span>
-              {item.artifact.namespace}/{item.artifact.name}
-              <small>
-                {item.mediaType} · revision {item.artifact.revision}
-              </small>
-            </span>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={select.isPending}
-              onClick={() => select.mutate(item)}
-            >
-              Use input
-            </button>
-          </li>
-        ))}
-      </ul>
+      {inventory.data?.items.length === 0 ? (
+        <p className="eval-muted">No files here yet.</p>
+      ) : null}
+      {inventory.data?.items.length ? (
+        <ul className="eval-choice-list" role="list">
+          {inventory.data.items.map((item) => (
+            <li key={item.artifact.revision}>
+              <span className="eval-choice-main">
+                <span className="eval-mono">
+                  {item.artifact.namespace}/{item.artifact.name}
+                </span>
+                <small>
+                  {item.mediaType} · revision {item.artifact.revision}
+                </small>
+              </span>
+              <button
+                type="button"
+                className="ui-btn"
+                data-size="sm"
+                disabled={select.isPending}
+                onClick={() => select.mutate(item)}
+              >
+                Use input
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <CursorControls
-        label="Input artifact pages"
+        label="Input file pages"
         {...pages.controls(inventory.data?.page)}
       />
       {scope === "project" ? (
         <>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => setUpload(!upload)}
-          >
-            Upload an input
-          </button>
+          <div className="eval-actions">
+            <button
+              type="button"
+              className="ui-btn"
+              data-size="sm"
+              aria-expanded={upload}
+              onClick={() => setUpload(!upload)}
+            >
+              Upload an input
+            </button>
+          </div>
           {upload ? (
             <ArtifactWriteForm
               scope={{ kind: "project", id: projectId }}

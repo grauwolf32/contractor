@@ -147,11 +147,11 @@ it("refreshes execution inventory when the pair evidence is refreshed", async ()
     fixture,
     `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
   );
-  await screen.findAllByRole("link", { name: "run run-1" });
+  await screen.findAllByRole("link", { name: "Run run-1" });
   deleted = true;
   await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() =>
-    expect(screen.queryAllByRole("link", { name: "run run-1" })).toHaveLength(
+    expect(screen.queryAllByRole("link", { name: "Run run-1" })).toHaveLength(
       0,
     ),
   );
@@ -341,7 +341,8 @@ it("shows both arms against all expected attempts, including missing and unscore
   const coverage = await screen.findByRole("region", {
     name: "Experiment coverage",
   });
-  expect(within(coverage).getByText("Conclusion: inconclusive")).toBeVisible();
+  expect(within(coverage).getByText("Conclusion")).toBeVisible();
+  expect(within(coverage).getByText("Inconclusive")).toBeVisible();
   const candidate = within(coverage)
     .getByRole("heading", { name: "B · Candidate" })
     .closest("section")!;

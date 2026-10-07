@@ -1,14 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { usePublicAPI } from "../../api/context";
 import {
   getEvalChart,
   type EvalChart,
   type EvalExperiment,
 } from "../../api/evals";
-import { ContextLink } from "../../app/context-navigation";
-import { EvalError } from "./common";
 import { queryKeys } from "../../api/query-keys";
+import { ContextLink } from "../../app/context-navigation";
+import { ArmKey, EvalError } from "./common";
 
 const CHART_TITLES: Record<EvalChart["chart"], string> = {
   quality: "Quality A/B",
@@ -17,10 +17,26 @@ const CHART_TITLES: Record<EvalChart["chart"], string> = {
   duration: "Duration distribution",
   "pair-deltas": "Case differences",
 };
+// A missing measurement is never zero (UUS:178-179).
 const format = (value: number | null | undefined) =>
   value === null || value === undefined
     ? "Unavailable"
     : value.toLocaleString();
+
+function DataTable({
+  summary = "Show data table",
+  children,
+}: {
+  summary?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="eval-data-table">
+      <summary>{summary}</summary>
+      <div className="eval-table-wrap">{children}</div>
+    </details>
+  );
+}
 
 function QualityPlot({
   data,
@@ -34,39 +50,40 @@ function QualityPlot({
   const [conditional, setConditional] = useState(false);
   return (
     <>
-      <label>
+      <label className="eval-checkbox">
         <input
           type="checkbox"
           checked={conditional}
           onChange={(e) => setConditional(e.target.checked)}
         />
-        Quality among scored results only
+        <span>Quality among scored results only</span>
       </label>
-      <p>
+      <p className="eval-muted">
         {conditional
           ? "Denominator: scored results"
           : "Denominator: every expected member"}
       </p>
-      {[
-        [baseline, "A"],
-        [candidate, "B"],
-      ].map(([id, label]) => {
-        const quality = data.quality?.[id!];
+      {(
+        [
+          [baseline, "a"],
+          [candidate, "b"],
+        ] as const
+      ).map(([id, arm]) => {
+        const quality = data.quality?.[id];
         const ratio = conditional
           ? quality?.conditionalQuality
           : quality?.endToEndPass;
-        const coverage = data.experimentSummary.counts[id!];
+        const coverage = data.experimentSummary.counts[id];
         return (
-          <div
-            className={`eval-quality-arm eval-arm-${label!.toLowerCase()}`}
-            key={id}
-          >
-            <strong>
-              {label}{" "}
-              {ratio
-                ? `${ratio.numerator}/${ratio.denominator}`
-                : "Unavailable"}
-            </strong>
+          <div className="eval-quality-arm" data-arm={arm} key={arm}>
+            <div className="eval-quality-head">
+              <ArmKey arm={arm}>{arm.toUpperCase()}</ArmKey>
+              <strong>
+                {ratio
+                  ? `${ratio.numerator}/${ratio.denominator}`
+                  : "Unavailable"}
+              </strong>
+            </div>
             {ratio?.value !== null && ratio?.value !== undefined ? (
               <div className="eval-bar-track" aria-hidden="true">
                 <span style={{ width: `${ratio.value * 100}%` }} />
@@ -79,18 +96,17 @@ function QualityPlot({
           </div>
         );
       })}
-      <details>
-        <summary>Show data table</summary>
+      <DataTable>
         <table>
           <caption>
             {conditional ? "Conditional quality" : "End-to-end quality"}
           </caption>
           <thead>
             <tr>
-              <th>Variant</th>
-              <th>Passed</th>
-              <th>Denominator</th>
-              <th>Scored</th>
+              <th scope="col">Variant</th>
+              <th scope="col">Passed</th>
+              <th scope="col">Denominator</th>
+              <th scope="col">Scored</th>
             </tr>
           </thead>
           <tbody>
@@ -102,7 +118,7 @@ function QualityPlot({
                 ratio = conditional ? q?.conditionalQuality : q?.endToEndPass;
               return (
                 <tr key={id}>
-                  <th>{label}</th>
+                  <th scope="row">{label}</th>
                   <td>{format(ratio?.numerator)}</td>
                   <td>{format(ratio?.denominator)}</td>
                   <td>{format(data.experimentSummary.counts[id!]?.scored)}</td>
@@ -111,7 +127,7 @@ function QualityPlot({
             })}
           </tbody>
         </table>
-      </details>
+      </DataTable>
     </>
   );
 }
@@ -130,13 +146,18 @@ function DistributionPlot({
   );
   if (!data.coverage.includedPairs)
     return (
-      <p>No complete matching pairs are available for this measurement.</p>
+      <p className="eval-muted">
+        No complete matching pairs are available for this measurement.
+      </p>
     );
   return (
     <>
-      <p>
-        A: blue, solid · B: orange, striped. Only complete matching pairs.
-        p50/p90 describe observed variation.
+      <p className="eval-legend">
+        <ArmKey arm="a">A: blue, solid</ArmKey>
+        <ArmKey arm="b">B: orange, striped</ArmKey>
+        <span>
+          Only complete matching pairs. p50/p90 describe observed variation.
+        </span>
       </p>
       <div className="eval-histogram">
         {bins.map((bin, index) => (
@@ -162,45 +183,46 @@ function DistributionPlot({
           </button>
         ))}
       </div>
-      <table>
-        <caption>Observed distributions ({data.unit})</caption>
-        <thead>
-          <tr>
-            <th>Variant</th>
-            <th>Samples</th>
-            <th>p50</th>
-            <th>p90</th>
-            <th>Paired total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(["a", "b"] as const).map((arm) => (
-            <tr key={arm}>
-              <th>{arm.toUpperCase()}</th>
-              <td>{format(data.distributions?.[arm].count)}</td>
-              <td>{format(data.distributions?.[arm].p50)}</td>
-              <td>{format(data.distributions?.[arm].p90)}</td>
-              <td>{format(data.distributions?.[arm].total)}</td>
+      <div className="eval-table-wrap">
+        <table>
+          <caption>Observed distributions ({data.unit})</caption>
+          <thead>
+            <tr>
+              <th scope="col">Variant</th>
+              <th scope="col">Samples</th>
+              <th scope="col">p50</th>
+              <th scope="col">p90</th>
+              <th scope="col">Paired total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <details>
-        <summary>Show bin data table</summary>
+          </thead>
+          <tbody>
+            {(["a", "b"] as const).map((arm) => (
+              <tr key={arm}>
+                <th scope="row">{arm.toUpperCase()}</th>
+                <td>{format(data.distributions?.[arm].count)}</td>
+                <td>{format(data.distributions?.[arm].p50)}</td>
+                <td>{format(data.distributions?.[arm].p90)}</td>
+                <td>{format(data.distributions?.[arm].total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <DataTable summary="Show bin data table">
         <table>
           <caption>Shared bins</caption>
           <thead>
             <tr>
-              <th>Interval</th>
-              <th>A</th>
-              <th>B</th>
-              <th>Evidence</th>
+              <th scope="col">Interval</th>
+              <th scope="col">A</th>
+              <th scope="col">B</th>
+              <th scope="col">Evidence</th>
             </tr>
           </thead>
           <tbody>
             {bins.map((bin, index) => (
               <tr key={index}>
-                <th>
+                <th scope="row">
                   {bin.lower}–{bin.upper}
                   {bin.upperInclusive ? " inclusive" : " exclusive upper"}
                 </th>
@@ -210,7 +232,8 @@ function DistributionPlot({
                   {onBin ? (
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="ui-btn"
+                      data-size="xs"
                       onClick={() => onBin(bin.filterToken)}
                     >
                       Open matching pairs
@@ -221,7 +244,7 @@ function DistributionPlot({
             ))}
           </tbody>
         </table>
-      </details>
+      </DataTable>
     </>
   );
 }
@@ -261,7 +284,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
   }
   return (
     <>
-      <p>
+      <p className="eval-muted">
         Observed terminal members against experiment wall time. Gaps mean no
         observation, not zero progress.
       </p>
@@ -317,25 +340,27 @@ function ProgressPlot({ data }: { data: EvalChart }) {
           ))}
         </svg>
       ) : (
-        <p>No progress observations yet.</p>
+        <p className="eval-muted">No progress observations yet.</p>
       )}
-      <p>A: blue circles · B: orange squares and dashed line</p>
-      <details>
-        <summary>Show data table</summary>
+      <p className="eval-legend">
+        <ArmKey arm="a">A: blue circles</ArmKey>
+        <ArmKey arm="b">B: orange squares and dashed line</ArmKey>
+      </p>
+      <DataTable>
         <table>
           <caption>Observed terminal members</caption>
           <thead>
             <tr>
-              <th>Elapsed milliseconds</th>
-              <th>A</th>
-              <th>B</th>
-              <th>Observation gap</th>
+              <th scope="col">Elapsed milliseconds</th>
+              <th scope="col">A</th>
+              <th scope="col">B</th>
+              <th scope="col">Observation gap</th>
             </tr>
           </thead>
           <tbody>
             {points.map((point, index) => (
               <tr key={index}>
-                <th>{point.elapsedMs}</th>
+                <th scope="row">{point.elapsedMs}</th>
                 <td>{format(point.a)}</td>
                 <td>{format(point.b)}</td>
                 <td>
@@ -347,7 +372,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
             ))}
           </tbody>
         </table>
-      </details>
+      </DataTable>
     </>
   );
 }
@@ -357,12 +382,12 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
     maximum = Math.max(1, ...points.map((p) => Math.abs(p.difference)));
   return (
     <>
-      <p>
+      <p className="eval-muted">
         Candidate minus baseline ({data.unit}). Negative values use less;
         quality regressions remain labelled separately.
       </p>
       {points.length ? (
-        <ul className="eval-differences">
+        <ul className="eval-differences" role="list">
           {points.map((point) => (
             <li key={point.pairId}>
               <ContextLink
@@ -393,25 +418,24 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
           ))}
         </ul>
       ) : (
-        <p>No complete pairs for this metric.</p>
+        <p className="eval-muted">No complete pairs for this metric.</p>
       )}
-      <details>
-        <summary>Show data table</summary>
+      <DataTable>
         <table>
           <caption>Case/sample differences</caption>
           <thead>
             <tr>
-              <th>Case / sample</th>
-              <th>A</th>
-              <th>B</th>
-              <th>B − A</th>
-              <th>Quality</th>
+              <th scope="col">Case / sample</th>
+              <th scope="col">A</th>
+              <th scope="col">B</th>
+              <th scope="col">B − A</th>
+              <th scope="col">Quality</th>
             </tr>
           </thead>
           <tbody>
             {points.map((p) => (
               <tr key={p.pairId}>
-                <th>
+                <th scope="row">
                   {p.caseId} / {p.sample}
                 </th>
                 <td>{p.a}</td>
@@ -422,7 +446,7 @@ function DifferencePlot({ data, id }: { data: EvalChart; id: string }) {
             ))}
           </tbody>
         </table>
-      </details>
+      </DataTable>
     </>
   );
 }
@@ -448,6 +472,7 @@ export function EvalChartPanel({
 }) {
   const api = usePublicAPI();
   const cache = useQueryClient();
+  const heading = useId();
   const query = {
     viewSnapshot: snapshot,
     ...(chart === "pair-deltas"
@@ -474,25 +499,25 @@ export function EvalChartPanel({
     });
   }
   return (
-    <section className="panel eval-panel eval-chart">
-      <h3>{CHART_TITLES[chart]}</h3>
+    <section className="eval-panel eval-chart" aria-labelledby={heading}>
+      <h3 id={heading}>{CHART_TITLES[chart]}</h3>
       <EvalError error={result.error} reload={() => void refresh()} />
       {result.isPending ? <p role="status">Loading chart…</p> : null}
       {data ? (
         <>
-          <p>
+          <p className="eval-chart-scope">
             {data.coverage.includedPairs}/{data.coverage.expectedPairs} pairs
             included · {data.freshness}
             {data.measurementScope ? ` · ${data.measurementScope}` : ""}
           </p>
           {chart === "duration" ? (
-            <p>
-              Execution duration in milliseconds, including queue/hold time;
-              Audit duration is the parent interval.
+            <p className="eval-muted">
+              Execution duration in milliseconds, including queue/hold time; a
+              check&apos;s duration is its parent interval.
             </p>
           ) : null}
           {Object.entries(data.coverage.reasons).map(([reason, count]) => (
-            <p key={reason}>
+            <p className="eval-muted" key={reason}>
               {reason.replaceAll("_", " ")}: {count}
             </p>
           ))}
@@ -510,13 +535,16 @@ export function EvalChartPanel({
             <DistributionPlot data={data} {...(onBin ? { onBin } : {})} />
           )}
           {data.page?.hasMore && data.page.nextCursor && onNext ? (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => onNext(data.page!.nextCursor!)}
-            >
-              Next differences
-            </button>
+            <div className="eval-actions">
+              <button
+                type="button"
+                className="ui-btn"
+                data-size="sm"
+                onClick={() => onNext(data.page!.nextCursor!)}
+              >
+                Next differences
+              </button>
+            </div>
           ) : null}
         </>
       ) : null}

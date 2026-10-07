@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { usePublicAPI } from "../../api/context";
+import { invalidateCrossProject } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
 import {
   commandEvalExperiment,
@@ -14,6 +15,7 @@ import {
   type EvalReceipt,
 } from "../../api/evals";
 import { Dialog } from "../../app/dialog";
+import { RecordedTime } from "../../app/recorded-time";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
 import { EvalError } from "./common";
 import { EvalExecutionStatus } from "./execution-status";
@@ -120,6 +122,10 @@ export function EvalControls({
       queryKey: queryKeys.evals.experiment(experiment.experimentId),
     });
     await cache.invalidateQueries({ queryKey: queryKeys.evals.lists });
+    // Members of a check experiment are checks: Start, Pause and Cancel
+    // change the checks the cross-project lists show.
+    if (experiment.executionKind === "audit")
+      await invalidateCrossProject(cache);
   }
   const send = useMutation({
     mutationFn: async (current: PendingCommand) => {
@@ -275,22 +281,30 @@ export function EvalControls({
     } else if (send.error && pending) mutate(pending);
     else await command.refetch();
   }
+  const commands = experiment.allowedCommands.filter(
+    (kind) => kind !== "finalize",
+  );
   return (
-    <section className="eval-controls">
+    <section className="eval-controls" aria-label="Experiment controls">
       <EvalExecutionStatus experiment={experiment} />
       {native ? (
-        <div className="eval-actions">
-          {experiment.allowedCommands
-            .filter((kind) => kind !== "finalize")
-            .map((kind) => (
+        commands.length ? (
+          <div className="eval-actions eval-command-bar">
+            {commands.map((kind) => (
               <button
                 key={kind}
                 type="button"
-                className={
-                  !disabled &&
-                  (kind === "prepare" || kind === "start" || kind === "resume")
+                className="ui-btn"
+                data-variant={
+                  disabled
                     ? undefined
-                    : "secondary-button"
+                    : kind === "prepare" ||
+                        kind === "start" ||
+                        kind === "resume"
+                      ? "primary"
+                      : kind === "cancel"
+                        ? "danger"
+                        : undefined
                 }
                 disabled={busy || disabled}
                 onClick={() => {
@@ -302,24 +316,31 @@ export function EvalControls({
                 {LABELS[kind]}
               </button>
             ))}
-        </div>
+          </div>
+        ) : null
       ) : (
-        <p>
+        <p className="eval-callout">
           Externally controlled ·{" "}
           {experiment.setup?.source?.system ?? "Independent producer"}. Last
-          producer update: {experiment.lastProducerActivityAt ?? "not observed"}
+          producer update:{" "}
+          {experiment.lastProducerActivityAt ? (
+            <RecordedTime value={experiment.lastProducerActivityAt} />
+          ) : (
+            "not observed"
+          )}
           . The producer owns dispatch; these pages provide inspection and
           review.
         </p>
       )}
       {pending && !error ? (
-        <p role="status">
-          {pending?.body.kind}: {command.data?.state ?? "recovering receipt"}.
-          Waiting for the server to confirm.
+        <p className="eval-muted" role="status">
+          {LABELS[pending.body.kind]}:{" "}
+          {command.data?.state ?? "recovering receipt"}. Waiting for the server
+          to confirm.
         </p>
       ) : null}
       {receipt ? (
-        <p role="status">
+        <p className="eval-muted" role="status">
           {LABELS[receipt.kind]}: {receipt.state}.
         </p>
       ) : null}
@@ -344,7 +365,7 @@ export function EvalControls({
       />
       {confirm ? (
         <Dialog
-          className="project-dialog panel"
+          className="project-dialog panel eval-dialog"
           labelledBy={heading}
           initialFocusRef={dismiss}
           onRequestClose={() => {
@@ -367,11 +388,11 @@ export function EvalControls({
               have drained.
             </p>
           )}
-          <div className="eval-actions">
+          <div className="eval-dialog-actions">
             <button
               ref={dismiss}
               type="button"
-              className="secondary-button"
+              className="ui-btn"
               disabled={preparing}
               onClick={() => setConfirm(null)}
             >
@@ -379,6 +400,8 @@ export function EvalControls({
             </button>
             <button
               type="button"
+              className="ui-btn"
+              data-variant={confirm.kind === "cancel" ? "danger" : "primary"}
               disabled={preparing}
               onClick={() => void execute(confirm.kind, confirm.experiment)}
             >

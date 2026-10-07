@@ -32,3 +32,27 @@ it("flags native plan overflow before the setup is saved", () => {
   );
   expect(draftProblem("Too large", draft)).toMatch(/frozen 1 MiB plan/);
 });
+
+it("names criteria in setup problems", () => {
+  const draft = initialEvalDraft();
+  draft.dataset = { id: "trace-small", revision: "r1" };
+  draft.caseIds = ["case-1"];
+  draft.variants[0]!.selector = "trace-a@1";
+  draft.variants[1]!.selector = "trace-b@1";
+  expect(draftProblem("Criteria", draft)).toBe(
+    "Select at least one required criterion.",
+  );
+  draft.checks = [
+    { id: "same", evaluator: "required-artifact@1", required: true },
+    { id: "same", evaluator: "media-type@1", required: false },
+  ];
+  expect(draftProblem("Criteria", draft)).toBe(
+    "Criterion IDs must be distinct.",
+  );
+  draft.checks = [
+    { id: "review", evaluator: "human-review@1", required: true },
+  ];
+  expect(draftProblem("Criteria", draft)).toBe(
+    "Give each criterion an ID and pin the human review rubric revision.",
+  );
+});
