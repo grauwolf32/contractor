@@ -483,6 +483,15 @@ export const queryKeys = {
     review: (auditId: string, requestId: string) =>
       ["audits", "detail", auditId, "reviews", requestId] as const,
   },
+  /**
+   * Reports (src/routes/reports). The acceptance request a report page has
+   * shown sits under the check's detail key, so a decision's refresh
+   * (invalidating `audits.detail`) refetches it with the report.
+   */
+  reports: {
+    acceptance: (auditId: string, requestId: string) =>
+      ["audits", "detail", auditId, "report-acceptance", requestId] as const,
+  },
 };
 
 /** Artifact binding keys of one scope; each maps to its scope's family. */

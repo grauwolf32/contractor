@@ -321,7 +321,7 @@ describe("Project Audit routes", () => {
       await screen.findByText(
         section === "coverage"
           ? /^Attempts are not loaded for this/u
-          : /The Audit has not reached report generation/,
+          : "The check has not reached report generation.",
       );
       current = auditAt("completed", 3);
       act(() =>
