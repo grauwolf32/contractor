@@ -18,7 +18,7 @@ import {
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
 import { formatBytes, formatTimestamp } from "../../../app/format";
-import { OperationsState, OpsSection } from "../common";
+import { OperationsState, OpsSection, TechnicalDisclosure } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
@@ -688,40 +688,16 @@ export function OperationsPerformanceRoute() {
         </QueryView>
       </section>
       {current.data?.current === undefined ? null : (
-        <details
-          className="ui-tech ops-counters"
-          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+        <TechnicalDisclosure
+          className="ops-counters"
+          summary="Detailed counters and collection diagnostics"
+          description="HTTP surfaces, connection pool, PostgreSQL, storage and the collector itself."
+          onToggle={setDetailsOpen}
         >
-          <summary>
-            <span className="ui-tech-label">
-              <svg
-                className="ui-tech-chevron"
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path d="M9.5 6l6 6-6 6" />
-              </svg>
-              Detailed counters and collection diagnostics
-            </span>
-            <span className="ui-tech-description">
-              HTTP surfaces, connection pool, PostgreSQL, storage and the
-              collector itself.
-            </span>
-          </summary>
-          <div className="ui-tech-body">
-            {detailsOpen ? (
-              <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
-            ) : null}
-          </div>
-        </details>
+          {detailsOpen ? (
+            <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
+          ) : null}
+        </TechnicalDisclosure>
       )}
     </div>
   );

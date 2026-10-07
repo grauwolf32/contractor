@@ -13,6 +13,7 @@ import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import { IdChip } from "../../../ui";
+import { DisclosureChevron } from "../common";
 import { agentDisplayName, relativeAge } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
@@ -171,21 +172,7 @@ export function OfflineIdentities({
       aria-labelledby={heading}
     >
       <summary id={heading}>
-        <svg
-          className="ui-tech-chevron"
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path d="M9.5 6l6 6-6 6" />
-        </svg>
+        <DisclosureChevron />
         Offline identities ({principals.length})
       </summary>
       <p className="ops-offline-note">

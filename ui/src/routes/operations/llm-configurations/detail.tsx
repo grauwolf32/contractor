@@ -13,10 +13,11 @@ import {
   CONFIG_ID_PATTERN,
   CONFIG_VERSION_PATTERN,
 } from "../../../api/workflows";
+import { compactDigest } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
 import { ErrorNotice } from "../../../app/error-notice";
 import { DetailHeader, IdChip, TechnicalDetails } from "../../../ui";
-import { Glance, ScopeChip } from "../common";
+import { DisclosureChevron, Glance, ScopeChip } from "../common";
 import { ConfigurationBodyView } from "./body";
 import { LLMGatewayPublicationForm, ModelPolicyPublicationForm } from "./forms";
 import { configurationListPath, KIND_LABELS } from "./kinds";
@@ -89,6 +90,7 @@ function LoadedConfiguration({
               <IdChip
                 key="digest"
                 value={resource.ref.digest}
+                display={compactDigest(resource.ref.digest)}
                 label="configuration digest"
               />,
             ],
@@ -98,21 +100,7 @@ function LoadedConfiguration({
       {writable(resource) ? (
         <details className="ops-disclosure configuration-clone" ref={clone}>
           <summary>
-            <svg
-              className="ui-tech-chevron"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path d="M9.5 6l6 6-6 6" />
-            </svg>
+            <DisclosureChevron />
             New version draft
           </summary>
           {resource.ref.kind === "model-policies" ? (

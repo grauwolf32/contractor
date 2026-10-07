@@ -178,6 +178,10 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Git SSH key" }),
     ).toBeInTheDocument();
+    // Headings do not skip a level below the section title.
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Private repository key" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Theme" }),
     ).toBeInTheDocument();
@@ -249,6 +253,9 @@ describe("Operations Scheduler settings", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 3, name: "Git SSH key" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 4, name: "Private repository key" }),
     ).toBeInTheDocument();
     const sections = screen.getByRole("navigation", {
       name: "Operations sections",

@@ -73,6 +73,75 @@ export function OperationsState({
   );
 }
 
+/**
+ * The chevron of TechnicalDetails (src/ui), for the area's own disclosures:
+ * it turns with `.ui-tech[open]` and with each disclosure's own open rule.
+ */
+export function DisclosureChevron({
+  size = 13,
+}: {
+  size?: number | undefined;
+}) {
+  return (
+    <svg
+      className="ui-tech-chevron"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9.5 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/**
+ * TechnicalDetails (src/ui) with a class name on the <details> (browser specs
+ * find the diagnostics by it) and a toggle callback, which the primitive does
+ * not take yet. Replace it with the primitive once it does.
+ */
+export function TechnicalDisclosure({
+  className,
+  summary,
+  description,
+  onToggle,
+  children,
+}: {
+  className: string;
+  summary: string;
+  description?: ReactNode;
+  onToggle?: ((open: boolean) => void) | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      className={`ui-tech ${className}`}
+      onToggle={
+        onToggle === undefined
+          ? undefined
+          : (event) => onToggle(event.currentTarget.open)
+      }
+    >
+      <summary>
+        <span className="ui-tech-label">
+          <DisclosureChevron />
+          {summary}
+        </span>
+        {description === undefined ? null : (
+          <span className="ui-tech-description">{description}</span>
+        )}
+      </summary>
+      <div className="ui-tech-body">{children}</div>
+    </details>
+  );
+}
+
 /** "Server-wide": the scope of a configuration or setting. */
 export function ScopeChip({ children }: { children: ReactNode }) {
   return <span className="ops-scope">{children}</span>;

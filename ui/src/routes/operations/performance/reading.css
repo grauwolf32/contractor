@@ -61,23 +61,30 @@
   line-height: 1.45;
 }
 
+/*
+ * Hairlines as in .ops-glance (operations/common.css): each cell draws its
+ * right and bottom line and reaches 1px into the next cell; the grid clips
+ * the overhang, so a row that is not full ends in blank surface.
+ */
 .allocation-resource-identity,
 .allocation-resource-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
-  gap: 1px;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--line);
+  background: var(--surface);
 }
 
 .allocation-resource-identity > div,
 .allocation-resource-metrics > div {
   min-width: 0;
+  margin: 0 -1px -1px 0;
   padding: 0.5rem 0.75rem;
-  background: var(--surface);
+  box-shadow:
+    inset -1px 0 0 var(--line),
+    inset 0 -1px 0 var(--line);
 }
 
 .allocation-resource-identity dt,

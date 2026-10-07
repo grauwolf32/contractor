@@ -245,6 +245,16 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("fenced")).toHaveLength(2);
     expect(screen.getByText("reconciliation pending")).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByText("Process inventory and lease diagnostics"));
+    // The binding opens its exact entry on the allocations page.
+    expect(
+      screen.getByRole("link", { name: "allocation-authoritative" }),
+    ).toHaveAttribute(
+      "href",
+      "/operations/allocations#allocation-authoritative",
+    );
     expect(screen.getByText("validate_likec4")).toBeInTheDocument();
     expect(screen.getByText("No usable Toolsets reported")).toBeInTheDocument();
     expect(
@@ -304,6 +314,62 @@ describe("Operations routes", () => {
         .map((frame) => JSON.parse(frame) as { type: string })
         .filter((frame) => frame.type === "unsubscribe"),
     ).toHaveLength(0);
+  });
+
+  it("opens and marks only the allocation named by the URL hash", async () => {
+    const allocation = (allocationId: string, logicalWorker: string) => ({
+      allocationId,
+      runId: `run-${allocationId}`,
+      stageExecutionId: `stage-${allocationId}`,
+      runtimeAgentInstanceId: "runtime-vm-1",
+      logicalWorker,
+      agentTemplate: { templateId: "evidence-analyst", version: "1", digest },
+      executionConfig: {},
+      authoritativePhase: "active",
+      observedPhase: "prepared",
+      metrics: {
+        reportsComplete: true,
+        modelCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        toolCalls: 0,
+        toolFailures: 0,
+        errorCount: 0,
+        truncated: false,
+      },
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+          return apiResponse({
+            ...snapshot(),
+            allocations: [
+              allocation("alloc-a", "researcher"),
+              allocation("alloc-b", "reviewer"),
+            ],
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations/allocations#alloc-b");
+    const target = (
+      await screen.findByText("alloc-b", { selector: "code" })
+    ).closest("details");
+    const other = screen
+      .getByText("alloc-a", { selector: "code" })
+      .closest("details");
+    expect(target).toHaveAttribute("id", "alloc-b");
+    expect(target).toHaveAttribute("open");
+    expect(target).toHaveAttribute("data-targeted");
+    expect(other).toHaveAttribute("id", "alloc-a");
+    expect(other).not.toHaveAttribute("open");
+    expect(other).not.toHaveAttribute("data-targeted");
   });
 
   it("backs off failed resync baselines instead of resuming the cached cursor", async () => {

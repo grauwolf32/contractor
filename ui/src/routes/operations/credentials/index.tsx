@@ -7,7 +7,7 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
-import { OpsSection, ScopeChip } from "../common";
+import { DisclosureChevron, OpsSection, ScopeChip } from "../common";
 import { SETTINGS_PATH } from "../settings/path";
 import { ActiveChip } from "./active-chip";
 import { CredentialCreateForm } from "./form";
@@ -128,21 +128,7 @@ export function CredentialListRoute() {
       </OpsSection>
       <details className="ops-disclosure configuration-clone">
         <summary>
-          <svg
-            className="ui-tech-chevron"
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M9.5 6l6 6-6 6" />
-          </svg>
+          <DisclosureChevron />
           Create LLM credential
         </summary>
         <CredentialCreateForm />

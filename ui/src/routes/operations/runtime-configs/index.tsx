@@ -814,7 +814,7 @@ function BindingEditor({
     (resource) => exactKey(resource) === selected,
   );
   return (
-    <article className="runtime-binding-card">
+    <article className="ops-binding-card runtime-binding-card">
       <header className="ops-binding-head">
         <strong>{binding.label}</strong>
         {binding.label === "default" ? (
@@ -1430,7 +1430,7 @@ function RuntimeCredentialList({
       id="runtime-credentials-heading"
       titleAs="h3"
       title="Runtime credentials"
-      description="Secrets for telemetry sinks, proxies and Caido. Values are write-only; only safe metadata is listed."
+      description="Secrets for telemetry sinks, HTTP proxies, Caido and project live targets (HTTP origins). Values are write-only; only safe metadata is listed."
       aside={
         credentials.data === undefined
           ? undefined

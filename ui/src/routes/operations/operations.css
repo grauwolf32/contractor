@@ -1,9 +1,11 @@
 /*
  * Operations and Settings in the V3B look (docs/design/ui/v3b-build-contract.md
  * §4): one flat page sheet with hairlines, Manrope text, JetBrains Mono for
- * identifiers, status chips from src/ui. Every class starts with ops-; older
- * class names that remain on elements are hooks for browser specs only.
- * Colours come only from theme.css tokens.
+ * identifiers, status chips from src/ui. New classes start with ops-. Older
+ * class names kept on elements (allocation-card, runtime-binding-card,
+ * operations-snapshot-record, configuration-body) are hooks for browser specs
+ * and other areas; no Operations rule selects them. Colours come only from
+ * theme.css tokens.
  */
 
 /* ---------- Page sheet ---------- */
@@ -482,12 +484,14 @@
   border-top: 1px solid var(--line);
 }
 
-.ops-page .operations-snapshot-record > summary {
+/* Undoes src/app/ui-primitives.css's .operations-snapshot-record summary
+   rules (requested for removal); TechnicalDetails styles the summary. */
+.ops-page .ops-diagnostics > summary {
   color: inherit;
   font-weight: inherit;
 }
 
-.ops-page .operations-snapshot-record[open] > summary {
+.ops-page .ops-diagnostics[open] > summary {
   margin-bottom: 0;
 }
 
@@ -652,25 +656,30 @@
   overflow-wrap: anywhere;
 }
 
+/* Hairlines drawn by the tiles themselves, as in .ops-glance (common.css). */
 .ops-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
-  gap: 1px;
   margin: 0;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--line);
+  background: var(--surface);
   list-style: none;
 }
 
 .ops-tiles > li {
   display: flex;
   min-width: 0;
-  background: var(--surface);
+  margin: 0 -1px -1px 0;
 }
 
+/*
+ * The tile draws its right and bottom line. Its top and left edges are a
+ * transparent 1px border outside the background, so a hovered tile does not
+ * paint over the lines its neighbours draw there.
+ */
 .ops-tile {
   display: flex;
   flex: 1;
@@ -678,6 +687,12 @@
   gap: 0.25rem;
   min-width: 0;
   padding: 0.875rem 1rem;
+  border-top: 1px solid transparent;
+  border-left: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    inset -1px 0 0 var(--line),
+    inset 0 -1px 0 var(--line);
   color: inherit;
   text-decoration: none;
 }
@@ -1158,12 +1173,6 @@
 .ops-allocation[data-targeted] > summary {
   background: var(--sel);
   box-shadow: inset 3px 0 0 var(--sel-bar);
-}
-
-.ops-allocation.allocation-card > summary,
-.ops-allocation.allocation-card > summary > span {
-  flex-direction: row;
-  align-items: center;
 }
 
 .ops-allocation-title {
@@ -1866,7 +1875,7 @@
   gap: 0.75rem;
 }
 
-.ops-dialog .runtime-binding-card {
+.ops-dialog .ops-binding-card {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -1948,6 +1957,13 @@
 
 .ops-glance.ops-key-facts {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* The whole fingerprint stays readable on phones, where hover titles do not
+   exist: it wraps instead of ending in an ellipsis. */
+.ops-key-facts .ui-id-chip-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {
@@ -2113,6 +2129,16 @@
     gap: 0.5rem;
     padding: 0.375rem 0;
     border: 0;
+  }
+
+  /* Values keep their own width (chips do not stretch to pills), and every
+     element of a labelled cell stays in the value column. */
+  .ops-table[data-stack] td:not(:first-child) {
+    justify-items: start;
+  }
+
+  .ops-table[data-stack] td:not(:first-child, [data-label=""]) > * {
+    grid-column: 2;
   }
 
   .ops-table[data-stack] td::before {

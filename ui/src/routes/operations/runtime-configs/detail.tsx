@@ -5,7 +5,11 @@ import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import {
+  compactDigest,
+  formatBytes,
+  formatTimestamp,
+} from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
 import { DetailHeader, IdChip } from "../../../ui";
 import { Glance, ScopeChip } from "../common";
@@ -48,18 +52,25 @@ function ConfigValue({ name, value }: { name: string; value: unknown }) {
   return String(value);
 }
 
+/**
+ * The fields of a block. A nested block repeats inside its value; each list
+ * is laid out by the width it gets (a block card is narrow, a nested value
+ * narrower still).
+ */
 function ConfigFields({ record }: { record: Record<string, unknown> }) {
   return (
-    <dl className="ops-facts">
-      {Object.entries(record).map(([key, value]) => (
-        <div key={key}>
-          <dt>{fieldLabel(key)}</dt>
-          <dd>
-            <ConfigValue name={key} value={value} />
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="ops-facts-frame">
+      <dl className="ops-facts">
+        {Object.entries(record).map(([key, value]) => (
+          <div key={key}>
+            <dt>{fieldLabel(key)}</dt>
+            <dd>
+              <ConfigValue name={key} value={value} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -121,6 +132,7 @@ export function RuntimeConfigDetailRoute() {
                   <IdChip
                     key="digest"
                     value={data.ref.digest}
+                    display={compactDigest(data.ref.digest)}
                     label="RuntimeConfig digest"
                   />,
                 ],

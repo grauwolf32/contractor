@@ -26,7 +26,7 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
     ["Temperature", present(body.temperature)],
   ] as const;
   return (
-    <dl className="ops-facts">
+    <dl className="ops-facts configuration-body">
       {fields.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
@@ -41,7 +41,7 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
 
 function GatewayView({ body }: { body: LLMGatewayBody }) {
   return (
-    <dl className="ops-facts">
+    <dl className="ops-facts configuration-body">
       <div>
         <dt>Protocol</dt>
         <dd>
@@ -101,7 +101,7 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
 
 function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
   return (
-    <dl className="ops-facts">
+    <dl className="ops-facts configuration-body">
       <div>
         <dt>Description</dt>
         <dd>{body.description}</dd>
@@ -229,7 +229,7 @@ function ExecutionSelection({
 
 function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
   return (
-    <dl className="ops-facts">
+    <dl className="ops-facts configuration-body">
       <div>
         <dt>Planner overrides</dt>
         <dd>
@@ -254,11 +254,7 @@ function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
   );
 }
 
-export function ConfigurationBodyView({
-  resource,
-}: {
-  resource: ConfigurationResource;
-}) {
+function ConfigurationBody({ resource }: { resource: ConfigurationResource }) {
   switch (resource.ref.kind) {
     case "model-policies":
       return <ModelPolicyView body={resource.body as ModelPolicyBody} />;
@@ -271,4 +267,22 @@ export function ConfigurationBodyView({
         <ExecutionConfigView body={resource.body as ExecutionConfigBody} />
       );
   }
+}
+
+/**
+ * The published values of a configuration as label / value facts. The frame
+ * lays them out by the width it gets, not by the viewport, so the same view
+ * fits an Operations page and the Library agent page's side panel. The
+ * `configuration-body` class on the list is a hook for other areas.
+ */
+export function ConfigurationBodyView({
+  resource,
+}: {
+  resource: ConfigurationResource;
+}) {
+  return (
+    <div className="ops-facts-frame">
+      <ConfigurationBody resource={resource} />
+    </div>
+  );
 }

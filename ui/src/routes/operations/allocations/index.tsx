@@ -5,6 +5,7 @@ import { IdChip } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import {
   ConfigurationRefLink,
+  DisclosureChevron,
   MetricsSummary,
   OperationsState,
   OpsSection,
@@ -12,26 +13,6 @@ import {
 } from "../common";
 import { exactConfigurationRef } from "../references";
 import { AllocationViewTabs } from "./tabs";
-
-function Chevron() {
-  return (
-    <svg
-      className="ui-tech-chevron"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9.5 6l6 6-6 6" />
-    </svg>
-  );
-}
 
 function AllocationEntry({
   allocation,
@@ -51,7 +32,7 @@ function AllocationEntry({
       >
         <summary>
           <span className="ops-allocation-title">
-            <Chevron />
+            <DisclosureChevron />
             <strong>{allocation.logicalWorker}</strong>{" "}
             <code className="ops-digest">{allocation.allocationId}</code>
           </span>{" "}

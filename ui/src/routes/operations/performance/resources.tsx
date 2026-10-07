@@ -4,7 +4,7 @@ import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
 import { compactId, formatBytes, formatTimestamp } from "../../../app/format";
-import { OperationsState } from "../common";
+import { DisclosureChevron, OperationsState } from "../common";
 import { RecordedTime } from "../../../app/recorded-time";
 
 function unavailable(
@@ -52,26 +52,6 @@ function averageCores(item: AllocationResourceSummary): number | undefined {
   );
 }
 
-function Chevron() {
-  return (
-    <svg
-      className="ui-tech-chevron"
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9.5 6l6 6-6 6" />
-    </svg>
-  );
-}
-
 function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -91,7 +71,7 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
               aria-controls={detailsId}
               onClick={() => setExpanded((current) => !current)}
             >
-              <Chevron />
+              <DisclosureChevron size={12} />
               <span>Metrics and identity</span>
             </button>
           </div>

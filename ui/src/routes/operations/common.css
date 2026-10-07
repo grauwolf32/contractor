@@ -122,8 +122,12 @@
 /* ---------- At a glance (label / value hairline grid) ---------- */
 
 /*
- * Cells draw their right and bottom hairlines; the outer edge clips them, so
- * a row that is not full ends in blank surface instead of a grey gap.
+ * Each cell draws its right and bottom hairline inside its own box, which
+ * reaches 1px into the next cell (negative margin). Cells have no background,
+ * so a later cell never paints over its neighbour's line; the list clips the
+ * overhang at its outer edge. A row that is not full ends in blank surface,
+ * every filled cell still outlined. .ops-tiles and the allocation resource
+ * grids (performance/reading.css) draw their lines the same way.
  */
 .ops-glance {
   display: grid;
@@ -138,11 +142,11 @@
 
 .ops-glance > div {
   min-width: 0;
+  margin: 0 -1px -1px 0;
   padding: 0.625rem 0.875rem;
-  background: var(--surface);
   box-shadow:
-    1px 0 0 var(--line),
-    0 1px 0 var(--line);
+    inset -1px 0 0 var(--line),
+    inset 0 -1px 0 var(--line);
 }
 
 .ops-glance dt {
@@ -172,27 +176,35 @@
   font-weight: 500;
 }
 
-/* Plain facts without the hairline grid: a two-column definition list. */
+/*
+ * Plain facts without the hairline grid: label / value rows. Each row is a
+ * subgrid of the list, so the labels share one column, and the row carries
+ * the separator, so the list reads right in two columns and in one (narrow
+ * screens, narrow frames, the Library's side panel via .configuration-body).
+ */
 .ops-facts {
   display: grid;
   grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
-  gap: 0;
   margin: 0;
 }
 
 .ops-facts > div {
-  display: contents;
-}
-
-.ops-facts dt,
-.ops-facts dd {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 0.125rem;
   min-width: 0;
   padding: 0.5rem 0;
   border-top: 1px solid var(--line);
 }
 
-.ops-facts > div:first-child > :is(dt, dd) {
+.ops-facts > div:first-child {
   border-top: 0;
+}
+
+.ops-facts dt,
+.ops-facts dd {
+  min-width: 0;
 }
 
 .ops-facts dt {
@@ -213,9 +225,10 @@
   font-size: 0.78125rem;
 }
 
+/* Lists in a value have no bullets; they start where the other values do. */
 .ops-facts dd ul {
   margin: 0;
-  padding-left: 1.125rem;
+  padding-left: 0;
 }
 
 .ops-value-list {
@@ -238,17 +251,28 @@
   min-width: 0;
 }
 
-@media (max-width: 640px) {
+/*
+ * A frame lays its facts out by its own width, not the viewport's: one
+ * column when it is narrow (a side panel, a block card, a nested value).
+ */
+.ops-facts-frame {
+  container: ops-facts / inline-size;
+  min-width: 0;
+}
+
+@container ops-facts (max-width: 30rem) {
   .ops-facts {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .ops-facts dt {
-    padding-bottom: 0;
+  /* A nested list then sits under its label: indent it by one level. */
+  .ops-facts .ops-facts-frame {
+    padding-left: 0.75rem;
   }
+}
 
-  .ops-facts dd {
-    padding-top: 0.125rem;
-    border-top: 0;
+@media (max-width: 640px) {
+  .ops-facts {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -76,6 +76,9 @@ export function GitKeySettings({
     event.preventDefault();
     void change(false);
   }
+  // One level below the section title: h3 on the personal page, h4 under
+  // Operations.
+  const EditorHeading = titleAs === "h2" ? "h3" : "h4";
   const [status, tone]: [string, StatusTone] = query.isPending
     ? ["Checking", "progress"]
     : query.error
@@ -115,7 +118,9 @@ export function GitKeySettings({
       }
     >
       <div className="ops-setting-editor-head">
-        <h4 className="ops-setting-editor-title">Private repository key</h4>
+        <EditorHeading className="ops-setting-editor-title">
+          Private repository key
+        </EditorHeading>
         <StatusChip tone={tone} size="sm">
           {status}
         </StatusChip>

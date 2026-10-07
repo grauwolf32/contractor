@@ -22,7 +22,7 @@ import type {
 import { QueryView } from "../../app/query-view";
 import type { StatusTone } from "../../app/status-tone";
 import { StatusChip, StatusGlyph } from "../../ui";
-import { Glance } from "./common";
+import { Glance, TechnicalDisclosure } from "./common";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
 import { OperationsLiveRefresh } from "./live-refresh";
@@ -168,27 +168,6 @@ function OperationsLiveSubscription({
   return null;
 }
 
-/** The chevron of a TechnicalDetails-style disclosure (src/ui). */
-function DisclosureChevron() {
-  return (
-    <svg
-      className="ui-tech-chevron"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9.5 6l6 6-6 6" />
-    </svg>
-  );
-}
-
 /**
  * Transport facts behind a quiet disclosure: the snapshot cursor and the
  * state of the live Operations event stream.
@@ -205,18 +184,12 @@ function SnapshotDiagnostics({
   liveError: string | undefined;
 }) {
   return (
-    <details className="ui-tech ops-diagnostics operations-snapshot-record">
-      <summary>
-        <span className="ui-tech-label">
-          <DisclosureChevron />
-          Diagnostics: snapshot and live connection
-        </span>
-        <span className="ui-tech-description">
-          Snapshot cursor and live update transport, for operators and
-          debugging.
-        </span>
-      </summary>
-      <div className="ui-tech-body ops-diagnostics-body">
+    <TechnicalDisclosure
+      className="ops-diagnostics operations-snapshot-record"
+      summary="Diagnostics: snapshot and live connection"
+      description="Snapshot cursor and live update transport, for operators and debugging."
+    >
+      <div className="ops-diagnostics-body">
         <Glance
           items={[
             ["Generation", <code key="g">{snapshot.cursor.generation}</code>],
@@ -246,7 +219,7 @@ function SnapshotDiagnostics({
           updates are unavailable.
         </p>
       </div>
-    </details>
+    </TechnicalDisclosure>
   );
 }
 
