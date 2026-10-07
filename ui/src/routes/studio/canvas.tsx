@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { BlockType } from "./document";
 import type { StudioGraph, StudioNode } from "./graph";
 import type { Problem } from "./validation";
+import { NODE_HEIGHT, NODE_WIDTH } from "./layout";
 
 export function StudioCanvas({
   graph,
@@ -42,8 +43,11 @@ export function StudioCanvas({
     ...node,
     ...(positions[node.id] ?? {}),
   }));
-  const width = Math.max(950, ...nodes.map((node) => node.x + 260));
-  const height = Math.max(600, ...nodes.map((node) => node.y + 140));
+  const width = Math.max(950, ...nodes.map((node) => node.x + NODE_WIDTH + 40));
+  const height = Math.max(
+    600,
+    ...nodes.map((node) => node.y + NODE_HEIGHT + 40),
+  );
   const move = (id: string, x: number, y: number) =>
     setPositions((current) => ({
       ...current,
@@ -54,12 +58,14 @@ export function StudioCanvas({
       <div className="studio-canvas-tools">
         <button
           className="ui-btn"
-          onClick={() => setZoom((value) => Math.max(0.4, value - 0.2))}
+          onClick={() => setZoom((value) => Math.max(0.001, value - 0.2))}
           aria-label="Zoom out"
         >
           −
         </button>
-        <output aria-label="Canvas zoom">{Math.round(zoom * 100)}%</output>
+        <output aria-label="Canvas zoom">
+          {zoom < 0.01 ? (zoom * 100).toFixed(1) : Math.round(zoom * 100)}%
+        </output>
         <button
           className="ui-btn"
           onClick={() => setZoom((value) => Math.min(1.6, value + 0.2))}
@@ -75,7 +81,29 @@ export function StudioCanvas({
             viewport.current?.scrollTo({ top: 0, left: 0 });
           }}
         >
-          Reset layout
+          Auto arrange
+        </button>
+        <button
+          className="ui-btn"
+          onClick={() => {
+            const view = viewport.current;
+            if (!view) return;
+            setZoom(
+              Math.min(
+                1,
+                Math.max(
+                  0.001,
+                  Math.min(
+                    view.clientWidth / width,
+                    view.clientHeight / height,
+                  ),
+                ),
+              ),
+            );
+            view.scrollTo({ top: 0, left: 0 });
+          }}
+        >
+          Fit graph
         </button>
       </div>
       <p className="studio-canvas-help">
@@ -152,15 +180,21 @@ export function StudioCanvas({
               {graph.edges.map((edge, index) => {
                 const from = nodes.find((node) => node.id === edge.from)!,
                   to = nodes.find((node) => node.id === edge.to)!;
-                const sx = from.x + 218,
-                  sy = from.y + 50,
-                  tx = to.x,
-                  ty = to.y + 50;
+                const terminal = to.type === "failure";
+                const sx = from.x + (terminal ? NODE_WIDTH / 2 : NODE_WIDTH),
+                  sy = from.y + (terminal ? NODE_HEIGHT : NODE_HEIGHT / 2),
+                  tx = to.x + (terminal ? NODE_WIDTH / 2 : 0),
+                  ty = to.y + (terminal ? 0 : NODE_HEIGHT / 2);
                 const bend = Math.max(45, Math.abs(tx - sx) * 0.4);
+                const vertical = Math.max(20, (ty - sy) * 0.4);
                 return (
                   <g key={index} data-edge={edge.type}>
                     <path
-                      d={`M ${sx} ${sy} C ${sx + bend} ${sy}, ${tx - bend} ${ty}, ${tx} ${ty}`}
+                      d={
+                        terminal
+                          ? `M ${sx} ${sy} C ${sx} ${sy + vertical}, ${tx} ${ty - vertical}, ${tx} ${ty}`
+                          : `M ${sx} ${sy} C ${Math.min(width - 20, sx + bend)} ${sy}, ${Math.max(10, tx - bend)} ${ty}, ${tx} ${ty}`
+                      }
                     />
                     <circle cx={tx} cy={ty} r={3} />
                     <text x={(sx + tx) / 2} y={(sy + ty) / 2 - 8}>
@@ -178,6 +212,7 @@ export function StudioCanvas({
                 <div
                   key={node.id}
                   className="studio-node"
+                  title={`${node.title}\n${node.subtitle}`}
                   data-selected={node.id === selected}
                   data-error={issues.some(
                     (issue) => issue.severity === "error",

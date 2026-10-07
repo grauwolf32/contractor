@@ -65,9 +65,16 @@ describe("studio draft lifecycle", () => {
     mount();
     const move = screen.getByRole("button", { name: "Move start" });
     const node = move.closest(".studio-node")!;
-    expect(node).toHaveStyle({ left: "290px" });
+    expect(node).toHaveStyle({ left: "370px" });
     fireEvent.keyDown(move, { key: "ArrowRight" });
-    expect(node).toHaveStyle({ left: "310px" });
+    expect(node).toHaveStyle({ left: "390px" });
+    Object.defineProperty(
+      screen.getByLabelText("Scrollable graph canvas"),
+      "scrollTo",
+      { value: vi.fn() },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Auto arrange" }));
+    expect(node).toHaveStyle({ left: "370px" });
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
   it("reports an unreachable added stage and restores the source with undo", async () => {

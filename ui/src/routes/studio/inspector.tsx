@@ -11,6 +11,7 @@ import {
 } from "./document";
 import { nodeValue, type StudioNode } from "./graph";
 import { OUTCOMES } from "./validation";
+import { CatalogField, type CatalogKind } from "./catalog-picker";
 
 export function Inspector({
   draft,
@@ -95,6 +96,15 @@ export function Inspector({
       </label>
     );
   };
+  const catalogField = (label: string, path: Path, kind: CatalogKind) => (
+    <CatalogField
+      key={JSON.stringify(path)}
+      label={label}
+      kind={kind}
+      value={textValue(at(draft.value, path))}
+      onChange={(value) => onPatch(path, value)}
+    />
+  );
   const check = (label: string, path: Path) => (
     <label className="studio-checkbox">
       <input
@@ -179,7 +189,11 @@ export function Inspector({
               {Object.keys(record(value.agents)).map((name) => (
                 <div key={name} className="studio-group">
                   <strong>{name}</strong>
-                  {field("Template", [...p, "agents", name, "template"])}
+                  {catalogField(
+                    "Template",
+                    [...p, "agents", name, "template"],
+                    "agent-templates",
+                  )}
                   {field("Namespace", [...p, "agents", name, "namespace"])}
                   {remove([...p, "agents", name], `agent ${name}`)}
                 </div>
@@ -505,7 +519,7 @@ export function Inspector({
                 [...p, "kind"],
                 ["prepare", "discovery", "check", "assessment"],
               )}
-              {field("Workflow", [...p, "ref"])}
+              {catalogField("Workflow", [...p, "ref"], "workflows")}
               {field(
                 "Maximum run attempts",
                 [...p, "maxRunAttempts"],
@@ -640,15 +654,20 @@ export function Inspector({
               {field("Runtime", ["spec", "runtime"])}
             </>
           ) : null}
-          {["modelPolicy", "sandboxProfile"].includes(node.type)
-            ? field(node.title, p)
+          {node.type === "modelPolicy"
+            ? catalogField(node.title, p, "model-policies")
             : null}
+          {node.type === "sandboxProfile" ? field(node.title, p) : null}
           {node.type === "instructions"
             ? field("Instructions file", [...p, "ref"])
             : null}
           {node.type === "summarizer" ? (
             <>
-              {field("Model policy", [...p, "modelPolicy"])}
+              {catalogField(
+                "Model policy",
+                [...p, "modelPolicy"],
+                "model-policies",
+              )}
               {field("Instructions file", [...p, "instructions", "ref"])}
               {field(
                 "Context window ratio",

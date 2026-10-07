@@ -1,5 +1,6 @@
 import { at, record, textValue, type Draft, type Path } from "./document";
 import { continuation, OUTCOMES } from "./validation";
+import { layoutGraph } from "./layout";
 
 export interface StudioNode {
   id: string;
@@ -32,8 +33,6 @@ export function buildGraph(draft: Draft): StudioGraph {
     type: string,
     title: string,
     subtitle: string,
-    x: number,
-    y: number,
     removable = false,
   ) => {
     const result = {
@@ -42,8 +41,8 @@ export function buildGraph(draft: Draft): StudioGraph {
       type,
       title,
       subtitle,
-      x,
-      y,
+      x: 0,
+      y: 0,
       removable,
     };
     nodes.push(result);
@@ -55,8 +54,8 @@ export function buildGraph(draft: Draft): StudioGraph {
     label: string,
     type: StudioEdge["type"] = "flow",
   ) => edges.push({ from: pathID(from), to: pathID(to), label, type });
-  const files = (section: string, x: number, offset = 0) =>
-    Object.entries(record(spec[section])).forEach(([name, value], index) => {
+  const files = (section: string) =>
+    Object.entries(record(spec[section])).forEach(([name, value]) => {
       const row = record(value);
       node(
         ["spec", section, name],
@@ -73,18 +72,15 @@ export function buildGraph(draft: Draft): StudioGraph {
           : Array.isArray(row.mediaTypes)
             ? row.mediaTypes.join(" · ")
             : "File format needed",
-        x,
-        70 + offset + index * 120,
         true,
       );
     });
   if (draft.kind === "Workflow") {
     const stages = record(spec.stages),
       names = Object.keys(stages);
-    const width = Math.max(1, names.length);
-    files("inputs", 30);
-    files("parameters", 30, Object.keys(record(spec.inputs)).length * 120);
-    names.forEach((name, index) => {
+    files("inputs");
+    files("parameters");
+    names.forEach((name) => {
       const stage = record(stages[name]),
         path: Path = ["spec", "stages", name];
       node(
@@ -92,8 +88,6 @@ export function buildGraph(draft: Draft): StudioGraph {
         "stage",
         name,
         `${name === spec.entryStage ? "Entry · " : ""}${textValue(stage.planner) || "Planner needed"}`,
-        290 + index * 260,
-        110 + (index % 2) * 60,
         true,
       );
       for (const outcome of OUTCOMES) {
@@ -140,34 +134,39 @@ export function buildGraph(draft: Draft): StudioGraph {
       ))
         edge(path, ["spec", "outputs", output], textValue(result), "wire");
     });
-    files("outputs", 290 + width * 260);
+    files("outputs");
     node(
       ["failure"],
       "failure",
       "Failure",
       "Shared terminal · retry limits stay on stages",
-      290 + Math.floor(width / 2) * 260,
-      440,
     );
   } else if (draft.kind === "AuditProfile") {
-    files("inputs", 30);
+    files("inputs");
     node(
       ["spec", "inventory"],
       "inventory",
       "Inventory",
       textValue(record(spec.inventory).implementation),
-      290,
-      110,
     );
-    const source = record(record(spec.inventory).source);
-    if (source.source === "audit-input")
-      edge(
-        ["spec", "inputs", textValue(source.name)],
-        ["spec", "inventory"],
-        "Inventory source",
-        "wire",
-      );
-    Object.entries(record(spec.workflows)).forEach(([name, value], index) => {
+    for (const key of ["source", "settings"]) {
+      const source = record(record(spec.inventory)[key]);
+      if (source.source === "audit-input")
+        edge(
+          ["spec", "inputs", textValue(source.name)],
+          ["spec", "inventory"],
+          `Inventory ${key}`,
+          "wire",
+        );
+      if (source.source === "prepare-output")
+        edge(
+          ["spec", "workflows", textValue(source.role)],
+          ["spec", "inventory"],
+          `${textValue(source.name)} → inventory ${key}`,
+          "wire",
+        );
+    }
+    Object.entries(record(spec.workflows)).forEach(([name, value]) => {
       const row = record(value),
         path: Path = ["spec", "workflows", name];
       node(
@@ -175,8 +174,6 @@ export function buildGraph(draft: Draft): StudioGraph {
         "role",
         name,
         `${textValue(row.kind)} · ${textValue(row.ref)}`,
-        550 + index * 260,
-        110 + (index % 2) * 70,
         true,
       );
       if (name === record(spec.inventory).itemWorkflowRole)
@@ -201,16 +198,12 @@ export function buildGraph(draft: Draft): StudioGraph {
       "execution",
       "Execution limits",
       `${textValue(record(spec.execution).maxRounds)} rounds · ${textValue(record(spec.execution).batchSize)} per batch`,
-      290,
-      330,
     );
     node(
       ["spec", "interaction"],
       "interaction",
       "Review policy",
       textValue(record(spec.interaction).reportAcceptance),
-      550,
-      430,
     );
   } else {
     node(
@@ -218,14 +211,12 @@ export function buildGraph(draft: Draft): StudioGraph {
       "agent",
       textValue(record(draft.value.metadata).name),
       textValue(spec.runtime),
-      350,
-      260,
     );
-    for (const [key, title, x, y] of [
-      ["modelPolicy", "Model policy", 30, 70],
-      ["instructions", "Instructions", 350, 70],
-      ["sandboxProfile", "Sandbox", 670, 70],
-      ["summarizer", "Summarizer", 670, 260],
+    for (const [key, title] of [
+      ["modelPolicy", "Model policy"],
+      ["instructions", "Instructions"],
+      ["sandboxProfile", "Sandbox"],
+      ["summarizer", "Summarizer"],
     ] as const) {
       node(
         ["spec", key],
@@ -235,8 +226,6 @@ export function buildGraph(draft: Draft): StudioGraph {
           textValue(record(spec[key]).ref) ||
           textValue(record(spec[key]).modelPolicy) ||
           "Unconfigured",
-        x,
-        y,
       );
       edge(["spec", key], ["metadata"], title, "wire");
     }
@@ -251,8 +240,6 @@ export function buildGraph(draft: Draft): StudioGraph {
             textValue(record(value).name) ||
             `${key} ${index + 1}`,
           key === "toolsets" ? "Selected tools" : "Skill file",
-          30 + index * 260,
-          key === "toolsets" ? 470 : 620,
           true,
         );
         edge(
@@ -264,14 +251,17 @@ export function buildGraph(draft: Draft): StudioGraph {
       });
     }
   }
-  return {
-    nodes,
-    edges: edges.filter(
-      (edge) =>
-        nodes.some((node) => node.id === edge.from) &&
-        nodes.some((node) => node.id === edge.to),
-    ),
-  };
+  return layoutGraph(
+    {
+      nodes,
+      edges: edges.filter(
+        (edge) =>
+          nodes.some((node) => node.id === edge.from) &&
+          nodes.some((node) => node.id === edge.to),
+      ),
+    },
+    draft,
+  );
 }
 
 export function nodeValue(draft: Draft, node: StudioNode): unknown {

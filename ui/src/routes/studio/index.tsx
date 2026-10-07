@@ -154,6 +154,7 @@ export function StudioRoute() {
       setConnect(undefined);
       setTab("Problems");
       setMode("Design");
+      setPane("Graph");
     }
   };
   const exportYAML = () => {
@@ -705,6 +706,7 @@ export function StudioRoute() {
                 setReplacement(undefined);
                 setMode("Design");
                 setTab("Problems");
+                setPane("Graph");
               } else if (blocker.state === "blocked") blocker.proceed();
             }}
           >

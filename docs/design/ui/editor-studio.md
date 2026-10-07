@@ -18,16 +18,29 @@ decision and use the former lime accent and Inter.
   in the syntax tree. Aliases must be expanded before import to prevent one
   visual edit from also changing another anchored block. Imports are bounded
   to 1 MiB, 20,000 syntax entries and 256 blocks.
-- A native canvas supports block drag/drop, pan, zoom, reset, keyboard movement,
+- A native canvas supports block drag/drop, pan, zoom, fit, keyboard movement,
   transition connections, artifact wires and a shared failure terminal.
   Layout stays separate from the authored YAML. Phones switch between Graph,
   Blocks, Properties and Console rather than squeezing all panes together.
+  Dependency-based layout orders outcome branches and joins, Check type role
+  dependencies and Agent components. Cycles and disconnected blocks remain
+  visible, and cards have bounded heights to avoid overlaps. Auto arrange clears
+  manual positions without changing YAML or undo history; Fit graph shows the
+  complete diagram. Importing or replacing a draft opens its Graph pane.
 - The inspector edits stage objectives, planners, sessions, agents, incoming
   files, results, output mappings and outcome/retry/escalation transitions;
   Check type inputs, role bindings, inventory, execution limits and review
   policies; and Agent model, instructions, sandbox, summarizer, tools and skills.
   Advanced settings remain editable through block YAML and whole-document YAML.
   Renaming mapped blocks updates their explicit structural references.
+- Agent template references, Check type Workflow references and Agent/summarizer
+  model policies can be chosen from the published catalog. The shared Dialog
+  searches on the Server and reads 50 versions per page on demand. Selecting
+  `name@version` edits only that reference and supports undo/redo; published
+  projections never replace authored definitions. Manual references still work
+  offline. Failed continuations keep loaded choices, searches reset cursors,
+  duplicate versions are merged, and missing/repeated cursors stop continuation.
+  A view is bounded to 20 pages; narrow the search for remaining versions.
 - Problems, unapplied YAML and Diff since import have distinct states. Local
   checks cover graph cycles/reachability, outcome contracts, required output
   flow at joins, role dependency cycles, selectors and common structural rules.
@@ -51,9 +64,9 @@ decision and use the former lime accent and Inter.
   that an unloaded page was read. Design edits are kept separate from execution.
   Studio makes no mutation requests and introduces no API or publishing flow.
 
-Useful follow-ups are catalog-backed selector palettes, graph auto-layout and
-dedicated forms for the advanced workspace and execution policies currently
-edited in YAML. These do not block authored import/edit/export or the live view.
+Useful follow-ups are dedicated forms for the advanced workspace and execution
+policies currently edited in YAML. These do not block authored import/edit/export
+or the live view.
 
 ## Scope decisions
 

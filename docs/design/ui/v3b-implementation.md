@@ -178,10 +178,13 @@ The current-state sentence is separate from the recorded event count.
 The first working [B node studio](editor-studio.md) was completed on 2026-10-07:
 authored YAML import/edit/export for Workflow, Check type and Agent, a canvas
 and inspector, local validation, undo/redo and a read-only live Check view.
-Drafts stay in tab memory. Bundle/catalog resolution still belongs to the
-configuration CLI. Studio follow-ups are catalog-backed selector palettes,
-graph auto-layout and dedicated forms for advanced settings currently edited
-through YAML.
+Drafts stay in tab memory. Bundle validation and runtime compatibility still
+belong to the configuration CLI. Dependency-based graph layout, Auto arrange / Fit graph and
+catalog selectors for Agent templates, Workflows and model policies were also
+completed on 2026-10-07. Selectors search and page through the published catalog,
+preserve loaded choices on errors and edit only an exact versioned reference.
+Studio follow-ups are dedicated forms for advanced workspace and execution
+settings currently edited through YAML.
 
 Per-item retry and model-assisted suggestions remain conditional on a proven
 need. Borrowing V3A's quieter rail and typography or adding V3C's column view
