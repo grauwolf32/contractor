@@ -120,8 +120,12 @@ async function installArtifactAPI(page: Page, uiOrigin: string): Promise<void> {
       return;
     }
 
-    if (url.pathname === "/v1/projects") {
-      // The Inbox badge reads the projects index on every page.
+    if (
+      ["/v1/projects", "/v1/audits", "/v1/findings", "/v1/reviews"].includes(
+        url.pathname,
+      )
+    ) {
+      // The Inbox badge reads owner-wide lists on every page.
       await fulfillJson(route, { items: [], page: { hasMore: false } });
       return;
     }

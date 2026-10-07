@@ -215,6 +215,29 @@ type ReviewListParams struct {
 	Limit          int
 }
 
+// Owner lists are live, newest-first keyset pages across active Projects.
+// AuditID and AuditRevision are intentionally absent from these contracts.
+type OwnerFindingListParams struct {
+	OwnerID         string
+	State           *FindingState
+	Verdict         *AnalystVerdict
+	Unreviewed      bool
+	Severity        *FindingSeverity
+	AuditStates     []auditstore.AuditState
+	BeforeCreatedAt *time.Time
+	BeforeFindingID string
+	Limit           int
+}
+
+type OwnerReviewListParams struct {
+	OwnerID         string
+	State           *ReviewState
+	AuditStates     []auditstore.AuditState
+	BeforeCreatedAt *time.Time
+	BeforeRequestID string
+	Limit           int
+}
+
 type CreateFindingReviewParams struct {
 	OwnerID          string
 	AuditID          string

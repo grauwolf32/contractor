@@ -1,3 +1,4 @@
+import { ownerListResponse } from "../../test/owner-lists";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type RouteObject } from "react-router";
@@ -456,6 +457,14 @@ async function answer(server: FakeServer, request: Request): Promise<Response> {
   const held = server.delay?.(url, request);
   if (held !== undefined) await held;
   const path = url.pathname;
+  const ownerResponse = ownerListResponse(url, {
+    projects: server.projects,
+    audits: Object.values(server.audits).flat(),
+    findings: Object.values(server.findings).flat(),
+    reviews: Object.values(server.reviews).flat(),
+  });
+  if (ownerResponse !== undefined) return ownerResponse;
+
   const query = url.searchParams;
   if (path === "/v1/auth/session") return json(session);
   if (path === "/v1/queue/control")
@@ -1529,38 +1538,26 @@ describe("Inbox", () => {
     );
   });
 
-  it("links each check with more requests than listed to its own requests", async () => {
+  it("lists decisions beyond the first page without a truncation notice", async () => {
     const server = busyServer();
-    server.override = (url) =>
-      url.pathname === "/v1/audits/audit_trace/reviews" &&
-      url.searchParams.get("state") === "pending" &&
-      url.searchParams.get("finding") === null
-        ? json({
-            auditRevision: 1,
-            asOf: ago(1),
-            total: 51,
-            items: server.reviews.audit_trace,
-            page: { hasMore: true, nextCursor: "next" },
-          })
-        : undefined;
-    renderInbox(server);
-
+    server.reviews.audit_trace = Array.from({ length: 201 }, (_, i) =>
+      review("audit_trace", `review_many_${i}`, "active-check-approval", i),
+    );
+    const { requests } = renderInbox(server);
     const decide = await findSection("Decide");
-    expect(
-      await within(decide).findByText(
-        /More decisions wait in this check than the Inbox lists/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(decide).getByRole("link", {
-        name: "crapi-workshop: OpenAPI · Operation trace",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_shop/audits/audit_trace/reviews?state=pending",
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            new URL(request.url).pathname === "/v1/reviews" &&
+            new URL(request.url).searchParams.has("cursor"),
+        ),
+      ).toBe(true),
     );
     expect(
-      within(decide).queryByRole("link", { name: "Open Issues" }),
+      within(decide).queryByText(
+        /More decisions wait in this check than the Inbox lists/,
+      ),
     ).not.toBeInTheDocument();
   });
 
@@ -1743,7 +1740,7 @@ describe("Inbox", () => {
     const server = busyServer();
     let failing = true;
     server.override = (url) =>
-      failing && url.pathname === "/v1/projects/project_identity/audits"
+      failing && url.pathname === "/v1/audits"
         ? failure(500, "internal_error")
         : undefined;
     renderInbox(server);

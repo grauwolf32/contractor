@@ -223,9 +223,17 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.queryByRole("navigation", { name: "Operations sections" }),
     ).not.toBeInTheDocument();
-    expect(requests.filter((path) => !path.startsWith("/v1/projects"))).toEqual(
-      ["/v1/auth/session"],
-    );
+    expect(
+      requests.filter(
+        (path) =>
+          ![
+            "/v1/projects",
+            "/v1/audits",
+            "/v1/findings",
+            "/v1/reviews",
+          ].includes(path),
+      ),
+    ).toEqual(["/v1/auth/session"]);
   });
 
   it("shows Settings as an Operations section to operators", async () => {

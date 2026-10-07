@@ -1,3 +1,4 @@
+import { ownerListResponse } from "../../test/owner-lists";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
@@ -181,6 +182,20 @@ function serve(server: FakeServer) {
       requests.push(request.clone());
       const url = new URL(request.url);
       const path = url.pathname;
+      if (path === "/v1/audits" && server.holdAudits?.())
+        await new Promise(() => {});
+      if (path === "/v1/findings")
+        await Promise.all(
+          Object.keys(server.findings ?? {}).map((id) =>
+            server.holdFindings?.(id),
+          ),
+        );
+      const ownerResponse = ownerListResponse(url, {
+        projects: server.projects,
+        audits: Object.values(server.audits ?? {}).flat(),
+        findings: Object.values(server.findings ?? {}).flat(),
+      });
+      if (ownerResponse !== undefined) return ownerResponse;
       const query = url.searchParams;
       if (path === "/v1/auth/session")
         return json(session(server.capabilities));

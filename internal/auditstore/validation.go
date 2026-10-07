@@ -123,6 +123,11 @@ func validateList(params ListParams) error {
 	if params.State != nil && !params.State.Valid() {
 		return invalidf("Audit state is invalid")
 	}
+	for _, state := range params.States {
+		if !state.Valid() {
+			return invalidf("Audit state is invalid")
+		}
+	}
 	if (params.ProfileName == nil) != (params.ProfileVersion == nil) {
 		return invalidf("Audit profile filter is incomplete")
 	}

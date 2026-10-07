@@ -1,8 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
-import type { Audit, AuditState } from "../../api/audits";
-import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
+import { AUDIT_PAGE_SIZE, type Audit, type AuditState } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
@@ -270,7 +269,7 @@ function GlanceStrip({
       ? []
       : [`${count} ${checkStateLabel(state).label.toLowerCase()}`];
   });
-  const newest = `In the ${CROSS_PROJECT_LIMITS.auditsPerProject} newest checks`;
+  const newest = `In the ${AUDIT_PAGE_SIZE} newest checks`;
 
   let issuesValue: ReactNode;
   let issuesCaption: ReactNode;

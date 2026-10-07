@@ -178,7 +178,7 @@ describe("Project routes", () => {
       expect(
         requests.some(
           (url) =>
-            url.pathname.endsWith("/runs") &&
+            url.pathname === "/v1/projects/project_example/runs" &&
             url.searchParams.get("cursor") === "page2" &&
             url.searchParams.get("state") === "succeeded",
         ),
@@ -188,7 +188,7 @@ describe("Project routes", () => {
       requests.some(
         (url) =>
           url.pathname.endsWith("/artifacts") ||
-          url.pathname.endsWith("/audits"),
+          url.pathname === "/v1/projects/project_example/audits",
       ),
     ).toBe(false);
     await user.click(screen.getByRole("button", { name: "Active" }));
@@ -464,7 +464,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
-        if (url.pathname.endsWith("/runs")) {
+        if (url.pathname === "/v1/projects/project_example/runs") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
@@ -549,7 +549,7 @@ describe("Project routes", () => {
         }
         if (
           url.pathname.endsWith("/artifacts") ||
-          url.pathname.endsWith("/audits") ||
+          url.pathname === "/v1/projects/project_example/audits" ||
           url.pathname === "/v1/audit-profiles"
         ) {
           return jsonResponse({ items: [], page: { hasMore: false } });
@@ -557,7 +557,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
-        if (url.pathname.endsWith("/runs")) {
+        if (url.pathname === "/v1/projects/project_example/runs") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
@@ -710,7 +710,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
-        if (url.pathname.endsWith("/runs")) {
+        if (url.pathname === "/v1/projects/project_example/runs") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
@@ -790,7 +790,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
-        if (url.pathname.endsWith("/runs")) {
+        if (url.pathname === "/v1/projects/project_example/runs") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
@@ -879,7 +879,7 @@ describe("Project routes", () => {
         if (url.pathname === "/v1/workflows") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
-        if (url.pathname.endsWith("/runs")) {
+        if (url.pathname === "/v1/projects/project_example/runs") {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
         throw new Error(`unexpected ${request.method} ${url.pathname}`);

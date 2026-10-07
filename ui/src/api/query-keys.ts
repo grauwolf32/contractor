@@ -453,6 +453,25 @@ export const queryKeys = {
     all: ["cross-project"] as const,
     projects: ["cross-project", "projects"] as const,
     allAudits: ["cross-project", "audits"] as const,
+    ownerAudits: (states: string) =>
+      ["cross-project", "audits", "owner", states] as const,
+    ownerFindings: (
+      auditStates: string,
+      state: string | null,
+      verdict: string | null,
+      severity: string | null,
+    ) =>
+      [
+        "cross-project",
+        "findings",
+        "owner",
+        auditStates,
+        state,
+        verdict,
+        severity,
+      ] as const,
+    ownerReviews: (auditStates: string) =>
+      ["cross-project", "pending-reviews", "owner", auditStates] as const,
     audits: (projectId: string, state: string | null) =>
       ["cross-project", "audits", projectId, state] as const,
     findingsOf: (

@@ -1,3 +1,4 @@
+import { ownerListResponse } from "../../test/owner-lists";
 // A fake Public API for the Issues tests: projects, checks, possible
 // issues and review requests, with the filters, ETags and decisions the
 // Server applies.
@@ -133,6 +134,20 @@ function bump(server: FakeServer, auditId: string) {
 export function handler(server: FakeServer) {
   return async (request: Request, url: URL): Promise<Response> => {
     const path = url.pathname;
+    if (path === "/v1/findings") {
+      await server.gate;
+      if (server.failing.size > 0)
+        return failure(503, "unavailable", "Findings unavailable");
+    }
+
+    const ownerResponse = ownerListResponse(url, {
+      projects: server.projects,
+      audits: server.audits,
+      findings: server.findings,
+      reviews: server.reviews,
+    });
+    if (ownerResponse !== undefined) return ownerResponse;
+
     if (path === "/v1/projects") return json(page(server.projects));
     const projectPath = /^\/v1\/projects\/([^/]+)$/.exec(path);
     if (projectPath !== null) {

@@ -188,9 +188,11 @@ function requireETag(response: Response, revision: string): void {
 export async function listProjects(
   api: PublicAPI,
   request: ProjectPageRequest = {},
+  signal?: AbortSignal,
 ): Promise<ProjectPage> {
   const result = await api.request((client) =>
     client.GET("/v1/projects", {
+      ...(signal === undefined ? {} : { signal }),
       params: {
         query: {
           limit: PROJECT_PAGE_SIZE,

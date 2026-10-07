@@ -1,3 +1,5 @@
+import { ownerListResponse } from "./owner-lists";
+import { makeFinding } from "../routes/decisions/test-support";
 /**
  * Renders the application shell around a probe page against a small fake
  * Server, for the shell, account menu and command palette tests.
@@ -150,6 +152,18 @@ function json(value: unknown): Response {
 function answer(server: FakeServer, url: URL): Response {
   const page = (items: unknown[]) => ({ items, page: { hasMore: false } });
   const path = url.pathname;
+  const ownerResponse = ownerListResponse(url, {
+    projects: server.projects ?? [],
+    audits: Object.values(server.audits ?? {}).flat(),
+    findings: Object.entries(server.proposedFindings ?? {}).flatMap(
+      ([auditId, count]) =>
+        Array.from({ length: count }, (_, i) =>
+          makeFinding({ auditId, findingId: `finding_${auditId}_${i}` }),
+        ),
+    ),
+    reviews: Object.values(server.reviews ?? {}).flat(),
+  });
+  if (ownerResponse !== undefined) return ownerResponse;
   if (path === "/v1/projects") return json(page(server.projects ?? []));
   if (path === "/v1/audit-profiles") return json(page(server.profiles ?? []));
   if (path === "/v1/workflows") return json(page(server.workflows ?? []));

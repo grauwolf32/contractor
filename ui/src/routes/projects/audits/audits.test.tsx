@@ -498,7 +498,11 @@ describe("Project Audit routes", () => {
       ]),
     );
     // Possible issues are decided on Issues, so the list reads no reviews.
-    expect(requested.some((entry) => entry.includes("/reviews"))).toBe(false);
+    expect(
+      requested.some(
+        (entry) => entry.includes("/audits/") && entry.includes("/reviews"),
+      ),
+    ).toBe(false);
     const list = screen.getByRole("region", { name: "Possible issues" });
     const rows = list.querySelectorAll("li.ui-row");
     expect(rows).toHaveLength(3);
@@ -1295,7 +1299,7 @@ describe("Audit workspace snapshot navigation", () => {
           return jsonResponse(project, { headers: { ETag: '"1"' } });
         if (url.pathname === "/v1/audits/audit_example")
           return jsonResponse(audit, { headers: { ETag: '"5"' } });
-        if (url.pathname.endsWith("/findings")) {
+        if (url.pathname === "/v1/audits/audit_example/findings") {
           // The check page's own unfiltered read of every possible issue.
           if ([...url.searchParams.keys()].every((key) => key === "limit"))
             return jsonResponse({

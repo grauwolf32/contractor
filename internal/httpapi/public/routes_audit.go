@@ -3,6 +3,12 @@ package public
 import "net/http"
 
 func (h *handler) registerAuditRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/audits", h.listProjectAudits)
+	mux.HandleFunc("GET /v1/findings", h.listOwnerFindings)
+	mux.HandleFunc("GET /v1/reviews", h.listOwnerReviews)
+	mux.HandleFunc("/v1/audits", h.methodNotAllowed)
+	mux.HandleFunc("/v1/findings", h.methodNotAllowed)
+	mux.HandleFunc("/v1/reviews", h.methodNotAllowed)
 	mux.HandleFunc("GET /v1/audit-profiles", h.listAuditProfiles)
 	mux.HandleFunc("GET /v1/audit-profiles/{name}/versions/{version}", h.getAuditProfile)
 	mux.HandleFunc("GET /v1/audit-standards", h.listAuditStandards)

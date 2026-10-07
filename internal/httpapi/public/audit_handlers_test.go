@@ -555,6 +555,8 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
+	ownerFindings       auditservice.OwnerFindingListParams
+	ownerReviews        auditservice.OwnerReviewListParams
 	profiles            []auditservice.ProfileProjection
 	standards           []auditstandards.PackageProjection
 	audit               auditstore.Audit
@@ -829,4 +831,13 @@ func (f *fakeAuditManagement) ListReviewsPage(ctx context.Context, params audits
 	}
 	items, err := f.ListReviews(ctx, params)
 	return auditservice.ReviewPage{Items: items, PageBasis: auditservice.PageBasis{AuditRevision: f.audit.Revision, AsOf: time.Now(), Total: len(items)}}, err
+}
+
+func (f *fakeAuditManagement) ListOwnerFindings(_ context.Context, params auditservice.OwnerFindingListParams) ([]auditservice.Finding, error) {
+	f.ownerFindings = params
+	return f.findings, f.err
+}
+func (f *fakeAuditManagement) ListOwnerReviews(_ context.Context, params auditservice.OwnerReviewListParams) ([]auditservice.ReviewRequest, error) {
+	f.ownerReviews = params
+	return f.reviews, f.err
 }

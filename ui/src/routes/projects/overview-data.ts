@@ -12,6 +12,7 @@ import { useCallback, useMemo } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
 import {
+  AUDIT_PAGE_SIZE,
   type Audit,
   type AuditFinding,
   type AuditFindingPage,
@@ -43,7 +44,7 @@ export function useProjectChecks(projectId: string) {
     queryFn: () =>
       listProjectAudits(api, {
         projectId,
-        limit: CROSS_PROJECT_LIMITS.auditsPerProject,
+        limit: AUDIT_PAGE_SIZE,
       }),
     staleTime: OVERVIEW_POLL_MS,
     refetchInterval: OVERVIEW_POLL_MS,

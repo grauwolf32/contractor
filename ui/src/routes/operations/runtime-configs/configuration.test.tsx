@@ -518,7 +518,15 @@ describe("Runtime configuration hub navigation", () => {
       );
       expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
       expect(
-        requests.filter((request) => !request.startsWith("/v1/projects")),
+        requests.filter(
+          (request) =>
+            ![
+              "/v1/projects",
+              "/v1/audits",
+              "/v1/findings",
+              "/v1/reviews",
+            ].includes(request),
+        ),
       ).toEqual(["/v1/auth/session"]);
     },
   );

@@ -151,6 +151,8 @@ export function createEvalFixture(
     let result: FixtureResponse;
     if (path === "/v1/auth/session") return response(EVAL_FIXTURE_SESSION);
     if (path === "/v1/projects") return response({ items: [project], page });
+    if (["/v1/audits", "/v1/findings", "/v1/reviews"].includes(path))
+      return response({ items: [], page });
     if (path === "/v1/eval-capabilities")
       return response({
         controlModes: ["server", "external"],

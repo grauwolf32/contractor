@@ -211,9 +211,9 @@ signatures in §11 "As built"; use those.
   "review" | "warning" | "success" | "info" | "neutral"`.
 - `src/app/vocabulary.ts`: labels and tones of §3; `itemNoun(kind, count)`;
   `checkItemKind(…)`.
-- `src/api/cross-project.ts`: bounded client fan-out (first page of projects,
-  ≤ 50; audits first page per project; polling 20 s; `refetchOnWindowFocus`
-  off; partial results with per-project errors):
+- `src/api/cross-project.ts`: owner-wide cursor lists (every page of projects,
+  checks, findings and reviews; polling 20 s; `refetchOnWindowFocus` off;
+  partial results retained when a continuation fails):
   `useProjectsIndex`, `useAllChecks`, `usePendingDecisions`,
   `useAllPossibleIssues`, `useAllReports`, `useInboxSummary`,
   `invalidateCrossProject`.
@@ -339,16 +339,19 @@ and standards → audit baseline standards → profile name → "item").
 
 ### Cross-project data (`ui/src/api/cross-project.ts`)
 
-- `CROSS_PROJECT_LIMITS = { projects: 50, auditsPerProject: 50, findingsPerAudit: 50, pollMs: 20_000 }`.
+- `CROSS_PROJECT_LIMITS = { pageSize: 200, pollMs: 20_000 }`.
 - `INBOX_CHECK_STATES = ["active", "waiting_review"]`: pass it as
   `checkStates` on the Inbox so lists match the rail badge and share reads.
 - Hooks return `CrossProjectStatus` (`truncated`, `partial`, `errors` keyed by
-  `scope: "index" | "project" | "check"`, `error`, `isPending`, `refetch`) plus:
+  `scope: "index" | "list" | "project" | "check"`, `error`, `isPending`, `refetch`) plus:
   `useProjectsIndex() → projects`; `useAllChecks({ states? }) → checks`;
   `useAllPossibleIssues({ checkStates?, states?, verdicts?, severities? }) → issues, truncatedAuditIds, total`;
   `usePendingDecisions({ checkStates?, kinds? }) → decisions, truncatedAuditIds`;
   `useAllReports({ statuses? }) → reports` (default proposed and ready; 404 = no report);
   `useInboxSummary() → { needsDecision, possibleIssues, otherDecisions, partial, truncated }`.
+- Checks, findings and reviews use `/v1/audits`, `/v1/findings` and
+  `/v1/reviews`. Collections follow every cursor sequentially and have no
+  fixed cap; report payloads remain pinned to each check revision.
 - `invalidateCrossProject(queryClient)` after every decision or lifecycle
   mutation. Keys live in `queryKeys.crossProject`.
 

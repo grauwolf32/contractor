@@ -7,7 +7,6 @@ import type {
   CrossProjectCheck,
   ProjectsIndex,
 } from "../../../api/cross-project";
-import { CROSS_PROJECT_LIMITS } from "../../../api/cross-project";
 import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { checkStateLabel } from "../../../app/vocabulary";
@@ -105,7 +104,7 @@ function projectNames(
   return [
     ...new Set(
       checks.errors.flatMap((error) =>
-        error.scope === "index"
+        error.projectId === undefined
           ? []
           : [names.get(error.projectId) ?? error.projectId],
       ),
@@ -253,13 +252,6 @@ export function ChecksListPane({
             Try again
           </button>
         </div>
-      ) : null}
-      {checks.truncated ? (
-        <p className="checks-pane-note checks-quiet">
-          Showing the newest {CROSS_PROJECT_LIMITS.auditsPerProject} checks of
-          the first {CROSS_PROJECT_LIMITS.projects} projects. Open a project to
-          see all of its checks.
-        </p>
       ) : null}
       <div className="checks-list-rows" {...navigation}>
         <ListSection>

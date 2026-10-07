@@ -1,3 +1,4 @@
+import { ownerListResponse } from "../../test/owner-lists";
 // Fixtures and a fake Server for the Reports tests.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
@@ -210,6 +211,14 @@ export function fakeServer(state: ServerState) {
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const ownerResponse = ownerListResponse(url, {
+      projects: state.projects,
+      audits: state.audits,
+      findings: [],
+      reviews: [...reviews.values()],
+    });
+    if (ownerResponse !== undefined) return ownerResponse;
+
     if (state.hold?.path.test(path) === true) await state.hold.until;
     if (path === "/v1/projects") {
       if (state.indexFails === true) return failure(500, "Index failed");
@@ -297,6 +306,7 @@ export function fakeServer(state: ServerState) {
       if (found === undefined) return failure(404, "not found");
       if (match[2] === undefined)
         return json(found, 200, { ETag: `"${found.revision}"` });
+      if (state.failingProjects?.includes(found.projectId)) return failure(500);
       const value = state.reports[found.auditId];
       if (value === undefined) return failure(404, "not found");
       return typeof value === "function" ? value() : json(value);

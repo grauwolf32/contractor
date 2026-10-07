@@ -1,9 +1,6 @@
 import { Link, useSearchParams } from "react-router";
 
-import {
-  CROSS_PROJECT_LIMITS,
-  useProjectsIndex,
-} from "../../../api/cross-project";
+import { useProjectsIndex } from "../../../api/cross-project";
 import { ErrorNotice } from "../../../app/error-notice";
 import {
   DetailPane,
@@ -92,13 +89,6 @@ export function ProjectPicker({ notice }: { notice?: string | undefined }) {
             </p>
           )}
           {body}
-          {index.truncated ? (
-            <p className="start-pane-block start-quiet">
-              Showing the first {CROSS_PROJECT_LIMITS.projects} projects. To
-              check another one, open it from{" "}
-              <Link to="/projects">Projects</Link> and start the check there.
-            </p>
-          ) : null}
         </ListPane>
       }
       detail={

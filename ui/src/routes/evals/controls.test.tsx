@@ -48,7 +48,7 @@ function crossProjectRefreshes(invalidated: ReturnType<typeof start>) {
   return invalidated.mock.calls.filter(
     ([filters]) =>
       JSON.stringify(filters?.queryKey) ===
-      JSON.stringify(queryKeys.crossProject.allAudits),
+      JSON.stringify(queryKeys.crossProject.all),
   ).length;
 }
 

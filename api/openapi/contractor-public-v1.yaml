@@ -3885,6 +3885,86 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits:
+    get:
+      operationId: listOwnerAudits
+      tags: [Audits]
+      summary: List checks across the owner’s active Projects
+      description: >-
+        Live newest-first keyset pagination by creation time and identity. Only
+        the authenticated owner's active regular Projects are included; evaluation
+        workspaces are excluded. Cursors bind the owner, endpoint and filters.
+        These are live lists, not a revision-pinned cross-project snapshot.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: state, in: query, schema: {type: string}, description: 'Comma-separated Audit states; omitted means every state.'}
+        - {name: profile, in: query, schema: {$ref: '#/components/schemas/Selector'}}
+      responses:
+        '200':
+          description: Newest-first page across owned Projects
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
+  /v1/findings:
+    get:
+      operationId: listOwnerFindings
+      tags: [Audits]
+      summary: List findings across the owner’s active Projects
+      description: >-
+        Live newest-first keyset pagination by creation time and identity. Only
+        the authenticated owner's active regular Projects are included; evaluation
+        workspaces are excluded. Cursors bind the owner, endpoint and filters.
+        These are live lists, not a revision-pinned cross-project snapshot.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
+        - {name: state, in: query, schema: {$ref: '#/components/schemas/AuditFindingState'}}
+        - {name: verdict, in: query, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
+        - {name: severity, in: query, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
+      responses:
+        '200':
+          description: Newest-first page across owned Projects
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/OwnerFindingPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
+  /v1/reviews:
+    get:
+      operationId: listOwnerReviews
+      tags: [Audits]
+      summary: List review requests across the owner’s active Projects
+      description: >-
+        Live newest-first keyset pagination by creation time and identity. Only
+        the authenticated owner's active regular Projects are included; evaluation
+        workspaces are excluded. Cursors bind the owner, endpoint and filters.
+        These are live lists, not a revision-pinned cross-project snapshot.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
+        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}}
+      responses:
+        '200':
+          description: Newest-first page across owned Projects
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/OwnerReviewPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/audits/{auditId}:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -12153,6 +12233,20 @@ components:
         findings: {type: integer, minimum: 0}
         unreviewedFindings: {type: integer, minimum: 0}
         pendingReviews: {type: integer, minimum: 0}
+    OwnerFindingPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFinding'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    OwnerReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
     AuditFindingPage:
       type: object
       additionalProperties: false

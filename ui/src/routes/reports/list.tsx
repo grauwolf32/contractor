@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import {
-  CROSS_PROJECT_LIMITS,
   useAllReports,
   useProjectsIndex,
   type CrossProjectReport,
@@ -334,13 +333,6 @@ export function ReportsList({
               ) : null}
             </div>
           )}
-          {reports.truncated ? (
-            <p className="reports-quiet reports-list-limit">
-              This list reads the first {CROSS_PROJECT_LIMITS.projects} projects
-              and the {CROSS_PROJECT_LIMITS.auditsPerProject} newest checks of
-              each. Open a project for all of its checks.
-            </p>
-          ) : null}
         </>
       )}
     </ListPane>

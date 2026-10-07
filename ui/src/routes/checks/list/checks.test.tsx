@@ -1,3 +1,4 @@
+import { ownerListResponse } from "../../../test/owner-lists";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -58,6 +59,21 @@ function serve(
   const projects = options.projects ?? [projectA, projectB];
   return fakeAPI(async (request, url) => {
     const path = url.pathname;
+    if (url.pathname === "/v1/audits" && options.failProject)
+      return jsonResponse(
+        {
+          code: "internal_error",
+          message: "Check list unavailable",
+          retryable: false,
+          requestId: "req_test",
+        },
+        { status: 500 },
+      );
+    const ownerResponse = ownerListResponse(url, {
+      projects,
+      audits: Object.values(audits),
+    });
+    if (ownerResponse !== undefined) return ownerResponse;
     if (path === "/v1/projects")
       return jsonResponse({ items: projects, page: { hasMore: false } });
     let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
@@ -460,17 +476,17 @@ describe("Checks list", () => {
     );
   });
 
-  it("keeps listing what it could read when a project fails", async () => {
-    const { api } = serve(fixture(), { failProject: "project_a" });
+  it("shows a failed owner check list and retries it", async () => {
+    const options = { failProject: "project_a" };
+    const { api } = serve(fixture(), options);
     renderApplication(api, "/checks");
+    expect(await screen.findByText("Check list unavailable")).toBeVisible();
+    options.failProject = "";
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Try again" }));
     expect(
-      await screen.findByText(
-        "Checks of crapi-workshop could not be loaded; they are missing here.",
-      ),
-    ).toBeVisible();
-    const list = screen.getByRole("region", { name: "Checks" });
-    expect(
-      within(list).getByRole("link", {
+      await screen.findByRole("link", {
         name: "OWASP Top 10 · Source risks · Payment service",
       }),
     ).toBeVisible();

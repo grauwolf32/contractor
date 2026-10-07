@@ -138,9 +138,11 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := r.PathValue("projectId")
-	if _, err := h.dependencies.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
-		h.handleError(w, err)
-		return
+	if projectID != "" {
+		if _, err := h.dependencies.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
+			h.handleError(w, err)
+			return
+		}
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state", "profile")
 	if err != nil {
@@ -148,13 +150,22 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var state *auditstore.AuditState
+	var states []auditstore.AuditState
 	if values, ok := query["state"]; ok {
-		candidate := auditstore.AuditState(values[0])
-		if !candidate.Valid() {
-			h.handleError(w, errInvalidRequest)
-			return
+		if projectID == "" {
+			states, err = parseAuditStates(values[0])
+			if err != nil {
+				h.handleError(w, err)
+				return
+			}
+		} else {
+			candidate := auditstore.AuditState(values[0])
+			if !candidate.Valid() {
+				h.handleError(w, errInvalidRequest)
+				return
+			}
+			state = &candidate
 		}
-		state = &candidate
 	}
 	var profileName, profileVersion *string
 	profileSelector := ""
@@ -168,14 +179,20 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		profileName, profileVersion = &selector.ID, &selector.Version
 	}
 	cursorKind := "project-audits:" + projectID + ":" + pointerAuditState(state) + ":" + profileSelector
+	if projectID == "" {
+		cursorKind = "owner-audits:" + principalUserID(r.Context()) + ":" + auditStateKey(states) + ":" + profileSelector
+	}
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	params := auditstore.ListParams{
-		OwnerID: principalUserID(r.Context()), ProjectID: &projectID, State: state,
+		OwnerID: principalUserID(r.Context()), State: state, States: states, VisibleProjects: projectID == "",
 		ProfileName: profileName, ProfileVersion: profileVersion, Limit: limit + 1,
+	}
+	if projectID != "" {
+		params.ProjectID = &projectID
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])

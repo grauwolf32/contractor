@@ -15,7 +15,7 @@ const findingFilterSQL = `
   JOIN audits AS audit USING (audit_id)
   LEFT JOIN audit_review_decisions AS decision
     ON decision.decision_id = finding.current_decision_id
- WHERE audit.owner_id = $1 AND finding.audit_id = $2
+ WHERE audit.owner_id = $1 AND ($2::text IS NULL OR finding.audit_id = $2)
    AND ($3::text IS NULL OR finding.state = $3)
    AND ($4::text IS NULL OR decision.verdict = $4)
    AND (NOT $5::boolean OR finding.current_decision_id IS NULL)

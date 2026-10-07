@@ -30,6 +30,8 @@ export type AuditFindingSeverity =
 export type AuditAnalystVerdict = components["schemas"]["AuditAnalystVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
+export type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
+export type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
 export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
 export type AuditActionDecisionResult =
   components["schemas"]["AuditActionDecisionResult"];
@@ -60,6 +62,66 @@ export interface ProjectAuditPageRequest extends PageRequest {
   projectId: string;
   state?: AuditState;
   profile?: string;
+}
+
+export async function listOwnerAudits(
+  api: PublicAPI,
+  request: PageRequest & { state?: string } = {},
+  signal?: AbortSignal,
+): Promise<AuditPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/audits", {
+      ...(signal === undefined ? {} : { signal }),
+      params: { query: { limit: 200, ...request } },
+    }),
+  );
+  const page = safePage(requireData(result), result.response.status);
+  return {
+    items: page.items.map((audit) => safeAudit(audit, result.response.status)),
+    page: page.page,
+  };
+}
+
+export async function listOwnerFindings(
+  api: PublicAPI,
+  request: Omit<FindingPageRequest, "auditRevision"> & {
+    auditState?: string;
+  } = {},
+  signal?: AbortSignal,
+): Promise<OwnerFindingPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/findings", {
+      ...(signal === undefined ? {} : { signal }),
+      params: { query: { limit: 200, ...request } },
+    }),
+  );
+  const page = safePage(requireData(result), result.response.status);
+  if (
+    page.items.some(
+      (finding) => !validFindingCoordinates(finding.firstProposal.document),
+    )
+  ) {
+    throw invalidAuditResponse(result.response.status);
+  }
+  return { items: structuredClone(page.items), page: page.page };
+}
+
+export async function listOwnerReviews(
+  api: PublicAPI,
+  request: PageRequest & {
+    state?: AuditReviewRequest["state"];
+    auditState?: string;
+  } = {},
+  signal?: AbortSignal,
+): Promise<OwnerReviewPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/reviews", {
+      ...(signal === undefined ? {} : { signal }),
+      params: { query: { limit: 200, ...request } },
+    }),
+  );
+  const page = safePage(requireData(result), result.response.status);
+  return { items: structuredClone(page.items), page: page.page };
 }
 
 export interface AuditCreateOptions {

@@ -200,10 +200,19 @@ SELECT `+auditColumns+`
    AND ($3::text IS NULL OR state = $3)
    AND ($4::text IS NULL OR (profile_name = $4 AND profile_version = $5))
    AND ($6::timestamptz IS NULL OR (created_at, audit_id) < ($6, $7))
+   AND ($9::text[] IS NULL OR state = ANY($9))
+   AND (NOT $10::boolean OR EXISTS (
+       SELECT 1 FROM projects AS project WHERE project.project_id = audits.project_id
+         AND project.owner_id = audits.owner_id AND project.kind = 'project'
+         AND project.lifecycle_state = 'active'
+         AND NOT EXISTS (SELECT 1 FROM eval_submissions AS submission
+           JOIN eval_experiments AS experiment USING (experiment_id)
+           WHERE experiment.owner_id = project.owner_id
+             AND submission.execution_project_id = project.project_id)))
  ORDER BY created_at DESC, audit_id DESC
  LIMIT $8`, params.OwnerID, params.ProjectID, state,
 		params.ProfileName, params.ProfileVersion,
-		params.BeforeCreatedAt, params.BeforeAuditID, params.Limit)
+		params.BeforeCreatedAt, params.BeforeAuditID, params.Limit, params.States, params.VisibleProjects)
 	if err != nil {
 		return nil, fmt.Errorf("list Audits: %w", err)
 	}

@@ -478,35 +478,22 @@ describe("Issues", () => {
     );
   });
 
-  it("lists what loaded when a check fails, with Retry, and names checks with more", async () => {
+  it("marks a failed owner list incomplete and retries it", async () => {
     const server = twoProjects();
     server.failing.add("audit_billing");
-    server.more.add("audit_shop");
     renderIssues(server, "/issues");
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
       "Some possible issues could not be loaded.",
     );
     expect(alert).toHaveTextContent(
-      "Possible issues of OWASP Top 10 · Source risks on Billing could not be loaded: Findings unavailable",
+      "The possible issues list could not be refreshed: Findings unavailable",
     );
-    expect(rowTitles()).toEqual(["Any user can read any order"]);
-    const note = screen.getByRole("note");
-    expect(note).toHaveTextContent("Some possible issues are not listed here.");
-    expect(
-      within(note).getByRole("link", {
-        name: "OpenAPI · Operation trace on Shop",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_shop/audits/audit_shop/findings?state=proposed",
-    );
-    server.failing.delete("audit_billing");
-    await act(async () => {
-      await userEvent
-        .setup()
-        .click(within(alert).getByRole("button", { name: "Retry" }));
-    });
+    expect(rowTitles()).toEqual([]);
+    server.failing.clear();
+    await userEvent
+      .setup()
+      .click(within(alert).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(rowTitles()).toEqual([
       "Invoices leak through a debug endpoint",
@@ -567,22 +554,14 @@ describe("Issues", () => {
     ).toBeNull();
   });
 
-  it("links a check with more possible issues to its own list with the same state and severity", async () => {
+  it("lists all matches without the former per-check cap notice", async () => {
     const server = twoProjects();
     server.more.add("audit_billing");
     renderIssues(server, "/issues?state=confirmed&severity=high");
     await waitFor(() =>
       expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
     );
-    const note = screen.getByRole("note");
-    expect(
-      within(note).getByRole("link", {
-        name: "OWASP Top 10 · Source risks on Billing",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_billing/audits/audit_billing/findings?state=confirmed&severity=high",
-    );
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("says the list is loading rather than that a linked possible issue is not in it", async () => {

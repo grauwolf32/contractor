@@ -21,7 +21,7 @@ Browser journeys now follow the V3B names, account menu, Materials and Library
 tabs, check item panes and decision bars. They retain exact request payload,
 revision, evidence, browser storage and destructive-action checks.
 
-The API gaps below remain: global lists still use bounded client fan-out,
+The API gaps below remain:
 activity is assembled from snapshots, and suggestions use static rules.
 Report reads share a queue of two concurrent requests per API client, including
 Inbox, Reports and check details, to avoid exhausting Server's file transfer
@@ -82,7 +82,7 @@ Revisions, digests, rounds, slots, tokens and allocations move behind
 
 | Gap | First version | Follow-up |
 | --- | --- | --- |
-| No cross-project lists (Inbox, Checks, Issues, Reports) | Client fan-out over the first page of projects (≤ 50). The Inbox reads only active and `waiting_review` checks. Polling every 15–30 s, refetch after each action. | Task for `GET /v1/audits`, `GET /v1/reviews?state=pending`, `GET /v1/findings?verdict=unreviewed` |
+| Cross-project lists | Implemented: owner-scoped `GET /v1/audits`, `GET /v1/reviews` and `GET /v1/findings`, newest-first keysets with owner/filter-bound cursors. The UI follows every page and shares polled lists across destinations. Reports retain revision-pinned per-check reads. | No fixed project/check/finding cap. Failed continuations retain settled pages and mark lists incomplete. |
 | Decisions require a rationale (`minLength: 1`) | Required short field in the decision bar. C / R / E choose the verdict and focus the field; Enter records. "Use AI summary" copies the conclusion on request; no automatic prefill. | — |
 | Duplicate and Reopen | In the decision bar's More menu. Duplicate opens a finding search within the same check. | — |
 | No per-item retry | No Retry button on an endpoint. Show "Retried automatically · attempt N of M". After the last attempt, link to the child Run and the recovery actions the server offers there. | Item retry API only if this proves too indirect |
@@ -162,12 +162,15 @@ browser shards.
 
 ## Remaining work
 
-1. **Cross-project APIs.** Add owner-scoped, paginated lists for checks,
-   pending decisions and findings, then replace the client fan-out. This
-   removes the current first-page limits and reduces polling requests.
-2. **Check events.** Provide the Audit event stream described by S19 before
+Cross-project APIs were completed on 2026-10-07. The UI follows owner-wide
+pages sequentially; global state filters run on the Server. Project selection
+also follows every page. These are live keyset lists, not a cross-project
+snapshot: polling and refresh reconcile membership changes. Per-check detail
+pages and mutations retain their existing revision fences.
+
+1. **Check events.** Provide the Audit event stream described by S19 before
    replacing the activity assembled from item, attempt and review timestamps.
-3. **Visual editor.** Implement the chosen
+2. **Visual editor.** Implement the chosen
    [B node studio](editor-studio.md) as a separate phase: authored YAML import,
    graph and inspector, validation and YAML export, using the V3B themes.
 

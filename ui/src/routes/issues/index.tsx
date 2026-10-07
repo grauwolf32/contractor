@@ -15,7 +15,6 @@ import {
 } from "react-router";
 
 import {
-  CROSS_PROJECT_LIMITS,
   useProjectsIndex,
   type CrossProjectCheck,
   type CrossProjectError,
@@ -49,7 +48,6 @@ import { useIssueList, type IssueList } from "./data";
 import { IssueDetail } from "./issue-detail";
 import { IssueRow } from "./issue-row";
 import {
-  checkIssuesHref,
   issuePath,
   issueSearch,
   matchesIssueFilters,
@@ -95,6 +93,8 @@ function failureText(
   list: IssueList,
   projectName: (projectId: string) => string,
 ): string {
+  if (error.scope === "list")
+    return `The possible issues list could not be refreshed: ${error.error.message}`;
   if (error.scope === "index")
     return `The project list could not be refreshed: ${error.error.message}`;
   if (error.scope === "project")
@@ -545,44 +545,6 @@ export function IssuesRoute() {
           </span>
         </p>
       ) : null}
-      {list.truncatedChecks.length === 0 && !list.checksTruncated ? null : (
-        <div className="issues-notice" role="note">
-          <p>
-            <strong>Some possible issues are not listed here.</strong>
-          </p>
-          {list.truncatedChecks.length === 0 ? null : (
-            <>
-              <p>
-                These checks have more than{" "}
-                {CROSS_PROJECT_LIMITS.findingsPerAudit} in this list; open them
-                for the rest:
-              </p>
-              <ul>
-                {list.truncatedChecks.map((check) => (
-                  <li key={check.audit.auditId}>
-                    <Link
-                      to={checkIssuesHref(
-                        check.project.projectId,
-                        check.audit.auditId,
-                        filters,
-                      )}
-                    >
-                      {checkName(check)}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {list.checksTruncated ? (
-            <p>
-              Only the first {CROSS_PROJECT_LIMITS.projects} projects and the
-              newest {CROSS_PROJECT_LIMITS.auditsPerProject} checks of each
-              project are read.
-            </p>
-          ) : null}
-        </div>
-      )}
     </ListPane>
   );
 

@@ -276,6 +276,8 @@ type ListParams struct {
 	OwnerID         string
 	ProjectID       *string
 	State           *AuditState
+	States          []AuditState
+	VisibleProjects bool
 	ProfileName     *string
 	ProfileVersion  *string
 	BeforeCreatedAt *time.Time

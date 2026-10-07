@@ -1681,8 +1681,7 @@ describe("Check lifecycle controls", () => {
         handle: async (request, url) => {
           if (
             request.method === "GET" &&
-            (url.pathname === "/v1/projects" ||
-              url.pathname === "/v1/projects/project_example/audits")
+            (url.pathname === "/v1/projects" || url.pathname === "/v1/audits")
           ) {
             listReads.push(url.pathname);
             if (held) await gate;
@@ -1720,9 +1719,7 @@ describe("Check lifecycle controls", () => {
       const pause = await screen.findByRole("button", {
         name: "Pause new work",
       });
-      await waitFor(() =>
-        expect(listReads).toContain("/v1/projects/project_example/audits"),
-      );
+      await waitFor(() => expect(listReads).toContain("/v1/audits"));
       const readsBefore = listReads.length;
       await user.click(pause);
 
@@ -1733,10 +1730,7 @@ describe("Check lifecycle controls", () => {
         ).toBeEnabled(),
       );
       expect(listReads.slice(readsBefore)).toEqual(
-        expect.arrayContaining([
-          "/v1/projects",
-          "/v1/projects/project_example/audits",
-        ]),
+        expect.arrayContaining(["/v1/projects", "/v1/audits"]),
       );
       if (status === 412)
         expect(
