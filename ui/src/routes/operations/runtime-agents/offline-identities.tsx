@@ -12,7 +12,8 @@ import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
-import { agentDisplayName, relativeAge, shortAgentId } from "./identity";
+import { IdChip } from "../../../ui";
+import { agentDisplayName, relativeAge } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
 
@@ -29,7 +30,6 @@ function OfflineIdentityRow({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [forgetting, setForgetting] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<string>();
   const name = agentDisplayName(principal);
   const hasLabels = principal.labels.length > 0;
   const labelsWereUpdated = principal.updatedAt !== principal.createdAt;
@@ -60,53 +60,30 @@ function OfflineIdentityRow({
         queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
       }),
   });
-  async function copyId() {
-    try {
-      await navigator.clipboard.writeText(principal.runtimeAgentId);
-      setCopyStatus("Agent ID copied.");
-    } catch {
-      setCopyStatus("Copy unavailable.");
-    }
-  }
   return (
-    <li className="runtime-offline-identity">
-      <div className="runtime-offline-identity-name">
-        <span className="runtime-agent-dot is-offline" aria-hidden="true" />
+    <li className="ops-offline-row">
+      <div className="ops-offline-name">
+        <span className="ops-dot" data-offline="" aria-hidden="true" />
         <strong>{name}</strong>
-        <code
-          className="runtime-agent-short-id"
-          title={principal.runtimeAgentId}
-        >
-          {shortAgentId(principal.runtimeAgentId)}
-        </code>
-        <button
-          className="runtime-agent-copy"
-          type="button"
-          title={`Copy Agent ID for ${name}`}
-          aria-label={`Copy Agent ID for ${name}`}
-          onClick={() => void copyId()}
-        >
-          <Icon name="copy" />
-        </button>
-        {copyStatus === undefined ? null : (
-          <span className="runtime-agent-copy-status" role="status">
-            {copyStatus}
-          </span>
-        )}
+        <IdChip
+          value={principal.runtimeAgentId}
+          label={`Agent ID for ${name}`}
+        />
       </div>
-      <span className="runtime-offline-identity-fact">
+      <span className="ops-offline-fact">
         {labelsWereUpdated ? "Labels updated" : "Registered"}{" "}
         <time dateTime={factTimestamp} title={formatTimestamp(factTimestamp)}>
           {relativeAge(factTimestamp, now)}
         </time>
       </span>
-      <span className="runtime-offline-identity-fact">
+      <span className="ops-offline-fact">
         {principal.labels.length}{" "}
         {principal.labels.length === 1 ? "label" : "labels"}
       </span>
-      <div className="runtime-offline-identity-actions">
+      <div className="ops-offline-actions">
         <button
-          className="runtime-agent-edit"
+          className="ui-btn"
+          data-size="xs"
           type="button"
           disabled={bindings === undefined || deletion.isPending}
           aria-haspopup="dialog"
@@ -117,7 +94,9 @@ function OfflineIdentityRow({
           Edit labels
         </button>
         <button
-          className="runtime-agent-forget"
+          className="ui-btn"
+          data-size="xs"
+          data-variant="danger"
           type="button"
           disabled={hasLabels || deletion.isPending}
           aria-haspopup="dialog"
@@ -144,7 +123,7 @@ function OfflineIdentityRow({
       ) : null}
       {forgetting ? (
         <ConfirmRemovalDialog
-          className="runtime-agent-forget-dialog"
+          className="ops-confirm"
           eyebrow="Permanent action"
           title={<>Forget {agentDisplayName(principal)}?</>}
           description={
@@ -187,16 +166,33 @@ export function OfflineIdentities({
   if (principals.length === 0) return null;
   return (
     <details
-      className="runtime-offline-identities"
+      className="ops-offline"
       open={open || undefined}
       aria-labelledby={heading}
     >
-      <summary id={heading}>Offline identities ({principals.length})</summary>
-      <p className="runtime-agent-offline-note">
+      <summary id={heading}>
+        <svg
+          className="ui-tech-chevron"
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M9.5 6l6 6-6 6" />
+        </svg>
+        Offline identities ({principals.length})
+      </summary>
+      <p className="ops-offline-note">
         No live process is registered for these IDs. Saved labels are retained
         for the next registration; an identity without labels can be forgotten.
       </p>
-      <ul className="runtime-offline-identity-list">
+      <ul className="ops-offline-list">
         {principals.map((principal) => (
           <OfflineIdentityRow
             key={principal.runtimeAgentId}

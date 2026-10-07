@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
@@ -98,9 +99,9 @@ class SettingsWebSocket {
   }
 }
 
-function renderSettings(api: PublicAPI) {
+function renderSettings(api: PublicAPI, path = "/operations/settings") {
   const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: ["/operations/settings"],
+    initialEntries: [path],
   });
   const events = new RunEventsManager(runtimeConfig.apiBaseUrl, {
     WebSocketImplementation: SettingsWebSocket as unknown as typeof WebSocket,
@@ -170,6 +171,95 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.queryByText("Operations capability required"),
     ).not.toBeInTheDocument();
+    // A page of its own, reached from the account menu: no Operations tabs.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Git SSH key" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Theme" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Operations sections" }),
+    ).not.toBeInTheDocument();
+    expect(document.title).toBe("Settings · Contractor");
+  });
+
+  it("points sessions without the capability from other Operations pages to Settings", async () => {
+    const requests: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        requests.push(path);
+        if (path === "/v1/auth/session") {
+          return response({
+            ...session,
+            principal: { ...session.principal, capabilities: ["user"] },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderSettings(api, "/operations/runtime-agents");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "not authorized to observe or manage Operations",
+    );
+    const main = screen.getByRole("main");
+    expect(
+      within(main).getByRole("heading", { level: 1, name: "Operations" }),
+    ).toBeInTheDocument();
+    expect(
+      within(main).getByRole("link", { name: "Settings" }),
+    ).toHaveAttribute("href", "/operations/settings");
+    expect(
+      screen.queryByRole("navigation", { name: "Operations sections" }),
+    ).not.toBeInTheDocument();
+    expect(requests.filter((path) => !path.startsWith("/v1/projects"))).toEqual(
+      ["/v1/auth/session"],
+    );
+  });
+
+  it("shows Settings as an Operations section to operators", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const common = commonResponse(request);
+        if (common !== undefined) return common;
+        if (
+          new URL(request.url).pathname === "/v1/operations/settings/scheduler"
+        )
+          return schedulerSettings(2, "3");
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderSettings(api);
+    expect(
+      await screen.findByRole("heading", {
+        level: 3,
+        name: "Workflow scheduling",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Git SSH key" }),
+    ).toBeInTheDocument();
+    const sections = screen.getByRole("navigation", {
+      name: "Operations sections",
+    });
+    expect(
+      within(sections).getByRole("link", { name: "Settings" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: /Workflow scheduling/ }),
+    ).toHaveAttribute("href", "#workflow-scheduling");
+    expect(document.title).toBe("Settings · Operations · Contractor");
   });
 
   it("validates, CAS-saves once and settles on the returned value", async () => {

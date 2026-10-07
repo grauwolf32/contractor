@@ -1,0 +1,2166 @@
+/*
+ * Operations and Settings in the V3B look (docs/design/ui/v3b-build-contract.md
+ * §4): one flat page sheet with hairlines, Manrope text, JetBrains Mono for
+ * identifiers, status chips from src/ui. Every class starts with ops-; older
+ * class names that remain on elements are hooks for browser specs only.
+ * Colours come only from theme.css tokens.
+ */
+
+/* ---------- Page sheet ---------- */
+
+.ops-page {
+  --ops-pad: 1.75rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 80rem;
+  margin-inline: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.ops-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 1.375rem var(--ops-pad) 0;
+}
+
+.ops-page-heading {
+  min-width: 0;
+}
+
+.ops-page .ops-page-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.ops-page-lede {
+  max-width: 70ch;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.ops-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ops-page-tabs {
+  padding: 1rem var(--ops-pad) 0;
+}
+
+.ops-page-tabs .mobile-section-picker {
+  margin: 0;
+}
+
+/* The Setup group marker between the observation and setup tabs. */
+.ops-tabs-group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: 0.25rem;
+  padding: 0 0.375rem 0 0.75rem;
+  border-left: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+  padding: 1.5rem var(--ops-pad) var(--ops-pad);
+}
+
+/* Route content sits directly in the body; its own wrappers stay flat. */
+.ops-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+.ops-stack > .ops-section + .ops-section,
+.ops-divided {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Sections ---------- */
+
+.ops-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+  scroll-margin-top: 1rem;
+}
+
+.ops-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.ops-section-heading {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.ops-page .ops-section-title,
+.ops-dialog .ops-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.ops-page h3.ops-section-title,
+.ops-dialog h3.ops-section-title {
+  font-size: 0.9375rem;
+}
+
+.ops-section-description {
+  max-width: 75ch;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-section-description p {
+  margin: 0;
+}
+
+.ops-section-description p + p {
+  margin-top: 0.25rem;
+}
+
+.ops-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.ops-section-aside {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.ops-eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ops-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.ops-loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.ops-empty {
+  margin: 0;
+  padding: 1rem 1.125rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-empty strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.ops-empty p {
+  margin: 0.25rem 0 0;
+}
+
+/* Shared notices and buttons inside the sheet follow its spacing and shape. */
+.ops-page .notice,
+.ops-dialog .notice {
+  margin: 0;
+  border-radius: 10px;
+  font-size: 0.84375rem;
+}
+
+.ops-page .notice > .ui-btn,
+.ops-dialog .notice > .ui-btn {
+  justify-self: start;
+}
+
+.ops-page .secondary-button,
+.ops-dialog .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.375rem;
+  min-height: 0;
+  padding: 0 0.875rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ops-page .secondary-button:not(:disabled):hover,
+.ops-dialog .secondary-button:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+.ops-page .secondary-button.icon-button {
+  width: 2.375rem;
+  padding: 0;
+}
+
+.ops-page .pagination {
+  margin: 0;
+}
+
+/* ---------- Panels and tables ---------- */
+
+.ops-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.ops-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+.ops-page .ops-panel-title,
+.ops-dialog .ops-panel-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.ops-panel-aside {
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.ops-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ops-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  scrollbar-width: thin;
+}
+
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ops-table th {
+  position: static;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-table td {
+  padding: 0.6875rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.84375rem;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.ops-table tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+.ops-table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.ops-table .ops-cell-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ops-table .ops-cell-sub {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ops-table .ops-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+/* ---------- Forms inside the sheet ---------- */
+
+.ops-page
+  :is(
+    input:not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="file"],
+      [type="hidden"]
+    ),
+    select,
+    textarea
+  ) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.ops-page :is(input, textarea)::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.ops-page :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--focus);
+  box-shadow: none;
+}
+
+.ops-page :is(input, select, textarea):disabled {
+  background: var(--surface-subtle);
+  color: var(--muted);
+}
+
+.ops-page :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.ops-page input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--accent);
+}
+
+.ops-page .form-grid {
+  gap: 0.875rem 1rem;
+}
+
+.ops-page .form-grid label,
+.ops-field {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.ops-page .field-guidance {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.ops-page .checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 600;
+}
+
+.ops-page .checkbox-label input {
+  margin-top: 0.1875rem;
+}
+
+.ops-page fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.ops-page legend {
+  padding: 0 0.375rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ops-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.ops-form-actions small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* ---------- Diagnostics disclosure ---------- */
+
+.ops-diagnostics {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.ops-page .operations-snapshot-record > summary {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.ops-page .operations-snapshot-record[open] > summary {
+  margin-bottom: 0;
+}
+
+.ops-diagnostics-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 48rem;
+}
+
+.ops-live-status {
+  display: flex;
+}
+
+.ops-live-status .ui-status-chip {
+  white-space: normal;
+}
+
+/* ---------- Operations capability required ---------- */
+
+.ops-denied {
+  max-width: 44rem;
+}
+
+.ops-denied-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 2rem var(--ops-pad);
+}
+
+.ops-denied-body .ops-eyebrow {
+  margin: 0.25rem 0 -0.5rem;
+}
+
+.ops-denied-glyph {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 12px;
+  background: var(--danger-bg);
+}
+
+.ops-denied-body .notice {
+  align-self: stretch;
+}
+
+/* ---------- Overview ---------- */
+
+.ops-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.ops-slot-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.ops-slot-total {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ops-slot-line .ui-segments {
+  flex: 1 1 14rem;
+  max-width: 28rem;
+}
+
+.ops-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--text);
+  font-size: 0.78125rem;
+}
+
+.ops-legend-swatch {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 3px;
+  background: var(--m-idle);
+}
+
+.ops-legend-swatch[data-tone="progress"] {
+  background: var(--m-progress);
+}
+
+.ops-legend-swatch[data-tone="warning"] {
+  background: var(--m-partial);
+}
+
+.ops-legend-swatch[data-tone="blocked"] {
+  background: var(--m-blocked);
+}
+
+.ops-legend-swatch[data-tone="done"] {
+  background: var(--m-done);
+}
+
+.ops-legend-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ops-capacity-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  max-width: 78ch;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 0.84375rem;
+}
+
+.ops-capacity-note .ui-glyph {
+  margin-top: 0.1875rem;
+  color: var(--accent);
+}
+
+.ops-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-shortcuts li {
+  min-width: 0;
+}
+
+.ops-shortcuts a {
+  display: inline-block;
+  padding: 0.125rem 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.ops-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--line);
+  list-style: none;
+}
+
+.ops-tiles > li {
+  display: flex;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.ops-tile {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ops-tile:hover {
+  background: var(--row-hover);
+}
+
+.ops-tile:focus-visible {
+  outline-offset: -2px;
+}
+
+.ops-tile-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ops-tile-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--link);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.ops-tile-value strong {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.ops-tile-value[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.ops-tile-text {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* ---------- Runtime Agents ---------- */
+
+.ops-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.ops-agent-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.ops-agent-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem 1.125rem;
+}
+
+.ops-agent-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.ops-agent-identity {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ops-agent-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.ops-page .ops-agent-name h3 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.ops-agent-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.ops-dot {
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.ops-dot[data-offline] {
+  background: var(--m-idle);
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
+.ops-glance.ops-agent-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ops-agent-metrics dd small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.ops-agent-no-process {
+  margin: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-agent-allocation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--info-line);
+  border-radius: 10px;
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: 0.8125rem;
+}
+
+.ops-agent-allocation .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.ops-agent-allocation a {
+  color: inherit;
+  font-weight: 700;
+}
+
+.ops-agent-allocation a:last-child {
+  margin-left: auto;
+}
+
+.ops-agent-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 10px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 0.8125rem;
+}
+
+.ops-agent-warning p {
+  margin: 0;
+}
+
+.ops-agent-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ops-agent-labels-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ops-agent-card .ops-tech {
+  padding: 0.75rem 1.125rem;
+  border-top: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.ops-agent-card .ops-tech .ops-facts {
+  grid-template-columns: minmax(7rem, 12rem) minmax(0, 1fr);
+}
+
+.ops-toolsets {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-toolsets .ops-chips {
+  margin-top: 0.25rem;
+}
+
+.ops-offline {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.ops-offline > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.125rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ops-offline > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ops-offline > summary .ui-tech-chevron {
+  color: var(--muted);
+}
+
+.ops-offline[open] > summary .ui-tech-chevron {
+  transform: rotate(90deg);
+}
+
+.ops-offline-note {
+  margin: 0;
+  padding: 0 1.125rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-offline-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.ops-offline-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.375rem 1rem;
+  padding: 0.625rem 1.125rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+}
+
+.ops-offline-row:first-child {
+  border-top: 0;
+}
+
+.ops-offline-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ops-offline-name strong {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.ops-offline-fact {
+  color: var(--muted);
+  font-size: 0.78125rem;
+  white-space: nowrap;
+}
+
+.ops-offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ops-inventory {
+  padding-top: 0.25rem;
+}
+
+.ops-inventory .ops-table td {
+  vertical-align: top;
+}
+
+.ops-inventory-agent > summary {
+  color: var(--link);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ops-inventory-agent[open] {
+  min-width: 18rem;
+}
+
+.ops-inventory-agent .ops-facts {
+  margin-top: 0.5rem;
+}
+
+.ops-reconcile {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--success);
+  font-size: 0.75rem;
+}
+
+.ops-reconcile[data-pending] {
+  color: var(--warning);
+}
+
+.ops-dialog .ops-label-options {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.ops-dialog .ops-label-options legend {
+  padding: 0 0.375rem;
+  font-weight: 800;
+}
+
+.ops-dialog .ops-label-options .checkbox-label > span {
+  display: grid;
+  gap: 0.125rem;
+  overflow-wrap: anywhere;
+}
+
+.ops-dialog .ops-label-options small {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.ops-dialog-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.ops-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.ops-dialog .notice {
+  margin: 0;
+}
+
+/* ---------- Allocations ---------- */
+
+.ops-subtabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.25rem;
+  border-radius: 12px;
+  background: var(--chrome);
+}
+
+.ops-subtabs a {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 9rem;
+  padding: 0.4375rem 0.875rem;
+  border-radius: 9px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.ops-subtabs a:hover {
+  color: var(--text);
+}
+
+.ops-subtabs a.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.ops-subtabs strong {
+  font-size: 0.8125rem;
+}
+
+.ops-subtabs small {
+  color: var(--muted);
+  font-size: 0.71875rem;
+}
+
+.ops-allocation-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  list-style: none;
+}
+
+.ops-allocation-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.ops-allocation > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1.125rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ops-allocation > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ops-allocation > summary:hover {
+  background: var(--row-hover);
+}
+
+.ops-allocation > summary .ui-tech-chevron {
+  color: var(--muted);
+}
+
+.ops-allocation[open] > summary .ui-tech-chevron {
+  transform: rotate(90deg);
+}
+
+.ops-allocation[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.ops-allocation:target > summary,
+.ops-allocation[data-targeted] > summary {
+  background: var(--sel);
+  box-shadow: inset 3px 0 0 var(--sel-bar);
+}
+
+.ops-allocation.allocation-card > summary,
+.ops-allocation.allocation-card > summary > span {
+  flex-direction: row;
+  align-items: center;
+}
+
+.ops-allocation-title {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+  min-width: 0;
+}
+
+.ops-allocation-title strong {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.ops-allocation-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.ops-allocation-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1rem 1.125rem 1.125rem;
+}
+
+.ops-allocation-body > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.ops-page .ops-allocation-body h3 {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.ops-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.625rem;
+}
+
+.ops-filter-row .ops-field {
+  flex: 0 1 18rem;
+}
+
+.ops-field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+
+.ops-history-stage {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.ops-history-stage > strong {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.ops-history-stage > small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ops-metrics-toggle,
+.ops-metrics-toggle:not(:disabled):active {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 0.25rem;
+  min-height: 0;
+  margin-top: 0.125rem;
+  padding: 0.125rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  font-size: 0.78125rem;
+  font-weight: 700;
+  transform: none;
+}
+
+.ops-metrics-toggle:not(:disabled):hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.ops-metrics-toggle .ui-tech-chevron {
+  transition: transform 140ms ease;
+}
+
+.ops-metrics-toggle[aria-expanded="true"] .ui-tech-chevron {
+  transform: rotate(90deg);
+}
+
+.ops-table .ops-metrics-row > td {
+  padding-top: 0;
+  background: var(--surface-subtle);
+}
+
+.ops-table tr.ops-row-expanded > td {
+  border-bottom: 0;
+  background: var(--surface-subtle);
+}
+
+/* ---------- Performance ---------- */
+
+.ops-observed-at {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.ops-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+  gap: 1rem;
+}
+
+.performance-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.performance-metric-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.ops-page .performance-metric-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.performance-metric-card[data-freshness="unavailable"] .ops-glance dd {
+  color: var(--muted);
+}
+
+.performance-metric-card .ops-glance {
+  grid-template-columns: repeat(auto-fit, minmax(min(7.5rem, 100%), 1fr));
+}
+
+.performance-metric-card > small {
+  color: var(--muted);
+  font-size: 0.71875rem;
+  line-height: 1.45;
+}
+
+.performance-device-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.performance-device-heading small {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.71875rem;
+  font-weight: 500;
+}
+
+.performance-series-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 3px;
+}
+
+.ops-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.ops-range-field {
+  flex: 0 1 13rem;
+}
+
+.ops-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(30rem, 100%), 1fr));
+  gap: 1rem;
+}
+
+.performance-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.performance-chart-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.ops-page .performance-chart-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.performance-chart-heading strong {
+  flex-shrink: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.performance-chart-card > small {
+  color: var(--muted);
+  font-size: 0.71875rem;
+}
+
+.performance-chart {
+  width: 100%;
+  min-height: 9rem;
+  overflow: visible;
+}
+
+.performance-chart text {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.performance-chart-axis {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-point {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-legend {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.performance-chart-legend li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78125rem;
+}
+
+.performance-chart-legend li > span:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+
+.performance-chart-legend strong {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.performance-series-details > summary {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.performance-series-details h4 {
+  margin: 0.75rem 0 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.performance-chart-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.performance-chart-summary > div {
+  min-width: 0;
+  padding-top: 0.375rem;
+  border-top: 1px solid var(--line);
+}
+
+.performance-chart-summary dt {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.performance-chart-summary dd {
+  margin: 0.125rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.ops-counters > summary .ui-tech-label {
+  font-size: 0.84375rem;
+}
+
+.ops-counters .ui-tech-body {
+  padding-left: 0;
+}
+
+/* ---------- Configuration, LLM configurations, credentials ---------- */
+
+.ops-icon-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.runtime-binding-trigger.has-bindings {
+  border-color: var(--sel-line);
+  background: var(--sel);
+  color: var(--text);
+}
+
+.ops-binding-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ops-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ops-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  list-style: none;
+}
+
+.ops-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ops-breadcrumb a {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ops-breadcrumb a:hover {
+  color: var(--text);
+}
+
+.ops-breadcrumb [aria-current="page"] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ops-breadcrumb-sep {
+  color: var(--muted);
+}
+
+.ops-detail-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.ops-detail-title {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  min-width: 0;
+}
+
+.ops-page .ops-detail-title h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ops-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-block-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.ops-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.ops-draft-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+.ops-draft-head code {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ops-disclosure {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.ops-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.125rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ops-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ops-disclosure > summary .ui-tech-chevron {
+  color: var(--muted);
+}
+
+.ops-disclosure[open] > summary .ui-tech-chevron {
+  transform: rotate(90deg);
+}
+
+.ops-disclosure[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.ops-disclosure > :not(summary) {
+  margin: 1rem 1.125rem 1.125rem;
+}
+
+.ops-disclosure .optional-settings {
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+
+.ops-danger {
+  border-color: var(--danger-line);
+}
+
+.ops-danger .ops-panel-title {
+  color: var(--danger);
+}
+
+.ops-danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Long action labels wrap instead of overflowing narrow screens. */
+.ops-form-actions .ui-btn,
+.ops-danger-actions .ui-btn {
+  max-width: 100%;
+  height: auto;
+  min-height: 2.375rem;
+  padding-block: 0.5rem;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
+
+/* Runtime configuration dialogs. */
+.project-dialog.ops-dialog {
+  width: min(100%, 52rem);
+  border-color: var(--line-strong);
+  border-radius: 16px;
+}
+
+.ops-dialog .project-dialog-heading h2 {
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ops-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.project-dialog-heading + .ops-dialog-form {
+  margin-top: 1rem;
+}
+
+/* References that block a deletion (InUseErrorDetails). */
+.in-use-details {
+  min-width: 0;
+}
+
+.in-use-details h4 {
+  margin: 0.5rem 0 0.125rem;
+  font-size: 0.8125rem;
+}
+
+.in-use-details ul {
+  margin: 0 0 0.375rem;
+  padding-left: 1.25rem;
+}
+
+.in-use-details li {
+  overflow-wrap: anywhere;
+}
+
+.ops-dialog .form-grid {
+  gap: 0.875rem 1rem;
+}
+
+/*
+ * A block of the RuntimeConfig draft: its switch heads a bordered card (the
+ * floated legend sits inside the box instead of on its border).
+ */
+.ops-config-block {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.ops-config-block legend {
+  float: left;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-weight: 800;
+}
+
+.ops-config-block legend .checkbox-label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* An unchecked block shows only its switch; its fields wait until it is on. */
+.ops-config-block:has(> legend input[type="checkbox"]:not(:checked))
+  > :not(legend) {
+  /* The shared checkbox label uses an important display rule. */
+  display: none !important;
+}
+
+.ops-config-block:has(> legend input[type="checkbox"]:checked) {
+  border-color: var(--line-strong);
+}
+
+.ops-config-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.ops-config-ca {
+  grid-column: 1 / -1;
+}
+
+.ops-config-ca textarea {
+  min-height: 7rem;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.ops-secret-rows {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ops-secret-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.6fr) minmax(14rem, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.ops-secret-rows > button {
+  justify-self: start;
+}
+
+.ops-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--sunken);
+  font-size: 0.84375rem;
+}
+
+.ops-proposal strong {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.ops-proposal p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ops-binding-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ops-dialog .runtime-binding-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.ops-binding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+}
+
+.ops-binding-head strong {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.ops-binding-head small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ops-glance.ops-binding-compare {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ops-binding-compare dd strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.ops-binding-compare dd code {
+  display: block;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+.ops-binding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ops-binding-actions select {
+  flex: 1 1 16rem;
+}
+
+.ops-label-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+}
+
+.ops-label-create label {
+  display: grid;
+  flex: 1 1 12rem;
+  gap: 0.375rem;
+}
+
+/* Icons inside V3B buttons follow the button's text size. */
+.ops-page .ui-btn .app-icon,
+.ops-dialog .ui-btn .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.ops-glance.ops-key-facts {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+@media (max-width: 640px) {
+  .ops-glance.ops-key-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Detail pages reuse DetailHeader inside the sheet's own padding. */
+.ops-detail .ui-detail-header {
+  --ui-pad-start: 0;
+  --ui-pad-end: 0;
+  padding: 0 0 1rem;
+}
+
+.ops-detail .ui-detail-header-heading {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ui-btn.ops-icon-button {
+  width: 2.375rem;
+  padding: 0;
+}
+
+.ui-btn.ops-icon-button[data-size="sm"] {
+  width: 2rem;
+}
+
+.ui-btn.ops-icon-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.project-dialog.ops-labels-dialog {
+  width: min(100%, 34rem);
+}
+
+.project-dialog.ops-confirm {
+  width: min(100%, 36rem);
+}
+
+.project-dialog.ops-confirm > p {
+  color: var(--muted-strong);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.ops-policy {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ops-page .ops-policy-title {
+  margin: 0 0 0.375rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ops-page .ops-checklist {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 1099px) {
+  .ops-page {
+    --ops-pad: 1.375rem;
+  }
+}
+
+@media (max-width: 820px) {
+  .ops-page {
+    --ops-pad: 1rem;
+  }
+
+  .ops-page-head {
+    padding-top: 1.125rem;
+  }
+
+  .ops-page .ops-page-title {
+    font-size: 1.375rem;
+  }
+
+  .ops-allocation-body,
+  .ops-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-glance.ops-agent-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-secret-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ops-secret-row > label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .ops-tabs-group {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .ops-page {
+    --ops-pad: 0.875rem;
+    border-radius: 12px;
+  }
+
+  .ops-agent-card .ops-tech .ops-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-offline-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ops-offline-name,
+  .ops-offline-actions {
+    grid-column: 1 / -1;
+  }
+
+  .ops-glance.ops-binding-compare,
+  .performance-chart-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Stacked table rows: each cell shows its column name. */
+  .ops-table[data-stack],
+  .ops-table[data-stack] tbody,
+  .ops-table[data-stack] tr,
+  .ops-table[data-stack] td {
+    display: block;
+    width: 100%;
+  }
+
+  .ops-table[data-stack] thead {
+    display: none;
+  }
+
+  .ops-table[data-stack] tr {
+    padding: 0.375rem 0.875rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .ops-table[data-stack] tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .ops-table[data-stack] td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.4fr) minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.375rem 0;
+    border: 0;
+  }
+
+  .ops-table[data-stack] td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* The first cell names the row: full width, without its column label. */
+  .ops-table[data-stack] td:first-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-table[data-stack] td:first-child::before {
+    content: none;
+  }
+
+  .ops-subtabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .ops-subtabs a {
+    min-width: 0;
+  }
+
+  .ops-table[data-stack] td[data-label=""]::before {
+    content: none;
+  }
+
+  .ops-table[data-stack] .ops-cell-actions {
+    width: 100%;
+    text-align: left;
+  }
+
+  .ops-table[data-stack] .ops-metrics-row > td {
+    display: block;
+  }
+
+  .ops-table[data-stack] .ops-metrics-row > td::before {
+    content: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-metrics-toggle .ui-tech-chevron {
+    transition: none;
+  }
+}

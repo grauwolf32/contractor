@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 
 import { usePublicAPI } from "../../../api/context";
 import { listAllocationResourceHistory } from "../../../api/performance";
@@ -11,9 +11,11 @@ import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
 import { RefreshButton } from "../../../app/refresh-button";
 import { QueryView } from "../../../app/query-view";
+import { OpsSection } from "../common";
 
 export function CompletedAllocationListRoute() {
   const api = usePublicAPI();
+  const errorId = useId();
   const [draftRunId, setDraftRunId] = useState("");
   const [runId, setRunId] = useState<string>();
   const [validationError, setValidationError] = useState<string>();
@@ -45,30 +47,30 @@ export function CompletedAllocationListRoute() {
   }
 
   return (
-    <div className="operations-library">
+    <div className="ops-stack">
       <AllocationViewTabs />
-      <section className="panel completed-allocation-panel">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Allocation history</p>
-            <h3>Completed allocation resources</h3>
-            <p className="muted-copy">
-              Historical allocation measurements. Open metrics to inspect their
-              scope, collection policy and identity.
-            </p>
-          </div>
+      <OpsSection
+        id="completed-allocations-heading"
+        eyebrow="Allocation history"
+        title="Completed allocation resources"
+        description="Historical allocation measurements. Open metrics to inspect their scope, collection policy and identity."
+        actions={
           <RefreshButton
             isFetching={query.isFetching}
             onRefresh={() => void query.refetch()}
             label="Refresh"
           />
-        </div>
-        <form className="allocation-history-filter" onSubmit={applyFilter}>
-          <label>
+        }
+      >
+        <form className="ops-filter-row" onSubmit={applyFilter}>
+          <label className="ops-field">
             <span>Run ID (optional)</span>
             <input
               value={draftRunId}
               aria-invalid={validationError !== undefined}
+              aria-describedby={
+                validationError === undefined ? undefined : errorId
+              }
               placeholder="run_…"
               onChange={(event) => {
                 setDraftRunId(event.target.value);
@@ -76,12 +78,13 @@ export function CompletedAllocationListRoute() {
               }}
             />
           </label>
-          <button className="secondary-button" type="submit">
+          <button className="ui-btn" type="submit">
             Apply filter
           </button>
           {runId === undefined ? null : (
             <button
-              className="ghost-button"
+              className="ui-btn"
+              data-variant="ghost"
               type="button"
               onClick={() => {
                 setDraftRunId("");
@@ -95,21 +98,21 @@ export function CompletedAllocationListRoute() {
           )}
         </form>
         {validationError === undefined ? null : (
-          <p className="field-error" role="alert">
+          <p id={errorId} className="ops-field-error" role="alert">
             {validationError}
           </p>
         )}
         <QueryView
           query={query}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading completed allocations…
             </p>
           }
           onRetry={() => void query.refetch()}
           isEmpty={(data) => data.items.length === 0}
           empty={
-            <div className="compact-empty">
+            <div className="ops-empty">
               <strong>No matching terminal allocation exists.</strong>
               <p>
                 Missing reports are included, so an empty result means no owned
@@ -126,7 +129,7 @@ export function CompletedAllocationListRoute() {
             {...pages.controls(query.data.page)}
           />
         )}
-      </section>
+      </OpsSection>
     </div>
   );
 }

@@ -18,7 +18,7 @@ import {
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
 import { formatBytes, formatTimestamp } from "../../../app/format";
-import { OperationsState } from "../common";
+import { OperationsState, OpsSection } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
@@ -176,7 +176,7 @@ function GroupCard({
   return (
     <article className="performance-metric-card" data-freshness={state}>
       <header>
-        <h4>{title}</h4>
+        <h3>{title}</h3>
         <OperationsState state={state} />
       </header>
       {children}
@@ -188,7 +188,7 @@ function GroupCard({
           ? ""
           : ` · ${freshness.reason.replaceAll("_", " ")}`}
       </small>
-      {note === undefined ? null : <p className="muted-copy">{note}</p>}
+      {note === undefined ? null : <p className="ops-note">{note}</p>}
     </article>
   );
 }
@@ -202,13 +202,13 @@ function CurrentResourceSummary({
 }) {
   const sample = snapshot.current;
   return (
-    <div className="performance-summary-grid">
+    <div className="ops-metric-grid">
       <GroupCard
         title="Server process"
         freshness={sample?.process?.freshness}
         readAt={snapshot.observedAt}
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>CPU</dt>
             <dd>
@@ -235,7 +235,7 @@ function CurrentResourceSummary({
         freshness={sample?.database?.freshness}
         readAt={snapshot.observedAt}
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Active connections</dt>
             <dd>{metric(sample?.database?.activeConnections, decimal)}</dd>
@@ -270,13 +270,13 @@ function CurrentMetrics({
       ? pool.acquireDurationSeconds / pool.acquireCount
       : undefined;
   return (
-    <div className="performance-card-grid">
+    <div className="ops-metric-grid">
       <GroupCard
         title="Server process"
         freshness={process?.freshness}
         readAt={snapshot.observedAt}
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>CPU</dt>
             <dd>
@@ -320,7 +320,7 @@ function CurrentMetrics({
         readAt={snapshot.observedAt}
         note="Latency values are upper bounds from merged Server histogram buckets."
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Request rate</dt>
             <dd>
@@ -355,7 +355,7 @@ function CurrentMetrics({
         readAt={snapshot.observedAt}
         note="Acquisition duration is a successful-acquisition mean, not p95."
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Acquired</dt>
             <dd>
@@ -403,7 +403,7 @@ function CurrentMetrics({
         readAt={snapshot.observedAt}
         note="Dead tuples are planner estimates, not a bloat verdict."
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Active connections</dt>
             <dd>
@@ -453,7 +453,7 @@ function CurrentMetrics({
         readAt={snapshot.observedAt}
         note="Database size is allocated database content, not free disk space."
       >
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Database size</dt>
             <dd>{metric(databaseSize?.sizeBytes, formatBytes)}</dd>
@@ -476,7 +476,7 @@ function CurrentMetrics({
       </GroupCard>
       <article className="performance-metric-card">
         <header>
-          <h4>Collection diagnostics</h4>
+          <h3>Collection diagnostics</h3>
           <OperationsState
             state={
               snapshot.diagnostics.collectorReason === undefined &&
@@ -487,7 +487,7 @@ function CurrentMetrics({
             }
           />
         </header>
-        <dl className="metrics-grid performance-metrics-grid">
+        <dl className="ops-glance">
           <div>
             <dt>Skipped samples</dt>
             <dd>{snapshot.diagnostics.skippedSamples.toLocaleString()}</dd>
@@ -547,70 +547,70 @@ export function OperationsPerformanceRoute() {
     history.data?.points.map((point) => point.generation) ?? [],
   );
   return (
-    <div className="operations-library performance-page">
-      <div className="section-heading performance-heading">
-        <div>
-          <h3>Server performance</h3>
-          <p className="muted-copy">
-            Server process, PostgreSQL and available host GPU observations.
-            History preserves collection gaps and Server restarts.
-          </p>
-        </div>
-        <RefreshButton
-          isFetching={current.isFetching || history.isFetching}
-          onRefresh={() =>
-            void Promise.all([current.refetch(), history.refetch()])
-          }
-          label="Refresh"
-        />
-      </div>
-
-      <QueryView
-        query={current}
-        loading={
-          <p className="loading-copy" role="status">
-            Loading current performance…
-          </p>
+    <div className="ops-stack">
+      <OpsSection
+        id="performance-heading"
+        title="Server performance"
+        description="Server process, PostgreSQL and available host GPU observations. History preserves collection gaps and Server restarts."
+        actions={
+          <RefreshButton
+            isFetching={current.isFetching || history.isFetching}
+            onRefresh={() =>
+              void Promise.all([current.refetch(), history.refetch()])
+            }
+            label="Refresh"
+          />
         }
-        onRetry={() => void current.refetch()}
       >
-        {(data) =>
-          !data.enabled ? (
-            <div
-              className="notice notice-warning performance-disabled"
-              role="status"
-            >
-              <strong>Performance collection is disabled.</strong>
-              <p>
-                Retained history remains available below until its seven-day
-                expiry.
+        <QueryView
+          query={current}
+          loading={
+            <p className="ops-loading" role="status">
+              Loading current performance…
+            </p>
+          }
+          onRetry={() => void current.refetch()}
+        >
+          {(data) =>
+            !data.enabled ? (
+              <div className="notice notice-warning" role="status">
+                <strong>Performance collection is disabled.</strong>
+                <p>
+                  Retained history remains available below until its seven-day
+                  expiry.
+                </p>
+              </div>
+            ) : data.current === undefined ? (
+              <p className="ops-empty" role="status">
+                Collection is enabled and waiting for its first bounded sample.
               </p>
-            </div>
-          ) : data.current === undefined ? (
-            <div className="compact-empty" role="status">
-              Collection is enabled and waiting for its first bounded sample.
-            </div>
-          ) : (
-            <>
-              <p className="performance-observed-at">
-                Read {formatTimestamp(data.observedAt)} · generation{" "}
-                <code>{data.generation}</code>
-              </p>
-              <CurrentResourceSummary snapshot={data} gpuColors={gpuColors} />
-            </>
-          )
-        }
-      </QueryView>
+            ) : (
+              <>
+                <p className="ops-observed-at">
+                  Read {formatTimestamp(data.observedAt)} · generation{" "}
+                  <code>{data.generation}</code>
+                </p>
+                <CurrentResourceSummary snapshot={data} gpuColors={gpuColors} />
+              </>
+            )
+          }
+        </QueryView>
+      </OpsSection>
 
       <section
-        className="performance-history"
+        className="ops-section"
         aria-labelledby="performance-history-heading"
       >
-        <div className="section-heading">
-          <div>
-            <h3 id="performance-history-heading">History</h3>
+        <header className="ops-history-head">
+          <div className="ops-section-heading">
+            <h2 id="performance-history-heading" className="ops-section-title">
+              History
+            </h2>
+            <p className="ops-section-description">
+              Lines are not joined across gaps or Server restarts.
+            </p>
           </div>
-          <label className="performance-range-control">
+          <label className="ops-field ops-range-field">
             <span>Time range</span>
             <select
               value={range}
@@ -632,11 +632,11 @@ export function OperationsPerformanceRoute() {
               ))}
             </select>
           </label>
-        </div>
+        </header>
         <QueryView
           query={history}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading bounded history…
             </p>
           }
@@ -650,7 +650,7 @@ export function OperationsPerformanceRoute() {
                   Lines are intentionally not joined across restarts.
                 </div>
               ) : null}
-              <div className="performance-chart-grid">
+              <div className="ops-chart-grid">
                 <MetricChart
                   title="CPU usage"
                   description="Average Server process CPU expressed as used cores"
@@ -689,13 +689,38 @@ export function OperationsPerformanceRoute() {
       </section>
       {current.data?.current === undefined ? null : (
         <details
-          className="performance-detail-counters"
+          className="ui-tech ops-counters"
           onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
         >
-          <summary>Detailed counters and collection diagnostics</summary>
-          {detailsOpen ? (
-            <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
-          ) : null}
+          <summary>
+            <span className="ui-tech-label">
+              <svg
+                className="ui-tech-chevron"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M9.5 6l6 6-6 6" />
+              </svg>
+              Detailed counters and collection diagnostics
+            </span>
+            <span className="ui-tech-description">
+              HTTP surfaces, connection pool, PostgreSQL, storage and the
+              collector itself.
+            </span>
+          </summary>
+          <div className="ui-tech-body">
+            {detailsOpen ? (
+              <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
+            ) : null}
+          </div>
         </details>
       )}
     </div>

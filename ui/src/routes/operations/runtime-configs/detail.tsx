@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
@@ -7,6 +7,8 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { formatBytes, formatTimestamp } from "../../../app/format";
 import { QueryView } from "../../../app/query-view";
+import { DetailHeader, IdChip } from "../../../ui";
+import { Glance, ScopeChip } from "../common";
 
 const FIELD_LABELS: Record<string, string> = {
   gatewayId: "Gateway ID",
@@ -48,7 +50,7 @@ function ConfigValue({ name, value }: { name: string; value: unknown }) {
 
 function ConfigFields({ record }: { record: Record<string, unknown> }) {
   return (
-    <dl className="key-value-list">
+    <dl className="ops-facts">
       {Object.entries(record).map(([key, value]) => (
         <div key={key}>
           <dt>{fieldLabel(key)}</dt>
@@ -64,10 +66,12 @@ function ConfigFields({ record }: { record: Record<string, unknown> }) {
 function OptionalBlock({ title, value }: { title: string; value: unknown }) {
   if (value === undefined) return null;
   return (
-    <article className="panel runtime-config-inspector">
-      <h3>{title}</h3>
+    <article className="ops-panel">
+      <h3 className="ops-panel-title">{title}</h3>
       {value === null ? (
-        <p>Explicitly clears the lower-precedence block.</p>
+        <p className="ops-note">
+          Explicitly clears the lower-precedence block.
+        </p>
       ) : (
         <ConfigFields record={value as Record<string, unknown>} />
       )}
@@ -83,14 +87,25 @@ export function RuntimeConfigDetailRoute() {
     queryFn: () => getRuntimeConfig(api, name, version),
   });
   return (
-    <div className="configuration-detail">
-      <Link className="back-link" to={RUNTIME_CONFIGURATION_PATH}>
-        ← Runtime configuration
-      </Link>
+    <div className="ops-stack ops-detail">
+      <DetailHeader
+        breadcrumb={[
+          { label: "Runtime configuration", to: RUNTIME_CONFIGURATION_PATH },
+          { label: `${name}@${version}` },
+        ]}
+        title={`${name}@${version}`}
+        status={
+          query.data === undefined ? undefined : (
+            <ScopeChip>
+              {query.data.builtIn ? "Built-in" : "Published"}
+            </ScopeChip>
+          )
+        }
+      />
       <QueryView
         query={query}
         loading={
-          <p className="loading-copy" role="status">
+          <p className="ops-loading" role="status">
             Loading RuntimeConfig…
           </p>
         }
@@ -98,33 +113,25 @@ export function RuntimeConfigDetailRoute() {
       >
         {(data) => (
           <>
-            <div className="panel">
-              <p className="eyebrow">Runtime configuration</p>
-              <h3>
-                {data.ref.name}@{data.ref.version}
-              </h3>
-              <dl className="key-value-list">
-                <div>
-                  <dt>Digest</dt>
-                  <dd>
-                    <code>{data.ref.digest}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Source</dt>
-                  <dd>{data.builtIn ? "built-in" : data.createdBy}</dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>
-                    {data.builtIn
-                      ? "Built-in"
-                      : formatTimestamp(data.createdAt)}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-            <div className="runtime-config-detail-grid">
+            <Glance
+              label="Version identity"
+              items={[
+                [
+                  "Digest",
+                  <IdChip
+                    key="digest"
+                    value={data.ref.digest}
+                    label="RuntimeConfig digest"
+                  />,
+                ],
+                ["Source", data.builtIn ? "built-in" : data.createdBy],
+                [
+                  "Created",
+                  data.builtIn ? "Built-in" : formatTimestamp(data.createdAt),
+                ],
+              ]}
+            />
+            <div className="ops-block-grid">
               <OptionalBlock
                 title="Worker LLM Gateway"
                 value={data.document.spec.worker?.llmGateway}

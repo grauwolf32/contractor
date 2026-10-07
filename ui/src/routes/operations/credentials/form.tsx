@@ -23,7 +23,7 @@ import { nextPageCursor } from "../../../app/pagination";
 import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
 import { compactDigest } from "../../../app/format";
-import { PublicationFeedback } from "../common";
+import { PublicationFeedback, ScopeChip } from "../common";
 
 function configKey(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -188,17 +188,15 @@ export function CredentialCreateForm() {
   const inventoryError = gateways.error ?? policies.error;
   return (
     <form
-      className="configuration-draft credential-create-form"
+      className="ops-draft credential-create-form"
       onSubmit={submit}
       noValidate
     >
-      <div className="section-heading">
-        <div>
-          <h3>Create credential</h3>
-        </div>
-        <span className="state-badge">active when created</span>
+      <div className="ops-draft-head">
+        <h3 className="ops-section-title">Create credential</h3>
+        <ScopeChip>active when created</ScopeChip>
       </div>
-      <p className="muted-copy">
+      <p className="ops-note">
         Server asks the selected LiteLLM manager to generate a key, encrypts it,
         and never returns it to this browser. Replacing access means a new ID,
         not an in-place update or rotation.
@@ -238,10 +236,10 @@ export function CredentialCreateForm() {
         </label>
       </div>
       <LoadMoreButton query={gateways} label="Load more Gateways" />
-      <fieldset className="policy-selection">
+      <fieldset className="ops-checklist">
         <legend>Allowed ModelPolicies</legend>
         {modelPolicies.length === 0 ? (
-          <p className="compact-empty">
+          <p className="ops-note">
             No ModelPolicy is available in loaded pages.
           </p>
         ) : (
@@ -355,12 +353,16 @@ export function CredentialCreateForm() {
         errors={errors}
         mutationError={mutation.error}
       />
-      <button
-        type="submit"
-        disabled={mutation.isPending || inventoryError !== null}
-      >
-        {mutation.isPending ? "Creating…" : "Create active credential"}
-      </button>
+      <div className="ops-form-actions">
+        <button
+          className="ui-btn"
+          data-variant="primary"
+          type="submit"
+          disabled={mutation.isPending || inventoryError !== null}
+        >
+          {mutation.isPending ? "Creating…" : "Create active credential"}
+        </button>
+      </div>
     </form>
   );
 }

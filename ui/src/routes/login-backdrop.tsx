@@ -42,20 +42,20 @@ const spokes = Array.from({ length: 18 }, (_, index) => spiralSpoke(index));
 function Spiral({ position }: { position: "near" | "far" }) {
   return (
     <svg
-      className={`login-spiral login-spiral-${position}`}
+      className={`ops-signin-spiral ops-signin-spiral-${position}`}
       viewBox="-340 -340 680 680"
       aria-hidden="true"
       focusable="false"
     >
-      <g className="login-spiral-rings">
+      <g className="ops-signin-spiral-rings">
         {rings.map((path, index) => (
           <path d={path} key={`ring-${index}`} />
         ))}
       </g>
-      <g className="login-spiral-spokes">
+      <g className="ops-signin-spiral-spokes">
         {spokes.map((path, index) => (
           <path
-            className={index % 6 === 0 ? "login-spiral-accent" : undefined}
+            className={index % 6 === 0 ? "ops-signin-spiral-accent" : undefined}
             d={path}
             key={`spoke-${index}`}
           />

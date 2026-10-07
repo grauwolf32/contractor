@@ -1,0 +1,317 @@
+/*
+ * Sign-in and the full-page states around it: the session check, a Server
+ * that cannot be reached, a route that does not exist and the first chunk
+ * loading. One centred card on the page background in every theme.
+ */
+
+.ops-signin,
+.ops-state {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: clip;
+  padding: 2rem 1rem;
+  background: var(--background);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.ops-signin-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: min(100%, 25rem);
+  padding: 2rem 2rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.ops-signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.ops-signin-mark {
+  display: block;
+  flex: none;
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--brand-bg);
+  object-fit: cover;
+}
+
+.ops-signin-product {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.ops-signin-tagline {
+  margin: 0.125rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.ops-signin-card h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.ops-signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ops-signin-form label {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.ops-signin-form input {
+  width: 100%;
+  min-width: 0;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.ops-signin-form input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--focus);
+}
+
+.ops-signin-form .ui-btn {
+  width: 100%;
+  height: 2.75rem;
+  margin-top: 0.25rem;
+  font-size: 0.9375rem;
+}
+
+.ops-signin-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--danger-line);
+  border-radius: 10px;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+  font-size: 0.84375rem;
+}
+
+.ops-signin-error .ui-glyph {
+  margin-top: 0.125rem;
+  color: var(--danger);
+}
+
+.ops-signin-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ops-signin-version {
+  font-family: var(--font-mono);
+}
+
+/* The spiral backdrop behind the card. */
+.ops-signin-spiral {
+  position: absolute;
+  z-index: 0;
+  width: clamp(28rem, 52vw, 46rem);
+  aspect-ratio: 1;
+  fill: none;
+  opacity: 0.55;
+  pointer-events: none;
+  stroke: var(--line-strong);
+  stroke-linecap: round;
+  stroke-width: 1;
+}
+
+.ops-signin-spiral-near {
+  top: -18rem;
+  left: -14rem;
+  transform: rotate(-18deg);
+}
+
+.ops-signin-spiral-far {
+  right: -13rem;
+  bottom: -19rem;
+  opacity: 0.4;
+  transform: rotate(24deg) scale(0.88);
+}
+
+.ops-signin-spiral-spokes {
+  opacity: 0.8;
+}
+
+.ops-signin-spiral-accent {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  opacity: 0.45;
+}
+
+/* ---------- Full-page states ---------- */
+
+.ops-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: min(100%, 30rem);
+  padding: 1.75rem 2rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.ops-state-card h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.ops-state-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ops-state-card [role="alert"] {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.ops-state-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ops-state-code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.ops-state-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ops-state-message {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* A failed session refresh above the shell: the session stays usable. */
+.ops-session-refresh {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--background);
+}
+
+.ops-session-refresh .notice {
+  margin: 0;
+}
+
+.ops-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.ops-state-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.ops-state-progress p {
+  margin: 0;
+}
+
+.ops-spinner {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ops-spin 0.8s linear infinite;
+}
+
+@keyframes ops-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-spinner {
+    animation: none;
+    border-top-color: var(--line-strong);
+  }
+}
+
+@media (max-width: 480px) {
+  .ops-signin,
+  .ops-state {
+    align-items: start;
+    padding: 1.5rem 0.75rem;
+  }
+
+  .ops-signin-card,
+  .ops-state-card {
+    padding: 1.5rem 1.25rem 1.25rem;
+  }
+}

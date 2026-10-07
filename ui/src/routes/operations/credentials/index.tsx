@@ -1,4 +1,3 @@
-import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
@@ -8,6 +7,9 @@ import { queryKeys } from "../../../api/query-keys";
 import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
+import { OpsSection, ScopeChip } from "../common";
+import { SETTINGS_PATH } from "../settings/path";
+import { ActiveChip } from "./active-chip";
 import { CredentialCreateForm } from "./form";
 import { RecordedTime } from "../../../app/recorded-time";
 import { QueryView } from "../../../app/query-view";
@@ -21,39 +23,41 @@ export function CredentialListRoute() {
     queryFn: () => listCredentials(api, cursor === undefined ? {} : { cursor }),
   });
   return (
-    <>
-      <div className="panel operations-library">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">LLM gateway access</p>
-            <h3>Managed LLM credentials</h3>
-            <span className="state-badge">Server-wide</span>
-            <p className="muted-copy">
+    <div className="ops-stack">
+      <OpsSection
+        id="managed-credentials-heading"
+        eyebrow="LLM gateway access"
+        title="Managed LLM credentials"
+        description={
+          <>
+            <p>
               Gateway credentials created in Contractor, with their budgets and
               usage. Development tokens configured outside the UI are not listed
               here.
             </p>
-            <p className="muted-copy">
+            <p>
               <Link to={RUNTIME_CONFIGURATION_PATH}>
                 Runtime service credentials
               </Link>
               {" are managed under Configuration; "}
-              <Link to="/operations/settings">Git SSH keys</Link>
+              <Link to={SETTINGS_PATH}>Git SSH keys</Link>
               {" are in Settings."}
             </p>
-          </div>
-        </div>
+          </>
+        }
+        actions={<ScopeChip>Server-wide</ScopeChip>}
+      >
         <QueryView
           query={query}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading credentials…
             </p>
           }
           onRetry={() => void query.refetch()}
           isEmpty={(data) => data.items.length === 0}
           empty={
-            <div className="compact-empty">
+            <div className="ops-empty">
               <strong>No managed LLM credentials</strong>
               <p>
                 Use Create LLM credential below to manage gateway access and
@@ -63,8 +67,8 @@ export function CredentialListRoute() {
           }
         >
           {(data) => (
-            <div className="table-scroll">
-              <table>
+            <div className="ops-table-wrap">
+              <table className="ops-table" data-stack="">
                 <thead>
                   <tr>
                     <th>Credential</th>
@@ -77,26 +81,37 @@ export function CredentialListRoute() {
                 <tbody>
                   {data.items.map((credential) => (
                     <tr key={credential.credentialId}>
-                      <td>
-                        <Link
-                          to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
-                        >
-                          {credential.credentialId}
-                        </Link>
-                        <small className="reconciled">active</small>
+                      <td data-label="Credential">
+                        <span className="ops-chips">
+                          <Link
+                            className="ops-mono"
+                            to={`/operations/credentials/${encodeURIComponent(credential.credentialId)}`}
+                          >
+                            {credential.credentialId}
+                          </Link>
+                          <ActiveChip />
+                        </span>
                         {credential.label === undefined ? null : (
-                          <span>{credential.label}</span>
+                          <span className="ops-cell-sub">
+                            {credential.label}
+                          </span>
                         )}
                       </td>
-                      <td>
-                        <code>
+                      <td data-label="Gateway">
+                        <code className="ops-mono">
                           {credential.llmGateway.gatewayId}@
                           {credential.llmGateway.version}
                         </code>
                       </td>
-                      <td>{credential.effectivePolicy.modelPolicies.length}</td>
-                      <td>{credential.consumption?.spend ?? "not observed"}</td>
-                      <td>
+                      <td data-label="Policy set">
+                        {credential.effectivePolicy.modelPolicies.length}
+                      </td>
+                      <td data-label="Spend">
+                        {credential.consumption?.spend ?? (
+                          <span className="ops-muted">not observed</span>
+                        )}
+                      </td>
+                      <td data-label="Created">
                         <RecordedTime value={credential.createdAt} />
                       </td>
                     </tr>
@@ -110,11 +125,28 @@ export function CredentialListRoute() {
           label="Credential pages"
           {...pages.controls(query.data?.page)}
         />
-      </div>
-      <details className="configuration-clone">
-        <summary>Create LLM credential</summary>
+      </OpsSection>
+      <details className="ops-disclosure configuration-clone">
+        <summary>
+          <svg
+            className="ui-tech-chevron"
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M9.5 6l6 6-6 6" />
+          </svg>
+          Create LLM credential
+        </summary>
         <CredentialCreateForm />
       </details>
-    </>
+    </div>
   );
 }

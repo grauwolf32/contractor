@@ -9,10 +9,16 @@ import {
 } from "../../api/git-artifacts";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
+import type { StatusTone } from "../../app/status-tone";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 import { QueryView } from "../../app/query-view";
+import { IdChip, StatusChip, StatusGlyph } from "../../ui";
+import { Glance } from "../operations/common";
+import { SettingSection, type SettingHeadingLevel } from "./section";
 
-export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
+export function GitKeySettings({
+  titleAs = "h3",
+}: { titleAs?: SettingHeadingLevel | undefined } = {}) {
   const api = usePublicAPI();
   const cache = useQueryClient();
   const query = useQuery({
@@ -70,47 +76,29 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
     event.preventDefault();
     void change(false);
   }
-  const status = query.isPending
-    ? "Checking"
+  const [status, tone]: [string, StatusTone] = query.isPending
+    ? ["Checking", "progress"]
     : query.error
-      ? "Unavailable"
+      ? ["Unavailable", "blocked"]
       : query.data?.configured
-        ? "Configured"
-        : "Not configured";
-  const statusClass = query.isPending
-    ? "settings-state-pending"
-    : query.error
-      ? "settings-state-error"
-      : query.data?.configured
-        ? "settings-state-active"
-        : "settings-state-empty";
+        ? ["Configured", "done"]
+        : ["Not configured", "idle"];
   return (
-    <section
+    <SettingSection
       id="repository-access"
-      className="settings-section"
-      aria-labelledby="git-key-heading"
-    >
-      <header className="settings-section-header">
-        <div className="settings-section-identity">
-          <span className="settings-section-mark" aria-hidden="true">
-            {ordinal}
-          </span>
-          <div>
-            <p className="eyebrow">Repository access</p>
-            <h3 id="git-key-heading">Git SSH key</h3>
-          </div>
-        </div>
-        <span className="settings-scope-badge">Personal credential</span>
-      </header>
-
-      <div className="settings-section-grid">
-        <div className="settings-section-copy">
+      headingId="git-key-heading"
+      titleAs={titleAs}
+      eyebrow="Repository access"
+      title="Git SSH key"
+      scope="Personal credential"
+      about={
+        <>
           <p>
             Use an SSH private key to import snapshots from private Git
             repositories. Public HTTPS repositories do not require one.
           </p>
-          <div className="settings-behavior-note settings-credential-note">
-            <span aria-hidden="true">◇</span>
+          <div className="ops-callout">
+            <StatusGlyph tone="success" size={15} />
             <div>
               <strong>Write-only from the UI</strong>
               <p>
@@ -119,137 +107,140 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
               </p>
             </div>
           </div>
-          <p className="settings-related-link">
+          <p className="ops-note">
             Removing the key does not affect repository snapshots already
             imported as artifacts.
           </p>
-        </div>
-
-        <div className="settings-editor">
-          <div className="settings-editor-heading">
-            <div>
-              <p className="eyebrow">Credential state</p>
-              <h4>Private repository key</h4>
-            </div>
-            <span className={`settings-state-badge ${statusClass}`}>
-              {status}
-            </span>
-          </div>
-
-          <QueryView
-            query={query}
-            loading={
-              <p className="loading-copy" role="status">
-                Loading Git key settings…
-              </p>
-            }
-            onRetry={() => void query.refetch()}
-          >
-            {(data) =>
-              data.configured ? (
-                <dl className="settings-fact-grid settings-key-facts">
-                  <div>
-                    <dt>Fingerprint</dt>
-                    <dd>
-                      <code>{data.fingerprint}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Key type</dt>
-                    <dd>{data.keyType}</dd>
-                  </div>
-                  <div>
-                    <dt>Last updated</dt>
-                    <dd>
-                      {data.updatedAt
-                        ? formatTimestamp(data.updatedAt)
-                        : "Unknown"}
-                    </dd>
-                  </div>
-                </dl>
-              ) : (
-                <div className="settings-empty-state">
-                  <span aria-hidden="true">+</span>
-                  <div>
-                    <strong>No Git SSH key configured.</strong>
-                    <p>Add one below when a private SSH import requires it.</p>
-                  </div>
-                </div>
-              )
-            }
-          </QueryView>
-
-          <form className="settings-form" onSubmit={submit}>
-            <label className="settings-primary-field">
-              SSH private key
-              <textarea
-                className="settings-secret-input"
-                aria-label="SSH private key"
-                value={privateKey}
-                onChange={(event) => setPrivateKey(event.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-                rows={7}
-                disabled={pending}
-                aria-describedby="git-key-help"
-                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-              />
-              <small id="git-key-help" className="field-guidance">
-                Unencrypted OpenSSH or PEM · maximum 32 KiB.
-              </small>
-            </label>
-            {error === undefined || confirmRemoval ? null : (
-              <ErrorNotice error={error} />
-            )}
-            {saved ? (
-              <div className="notice notice-success" role="status">
-                {saved}
-              </div>
-            ) : null}
-            <div className="settings-form-actions">
-              <button type="submit" disabled={pending || privateKey === ""}>
-                {pending
-                  ? "Saving…"
-                  : query.data?.configured
-                    ? "Replace Git key"
-                    : "Save Git key"}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={pending || !query.data?.configured}
-                aria-haspopup="dialog"
-                onClick={() => {
-                  setError(undefined);
-                  setConfirmRemoval(true);
-                }}
-              >
-                Remove Git key
-              </button>
-            </div>
-          </form>
-          {confirmRemoval ? (
-            <ConfirmRemovalDialog
-              title="Remove Git key?"
-              description={
-                <>
-                  Remove the Git SSH key with fingerprint{" "}
-                  <code>{query.data?.fingerprint}</code>? Private Git imports
-                  will require a new private key.
-                </>
-              }
-              confirmLabel="Remove Git key"
-              pending={pending}
-              error={error === undefined ? null : <ErrorNotice error={error} />}
-              onCancel={() => {
-                setConfirmRemoval(false);
-                setError(undefined);
-              }}
-              onConfirm={() => void change(true)}
-            />
-          ) : null}
-        </div>
+        </>
+      }
+    >
+      <div className="ops-setting-editor-head">
+        <h4 className="ops-setting-editor-title">Private repository key</h4>
+        <StatusChip tone={tone} size="sm">
+          {status}
+        </StatusChip>
       </div>
-    </section>
+
+      <QueryView
+        query={query}
+        loading={
+          <p className="ops-loading" role="status">
+            Loading Git key settings…
+          </p>
+        }
+        onRetry={() => void query.refetch()}
+      >
+        {(data) =>
+          data.configured ? (
+            <Glance
+              className="ops-key-facts"
+              label="Saved key"
+              items={[
+                [
+                  "Fingerprint",
+                  data.fingerprint === undefined ? (
+                    "Unknown"
+                  ) : (
+                    <IdChip
+                      key="fingerprint"
+                      value={data.fingerprint}
+                      display={data.fingerprint}
+                      label="fingerprint"
+                    />
+                  ),
+                ],
+                ["Key type", data.keyType],
+                [
+                  "Last updated",
+                  data.updatedAt ? formatTimestamp(data.updatedAt) : "Unknown",
+                ],
+              ]}
+            />
+          ) : (
+            <div className="ops-empty ops-setting-empty">
+              <strong>No Git SSH key configured.</strong>
+              <p>Add one below when a private SSH import requires it.</p>
+            </div>
+          )
+        }
+      </QueryView>
+
+      <form className="ops-setting-form" onSubmit={submit}>
+        <label className="ops-field">
+          SSH private key
+          <textarea
+            className="ops-secret-input"
+            aria-label="SSH private key"
+            value={privateKey}
+            onChange={(event) => setPrivateKey(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            rows={7}
+            disabled={pending}
+            aria-describedby="git-key-help"
+            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+          />
+          <small id="git-key-help" className="field-guidance">
+            Unencrypted OpenSSH or PEM · maximum 32 KiB.
+          </small>
+        </label>
+        {error === undefined || confirmRemoval ? null : (
+          <ErrorNotice error={error} />
+        )}
+        {saved ? (
+          <div className="notice notice-success" role="status">
+            {saved}
+          </div>
+        ) : null}
+        <div className="ops-form-actions">
+          <button
+            className="ui-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={pending || privateKey === ""}
+          >
+            {pending
+              ? "Saving…"
+              : query.data?.configured
+                ? "Replace Git key"
+                : "Save Git key"}
+          </button>
+          <button
+            className="ui-btn"
+            data-variant="danger"
+            type="button"
+            disabled={pending || !query.data?.configured}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setError(undefined);
+              setConfirmRemoval(true);
+            }}
+          >
+            Remove Git key
+          </button>
+        </div>
+      </form>
+      {confirmRemoval ? (
+        <ConfirmRemovalDialog
+          className="ops-confirm"
+          title="Remove Git key?"
+          description={
+            <>
+              Remove the Git SSH key with fingerprint{" "}
+              <code>{query.data?.fingerprint}</code>? Private Git imports will
+              require a new private key.
+            </>
+          }
+          confirmLabel="Remove Git key"
+          pending={pending}
+          error={error === undefined ? null : <ErrorNotice error={error} />}
+          onCancel={() => {
+            setConfirmRemoval(false);
+            setError(undefined);
+          }}
+          onConfirm={() => void change(true)}
+        />
+      ) : null}
+    </SettingSection>
   );
 }

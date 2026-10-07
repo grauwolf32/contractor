@@ -8,17 +8,20 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../../app/error-notice";
+import { FilterChips } from "../../../ui";
+import { OpsSection } from "../common";
 import { useOperationsSnapshot } from "../context";
 import { AgentCard } from "./agent-card";
 import { compareByName, isOfflineIdentity } from "./identity";
 import { OfflineIdentities } from "./offline-identities";
 import { ProcessInventory } from "./process-inventory";
-import "./styles.css";
 import { QueryView } from "../../../app/query-view";
+
+type Connection = "all" | "online" | "offline";
 
 export function RuntimeAgentListRoute() {
   const api = usePublicAPI();
-  const [connection, setConnection] = useState("all");
+  const [connection, setConnection] = useState<Connection>("all");
   const { snapshot } = useOperationsSnapshot();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -34,50 +37,39 @@ export function RuntimeAgentListRoute() {
     queryFn: () => listAllRuntimeLabels(api),
   });
   const items = principals.data?.items ?? [];
-  const online =
-    connection === "offline"
-      ? []
-      : items
-          .filter((principal) => !isOfflineIdentity(principal))
-          .sort(compareByName);
-  const offline =
-    connection === "online"
-      ? []
-      : items.filter(isOfflineIdentity).sort(compareByName);
+  const allOnline = items
+    .filter((principal) => !isOfflineIdentity(principal))
+    .sort(compareByName);
+  const allOffline = items.filter(isOfflineIdentity).sort(compareByName);
+  const online = connection === "offline" ? [] : allOnline;
+  const offline = connection === "online" ? [] : allOffline;
   return (
-    <>
-      <div className="operations-library runtime-agent-library">
-        <div className="section-heading">
-          <div>
-            <h3>Runtime Agents</h3>
-            <p className="muted-copy">
-              Availability, current work and saved Agent labels.
-            </p>
-          </div>
-          <span>
-            {snapshot.runtimeAgents.length} online ·{" "}
-            {principals.data?.items.length ?? 0} identities loaded
-          </span>
-        </div>
-        <label className="compact-select">
-          Connection
-          <select
-            aria-label="Agent connection"
+    <div className="ops-stack">
+      <OpsSection
+        id="runtime-agents-heading"
+        title="Runtime Agents"
+        description="Availability, current work and saved Agent labels."
+        aside={`${snapshot.runtimeAgents.length} online · ${principals.data?.items.length ?? 0} identities loaded`}
+      >
+        {principals.data === undefined ? null : (
+          <FilterChips<Connection>
+            label="Agent connection"
             value={connection}
-            onChange={(event) => setConnection(event.target.value)}
-          >
-            <option value="all">All agents · online first</option>
-            <option value="online">Online</option>
-            <option value="offline">Offline</option>
-          </select>
-        </label>
+            onChange={setConnection}
+            options={[
+              { value: "all", label: "All", count: items.length },
+              { value: "online", label: "Online", count: allOnline.length },
+              { value: "offline", label: "Offline", count: allOffline.length },
+            ]}
+          />
+        )}
         {bindings.error === null ? null : (
           <ErrorNotice error={bindings.error} />
         )}
         <QueryView
           query={principals}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading Runtime Agents…
             </p>
           }
@@ -85,13 +77,13 @@ export function RuntimeAgentListRoute() {
         >
           {() =>
             online.length === 0 && offline.length === 0 ? (
-              <p className="compact-empty">
+              <p className="ops-empty">
                 No agents match this connection filter.
               </p>
             ) : (
               <>
                 {online.length === 0 ? null : (
-                  <div className="runtime-principal-grid">
+                  <div className="ops-agent-grid">
                     {online.map((principal) => (
                       <AgentCard
                         key={principal.runtimeAgentId}
@@ -113,12 +105,12 @@ export function RuntimeAgentListRoute() {
             )
           }
         </QueryView>
-        <p className="runtime-agent-availability-note">
+        <p className="ops-note">
           Availability is reported by Server. Each Workflow still requires
           compatible capabilities.
         </p>
-      </div>
+      </OpsSection>
       <ProcessInventory />
-    </>
+    </div>
   );
 }

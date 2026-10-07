@@ -252,17 +252,17 @@ export function ModelPolicyPublicationForm({
     setErrors([]);
   };
   return (
-    <form className="configuration-draft" onSubmit={submit} noValidate>
-      <div className="section-heading">
+    <form className="ops-draft" onSubmit={submit} noValidate>
+      <div className="ops-draft-head">
         <div>
-          <p className="eyebrow">Clone-to-draft</p>
-          <h3>Publish a new ModelPolicy</h3>
+          <p className="ops-eyebrow">Clone-to-draft</p>
+          <h3 className="ops-section-title">Publish a new ModelPolicy</h3>
         </div>
         <code>
           from {source.ref.name}@{source.ref.version}
         </code>
       </div>
-      <p className="muted-copy">
+      <p className="ops-note">
         Intended consumer is validation guidance for this draft and is not
         stored in the shared ModelPolicy body.
       </p>
@@ -351,8 +351,13 @@ export function ModelPolicyPublicationForm({
         errors={errors}
         mutationError={mutation.error}
       />
-      <div className="run-submit-row">
-        <button type="submit" disabled={mutation.isPending}>
+      <div className="ops-form-actions">
+        <button
+          className="ui-btn"
+          data-variant="primary"
+          type="submit"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending ? "Publishing…" : "Publish version"}
         </button>
         <small>The existing version and digest are never edited.</small>
@@ -416,11 +421,11 @@ export function LLMGatewayPublicationForm({
   }
 
   return (
-    <form className="configuration-draft" onSubmit={submit} noValidate>
-      <div className="section-heading">
+    <form className="ops-draft" onSubmit={submit} noValidate>
+      <div className="ops-draft-head">
         <div>
-          <p className="eyebrow">Clone-to-draft</p>
-          <h3>Publish a new LLMGatewayConfig</h3>
+          <p className="ops-eyebrow">Clone-to-draft</p>
+          <h3 className="ops-section-title">Publish a new LLMGatewayConfig</h3>
         </div>
         <code>
           from {source.ref.name}@{source.ref.version}
@@ -478,7 +483,7 @@ export function LLMGatewayPublicationForm({
           </label>
         ) : null}
       </div>
-      <p className="field-guidance">
+      <p className="ops-note">
         Gateway URLs never contain credentials. HTTP management is accepted only
         for an IP-literal loopback origin; production management uses HTTPS.
       </p>
@@ -487,8 +492,13 @@ export function LLMGatewayPublicationForm({
         errors={errors}
         mutationError={mutation.error}
       />
-      <div className="run-submit-row">
-        <button type="submit" disabled={mutation.isPending}>
+      <div className="ops-form-actions">
+        <button
+          className="ui-btn"
+          data-variant="primary"
+          type="submit"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending ? "Publishing…" : "Publish version"}
         </button>
         <small>

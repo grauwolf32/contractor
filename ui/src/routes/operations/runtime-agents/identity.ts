@@ -1,15 +1,23 @@
 import type { RuntimeAgentPrincipal } from "../../../api/operations";
+import type { StatusTone } from "../../../app/status-tone";
+import { shortenId } from "../../../ui";
 
-export const availabilityCopy = {
-  available: { label: "Available", symbol: "✓" },
-  busy: { label: "Busy", symbol: "◷" },
-  offline: { label: "Offline", symbol: "○" },
-  slot_unavailable: { label: "Slot unavailable", symbol: "!" },
-  adapter_capability_mismatch: { label: "Missing adapter", symbol: "!" },
-} as const;
+export const availabilityCopy: Readonly<
+  Record<
+    RuntimeAgentPrincipal["availability"],
+    { label: string; tone: StatusTone }
+  >
+> = {
+  available: { label: "Available", tone: "done" },
+  busy: { label: "Busy", tone: "progress" },
+  offline: { label: "Offline", tone: "neutral" },
+  slot_unavailable: { label: "Slot unavailable", tone: "warning" },
+  adapter_capability_mismatch: { label: "Missing adapter", tone: "warning" },
+};
 
+/** The short Agent ID the IdChip shows (first 8 and last 4 characters). */
 export function shortAgentId(runtimeAgentId: string): string {
-  return `${runtimeAgentId.slice(0, 6)}…${runtimeAgentId.slice(-4)}`;
+  return shortenId(runtimeAgentId);
 }
 
 /**

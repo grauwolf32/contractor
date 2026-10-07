@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useId, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import { deleteCredential, getCredential } from "../../../api/operations";
@@ -9,8 +9,10 @@ import { CONFIG_ID_PATTERN } from "../../../api/workflows";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
-import { ConfigurationRefLink } from "../common";
+import { DetailHeader } from "../../../ui";
+import { ConfigurationRefLink, Glance } from "../common";
 import { exactConfigurationRef } from "../references";
+import { ActiveChip } from "./active-chip";
 import { CredentialPolicyView } from "./policy";
 import { InUseErrorDetails } from "../in-use-details";
 import { QueryView } from "../../../app/query-view";
@@ -19,6 +21,7 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const heading = useId();
   const [confirmed, setConfirmed] = useState(false);
   const [keyring] = useState(
     () =>
@@ -45,10 +48,14 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
     },
   });
   return (
-    <div className="panel credential-delete-panel">
-      <p className="eyebrow">Permanent action</p>
-      <h3>Delete credential</h3>
-      <p className="muted-copy">
+    <section className="ops-panel ops-danger" aria-labelledby={heading}>
+      <div>
+        <p className="ops-eyebrow">Permanent action</p>
+        <h3 id={heading} className="ops-panel-title">
+          Delete credential
+        </h3>
+      </div>
+      <p className="ops-note">
         Deletion is rejected while a non-terminal Run, Audit dispatch hold, or
         active RuntimeConfig label references this credential. No disable,
         update, rotation, or force-delete shortcut exists.
@@ -64,17 +71,20 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
       </label>
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
       <InUseErrorDetails error={mutation.error} />
-      <button
-        className="danger-button"
-        type="button"
-        disabled={!confirmed || mutation.isPending}
-        onClick={() => mutation.mutate()}
-      >
-        {mutation.isPending
-          ? "Deleting…"
-          : "Delete from LiteLLM and Contractor"}
-      </button>
-    </div>
+      <div className="ops-danger-actions">
+        <button
+          className="ui-btn"
+          data-variant="danger"
+          type="button"
+          disabled={!confirmed || mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending
+            ? "Deleting…"
+            : "Delete from LiteLLM and Contractor"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -88,19 +98,19 @@ export function CredentialDetailRoute() {
     enabled: valid,
   });
   return (
-    <div className="credential-detail">
-      <Link className="back-link" to="/operations/credentials">
-        ← Active credentials
-      </Link>
-      <p className="eyebrow">Credential</p>
-      <h3>{credentialId}</h3>
+    <div className="ops-stack ops-detail">
+      <DetailHeader
+        breadcrumb={[{ label: "Credentials", to: "/operations/credentials" }]}
+        title={credentialId}
+        status={query.data === undefined ? undefined : <ActiveChip />}
+      />
       {!valid ? (
         <ErrorNotice error={new Error("Credential route is invalid")} />
       ) : (
         <QueryView
           query={query}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading credential metadata…
             </p>
           }
@@ -108,71 +118,69 @@ export function CredentialDetailRoute() {
         >
           {(data) => (
             <>
-              <dl className="metadata-grid panel">
-                <div>
-                  <dt>Status</dt>
-                  <dd>
-                    <span className="state-badge state-succeeded">active</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Safe label</dt>
-                  <dd>{data.label ?? "None"}</dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatTimestamp(data.createdAt)}</dd>
-                </div>
-                <div>
-                  <dt>Gateway</dt>
-                  <dd>
+              <Glance
+                label="Credential"
+                items={[
+                  ["Safe label", data.label ?? "None"],
+                  ["Created", formatTimestamp(data.createdAt)],
+                  [
+                    "Gateway",
                     <ConfigurationRefLink
+                      key="gateway"
                       value={exactConfigurationRef(data.llmGateway)}
-                    />
-                  </dd>
+                    />,
+                  ],
+                ]}
+              />
+              <section
+                className="ops-panel"
+                aria-labelledby="credential-policy-heading"
+              >
+                <div>
+                  <p className="ops-eyebrow">Policy</p>
+                  <h3
+                    id="credential-policy-heading"
+                    className="ops-panel-title"
+                  >
+                    LiteLLM-enforced limits
+                  </h3>
                 </div>
-              </dl>
-              <div className="panel credential-policy-panel">
-                <p className="eyebrow">Policy</p>
-                <h3>LiteLLM-enforced limits</h3>
                 <CredentialPolicyView policy={data.effectivePolicy} />
-              </div>
-              <div className="panel credential-consumption-panel">
-                <p className="eyebrow">Gateway observation</p>
-                <h3>Consumption</h3>
+              </section>
+              <section
+                className="ops-panel"
+                aria-labelledby="credential-consumption-heading"
+              >
+                <div>
+                  <p className="ops-eyebrow">Gateway observation</p>
+                  <h3
+                    id="credential-consumption-heading"
+                    className="ops-panel-title"
+                  >
+                    Consumption
+                  </h3>
+                </div>
                 {data.consumption === undefined ? (
-                  <p className="compact-empty">
+                  <p className="ops-note">
                     No live consumption aggregate is available.
                   </p>
                 ) : (
-                  <dl className="metrics-grid">
-                    <div>
-                      <dt>Spend</dt>
-                      <dd>{data.consumption.spend ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Requests</dt>
-                      <dd>{data.consumption.requests ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Input tokens</dt>
-                      <dd>{data.consumption.inputTokens ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Output tokens</dt>
-                      <dd>{data.consumption.outputTokens ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Observed</dt>
-                      <dd>
-                        {data.consumption.observedAt === undefined
+                  <Glance
+                    items={[
+                      ["Spend", data.consumption.spend ?? "—"],
+                      ["Requests", data.consumption.requests ?? "—"],
+                      ["Input tokens", data.consumption.inputTokens ?? "—"],
+                      ["Output tokens", data.consumption.outputTokens ?? "—"],
+                      [
+                        "Observed",
+                        data.consumption.observedAt === undefined
                           ? "—"
-                          : formatTimestamp(data.consumption.observedAt)}
-                      </dd>
-                    </div>
-                  </dl>
+                          : formatTimestamp(data.consumption.observedAt),
+                      ],
+                    ]}
+                  />
                 )}
-              </div>
+              </section>
               <CredentialDeletion credentialId={credentialId} />
             </>
           )}

@@ -1,5 +1,7 @@
 import { Outlet } from "react-router";
 
+import { ScopeChip } from "../common";
+
 /**
  * Runtime configuration hub under Operations. Live invalidation and the
  * Refresh control come from the Operations layout, which already subscribes
@@ -7,19 +9,19 @@ import { Outlet } from "react-router";
  */
 export function RuntimeConfigurationLayout() {
   return (
-    <>
-      <div className="section-heading configuration-scope-heading">
-        <div>
-          <p className="eyebrow">Execution defaults</p>
-          <h3>Runtime configuration</h3>
-          <p className="muted-copy">
+    <div className="ops-stack">
+      <header className="ops-section-head">
+        <div className="ops-section-heading">
+          <p className="ops-eyebrow">Execution defaults</p>
+          <h2 className="ops-section-title">Runtime configuration</h2>
+          <p className="ops-section-description">
             RuntimeConfig versions, label bindings and Runtime service
             credentials apply to every Run on this server.
           </p>
         </div>
-        <span className="state-badge">Server-wide</span>
-      </div>
+        <ScopeChip>Server-wide</ScopeChip>
+      </header>
       <Outlet />
-    </>
+    </div>
   );
 }

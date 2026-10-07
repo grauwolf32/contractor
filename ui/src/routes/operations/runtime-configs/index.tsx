@@ -1,4 +1,3 @@
-import "../configuration-reading.css";
 import {
   useInfiniteQuery,
   useMutation,
@@ -52,7 +51,7 @@ import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
 import { compactDigest } from "../../../app/format";
-import { PublicationFeedback } from "../common";
+import { OpsSection, PublicationFeedback } from "../common";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -67,7 +66,7 @@ function gatewayKey(resource: ConfigurationResource): string {
 
 function RuntimeRef({ resource }: { resource: RuntimeConfigResource }) {
   return (
-    <span className="exact-config-ref">
+    <span className="ops-ref">
       <Link to={runtimeConfigVersionPath(resource.ref)}>
         {resource.ref.name}@{resource.ref.version}
       </Link>
@@ -396,31 +395,25 @@ function RuntimeConfigPublishForm({
   ] as const;
   return (
     <Dialog
-      className="project-dialog panel runtime-configuration-dialog"
+      className="project-dialog panel ops-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
     >
-      <form className="configuration-draft" onSubmit={submit} noValidate>
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">New version</p>
-            <h2 id={heading}>Publish RuntimeConfig</h2>
-            <small>{configs.length} loaded versions</small>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close RuntimeConfig form"
-            disabled={mutation.isPending}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
-        <p className="muted-copy">
+      <form className="ops-dialog-form" onSubmit={submit} noValidate>
+        <DialogHeader
+          id={heading}
+          eyebrow={<>New version · {configs.length} loaded versions</>}
+          title="Publish RuntimeConfig"
+          close={{
+            label: "Close RuntimeConfig form",
+            disabled: mutation.isPending,
+            onClose: onClose,
+          }}
+        />
+        <p className="ops-dialog-note">
           Values become active only through a label binding. Publishing another
           version never mutates existing Runs or allocations.
         </p>
@@ -448,7 +441,7 @@ function RuntimeConfigPublishForm({
           </label>
         </div>
 
-        <fieldset className="runtime-config-block">
+        <fieldset className="ops-config-block">
           <legend>
             <label className="checkbox-label">
               <input
@@ -512,7 +505,7 @@ function RuntimeConfigPublishForm({
           ] as const
         ).map(([enabled, title, endpoint, credential, captureContent]) => (
           <fieldset
-            className="runtime-config-block"
+            className="ops-config-block"
             key={enabled}
             aria-label={title}
           >
@@ -560,7 +553,7 @@ function RuntimeConfigPublishForm({
           </fieldset>
         ))}
 
-        <fieldset className="runtime-config-block">
+        <fieldset className="ops-config-block">
           <legend>
             <label className="checkbox-label">
               <input
@@ -592,7 +585,7 @@ function RuntimeConfigPublishForm({
               />
             </label>
           </div>
-          <div className="runtime-targets">
+          <div className="ops-config-targets">
             {targetOptions.map(([target, label]) => (
               <label className="checkbox-label" key={target}>
                 <input
@@ -619,7 +612,7 @@ function RuntimeConfigPublishForm({
         <details className="optional-settings">
           <summary>Optional settings</summary>
           <div>
-            <p className="muted-copy">
+            <p className="ops-note">
               Telemetry delivery limits and proxy trust. Each field applies only
               while its block above is enabled.
             </p>
@@ -678,7 +671,7 @@ function RuntimeConfigPublishForm({
                 </label>
               ))}
             </div>
-            <label className="runtime-ca-field">
+            <label className="ops-config-ca">
               HTTP proxy additional CA bundle PEM (optional)
               <textarea
                 disabled={!draft.httpProxy}
@@ -703,7 +696,7 @@ function RuntimeConfigPublishForm({
             explicitly before it affects future resolution.
           </div>
         )}
-        <div className="notice" aria-label="Proposed RuntimeConfig">
+        <div className="ops-proposal" aria-label="Proposed RuntimeConfig">
           <strong>
             Proposed new version: {draft.name || "Choose a name"}@
             {draft.version || "Choose a version"}
@@ -713,13 +706,18 @@ function RuntimeConfigPublishForm({
         <div className="project-dialog-actions">
           <button
             type="button"
-            className="secondary-button"
+            className="ui-btn"
             disabled={mutation.isPending}
             onClick={onClose}
           >
             Cancel
           </button>
-          <button type="submit" disabled={mutation.isPending}>
+          <button
+            className="ui-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Publishing…" : "Publish RuntimeConfig"}
           </button>
         </div>
@@ -816,22 +814,24 @@ function BindingEditor({
     (resource) => exactKey(resource) === selected,
   );
   return (
-    <article
-      className={`runtime-binding-card ${binding.label === "default" ? "runtime-default-binding" : ""}`}
-    >
-      <div>
+    <article className="runtime-binding-card">
+      <header className="ops-binding-head">
         <strong>{binding.label}</strong>
-        {binding.label === "default" ? <span>always applied</span> : null}
+        {binding.label === "default" ? (
+          <span className="ops-scope">always applied</span>
+        ) : null}
         <small>Current binding revision {binding.revision}</small>
-      </div>
-      <dl className="key-value-list runtime-binding-comparison">
+      </header>
+      <dl className="ops-glance ops-binding-compare">
         <div>
           <dt>Current version</dt>
           <dd>
             <strong>
               {binding.config.name}@{binding.config.version}
             </strong>
-            <code>{binding.config.digest}</code>
+            <code title={binding.config.digest}>
+              {compactDigest(binding.config.digest)}
+            </code>
           </dd>
         </div>
         <div>
@@ -844,30 +844,34 @@ function BindingEditor({
                 <strong>
                   {selectedResource.ref.name}@{selectedResource.ref.version}
                 </strong>
-                <code>{selectedResource.ref.digest}</code>
+                <code title={selectedResource.ref.digest}>
+                  {compactDigest(selectedResource.ref.digest)}
+                </code>
               </>
             )}
           </dd>
         </div>
       </dl>
-      <select
-        aria-label={`RuntimeConfig for ${binding.label}`}
-        value={selected}
-        onChange={(event) => {
-          setSelected(event.target.value);
-          mutation.reset();
-        }}
-      >
-        <option value="">Current version is outside this loaded page</option>
-        {configs.map((resource) => (
-          <option key={exactKey(resource)} value={exactKey(resource)}>
-            {resource.ref.name}@{resource.ref.version} ·{" "}
-            {compactDigest(resource.ref.digest)}
-          </option>
-        ))}
-      </select>
-      <div className="runtime-binding-actions">
+      <div className="ops-binding-actions">
+        <select
+          aria-label={`RuntimeConfig for ${binding.label}`}
+          value={selected}
+          onChange={(event) => {
+            setSelected(event.target.value);
+            mutation.reset();
+          }}
+        >
+          <option value="">Current version is outside this loaded page</option>
+          {configs.map((resource) => (
+            <option key={exactKey(resource)} value={exactKey(resource)}>
+              {resource.ref.name}@{resource.ref.version} ·{" "}
+              {compactDigest(resource.ref.digest)}
+            </option>
+          ))}
+        </select>
         <button
+          className="ui-btn"
+          data-variant="primary"
           type="button"
           disabled={
             selectedResource === undefined ||
@@ -885,7 +889,8 @@ function BindingEditor({
         </button>
         {binding.label === "default" ? null : (
           <button
-            className="danger-button delete-icon-button"
+            className="ui-btn ops-icon-button"
+            data-variant="danger"
             type="button"
             aria-label={`Remove binding ${binding.label}`}
             title={`Remove binding ${binding.label}`}
@@ -905,7 +910,8 @@ function BindingEditor({
           <strong>Binding changed in another view.</strong>
           <p>Reload the saved revision and review it before retrying.</p>
           <button
-            className="secondary-button"
+            className="ui-btn"
+            data-size="sm"
             type="button"
             onClick={() => {
               mutation.reset();
@@ -926,6 +932,7 @@ function BindingEditor({
       )}
       {confirmRemoval ? (
         <ConfirmRemovalDialog
+          className="ops-confirm"
           title={`Remove binding ${binding.label}?`}
           description={
             <>
@@ -1020,21 +1027,23 @@ function RuntimeBindings({
     mutation.mutate({ name: label, resource });
   }
   return (
-    <div className="runtime-bindings">
-      <p className="muted-copy">
+    <div className="ops-dialog-form">
+      <p className="ops-dialog-note">
         Default and Run-selected labels are pinned when a Run is created.
         Rebinding changes new Run snapshots. Labels assigned to a Runtime Agent
         are resolved again for future allocations, including allocations for an
         existing Run. Already prepared allocations keep their pinned settings.
       </p>
       {ordered.length === 0 ? (
-        <p className="compact-empty">No label bindings are loaded.</p>
+        <p className="ops-empty">No label bindings are loaded.</p>
       ) : null}
-      <h3>Current label bindings</h3>
-      <p className="muted-copy">
-        Review current and proposed versions before rebinding.
-      </p>
-      <div className="runtime-binding-list">
+      <div>
+        <h3 className="ops-section-title">Current label bindings</h3>
+        <p className="ops-section-description">
+          Review current and proposed versions before rebinding.
+        </p>
+      </div>
+      <div className="ops-binding-list">
         {ordered.map((binding) => (
           <BindingEditor
             key={binding.label}
@@ -1044,7 +1053,7 @@ function RuntimeBindings({
         ))}
       </div>
       <form
-        className="inline-form runtime-label-create"
+        className="ops-label-create runtime-label-create"
         onSubmit={submit}
         noValidate
       >
@@ -1075,12 +1084,17 @@ function RuntimeBindings({
             ))}
           </select>
         </label>
-        <button type="submit" disabled={mutation.isPending}>
+        <button
+          className="ui-btn"
+          data-variant="primary"
+          type="submit"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending ? "Binding…" : "Create binding"}
         </button>
       </form>
       {error === undefined ? null : (
-        <p className="field-error" role="alert">
+        <p className="ops-field-error" role="alert">
           {error}
         </p>
       )}
@@ -1188,7 +1202,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      className="project-dialog panel runtime-configuration-dialog"
+      className="project-dialog panel ops-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {
@@ -1196,7 +1210,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       }}
     >
       <form
-        className="configuration-draft runtime-credential-form"
+        className="ops-dialog-form runtime-credential-form"
         onSubmit={(event) => void submit(event)}
         noValidate
         autoComplete="off"
@@ -1211,7 +1225,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
             onClose: onClose,
           }}
         />
-        <p className="muted-copy">
+        <p className="ops-dialog-note">
           Secret values are erased from the form immediately on submit and are
           never readable through the API. A failed request requires re-entry.
         </p>
@@ -1253,9 +1267,9 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
           </label>
         </div>
         {kind === "otlp-headers@1" ? (
-          <div className="runtime-secret-rows">
+          <div className="ops-secret-rows">
             {headers.map((header) => (
-              <div className="runtime-secret-row" key={header.id}>
+              <div className="ops-secret-row" key={header.id}>
                 <label>
                   Header name
                   <input
@@ -1290,7 +1304,8 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
                   />
                 </label>
                 <button
-                  className="danger-button delete-icon-button"
+                  className="ui-btn ops-icon-button"
+                  data-variant="danger"
                   type="button"
                   aria-label={`Remove header ${header.name || header.id}`}
                   title="Remove header"
@@ -1306,7 +1321,8 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
               </div>
             ))}
             <button
-              className="secondary-button"
+              className="ui-btn"
+              data-size="sm"
               type="button"
               onClick={() => {
                 const id = nextHeaderID.current++;
@@ -1362,13 +1378,18 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
         <div className="project-dialog-actions">
           <button
             type="button"
-            className="secondary-button"
+            className="ui-btn"
             disabled={pending}
             onClick={onClose}
           >
             Cancel
           </button>
-          <button type="submit" disabled={pending}>
+          <button
+            className="ui-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={pending}
+          >
             {pending ? "Creating…" : "Create active Runtime credential"}
           </button>
         </div>
@@ -1405,31 +1426,33 @@ function RuntimeCredentialList({
     },
   });
   return (
-    <div className="panel operations-library">
-      <div className="section-heading">
-        <div>
-          <h3>Runtime credentials</h3>
-        </div>
-        <div className="runtime-library-actions">
-          {credentials.data === undefined ? null : (
-            <span>{credentials.data.items.length} on this page</span>
-          )}
-          <button
-            className="secondary-button icon-button"
-            type="button"
-            aria-label="Add Runtime credential"
-            title="Add Runtime credential"
-            aria-haspopup="dialog"
-            onClick={onCreate}
-          >
-            <Icon name="add-credential" />
-          </button>
-        </div>
-      </div>
+    <OpsSection
+      id="runtime-credentials-heading"
+      titleAs="h3"
+      title="Runtime credentials"
+      description="Secrets for telemetry sinks, proxies and Caido. Values are write-only; only safe metadata is listed."
+      aside={
+        credentials.data === undefined
+          ? undefined
+          : `${credentials.data.items.length} on this page`
+      }
+      actions={
+        <button
+          className="ui-btn"
+          data-size="sm"
+          type="button"
+          aria-haspopup="dialog"
+          onClick={onCreate}
+        >
+          <Icon name="add-credential" />
+          Add Runtime credential
+        </button>
+      }
+    >
       <QueryView
         query={credentials}
         loading={
-          <p className="loading-copy" role="status">
+          <p className="ops-loading" role="status">
             Loading Runtime credentials…
           </p>
         }
@@ -1437,7 +1460,7 @@ function RuntimeCredentialList({
         onRetry={() => void credentials.refetch()}
         isEmpty={(page) => page.items.length === 0}
         empty={
-          <p className="compact-empty">
+          <p className="ops-empty">
             {controls.canGoBack
               ? "This page lists no Runtime credentials. Earlier pages may list more."
               : "No Runtime credentials exist."}
@@ -1445,29 +1468,37 @@ function RuntimeCredentialList({
         }
       >
         {(page) => (
-          <div className="table-scroll">
-            <table className="runtime-credential-table">
+          <div className="ops-table-wrap">
+            <table className="ops-table" data-stack="">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Kind</th>
                   <th>Created</th>
-                  <th>Lifecycle</th>
+                  <th>
+                    <span className="ui-visually-hidden">Lifecycle</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {page.items.map((credential) => (
                   <tr key={credential.credentialId}>
-                    <td>
-                      <code>{credential.credentialId}</code>
+                    <td data-label="ID">
+                      <code className="ops-mono">
+                        {credential.credentialId}
+                      </code>
                     </td>
-                    <td>{credential.kind}</td>
-                    <td>
+                    <td data-label="Kind">
+                      <code className="ops-label-chip">{credential.kind}</code>
+                    </td>
+                    <td data-label="Created">
                       <RecordedTime value={credential.createdAt} />
                     </td>
-                    <td>
+                    <td data-label="" className="ops-cell-actions">
                       <button
-                        className="danger-button delete-icon-button"
+                        className="ui-btn ops-icon-button"
+                        data-size="sm"
+                        data-variant="danger"
                         type="button"
                         aria-label={`Delete Runtime credential ${credential.credentialId}`}
                         title={`Delete Runtime credential ${credential.credentialId}`}
@@ -1491,6 +1522,7 @@ function RuntimeCredentialList({
       <CursorControls label="Runtime credential pages" {...controls} />
       {confirmRemoval ? (
         <ConfirmRemovalDialog
+          className="ops-confirm"
           title={`Delete Runtime credential ${confirmRemoval.credentialId}?`}
           description={
             <>
@@ -1518,7 +1550,7 @@ function RuntimeCredentialList({
           onConfirm={() => deletion.mutate(confirmRemoval.credentialId)}
         />
       ) : null}
-    </div>
+    </OpsSection>
   );
 }
 
@@ -1536,7 +1568,7 @@ function RuntimeBindingsDialog({
   const heading = useId();
   return (
     <Dialog
-      className="project-dialog panel runtime-configuration-dialog"
+      className="project-dialog panel ops-dialog"
       labelledBy={heading}
       onRequestClose={onClose}
     >
@@ -1552,6 +1584,58 @@ function RuntimeBindingsDialog({
       />
       <RuntimeBindings target={target} configs={configs} bindings={bindings} />
     </Dialog>
+  );
+}
+
+function BindingCell({
+  resource,
+  labels,
+  onManage,
+}: {
+  resource: RuntimeConfigResource;
+  labels: UseQueryResult<Awaited<ReturnType<typeof listAllRuntimeLabels>>>;
+  onManage: () => void;
+}) {
+  const bound = labels.isSuccess
+    ? labels.data.items.filter(
+        (binding) => binding.config.digest === resource.ref.digest,
+      )
+    : [];
+  return (
+    <div className="ops-binding-cell">
+      {labels.isSuccess ? (
+        bound.map((binding) => (
+          <span
+            className="ops-label-chip"
+            data-tone={binding.label === "default" ? "default" : undefined}
+            key={binding.label}
+          >
+            {binding.label}
+          </span>
+        ))
+      ) : (
+        <small className="ops-muted">Labels unavailable</small>
+      )}
+      {labels.isSuccess && bound.length === 0 ? (
+        <small className="ops-muted">No labels</small>
+      ) : null}
+      <button
+        className={`ui-btn ops-icon-button runtime-binding-trigger ${bound.length > 0 ? "has-bindings" : ""}`}
+        data-size="sm"
+        type="button"
+        aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
+        title={
+          bound.length > 0
+            ? "Label bindings active — manage bindings"
+            : "Add a label binding"
+        }
+        aria-haspopup="dialog"
+        disabled={!labels.isSuccess}
+        onClick={onManage}
+      >
+        <Icon name="binding" />
+      </button>
+    </div>
   );
 }
 
@@ -1587,33 +1671,29 @@ export function RuntimeConfigurationRoute() {
   return (
     <>
       {labels.error === null ? null : <ErrorNotice error={labels.error} />}
-      <div className="panel operations-library">
-        <div className="section-heading">
-          <div>
-            <h3>RuntimeConfig versions</h3>
-            <p className="muted-copy">
-              A version has no effect until default or a named label points to
-              it.
-            </p>
-          </div>
-          <div className="runtime-library-actions">
-            <span>{loadedConfigs.length} loaded</span>
-            <button
-              className="secondary-button icon-button"
-              type="button"
-              aria-label="Publish RuntimeConfig"
-              title="Publish RuntimeConfig"
-              aria-haspopup="dialog"
-              onClick={() => setCreateDialog("config")}
-            >
-              <Icon name="add-config" />
-            </button>
-          </div>
-        </div>
+      <OpsSection
+        id="runtime-config-versions-heading"
+        titleAs="h3"
+        title="RuntimeConfig versions"
+        description="A version has no effect until default or a named label points to it."
+        aside={`${loadedConfigs.length} loaded`}
+        actions={
+          <button
+            className="ui-btn"
+            data-size="sm"
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => setCreateDialog("config")}
+          >
+            <Icon name="add-config" />
+            Publish RuntimeConfig
+          </button>
+        }
+      >
         <QueryView
           query={configs}
           loading={
-            <p className="loading-copy" role="status">
+            <p className="ops-loading" role="status">
               Loading RuntimeConfigs…
             </p>
           }
@@ -1621,7 +1701,7 @@ export function RuntimeConfigurationRoute() {
           onRetry={() => void configs.refetch()}
           isEmpty={(page) => page.items.length === 0}
           empty={
-            <p className="compact-empty">
+            <p className="ops-empty">
               {configPages.cursor === undefined
                 ? "No RuntimeConfig versions are visible."
                 : "This page lists no RuntimeConfig versions. Earlier pages may list more."}
@@ -1629,8 +1709,8 @@ export function RuntimeConfigurationRoute() {
           }
         >
           {(page) => (
-            <div className="table-scroll">
-              <table className="runtime-config-table">
+            <div className="ops-table-wrap">
+              <table className="ops-table" data-stack="">
                 <thead>
                   <tr>
                     <th>Version</th>
@@ -1642,64 +1722,25 @@ export function RuntimeConfigurationRoute() {
                 <tbody>
                   {page.items.map((resource) => (
                     <tr key={exactKey(resource)}>
-                      <td>
+                      <td data-label="Version">
                         <RuntimeRef resource={resource} />
                       </td>
-                      <td>
+                      <td data-label="Source">
                         {resource.builtIn ? "built-in" : resource.createdBy}
                       </td>
-                      <td>
+                      <td data-label="Created">
                         {resource.builtIn ? (
                           "Built-in"
                         ) : (
                           <RecordedTime value={resource.createdAt} />
                         )}
                       </td>
-                      <td>
-                        <div className="runtime-inline-bindings">
-                          {labels.isSuccess ? (
-                            labels.data.items
-                              .filter(
-                                (binding) =>
-                                  binding.config.digest === resource.ref.digest,
-                              )
-                              .map((binding) => (
-                                <span
-                                  className="state-badge"
-                                  key={binding.label}
-                                >
-                                  {binding.label}
-                                </span>
-                              ))
-                          ) : (
-                            <small>Labels unavailable</small>
-                          )}
-                          {labels.isSuccess &&
-                          !labels.data.items.some(
-                            (binding) =>
-                              binding.config.digest === resource.ref.digest,
-                          ) ? (
-                            <small>No labels</small>
-                          ) : null}
-                          <button
-                            className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
-                            type="button"
-                            aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
-                            title={
-                              labels.data?.items.some(
-                                (binding) =>
-                                  binding.config.digest === resource.ref.digest,
-                              )
-                                ? "Label bindings active — manage bindings"
-                                : "Add a label binding"
-                            }
-                            aria-haspopup="dialog"
-                            disabled={!labels.isSuccess}
-                            onClick={() => setBindingTarget(resource)}
-                          >
-                            <Icon name="binding" />
-                          </button>
-                        </div>
+                      <td data-label="Bindings">
+                        <BindingCell
+                          resource={resource}
+                          labels={labels}
+                          onManage={() => setBindingTarget(resource)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1712,12 +1753,14 @@ export function RuntimeConfigurationRoute() {
           label="RuntimeConfig pages"
           {...configPages.controls(configs.data?.page)}
         />
+      </OpsSection>
+      <div className="ops-divided">
+        <RuntimeCredentialList
+          credentials={credentials}
+          controls={credentialPages.controls(credentials.data?.page)}
+          onCreate={() => setCreateDialog("credential")}
+        />
       </div>
-      <RuntimeCredentialList
-        credentials={credentials}
-        controls={credentialPages.controls(credentials.data?.page)}
-        onCreate={() => setCreateDialog("credential")}
-      />
       {createDialog === "credential" ? (
         <RuntimeCredentialCreateForm
           onClose={() => setCreateDialog(undefined)}

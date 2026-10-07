@@ -12,7 +12,7 @@ function unavailable(
   format: (value: number) => string,
 ) {
   return value === undefined ? (
-    <span className="muted-copy">Unavailable</span>
+    <span className="ops-muted">Unavailable</span>
   ) : (
     format(value)
   );
@@ -52,32 +52,53 @@ function averageCores(item: AllocationResourceSummary): number | undefined {
   );
 }
 
+function Chevron() {
+  return (
+    <svg
+      className="ui-tech-chevron"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9.5 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
 
   return (
     <>
-      <tr className={expanded ? "allocation-row-expanded" : undefined}>
+      <tr className={expanded ? "ops-row-expanded" : undefined}>
         <td data-label="Stage / agent">
-          <div className="allocation-history-stage">
+          <div className="ops-history-stage">
             <strong>{item.stage}</strong>
             <small>{item.logicalAgent}</small>
             <button
-              className="allocation-metrics-toggle"
+              className="ops-metrics-toggle"
               type="button"
               aria-label={`Metrics for ${item.allocationId}`}
               aria-expanded={expanded}
               aria-controls={detailsId}
               onClick={() => setExpanded((current) => !current)}
             >
-              <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+              <Chevron />
               <span>Metrics and identity</span>
             </button>
           </div>
         </td>
         <td data-label="Run">
           <Link
+            className="ops-mono"
             to={`/runs/${encodeURIComponent(item.runId)}`}
             title={item.runId}
             aria-label={item.runId}
@@ -96,8 +117,8 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
         </td>
       </tr>
       {expanded ? (
-        <tr className="allocation-metrics-row">
-          <td colSpan={5}>
+        <tr className="ops-metrics-row">
+          <td colSpan={5} data-label="">
             <section
               id={detailsId}
               aria-label={`Metrics for ${item.allocationId}`}
@@ -122,8 +143,8 @@ export function AllocationResourceList({
 }) {
   if (compact)
     return (
-      <div className="table-scroll">
-        <table className="responsive-table allocation-history-table">
+      <div className="ops-table-wrap">
+        <table className="ops-table" data-stack="">
           <thead>
             <tr>
               <th>Stage / agent</th>
@@ -184,7 +205,7 @@ export function AllocationResourceList({
                 <dd>{item.collectionPolicy}</dd>
               </div>
             </dl>
-            <dl className="metrics-grid allocation-resource-metrics">
+            <dl className="allocation-resource-metrics">
               <div>
                 <dt>Measured interval</dt>
                 <dd>{unavailable(resources?.durationSeconds, seconds)}</dd>

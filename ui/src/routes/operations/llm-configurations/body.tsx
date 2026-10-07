@@ -26,7 +26,7 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
     ["Temperature", present(body.temperature)],
   ] as const;
   return (
-    <dl className="key-value-list configuration-body">
+    <dl className="ops-facts">
       {fields.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
@@ -41,7 +41,7 @@ function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
 
 function GatewayView({ body }: { body: LLMGatewayBody }) {
   return (
-    <dl className="key-value-list configuration-body">
+    <dl className="ops-facts">
       <div>
         <dt>Protocol</dt>
         <dd>
@@ -58,9 +58,9 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
         <dt>Credential manager</dt>
         <dd>
           {body.credentialManager === undefined ? (
-            <span className="muted-copy">Not configured</span>
+            <span className="ops-muted">Not configured</span>
           ) : (
-            <span className="nested-value">
+            <span className="ops-value-stack">
               <code>{body.credentialManager.implementation}</code>
               <code>{body.credentialManager.managementUrl}</code>
             </span>
@@ -71,9 +71,9 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
         <dt>Failure signatures</dt>
         <dd>
           {body.failureSignatures === undefined ? (
-            <span className="muted-copy">Protocol default</span>
+            <span className="ops-muted">Protocol default</span>
           ) : (
-            <span className="nested-value">
+            <span className="ops-value-stack">
               {(body.failureSignatures.modelUnavailable ?? []).map(
                 (signature, index) => (
                   <code key={`unavailable-${index}`}>
@@ -101,7 +101,7 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
 
 function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
   return (
-    <dl className="key-value-list configuration-body">
+    <dl className="ops-facts">
       <div>
         <dt>Description</dt>
         <dd>{body.description}</dd>
@@ -115,7 +115,7 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
       {body.instructions === undefined ? null : (
         <div>
           <dt>Instructions</dt>
-          <dd className="nested-value">
+          <dd className="ops-value-stack">
             <code>{body.instructions.ref}</code>
             <code>{body.instructions.digest}</code>
           </dd>
@@ -150,9 +150,9 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
         <dt>Toolset selections</dt>
         <dd>
           {body.toolsets.length === 0 ? (
-            <span className="muted-copy">No model-visible tools</span>
+            <span className="ops-muted">No model-visible tools</span>
           ) : (
-            <ul className="compact-value-list">
+            <ul className="ops-value-list">
               {body.toolsets.map((selection) => (
                 <li key={selection.ref}>
                   <code>{selection.ref}</code> · {selection.tools.join(", ")}
@@ -166,9 +166,9 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
         <dt>Global Skills</dt>
         <dd>
           {body.skills === undefined || body.skills.length === 0 ? (
-            <span className="muted-copy">None</span>
+            <span className="ops-muted">None</span>
           ) : (
-            <ul className="compact-value-list">
+            <ul className="ops-value-list">
               {body.skills.map((skill) => (
                 <li key={`${skill.namespace}/${skill.name}`}>
                   <Link
@@ -200,7 +200,7 @@ function ExecutionSelection({
   selection: NonNullable<ExecutionConfigBody["planner"]>;
 }) {
   return (
-    <ul className="compact-value-list">
+    <ul className="ops-value-list">
       {selection.modelPolicy === undefined ? null : (
         <li>
           ModelPolicy:{" "}
@@ -229,12 +229,12 @@ function ExecutionSelection({
 
 function ExecutionConfigView({ body }: { body: ExecutionConfigBody }) {
   return (
-    <dl className="key-value-list configuration-body">
+    <dl className="ops-facts">
       <div>
         <dt>Planner overrides</dt>
         <dd>
           {body.planner === undefined ? (
-            <span className="muted-copy">None</span>
+            <span className="ops-muted">None</span>
           ) : (
             <ExecutionSelection selection={body.planner} />
           )}
