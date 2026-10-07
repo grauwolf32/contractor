@@ -2,8 +2,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import type { Audit } from "../../api/audits";
-import type { Project } from "../../api/projects";
+import type { Audit } from "../../../api/audits";
+import type { Project } from "../../../api/projects";
 import {
   fakeAPI,
   jsonResponse,
@@ -11,7 +11,7 @@ import {
   makeProject,
   renderApplication,
   workspaceOf,
-} from "../projects/audits/check-test-support";
+} from "../../projects/audits/check-test-support";
 
 const projectA = makeProject("project_a", "crapi-workshop");
 const projectB = makeProject("project_b", "Payment service");
@@ -127,7 +127,7 @@ function serve(
             unchecked: audit.state === "completed" ? 0 : 1,
             findings: 2,
             unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
-            pendingReviews: audit.auditId === "b_waiting" ? 1 : 0,
+            pendingReviews: audit.state === "waiting_review" ? 1 : 0,
           }),
         );
       if (match[2] === "/cancel") {
@@ -280,6 +280,10 @@ describe("Checks list", () => {
     await within(list).findByRole("link", {
       name: "WSTG 4.2 · Source review · crapi-workshop",
     });
+    expect(list.querySelector(".checks-list-rows")).toHaveAttribute(
+      "aria-keyshortcuts",
+      "J K ArrowDown ArrowUp Home End Enter",
+    );
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe("?check=a_running"),
@@ -425,6 +429,26 @@ describe("Checks list", () => {
     expect(
       await screen.findByText("This check no longer exists"),
     ).toBeVisible();
+  });
+
+  it("sends the decisions of a check beyond the list to its own Decisions", async () => {
+    // Not among the checks the list (and the Inbox) reads.
+    const extra = makeAudit("old_wait", "project_a", "waiting_review", {
+      updatedAt: "2026-09-01T10:00:00Z",
+    });
+    const { api } = serve(fixture(), { extra: { old_wait: extra } });
+    renderApplication(api, "/checks?check=old_wait");
+    const detail = await screen.findByRole("region", {
+      name: "Selected check",
+    });
+    expect(
+      await within(detail).findByRole("link", {
+        name: "1 decision waiting for you",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_a/audits/old_wait/reviews?state=pending",
+    );
   });
 
   it("keeps listing what it could read when a project fails", async () => {

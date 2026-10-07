@@ -32,15 +32,18 @@ import { startedText } from "./check-format";
 import type { CheckLinks } from "./check-links";
 import {
   commonPathPrefix,
-  groupByKind,
   issueSummary,
   relativePath,
   type CheckEntry,
+  type EntryGroup,
 } from "./check-model";
 import type { AuditCollectionQuery } from "./collections";
 import { auditProfileLabel } from "./labels";
 import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
+
+/** Keys that move the selection through the list (useListNavigation). */
+const LIST_KEYS = "J K ArrowDown ArrowUp Home End";
 
 function ActivityGlyph() {
   return (
@@ -129,7 +132,8 @@ export function CheckListPane({
   projectName,
   kind,
   entries,
-  visible,
+  groups,
+  shown,
   group,
   search,
   coverage,
@@ -146,7 +150,10 @@ export function CheckListPane({
   projectName: string | undefined;
   kind: ItemKind;
   entries: readonly CheckEntry[];
-  visible: readonly CheckEntry[];
+  /** The items the filters show, grouped by kind in the order J / K walk. */
+  groups: readonly EntryGroup[];
+  /** How many items the filters show. */
+  shown: number;
   group: Group;
   search: string;
   coverage: AuditCollectionQuery<AuditCoverageRow>;
@@ -174,7 +181,6 @@ export function CheckListPane({
         ? entries.length
         : entries.filter((entry) => entry.status.group === id).length,
   }));
-  const groups = groupByKind(visible);
   let body: ReactNode;
   if (coverage.isPending)
     body = (
@@ -200,7 +206,7 @@ export function CheckListPane({
           : `This round has no ${plural} yet.`}
       </EmptyState>
     );
-  else if (visible.length === 0)
+  else if (shown === 0)
     body = (
       <EmptyState title={`No ${plural} match these filters`}>
         Try another search, or clear the filters to see every{" "}
@@ -249,7 +255,7 @@ export function CheckListPane({
           </div>
           <div className="checks-list-count">
             <p role="status">
-              Showing {visible.length.toLocaleString("en-US")} of{" "}
+              Showing {shown.toLocaleString("en-US")} of{" "}
               {coverage.truncated ? "≥" : ""}
               {entries.length.toLocaleString("en-US")} {plural}
             </p>
@@ -281,11 +287,10 @@ export function CheckListPane({
       }
       footer={
         <>
-          <span className="checks-key-hint">
-            <span aria-hidden="true">
-              <Kbd>J</Kbd> <Kbd>K</Kbd>
-            </span>{" "}
-            move
+          {/* The rows declare their keys (aria-keyshortcuts); this is the
+              visible hint. */}
+          <span className="checks-key-hint" aria-hidden="true">
+            <Kbd>J</Kbd> <Kbd>K</Kbd> move
           </span>
           <span className="checks-footer-tech">
             <Link
@@ -325,7 +330,11 @@ export function CheckListPane({
           />
         </div>
       ) : null}
-      <div className="checks-list-rows" {...navigation}>
+      <div
+        className="checks-list-rows"
+        aria-keyshortcuts={LIST_KEYS}
+        {...navigation}
+      >
         <ListSection>
           <ListRow
             to={links.overview}

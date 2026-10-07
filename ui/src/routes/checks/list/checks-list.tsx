@@ -258,7 +258,12 @@ export function ChecksListPane({
           see all of its checks.
         </p>
       ) : null}
-      <div className="checks-list-rows" {...navigation}>
+      {/* The footer shows these keys; the rows declare them. */}
+      <div
+        className="checks-list-rows"
+        aria-keyshortcuts="J K ArrowDown ArrowUp Home End Enter"
+        {...navigation}
+      >
         <ListSection>
           {rows.map(({ project, audit }) => {
             const label = checkStateLabel(audit.state);

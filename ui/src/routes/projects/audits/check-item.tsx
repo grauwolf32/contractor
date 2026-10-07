@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
-import type { Audit, AuditFinding } from "../../../api/audits";
+import type { Audit, AuditFinding, AuditItem } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import {
   capitalize,
@@ -20,8 +20,10 @@ import { weaknessReferences } from "../../decisions/text";
 import { itemActivity } from "./activity-model";
 import { statusDescription } from "./assessments";
 import { formatShortDateTime, formatSpan } from "./check-format";
-import type { CheckEntry } from "./check-model";
+import { itemBeyondLoaded, splitIssues, type CheckEntry } from "./check-model";
+import type { AuditCollectionQuery } from "./collections";
 import { ItemTechnicalDetails } from "./executions";
+import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
 import { AuditMarkdown } from "./shared";
 
@@ -84,13 +86,7 @@ function gapsHeading(entry: CheckEntry): string {
   }
 }
 
-function PossibleIssue({
-  audit,
-  finding,
-}: {
-  audit: Audit;
-  finding: AuditFinding;
-}) {
+function IssueRow({ audit, finding }: { audit: Audit; finding: AuditFinding }) {
   const document = finding.firstProposal.document;
   const state = findingStateLabel(finding.state);
   const weaknesses = weaknessReferences(document);
@@ -120,6 +116,19 @@ function PossibleIssue({
       </StatusChip>
     </li>
   );
+}
+
+/** "Issues and possible issues on this endpoint", by what is listed. */
+function issuesHeading(
+  issues: number,
+  possible: number,
+  singular: string,
+): string {
+  if (issues > 0 && possible > 0)
+    return `Issues and possible issues on this ${singular}`;
+  if (issues > 0)
+    return `${issues === 1 ? "Issue" : "Issues"} on this ${singular}`;
+  return `${possible === 1 ? "Possible issue" : "Possible issues"} on this ${singular}`;
 }
 
 /** The work done on an item: span of its attempts and what is left. */
@@ -175,6 +184,7 @@ function Attempts({ audit, entry }: { audit: Audit; entry: CheckEntry }) {
 export function CheckItemView({
   audit,
   entry,
+  items,
   place,
   area,
   previous,
@@ -182,6 +192,8 @@ export function CheckItemView({
 }: {
   audit: Audit;
   entry: CheckEntry;
+  /** The check's item collection: the item's kind, state and attempts. */
+  items: AuditCollectionQuery<AuditItem>;
   /** Position in the shown list and its length, when the item is listed. */
   place: { index: number; count: number } | undefined;
   /** "mechanic area", or the standard the requirement comes from. */
@@ -192,6 +204,8 @@ export function CheckItemView({
   const { row } = entry;
   const singular = itemNoun(entry.kind, 1);
   const noun = capitalize(singular);
+  const issues = splitIssues(entry.findings);
+  const listed = [...issues.issues, ...issues.possible];
   const conclusion = row.details?.resultSummary || row.coverage.rationale;
   const description = statusDescription(row.coverage.status);
   const completed = new Set(row.coverage.completed);
@@ -302,6 +316,23 @@ export function CheckItemView({
           <StatusChip tone={entry.status.tone}>{entry.status.label}</StatusChip>
           <Attempts audit={audit} entry={entry} />
         </div>
+        {itemBeyondLoaded(entry, items) ? (
+          <div className="checks-notice">
+            <p>
+              Its attempts, run and activity are not loaded: this {singular} is
+              beyond the {itemNoun(entry.kind, 2)} read so far.
+            </p>
+            <LoadMoreControl
+              shown={items.items.length}
+              noun={`${singular} details`}
+              truncated={items.truncated}
+              loading={items.isLoadingMore}
+              error={items.moreError}
+              onLoadMore={items.loadMore}
+              label={`Load more ${singular} details`}
+            />
+          </div>
+        ) : null}
       </header>
       <Section title="Conclusion">
         {conclusion ? (
@@ -330,17 +361,30 @@ export function CheckItemView({
           </div>
         )}
       </Section>
-      {entry.findings.length === 0 ? null : (
+      {listed.length === 0 ? null : (
         <Section
-          title={
-            entry.findings.length === 1
-              ? `Possible issue on this ${singular}`
-              : `Possible issues on this ${singular}`
-          }
+          title={issuesHeading(
+            issues.issues.length,
+            issues.possible.length,
+            singular,
+          )}
         >
           <ul className="checks-issues">
-            {entry.findings.map((finding) => (
-              <PossibleIssue
+            {listed.map((finding) => (
+              <IssueRow
+                key={finding.findingId}
+                audit={audit}
+                finding={finding}
+              />
+            ))}
+          </ul>
+        </Section>
+      )}
+      {issues.setAside.length === 0 ? null : (
+        <Section title="Set aside" aside="Marked not an issue or duplicate">
+          <ul className="checks-issues">
+            {issues.setAside.map((finding) => (
+              <IssueRow
                 key={finding.findingId}
                 audit={audit}
                 finding={finding}
@@ -412,7 +456,7 @@ export function CheckItemView({
           ) : null}
         </Section>
       )}
-      <ItemTechnicalDetails audit={audit} entry={entry} />
+      <ItemTechnicalDetails audit={audit} entry={entry} items={items} />
     </article>
   );
 }

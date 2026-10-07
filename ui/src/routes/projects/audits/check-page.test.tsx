@@ -545,6 +545,15 @@ describe("Check page", () => {
     expect(
       within(list).getByRole("link", { name: "All activity" }),
     ).toHaveAttribute("aria-current", "true");
+    // The rows declare their keys; the footer hint is for sighted users.
+    expect(list.querySelector(".checks-list-rows")).toHaveAttribute(
+      "aria-keyshortcuts",
+      "J K ArrowDown ArrowUp Home End",
+    );
+    expect(list.querySelector(".checks-key-hint")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     await user.keyboard("j");
     await waitFor(() => expect(router.state.location.hash).toBe("#check-r1"));
     expect(router.state.location.pathname).toBe(`${ROOT}/coverage`);
@@ -870,13 +879,16 @@ describe("Check page", () => {
       within(decisions).getByRole("link", { name: "Review the report →" }),
     ).toHaveAttribute("href", `${ROOT}/report?review=review_report`);
     const issues = within(detail).getByRole("region", {
-      name: "Possible issues",
+      name: "Issues and possible issues",
     });
     expect(
       await within(issues).findByRole("link", {
         name: "Refunds skip the owner check",
       }),
     ).toHaveAttribute("href", "/issues/audit_example/finding_1");
+    expect(
+      within(issues).getByText("This check has 1 possible issue."),
+    ).toBeVisible();
     const reportBlock = within(detail).getByRole("region", { name: "Report" });
     expect(
       await within(reportBlock).findByText("Waiting for acceptance"),
@@ -1087,6 +1099,338 @@ describe("Check page", () => {
     expect(
       requests.filter((request) => request.method === "POST"),
     ).toHaveLength(1);
+  });
+
+  it("keeps confirmed issues apart from possible issues on the check and its items", async () => {
+    const current = auditAt("completed", 3);
+    const on = (
+      id: string,
+      title: string,
+      state: AuditFinding["state"],
+      minute: number,
+    ) =>
+      makeFinding("audit_example", id, title, "A01:2025", {
+        state,
+        createdAt: `2026-10-05T10:${minute}:00Z`,
+      });
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => [
+        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
+      ],
+      findings: () => [
+        on("f_confirmed", "Refunds skip the owner check", "confirmed", 15),
+        on("f_possible", "Orders leak to other users", "proposed", 25),
+        on("f_rejected", "Admin route reads any order", "rejected", 35),
+      ],
+      workspace: (audit) =>
+        workspaceOf(audit, { findings: 3, unreviewedFindings: 1 }),
+    });
+    const { router } = renderApplication(api, ROOT);
+    const issues = await screen.findByRole("region", {
+      name: "Issues and possible issues",
+    });
+    expect(
+      await within(issues).findByText(
+        "This check has 1 issue and 1 possible issue. 1 was marked not an issue or duplicate.",
+      ),
+    ).toBeVisible();
+    // Newest first; the finding set aside is counted, not listed.
+    expect(
+      within(issues)
+        .getAllByRole("listitem")
+        .map((row) => within(row).getByRole("link").textContent),
+    ).toEqual(["Orders leak to other users", "Refunds skip the owner check"]);
+    expect(within(issues).getByText("Confirmed")).toBeVisible();
+    expect(within(issues).getByText("Needs review")).toBeVisible();
+    expect(
+      within(issues).queryByRole("link", {
+        name: "Admin route reads any order",
+      }),
+    ).toBeNull();
+    expect(
+      within(issues).getByRole("link", {
+        name: "All issues and possible issues of this check →",
+      }),
+    ).toHaveAttribute("href", `${ROOT}/findings`);
+    await act(() => router.navigate(`${ROOT}/coverage#check-item_1`));
+    const view = await screen.findByRole("article", {
+      name: "A01:2025 Access control.",
+    });
+    const onItem = within(view).getByRole("region", {
+      name: "Issues and possible issues on this requirement",
+    });
+    expect(
+      within(onItem)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Refunds skip the owner check", "Orders leak to other users"]);
+    const setAside = within(view).getByRole("region", { name: "Set aside" });
+    expect(
+      within(setAside).getByRole("link", {
+        name: "Admin route reads any order",
+      }),
+    ).toHaveAttribute("href", "/issues/audit_example/f_rejected");
+    expect(within(setAside).getByText("Not an issue")).toBeVisible();
+  });
+
+  it("does not call a check's only confirmed issue a possible issue", async () => {
+    const current = auditAt("completed", 3);
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => [
+        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
+      ],
+      findings: () => [
+        makeFinding(
+          "audit_example",
+          "f_1",
+          "Refunds skip the owner check",
+          "A01:2025",
+          {
+            state: "confirmed",
+          },
+        ),
+      ],
+      workspace: (audit) => workspaceOf(audit, { findings: 1 }),
+    });
+    renderApplication(api, ROOT);
+    const issues = await screen.findByRole("region", {
+      name: "Issues and possible issues",
+    });
+    expect(
+      await within(issues).findByText("This check has 1 issue."),
+    ).toBeVisible();
+    const row = within(issues)
+      .getByRole("link", { name: "Refunds skip the owner check" })
+      .closest("li")!;
+    expect(row).toHaveTextContent("Confirmed");
+    expect(screen.queryByText(/possible issues? in this check/u)).toBeNull();
+    const list = regions().list();
+    expect(
+      within(list)
+        .getByRole("link", { name: "A01:2025 Access control." })
+        .closest("li"),
+    ).toHaveTextContent("1 issue");
+    await userEvent
+      .setup()
+      .click(
+        within(list).getByRole("link", { name: "A01:2025 Access control." }),
+      );
+    const view = await screen.findByRole("article", {
+      name: "A01:2025 Access control.",
+    });
+    expect(
+      within(view).getByRole("region", { name: "Issue on this requirement" }),
+    ).toBeVisible();
+    expect(
+      within(view).queryByRole("region", { name: /possible issue/iu }),
+    ).toBeNull();
+  });
+
+  it("says a draft has no runs yet on its Runs tab", async () => {
+    const current = auditAt("draft", 1);
+    const itemReads = vi.fn();
+    const { api } = serveCheck({
+      audit: () => current,
+      items: () => {
+        itemReads();
+        return [];
+      },
+    });
+    renderApplication(api, `${ROOT}/runs`);
+    const detail = await screen.findByRole("region", { name: "Runs" });
+    expect(
+      await within(detail).findByText(
+        "No runs yet. A draft starts its runs only once it is started.",
+      ),
+    ).toBeVisible();
+    expect(within(detail).queryByText("Loading runs…")).toBeNull();
+    expect(
+      within(detail).getByRole("link", { name: "Global Runs →" }),
+    ).toHaveAttribute("href", "/runs");
+    expect(itemReads).not.toHaveBeenCalled();
+  });
+
+  it("keeps a typed decision reason when the technical details open from the list", async () => {
+    const scroll = stubScroll();
+    const current = auditAt("waiting_review", 3);
+    const review = makeReview("audit_example", "review_item", {
+      subjectId: "item_1",
+    });
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => [
+        requirementRow("item_1", 0, "A01:2025", "Access control.", "violated"),
+      ],
+      reviews: () => [review],
+    });
+    const { router } = renderApplication(api, ROOT);
+    const user = userEvent.setup();
+    const decisions = await screen.findByRole("region", {
+      name: "Decisions waiting",
+    });
+    const decision = await within(decisions).findByRole("region", {
+      name: "Your decision",
+    });
+    await user.click(within(decision).getByRole("button", { name: "Approve" }));
+    await user.type(
+      within(decision).getByRole("textbox", { name: "Why" }),
+      "The request stays inside the agreed scope.",
+    );
+    const technical = document.querySelector("#technical-details details");
+    expect(technical).not.toHaveAttribute("open");
+    await user.click(
+      within(regions().list()).getByRole("link", { name: "Technical details" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.hash).toBe("#technical-details"),
+    );
+    expect(
+      document.querySelector("#technical-details details"),
+    ).toHaveAttribute("open");
+    expect(scroll).toHaveBeenCalled();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Decisions waiting" }),
+      ).getByRole("textbox", { name: "Why" }),
+    ).toHaveValue("The request stays inside the agreed scope.");
+  });
+
+  it("loads the details of an item beyond the first batch in place", async () => {
+    const current = auditAt("completed", 3, {
+      profileName: "openapi-operation-trace",
+    });
+    const cursors: Array<string | null> = [];
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () =>
+        Array.from({ length: 6 }, (_, index) =>
+          endpointRow(
+            `i${index + 1}`,
+            index,
+            "GET",
+            `/api/orders/${index + 1}`,
+            "traced-complete",
+          ),
+        ),
+      items: (url) => {
+        const cursor = url.searchParams.get("cursor");
+        cursors.push(cursor);
+        const index =
+          cursor === null ? 0 : Number(cursor.slice("page-".length));
+        return jsonResponse({
+          items: [
+            makeItem(`i${index + 1}`, index, "operation-trace", {
+              attempts: [makeAttempt(`i${index + 1}`, 1)],
+            }),
+          ],
+          page:
+            index + 1 < 6
+              ? { hasMore: true, nextCursor: `page-${index + 1}` }
+              : { hasMore: false },
+        });
+      },
+    });
+    renderApplication(api, `${ROOT}/coverage#check-i6`);
+    const view = await screen.findByRole("article", {
+      name: "GET /api/orders/6",
+    });
+    expect(
+      await within(view).findByText(
+        "Its attempts, run and activity are not loaded: this endpoint is beyond the endpoints read so far.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(view).queryByRole("link", { name: "Open the run" }),
+    ).toBeNull();
+    expect(
+      within(view).getByText(
+        /^Attempts are not loaded: this endpoint is beyond the endpoints read so far/u,
+      ),
+    ).toBeInTheDocument();
+    expect(cursors).toEqual([null, "page-1", "page-2", "page-3", "page-4"]);
+    await userEvent.setup().click(
+      within(view).getByRole("button", {
+        name: "Load more endpoint details",
+      }),
+    );
+    expect(
+      await within(view).findByRole("link", { name: "Open the run" }),
+    ).toHaveAttribute("href", "/runs/run_i6_1");
+    expect(cursors.at(-1)).toBe("page-5");
+    expect(
+      within(view).queryByRole("button", {
+        name: "Load more endpoint details",
+      }),
+    ).toBeNull();
+    expect(
+      within(view).getByRole("table", { name: "Attempts" }),
+    ).toBeInTheDocument();
+  });
+
+  it("walks mixed scenarios and requirements in the order the list shows them", async () => {
+    const current = auditAt("completed", 3, {
+      profileName: "owasp-wstg-4-2-source-review",
+    });
+    const mapped = (itemId: string, ordinal: number, scheme: string) =>
+      makeItem(itemId, ordinal, "standard-mapping", {
+        origin: {
+          ...makeItem(itemId, ordinal, "standard-mapping").origin,
+          standard: {
+            scheme,
+            version: "1",
+            mappingKey: itemId,
+            entryIds: [itemId],
+            evidenceContract: { id: "source-review", version: "1" },
+          },
+        },
+      });
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => [
+        requirementRow("r1", 0, "WSTG-ATHN-01", "Scenario one.", "satisfied"),
+        requirementRow("r2", 1, "V2.1.1", "Requirement two.", "satisfied"),
+        requirementRow("r3", 2, "WSTG-ATHN-02", "Scenario three.", "satisfied"),
+      ],
+      items: () => [
+        mapped("r1", 0, "owasp-wstg"),
+        mapped("r2", 1, "owasp-asvs"),
+        mapped("r3", 2, "owasp-wstg"),
+      ],
+    });
+    const { router } = renderApplication(api, `${ROOT}/coverage#check-r1`);
+    const list = await screen.findByRole("region", {
+      name: "Check and scenarios",
+    });
+    await within(list).findByRole("heading", { name: "Requirements" });
+    const order = within(list)
+      .getAllByRole("listitem")
+      .filter((row) => row.id.startsWith("check-r"))
+      .map((row) => row.id);
+    expect(order).toEqual(["check-r1", "check-r3", "check-r2"]);
+    expect(
+      await screen.findByRole("article", {
+        name: "WSTG-ATHN-01 Scenario one.",
+      }),
+    ).toHaveTextContent("Scenario 1 of 3");
+    const user = userEvent.setup();
+    await user.keyboard("j");
+    await waitFor(() => expect(router.state.location.hash).toBe("#check-r3"));
+    const third = await screen.findByRole("article", {
+      name: "WSTG-ATHN-02 Scenario three.",
+    });
+    expect(third).toHaveTextContent("Scenario 2 of 3");
+    expect(
+      within(third).getByRole("link", { name: "Next scenario" }),
+    ).toHaveAttribute("href", `${ROOT}/coverage#check-r2`);
+    await user.keyboard("j");
+    await waitFor(() => expect(router.state.location.hash).toBe("#check-r2"));
+    expect(
+      await screen.findByRole("article", { name: "V2.1.1 Requirement two." }),
+    ).toHaveTextContent("Requirement 3 of 3");
+    await user.keyboard("k");
+    await waitFor(() => expect(router.state.location.hash).toBe("#check-r3"));
   });
 });
 
@@ -1637,6 +1981,100 @@ describe("Check refresh correctness", () => {
       expect(row).toBeInTheDocument();
     },
   );
+
+  it("counts a list pinned to an older revision from its own rows", async () => {
+    let current = auditAt("completed", 2);
+    const queryClient = queryClientFactory.createApplicationQueryClient();
+    vi.spyOn(
+      queryClientFactory,
+      "createApplicationQueryClient",
+    ).mockReturnValue(queryClient);
+    const workspaceReads = vi.fn();
+    const { api } = serveCheck({
+      audit: () => current,
+      coverage: () => [
+        requirementRow("met", 0, "A01:2025", "Access control.", "satisfied"),
+        requirementRow("open", 1, "A02:2025", "Configuration.", "not-tested"),
+      ],
+      workspace: (audit) => {
+        workspaceReads(audit.revision);
+        return audit.revision === 2
+          ? workspaceOf(audit, { totalChecks: 2, completedChecks: 1 })
+          : workspaceOf(audit, { totalChecks: 5, completedChecks: 3 });
+      },
+    });
+    renderApplication(api, `${ROOT}/coverage?auditRevision=2`);
+    const progress = await screen.findByRole("region", {
+      name: "Check progress",
+    });
+    expect(await within(progress).findByText("1 of 2 done")).toBeVisible();
+    current = auditAt("completed", 3);
+    act(() =>
+      queryClient.setQueryData(
+        queryKeys.audits.detail(current.auditId),
+        current,
+      ),
+    );
+    // The check moved on: its counts are read again, but the list stays on
+    // revision 2, and so does the header.
+    await waitFor(() => expect(workspaceReads).toHaveBeenCalledWith(3));
+    expect(
+      await within(progress).findByText(
+        "Counts describe revision 2, the one the list shows.",
+      ),
+    ).toBeVisible();
+    expect(within(progress).getByText("1 of 2 done")).toBeVisible();
+    expect(within(progress).queryByText("3 of 5 done")).toBeNull();
+    expect(
+      within(progress).getByRole("img", {
+        name: "1 of 2 requirements done: 1 met, 1 not checked yet",
+      }),
+    ).toBeVisible();
+    expect(
+      within(within(progress).getByRole("list", { name: "Legend" })).getByRole(
+        "link",
+        { name: "Met: 1" },
+      ),
+    ).toHaveAttribute(
+      "href",
+      `${ROOT}/coverage?result=complete&auditRevision=2`,
+    );
+    expect(
+      screen.getByText("A newer revision of this check is available."),
+    ).toBeVisible();
+  });
+
+  it("reads the counts at most every 5 s while the check keeps moving", async () => {
+    let revision = 2;
+    const workspaceReads = vi.fn();
+    const { api } = serveCheck({
+      audit: () => {
+        // Every read sees a new revision, as a busy check does.
+        revision += 1;
+        return auditAt("active", revision, {
+          updatedAt: "2026-10-05T10:05:00Z",
+        });
+      },
+      workspace: (audit) => {
+        workspaceReads(audit.revision);
+        return workspaceOf(audit);
+      },
+    });
+    renderApplication(api, ROOT);
+    await screen.findByRole("region", { name: "Check progress" });
+    await waitFor(() => expect(workspaceReads).toHaveBeenCalledOnce());
+    const shownRevision = () =>
+      Number(
+        screen.getByText("Current revision", { selector: "dt" })
+          .nextElementSibling?.textContent,
+      );
+    const first = shownRevision();
+    // The page polls the check every second and shows its new revision…
+    await waitFor(() => expect(shownRevision()).toBeGreaterThan(first));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    // …but the counts wait for their own 5 s interval.
+    expect(workspaceReads).toHaveBeenCalledOnce();
+  }, 10_000);
 
   it("reads the counts again for each revision until the last run drains", async () => {
     let current = { ...auditAt("paused", 3), outstandingRunCount: 1 };

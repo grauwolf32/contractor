@@ -18,6 +18,7 @@ import {
 } from "../../../app/vocabulary";
 import { httpOperation } from "../../decisions/text";
 import { statusGroup, type Group } from "./assessments";
+import type { AuditCollectionQuery } from "./collections";
 import {
   isOpaqueSubject,
   itemOperation,
@@ -154,6 +155,24 @@ export function buildEntries(
   });
 }
 
+/**
+ * The item collection stops before this entry's item: its attempts, run and
+ * activity are read only once more items are loaded (Load more).
+ */
+export function itemBeyondLoaded(
+  entry: CheckEntry,
+  items: Pick<
+    AuditCollectionQuery<AuditItem>,
+    "isPending" | "truncated" | "isLoadingMore" | "moreError"
+  >,
+): boolean {
+  return (
+    entry.item === undefined &&
+    !items.isPending &&
+    (items.truncated || items.isLoadingMore || items.moreError !== null)
+  );
+}
+
 /** Plain-text name: "GET /orders/{id}", "A01:2025 Trace access control". */
 export function entryName(entry: CheckEntry): string {
   if (entry.operation !== undefined)
@@ -269,18 +288,43 @@ function plural(count: number, singular: string, many: string): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? singular : many}`;
 }
 
-/** "1 issue · 2 possible issues" for the issues proposed on one item. */
+/**
+ * Findings by what they are to the user: issues (confirmed), possible issues
+ * (not decided yet, or waiting for evidence) and findings set aside (not an
+ * issue, or a duplicate). Possible issues never count as issues.
+ */
+export interface IssueSplit {
+  issues: AuditFinding[];
+  possible: AuditFinding[];
+  setAside: AuditFinding[];
+}
+
+export function splitIssues(findings: readonly AuditFinding[]): IssueSplit {
+  const split: IssueSplit = { issues: [], possible: [], setAside: [] };
+  for (const finding of findings) {
+    switch (finding.state) {
+      case "confirmed":
+        split.issues.push(finding);
+        break;
+      case "rejected":
+      case "duplicate":
+        split.setAside.push(finding);
+        break;
+      default:
+        split.possible.push(finding);
+    }
+  }
+  return split;
+}
+
+/** "1 issue · 2 possible issues": the issues proposed on an item or a check. */
 export function issueSummary(findings: readonly AuditFinding[]): string[] {
-  const confirmed = findings.filter(
-    (finding) => finding.state === "confirmed",
-  ).length;
-  const possible = findings.filter(
-    (finding) =>
-      finding.state === "proposed" || finding.state === "needs-evidence",
-  ).length;
+  const { issues, possible } = splitIssues(findings);
   return [
-    confirmed === 0 ? "" : plural(confirmed, "issue", "issues"),
-    possible === 0 ? "" : plural(possible, "possible issue", "possible issues"),
+    issues.length === 0 ? "" : plural(issues.length, "issue", "issues"),
+    possible.length === 0
+      ? ""
+      : plural(possible.length, "possible issue", "possible issues"),
   ].filter((part) => part !== "");
 }
 

@@ -1,7 +1,11 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
 
-import type { Audit, AuditItem } from "../../../api/audits";
+import {
+  auditPollInterval,
+  type Audit,
+  type AuditItem,
+} from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../../app/error-notice";
 import { compactId } from "../../../app/format";
@@ -9,7 +13,7 @@ import { StaleDataWarning } from "../../../app/query-view";
 import { capitalize, itemNoun, type ItemKind } from "../../../app/vocabulary";
 import { TechnicalDetails } from "../../../ui";
 import { auditCheckTitle } from "./check-title";
-import type { CheckEntry } from "./check-model";
+import { itemBeyondLoaded, type CheckEntry } from "./check-model";
 import { itemHash, sectionPath } from "./check-links";
 import type { AuditCollectionQuery } from "./collections";
 import { LoadMoreControl } from "./load-more";
@@ -30,6 +34,48 @@ function RunLink({ attempt }: { attempt: AuditItemAttempt }) {
   );
 }
 
+/** Why the attempts of an item are not shown. */
+function AttemptsMissing({
+  audit,
+  entry,
+  items,
+}: {
+  audit: Audit;
+  entry: CheckEntry;
+  items: AuditCollectionQuery<AuditItem>;
+}) {
+  const singular = itemNoun(entry.kind, 1);
+  if (items.isPending)
+    return (
+      <p className="checks-quiet" role="status">
+        Loading attempts…
+      </p>
+    );
+  if (itemBeyondLoaded(entry, items))
+    return (
+      <p className="checks-quiet">
+        Attempts are not loaded: this {singular} is beyond the{" "}
+        {itemNoun(entry.kind, 2)} read so far. “Load more {singular} details” at
+        the top reads them.
+      </p>
+    );
+  if (items.error !== null)
+    return (
+      <ErrorNotice
+        error={items.error}
+        onRetry={() => void items.refetch()}
+        retryPending={items.isFetching}
+      />
+    );
+  return (
+    <p className="checks-quiet">
+      {auditPollInterval([audit]) === false
+        ? `No attempts are recorded for this ${singular}.`
+        : `Attempts are not loaded for this ${singular} yet.`}
+    </p>
+  );
+}
+
 /**
  * Attempts, produced results and the exact identity of one item, for admins
  * and debugging: the item's technical details on the check page.
@@ -37,18 +83,19 @@ function RunLink({ attempt }: { attempt: AuditItemAttempt }) {
 export function ItemTechnicalDetails({
   audit,
   entry,
+  items,
 }: {
   audit: Audit;
   entry: CheckEntry;
+  /** The check's item collection, which holds the item's attempts. */
+  items: AuditCollectionQuery<AuditItem>;
 }) {
   const { item, row } = entry;
   return (
     <TechnicalDetails description="Attempts, task package, results and identifiers.">
       <div className="checks-item-tech" id={`check-${row.itemId}-attempts`}>
         {item === undefined ? (
-          <p className="checks-quiet">
-            Attempts are not loaded for this {itemNoun(entry.kind, 1)} yet.
-          </p>
+          <AttemptsMissing audit={audit} entry={entry} items={items} />
         ) : item.attempts.length === 0 ? (
           <p className="checks-quiet">No run submitted.</p>
         ) : (
@@ -209,6 +256,18 @@ export function AuditRuns({
     [entries],
   );
   const noun = capitalize(itemNoun(kind, 1));
+  // A draft's items are not read (useAuditItems is off), so they never load.
+  if (audit.state === "draft")
+    return (
+      <div className="checks-runs">
+        <p className="checks-runs-intro">
+          <Link to="/runs">Global Runs →</Link>
+        </p>
+        <p className="checks-quiet">
+          No runs yet. A draft starts its runs only once it is started.
+        </p>
+      </div>
+    );
   if (items.isPending)
     return (
       <p className="checks-quiet" role="status">

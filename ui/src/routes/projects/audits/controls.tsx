@@ -18,6 +18,7 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import { checkKeys } from "./check-data";
 import { auditProfileLabel } from "./labels";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
 
@@ -326,6 +327,12 @@ export function AuditControls({
           queryKey: queryKeys.audits.allCoverage(updated.auditId),
           // URL-pinned coverage belongs to its original revision.
           predicate: (query) => query.queryKey.at(-1) === null,
+        }),
+        // The current counts; list rows read theirs when the list sees the
+        // new revision.
+        queryClient.invalidateQueries({
+          queryKey: checkKeys.workspace(updated.auditId),
+          exact: true,
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.report(updated.auditId),

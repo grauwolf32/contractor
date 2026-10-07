@@ -83,7 +83,9 @@ export function StopReasonBanner({ audit }: { audit: Audit }) {
  * list order with a legend, the lifecycle controls, what waits for the user
  * and the time limit. Counts come from the Server's workspace snapshot when
  * it has one; done counts concluded work (met, traced, issues found, not
- * applicable and excluded), never accepted issues or an approved report.
+ * applicable and excluded), never accepted issues or an approved report. A
+ * list pinned to another revision than the snapshot is counted from its own
+ * rows, so the header never mixes revisions (S19).
  */
 export function CheckProgress({
   audit,
@@ -92,6 +94,7 @@ export function CheckProgress({
   kind,
   entries,
   partialList,
+  pin,
   workspace,
   links,
 }: {
@@ -103,12 +106,22 @@ export function CheckProgress({
   entries: readonly CheckEntry[];
   /** More items exist than are loaded. */
   partialList: boolean;
+  /** The revision the list is pinned to (`auditRevision`), if any. */
+  pin: string | null;
   workspace: UseQueryResult<AuditWorkspace>;
   links: CheckLinks;
 }) {
   const snapshot = workspace.data;
-  const counts = snapshot === undefined ? undefined : workCounts(snapshot);
-  const fromRows = entries.length > 0 && !partialList;
+  // The list is pinned to another revision than the snapshot: its own rows
+  // feed the whole header.
+  const pinned =
+    pin !== null &&
+    entries.length > 0 &&
+    snapshot !== undefined &&
+    String(snapshot.auditRevision) !== pin;
+  const source = pinned ? undefined : snapshot;
+  const counts = source === undefined ? undefined : workCounts(source);
+  const fromRows = entries.length > 0 && (pinned || !partialList);
   const total = counts?.total ?? entries.length;
   const legendEntries =
     audit.state === "draft" || total === 0
@@ -124,21 +137,27 @@ export function CheckProgress({
         label: `${entryName(entry)}: ${entry.status.label}`,
       }))
     : countSegments(legendEntries);
-  const done = snapshot?.completedChecks ?? entries.filter(isConcluded).length;
+  const done = source?.completedChecks ?? entries.filter(isConcluded).length;
   const noun = itemNoun(kind, total);
+  const pluralNoun = itemNoun(kind, 2);
   const headline =
     audit.state === "draft"
       ? "Not started"
       : total === 0
-        ? `No ${itemNoun(kind, 2)} yet`
+        ? `No ${pluralNoun} yet`
         : doneSummary(done, total);
   const shown = legendEntries.filter((entry) => entry.count > 0);
   const summary =
     total === 0
       ? headline
       : `${done.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} ${noun} done${shown.length === 0 ? "" : `: ${legendSentence(shown)}`}`;
-  // Counts read from the snapshot pin the list they link to (S19).
-  const pin = fromRows ? undefined : snapshot?.auditRevision;
+  // Counts read from the snapshot pin the list they link to; counts read
+  // from a pinned list keep its pin (S19).
+  const linkPin = fromRows
+    ? pin !== null && /^\d+$/u.test(pin)
+      ? Number(pin)
+      : undefined
+    : snapshot?.auditRevision;
   const pending = snapshot?.pendingReviews ?? 0;
   const unreviewed = snapshot?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
@@ -167,7 +186,7 @@ export function CheckProgress({
       <div className="checks-progress-bottom">
         <ProgressLegend
           entries={legendEntries}
-          linkFor={(group) => links.group(group, pin)}
+          linkFor={(group) => links.group(group, linkPin)}
         />
         <div className="checks-progress-facts">
           {timeLimit === undefined ? null : <span>{timeLimit}</span>}
@@ -177,11 +196,18 @@ export function CheckProgress({
           </span>
         </div>
       </div>
-      {fromRows || !partialList ? null : (
+      {pinned ? (
+        <p className="checks-quiet">
+          {`Counts describe revision ${pin}, the one the list shows${
+            partialList
+              ? `: the ${entries.length.toLocaleString("en-US")} ${pluralNoun} loaded so far`
+              : ""
+          }.`}
+        </p>
+      ) : fromRows || !partialList ? null : (
         <p className="checks-quiet">
           Counts cover the whole check; the list shows the{" "}
-          {entries.length.toLocaleString("en-US")} {itemNoun(kind, 2)} loaded so
-          far.
+          {entries.length.toLocaleString("en-US")} {pluralNoun} loaded so far.
         </p>
       )}
       <StopReasonBanner audit={audit} />

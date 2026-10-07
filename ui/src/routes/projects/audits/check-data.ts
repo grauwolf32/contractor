@@ -28,10 +28,17 @@ import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export const checkKeys = {
   /**
-   * Workspace counts of one revision. A revision never changes, so a read is
-   * kept until the check moves on; a new revision is a new key.
+   * The check's current workspace counts (its page and its summary on
+   * Checks), polled while the check can change. Also the prefix of every
+   * workspace read of the check.
    */
-  workspace: (auditId: string, revision: number) =>
+  workspace: (auditId: string) =>
+    [...queryKeys.audits.detail(auditId), "workspace"] as const,
+  /**
+   * Workspace counts of a listed check at one revision. A revision never
+   * changes, so a read is kept until the list sees the check move on.
+   */
+  workspaceAt: (auditId: string, revision: number) =>
     [...queryKeys.audits.detail(auditId), "workspace", revision] as const,
   /** Every possible issue of the check, for the per-item counts. */
   findings: (auditId: string) =>
@@ -57,7 +64,7 @@ function previousWorkspace(
 ): AuditWorkspace | undefined {
   let newest: AuditWorkspace | undefined;
   for (const [, data] of queryClient.getQueriesData<AuditWorkspace>({
-    queryKey: [...queryKeys.audits.detail(auditId), "workspace"],
+    queryKey: checkKeys.workspace(auditId),
   })) {
     if (
       data !== undefined &&
@@ -68,29 +75,34 @@ function previousWorkspace(
   return newest;
 }
 
-const WORKSPACE_READ = {
-  staleTime: Number.POSITIVE_INFINITY,
-  refetchOnWindowFocus: false,
-  retry: false,
-} as const;
-
-/** The check's counts at its current revision. */
+/**
+ * The check's counts, read again every 5 s while it can change (S19 bounded
+ * polling: the check page reads the check every second, and an active check
+ * moves to a new revision about as often), right after a lifecycle change
+ * (controls.tsx invalidates them) and once more when it stops changing.
+ */
 export function useCheckWorkspace(audit: Audit, enabled = true) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  return useQuery({
-    queryKey: checkKeys.workspace(audit.auditId, audit.revision),
+  const queryKey = checkKeys.workspace(audit.auditId);
+  const query = useQuery({
+    queryKey,
     queryFn: () => getAuditWorkspace(api, audit.auditId),
     enabled,
     placeholderData: () => previousWorkspace(queryClient, audit.auditId),
+    refetchInterval: auditPollInterval([audit], 5_000),
     refetchOnReconnect: true,
-    ...WORKSPACE_READ,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
+  useAuditProjectionRefresh(audit, queryKey, enabled);
+  return query;
 }
 
 /**
- * Workspace counts of several checks (list rows), keyed like
- * useCheckWorkspace. Returns the counts by check ID.
+ * Workspace counts of several listed checks (list rows), one read per
+ * revision the list sees: the list itself is polled, so the reads are as
+ * bounded as it is. Returns the counts by check ID.
  */
 export function useCheckWorkspaces(
   audits: readonly Audit[],
@@ -100,10 +112,12 @@ export function useCheckWorkspaces(
   const queries = useMemo(
     () =>
       audits.map((audit) => ({
-        queryKey: checkKeys.workspace(audit.auditId, audit.revision),
+        queryKey: checkKeys.workspaceAt(audit.auditId, audit.revision),
         queryFn: () => getAuditWorkspace(api, audit.auditId),
         placeholderData: () => previousWorkspace(queryClient, audit.auditId),
-        ...WORKSPACE_READ,
+        staleTime: Number.POSITIVE_INFINITY,
+        refetchOnWindowFocus: false,
+        retry: false,
       })),
     [api, audits, queryClient],
   );
@@ -123,13 +137,21 @@ export function useCheckWorkspaces(
 }
 
 /**
- * Every possible issue of the check, in batches of the page cap, for the
- * counts and links on its items. Polled while the check can change.
+ * Whether the check's issues and possible issues are read: a draft has none
+ * and a check being deleted no longer serves them.
+ */
+export function findingsReadable(audit: Pick<Audit, "state">): boolean {
+  return audit.state !== "draft" && audit.state !== "deleting";
+}
+
+/**
+ * Every issue and possible issue of the check, in batches of the page cap,
+ * for the counts and links on its items. Polled while the check can change.
  */
 export function useCheckFindings(audit: Audit) {
   const api = usePublicAPI();
   const queryKey = checkKeys.findings(audit.auditId);
-  const enabled = audit.state !== "draft" && audit.state !== "deleting";
+  const enabled = findingsReadable(audit);
   const query = useAuditCollection<AuditCollection<AuditFinding>>({
     queryKey,
     loadBatch: (cursor) =>

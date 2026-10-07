@@ -62,6 +62,7 @@ import {
   endpointArea,
   entryName,
   filterEntries,
+  groupByKind,
   type CheckEntry,
 } from "./check-model";
 import { isOpaqueSubject } from "./check-title";
@@ -190,9 +191,15 @@ function CheckPage({
   const kind = entries[0]?.kind ?? fallbackKind;
   const group = parseGroup(params.get("result"));
   const search = params.get("q") ?? "";
-  const visible = useMemo(
-    () => filterEntries(entries, group, search),
+  // The list shows the matching items grouped by kind; J / K, "Endpoint N
+  // of M" and previous / next follow that same order.
+  const groups = useMemo(
+    () => groupByKind(filterEntries(entries, group, search)),
     [entries, group, search],
+  );
+  const visible = useMemo(
+    () => groups.flatMap((candidate) => candidate.entries),
+    [groups],
   );
   const links = useMemo(
     () => checkLinks(audit.projectId, audit.auditId, params, section),
@@ -303,11 +310,10 @@ function CheckPage({
     case "overview":
       content = (
         <CheckActivity
-          key={technicalRequested ? "technical" : "activity"}
           audit={audit}
           kind={kind}
           entries={entries}
-          findings={findings.items}
+          findings={findings}
           workspace={workspace.data}
           waiting={waiting}
           report={report}
@@ -367,6 +373,7 @@ function CheckPage({
             key={selected.row.itemId}
             audit={audit}
             entry={selected}
+            items={items}
             place={
               visibleIndex < 0
                 ? undefined
@@ -443,7 +450,8 @@ function CheckPage({
           projectName={projectName}
           kind={kind}
           entries={entries}
-          visible={visible}
+          groups={groups}
+          shown={visible.length}
           group={group}
           search={search}
           coverage={coverage}
@@ -475,6 +483,7 @@ function CheckPage({
                 kind={kind}
                 entries={entries}
                 partialList={coverage.truncated}
+                pin={pin}
                 workspace={workspace}
                 links={links}
               />

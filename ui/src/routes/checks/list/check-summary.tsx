@@ -51,12 +51,18 @@ function plural(count: number, singular: string, many: string): string {
 function Summary({
   audit,
   projectName,
+  listed,
   fresh,
   readError,
   onRetry,
 }: {
   audit: Audit;
   projectName: string | undefined;
+  /**
+   * The list holds the check, so it is within the bounds the Inbox reads
+   * too (the first projects, their newest checks).
+   */
+  listed: boolean;
   /** The check was read on its own, not only listed: controls may act. */
   fresh: boolean;
   /** Reading the check on its own failed. */
@@ -76,9 +82,12 @@ function Summary({
   const unreviewed = snapshot?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
   const coverage = sectionPath(audit.projectId, audit.auditId, "coverage");
-  const decisions = INBOX_CHECK_STATES.includes(audit.state)
-    ? "/"
-    : `${sectionPath(audit.projectId, audit.auditId, "reviews")}?state=pending`;
+  // The Inbox shows the decisions of running and waiting checks it reads; a
+  // check beyond its bounds (a deep link) is decided on its own page.
+  const decisions =
+    listed && INBOX_CHECK_STATES.includes(audit.state)
+      ? "/"
+      : `${sectionPath(audit.projectId, audit.auditId, "reviews")}?state=pending`;
   return (
     <DetailPane
       header={
@@ -309,6 +318,7 @@ export function CheckSummary({
     <Summary
       audit={current}
       projectName={listed?.project.name ?? project.data?.name}
+      listed={listed !== undefined}
       fresh={audit.data !== undefined}
       readError={audit.error}
       onRetry={() => void audit.refetch()}

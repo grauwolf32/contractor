@@ -26,8 +26,9 @@ import {
   nowSentence,
 } from "./activity-model";
 import type { CheckLinks } from "./check-links";
-import { REPORT_STATES } from "./check-data";
-import type { CheckEntry } from "./check-model";
+import { findingsReadable, REPORT_STATES } from "./check-data";
+import { issueSummary, splitIssues, type CheckEntry } from "./check-model";
+import type { AuditCollectionQuery } from "./collections";
 import { CheckTechnicalDetails } from "./overview";
 
 /** Decisions shown in place before "See all decisions". */
@@ -166,30 +167,92 @@ function Decisions({
   );
 }
 
-function PossibleIssues({
+/** "This check has 1 issue and 2 possible issues. 1 was marked …" */
+function issuesSentence(
+  findings: readonly AuditFinding[],
+  partial: boolean,
+  setAside: number,
+): string {
+  const summary = issueSummary(findings).join(" and ");
+  const read = findings.length.toLocaleString("en-US");
+  const counted =
+    summary === ""
+      ? partial
+        ? `No issues or possible issues among the first ${read} read.`
+        : "This check has no issues or possible issues."
+      : `This check has ${partial ? "at least " : ""}${summary}.`;
+  return setAside === 0
+    ? counted
+    : `${counted} ${setAside.toLocaleString("en-US")} ${setAside === 1 ? "was" : "were"} marked not an issue or duplicate.`;
+}
+
+/**
+ * The check's issues and possible issues, kept apart by their state: the
+ * counts of each, and the newest of them. Findings marked not an issue or
+ * duplicate are counted, not listed.
+ */
+function Issues({
   audit,
   findings,
-  workspace,
   links,
 }: {
   audit: Audit;
-  findings: readonly AuditFinding[];
-  workspace: AuditWorkspace | undefined;
+  findings: AuditCollectionQuery<AuditFinding>;
   links: CheckLinks;
 }) {
+  const split = useMemo(() => splitIssues(findings.items), [findings.items]);
   const latest = useMemo(
-    () => [...findings].sort(newestFirst).slice(0, LISTED_ISSUES),
-    [findings],
+    () =>
+      [...split.issues, ...split.possible]
+        .sort(newestFirst)
+        .slice(0, LISTED_ISSUES),
+    [split],
   );
-  const total = workspace?.findings ?? findings.length;
-  const unreviewed = workspace?.unreviewedFindings;
-  return (
-    <Block title="Possible issues">
+  const any = findings.items.length > 0;
+  let status: ReactNode;
+  // Drafts and checks being deleted are not read (useCheckFindings).
+  if (!findingsReadable(audit) && !any)
+    status = (
       <p className="checks-quiet">
-        {total === 0
-          ? "No possible issues so far."
-          : `${plural(total, "possible issue", "possible issues")} in this check${unreviewed === undefined ? "" : `, ${unreviewed.toLocaleString("en-US")} not reviewed yet`}. Possible issues stay separate from confirmed issues.`}
+        {audit.state === "draft"
+          ? "A draft has no issues or possible issues yet."
+          : "This check is being deleted; its issues are no longer read."}
       </p>
+    );
+  else if (findings.isPending)
+    status = (
+      <p className="checks-quiet" role="status">
+        Loading issues…
+      </p>
+    );
+  else if (findings.error !== null && !any)
+    status = (
+      <div className="checks-notice" data-tone="warning" role="status">
+        <p>The issues of this check could not be loaded.</p>
+        <button
+          className="ui-btn"
+          data-size="xs"
+          type="button"
+          disabled={findings.isFetching}
+          onClick={() => void findings.refetch()}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  else
+    status = (
+      <p className="checks-quiet">
+        {issuesSentence(
+          findings.items,
+          findings.truncated,
+          split.setAside.length,
+        )}
+      </p>
+    );
+  return (
+    <Block title="Issues and possible issues">
+      {status}
       {latest.length === 0 ? null : (
         <ul className="checks-issues">
           {latest.map((finding) => {
@@ -215,13 +278,13 @@ function PossibleIssues({
           })}
         </ul>
       )}
-      {total === 0 ? null : (
+      {any ? (
         <p className="checks-links">
           <Link to={links.section("findings")}>
-            All possible issues of this check →
+            All issues and possible issues of this check →
           </Link>
         </p>
-      )}
+      ) : null}
     </Block>
   );
 }
@@ -288,7 +351,8 @@ export function CheckActivity({
   audit: Audit;
   kind: ItemKind;
   entries: readonly CheckEntry[];
-  findings: readonly AuditFinding[];
+  /** Every issue and possible issue of the check (useCheckFindings). */
+  findings: AuditCollectionQuery<AuditFinding>;
   workspace: AuditWorkspace | undefined;
   waiting: UseQueryResult<AuditReviewPage>;
   report: UseQueryResult<AuditReport>;
@@ -303,11 +367,11 @@ export function CheckActivity({
       checkActivity({
         audit,
         entries,
-        findings,
+        findings: findings.items,
         waiting: waiting.data?.items ?? [],
         now,
       }),
-    [audit, entries, findings, now, waiting.data],
+    [audit, entries, findings.items, now, waiting.data],
   );
   return (
     <div className="checks-activity">
@@ -324,12 +388,7 @@ export function CheckActivity({
         links={links}
       />
       <div className="checks-activity-grid">
-        <PossibleIssues
-          audit={audit}
-          findings={findings}
-          workspace={workspace}
-          links={links}
-        />
+        <Issues audit={audit} findings={findings} links={links} />
         <Report audit={audit} report={report} links={links} />
       </div>
       <Block title="Activity on this check">
@@ -344,7 +403,10 @@ export function CheckActivity({
           </p>
         ) : null}
       </Block>
+      {/* A "#technical-details" link reopens only this disclosure; the
+          decisions above keep what the user typed. */}
       <CheckTechnicalDetails
+        key={technicalOpen ? "open" : "closed"}
         audit={audit}
         workspace={workspace}
         open={technicalOpen}

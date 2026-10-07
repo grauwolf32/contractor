@@ -13,6 +13,7 @@ import {
   itemStatus,
   legend,
   relativePath,
+  splitIssues,
   workCounts,
 } from "./check-model";
 import {
@@ -251,16 +252,21 @@ describe("check model", () => {
   });
 
   it("separates issues from possible issues and ignores dismissed ones", () => {
-    expect(
-      issueSummary([
-        makeFinding("a", "1", "t", null, { state: "confirmed" }),
-        makeFinding("a", "2", "t", null),
-        makeFinding("a", "3", "t", null, { state: "needs-evidence" }),
-        makeFinding("a", "4", "t", null, { state: "rejected" }),
-        makeFinding("a", "5", "t", null, { state: "duplicate" }),
-      ]),
-    ).toEqual(["1 issue", "2 possible issues"]);
+    const findings = [
+      makeFinding("a", "1", "t", null, { state: "confirmed" }),
+      makeFinding("a", "2", "t", null),
+      makeFinding("a", "3", "t", null, { state: "needs-evidence" }),
+      makeFinding("a", "4", "t", null, { state: "rejected" }),
+      makeFinding("a", "5", "t", null, { state: "duplicate" }),
+    ];
+    expect(issueSummary(findings)).toEqual(["1 issue", "2 possible issues"]);
     expect(issueSummary([])).toEqual([]);
+    const split = splitIssues(findings);
+    const ids = (list: readonly { findingId: string }[]) =>
+      list.map((finding) => finding.findingId);
+    expect(ids(split.issues)).toEqual(["1"]);
+    expect(ids(split.possible)).toEqual(["2", "3"]);
+    expect(ids(split.setAside)).toEqual(["4", "5"]);
   });
 
   it("orders the legend from finished work to work not started", () => {
