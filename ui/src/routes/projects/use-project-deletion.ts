@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { usePublicAPI } from "../../api/context";
+import { invalidateCrossProject } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
 import { deleteProject, type Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
@@ -34,7 +35,17 @@ export function useProjectDeletion(
       void queryClient.invalidateQueries({
         queryKey: queryKeys.evals.projects,
       });
+      // The cross-project lists leave out projects that are being deleted.
+      void invalidateCrossProject(queryClient);
     },
+    // A refused deletion (412: the project changed) is never retried; the
+    // project is read again so a new confirmation shows its current name and
+    // carries its current revision.
+    onError: (_error, target) =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.detail(target.projectId),
+        exact: true,
+      }),
   });
   const deletionObserved =
     deletion.data?.lifecycle === "deleting" ||

@@ -1,6 +1,14 @@
-import { useContext, useEffect, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { NavLink, useLocation, useNavigate } from "react-router";
+
+import {
+  ADVANCED_SECTIONS,
+  MAIN_SECTIONS,
+  PROJECT_SECTIONS,
+  projectPath,
+  projectSectionOf,
+} from "./project-sections";
 import { ProjectSectionActionsContext } from "./section-actions-context";
 
 /** Slim toolbar for a project section: rendered on the tab-bar row. */
@@ -11,16 +19,6 @@ export function ProjectSectionActions({ children }: { children: ReactNode }) {
   return slot === null ? null : createPortal(children, slot);
 }
 
-const sections = [
-  ["", "Overview"],
-  ["artifacts", "Artifacts"],
-  ["workflows", "Workflows"],
-  ["runs", "Runs"],
-  ["audits", "Audits"],
-  ["findings", "Findings"],
-  ["settings", "Settings"],
-] as const;
-
 export function ProjectNavigation({
   projectId,
   actionsRef,
@@ -28,19 +26,22 @@ export function ProjectNavigation({
   projectId: string;
   actionsRef?: (element: HTMLDivElement | null) => void;
 }) {
-  const root = `/projects/${encodeURIComponent(projectId)}`;
+  const root = projectPath(projectId);
   const location = useLocation();
-  const { pathname } = location;
+  const { pathname, hash } = location;
   const navigate = useNavigate();
-  const current =
-    sections.find(
-      ([segment]) =>
-        segment !== "" && pathname.startsWith(`${root}/${segment}`),
-    )?.[0] ?? "";
-  const saved = location.state?.projectSections;
+  const advancedLabel = useId();
+  const bar = useRef<HTMLDivElement>(null);
+  const current = projectSectionOf(pathname, projectId);
+  // Each section keeps its own query (filters, cursors, versions) in the
+  // history state, so switching sections and back restores it.
+  const saved: unknown = location.state?.projectSections;
   const sectionQueries: Record<string, string> = Object.fromEntries(
-    sections.map(([segment]) => {
-      const value = saved?.[segment];
+    PROJECT_SECTIONS.map(([segment]) => {
+      const value =
+        typeof saved === "object" && saved !== null
+          ? (saved as Record<string, unknown>)[segment]
+          : undefined;
       return [
         segment,
         segment === current
@@ -58,33 +59,60 @@ export function ProjectNavigation({
   function destination(segment: string) {
     return `${root}${segment ? `/${segment}` : ""}${sectionQueries[segment] ?? ""}`;
   }
+  // A section opened from another one starts at its top: in the detail pane
+  // on wide screens, in the page on phones. A page that loads directly keeps
+  // the browser's own scroll position, and a link to an anchor of a section
+  // (settings#live-target) leaves scrolling to the section.
+  const shownPath = useRef(pathname);
   useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    if (hash !== "") return;
+    const pane = bar.current?.closest<HTMLElement>(".ui-panes-detail");
+    if (pane !== null && pane !== undefined) pane.scrollTop = 0;
     document
       .getElementById("main-content")
       ?.scrollIntoView?.({ block: "start" });
-  }, [pathname]);
-  return (
-    <>
-      <div className="project-section-bar">
-        <nav
-          className="project-section-navigation section-navigation"
-          aria-label="Project sections"
+  }, [hash, pathname]);
+
+  function tab([segment, label]: readonly [string, string]) {
+    return (
+      <li key={segment}>
+        <NavLink
+          className="projects-tab"
+          to={destination(segment)}
+          state={navigationState}
+          end={segment === ""}
         >
-          {sections.map(([segment, label]) => (
-            <NavLink
-              key={segment}
-              to={destination(segment)}
-              state={navigationState}
-              end={segment === ""}
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="project-section-actions" ref={actionsRef} />
-      </div>
-      <label className="project-section-picker">
-        Project section
+          {label}
+        </NavLink>
+      </li>
+    );
+  }
+
+  // Wide panes show the tabs; narrow ones (phones, and the detail pane next
+  // to the list on small laptops) show the labelled select instead.
+  return (
+    <div className="projects-tabs-bar" ref={bar}>
+      <nav className="projects-tabs" aria-label="Project sections">
+        <ul role="list" className="projects-tabs-list">
+          {MAIN_SECTIONS.map(tab)}
+        </ul>
+        <div
+          className="projects-tabs-advanced"
+          role="group"
+          aria-labelledby={advancedLabel}
+        >
+          <span className="projects-tabs-label" id={advancedLabel}>
+            Advanced
+          </span>
+          <ul role="list" className="projects-tabs-list">
+            {ADVANCED_SECTIONS.map(tab)}
+          </ul>
+        </div>
+      </nav>
+      <label className="projects-section-picker">
+        <span>Project section</span>
         <select
           aria-label="Project section"
           value={current}
@@ -94,13 +122,21 @@ export function ProjectNavigation({
             })
           }
         >
-          {sections.map(([segment, label]) => (
+          {MAIN_SECTIONS.map(([segment, label]) => (
             <option key={segment} value={segment}>
               {label}
             </option>
           ))}
+          <optgroup label="Advanced">
+            {ADVANCED_SECTIONS.map(([segment, label]) => (
+              <option key={segment} value={segment}>
+                {label}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
-    </>
+      <div className="projects-section-actions" ref={actionsRef} />
+    </div>
   );
 }

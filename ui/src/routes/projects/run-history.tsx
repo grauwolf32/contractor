@@ -1,24 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, Link, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
+
+import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import {
-  RUN_STATES,
   isTerminalRunState,
+  RUN_STATES,
   type RunSummary,
   type WorkflowRunState,
 } from "../../api/runs";
-import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
-import { useURLCursorStack } from "../../app/pagination";
 import { compactId, formatTimestamp } from "../../app/format";
-import { RunMetadataLabelChips, StateBadge } from "../runs/components";
-import { RefreshButton } from "../../app/refresh-button";
-import { ProjectSectionActions } from "./navigation";
+import { useURLCursorStack } from "../../app/pagination";
 import { QueryView } from "../../app/query-view";
+import { RefreshButton } from "../../app/refresh-button";
+import { EmptyState, FilterChips, IdChip, StatusGlyph } from "../../ui";
+import { RunMetadataLabelChips } from "../runs/components";
+import { ProjectSectionActions } from "./navigation";
+import { projectPath } from "./project-sections";
+import { runStateLabel } from "./run-state";
 
+import "./projects.css";
+
+type RunView = "all" | "active" | "completed";
+
+const RUN_VIEWS: readonly { value: RunView; label: string }[] = [
+  { value: "all", label: "All Runs" },
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+];
+
+/** A Run's Workflow (linking to the Run) and its shortened ID. */
 export function ProjectRunIdentity({
   run,
   returnLabel = "Project Runs",
@@ -40,13 +55,17 @@ export function ProjectRunIdentity({
   );
 }
 
+/**
+ * The project's Runs, 25 per page with Server-side lifecycle and state
+ * filters. The view, state and cursor live in the URL; active views poll.
+ */
 export function ProjectRunHistory({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
-  const view = ["active", "completed"].includes(filters.get("view") ?? "")
-    ? filters.get("view")!
-    : "all";
+  const view: RunView =
+    RUN_VIEWS.find((option) => option.value === filters.get("view"))?.value ??
+    "all";
   const states = RUN_STATES.filter(
     (state) =>
       view === "all" || (view === "completed") === isTerminalRunState(state),
@@ -80,7 +99,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
         ? 5_000
         : false,
   });
-  function chooseView(value: string) {
+  function chooseView(value: RunView) {
     const next = new URLSearchParams(filters);
     next.delete("cursor");
     next.delete("state");
@@ -96,35 +115,29 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     setFilters(next, { state: location.state });
   }
   return (
-    <section className="project-run-history" id="project-runs">
+    <section
+      className="projects-runs"
+      id="project-runs"
+      aria-label="Project Runs"
+    >
       <ProjectSectionActions>
         <Link
-          className="audit-open-link"
-          to={`/projects/${encodeURIComponent(projectId)}/workflows`}
+          className="ui-btn"
+          data-size="sm"
+          to={projectPath(projectId, "workflows")}
         >
-          Choose workflow →
+          Choose workflow
         </Link>
       </ProjectSectionActions>
-      <div className="project-section-toolbar">
-        <div className="workflow-filter-tabs" aria-label="Run views">
-          {[
-            ["all", "All Runs"],
-            ["active", "Active"],
-            ["completed", "Completed"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              className="secondary-button"
-              type="button"
-              aria-pressed={view === value}
-              onClick={() => chooseView(value!)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label>
-          State
+      <div className="projects-toolbar">
+        <FilterChips
+          label="Run views"
+          options={RUN_VIEWS}
+          value={view}
+          onChange={chooseView}
+        />
+        <label className="projects-inline-field">
+          <span>State</span>
           <select
             value={state ?? ""}
             onChange={(event) =>
@@ -134,7 +147,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
             <option value="">All states</option>
             {states.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {runStateLabel(value).label}
               </option>
             ))}
           </select>
@@ -154,71 +167,76 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
         onRetry={() => void runs.refetch()}
         isEmpty={(runsData) => runsData.items.length === 0}
         empty={
-          <div className="panel compact-empty">
-            <h3>No Runs in this view</h3>
-            <p>
-              {view === "all" && !state
-                ? "Choose a Workflow to start a Project Run."
-                : "Choose another state or view to inspect the rest of the history."}
-            </p>
-          </div>
+          <EmptyState title="No Runs in this view">
+            {view === "all" && !state
+              ? "Choose a Workflow to start a Project Run."
+              : "Choose another state or view to inspect the rest of the history."}
+          </EmptyState>
         }
       >
         {(runsData) => (
-          <div className="table-scroll project-run-history-table">
-            <table className="responsive-table">
-              <thead>
-                <tr>
-                  <th>Workflow / Run</th>
-                  <th>State</th>
-                  <th>Origin</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runsData.items.map((run) => {
-                  const auditId = run.labels["audit.id"];
-                  return (
-                    <tr key={run.runId}>
-                      <td data-label="Workflow / Run">
-                        <ProjectRunIdentity run={run} />
-                        <details className="project-run-labels">
-                          <summary>
-                            Identity & labels
-                            {Object.keys(run.labels).length
-                              ? ` (${Object.keys(run.labels).length})`
-                              : ""}
-                          </summary>
-                          <code>{run.runId}</code>
-                          <RunMetadataLabelChips labels={run.labels} />
-                        </details>
-                      </td>
-                      <td data-label="State">
-                        <StateBadge state={run.state} />
-                      </td>
-                      <td data-label="Origin">
+          <ul role="list" className="projects-run-list">
+            {runsData.items.map((run) => {
+              const auditId = run.labels["audit.id"];
+              const runState = runStateLabel(run.state);
+              const labelCount = Object.keys(run.labels).length;
+              return (
+                <li className="projects-run" key={run.runId}>
+                  <StatusGlyph tone={runState.tone} />
+                  <div className="projects-run-main">
+                    <ContextLink
+                      className="projects-run-title"
+                      returnLabel="Project Runs"
+                      to={`/runs/${encodeURIComponent(run.runId)}`}
+                      title={run.workflow}
+                    >
+                      {run.workflow}
+                    </ContextLink>
+                    <div className="projects-row-meta">
+                      <strong
+                        className="projects-row-status"
+                        data-tone={runState.tone}
+                      >
+                        {runState.label}
+                      </strong>
+                      <span>
                         {auditId && AUDIT_ID_PATTERN.test(auditId) ? (
                           <ContextLink
                             returnLabel="Project Runs"
-                            to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`}
+                            to={`${projectPath(projectId, "audits")}/${encodeURIComponent(auditId)}`}
                           >
-                            Audit · {auditId.slice(-8)} ↗
+                            Check · {auditId.slice(-8)}
                           </ContextLink>
                         ) : (
                           "Workflow Run"
                         )}
-                      </td>
-                      <td data-label="Updated">
+                      </span>
+                      <span>
+                        Updated{" "}
                         <time dateTime={run.updatedAt}>
                           {formatTimestamp(run.updatedAt)}
                         </time>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+                    <details className="project-run-labels">
+                      <summary>
+                        Identity & labels
+                        {labelCount ? ` (${labelCount})` : ""}
+                      </summary>
+                      <div className="projects-run-identity">
+                        <IdChip
+                          value={run.runId}
+                          display={run.runId}
+                          label="Run ID"
+                        />
+                        <RunMetadataLabelChips labels={run.labels} />
+                      </div>
+                    </details>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </QueryView>
       <CursorControls

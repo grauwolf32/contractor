@@ -3626,10 +3626,6 @@ code {
   justify-self: start;
 }
 
-.project-description-field {
-  grid-column: 1 / -1;
-}
-
 .form-grid textarea {
   width: 100%;
   min-width: 0;
@@ -3700,19 +3696,6 @@ code {
   padding: 0.16rem 0.42rem;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-}
-
-.project-card-mark {
-  display: grid;
-  width: 2.6rem;
-  height: 2.6rem;
-  border: 1px solid var(--accent-line);
-  border-radius: 0.65rem;
-  background: var(--accent-dark);
-  color: var(--accent);
-  font-size: 1rem;
-  font-weight: 850;
-  place-items: center;
 }
 
 .project-card h3 {
@@ -3846,13 +3829,6 @@ code {
   backdrop-filter: blur(0.8rem);
 }
 
-.project-header-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.65rem;
-}
-
 .project-delete-dialog {
   width: min(100%, 40rem);
   border-color: var(--danger-line);
@@ -3867,37 +3843,6 @@ code {
 .project-delete-warning {
   color: var(--danger);
   line-height: 1.65;
-}
-
-.project-deletion-progress {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 1rem;
-  border-color: var(--danger-line);
-  background: var(--danger-bg);
-}
-
-.project-deletion-progress h3 {
-  margin-top: 0.2rem;
-}
-
-.project-deletion-progress p,
-.project-deletion-progress small {
-  color: var(--muted-strong);
-}
-
-.project-deletion-progress .spinner {
-  margin-top: 0.25rem;
-  border-top-color: var(--danger);
-}
-
-.project-deletion-durability {
-  grid-column: 1 / -1;
-  margin: 0;
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-  font-size: 0.8rem;
 }
 
 .project-local-navigation a {
@@ -3921,14 +3866,6 @@ code {
 
 .project-region + .project-region {
   margin-top: 1.2rem;
-}
-
-.project-metadata-grid {
-  margin-top: 0.5rem;
-}
-
-.project-description-value {
-  grid-column: 1 / -1;
 }
 
 .project-form-actions {
@@ -4000,31 +3937,6 @@ code {
 .project-artifact-library {
   border-top: 1px solid var(--line);
   padding-top: 1.25rem;
-}
-
-.project-target-card {
-  display: grid;
-  gap: 0.85rem;
-  margin-top: 1.25rem;
-  border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
-}
-
-.project-target-card h4 {
-  margin: 0.2rem 0 0.55rem;
-}
-
-.project-target-metadata {
-  margin: 0;
-}
-
-.project-target-metadata code {
-  overflow-wrap: anywhere;
-}
-
-.project-target-form {
-  display: grid;
-  gap: 1rem;
 }
 
 .project-dialog-backdrop {
@@ -4153,29 +4065,6 @@ code {
   font-weight: 800;
 }
 
-.project-workflow-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin-top: 1rem;
-}
-
-.project-workflow-grid.is-all {
-  margin-top: 0;
-  padding: 1rem;
-}
-
-.project-workflow-card {
-  display: grid;
-  min-width: 0;
-  align-content: start;
-  gap: 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: var(--surface-subtle);
-  padding: 1rem;
-}
-
 .workflow-skill-links {
   display: flex;
   flex-wrap: wrap;
@@ -4205,128 +4094,6 @@ code {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.project-workflow-card.is-compatible {
-  border-color: var(--accent-line);
-  background: var(--accent-dark);
-}
-
-.project-workflow-card.is-blocked {
-  opacity: 0.78;
-}
-
-.project-workflow-card h4 {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 1rem;
-}
-
-.project-workflow-card > button {
-  align-self: end;
-  justify-self: start;
-}
-
-.project-workflow-inputs {
-  display: grid;
-  gap: 0.45rem;
-  margin: 0;
-}
-
-.project-workflow-inputs > div {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.8rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.35rem;
-}
-
-.project-workflow-inputs dt,
-.project-workflow-inputs dd {
-  min-width: 0;
-  margin: 0;
-}
-
-.project-workflow-inputs dt {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.project-workflow-inputs dt strong {
-  color: var(--accent);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-}
-
-.project-workflow-inputs dd,
-.project-workflow-fact,
-.project-workflow-output-copy,
-.project-workflow-missing {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.project-workflow-fact,
-.project-workflow-missing {
-  margin: 0;
-}
-
-.project-workflow-output-copy {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.project-workflow-output-copy > span {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.project-workflow-missing {
-  border-left: 2px solid var(--danger);
-  color: var(--danger);
-  padding-left: 0.65rem;
-}
-
-.project-all-workflows {
-  margin-top: 1.2rem;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: var(--surface-subtle);
-}
-
-.project-all-workflows > summary {
-  display: flex;
-  min-height: 3.8rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.8rem 1rem;
-  cursor: pointer;
-  list-style: none;
-}
-
-.project-all-workflows > summary::-webkit-details-marker {
-  display: none;
-}
-
-.project-all-workflows > summary > span {
-  display: grid;
-  gap: 0.1rem;
-}
-
-.project-all-workflows > summary > span:last-child {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.project-all-workflows > summary small {
-  color: var(--muted);
 }
 
 .run-output-publications {
@@ -4429,10 +4196,6 @@ code {
   .project-shortcut-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-
-  .project-workflow-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 820px) {
@@ -4444,16 +4207,6 @@ code {
   }
 
   .route-header-row > button {
-    width: 100%;
-  }
-
-  .project-header-actions {
-    width: 100%;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .project-header-actions button {
     width: 100%;
   }
 
@@ -4475,11 +4228,6 @@ code {
 
   .project-artifact-fields {
     grid-template-columns: 1fr;
-  }
-
-  .project-description-field,
-  .project-description-value {
-    grid-column: auto;
   }
 
   .run-eval-filter button,

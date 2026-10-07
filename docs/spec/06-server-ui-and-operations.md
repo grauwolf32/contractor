@@ -1347,12 +1347,21 @@ ProjectScope form and exact version semantics.
 ### Project section navigation
 
 The Project root is a bounded Overview, rather than a concatenation of every
-workspace collection. It requests five recent Runs, three successful Runs, three
-recent Audits, three Audits waiting for review and three current Artifacts. These
-samples are not total counts. Recent results resolve exact successful Run outputs
-and published Workflow output roles; missing or unavailable primary outputs are
-not replaced with guessed results. Result links retain their RunScope and exact
-revision. Overview does not load the complete input or Workflow inventories.
+workspace collection. It reads the Project's newest page of Audits (up to 50,
+the read the cross-project lists share), the first page of proposed findings of
+each of those Audits with the Server's total (keyed by the Audit revision, so an
+unchanged Audit is not read again and a changed one stays counted while its new
+revision loads), three Audits waiting for review, five recent Runs, three
+successful Runs, a sample of current Artifacts (five recent ones and up to three
+each in `sources` and `openapi`) and the published Audit profiles, for check
+types whose input formats match. Counts over Audits say when they cover only the
+50 newest; the Run and Artifact samples are not total counts. The Projects list
+counts each Project's possible issues to review from the same per-Audit reads,
+so the list and the Overview agree. Recent results resolve exact successful Run
+outputs and published Workflow output roles; missing or unavailable primary
+outputs are not replaced with guessed results. Result links retain their
+RunScope and exact revision. Overview does not load the complete input or
+Workflow inventories.
 
 Artifacts, Workflows, Runs, Audits, Findings and Settings mount only when selected.
 They share the Project header, actions and section navigation; mobile navigation
