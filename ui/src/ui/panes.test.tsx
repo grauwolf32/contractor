@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
+import { createRef } from "react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -210,6 +211,32 @@ describe("ListPane", () => {
     expect(screen.getByText("Custom header")).toBeInTheDocument();
     expect(screen.queryByText("Ignored")).toBeNull();
   });
+
+  it("lets the page move focus to the title through titleRef", () => {
+    const title = createRef<HTMLHeadingElement>();
+    const { rerender } = render(
+      <ListPane title="Possible issues" titleRef={title}>
+        <p>Rows</p>
+      </ListPane>,
+    );
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Possible issues",
+    });
+    expect(title.current).toBe(heading);
+    expect(heading).toHaveAttribute("tabindex", "-1");
+    act(() => title.current?.focus());
+    expect(heading).toHaveFocus();
+    // Without a ref the title is no focus target.
+    rerender(
+      <ListPane title="Possible issues">
+        <p>Rows</p>
+      </ListPane>,
+    );
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Possible issues" }),
+    ).not.toHaveAttribute("tabindex");
+  });
 });
 
 describe("DetailHeader and DetailPane", () => {
@@ -264,5 +291,24 @@ describe("DetailHeader and DetailPane", () => {
       screen.getByRole("heading", { level: 1, name: "crapi-workshop" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).toBeNull();
+  });
+
+  it("lets the page move focus to the title through titleRef", () => {
+    const title = createRef<HTMLHeadingElement>();
+    const { rerender } = render(
+      <DetailHeader title="Paired evidence" titleAs="h1" titleRef={title} />,
+    );
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Paired evidence",
+    });
+    expect(title.current).toBe(heading);
+    expect(heading).toHaveAttribute("tabindex", "-1");
+    act(() => title.current?.focus());
+    expect(heading).toHaveFocus();
+    rerender(<DetailHeader title="Paired evidence" />);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Paired evidence" }),
+    ).not.toHaveAttribute("tabindex");
   });
 });

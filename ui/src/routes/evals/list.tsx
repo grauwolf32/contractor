@@ -266,11 +266,8 @@ export function EvalListRoute() {
         </EmptyState>
       ) : null}
       {items.length > 0 ? (
-        <div
-          {...containerProps}
-          aria-keyshortcuts="J K ArrowDown ArrowUp Enter"
-        >
-          <ListSection>
+        <div {...containerProps}>
+          <ListSection aria-keyshortcuts="J K ArrowDown ArrowUp Enter">
             {items.map((item) => (
               <ExperimentRow
                 key={item.experimentId}

@@ -562,16 +562,19 @@ export function SetupFooter({ model }: { model: StartCheck }) {
   // binding stays on while starting is blocked, so the key never types a
   // line break into a field instead; model.start() checks the blockers.
   useShortcuts({
-    "mod+enter": (event) => {
-      const button = startButton.current;
-      if (button === null || !isRendered(button)) return;
-      // Focus on a link: the key was meant for the link, not for starting.
-      if (
-        event.target instanceof Element &&
-        event.target.closest("a[href]") !== null
-      )
-        return;
-      model.start();
+    "mod+enter": {
+      // On a link the key is the link's own (it opens the link in a new
+      // tab), so the event is left alone.
+      when: (event) =>
+        !(
+          event.target instanceof Element &&
+          event.target.closest("a[href]") !== null
+        ),
+      handler: () => {
+        const button = startButton.current;
+        if (button === null || !isRendered(button)) return;
+        model.start();
+      },
     },
   });
   if (selection === undefined) return null;

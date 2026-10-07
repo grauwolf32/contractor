@@ -389,6 +389,7 @@ export function ReportAcceptanceDecision({
       review={acceptance.review}
       report={acceptance.report}
       onDecided={acceptance.onDecided}
+      onRecording={acceptance.onRecording}
     />
   );
 }

@@ -371,6 +371,19 @@ p.decisions-quiet {
   background: var(--surface);
 }
 
+/* Where the pane footer is pinned, a component that shows a recorded
+   decision (ui-footer-record) is capped and draws the divider above it
+   (ui.css), so its first block drops its own. */
+@media (min-width: 821px) and (min-height: 560px) {
+  .ui-detail-pane-footer .ui-footer-record > .decisions-status:not(:empty),
+  .ui-detail-pane-footer
+    .ui-footer-record
+    > .decisions-status:empty
+    + .decisions-current {
+    border-top: 0;
+  }
+}
+
 .decisions-current-actions {
   display: flex;
   flex-wrap: wrap;

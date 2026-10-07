@@ -18,7 +18,8 @@ import {
 } from "../../../api/performance";
 import { queryKeys } from "../../../api/query-keys";
 import { formatBytes, formatTimestamp } from "../../../app/format";
-import { OperationsState, OpsSection, TechnicalDisclosure } from "../common";
+import { TechnicalDetails } from "../../../ui";
+import { OperationsState, OpsSection } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
@@ -688,7 +689,7 @@ export function OperationsPerformanceRoute() {
         </QueryView>
       </section>
       {current.data?.current === undefined ? null : (
-        <TechnicalDisclosure
+        <TechnicalDetails
           className="ops-counters"
           summary="Detailed counters and collection diagnostics"
           description="HTTP surfaces, connection pool, PostgreSQL, storage and the collector itself."
@@ -697,7 +698,7 @@ export function OperationsPerformanceRoute() {
           {detailsOpen ? (
             <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
           ) : null}
-        </TechnicalDisclosure>
+        </TechnicalDetails>
       )}
     </div>
   );

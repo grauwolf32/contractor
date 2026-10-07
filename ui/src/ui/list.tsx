@@ -10,6 +10,13 @@ export interface ListSectionProps {
   aside?: ReactNode;
   /** Heading level. Default "h2" (under a ListPane h1 title). */
   titleAs?: "h2" | "h3" | undefined;
+  /** Names the list (`<ul>`) itself, e.g. a list without a title. */
+  "aria-label"?: string | undefined;
+  /**
+   * Keys that move through the list, declared on the list (`<ul>`) itself,
+   * e.g. "J K ArrowDown ArrowUp Enter". Show them with Kbd elsewhere.
+   */
+  "aria-keyshortcuts"?: string | undefined;
   /** ListRow elements. */
   children: ReactNode;
 }
@@ -20,12 +27,19 @@ export function ListSection({
   count,
   aside,
   titleAs: Heading = "h2",
+  "aria-label": ariaLabel,
+  "aria-keyshortcuts": ariaKeyShortcuts,
   children,
 }: ListSectionProps) {
   const headingId = useId();
   const rows = (
     // Explicit role: list-style: none drops list semantics in WebKit.
-    <ul role="list" className="ui-list">
+    <ul
+      role="list"
+      className="ui-list"
+      aria-label={ariaLabel}
+      aria-keyshortcuts={ariaKeyShortcuts}
+    >
       {children}
     </ul>
   );
@@ -88,6 +102,11 @@ export interface ListRowProps {
   children?: ReactNode;
   /** Id of the `<li>`. */
   id?: string | undefined;
+  /**
+   * Keys that act on the row, declared on its link or button
+   * (`aria-keyshortcuts`), e.g. "J K ArrowDown ArrowUp Enter".
+   */
+  ariaKeyShortcuts?: string | undefined;
 }
 
 /**
@@ -106,6 +125,7 @@ export function ListRow({
   clamp = 2,
   children,
   id,
+  ariaKeyShortcuts,
 }: ListRowProps) {
   const current = selected ? "true" : undefined;
   const text = (
@@ -123,6 +143,7 @@ export function ListRow({
         to={to}
         className="ui-row-control"
         aria-current={current}
+        aria-keyshortcuts={ariaKeyShortcuts}
         onClick={onSelect}
       >
         {text}
@@ -134,6 +155,7 @@ export function ListRow({
         type="button"
         className="ui-row-control"
         aria-current={current}
+        aria-keyshortcuts={ariaKeyShortcuts}
         onClick={onSelect}
       >
         {text}
@@ -184,7 +206,10 @@ export interface FilterChipsProps<T extends string = string> {
   onChange: (value: T) => void;
 }
 
-/** One-of-many filter as a group of aria-pressed pill buttons with counts. */
+/**
+ * One-of-many filter as a group of aria-pressed pill buttons with counts.
+ * Pressing the chip that is already pressed changes nothing.
+ */
 export function FilterChips<T extends string = string>({
   label,
   options,
@@ -199,7 +224,9 @@ export function FilterChips<T extends string = string>({
           type="button"
           className="ui-filter-chip"
           aria-pressed={option.value === value}
-          onClick={() => onChange(option.value)}
+          onClick={() => {
+            if (option.value !== value) onChange(option.value);
+          }}
         >
           {option.label}
           {/* The space keeps the accessible name "Needs review 1". */}

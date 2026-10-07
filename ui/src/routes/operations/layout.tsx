@@ -21,8 +21,8 @@ import type {
 } from "../../events/run-events";
 import { QueryView } from "../../app/query-view";
 import type { StatusTone } from "../../app/status-tone";
-import { StatusChip, StatusGlyph } from "../../ui";
-import { Glance, TechnicalDisclosure } from "./common";
+import { StatusChip, StatusGlyph, TechnicalDetails } from "../../ui";
+import { Glance } from "./common";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
 import { OperationsLiveRefresh } from "./live-refresh";
@@ -184,7 +184,7 @@ function SnapshotDiagnostics({
   liveError: string | undefined;
 }) {
   return (
-    <TechnicalDisclosure
+    <TechnicalDetails
       className="ops-diagnostics operations-snapshot-record"
       summary="Diagnostics: snapshot and live connection"
       description="Snapshot cursor and live update transport, for operators and debugging."
@@ -219,7 +219,7 @@ function SnapshotDiagnostics({
           updates are unavailable.
         </p>
       </div>
-    </TechnicalDisclosure>
+    </TechnicalDetails>
   );
 }
 

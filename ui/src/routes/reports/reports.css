@@ -286,21 +286,12 @@
     var(--ui-pad-start, 1.75rem);
 }
 
-/* Where the footer is pinned (ui.css), a recorded decision stays bounded so
-   a long reason never covers the report: it scrolls inside the footer, which
-   also holds the decision's focus, so the keyboard scrolls it. The footer
-   draws the divider, so it stays put while the decision scrolls. */
+/* Where the footer is pinned, the recorded decision is capped and draws the
+   divider above it (ui.css .ui-footer-record), so the record drops its own. */
 @media (min-width: 821px) and (min-height: 560px) {
-  .reports-decision-footer:has(.decisions-record) {
-    max-height: min(45vh, 24rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border-top: 1px solid var(--line);
-  }
-
-  .reports-decision-footer:has(.decisions-record)
-    .decisions-request
-    > :is(.decisions-status, .decisions-record) {
+  .reports-decision-footer
+    .decisions-request.ui-footer-record
+    > .decisions-record {
     border-top: 0;
   }
 }

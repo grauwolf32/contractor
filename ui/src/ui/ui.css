@@ -225,12 +225,34 @@
   font-size: 0.78125rem;
 }
 
+/* A title that takes focus (titleRef) after what had focus went away. */
+:is(.ui-list-pane-title, .ui-detail-header-heading)[tabindex]:focus {
+  outline: none;
+}
+
+:is(.ui-list-pane-title, .ui-detail-header-heading)[tabindex]:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The title's controls wrap under it in a narrow pane and never grow past
+   it (320 px): the block shrinks, and so do its controls, so a select sizes
+   to the pane instead of to its longest option. */
 .ui-list-pane-actions {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ui-list-pane-actions > *,
+.ui-list-pane-actions :is(select, input, textarea) {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ui-list-pane-toolbar {
@@ -519,6 +541,19 @@ span.ui-row-control {
     position: sticky;
     bottom: 0;
     z-index: 2;
+  }
+
+  /* A recorded decision in the pinned footer (a DecisionRecord, a current
+     decision with a long reason) never covers the pane: the decision
+     components mark it with ui-footer-record, and it scrolls on its own.
+     It draws the divider itself, so the line stays put while the record
+     scrolls; its first block drops its own. The pending DecisionBar is
+     never marked, so it stays whole. */
+  .ui-detail-pane-footer .ui-footer-record {
+    max-height: min(45vh, 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--line);
   }
 }
 
@@ -825,6 +860,15 @@ span.ui-row-control {
   white-space: nowrap;
 }
 
+/* wrap: a value too long for its line breaks anywhere instead of ending in
+   an ellipsis, so the whole identifier stays readable. */
+.ui-id[data-wrap] .ui-id-chip-value {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .ui-id-chip-copy,
 .ui-id-chip-copy:not(:disabled):active {
   display: inline-grid;
@@ -903,7 +947,9 @@ span.ui-row-control {
   transition: transform 140ms ease;
 }
 
-.ui-tech[open] .ui-tech-chevron {
+/* Only its own summary: a closed disclosure nested in an open one keeps
+   its chevron pointing right. */
+.ui-tech[open] > summary .ui-tech-chevron {
   transform: rotate(90deg);
 }
 

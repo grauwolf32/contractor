@@ -22,6 +22,11 @@ export interface IdChipProps {
   label: string;
   /** Visible text instead of the shortened value (e.g. "name@version"). */
   display?: string | undefined;
+  /**
+   * Text too long for its line wraps (broken anywhere) instead of ending in
+   * an ellipsis, e.g. a full ID that must stay readable on a phone.
+   */
+  wrap?: boolean | undefined;
 }
 
 /**
@@ -32,7 +37,7 @@ export interface IdChipProps {
  * the user to press Ctrl+C (⌘+C on Apple platforms). Results are announced
  * politely.
  */
-export function IdChip({ value, label, display }: IdChipProps) {
+export function IdChip({ value, label, display, wrap = false }: IdChipProps) {
   const [message, setMessage] = useState("");
   const [selectRequest, setSelectRequest] = useState(0);
   const selectable = useRef<HTMLSpanElement>(null);
@@ -75,7 +80,7 @@ export function IdChip({ value, label, display }: IdChipProps) {
 
   const copied = message === COPIED;
   return (
-    <span className="ui-id">
+    <span className="ui-id" data-wrap={wrap ? "" : undefined}>
       <span className="ui-id-chip">
         <span className="ui-id-chip-value" title={value}>
           {display ?? shortenId(value)}

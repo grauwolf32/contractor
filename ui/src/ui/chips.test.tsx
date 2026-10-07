@@ -45,6 +45,18 @@ describe("IdChip", () => {
     expect(shortenId("1234567890abcdefg")).toBe("12345678…defg");
   });
 
+  it("marks the wrap variant and keeps the default unchanged", () => {
+    const value = "stage_execution_0f3c2a1b5d6e4f708a9b1c2d3e4f9e7d";
+    const { container, rerender } = render(
+      <IdChip value={value} display={value} label="stage execution ID" wrap />,
+    );
+    expect(container.querySelector(".ui-id")).toHaveAttribute("data-wrap", "");
+    expect(screen.getByText(value)).toHaveAttribute("title", value);
+    rerender(<IdChip value={value} label="stage execution ID" />);
+    expect(container.querySelector(".ui-id")).not.toHaveAttribute("data-wrap");
+    expect(screen.getByText(shortenId(value))).toBeInTheDocument();
+  });
+
   it("copies the full value and announces it", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     stubClipboard({ writeText });

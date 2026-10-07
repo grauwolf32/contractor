@@ -57,6 +57,7 @@ export {
   isApplePlatform,
   modKeyLabel,
   type ShortcutHandler,
+  type ShortcutBinding,
   type ShortcutBindings,
   type ShortcutOptions,
   type ListNavigation,

@@ -337,16 +337,6 @@ summary:focus-visible,
   margin-bottom: 1.25rem;
 }
 
-.operations-snapshot-record > summary {
-  cursor: pointer;
-  color: var(--muted-strong);
-  font-weight: 650;
-}
-
-.operations-snapshot-record[open] > summary {
-  margin-bottom: 1rem;
-}
-
 .skip-link {
   position: fixed;
   top: 0.75rem;

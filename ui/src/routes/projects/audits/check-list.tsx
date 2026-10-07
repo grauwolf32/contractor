@@ -42,7 +42,10 @@ import { auditProfileLabel } from "./labels";
 import { LoadMoreControl } from "./load-more";
 import { PathText } from "./path-text";
 
-/** Keys that move the selection through the list (useListNavigation). */
+/**
+ * Keys that move the selection through the list (useListNavigation); every
+ * row declares them.
+ */
 const LIST_KEYS = "J K ArrowDown ArrowUp Home End";
 
 function ActivityGlyph() {
@@ -105,6 +108,7 @@ function EntryRow({
       id={`check-${entry.row.itemId}`}
       to={links.item(entry.row.itemId)}
       selected={selected}
+      ariaKeyShortcuts={LIST_KEYS}
       glyph={<StatusGlyph tone={entry.status.tone} />}
       title={<EntryTitle entry={entry} prefix={prefix} />}
       meta={[
@@ -330,15 +334,12 @@ export function CheckListPane({
           />
         </div>
       ) : null}
-      <div
-        className="checks-list-rows"
-        aria-keyshortcuts={LIST_KEYS}
-        {...navigation}
-      >
+      <div className="checks-list-rows" {...navigation}>
         <ListSection>
           <ListRow
             to={links.overview}
             selected={activitySelected}
+            ariaKeyShortcuts={LIST_KEYS}
             glyph={<ActivityGlyph />}
             title="All activity"
             meta="What the whole check is doing, in plain words"

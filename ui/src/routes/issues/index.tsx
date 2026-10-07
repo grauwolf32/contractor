@@ -198,7 +198,7 @@ export function IssuesRoute() {
     next: CrossProjectIssue | undefined;
     previous: CrossProjectIssue | undefined;
   } | null>(null);
-  const listTitle = useRef<HTMLSpanElement>(null);
+  const listTitle = useRef<HTMLHeadingElement>(null);
   // Set when the last possible issue of the list was decided: the decision
   // and the row it came from go away, so focus moves to the list's title
   // once the list shows (the navigation renders in a later transition).
@@ -351,11 +351,8 @@ export function IssuesRoute() {
 
   const listPane = (
     <ListPane
-      title={
-        <span ref={listTitle} tabIndex={-1} className="issues-list-title">
-          Possible issues
-        </span>
-      }
+      title="Possible issues"
+      titleRef={listTitle}
       subtitle={
         <span className="issues-list-subtitle">
           {filters.project === undefined

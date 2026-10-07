@@ -70,10 +70,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
         label="Attempt filter"
         options={ATTEMPT_FILTERS}
         value={filter}
-        // Pressing the selected chip keeps the page and the open evidence.
-        onChange={(value) => {
-          if (value !== filter) update({ filter: value });
-        }}
+        onChange={(value) => update({ filter: value })}
       />
       <EvalError error={members.error} reload={() => void refresh()} />
       {members.data ? (

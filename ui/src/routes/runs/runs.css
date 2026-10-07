@@ -1916,7 +1916,7 @@ a.runs-publication-ref {
   overflow-wrap: anywhere;
 }
 
-/* A long execution ID chip shrinks to the line (with an ellipsis). */
+/* A long execution ID chip shrinks to the line and wraps (IdChip wrap). */
 .runs-transition > span {
   min-width: 0;
   max-width: 100%;
