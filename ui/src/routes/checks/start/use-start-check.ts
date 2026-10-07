@@ -144,13 +144,19 @@ export interface StartCheck {
   ) => string;
   readonly catalog: CheckTypeCatalog;
   readonly materials: ProjectMaterials;
-  /** Check types and readiness can be listed. */
+  /**
+   * Check types and readiness can be listed. A failed refresh of the check
+   * types keeps the ones read before listed.
+   */
   readonly listReady: boolean;
   readonly rows: readonly RowView[];
   /** Rows in list order (ready, then missing, unavailable or unknown). */
   readonly ordered: readonly RowView[];
-  /** The `type` parameter names no published check type. */
-  readonly unknownType: string | undefined;
+  /**
+   * The `type` parameter names no check type read so far; `partial` while
+   * more pages of check types can be loaded.
+   */
+  readonly unknownType: { name: string; partial: boolean } | undefined;
   readonly selection: Selection | undefined;
   /** Whether the `type` parameter chose the selection. */
   readonly typeChosen: boolean;
@@ -178,8 +184,10 @@ export interface StartCheck {
   readonly chooseVersion: (version: string) => void;
   /** The create request, when the form is complete. */
   readonly request: CreateAuditRequest | undefined;
-  /** What keeps the check from being created ("Choose the …"). */
+  /** What keeps the form from making a create request ("Choose the …"). */
   readonly draftBlocker: string | undefined;
+  /** What keeps "Save as draft" from running. */
+  readonly saveBlocker: string | undefined;
   /** What keeps the check from starting. */
   readonly startBlocker: string | undefined;
   readonly launch: Launch;
@@ -478,8 +486,33 @@ export function useStartCheck(
       runtimeLabels: parsedLabels.labels,
     });
   }
+  // What the page's earlier attempts mean for this one.
+  const created = launch.draft;
+  const failure = launch.startFailure;
+  const sameAsCreated = request !== undefined && launch.isDraftRequest(request);
+  let launchBlocker: string | undefined;
+  let saveBlocked = false;
+  if (created !== undefined && created.state !== "draft" && sameAsCreated) {
+    // Nothing left to create or start for this request.
+    launchBlocker = `${
+      created.state === "deleting"
+        ? "This check is being deleted."
+        : "This check has already started."
+    } To start another one, change the form.`;
+    saveBlocked = true;
+  } else if (
+    (failure?.kind === "lost" || failure?.kind === "unconfirmed") &&
+    request !== undefined &&
+    !sameAsCreated
+  ) {
+    // A changed form makes a second check, and the first may be running.
+    launchBlocker =
+      "The first check may already be running. Retry the first request or open the check before you start another one.";
+  }
+  const saveBlocker = draftBlocker ?? (saveBlocked ? launchBlocker : undefined);
   const startBlocker =
     draftBlocker ??
+    launchBlocker ??
     (deadlineSeconds === undefined
       ? "Enter a time limit from 0.01 to 8760 hours."
       : undefined);
@@ -497,8 +530,10 @@ export function useStartCheck(
     href: (changes) => hrefWith(params, changes),
     catalog,
     materials,
+    // From the pages read, not the query status: a failed refetch or "Load
+    // more" keeps the pages, and the list says what failed above them.
     listReady:
-      catalog.query.isSuccess &&
+      catalog.query.data !== undefined &&
       catalog.detailsSettled &&
       projectQuery.status !== "pending" &&
       (materialItems !== undefined
@@ -508,9 +543,9 @@ export function useStartCheck(
     ordered: rows,
     unknownType:
       typeParam !== undefined &&
-      catalog.query.isSuccess &&
+      catalog.query.data !== undefined &&
       requested === undefined
-        ? typeParam
+        ? { name: typeParam, partial: catalog.query.hasNextPage }
         : undefined,
     selection,
     typeChosen: requested !== undefined,
@@ -543,14 +578,24 @@ export function useStartCheck(
     },
     request,
     draftBlocker,
+    saveBlocker,
     startBlocker,
     launch,
     start: () => {
-      if (request !== undefined && deadlineSeconds !== undefined)
+      if (
+        startBlocker === undefined &&
+        launch.pending === undefined &&
+        request !== undefined &&
+        deadlineSeconds !== undefined
+      )
         launch.launch("start", { request, deadlineSeconds });
     },
     saveDraft: () => {
-      if (request !== undefined)
+      if (
+        saveBlocker === undefined &&
+        launch.pending === undefined &&
+        request !== undefined
+      )
         launch.launch("draft", {
           request,
           deadlineSeconds: deadlineSeconds ?? 0,

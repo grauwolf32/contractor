@@ -188,7 +188,13 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
         <div className="start-stack">
           <ErrorNotice
             error={materials.error}
-            context="The project's materials could not be loaded."
+            context={
+              materials.items === undefined
+                ? "The project's materials could not be loaded."
+                : materials.moreFailed
+                  ? "More of the project's materials could not be loaded."
+                  : "The project's materials could not be refreshed. The page uses the ones read before."
+            }
           />
           {/* Without any page, the list pane offers the retry. */}
           {materials.items === undefined ? null : (

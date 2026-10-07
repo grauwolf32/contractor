@@ -1,7 +1,8 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { AuditProfile } from "../../../api/audits";
+import { queryKeys } from "../../../api/query-keys";
 import {
   asvsPilot,
   asvsReview,
@@ -13,6 +14,7 @@ import {
   profileFixture,
   projectFixture,
   sourceZip,
+  startedAudit,
   startResponse,
   top10,
   trace,
@@ -20,7 +22,14 @@ import {
   wstgLive,
   wstgLiveDetail,
 } from "./test-fixtures";
-import { CSRF_TOKEN, failure, json, renderStart } from "./test-support";
+import {
+  CSRF_TOKEN,
+  failure,
+  gatewayFailure,
+  json,
+  page,
+  renderStart,
+} from "./test-support";
 
 const START = "/checks/new?project=project_shop";
 
@@ -297,6 +306,167 @@ describe("Start a check: check types", () => {
       ).toBe("owasp-top10-2025-source-risk"),
     );
   });
+
+  it("keeps the check types and Start check when refreshing them fails", async () => {
+    let unavailable = false;
+    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+      projects: [projectFixture()],
+      profiles: [top10],
+      profileList: () =>
+        unavailable ? gatewayFailure(503) : json(page([top10])),
+      materials: [sourceZip],
+    });
+    await waitForTypes();
+    unavailable = true;
+    // Through the project picker and back: the list is read again.
+    await user.click(
+      within(list()).getByRole("link", { name: "Change project" }),
+    );
+    await user.click(await screen.findByRole("link", { name: "Shop service" }));
+    expect(
+      await screen.findByText(
+        "Check types could not be refreshed. The list shows the ones read before.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
+    ).toBeVisible();
+    expect(startButton()).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save as draft" })).toBeEnabled();
+    unavailable = false;
+    await user.click(within(list()).getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/could not be refreshed/)).toBeNull(),
+    );
+  });
+
+  it("looks for a named check type on pages not read yet", async () => {
+    const { user } = renderStart(`${START}&type=source-checklist`, {
+      profiles: [top10, checklist],
+      profileList: (_request, url) =>
+        url.searchParams.get("cursor") === null
+          ? json(page([top10], { nextCursor: "2" }))
+          : json(page([checklist])),
+      materials: [sourceZip],
+    });
+    await waitForTypes();
+    expect(
+      screen.getByText(/is among those loaded so far\. Load more check types/),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Load more check types" }),
+    );
+    expect(
+      await within(setup()).findByRole("heading", {
+        level: 2,
+        name: "Custom checklist",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText(/is among those loaded so far/)).toBeNull();
+  });
+
+  it("keeps the check types when loading more of them fails", async () => {
+    let unavailable = true;
+    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+      profiles: [top10, checklist],
+      profileList: (_request, url) =>
+        url.searchParams.get("cursor") === null
+          ? json(page([top10], { nextCursor: "2" }))
+          : unavailable
+            ? gatewayFailure(502)
+            : json(page([checklist])),
+      materials: [sourceZip],
+    });
+    await waitForTypes();
+    await user.click(
+      screen.getByRole("button", { name: "Load more check types" }),
+    );
+    expect(
+      await screen.findByText("More check types could not be loaded."),
+    ).toBeVisible();
+    expect(
+      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
+    ).toBeVisible();
+    expect(startButton()).toBeEnabled();
+    unavailable = false;
+    await user.click(within(list()).getByRole("button", { name: "Try again" }));
+    expect(
+      await within(list()).findByRole("link", { name: "Custom checklist" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("More check types could not be loaded."),
+    ).toBeNull();
+  });
+
+  it("lets the user choose a scope the server can't run and shows why", async () => {
+    const pilot: AuditProfile = {
+      ...asvsPilot,
+      serverCompatible: false,
+      compatibilityReasons: ["multiple_rounds_unsupported"],
+    };
+    const { user, router } = renderStart(START, {
+      profiles: [asvsReview, pilot],
+      materials: [sourceZip],
+    });
+    await waitForTypes();
+    const scope = within(setup()).getByRole("group", { name: "Scope" });
+    const option = within(scope).getByRole("radio", {
+      name: /5 requirements.*not supported by this server/,
+    });
+    expect(option).toBeEnabled();
+    await user.click(option);
+    await waitFor(() =>
+      expect(
+        new URLSearchParams(router.state.location.search).get("type"),
+      ).toBe("owasp-asvs-5-0-l1-source-pilot"),
+    );
+    expect(
+      await within(setup()).findByText(
+        "The server does not support more than one round.",
+      ),
+    ).toBeVisible();
+    expect(startButton()).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save as draft" }),
+    ).toBeDisabled();
+  });
+
+  it("links to every check type in the Library", async () => {
+    renderStart(START, { profiles: [top10], materials: [sourceZip] });
+    await waitForTypes();
+    expect(
+      within(list()).getByRole("link", { name: "See all check types" }),
+    ).toHaveAttribute("href", "/catalog/audit-presets");
+  });
+
+  it("keeps the typed objective and the chosen type when changing the project", async () => {
+    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+      projects: [projectFixture()],
+      profiles: [top10],
+      materials: [sourceZip],
+    });
+    await waitForTypes();
+    await user.type(
+      screen.getByLabelText("Your objective, in your own words"),
+      "Review sessions",
+    );
+    const change = within(list()).getByRole("link", { name: "Change project" });
+    expect(change).toHaveAttribute(
+      "href",
+      "/checks/new?type=owasp-top10-2025-source-risk&objective=Review+sessions",
+    );
+    await user.click(change);
+    await user.click(await screen.findByRole("link", { name: "Shop service" }));
+    expect(
+      await screen.findByLabelText("Your objective, in your own words"),
+    ).toHaveValue("Review sessions");
+    expect(
+      await within(setup()).findByRole("heading", {
+        level: 2,
+        name: "OWASP Top 10 (2025) review",
+      }),
+    ).toBeVisible();
+  });
 });
 
 describe("Start a check: materials", () => {
@@ -447,6 +617,97 @@ describe("Start a check: materials", () => {
       await within(materials).findByText("sources/source-0@source-0-r1"),
     ).toBeVisible();
   });
+
+  it("reads a failed further page of materials again on retry", async () => {
+    const reads: string[] = [];
+    let unavailable = true;
+    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+      profiles: [top10],
+      materials: (_request, url) => {
+        const cursor = url.searchParams.get("cursor") ?? "0";
+        reads.push(cursor);
+        const index = Number(cursor);
+        if (index === 4 && unavailable) return gatewayFailure(503);
+        return json({
+          items: [
+            materialFixture(
+              `source-${index}`,
+              index === 0 ? "application/zip" : "text/plain",
+            ),
+          ],
+          page: { hasMore: index < 4, nextCursor: String(index + 1) },
+        });
+      },
+    });
+    await waitForTypes();
+    const materials = within(setup()).getByRole("region", {
+      name: "Materials",
+    });
+    await user.click(
+      within(materials).getByRole("button", { name: "Load more materials" }),
+    );
+    expect(
+      await within(materials).findByText(
+        "More of the project's materials could not be loaded.",
+      ),
+    ).toBeVisible();
+    // A partial inventory still waits for a choice.
+    expect(
+      within(materials).getByRole("combobox", {
+        name: "Material for Source code",
+      }),
+    ).toHaveValue("");
+    unavailable = false;
+    await user.click(
+      within(materials).getByRole("button", {
+        name: "Retry loading materials",
+      }),
+    );
+    expect(
+      await within(materials).findByText("sources/source-0@source-0-r1"),
+    ).toBeVisible();
+    // Only the failed page is read again.
+    expect(reads).toEqual(["0", "1", "2", "3", "4", "4"]);
+  });
+
+  it("keeps attached materials when refreshing them fails", async () => {
+    let unavailable = false;
+    const { queryClient } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: () =>
+          unavailable ? gatewayFailure(503) : json(page([sourceZip])),
+      },
+    );
+    await waitForTypes();
+    const materials = within(setup()).getByRole("region", {
+      name: "Materials",
+    });
+    expect(
+      within(materials).getByText(
+        "Attached: the only material in a matching format.",
+      ),
+    ).toBeVisible();
+    unavailable = true;
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: queryKeys.projects.artifacts.picker("project_shop"),
+      });
+    });
+    expect(
+      await within(materials).findByText(
+        "The project's materials could not be refreshed. The page uses the ones read before.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(materials).getByText(
+        "Attached: the only material in a matching format.",
+      ),
+    ).toBeVisible();
+    expect(within(materials).queryByRole("combobox")).toBeNull();
+    expect(startButton()).toBeEnabled();
+  });
 });
 
 describe("Start a check: options and starting", () => {
@@ -579,20 +840,44 @@ describe("Start a check: options and starting", () => {
       { profiles: [top10], materials: [sourceZip] },
     );
     await waitForTypes();
-    const objective = screen.getByLabelText(
-      "Your objective, in your own words",
-    );
-    expect(objective).toHaveAttribute(
+    expect(startButton()).toHaveAttribute(
       "aria-keyshortcuts",
       "Control+Enter Meta+Enter",
     );
-    await user.type(objective, "Quick risk review");
+    await user.type(
+      screen.getByLabelText("Your objective, in your own words"),
+      "Quick risk review",
+    );
     await user.keyboard("{Control>}{Enter}{/Control}");
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
         "/projects/project_shop/audits/audit_new",
       ),
     );
+    expect(sent("POST", "/start")).toHaveLength(1);
+  });
+
+  it("starts with Ctrl+Enter from the other fields, not from a link", async () => {
+    const { user, router, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      { profiles: [top10], materials: [sourceZip] },
+    );
+    await waitForTypes();
+    // On a link the key belongs to the link.
+    within(list()).getByRole("link", { name: "Change project" }).focus();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(sent("POST", "/audits")).toHaveLength(0);
+    await user.click(screen.getByText("Advanced options"));
+    await user.type(screen.getByLabelText("Runtime labels"), "debug");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/projects/project_shop/audits/audit_new",
+      ),
+    );
+    await expect(bodyOf(sent("POST", "/audits")[0])).resolves.toMatchObject({
+      runtimeLabels: ["debug"],
+    });
     expect(sent("POST", "/start")).toHaveLength(1);
   });
 
@@ -807,9 +1092,14 @@ describe("Start a check: lost and refused answers", () => {
       ),
     ).toBeVisible();
     expect(screen.getByText("The source archive is empty")).toBeVisible();
+    // Said only after a fresh read showed the draft.
+    expect(sent("GET", "/v1/audits/audit_new")).toHaveLength(1);
     expect(
       screen.getByRole("link", { name: "Open the draft" }),
     ).toHaveAttribute("href", "/projects/project_shop/audits/audit_new");
+    expect(
+      screen.getByText(/Start check tries this draft again\./),
+    ).toBeVisible();
     await user.click(startButton());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
@@ -818,6 +1108,200 @@ describe("Start a check: lost and refused answers", () => {
     );
     expect(sent("POST", "/projects/project_shop/audits")).toHaveLength(1);
     expect(sent("POST", "/start")).toHaveLength(2);
+  });
+
+  it("reads the check again after a refused start and stops when it already runs", async () => {
+    // The first start reached the server, but its answer was lost.
+    let starts = 0;
+    let running = false;
+    const { user, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: [sourceZip],
+        start: () => {
+          starts += 1;
+          if (starts === 1) {
+            running = true;
+            return Promise.reject(new TypeError("offline"));
+          }
+          return failure(412, "precondition_failed", "Audit revision changed");
+        },
+        audit: () => {
+          const draft = draftAudit(top10);
+          const audit = running ? startedAudit(draft) : draft;
+          return json(audit, 200, { ETag: `"${audit.revision}"` });
+        },
+      },
+    );
+    await waitForTypes();
+    await user.click(startButton());
+    await screen.findByText("The check may already have started.");
+    // A new time limit is a new start request (new key, same revision).
+    await user.selectOptions(screen.getByLabelText("Time limit"), "7 days");
+    await user.click(startButton());
+    expect(
+      await screen.findByText("This check has already started."),
+    ).toBeVisible();
+    expect(screen.getByText(/The server shows it as Running\./)).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Open the check" }),
+    ).toHaveAttribute("href", "/projects/project_shop/audits/audit_new");
+    expect(screen.queryByText(/did not start/)).toBeNull();
+    expect(startButton()).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save as draft" }),
+    ).toBeDisabled();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    const startRequests = sent("POST", "/start");
+    expect(startRequests).toHaveLength(2);
+    expect(
+      startRequests.map((request) => request.headers.get("If-Match")),
+    ).toEqual(['"1"', '"1"']);
+    expect(startRequests[1]?.headers.get("Idempotency-Key")).not.toBe(
+      startRequests[0]?.headers.get("Idempotency-Key"),
+    );
+    await expect(bodyOf(startRequests[1])).resolves.toEqual({
+      deadlineSeconds: 604800,
+    });
+    expect(sent("GET", "/v1/audits/audit_new")).toHaveLength(1);
+    expect(sent("POST", "/projects/project_shop/audits")).toHaveLength(1);
+  });
+
+  it("starts the newer revision after the draft changed on the server", async () => {
+    let starts = 0;
+    const changed = draftAudit(top10, { revision: 3 });
+    const { user, router, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: [sourceZip],
+        start: () => {
+          starts += 1;
+          return starts === 1
+            ? failure(412, "precondition_failed", "Audit revision changed")
+            : json(startResponse(changed), 200, { ETag: '"4"' });
+        },
+        audit: () => json(changed, 200, { ETag: '"3"' }),
+      },
+    );
+    await waitForTypes();
+    await user.click(startButton());
+    expect(
+      await screen.findByText(
+        "The check was saved as a draft but did not start.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        /The check changed on the server after this page read it\. The page has read it again; review it before you start it again\./,
+      ),
+    ).toBeVisible();
+    await user.click(startButton());
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/projects/project_shop/audits/audit_new",
+      ),
+    );
+    expect(
+      sent("POST", "/start").map((request) => request.headers.get("If-Match")),
+    ).toEqual(['"1"', '"3"']);
+  });
+
+  it("does not say a check did not start after a gateway failure", async () => {
+    let starts = 0;
+    const { user, router, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: [sourceZip],
+        start: () => {
+          starts += 1;
+          return starts === 1
+            ? gatewayFailure(504)
+            : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
+        },
+      },
+    );
+    await waitForTypes();
+    await user.click(startButton());
+    expect(
+      await screen.findByText("The check may already have started."),
+    ).toBeVisible();
+    expect(screen.getByText("The start request failed.")).toBeVisible();
+    expect(
+      screen.getByText(/The server still shows it as a draft/),
+    ).toBeVisible();
+    expect(screen.queryByText(/did not start/)).toBeNull();
+    expect(sent("GET", "/v1/audits/audit_new")).toHaveLength(1);
+    await user.click(
+      screen.getByRole("button", { name: "Retry same request" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/projects/project_shop/audits/audit_new",
+      ),
+    );
+    const startRequests = sent("POST", "/start");
+    expect(startRequests).toHaveLength(2);
+    expect(startRequests[1]?.headers.get("Idempotency-Key")).toBe(
+      startRequests[0]?.headers.get("Idempotency-Key"),
+    );
+    expect(startRequests[1]?.headers.get("If-Match")).toBe('"1"');
+  });
+
+  it("holds Start check after a lost start answer and a changed form", async () => {
+    let starts = 0;
+    const { user, router, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: [sourceZip],
+        start: () => {
+          starts += 1;
+          if (starts === 1) return Promise.reject(new TypeError("offline"));
+          return json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
+        },
+      },
+    );
+    await waitForTypes();
+    await user.click(startButton());
+    await screen.findByText("The check may already have started.");
+    expect(screen.getByText(/it cannot start the check twice/)).toBeVisible();
+    await user.type(
+      screen.getByLabelText("Your objective, in your own words"),
+      "Changed",
+    );
+    expect(
+      screen.getByText(
+        /The form changed since, so Start check would create and start a second check while the first one may be running\./,
+      ),
+    ).toBeVisible();
+    expect(startButton()).toBeDisabled();
+    expect(
+      screen.getByText(
+        "The first check may already be running. Retry the first request or open the check before you start another one.",
+      ),
+    ).toBeVisible();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(sent("POST", "/projects/project_shop/audits")).toHaveLength(1);
+    expect(sent("POST", "/start")).toHaveLength(1);
+    // The first request, unchanged, settles it.
+    await user.click(
+      screen.getByRole("button", { name: "Retry same request" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/projects/project_shop/audits/audit_new",
+      ),
+    );
+    expect(sent("POST", "/projects/project_shop/audits")).toHaveLength(1);
+    const startRequests = sent("POST", "/start");
+    expect(startRequests).toHaveLength(2);
+    expect(startRequests[1]?.headers.get("Idempotency-Key")).toBe(
+      startRequests[0]?.headers.get("Idempotency-Key"),
+    );
   });
 
   it("shows a refused create with the server's message", async () => {

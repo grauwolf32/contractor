@@ -58,14 +58,15 @@ export function StartCheckPage({
           }
         >
           {!model.listReady ? (
-            model.catalog.query.error === null ? (
-              <p className="start-quiet" role="status">
-                Loading check types…
-              </p>
-            ) : (
+            model.catalog.query.data === undefined &&
+            model.catalog.query.error !== null ? (
               <EmptyState title="Check types could not be loaded">
                 Try again from the list.
               </EmptyState>
+            ) : (
+              <p className="start-quiet" role="status">
+                Loading check types…
+              </p>
             )
           ) : selection === undefined ? (
             <EmptyState title="No check type to set up">

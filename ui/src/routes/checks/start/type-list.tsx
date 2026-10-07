@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
+import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../../app/error-notice";
 import {
   EmptyState,
@@ -106,6 +107,7 @@ export function TypeList({
   containerProps: ListNavigationContainerProps;
 }) {
   const { catalog, materials, project, projectId, rows } = model;
+  const { query } = catalog;
   const paths = projectPaths(projectId);
   const projectName = project?.name;
   const groups = (
@@ -115,16 +117,21 @@ export function TypeList({
     return members.length === 0 ? [] : [{ group, members }];
   });
   const count = rows.length;
+  // Changing the project keeps what the user typed and the chosen type.
+  const changeProject = model.href({
+    project: undefined,
+    objective: model.objective.trim() || undefined,
+  });
 
   let body;
-  if (catalog.query.error !== null && catalog.query.data === undefined)
+  if (query.error !== null && query.data === undefined)
     body = (
       <div className="start-pane-block">
         <ErrorNotice
-          error={catalog.query.error}
+          error={query.error}
           context="Check types could not be loaded."
-          onRetry={() => void catalog.query.refetch()}
-          retryPending={catalog.query.isFetching}
+          onRetry={() => void query.refetch()}
+          retryPending={query.isFetching}
         />
       </div>
     );
@@ -170,9 +177,7 @@ export function TypeList({
           {model.listReady && count > 0
             ? `${count} check ${count === 1 ? "type" : "types"} · `
             : null}
-          <Link to={model.href({ project: undefined, type: undefined })}>
-            Change project
-          </Link>
+          <Link to={changeProject}>Change project</Link>
         </>
       }
       footer={
@@ -181,16 +186,24 @@ export function TypeList({
             <Kbd>J</Kbd> <Kbd>K</Kbd> move
           </span>
           <span>
-            <Kbd>{modKeyLabel()}</Kbd> <Kbd>Enter</Kbd> starts from the
-            objective
+            <Kbd>{modKeyLabel()}</Kbd> <Kbd>Enter</Kbd> starts the check
           </span>
         </>
       }
     >
       {model.unknownType === undefined ? null : (
         <p className="start-pane-block start-notice" role="status">
-          This server lists no check type named <code>{model.unknownType}</code>
-          . Choose one below.
+          {model.unknownType.partial ? (
+            <>
+              No check type named <code>{model.unknownType.name}</code> is among
+              those loaded so far. Load more check types to look further.
+            </>
+          ) : (
+            <>
+              This server lists no check type named{" "}
+              <code>{model.unknownType.name}</code>. Choose one below.
+            </>
+          )}
         </p>
       )}
       {project === undefined && model.listReady ? (
@@ -223,19 +236,36 @@ export function TypeList({
           this project. Load more from a check type&apos;s Materials.
         </p>
       ) : null}
+      {/* A failed refresh or "Load more" keeps the check types read before. */}
+      {query.error !== null && query.data !== undefined ? (
+        <div className="start-pane-block">
+          <ErrorNotice
+            error={query.error}
+            context={
+              query.isFetchNextPageError
+                ? "More check types could not be loaded."
+                : "Check types could not be refreshed. The list shows the ones read before."
+            }
+            onRetry={() =>
+              void (query.isFetchNextPageError
+                ? query.fetchNextPage()
+                : query.refetch())
+            }
+            retryPending={query.isFetching}
+          />
+        </div>
+      ) : null}
       {body}
-      {catalog.query.hasNextPage ? (
+      {query.hasNextPage ? (
         <div className="start-pane-block">
           <button
             type="button"
             className="ui-btn"
             data-size="sm"
-            disabled={catalog.query.isFetchingNextPage}
-            onClick={() => void catalog.query.fetchNextPage()}
+            disabled={query.isFetchingNextPage}
+            onClick={() => void query.fetchNextPage()}
           >
-            {catalog.query.isFetchingNextPage
-              ? "Loading…"
-              : "Load more check types"}
+            {query.isFetchingNextPage ? "Loading…" : "Load more check types"}
           </button>
         </div>
       ) : null}
@@ -244,6 +274,14 @@ export function TypeList({
           Add materials or a live target to unlock more check types.{" "}
           <Link to={paths.addMaterial}>Add materials</Link> ·{" "}
           <Link to={paths.settings}>Project settings</Link>
+        </p>
+      ) : null}
+      {model.listReady && count > 0 ? (
+        <p className="start-pane-block start-quiet">
+          <ContextLink to="/catalog/audit-presets" returnLabel="Start a check">
+            See all check types
+          </ContextLink>{" "}
+          in the Library, with what each one covers.
         </p>
       ) : null}
     </ListPane>

@@ -142,7 +142,10 @@ export function useProfileDetail(profile: AuditProfile | undefined) {
 export interface ProjectMaterials {
   /** Current materials read so far; undefined until the first page arrives. */
   items: ArtifactMetadata[] | undefined;
-  /** Every page is read, so a single format match is the only one. */
+  /**
+   * Every page is read, so a single format match is the only one. A failed
+   * refresh keeps the pages read before, so it keeps this too.
+   */
   complete: boolean;
   /** Pages are still being read on their own. */
   loading: boolean;
@@ -150,8 +153,10 @@ export interface ProjectMaterials {
   hasMore: boolean;
   loadingMore: boolean;
   error: Error | null;
+  /** The error came from reading a further page; the pages before it stay. */
+  moreFailed: boolean;
   loadMore: () => void;
-  /** Reads the failed page again. */
+  /** Reads the failed page again, or every page after a failed refresh. */
   retry: () => void;
   retrying: boolean;
 }
@@ -168,8 +173,16 @@ export function useProjectMaterials(projectId: string): ProjectMaterials {
       }),
     getNextPageParam: (page) => nextPageCursor(page.page),
   });
-  const { fetchNextPage, hasNextPage, isFetching, isError, refetch } = query;
-  const loadedPages = query.data?.pages.length ?? 0;
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isError,
+    isFetchNextPageError,
+    refetch,
+  } = query;
+  const loadedPages = data?.pages.length ?? 0;
   const autoloading =
     hasNextPage && !isError && loadedPages < MATERIAL_AUTOLOAD_PAGES;
   // The page count is a dependency too: a fast page can finish before its
@@ -178,18 +191,21 @@ export function useProjectMaterials(projectId: string): ProjectMaterials {
     if (autoloading && !isFetching) void fetchNextPage();
   }, [autoloading, fetchNextPage, isFetching, loadedPages]);
   const items = useMemo(
-    () => query.data?.pages.flatMap((page) => page.items),
-    [query.data],
+    () => data?.pages.flatMap((page) => page.items),
+    [data],
   );
   return {
     items,
-    complete: query.isSuccess && !hasNextPage,
+    // From the pages read, not the query status: a failed refresh (on mount,
+    // reconnect or invalidation) keeps them, and with them the attachments.
+    complete: data !== undefined && !hasNextPage && !isFetchNextPageError,
     loading: query.isPending || autoloading,
     hasMore: hasNextPage && !autoloading && !isError,
     loadingMore: query.isFetchingNextPage,
     error: query.error,
+    moreFailed: isFetchNextPageError,
     loadMore: () => void fetchNextPage(),
-    retry: () => void (hasNextPage ? fetchNextPage() : refetch()),
+    retry: () => void (isFetchNextPageError ? fetchNextPage() : refetch()),
     retrying: isFetching,
   };
 }

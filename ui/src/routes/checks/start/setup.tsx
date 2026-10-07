@@ -1,8 +1,9 @@
-import { useId, type KeyboardEvent } from "react";
+import { useId, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { ErrorNotice } from "../../../app/error-notice";
-import { IdChip, Kbd, modKeyLabel } from "../../../ui";
+import { checkStateLabel } from "../../../app/vocabulary";
+import { IdChip, Kbd, modKeyLabel, useShortcuts } from "../../../ui";
 import { AdvancedOptions } from "./advanced";
 import {
   compatibilityReasonText,
@@ -12,7 +13,7 @@ import {
 } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { BulbIcon, ChevronIcon, PlayIcon } from "./icons";
-import { checkPath, isLostResponse } from "./launch";
+import { checkPath, isLostResponse, type StartFailure } from "./launch";
 import { MaterialsCard } from "./materials";
 import { projectPaths } from "./paths";
 import { SCOPE_TEXT_LIMIT } from "./request";
@@ -67,21 +68,6 @@ function ObjectiveField({ model }: { model: StartCheck }) {
   const { suggestion } = model.suggestions;
   const chosen = model.selection?.family.name;
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      event.key === "Enter" &&
-      (event.ctrlKey || event.metaKey) &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      if (
-        model.startBlocker === undefined &&
-        model.launch.pending === undefined
-      )
-        model.start();
-    }
-  }
-
   let line;
   if (model.objective.trim() === "")
     line =
@@ -120,9 +106,7 @@ function ObjectiveField({ model }: { model: StartCheck }) {
         maxLength={SCOPE_TEXT_LIMIT}
         placeholder="For example: check the shop API for broken access control"
         aria-describedby={`${id}-suggestion`}
-        aria-keyshortcuts="Control+Enter Meta+Enter"
         onChange={(event) => model.setObjective(event.target.value)}
-        onKeyDown={onKeyDown}
       />
       <p id={`${id}-suggestion`} className="start-suggestion-line">
         <BulbIcon />
@@ -181,18 +165,19 @@ function TypeSection({ model }: { model: StartCheck }) {
           retryPending={detail.isFetching}
         />
       ) : null}
-      {readiness?.state === "unavailable" ? (
+      {/* From the version itself: it does not depend on the materials. */}
+      {selection.profile.serverCompatible ? null : (
         <div className="notice notice-error" role="note">
           <strong>This check type can&apos;t run on this server.</strong>
           <p>
-            {readiness.reasons.length === 0
+            {selection.profile.compatibilityReasons.length === 0
               ? "The server gives no reason."
-              : `The server does not support ${readiness.reasons
+              : `The server does not support ${selection.profile.compatibilityReasons
                   .map(compatibilityReasonText)
                   .join(", ")}.`}
           </p>
         </div>
-      ) : null}
+      )}
       {readiness?.state === "missing" ? (
         <div className="notice notice-warning" role="note">
           <strong>
@@ -245,6 +230,8 @@ function ScopeCard({ model }: { model: StartCheck }) {
       <legend className="start-card-legend">Scope</legend>
       {variants.map((family) => {
         const summary = scopeSummary(family.preferred);
+        // Still selectable: choosing it shows the server's reasons, and the
+        // footer keeps it from being created or started.
         const unsupported = !family.preferred.serverCompatible;
         return (
           <label key={family.name} className="start-scope-option">
@@ -252,7 +239,6 @@ function ScopeCard({ model }: { model: StartCheck }) {
               type="radio"
               name={`${id}-scope`}
               checked={family.name === selection.family.name}
-              disabled={unsupported}
               onChange={() =>
                 void navigate(model.href({ type: family.name }), {
                   replace: true,
@@ -408,13 +394,63 @@ function timeSentence(seconds: number | undefined): string {
     : `It starts no new work after ${describeTimeLimit(seconds)}; work already running can finish.`;
 }
 
+/**
+ * After a start request failed and nobody knows yet whether it went through
+ * (a lost answer, a server or gateway failure, or a check that could not be
+ * read again).
+ */
+function UnconfirmedStartNotice({
+  failure,
+  open,
+  changed,
+  onRetry,
+}: {
+  failure: Extract<StartFailure, { kind: "lost" | "unconfirmed" }>;
+  open: string;
+  changed: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
+      {failure.kind === "lost" ? null : (
+        <ErrorNotice
+          error={failure.error}
+          context="The start request failed."
+        />
+      )}
+      <div className="notice notice-warning" role="alert">
+        <strong>The check may already have started.</strong>
+        <p>
+          {failure.kind === "lost"
+            ? "The answer to the start request did not arrive."
+            : failure.stillDraft
+              ? "The server still shows it as a draft, but a request that failed this way can still go through."
+              : "The page could not read the check again to see whether it started."}{" "}
+          {changed
+            ? "The form changed since, so Start check would create and start a second check while the first one may be running. “Retry same request” sends the first request again."
+            : "“Retry same request” sends it again with the same key, so it cannot start the check twice."}{" "}
+          <Link to={open}>Open the check</Link>
+        </p>
+        <button
+          type="button"
+          className="ui-btn"
+          data-size="sm"
+          onClick={onRetry}
+        >
+          Retry same request
+        </button>
+      </div>
+    </>
+  );
+}
+
 function LaunchNotices({ model }: { model: StartCheck }) {
   const { launch, request } = model;
   const draft = launch.draft;
   if (launch.pending !== undefined) return null;
   const createError = launch.createError;
-  const startError = launch.startError;
-  // The form no longer matches the draft this page created.
+  const failure = launch.startFailure;
+  // The form no longer matches the check this page created.
   const changed = request !== undefined && !launch.isDraftRequest(request);
   if (createError !== null && isLostResponse(createError)) {
     const same = request !== undefined && launch.isLastRequest(request);
@@ -447,68 +483,108 @@ function LaunchNotices({ model }: { model: StartCheck }) {
         context="The check was not created."
       />
     );
-  if (startError !== null && draft !== undefined) {
+  if (failure !== undefined && draft !== undefined) {
     const open = checkPath(model.projectId, draft.auditId);
-    if (isLostResponse(startError))
+    if (failure.kind === "started")
       return (
         <div className="notice notice-warning" role="alert">
-          <strong>The check may already have started.</strong>
+          <strong>
+            {draft.state === "deleting"
+              ? "This check is being deleted."
+              : "This check has already started."}
+          </strong>
           <p>
-            The answer to the start request did not arrive. Retrying sends the
-            same request; it cannot start the check twice.{" "}
+            The server shows it as {checkStateLabel(draft.state).label}.{" "}
+            {changed
+              ? "The form changed, so Start check creates and starts another check. "
+              : null}
             <Link to={open}>Open the check</Link>
           </p>
-          <button
-            type="button"
-            className="ui-btn"
-            data-size="sm"
-            onClick={launch.retryStart}
-          >
-            Retry same request
-          </button>
         </div>
       );
+    // A fresh read shows the draft, and the server said why it refused.
+    if (failure.kind === "refused")
+      return (
+        <>
+          <ErrorNotice
+            error={failure.error}
+            context="The check was saved as a draft but did not start."
+          />
+          <p className="start-tight">
+            {failure.revisionChanged
+              ? "The check changed on the server after this page read it. The page has read it again; review it before you start it again. "
+              : null}
+            <Link to={open}>Open the draft</Link> to see it.{" "}
+            {changed
+              ? "The form changed, so starting now creates a new check; the draft stays."
+              : "Start check tries this draft again."}
+          </p>
+        </>
+      );
     return (
-      <>
-        <ErrorNotice
-          error={startError}
-          reconcileWrite
-          context="The check was saved as a draft but did not start."
-        />
-        <p className="start-tight">
-          <Link to={open}>Open the draft</Link> to see it.{" "}
-          {changed
-            ? "The form changed, so starting now creates a new check; the draft stays."
-            : "Start check tries this draft again."}
-        </p>
-      </>
+      <UnconfirmedStartNotice
+        failure={failure}
+        open={open}
+        changed={changed}
+        onRetry={launch.retryStart}
+      />
     );
   }
   if (draft !== undefined && changed)
     return (
       <p className="start-tight start-quiet">
-        Your earlier attempt is saved as a draft (
+        {draft.state === "draft"
+          ? "Your earlier attempt is saved as a draft ("
+          : "Your earlier check has started ("}
         <Link to={checkPath(model.projectId, draft.auditId)}>open it</Link>).
-        Starting now creates a new check.
+        Starting now creates {draft.state === "draft" ? "a new" : "another"}{" "}
+        check.
       </p>
     );
   return null;
 }
 
+/** False while a narrow layout hides the pane the element is in. */
+function isRendered(element: Element): boolean {
+  return typeof element.checkVisibility === "function"
+    ? element.checkVisibility()
+    : true;
+}
+
 /** The pinned bar: a plain summary, Save as draft and Start check. */
 export function SetupFooter({ model }: { model: StartCheck }) {
   const id = useId();
+  const startButton = useRef<HTMLButtonElement>(null);
   const { launch, selection } = model;
-  if (selection === undefined) return null;
   const pending = launch.pending !== undefined;
+  // Ctrl/⌘+Enter starts the check from any field of the setup, and from
+  // anywhere else on the page while the Start check button shows. The
+  // binding stays on while starting is blocked, so the key never types a
+  // line break into a field instead; model.start() checks the blockers.
+  useShortcuts({
+    "mod+enter": (event) => {
+      const button = startButton.current;
+      if (button === null || !isRendered(button)) return;
+      // Focus on a link: the key was meant for the link, not for starting.
+      if (
+        event.target instanceof Element &&
+        event.target.closest("a[href]") !== null
+      )
+        return;
+      model.start();
+    },
+  });
+  if (selection === undefined) return null;
   const status =
     launch.pending === undefined
       ? ""
-      : launch.step === "start"
-        ? "Starting the check…"
-        : launch.pending === "draft"
-          ? "Saving the draft…"
-          : "Creating the check…";
+      : launch.step === "verify"
+        ? "Checking whether the check started…"
+        : launch.step === "start"
+          ? "Starting the check…"
+          : launch.pending === "draft"
+            ? "Saving the draft…"
+            : "Creating the check…";
   const hint = pending ? undefined : model.startBlocker;
   const projectName = model.project?.name ?? "this project";
   return (
@@ -527,18 +603,20 @@ export function SetupFooter({ model }: { model: StartCheck }) {
           <button
             type="button"
             className="ui-btn"
-            disabled={pending || model.draftBlocker !== undefined}
+            disabled={pending || model.saveBlocker !== undefined}
             aria-describedby={`${id}-draft`}
             onClick={model.saveDraft}
           >
             {launch.pending === "draft" ? "Saving…" : "Save as draft"}
           </button>
           <button
+            ref={startButton}
             type="button"
             className="ui-btn start-primary"
             data-variant="primary"
             disabled={pending || model.startBlocker !== undefined}
             aria-describedby={hint === undefined ? undefined : `${id}-hint`}
+            aria-keyshortcuts="Control+Enter Meta+Enter"
             onClick={model.start}
           >
             <PlayIcon />

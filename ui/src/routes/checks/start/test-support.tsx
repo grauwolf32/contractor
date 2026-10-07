@@ -7,7 +7,7 @@ import { RouterProvider } from "react-router/dom";
 import { vi } from "vitest";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
-import type { AuditProfile } from "../../../api/audits";
+import type { Audit, AuditProfile } from "../../../api/audits";
 import { PublicAPI } from "../../../api/client";
 import { PublicAPIProvider } from "../../../api/context";
 import type { Project } from "../../../api/projects";
@@ -43,8 +43,22 @@ export function failure(status: number, code: string, message: string) {
   return json({ code, message, retryable: false, requestId: "req_1" }, status);
 }
 
-function page(items: unknown[]) {
-  return { items, page: { hasMore: false } };
+/** A gateway's error page: no API version header, no error envelope. */
+export function gatewayFailure(status: number): Response {
+  return new Response("Gateway error", {
+    status,
+    headers: { "Content-Type": "text/plain" },
+  });
+}
+
+export function page(items: unknown[], more?: { nextCursor: string }) {
+  return {
+    items,
+    page:
+      more === undefined
+        ? { hasMore: false }
+        : { hasMore: true, nextCursor: more.nextCursor },
+  };
 }
 
 type Answer = (request: Request, url: URL) => Response | Promise<Response>;
@@ -55,6 +69,8 @@ export interface FakeStartServer {
   /** The project read by ID; null answers 404. */
   project?: Project | null;
   profiles?: AuditProfile[];
+  /** GET /v1/audit-profiles; one page of `profiles` otherwise. */
+  profileList?: Answer;
   /** Detail responses by "name@version"; the list item otherwise. */
   details?: Record<string, AuditProfile>;
   materials?: ArtifactMetadata[] | Answer;
@@ -62,6 +78,15 @@ export interface FakeStartServer {
   create?: Answer;
   /** POST /v1/audits/{id}/start; the started draft otherwise. */
   start?: Answer;
+  /**
+   * GET /v1/audits/{id}; otherwise the check as the default create and start
+   * answers left it (a draft at revision 1 when they were replaced).
+   */
+  audit?: Answer;
+}
+
+function auditResponse(audit: Audit): Response {
+  return json(audit, 200, { ETag: `"${audit.revision}"` });
 }
 
 export function renderStart(path: string, server: FakeStartServer = {}) {
@@ -69,6 +94,8 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
   const project =
     server.project === undefined ? projectFixture() : server.project;
   const profiles = server.profiles ?? [];
+  // Checks as the default create and start answers left them.
+  const audits = new Map<string, Audit>();
 
   async function answer(request: Request, url: URL): Promise<Response> {
     const path = url.pathname;
@@ -80,7 +107,10 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
         ? failure(404, "not_found", "Project not found")
         : json(project, 200, { ETag: `"${project.revision}"` });
     }
-    if (path === "/v1/audit-profiles") return json(page(profiles));
+    if (path === "/v1/audit-profiles")
+      return server.profileList === undefined
+        ? json(page(profiles))
+        : server.profileList(request, url);
     const detail = /^\/v1\/audit-profiles\/([^/]+)\/versions\/([^/]+)$/.exec(
       path,
     );
@@ -114,15 +144,27 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
       );
       if (profile === undefined)
         return failure(404, "not_found", "Check type not found");
-      return json(draftAudit(profile), 201, { ETag: '"1"' });
+      const draft = draftAudit(profile);
+      audits.set(draft.auditId, draft);
+      return json(draft, 201, { ETag: '"1"' });
     }
     const start = /^\/v1\/audits\/([^/]+)\/start$/.exec(path);
     if (start !== null && request.method === "POST") {
       if (server.start !== undefined) return server.start(request, url);
-      const draft = draftAudit(profiles[0]!, {
-        auditId: decodeURIComponent(start[1] ?? ""),
-      });
-      return json(startResponse(draft), 200, { ETag: '"2"' });
+      const auditId = decodeURIComponent(start[1] ?? "");
+      const draft =
+        audits.get(auditId) ?? draftAudit(profiles[0]!, { auditId });
+      const started = startResponse(draft);
+      audits.set(auditId, started.audit);
+      return json(started, 200, { ETag: `"${started.audit.revision}"` });
+    }
+    const auditRead = /^\/v1\/audits\/([^/]+)$/.exec(path);
+    if (auditRead !== null && request.method === "GET") {
+      if (server.audit !== undefined) return server.audit(request, url);
+      const auditId = decodeURIComponent(auditRead[1] ?? "");
+      return auditResponse(
+        audits.get(auditId) ?? draftAudit(profiles[0]!, { auditId }),
+      );
     }
     return failure(404, "not_found", `No fake route for ${path}`);
   }
