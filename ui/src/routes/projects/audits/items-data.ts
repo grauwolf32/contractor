@@ -10,10 +10,10 @@ import { useAuditCollection } from "./collections";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 /**
- * The Audit item (check) collection: attempts, produced artifacts and the
- * exact identity of every check. Bounded by the page cap and polled only
- * while the Audit or its submitted Runs can change; `enabled` lets a view
- * read it lazily.
+ * The check's item collection: kind, execution state, attempts, produced
+ * results and the exact identity of every endpoint, requirement or scenario.
+ * Bounded by the page cap and polled only while the check or its submitted
+ * runs can change; `enabled` lets a view skip it (drafts have no items).
  */
 export function useAuditItems(
   audit: Audit,
@@ -34,7 +34,7 @@ export function useAuditItems(
         cursor === undefined ? {} : { cursor },
       ),
     enabled,
-    refetchInterval: auditPollInterval([audit], 1_000),
+    refetchInterval: auditPollInterval([audit], 5_000),
   });
   useAuditProjectionRefresh(audit, queryKey, enabled);
   return query;

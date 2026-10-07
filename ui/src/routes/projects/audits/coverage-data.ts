@@ -23,11 +23,17 @@ interface CoverageBatch extends AuditCollection<AuditCoverageRow> {
   revision: number;
 }
 
-export function useAuditCoverage(audit: Audit) {
+/**
+ * The current round's coverage rows of a check, in batches of the page cap.
+ * `pin` is the revision the rows must belong to (the URL's `auditRevision`
+ * by default): a pinned read is a snapshot and is never refreshed, while an
+ * unpinned one follows the check and polls while it can change.
+ */
+export function useAuditCoverage(audit: Audit, pin?: string | null) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
-  const expected = params.get("auditRevision");
+  const expected = pin === undefined ? params.get("auditRevision") : pin;
   const queryKey = [
     ...queryKeys.audits.allCoverage(audit.auditId),
     // A revision pin identifies its own snapshot even if a new round starts.
@@ -45,7 +51,8 @@ export function useAuditCoverage(audit: Audit) {
         new PublicAPIError({
           status: 409,
           code: "revision_conflict",
-          message: "Audit changed; refresh the coverage context.",
+          message:
+            "The check changed while its results were read; refresh them.",
         });
       // An unpinned first batch can straddle one revision bump. Retry that
       // whole batch once; pinned and continuation reads remain strict.

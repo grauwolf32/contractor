@@ -1,138 +1,249 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
 
-import { type Audit, type AuditItem } from "../../../api/audits";
-import { usePublicAPI } from "../../../api/context";
+import {
+  auditPollInterval,
+  type Audit,
+  type AuditItem,
+} from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../../app/error-notice";
-import { StateBadge } from "../../runs/components";
-import { auditCheckTitle } from "./check-title";
-import { useAuditCoverage } from "./coverage-data";
-import { useAuditItems } from "./items-data";
+import { compactId } from "../../../app/format";
 import { StaleDataWarning } from "../../../app/query-view";
+import { capitalize, itemNoun, type ItemKind } from "../../../app/vocabulary";
+import { TechnicalDetails } from "../../../ui";
+import { auditCheckTitle } from "./check-title";
+import { itemBeyondLoaded, type CheckEntry } from "./check-model";
+import { itemHash, sectionPath } from "./check-links";
+import type { AuditCollectionQuery } from "./collections";
 import { LoadMoreControl } from "./load-more";
 import { ExactArtifactLink } from "./shared";
-import { compactId } from "../../../app/format";
 
-/**
- * Attempts, produced artifacts and exact identity of one check, as read from
- * the item collection. Rendered inside the opened Coverage row.
- */
-export function AuditItemDetails({
-  audit,
-  item,
-}: {
-  audit: Audit;
-  item: AuditItem;
-}) {
+type AuditItemAttempt = AuditItem["attempts"][number];
+
+function RunLink({ attempt }: { attempt: AuditItemAttempt }) {
+  if (attempt.runId === undefined) return <>No run</>;
   return (
-    <div className="audit-item-details" id={`check-${item.itemId}-attempts`}>
-      <p className="audit-item-status">
-        <StateBadge state={item.state} />
-        <span className="muted-copy">
-          {item.workflowRole} · {item.finalDisposition ?? "Pending assessment"}{" "}
-          · {item.attempts.length} attempts
-        </span>
-      </p>
-      {item.attempts.length === 0 ? (
-        <p className="muted-copy">No Run submitted.</p>
-      ) : (
-        <ol className="audit-attempt-list">
-          {item.attempts.map((attempt) => (
-            <li key={attempt.executionItemId}>
-              <span>
-                Attempt {attempt.itemAttempt} · {attempt.state}
-              </span>
-              <span>
-                {attempt.terminalOutcome ?? "not terminal"} ·{" "}
-                {attempt.collectionDisposition ?? "not collected"}
-              </span>
-              {attempt.runId === undefined ? (
-                <span>No child Run</span>
-              ) : (
-                <ContextLink
-                  returnLabel="Audit"
-                  to={`/runs/${encodeURIComponent(attempt.runId)}`}
-                >
-                  {attempt.runDeleted
-                    ? "Deleted Run provenance"
-                    : attempt.runId}
-                </ContextLink>
-              )}
-              {attempt.result === undefined ? null : (
-                <ExactArtifactLink
-                  projectId={audit.projectId}
-                  artifact={attempt.result}
-                  label="Produced result"
-                />
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-      <div className="audit-artifact-list">
-        <ExactArtifactLink
-          projectId={audit.projectId}
-          artifact={item.task}
-          label="Task package"
-        />
-        {item.acceptedResult === undefined ? null : (
-          <ExactArtifactLink
-            projectId={audit.projectId}
-            artifact={item.acceptedResult}
-            label="Accepted result"
-          />
-        )}
-      </div>
-      <dl className="metadata-grid">
-        <div>
-          <dt>Item key</dt>
-          <dd>
-            <code>{item.itemKey}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Workflow role</dt>
-          <dd>{item.workflowRole}</dd>
-        </div>
-        <div>
-          <dt>Disposition</dt>
-          <dd>{item.finalDisposition ?? "pending"}</dd>
-        </div>
-        <div>
-          <dt>Origin</dt>
-          <dd>
-            {item.origin.entryKey}
-            {item.origin.entryVersion === undefined
-              ? ""
-              : `@${item.origin.entryVersion}`}
-          </dd>
-        </div>
-        {item.origin.standard === undefined ? null : (
-          <div>
-            <dt>Causal standard mapping</dt>
-            <dd>
-              <code>
-                {item.origin.standard.scheme}@{item.origin.standard.version}/
-                {item.origin.standard.mappingKey}
-              </code>
-            </dd>
-          </div>
-        )}
-      </dl>
-    </div>
+    <ContextLink
+      returnLabel="Check"
+      to={`/runs/${encodeURIComponent(attempt.runId)}`}
+      title={attempt.runId}
+    >
+      {attempt.runDeleted ? "Deleted run provenance" : attempt.runId}
+    </ContextLink>
   );
 }
 
-export function AuditRuns({
+/** Why the attempts of an item are not shown. */
+function AttemptsMissing({
   audit,
-  api,
+  entry,
+  items,
 }: {
   audit: Audit;
-  api: ReturnType<typeof usePublicAPI>;
+  entry: CheckEntry;
+  items: AuditCollectionQuery<AuditItem>;
 }) {
-  const items = useAuditItems(audit, api, true);
-  const coverage = useAuditCoverage(audit);
+  const singular = itemNoun(entry.kind, 1);
+  if (items.isPending)
+    return (
+      <p className="checks-quiet" role="status">
+        Loading attempts…
+      </p>
+    );
+  if (itemBeyondLoaded(entry, items))
+    return (
+      <p className="checks-quiet">
+        Attempts are not loaded: this {singular} is beyond the{" "}
+        {itemNoun(entry.kind, 2)} read so far. “Load more {singular} details” at
+        the top reads them.
+      </p>
+    );
+  if (items.error !== null)
+    return (
+      <ErrorNotice
+        error={items.error}
+        onRetry={() => void items.refetch()}
+        retryPending={items.isFetching}
+      />
+    );
+  return (
+    <p className="checks-quiet">
+      {auditPollInterval([audit]) === false
+        ? `No attempts are recorded for this ${singular}.`
+        : `Attempts are not loaded for this ${singular} yet.`}
+    </p>
+  );
+}
+
+/**
+ * Attempts, produced results and the exact identity of one item, for admins
+ * and debugging: the item's technical details on the check page.
+ */
+export function ItemTechnicalDetails({
+  audit,
+  entry,
+  items,
+}: {
+  audit: Audit;
+  entry: CheckEntry;
+  /** The check's item collection, which holds the item's attempts. */
+  items: AuditCollectionQuery<AuditItem>;
+}) {
+  const { item, row } = entry;
+  return (
+    <TechnicalDetails description="Attempts, task package, results and identifiers.">
+      <div className="checks-item-tech" id={`check-${row.itemId}-attempts`}>
+        {item === undefined ? (
+          <AttemptsMissing audit={audit} entry={entry} items={items} />
+        ) : item.attempts.length === 0 ? (
+          <p className="checks-quiet">No run submitted.</p>
+        ) : (
+          <div className="checks-table-scroll">
+            <table className="checks-table">
+              <caption className="ui-visually-hidden">Attempts</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Attempt</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Outcome</th>
+                  <th scope="col">Collection</th>
+                  <th scope="col">Run</th>
+                  <th scope="col">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {item.attempts.map((attempt) => (
+                  <tr key={attempt.executionItemId}>
+                    <td data-label="Attempt">{attempt.itemAttempt}</td>
+                    <td data-label="State">{attempt.state}</td>
+                    <td data-label="Outcome">
+                      {attempt.terminalOutcome ?? "not finished"}
+                    </td>
+                    <td data-label="Collection">
+                      {attempt.collectionDisposition ?? "not collected"}
+                    </td>
+                    <td data-label="Run">
+                      <RunLink attempt={attempt} />
+                    </td>
+                    <td data-label="Result">
+                      {attempt.result === undefined ? (
+                        "None"
+                      ) : (
+                        <ExactArtifactLink
+                          projectId={audit.projectId}
+                          artifact={attempt.result}
+                          label="Produced result"
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {item === undefined ? null : (
+          <div className="checks-artifact-list">
+            <ExactArtifactLink
+              projectId={audit.projectId}
+              artifact={item.task}
+              label="Task package"
+            />
+            {item.acceptedResult === undefined ? null : (
+              <ExactArtifactLink
+                projectId={audit.projectId}
+                artifact={item.acceptedResult}
+                label="Accepted result"
+              />
+            )}
+          </div>
+        )}
+        <dl className="checks-facts">
+          <div>
+            <dt>Item key</dt>
+            <dd>
+              <code className="checks-mono">{row.itemKey}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Subject</dt>
+            <dd>
+              <code className="checks-mono">{row.subjectKey}</code>
+            </dd>
+          </div>
+          {item === undefined ? null : (
+            <>
+              <div>
+                <dt>Item state</dt>
+                <dd>{item.state}</dd>
+              </div>
+              <div>
+                <dt>Workflow role</dt>
+                <dd>{item.workflowRole}</dd>
+              </div>
+              <div>
+                <dt>Disposition</dt>
+                <dd>{item.finalDisposition ?? "pending"}</dd>
+              </div>
+              <div>
+                <dt>Origin</dt>
+                <dd>
+                  {item.origin.entryKey}
+                  {item.origin.entryVersion === undefined
+                    ? ""
+                    : `@${item.origin.entryVersion}`}
+                </dd>
+              </div>
+              {item.origin.standard === undefined ? null : (
+                <div>
+                  <dt>Causal standard mapping</dt>
+                  <dd>
+                    <code className="checks-mono">
+                      {item.origin.standard.scheme}@
+                      {item.origin.standard.version}/
+                      {item.origin.standard.mappingKey}
+                    </code>
+                  </dd>
+                </div>
+              )}
+            </>
+          )}
+          <div>
+            <dt>Check ID</dt>
+            <dd>
+              <code className="checks-mono">{audit.auditId}</code>
+            </dd>
+          </div>
+        </dl>
+        {row.details?.taskDocument === undefined ? null : (
+          <details className="checks-disclosure">
+            <summary>Task document</summary>
+            <pre className="checks-code">
+              {JSON.stringify(row.details.taskDocument, null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
+    </TechnicalDetails>
+  );
+}
+
+/**
+ * The runs the check started, one row per attempt, with links to each run
+ * and to its item. Generic Runs stay authoritative for execution.
+ */
+export function AuditRuns({
+  audit,
+  kind,
+  items,
+  entries,
+}: {
+  audit: Audit;
+  kind: ItemKind;
+  items: AuditCollectionQuery<AuditItem>;
+  entries: readonly CheckEntry[];
+}) {
   const attempts = useMemo(
     () =>
       items.items.flatMap((item) =>
@@ -140,19 +251,36 @@ export function AuditRuns({
       ),
     [items.items],
   );
+  const rows = useMemo(
+    () => new Map(entries.map((entry) => [entry.row.itemId, entry.row])),
+    [entries],
+  );
+  const noun = capitalize(itemNoun(kind, 1));
+  // A draft's items are not read (useAuditItems is off), so they never load.
+  if (audit.state === "draft")
+    return (
+      <div className="checks-runs">
+        <p className="checks-runs-intro">
+          <Link to="/runs">Global Runs →</Link>
+        </p>
+        <p className="checks-quiet">
+          No runs yet. A draft starts its runs only once it is started.
+        </p>
+      </div>
+    );
   if (items.isPending)
-    return <p className="loading-copy">Loading child Runs…</p>;
+    return (
+      <p className="checks-quiet" role="status">
+        Loading runs…
+      </p>
+    );
   if (items.error !== null && items.items.length === 0)
     return <ErrorNotice error={items.error} />;
   return (
-    <section className="panel audit-section-panel">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Ordinary Workflow executions</p>
-          <h3>Child Runs</h3>
-        </div>
+    <div className="checks-runs">
+      <p className="checks-runs-intro">
         <Link to="/runs">Global Runs →</Link>
-      </div>
+      </p>
       {items.error === null ? null : (
         <StaleDataWarning
           error={items.error}
@@ -161,35 +289,29 @@ export function AuditRuns({
         />
       )}
       {attempts.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No child Runs submitted.</strong>
-        </div>
+        <p className="checks-quiet">No runs submitted yet.</p>
       ) : (
-        <div className="table-scroll">
-          <table className="responsive-table">
+        <div className="checks-table-scroll">
+          <table className="checks-table">
             <thead>
               <tr>
-                <th>Check</th>
-                <th>Attempt</th>
-                <th>Run</th>
-                <th>Technical outcome</th>
-                <th>Collection</th>
+                <th scope="col">{noun}</th>
+                <th scope="col">Attempt</th>
+                <th scope="col">Run</th>
+                <th scope="col">Technical outcome</th>
+                <th scope="col">Collection</th>
               </tr>
             </thead>
             <tbody>
               {attempts.map(({ item, attempt }) => (
                 <tr key={attempt.executionItemId}>
-                  <td data-label="Check">
+                  <td data-label={noun}>
                     <ContextLink
-                      returnLabel="Audit Runs"
-                      to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/coverage#check-${encodeURIComponent(item.itemId)}`}
+                      returnLabel="Check runs"
+                      to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}${itemHash(item.itemId)}`}
                       title={item.subjectKey}
                     >
-                      {auditCheckTitle(
-                        coverage.items.find(
-                          (row) => row.itemId === item.itemId,
-                        ) ?? item,
-                      )}
+                      {auditCheckTitle(rows.get(item.itemId) ?? item)}
                     </ContextLink>
                   </td>
                   <td data-label="Attempt">{attempt.itemAttempt}</td>
@@ -198,7 +320,7 @@ export function AuditRuns({
                       "—"
                     ) : (
                       <ContextLink
-                        returnLabel="Audit"
+                        returnLabel="Check"
                         to={`/runs/${encodeURIComponent(attempt.runId)}`}
                         title={attempt.runId}
                         aria-label={attempt.runId}
@@ -221,12 +343,12 @@ export function AuditRuns({
       )}
       <LoadMoreControl
         shown={items.items.length}
-        noun="checks"
+        noun={itemNoun(kind, 2)}
         truncated={items.truncated}
         loading={items.isLoadingMore}
         error={items.moreError}
         onLoadMore={items.loadMore}
       />
-    </section>
+    </div>
   );
 }

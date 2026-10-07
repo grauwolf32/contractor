@@ -27,7 +27,8 @@ export function LoadMoreControl({
         {error === null ? "" : ` · Loading more failed: ${error.message}`}
       </p>
       <button
-        className="secondary-button"
+        className="ui-btn"
+        data-size="sm"
         type="button"
         disabled={loading}
         onClick={onLoadMore}

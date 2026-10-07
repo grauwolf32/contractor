@@ -50,7 +50,7 @@ export function ExactArtifactLink({
   );
   return projectReadable ? (
     <ContextLink
-      returnLabel="Audit"
+      returnLabel="Check"
       className="artifact-ref-link"
       to={exactArtifactLink(projectId, artifact)}
       title={artifact.digest}
