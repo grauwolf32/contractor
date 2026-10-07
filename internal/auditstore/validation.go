@@ -139,8 +139,9 @@ func validateList(params ListParams) error {
 			return err
 		}
 	}
-	if params.Limit < 1 || params.Limit > MaxPageSize {
-		return invalidf("page limit must be between 1 and %d", MaxPageSize)
+	// HTTP pages fetch one extra row to determine whether a cursor is needed.
+	if params.Limit < 1 || params.Limit > MaxPageSize+1 {
+		return invalidf("page row limit must be between 1 and %d", MaxPageSize+1)
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeAuditID == "") {
 		return invalidf("Audit keyset is incomplete")

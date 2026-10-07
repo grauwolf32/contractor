@@ -42,6 +42,9 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	for i := range 51 {
 		seed(fmt.Sprintf("project-owner-%02d", i), fmt.Sprintf("audit-owner-%02d", i), owner)
 	}
+	for i := range 150 {
+		seed("project-owner-00", fmt.Sprintf("audit-extra-%03d", i), owner)
+	}
 	seed("project-foreign", "audit-foreign", "user-foreign")
 	seed("project-deleting", "audit-deleting", owner)
 	var err error
@@ -90,7 +93,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	for _, list := range []struct {
 		path, id string
 		count    int
-	}{{"/v1/audits", "auditId", 51}, {"/v1/findings?verdict=unreviewed", "findingId", 201}, {"/v1/reviews?state=pending", "requestId", 201}} {
+	}{{"/v1/audits", "auditId", 201}, {"/v1/findings?verdict=unreviewed", "findingId", 201}, {"/v1/reviews?state=pending", "requestId", 201}} {
 		t.Run(list.path, func(t *testing.T) {
 			query, _ := url.Parse(list.path)
 			values := query.Query()
@@ -163,7 +166,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"/v1/findings?limit=200&verdict=unreviewed", "/v1/reviews?limit=200&state=pending"} {
+	for _, path := range []string{"/v1/audits?limit=200", "/v1/findings?limit=200&verdict=unreviewed", "/v1/reviews?limit=200&state=pending"} {
 		response := serveAndValidatePublicContract(t, router, fixture.handler, newPublicContractRequest(http.MethodGet, path, nil), true)
 		if response.Code != http.StatusOK {
 			t.Fatalf("200-row page=%d: %s", response.Code, response.Body.String())
