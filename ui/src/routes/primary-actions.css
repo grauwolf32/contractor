@@ -1,25 +1,3 @@
-.primary-action-cluster {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-}
-
-@media (max-width: 760px) {
-  .primary-action-cluster {
-    width: 100%;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .primary-action-cluster > button,
-  .primary-action-cluster > details {
-    width: 100%;
-  }
-}
-
 .project-detail-page > .route-header-row > div:first-child {
   flex: 1;
 }
