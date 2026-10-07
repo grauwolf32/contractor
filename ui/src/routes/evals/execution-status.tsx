@@ -73,7 +73,12 @@ export function EvalExecutionStatus({
   if (!finished && !(experiment.state === "ready" && excluded > 0)) return null;
 
   let title = "Execution finished";
-  let tone: StatusTone = "done";
+  // Done only with full coverage: a cancelled experiment, or members that
+  // were never submitted (unsupported, blocked), leave it partial.
+  let tone: StatusTone =
+    submitted < total("expected") || experiment.state === "cancelled"
+      ? "partial"
+      : "done";
   if (experiment.state === "ready") {
     title = "Some attempts cannot be started";
     tone = "warning";

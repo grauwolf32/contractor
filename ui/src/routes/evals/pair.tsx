@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { getEvalPair, type EvalMember } from "../../api/evals";
@@ -15,6 +15,8 @@ import { MemberExecutions, MemberSummary } from "./member";
 import { useEvalExperiment } from "./queries";
 import { EvalHumanReview } from "./review";
 
+type Arm = "A" | "B";
+
 export function EvalPairRoute() {
   const { experimentId = "", pairId = "" } = useParams();
   const [params, setParams] = useSearchParams();
@@ -28,9 +30,33 @@ export function EvalPairRoute() {
     queryKey: queryKeys.evals.pair(experimentId, pairId, snapshot),
     queryFn: () => getEvalPair(api, experimentId, pairId, snapshot),
   });
-  const [review, setReview] = useState<EvalMember | null>(null);
+  const [review, setReview] = useState<{
+    member: EvalMember;
+    arm: Arm;
+  } | null>(null);
   // Closing the review returns focus to the button that opened it.
   const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  // Saving closes the review and reloads the pair. The page announces the
+  // result and, once the reloaded pair is back, focuses the reviewed arm.
+  const [recorded, setRecorded] = useState("");
+  const focusAfterSave = useRef<Arm | null>(null);
+  const armHeadings = useRef<Partial<Record<Arm, HTMLHeadingElement>>>({});
+  useEffect(() => {
+    const arm = focusAfterSave.current;
+    if (
+      arm === null ||
+      review !== null ||
+      snapshot !== undefined ||
+      pair.isFetching
+    )
+      return;
+    focusAfterSave.current = null;
+    // Focus lost with the closed review moves on; focus the user moved
+    // elsewhere meanwhile stays there.
+    const active = document.activeElement;
+    if (active === null || active === document.body || !active.isConnected)
+      armHeadings.current[arm]?.focus();
+  });
   function refresh() {
     setReview(null);
     setParams({}, { replace: true, state: location.state });
@@ -90,6 +116,10 @@ export function EvalPairRoute() {
         ) : undefined
       }
     >
+      {/* Always present, so the live region is in place before it speaks. */}
+      <p className="eval-announcement" role="status">
+        {recorded}
+      </p>
       <EvalError error={pair.error ?? experiment.error} reload={refresh} />
       {pair.data ? (
         <>
@@ -105,7 +135,13 @@ export function EvalPairRoute() {
                 data-arm={label.toLowerCase()}
                 key={label}
               >
-                <h2>
+                <h2
+                  ref={(node) => {
+                    if (node) armHeadings.current[label] = node;
+                    else delete armHeadings.current[label];
+                  }}
+                  tabIndex={-1}
+                >
                   <ArmKey arm={label === "A" ? "a" : "b"}>
                     {label} · {member.member.variantId}
                   </ArmKey>
@@ -120,7 +156,8 @@ export function EvalPairRoute() {
                       data-size="sm"
                       onClick={(event) => {
                         reviewTrigger.current = event.currentTarget;
-                        setReview(member);
+                        setRecorded("");
+                        setReview({ member, arm: label });
                       }}
                     >
                       Review {label}
@@ -137,14 +174,20 @@ export function EvalPairRoute() {
           ))}
           {review && experiment.data ? (
             <EvalHumanReview
-              key={`${review.member.memberId}:${review.resultSha256}`}
+              key={`${review.member.member.memberId}:${review.member.resultSha256}`}
               experiment={experiment.data}
-              member={review}
+              member={review.member}
               onClose={() => {
                 setReview(null);
                 reviewTrigger.current?.focus();
               }}
-              onSaved={refresh}
+              onSaved={() => {
+                setRecorded(
+                  `Assessment recorded and selected for ${review.arm}.`,
+                );
+                focusAfterSave.current = review.arm;
+                refresh();
+              }}
             />
           ) : null}
           <section className="eval-section" aria-labelledby={recordsHeading}>
@@ -175,20 +218,22 @@ export function EvalPairRoute() {
                                 {gap}
                               </p>
                             ))}
-                            <ul className="eval-criteria" role="list">
-                              {Object.entries(record.document.outputs).map(
-                                ([role, artifact]) => (
-                                  <li key={role}>
-                                    <ContextLink
-                                      returnLabel="Paired evidence"
-                                      to={artifactHref(artifact)}
-                                    >
-                                      {role} · {artifact.name}
-                                    </ContextLink>
-                                  </li>
-                                ),
-                              )}
-                            </ul>
+                            {Object.keys(record.document.outputs).length ? (
+                              <ul className="eval-criteria" role="list">
+                                {Object.entries(record.document.outputs).map(
+                                  ([role, artifact]) => (
+                                    <li key={role}>
+                                      <ContextLink
+                                        returnLabel="Paired evidence"
+                                        to={artifactHref(artifact)}
+                                      >
+                                        {role} · {artifact.name}
+                                      </ContextLink>
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            ) : null}
                           </>
                         ) : (
                           <>

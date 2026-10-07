@@ -306,6 +306,110 @@ describe("Managed Eval comparisons", () => {
     ).toBe(false);
   });
 
+  it("focuses an opened review and returns to its button when it closes", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Review result" }),
+      ).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "Close review" }));
+    expect(
+      screen.queryByRole("heading", { name: "Review result" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review A" })).toHaveFocus();
+  });
+
+  // With a snapshot in the URL the reload swaps the pair query and the arms
+  // re-mount; without one the same arms are refetched in place.
+  it.each(["?viewSnapshot=view-7", ""])(
+    "announces a saved review and focuses the reviewed arm once the pair reloads (search %j)",
+    async (search) => {
+      const fixture = createEvalFixture({ prepared: true });
+      const user = userEvent.setup();
+      const view = start(
+        fixture,
+        `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}${search}`,
+      );
+      await user.click(await screen.findByRole("button", { name: "Review A" }));
+      await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+      await user.selectOptions(
+        screen.getByLabelText("Decision for evidence-review"),
+        "pass",
+      );
+      await user.type(
+        screen.getByLabelText("Reason for evidence-review"),
+        "Checked the retained source",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Save and select assessment" }),
+      );
+      expect(
+        await screen.findByText("Assessment recorded and selected for A."),
+      ).toHaveAttribute("role", "status");
+      // The reload drops any old snapshot; focus waits for the reloaded arm.
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { name: "A · a" })).toHaveFocus(),
+      );
+      expect(view.router.state.location.search).toBe("");
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps the pairs page when the selected pair filter is pressed again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.secondPairPage = true;
+    const user = userEvent.setup(),
+      view = start(
+        fixture,
+        "/evals/experiments/experiment-1/comparison?filter=all",
+      );
+    await user.click(await screen.findByRole("button", { name: "Next pairs" }));
+    await waitFor(() =>
+      expect(view.router.state.location.search).toContain("cursor=pair-page-2"),
+    );
+    const paged = view.router.state.location.search;
+    await user.click(
+      within(screen.getByRole("group", { name: "Pair filter" })).getByRole(
+        "button",
+        { name: "All pairs" },
+      ),
+    );
+    expect(view.router.state.location.search).toBe(paged);
+  });
+
+  it("keeps the attempts page and open evidence when the selected attempt filter is pressed again", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup(),
+      view = start(
+        fixture,
+        "/evals/experiments/experiment-1/attempts?filter=all&cursor=attempts-2",
+      );
+    const evidence = (
+      await screen.findAllByRole("button", { name: "Execution evidence" })
+    )[0]!;
+    await user.click(evidence);
+    expect(evidence).toHaveAttribute("aria-expanded", "true");
+    await user.click(
+      within(screen.getByRole("group", { name: "Attempt filter" })).getByRole(
+        "button",
+        { name: "All" },
+      ),
+    );
+    expect(view.router.state.location.search).toBe(
+      "?filter=all&cursor=attempts-2",
+    );
+    expect(evidence).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("uses the check's execution workspace for diagnostics without counting child Runs as samples", async () => {
     const fixture = createEvalFixture({ prepared: true, audit: true });
     start(

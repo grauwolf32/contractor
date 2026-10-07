@@ -226,7 +226,7 @@ export function pinLabel(dimension: string): string {
 // Each evaluator assesses one declared property; the UI calls an assessment
 // check a criterion (docs/design/ui/v3b-build-contract.md §3).
 const EVALUATOR_LABELS: Readonly<Record<string, string>> = {
-  "required-artifact@1": "Required output artifacts",
+  "required-artifact@1": "Required output files",
   "media-type@1": "Output media type",
   "json-schema@1": "Registered JSON schema",
   "human-review@1": "Human review",

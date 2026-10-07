@@ -65,6 +65,7 @@ describe("Evals vocabulary", () => {
     expect(pinLabel("runtime-config")).toBe("Runtime configuration");
     expect(pinLabel("new-dimension")).toBe("New dimension");
     expect(evaluatorLabel("human-review@1")).toBe("Human review");
+    expect(evaluatorLabel("required-artifact@1")).toBe("Required output files");
     expect(evaluatorLabel("custom@2")).toBe("custom@2");
   });
 

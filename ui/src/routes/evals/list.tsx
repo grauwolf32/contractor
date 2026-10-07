@@ -32,6 +32,7 @@ import {
   EVAL_SECTIONS,
   EVAL_STATE_LABELS,
   evalConclusionLabel,
+  evalFreshnessText,
   evalStateLabel,
   executionKindLabel,
   expectedMembersText,
@@ -265,7 +266,10 @@ export function EvalListRoute() {
         </EmptyState>
       ) : null}
       {items.length > 0 ? (
-        <div {...containerProps}>
+        <div
+          {...containerProps}
+          aria-keyshortcuts="J K ArrowDown ArrowUp Enter"
+        >
           <ListSection>
             {items.map((item) => (
               <ExperimentRow
@@ -325,6 +329,12 @@ function ExperimentRow({
   const conclusion = item.summary
     ? evalConclusionLabel(item.summary.conclusion)
     : undefined;
+  // The last complete view stays visible while a newer one is built; say so
+  // next to its conclusion (S30:501).
+  const freshness =
+    item.freshness && item.freshness !== "current"
+      ? evalFreshnessText(item.freshness)
+      : undefined;
   return (
     <ListRow
       to={to}
@@ -353,9 +363,19 @@ function ExperimentRow({
           ) : null}
           <span className="eval-row-line">
             {conclusion ? (
-              <StatusChip tone={conclusion.tone} size="sm">
-                {conclusion.label}
-              </StatusChip>
+              <>
+                <StatusChip tone={conclusion.tone} size="sm">
+                  {conclusion.label}
+                </StatusChip>
+                {freshness ? (
+                  <span
+                    className="eval-conclusion-note"
+                    data-stale={item.freshness === "stale" || undefined}
+                  >
+                    {freshness}
+                  </span>
+                ) : null}
+              </>
             ) : (
               <span>
                 {item.state === "draft"

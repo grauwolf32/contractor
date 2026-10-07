@@ -85,29 +85,31 @@ export function EvalArtifactPicker({
       {inventory.data?.items.length === 0 ? (
         <p className="eval-muted">No files here yet.</p>
       ) : null}
-      <ul className="eval-choice-list" role="list">
-        {inventory.data?.items.map((item) => (
-          <li key={item.artifact.revision}>
-            <span className="eval-choice-main">
-              <span className="eval-mono">
-                {item.artifact.namespace}/{item.artifact.name}
+      {inventory.data?.items.length ? (
+        <ul className="eval-choice-list" role="list">
+          {inventory.data.items.map((item) => (
+            <li key={item.artifact.revision}>
+              <span className="eval-choice-main">
+                <span className="eval-mono">
+                  {item.artifact.namespace}/{item.artifact.name}
+                </span>
+                <small>
+                  {item.mediaType} · revision {item.artifact.revision}
+                </small>
               </span>
-              <small>
-                {item.mediaType} · revision {item.artifact.revision}
-              </small>
-            </span>
-            <button
-              type="button"
-              className="ui-btn"
-              data-size="sm"
-              disabled={select.isPending}
-              onClick={() => select.mutate(item)}
-            >
-              Use input
-            </button>
-          </li>
-        ))}
-      </ul>
+              <button
+                type="button"
+                className="ui-btn"
+                data-size="sm"
+                disabled={select.isPending}
+                onClick={() => select.mutate(item)}
+              >
+                Use input
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <CursorControls
         label="Input file pages"
         {...pages.controls(inventory.data?.page)}

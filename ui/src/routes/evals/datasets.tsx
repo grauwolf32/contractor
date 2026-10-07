@@ -711,9 +711,9 @@ export function EvalDatasetsRoute() {
                   the first revision.
                 </p>
               </EmptyState>
-            ) : (
+            ) : datasets.data?.length ? (
               <ul className="eval-records" role="list">
-                {datasets.data?.map((d) => (
+                {datasets.data.map((d) => (
                   <li className="eval-record eval-dataset" key={d.revision}>
                     <div className="eval-record-main">
                       <strong>{d.name}</strong>
@@ -737,7 +737,7 @@ export function EvalDatasetsRoute() {
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
           </section>
           <div className="eval-actions">
             <button

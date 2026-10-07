@@ -161,7 +161,10 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           label="Pair filter"
           options={PAIR_FILTERS}
           value={filter}
-          onChange={(value) => update({ filter: value, cursor: null })}
+          // Pressing the selected chip keeps the current pairs page.
+          onChange={(value) => {
+            if (value !== filter) update({ filter: value, cursor: null });
+          }}
         />
         {binFilter ? (
           <p className="eval-callout">

@@ -150,6 +150,46 @@ it("shows failed execution coverage instead of just a finished experiment badge"
   );
 });
 
+it.each([
+  [
+    "a cancelled experiment with unsubmitted members",
+    "partial",
+    "cancelled",
+    1,
+  ],
+  ["a finished experiment with unsupported members", "partial", "finished", 1],
+  ["a finished experiment with every member scored", "done", "finished", 2],
+] as const)(
+  "marks %s as %s in its status glyph",
+  async (_, tone, state, armsSubmitted) => {
+    const fixture = finishedFixture();
+    fixture.state.experiment.state = state;
+    Object.values(fixture.state.experiment.summary!.counts).forEach(
+      (counts, index) => {
+        if (index >= armsSubmitted) {
+          counts.unsupported = state === "finished" ? 1 : 0;
+          return;
+        }
+        Object.assign(counts, {
+          eligible: 1,
+          submitted: 1,
+          terminal: 1,
+          executionSucceeded: 1,
+          collectionComplete: 1,
+          scored: 1,
+        });
+      },
+    );
+    start(fixture);
+    expect(
+      await screen.findByRole("heading", { name: "Execution finished" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Execution status" }),
+    ).toHaveAttribute("data-tone", tone);
+  },
+);
+
 it("explains when a paused experiment can resume", async () => {
   const fixture = finishedFixture();
   fixture.state.experiment.state = "paused";

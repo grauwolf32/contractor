@@ -81,7 +81,13 @@ function renderPicker(
 }
 
 describe("Eval input picker", () => {
-  it("pins My artifacts inputs through the User Artifact API without Skill packages", async () => {
+  it("says when a source has no files, without an empty list", async () => {
+    renderPicker({ project: [], user: [] }, vi.fn());
+    expect(await screen.findByText("No files here yet.")).toBeVisible();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("pins inputs from My files through the User Artifact API without Skill packages", async () => {
     const onSelect = vi.fn();
     const requests = renderPicker({ project: [], user: [input] }, onSelect);
     const user = userEvent.setup();

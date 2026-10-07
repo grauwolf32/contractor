@@ -169,6 +169,18 @@
   background: var(--surface-subtle);
 }
 
+/* A polite live region that stays in the page: empty, it takes no room in
+   the sheet's column (and no gap), but remains in the accessibility tree. */
+.eval-announcement {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.eval-announcement:empty {
+  position: absolute;
+}
+
 .eval-section,
 .eval-step-heading,
 .eval-overview-summary,
@@ -731,6 +743,10 @@
 .eval-row-line strong {
   color: var(--text);
   font-weight: 700;
+}
+
+.eval-row-line .eval-conclusion-note {
+  font-size: inherit;
 }
 
 .eval-row-variants {
@@ -1633,7 +1649,8 @@
   gap: 1rem;
 }
 
-.eval-review h2:focus-visible {
+.eval-review h2:focus-visible,
+.eval-arm > h2:focus-visible {
   outline-offset: 4px;
 }
 

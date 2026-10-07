@@ -113,11 +113,43 @@ describe("Experiments list", () => {
     ]);
   });
 
+  it("flags a row's conclusion when its comparison view is stale", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.freshness = "stale";
+    start(fixture, "/evals");
+    const row = (
+      await screen.findByRole("link", { name: "Trace instructions" })
+    ).closest("li")!;
+    expect(within(row).getByText("Inconclusive")).toBeInTheDocument();
+    expect(
+      within(row).getByText(
+        "Evidence changed · refresh to review the current result",
+      ),
+    ).toHaveAttribute("data-stale");
+  });
+
+  it("adds no freshness note to a current conclusion", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.freshness = "current";
+    start(fixture, "/evals");
+    const row = (
+      await screen.findByRole("link", { name: "Trace instructions" })
+    ).closest("li")!;
+    expect(within(row).getByText("Inconclusive")).toBeInTheDocument();
+    expect(within(row).queryByText("View is current")).not.toBeInTheDocument();
+  });
+
   it("moves the selection with J and opens it with Enter", async () => {
     const fixture = createEvalFixture({ prepared: true });
     const user = userEvent.setup();
     const router = start(fixture, "/evals");
-    await screen.findByRole("link", { name: "Trace instructions" });
+    const first = await screen.findByRole("link", {
+      name: "Trace instructions",
+    });
+    expect(first.closest("[aria-keyshortcuts]")).toHaveAttribute(
+      "aria-keyshortcuts",
+      "J K ArrowDown ArrowUp Enter",
+    );
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe("?experiment=experiment-1"),

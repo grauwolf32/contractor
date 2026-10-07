@@ -11,7 +11,7 @@ const MESSAGES: Record<string, string> = {
   eval_preparation_unavailable:
     "Preparation is temporarily unavailable. The server will retry; you can safely leave this page.",
   eval_evidence_unavailable:
-    "Required evidence is no longer available. Open the affected execution to inspect its artifacts.",
+    "Required evidence is no longer available. Open the affected execution to inspect its files.",
   eval_budget_exhausted:
     "The experiment reached its allowance. Duplicate it to run again with different limits.",
 };
