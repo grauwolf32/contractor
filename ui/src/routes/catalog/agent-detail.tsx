@@ -335,6 +335,14 @@ export function AgentDetailRoute() {
         <DetailPane
           header={
             <DetailHeader
+              actions={
+                <Link
+                  className="ui-btn"
+                  to="/catalog/studio?kind=AgentTemplate"
+                >
+                  Open Node Studio
+                </Link>
+              }
               title={
                 <span id={titleId}>
                   {name}

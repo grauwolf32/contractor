@@ -303,6 +303,9 @@ export function WorkflowDetailRoute() {
       refresh={() => void query.refetch()}
       error={query.error}
     >
+      <Link className="ui-btn" to="/catalog/studio?kind=Workflow">
+        Open Node Studio
+      </Link>
       <details className="workflow-technical-details">
         <summary>
           <svg

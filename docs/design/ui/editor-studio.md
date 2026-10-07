@@ -5,11 +5,55 @@
 A visualiser and editor for Workflow definitions, AuditProfiles with a live
 Audit overlay, and Agent templates.
 
-**Status (2026-10-07):** direction **B (full-screen node studio)** was chosen
-on 2026-10-04. The [main journey redesign](README.md) is implemented on `main`;
-the studio remains a separate planned phase. It will adopt the V3B vocabulary
-and [themes](themes.md). These mockups predate the palette decision and use
-the former dark theme with the lime accent and Inter.
+**Status (2026-10-07):** the first working **B node studio** is implemented at
+`/catalog/studio`, linked from Library, definition details and each Check.
+It uses V3B vocabulary and the light, dark and black [themes](themes.md).
+Direction B was chosen on 2026-10-04. The mockups below predate that palette
+decision and use the former lime accent and Inter.
+
+## Implemented authoring and live view
+
+- Import one authored Workflow, AuditProfile or AgentTemplate by file or paste.
+  YAML comments, opaque fields, workspace settings and multiline values remain
+  in the syntax tree. Aliases must be expanded before import to prevent one
+  visual edit from also changing another anchored block. Imports are bounded
+  to 1 MiB, 20,000 syntax entries and 256 blocks.
+- A native canvas supports block drag/drop, pan, zoom, reset, keyboard movement,
+  transition connections, artifact wires and a shared failure terminal.
+  Layout stays separate from the authored YAML. Phones switch between Graph,
+  Blocks, Properties and Console rather than squeezing all panes together.
+- The inspector edits stage objectives, planners, sessions, agents, incoming
+  files, results, output mappings and outcome/retry/escalation transitions;
+  Check type inputs, role bindings, inventory, execution limits and review
+  policies; and Agent model, instructions, sandbox, summarizer, tools and skills.
+  Advanced settings remain editable through block YAML and whole-document YAML.
+  Renaming mapped blocks updates their explicit structural references.
+- Problems, unapplied YAML and Diff since import have distinct states. Local
+  checks cover graph cycles/reachability, outcome contracts, required output
+  flow at joins, role dependency cycles, selectors and common structural rules.
+  Reads of a known later artifact are warnings: runtime/project namespaces can
+  supply files that are absent from authored stage declarations. They cannot
+  truthfully be treated as definite read-before-write errors without that context.
+  Installed selectors, instruction files and runtime compatibility still require
+  `contractor server config validate --root <bundle>`; the UI says so explicitly.
+- Undo/redo is bounded in memory. Navigation, replacement and removal use the
+  shared Dialog; reload warns about unsaved work. Drafts and imported YAML never
+  go into localStorage or sessionStorage. Export can retain structurally incomplete
+  drafts, with local errors visible, and applies pending syntactically valid YAML.
+- Live mode reads the published definition at the Check's pinned digest and
+  shows Check / Role / Review lanes, item states and acceptance, paginated reviews
+  and the durable event stream. It fences a multi-request snapshot by Check
+  revision and round, retains settled pages on errors and labels stale snapshots.
+  If a historical Check's pinned profile differs from the catalog or cannot be
+  loaded, its execution state remains visible with a separate definition warning;
+  the current catalog roles are not attached to that historical execution.
+  Item cells cover all loaded rounds and name their round; counts do not imply
+  that an unloaded page was read. Design edits are kept separate from execution.
+  Studio makes no mutation requests and introduces no API or publishing flow.
+
+Useful follow-ups are catalog-backed selector palettes, graph auto-layout and
+dedicated forms for the advanced workspace and execution policies currently
+edited in YAML. These do not block authored import/edit/export or the live view.
 
 ## Scope decisions
 

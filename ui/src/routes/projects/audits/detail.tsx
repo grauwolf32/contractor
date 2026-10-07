@@ -489,6 +489,12 @@ function CheckPage({
                 links={links}
               />
               <SectionTabs section={section} kind={kind} links={links} />
+              <Link
+                className="ui-btn"
+                to={`/catalog/studio?kind=AuditProfile&audit=${encodeURIComponent(audit.auditId)}`}
+              >
+                Open live Studio
+              </Link>
             </div>
           }
         >

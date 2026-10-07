@@ -70,6 +70,9 @@ export function LibraryHeader() {
     <header className="library-header">
       <h1 className="library-title">{TERMS.library}</h1>
       <LibraryTabs />
+      <Link className="ui-btn" to="/catalog/studio">
+        Open Node Studio
+      </Link>
     </header>
   );
 }

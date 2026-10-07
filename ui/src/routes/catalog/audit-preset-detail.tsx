@@ -438,15 +438,23 @@ export function AuditPresetDetailRoute() {
                 </>
               }
               actions={
-                profile?.serverCompatible ? (
+                <>
                   <Link
                     className="ui-btn"
-                    data-variant="primary"
-                    to={startCheckPath(name)}
+                    to="/catalog/studio?kind=AuditProfile"
                   >
-                    Start a check with this type
+                    Open Node Studio
                   </Link>
-                ) : undefined
+                  {profile?.serverCompatible ? (
+                    <Link
+                      className="ui-btn"
+                      data-variant="primary"
+                      to={startCheckPath(name)}
+                    >
+                      Start a check with this type
+                    </Link>
+                  ) : null}
+                </>
               }
             />
           }

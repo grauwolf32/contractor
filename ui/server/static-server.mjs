@@ -18,6 +18,7 @@ const CLIENT_ROUTES = new Set([
   "/artifacts",
   "/runs",
   "/catalog",
+  "/catalog/studio",
   "/catalog/workflows",
   "/catalog/audit-presets",
   "/catalog/agents",

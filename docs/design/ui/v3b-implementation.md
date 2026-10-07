@@ -175,9 +175,13 @@ from current records. Older pages remain stable as new events arrive; refresh
 starts a fresh prefix and failed continuations keep settled events visible.
 The current-state sentence is separate from the recorded event count.
 
-1. **Visual editor.** Implement the chosen
-   [B node studio](editor-studio.md) as a separate phase: authored YAML import,
-   graph and inspector, validation and YAML export, using the V3B themes.
+The first working [B node studio](editor-studio.md) was completed on 2026-10-07:
+authored YAML import/edit/export for Workflow, Check type and Agent, a canvas
+and inspector, local validation, undo/redo and a read-only live Check view.
+Drafts stay in tab memory. Bundle/catalog resolution still belongs to the
+configuration CLI. Studio follow-ups are catalog-backed selector palettes,
+graph auto-layout and dedicated forms for advanced settings currently edited
+through YAML.
 
 Per-item retry and model-assisted suggestions remain conditional on a proven
 need. Borrowing V3A's quieter rail and typography or adding V3C's column view

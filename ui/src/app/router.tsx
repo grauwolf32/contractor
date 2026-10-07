@@ -232,6 +232,10 @@ export function applicationRoutes(): RouteObject[] {
               ),
             },
             {
+              path: "/catalog/studio",
+              lazy: lazyRoute(() => import("../routes/studio"), "StudioRoute"),
+            },
+            {
               path: "/catalog",
               lazy: lazyRoute(
                 () => import("../routes/catalog/layout"),
