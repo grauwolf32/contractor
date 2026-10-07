@@ -347,6 +347,13 @@ p.decisions-quiet {
   outline: none;
 }
 
+/* A recorded decision that scrolls on its own is a tab stop (review
+   requests): its ring sits inside, where the pane cannot clip it. */
+.decisions-request[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
 /* Live region for "Decision recorded"; empty most of the time. */
 .decisions-status {
   margin: 0;
@@ -381,6 +388,23 @@ p.decisions-quiet {
     > .decisions-status:empty
     + .decisions-current {
     border-top: 0;
+  }
+
+  /* Change decision and Next stay at the bottom of a capped current decision
+     while a long reason scrolls under them. The row takes over the space
+     around it as padding (the section gives up its gap and bottom padding),
+     so it covers what scrolls under it, and nothing moves when all fits. */
+  .ui-detail-pane-footer .ui-footer-record > .decisions-current {
+    gap: 0.125rem;
+    padding-bottom: 0;
+  }
+
+  .ui-detail-pane-footer .ui-footer-record .decisions-current-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-block: 0.5rem 0.75rem;
+    background: var(--surface);
   }
 }
 

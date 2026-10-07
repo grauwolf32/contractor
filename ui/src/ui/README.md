@@ -257,9 +257,11 @@ capped at `min(45vh, 24rem)` and scrolls on its own, so a long reason never
 covers the pane, and it draws the divider above it so the line stays put
 while it scrolls (its first block drops its own divider). The decision
 components (`src/routes/decisions`) set the class themselves when they show
-a `DecisionRecord` or a current decision without the bar; the pending
-`DecisionBar` never carries it and stays whole. Pages need no cap of their
-own.
+a `DecisionRecord` or a current decision without the bar, and keep the
+capped content usable from the keyboard: a record without a control of its
+own is a tab stop while it scrolls, and actions inside it stay in view. The
+pending `DecisionBar` never carries the class and stays whole. Pages need no
+cap of their own.
 
 ### `DetailHeader`
 
@@ -692,7 +694,8 @@ return (
   readers.
 - **`.ui-footer-record`:** content of a `DetailPane` footer that shows a
   recorded decision. Where the footer is pinned it is capped and scrolls on
-  its own (see `DetailPane`). The decision components set it.
+  its own (see `DetailPane`). The decision components set it and keep the
+  content reachable from the keyboard while it scrolls.
 
 ## Tokens used
 

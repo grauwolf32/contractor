@@ -27,6 +27,7 @@ import {
 import { useRecordingCallback } from "./recording";
 import { refreshAfterDecision } from "./refresh";
 import { RequestDetails } from "./request-details";
+import { useScrollsOnItsOwn } from "./scrolling";
 
 import "./decisions.css";
 
@@ -122,6 +123,14 @@ function RequestDecision({
   // the bar stays until then instead of turning into `blocked`.
   const recording = decide.isPending || awaitingRefresh;
   useRecordingCallback(recording, onRecording);
+  // A recorded decision is capped where the pane footer is pinned (ui.css).
+  // At most links in its reason take focus, so while it scrolls there it is
+  // a tab stop: otherwise the keyboard could not reach all of a long reason.
+  const record =
+    !awaitingRefresh &&
+    review.state === "decided" &&
+    review.decision !== undefined;
+  const scrolls = useScrollsOnItsOwn(root, record);
   const options: DecisionOption[] = REVIEW_ACTIONS.filter((candidate) =>
     review.requestedActions.includes(candidate.action),
   ).map((candidate) => ({
@@ -153,19 +162,16 @@ function RequestDecision({
   }
 
   let body: ReactNode;
-  // A recorded decision is capped where the pane footer is pinned (ui.css).
-  let record = false;
   let bar = false;
   if (awaitingRefresh) body = null;
-  else if (review.state === "decided") {
-    record = review.decision !== undefined;
+  else if (review.state === "decided")
     body =
       review.decision === undefined ? (
         <p className="decisions-quiet">Decided.</p>
       ) : (
         <DecisionRecord decision={review.decision} />
       );
-  } else if (review.state === "expired")
+  else if (review.state === "expired")
     body = (
       <p className="decisions-quiet">
         This request expired without a decision.
@@ -232,7 +238,9 @@ function RequestDecision({
       }
       role="group"
       aria-label={`Decision on ${reviewKindLabel(review.kind).toLowerCase()}`}
-      tabIndex={-1}
+      // Focus also comes here from code once a decision is recorded
+      // (focusIfLost); a record that scrolls is a tab stop as well.
+      tabIndex={scrolls ? 0 : -1}
     >
       <p className="decisions-status" role="status">
         {announcement.text}

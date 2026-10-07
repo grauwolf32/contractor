@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getAuditReport,
@@ -260,6 +260,94 @@ describe("ActionDecision", () => {
     expect(
       screen.getByText("This request expired without a decision."),
     ).toBeVisible();
+  });
+
+  describe("where a recorded decision scrolls on its own", () => {
+    /** Reports sizes when the test says they changed; jsdom lays nothing out. */
+    class FakeResizeObserver implements ResizeObserver {
+      static readonly watching = new Set<FakeResizeObserver>();
+      readonly #callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.#callback = callback;
+      }
+      observe() {
+        FakeResizeObserver.watching.add(this);
+      }
+      unobserve() {}
+      disconnect() {
+        FakeResizeObserver.watching.delete(this);
+      }
+      static report() {
+        for (const observer of FakeResizeObserver.watching)
+          observer.#callback([], observer);
+      }
+    }
+
+    /** Gives `element` these heights and reports the resize. */
+    function layOut(
+      element: HTMLElement,
+      heights: { scrollHeight: number; clientHeight: number },
+    ) {
+      for (const [name, value] of Object.entries(heights))
+        Object.defineProperty(element, name, { configurable: true, value });
+      act(() => FakeResizeObserver.report());
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      FakeResizeObserver.watching.clear();
+    });
+
+    it("is a tab stop while it scrolls, so the keyboard reaches all of a long reason", async () => {
+      const decided = makeActionReview({
+        state: "decided",
+        decision: { ...makeDecision({ action: "approve" }) },
+      });
+      delete decided.decision?.verdict;
+      delete decided.decision?.severity;
+      renderWithServer(
+        <ActionDecision auditId={AUDIT_ID} review={decided} />,
+        () => {
+          throw new Error("no request expected");
+        },
+      );
+      const user = userEvent.setup();
+      const group = screen.getByRole("group", {
+        name: "Decision on active test approval",
+      });
+      // All of it fits: there is nothing to scroll, so Tab passes it.
+      layOut(group, { scrollHeight: 160, clientHeight: 160 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+      await user.tab();
+      expect(group).not.toHaveFocus();
+      // A long reason under the pinned footer's cap: Tab reaches the record,
+      // and from there the arrow keys scroll it.
+      layOut(group, { scrollHeight: 900, clientHeight: 384 });
+      expect(group).toHaveAttribute("tabindex", "0");
+      await user.tab();
+      expect(group).toHaveFocus();
+      // Back under the cap (a wider or taller window): no tab stop again.
+      layOut(group, { scrollHeight: 300, clientHeight: 300 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("leaves a pending request's group out of the tab order", () => {
+      renderWithServer(
+        <ActionDecision auditId={AUDIT_ID} review={makeActionReview()} />,
+        () => {
+          throw new Error("no request expected");
+        },
+      );
+      const group = screen.getByRole("group", {
+        name: "Decision on active test approval",
+      });
+      // The bar has controls of its own and is never capped.
+      layOut(group, { scrollHeight: 900, clientHeight: 384 });
+      expect(group).toHaveAttribute("tabindex", "-1");
+    });
   });
 
   it("renders nothing for a request that is not an item action", () => {

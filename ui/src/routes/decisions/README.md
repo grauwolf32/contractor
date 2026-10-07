@@ -47,8 +47,12 @@ When a component shows a recorded decision without the bar (a
 `DecisionRecord`, a current decision), its root carries `ui-footer-record`:
 where `DetailPane`'s footer is pinned it is capped at `min(45vh, 24rem)` and
 scrolls on its own, drawing the divider above it (`src/ui` README,
-`DetailPane`). The pending bar is never capped. Pages need no cap of their
-own.
+`DetailPane`). The keyboard reaches all of it: a request's decision record
+is a tab stop while it scrolls (the arrow keys scroll it; the focus ring is
+drawn inside), and a possible issue's Change decision and Next stay in view
+at the bottom while its reason scrolls under them (with focus on them, the
+arrow keys scroll it). The pending bar is never capped. Pages need no cap of
+their own.
 
 ## `FindingSummary`
 
