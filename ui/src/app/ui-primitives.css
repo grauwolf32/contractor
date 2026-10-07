@@ -182,14 +182,6 @@ summary:focus-visible,
   min-width: 0;
 }
 
-.run-output-publication-list li,
-.run-output-publication-list li > div,
-.run-output-publication-list a,
-.run-output-publication-list code {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 .project-dialog-heading h2 {
   font-size: clamp(1.4rem, 3vw, 1.8rem);
   line-height: 1.25;

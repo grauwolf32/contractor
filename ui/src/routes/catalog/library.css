@@ -35,7 +35,9 @@
   line-height: 1.2;
 }
 
-/* The V3B segmented control: a chrome track, the current section raised. */
+/* The V3B segmented control: a chrome track, the current section raised.
+   It wraps onto a second row instead of scrolling, so every section stays
+   visible down to 320 px (the Files page shows the same tabs). */
 .library-tabs {
   display: flex;
   flex-wrap: wrap;

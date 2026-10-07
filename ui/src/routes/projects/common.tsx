@@ -1,118 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useId, useRef } from "react";
+import { type ReactNode } from "react";
 
-import { type ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { Dialog } from "../../app/dialog";
-import { ArtifactWriteForm } from "../artifacts/common";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
-import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
-import { MaterialKindIcon } from "./material-icon";
-import {
-  PROJECT_ARTIFACT_SHORTCUTS,
-  type ShortcutDefinition,
-} from "./shortcuts";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
 import { ArtifactBindingsTable } from "../artifacts/bindings";
 import { artifactDetailPath } from "../artifacts/paths";
-
-export function ProjectArtifactShortcutGrid({
-  onSelect,
-  onImportGit,
-}: {
-  onSelect: (shortcut: ShortcutDefinition) => void;
-  onImportGit: () => void;
-}) {
-  return (
-    <div className="project-shortcut-grid" aria-label="Artifact shortcuts">
-      <button
-        className="project-shortcut"
-        type="button"
-        aria-label="Import Git repository"
-        onClick={onImportGit}
-      >
-        <span className="project-shortcut-icon">
-          <GitRepositoryIcon />
-        </span>
-        <span>
-          <strong>Git</strong>
-          <small>Import a repository as a source archive</small>
-        </span>
-      </button>
-      {PROJECT_ARTIFACT_SHORTCUTS.map((shortcut) => (
-        <button
-          className="project-shortcut"
-          key={shortcut.id}
-          type="button"
-          aria-label={shortcut.label}
-          onClick={() => onSelect(shortcut)}
-        >
-          <span className="project-shortcut-icon">
-            <MaterialKindIcon kind={shortcut.id} />
-          </span>
-          <span>
-            <strong>{shortcut.label}</strong>
-            <small>{shortcut.description}</small>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function ProjectArtifactDialog({
-  projectId,
-  shortcut,
-  onClose,
-  onWritten,
-}: {
-  projectId: string;
-  shortcut: ShortcutDefinition;
-  onClose: () => void;
-  onWritten: (result: ArtifactWriteResponse) => void;
-}) {
-  const heading = useId();
-  const closeButton = useRef<HTMLButtonElement>(null);
-
-  return (
-    <Dialog
-      className="project-dialog panel"
-      labelledBy={heading}
-      initialFocusRef={closeButton}
-      onRequestClose={onClose}
-    >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Artifact shortcut</p>
-          <h2 id={heading}>{shortcut.label}</h2>
-        </div>
-        <button
-          ref={closeButton}
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close upload dialog"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      <p className="muted-copy">
-        The category only suggests editable Artifact metadata.
-      </p>
-      <ArtifactWriteForm
-        scope={{ kind: "project", id: projectId }}
-        suggested={shortcut}
-        headingId={heading}
-        onCancel={onClose}
-        onWritten={onWritten}
-      />
-    </Dialog>
-  );
-}
 
 export function ProjectRegion({
   eyebrow,

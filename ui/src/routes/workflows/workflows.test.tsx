@@ -1211,7 +1211,7 @@ describe("Workflow routes", () => {
       await screen.findByText("Required string parameter is missing."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Required Artifact input is missing."),
+      screen.getByText("Choose a revision for this required input."),
     ).toBeInTheDocument();
     expect(postCount).toBe(0);
     await user.click(screen.getByText("Execution overrides", { exact: true }));

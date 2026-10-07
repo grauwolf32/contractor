@@ -62,77 +62,8 @@
   line-height: 1.45;
 }
 
-.workflow-header-actions {
-  align-self: flex-start;
-}
-
-.workflow-run-primary {
-  scroll-margin-top: 1rem;
-}
-
-.workflow-run-primary:focus-visible {
-  border-radius: 0.8rem;
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
-}
-
-.workflow-technical-details {
-  margin-top: 1.25rem;
-  overflow: clip;
-  border: 1px solid var(--line);
-  border-radius: 0.8rem;
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-}
-
-.workflow-technical-details > summary {
-  display: flex;
-  min-height: 4.5rem;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  gap: 1rem;
-  padding: 1rem 1.15rem;
-}
-
-.workflow-technical-details > summary > span:first-child {
-  display: grid;
-  min-width: 0;
-  gap: 0.2rem;
-}
-
-.workflow-technical-details > summary small,
-.workflow-technical-details > summary > span:last-child {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.workflow-technical-details > summary > span:last-child {
-  flex: none;
-}
-
-.workflow-technical-details > summary::after {
-  flex: none;
-  color: var(--accent);
-  content: "Show details +";
-  font-size: 0.75rem;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.workflow-technical-details[open] > summary::after {
-  content: "Hide details −";
-}
-
-.workflow-technical-details-body {
-  display: grid;
-  gap: 1.25rem;
-  border-top: 1px solid var(--line);
-  padding: 1.15rem;
-}
-
 @media (max-width: 760px) {
-  .primary-action-cluster,
-  .workflow-header-actions {
+  .primary-action-cluster {
     width: 100%;
     align-items: stretch;
     flex-direction: column;
@@ -149,15 +80,6 @@
     width: 100%;
     margin-top: 0.45rem;
     box-shadow: none;
-  }
-
-  .workflow-technical-details > summary {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .workflow-technical-details > summary > span:last-child {
-    white-space: normal;
   }
 }
 

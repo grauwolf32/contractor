@@ -188,7 +188,8 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.queryByRole("navigation", { name: "Operations sections" }),
     ).not.toBeInTheDocument();
-    expect(document.title).toBe("Settings · Contractor");
+    // The title is set in an effect, which may run after the page shows.
+    await waitFor(() => expect(document.title).toBe("Settings · Contractor"));
   });
 
   it("points sessions without the capability from other Operations pages to Settings", async () => {
@@ -266,7 +267,10 @@ describe("Operations Scheduler settings", () => {
     expect(
       screen.getByRole("link", { name: /Workflow scheduling/ }),
     ).toHaveAttribute("href", "#workflow-scheduling");
-    expect(document.title).toBe("Settings · Operations · Contractor");
+    // The title is set in an effect, which may run after the page shows.
+    await waitFor(() =>
+      expect(document.title).toBe("Settings · Operations · Contractor"),
+    );
   });
 
   it("validates, CAS-saves once and settles on the returned value", async () => {

@@ -1979,66 +1979,6 @@ code {
   gap: 0.7rem;
 }
 
-.project-shortcut-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin: 1rem 0 1.5rem;
-}
-
-.project-shortcut {
-  display: grid;
-  min-width: 0;
-  min-height: 9.2rem;
-  align-content: start;
-  justify-items: start;
-  gap: 0.8rem;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
-  padding: 0.85rem;
-  text-align: left;
-}
-
-.project-shortcut:not(:disabled):hover {
-  border-color: var(--accent-line);
-  background: var(--accent-dark);
-  transform: translateY(-1px);
-}
-
-.project-shortcut > span:last-child {
-  display: grid;
-  min-width: 0;
-  gap: 0.25rem;
-}
-
-.project-shortcut small {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.project-shortcut-icon {
-  display: grid;
-  width: 2.35rem;
-  height: 2.35rem;
-  border: 1px solid var(--accent-line);
-  border-radius: 0.55rem;
-  background: var(--accent-dark);
-  color: var(--accent);
-  place-items: center;
-}
-
-.project-shortcut-icon svg {
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
 .project-dialog-backdrop {
   display: grid;
   position: fixed;
@@ -2196,30 +2136,6 @@ code {
   text-transform: uppercase;
 }
 
-.publication-status {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.publication-published {
-  border-color: var(--success-line);
-  color: var(--success);
-}
-
-.publication-already_present {
-  border-color: var(--warning-line);
-  color: var(--warning);
-}
-
-.publication-failed {
-  border-color: var(--danger-line);
-  color: var(--danger);
-}
-
 .spinner {
   width: 1.8rem;
   height: 1.8rem;
@@ -2243,10 +2159,6 @@ code {
   .project-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .project-shortcut-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 820px) {
@@ -2263,8 +2175,6 @@ code {
 
   .form-grid,
   .metadata-grid,
-  .artifact-actions-grid,
-  .artifact-history-grid,
   .workflow-contract-grid,
   .stage-contract-body,
   .run-field-grid,
@@ -2278,15 +2188,6 @@ code {
   }
 
   .runtime-label-options {
-    grid-template-columns: 1fr;
-  }
-
-  .artifact-update-panel {
-    grid-column: auto;
-  }
-
-  .version-list a,
-  .lineage-list li {
     grid-template-columns: 1fr;
   }
 
@@ -2318,10 +2219,6 @@ code {
 
   .project-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .project-shortcut-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .project-list-heading,
@@ -2487,12 +2384,6 @@ code {
     min-height: 2.5rem;
     display: inline-flex;
     align-items: center;
-  }
-}
-
-@media (max-width: 360px) {
-  .project-shortcut-grid {
-    grid-template-columns: 1fr;
   }
 }
 

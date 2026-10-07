@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -889,4 +896,111 @@ describe("Artifact routes", () => {
       await screen.findByRole("link", { name: "sources/example" }),
     ).toBeVisible();
   });
+});
+
+describe("Files upload dialog", () => {
+  /** Starts a file upload whose PUT stays pending until it is aborted. */
+  async function startPendingUpload() {
+    let signal: AbortSignal | undefined;
+    let listReads = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          listReads += 1;
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (
+          url.pathname === "/v1/artifacts/inputs/wordlist" &&
+          request.method === "PUT"
+        ) {
+          signal = request.signal;
+          return new Promise<Response>((_resolve, reject) =>
+            request.signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        }
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    renderArtifactApplication(api, "/artifacts");
+    await screen.findByText("No files yet");
+    const user = userEvent.setup();
+    const uploadButton = screen.getByRole("button", { name: "Upload file" });
+    await user.click(uploadButton);
+    const dialog = screen.getByRole("dialog", { name: "Upload file" });
+    // Closing cancels the upload, which may still have been stored.
+    expect(dialog).toHaveAccessibleDescription(
+      /^Closing this dialog cancels a running upload\. .* it may already be stored\.$/,
+    );
+    const namespace = within(dialog).getByLabelText("Namespace");
+    await user.clear(namespace);
+    await user.type(namespace, "inputs");
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["admin\n"], "wordlist.txt", { type: "text/plain" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create binding" }),
+    );
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(
+      within(dialog).getByRole("button", { name: "Uploading…" }),
+    ).toBeDisabled();
+    return {
+      user,
+      dialog,
+      uploadButton,
+      listReadsBefore: listReads,
+      listReads: () => listReads,
+      aborted: () => signal?.aborted,
+    };
+  }
+
+  type PendingUpload = Awaited<ReturnType<typeof startPendingUpload>>;
+
+  it.each([
+    [
+      "Cancel upload",
+      (pending: PendingUpload) =>
+        pending.user.click(
+          within(pending.dialog).getByRole("button", {
+            name: "Cancel upload",
+          }),
+        ),
+    ],
+    [
+      "the close button",
+      (pending: PendingUpload) =>
+        pending.user.click(
+          within(pending.dialog).getByRole("button", {
+            name: "Close file upload",
+          }),
+        ),
+    ],
+    ["Escape", (pending: PendingUpload) => pending.user.keyboard("{Escape}")],
+  ])(
+    "aborts a running upload closed with %s, then reads the list again",
+    async (_how, close) => {
+      const pending = await startPendingUpload();
+      await act(async () => {
+        await close(pending);
+      });
+
+      expect(pending.aborted()).toBe(true);
+      expect(pending.dialog).not.toBeInTheDocument();
+      // The Server may have stored the file before the abort.
+      await waitFor(() =>
+        expect(pending.listReads()).toBeGreaterThan(pending.listReadsBefore),
+      );
+      await waitFor(() => expect(pending.uploadButton).toHaveFocus());
+      expect(
+        screen.queryByRole("status", { name: /File uploaded/ }),
+      ).toBeNull();
+    },
+  );
 });

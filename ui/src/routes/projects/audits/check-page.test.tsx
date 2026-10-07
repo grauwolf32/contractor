@@ -1660,6 +1660,94 @@ describe("Check lifecycle controls", () => {
     ).toBeVisible();
   });
 
+  it.each([
+    ["answers", 200],
+    ["is refused", 412],
+  ] as const)(
+    "refreshes the cross-project lists when a pause %s, without waiting for them",
+    async (_answer, status) => {
+      let current = auditAt("active", 2);
+      // The rail's Inbox badge reads the project index and the project's
+      // checks; once the pause is answered, those reads stay unanswered.
+      let held = false;
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const listReads: string[] = [];
+      const { api } = serveCheck({
+        audit: () => current,
+        handle: async (request, url) => {
+          if (
+            request.method === "GET" &&
+            (url.pathname === "/v1/projects" ||
+              url.pathname === "/v1/projects/project_example/audits")
+          ) {
+            listReads.push(url.pathname);
+            if (held) await gate;
+            const state = url.searchParams.get("state");
+            return jsonResponse({
+              items:
+                url.pathname === "/v1/projects"
+                  ? [project]
+                  : [current].filter(
+                      (audit) => state === null || audit.state === state,
+                    ),
+              page: { hasMore: false },
+            });
+          }
+          if (url.pathname === "/v1/audits/audit_example/pause") {
+            held = true;
+            current = auditAt("paused", 3);
+            return status === 200
+              ? jsonResponse(current, { headers: { ETag: '"3"' } })
+              : jsonResponse(
+                  {
+                    code: "precondition_failed",
+                    message: "Audit revision changed",
+                    retryable: false,
+                    requestId: "request_stale",
+                  },
+                  { status: 412 },
+                );
+          }
+          return undefined;
+        },
+      });
+      renderApplication(api, ROOT);
+      const user = userEvent.setup();
+      const pause = await screen.findByRole("button", {
+        name: "Pause new work",
+      });
+      await waitFor(() =>
+        expect(listReads).toContain("/v1/projects/project_example/audits"),
+      );
+      const readsBefore = listReads.length;
+      await user.click(pause);
+
+      // The check's own controls are usable again while the lists load.
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Continue check" }),
+        ).toBeEnabled(),
+      );
+      expect(listReads.slice(readsBefore)).toEqual(
+        expect.arrayContaining([
+          "/v1/projects",
+          "/v1/projects/project_example/audits",
+        ]),
+      );
+      if (status === 412)
+        expect(
+          within(screen.getByRole("alert")).getByText("Audit revision changed"),
+        ).toBeVisible();
+      await act(async () => {
+        release();
+        await gate;
+      });
+    },
+  );
+
   it("confirms stopping and deleting a check without duplicate requests", async () => {
     let current = auditAt("active", 2);
     const mutations: Request[] = [];
