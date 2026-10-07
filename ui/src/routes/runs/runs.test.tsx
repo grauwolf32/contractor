@@ -282,7 +282,9 @@ describe("Run routes", () => {
     const attempt = (id: string) =>
       view.container.querySelector<HTMLDetailsElement>(`#attempt-${id}`)!;
     const instructions = (id: string) =>
-      attempt(id).querySelector<HTMLDetailsElement>(".subtask-list details")!;
+      attempt(id).querySelector<HTMLDetailsElement>(
+        ".runs-subtask-list details",
+      )!;
     await waitFor(() => expect(attempt("stage-router-2").open).toBe(true));
     expect(attempt("stage-router-1").open).toBe(false);
     const user = userEvent.setup();
@@ -375,14 +377,37 @@ describe("Run routes", () => {
     expect(
       screen.queryByRole("button", { name: "Continue from failed stage" }),
     ).not.toBeInTheDocument();
-    await userEvent.setup().click(retry);
+    const user = userEvent.setup();
+    await user.click(retry);
+    // Retry has its own confirmation, distinct from Continue and Repeat.
+    const dialog = screen.getByRole("dialog", {
+      name: "Retry the model connection?",
+    });
+    expect(dialog).toHaveTextContent(
+      "The model was unloaded or is unavailable.",
+    );
+    expect(dialog).toHaveTextContent("no new stage attempt starts");
+    await user.click(within(dialog).getByRole("button", { name: "Not now" }));
+    expect(posts).toBe(0);
+    await waitFor(() => expect(retry).toHaveFocus());
+
+    await user.click(retry);
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "Retry the model connection?" }),
+      ).getByRole("button", { name: "Confirm retry" }),
+    );
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "Retry model connection" }),
       ).not.toBeInTheDocument(),
     );
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(posts).toBe(1);
     expect(current.attempts).toHaveLength(1);
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
+    );
   });
 
   it("keeps refreshing unchanged recovery until manual retry is required", async () => {
@@ -603,13 +628,22 @@ describe("Run routes", () => {
     await user.click(
       screen.getByRole("button", { name: "Confirm continuation" }),
     );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Continue from failed stage?",
+    });
     expect(
-      await screen.findByText("Run cannot be continued"),
+      await within(dialog).findByText("Run cannot be continued"),
     ).toBeInTheDocument();
     await waitFor(() => expect(gets).toBeGreaterThan(1));
+    // The refusal stays in the confirmation; Back returns to the unchanged Run.
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
     expect(
       screen.getByRole("heading", { name: /Run failed/ }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue from failed stage" }),
+    ).toBeEnabled();
   });
 
   it("offers confirmed deletion only for server-deletable completed Runs", async () => {
@@ -769,7 +803,11 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-second" }),
     ).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("State"), "failed");
+    await user.click(
+      within(screen.getByRole("group", { name: "State" })).getByRole("button", {
+        name: "Failed",
+      }),
+    );
     expect(
       await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
@@ -870,7 +908,20 @@ describe("Run routes", () => {
     expect(
       await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("State")).toHaveValue("failed");
+    const state = screen.getByRole("group", { name: "State" });
+    expect(
+      within(state).getByRole("button", { name: "Failed" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(within(state).getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(
+      within(screen.getByRole("navigation", { name: "Run views" })).getByRole(
+        "link",
+        { name: "Completed" },
+      ),
+    ).toHaveAttribute("aria-current", "page");
     expect(requests).toHaveLength(1);
     expect(requests[0]?.searchParams.get("state")).toBe("failed");
     expect(requests[0]?.searchParams.get("lifecycle")).toBe("terminal");
@@ -941,7 +992,7 @@ describe("Run routes", () => {
     expect(
       document.querySelector<HTMLDetailsElement>(".run-label-filters")?.open,
     ).toBe(true);
-    expect(screen.getByLabelText("2 active filters")).toBeInTheDocument();
+    expect(screen.getByText("2 active filters")).toBeInTheDocument();
     const firstRow = screen
       .getByRole("link", { name: "run-leg-a" })
       .closest("tr");
@@ -1067,9 +1118,9 @@ describe("Run routes", () => {
     expect(
       await screen.findByText("Review trust boundaries"),
     ).toBeInTheDocument();
-    const metadataPanel = screen
-      .getByRole("heading", { name: "Run metadata labels" })
-      .closest("section");
+    const metadataPanel = view.container.querySelector(
+      ".run-metadata-label-panel",
+    );
     expect(metadataPanel).toHaveTextContent("eval.id:eval-router-01");
     expect(metadataPanel).toHaveTextContent("eval.leg:a");
     expect(metadataPanel).toHaveTextContent("Labels are fixed at creation");
@@ -1097,7 +1148,7 @@ describe("Run routes", () => {
     );
     await waitFor(() =>
       expect(
-        view.container.querySelector(".dispatch-banner")?.textContent,
+        view.container.querySelector(".runs-dispatch")?.textContent,
       ).toContain("Logical Worker reviewer"),
     );
     expect(
@@ -1123,10 +1174,12 @@ describe("Run routes", () => {
       }),
     );
     await waitFor(() => expect(detailReads).toBeGreaterThan(1));
-    expect(await screen.findByText("cancelling")).toBeInTheDocument();
-    expect(
-      view.container.querySelector(".run-triage .state-succeeded"),
-    ).toBeNull();
+    // The lifecycle hint said succeeded; only the refetched Run state shows.
+    expect(await screen.findByText("Cancelling")).toBeInTheDocument();
+    expect(screen.queryByText("Succeeded")).toBeNull();
+    expect(view.container.querySelector(".run-triage")).toHaveClass(
+      "run-triage-cancelling",
+    );
   });
 
   it("follows a new attempt's first Planner fact without a projection resync", async () => {
@@ -1323,7 +1376,10 @@ describe("Run routes", () => {
     );
     renderRunApplication(api, "/runs/run-router");
     const user = userEvent.setup();
-    const button = await screen.findByRole("button", {
+    await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this Run?" });
+    expect(within(dialog).getByLabelText("Reason")).toHaveFocus();
+    const button = within(dialog).getByRole("button", {
       name: "Request cancellation",
     });
     await user.click(button);
@@ -1334,11 +1390,14 @@ describe("Run routes", () => {
     ).toBeInTheDocument();
     expect(cancellationCalls).toBe(0);
     await user.type(
-      screen.getByLabelText("Explicit reason"),
+      within(dialog).getByLabelText("Reason"),
       "Stop after the current review",
     );
     await user.click(button);
-    expect(await screen.findByText("succeeded")).toBeInTheDocument();
+    expect(await screen.findByText("Succeeded")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
+    );
     // A terminal Run shows no cancellation panel at all.
     await waitFor(() =>
       expect(
@@ -1394,24 +1453,27 @@ describe("Run routes", () => {
     );
     renderRunApplication(api, "/runs/run-router");
     const user = userEvent.setup();
-    const button = await screen.findByRole("button", {
+    await user.click(await screen.findByRole("button", { name: "Cancel Run" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this Run?" });
+    const button = within(dialog).getByRole("button", {
       name: "Request cancellation",
     });
-    await user.type(screen.getByLabelText("Explicit reason"), "Stop this Run");
+    await user.type(within(dialog).getByLabelText("Reason"), "Stop this Run");
     await user.click(button);
     expect(
-      await screen.findByText("Cancellation service unavailable"),
+      await within(dialog).findByText("Cancellation service unavailable"),
     ).toBeVisible();
-    expect(screen.getByLabelText("Explicit reason")).toHaveValue(
+    expect(within(dialog).getByLabelText("Reason")).toHaveValue(
       "Stop this Run",
     );
     expect(button).toBeEnabled();
-    expect(screen.queryByText(/had already reached a final state/)).toBeNull();
+    expect(screen.queryByText(/had finished before/)).toBeNull();
     expect(cancellationCalls).toBe(1);
     await user.click(button);
-    expect(
-      await screen.findByRole("heading", { name: "Cleanup in progress" }),
-    ).toBeVisible();
+    expect(await screen.findByText("Cleanup in progress")).toBeVisible();
+    expect(screen.getByText("Cancelling")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel Run" })).toBeNull();
     expect(cancellationCalls).toBe(2);
   });
 
@@ -1494,10 +1556,15 @@ describe("Run routes", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      within(triage as HTMLElement).getByText("retryable"),
+      within(triage as HTMLElement).getByText("Retryable"),
     ).toBeInTheDocument();
-    expect(within(triage as HTMLElement).getByText("34s")).toBeInTheDocument();
-    expect(within(triage as HTMLElement).getByText("1.2K")).toBeInTheDocument();
+    // Execution metrics live under Technical details and stay open for a
+    // failed Run.
+    const metrics =
+      view.container.querySelector<HTMLDetailsElement>("#run-metrics")!;
+    expect(metrics.open).toBe(true);
+    expect(within(metrics).getAllByText("34s").length).toBeGreaterThan(0);
+    expect(within(metrics).getByText("1.2K")).toBeInTheDocument();
     expect(
       within(triage as HTMLElement).getByRole("link", {
         name: "Inspect focused attempt",
@@ -2092,8 +2159,8 @@ describe("Run routes", () => {
       })
     ).closest("section");
     expect(panel).not.toBeNull();
-    expect(within(panel as HTMLElement).getByText("published")).toBeVisible();
-    expect(within(panel as HTMLElement).getByText("failed")).toBeVisible();
+    expect(within(panel as HTMLElement).getByText("Published")).toBeVisible();
+    expect(within(panel as HTMLElement).getByText("Failed")).toBeVisible();
     expect(panel).toHaveTextContent("source outputs/openapi@run-output-r1");
     expect(
       within(panel as HTMLElement).getByRole("link", {
@@ -2105,7 +2172,7 @@ describe("Run routes", () => {
     );
     expect(panel).toHaveTextContent("artifact_conflict");
     expect(panel).toHaveTextContent("The Project binding already changed.");
-    expect(screen.getByText("succeeded")).toBeInTheDocument();
+    expect(screen.getByText("Succeeded")).toBeInTheDocument();
   });
 
   it("inspects exact RunScope metadata, versions, lineage, and safe preview", async () => {
@@ -2190,5 +2257,335 @@ describe("Run routes", () => {
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/token|secret prompt/i)).not.toBeInTheDocument();
+  });
+
+  describe("Run page header", () => {
+    function renderRun(run: RunStatus, path = "/runs/run-router") {
+      const writes: Request[] = [];
+      const api = new PublicAPI(runtimeConfig, async (input, init) => {
+        const request = new Request(input, init);
+        const common = sessionOrArtifacts(request);
+        if (common !== undefined) return common;
+        if (request.method !== "GET") {
+          writes.push(request);
+          throw new Error(`unexpected ${request.method} ${request.url}`);
+        }
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/runs/run-router") return apiResponse(run);
+        if (url.pathname === "/v1/runs") {
+          return apiResponse({
+            items: [
+              {
+                runId: "run-router",
+                workflow: run.workflow,
+                state: run.state,
+                labels: {},
+                createdAt: "2026-08-31T12:00:00Z",
+                updatedAt: "2026-08-31T12:01:00Z",
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        return apiResponse(
+          {
+            code: "not_found",
+            message: "Not in this fixture",
+            retryable: false,
+          },
+          { status: 404 },
+        );
+      });
+      return { ...renderRunApplication(api, path), writes };
+    }
+
+    const failedAttempt = {
+      ...runFixture().attempts[0]!,
+      state: "failed" as const,
+    };
+
+    it.each([
+      ["running", runFixture({ eventCursor: undefined }), ["Cancel Run"]],
+      [
+        "waiting for a manual model retry",
+        runFixture({
+          state: "waiting",
+          eventCursor: undefined,
+          recovery: {
+            code: "gateway_timeout",
+            since: "2026-09-20T20:00:00Z",
+            automaticUntil: "2026-09-20T20:05:00Z",
+            requiresRetry: true,
+          },
+        }),
+        ["Retry model connection", "Cancel Run"],
+      ],
+      [
+        "cancelling",
+        runFixture({ state: "cancelling", eventCursor: undefined }),
+        [],
+      ],
+      [
+        "failed with a continuable stage",
+        runFixture({
+          state: "failed",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [failedAttempt],
+          resumeStageExecutionId: failedAttempt.stageExecutionId,
+        }),
+        ["Continue from failed stage", "Configure another Run"],
+      ],
+      [
+        "failed without continuation",
+        runFixture({
+          state: "failed",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [failedAttempt],
+        }),
+        ["Configure another Run"],
+      ],
+      [
+        "succeeded",
+        runFixture({
+          state: "succeeded",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+        }),
+        ["Configure another Run"],
+      ],
+    ] as const)(
+      "offers only the actions a %s Run allows, as separate buttons",
+      async (_label, run, expected) => {
+        renderRun(run);
+        const heading = await screen.findByRole("heading", {
+          level: 1,
+          name: "router-analysis@1",
+        });
+        const header = heading.closest("header")!;
+        await waitFor(() =>
+          expect(
+            within(header).getByRole("button", { name: "Refresh" }),
+          ).toBeEnabled(),
+        );
+        const actions = within(header)
+          .getAllByRole("button")
+          .map((button) => button.textContent?.trim())
+          .filter((name) =>
+            [
+              "Retry model connection",
+              "Continue from failed stage",
+              "Configure another Run",
+              "Cancel Run",
+            ].includes(name ?? ""),
+          );
+        expect(actions).toEqual(expected);
+      },
+    );
+
+    it("names the failed stage before continuing and sends nothing on Back", async () => {
+      const view = renderRun(
+        runFixture({
+          state: "failed",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [failedAttempt],
+          resumeStageExecutionId: failedAttempt.stageExecutionId,
+        }),
+      );
+      const user = userEvent.setup();
+      const trigger = await screen.findByRole("button", {
+        name: "Continue from failed stage",
+      });
+      await user.click(trigger);
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Continue from failed stage?",
+      });
+      expect(dialog).toHaveTextContent("Retry stage analysis?");
+      expect(dialog).toHaveTextContent(/may repeat external side effects/);
+      expect(
+        within(dialog).getByRole("button", { name: "Back" }),
+      ).toHaveFocus();
+      // Repeat stays a separate action with its own review.
+      expect(
+        within(dialog).queryByRole("button", {
+          name: "Configure another Run",
+        }),
+      ).toBeNull();
+      await user.click(within(dialog).getByRole("button", { name: "Back" }));
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(view.writes).toHaveLength(0);
+    });
+
+    it("keeps a dismissed cancellation free of requests", async () => {
+      const view = renderRun(runFixture({ eventCursor: undefined }));
+      const user = userEvent.setup();
+      const trigger = await screen.findByRole("button", {
+        name: "Cancel Run",
+      });
+      await user.click(trigger);
+      const dialog = screen.getByRole("dialog", { name: "Cancel this Run?" });
+      await user.type(within(dialog).getByLabelText("Reason"), "Not needed");
+      await user.click(
+        within(dialog).getByRole("button", { name: "Keep running" }),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(view.writes).toHaveLength(0);
+      expect(
+        within(trigger.closest("header")!).getByText("Running"),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the identifiers, live status and every technical section", async () => {
+      const cancelled = runFixture({
+        state: "cancelled",
+        projectId: "project-payment",
+        activeStageExecutionId: undefined,
+        attempts: [{ ...runFixture().attempts[0]!, state: "cancelled" }],
+        cancellation: {
+          code: "user_cancelled",
+          requestedAt: "2026-08-31T12:03:00Z",
+          requestedBy: "owner",
+          reason: "Wrong project",
+        },
+        finishedAt: "2026-08-31T12:04:00Z",
+      });
+      const view = renderRun(cancelled);
+      const user = userEvent.setup();
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "router-analysis@1",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Copy Run ID" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Copy workflow version" }),
+      ).toBeInTheDocument();
+      const facts = view.container.querySelector<HTMLElement>(".run-metadata")!;
+      expect(within(facts).getByText("router-analysis@1")).toBeInTheDocument();
+      expect(facts).toHaveTextContent("project-payment");
+      expect(
+        within(facts.closest("header")!).getByText("Cancelled"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Live events: connecting")).toBeInTheDocument();
+      const triage = view.container.querySelector(".run-triage")!;
+      expect(triage).toHaveClass("run-triage-cancelled");
+      expect(triage).toHaveTextContent("Lifecycle reason");
+      expect(triage).toHaveTextContent("User requested");
+
+      const technical = screen
+        .getByRole("heading", { name: "Technical details" })
+        .closest("section")!;
+      const sections = [
+        ...technical.querySelectorAll<HTMLDetailsElement>(
+          "details.runs-section",
+        ),
+      ];
+      expect(
+        sections.map(
+          (section) =>
+            section.querySelector(".runs-section-title")?.textContent,
+        ),
+      ).toEqual([
+        "Execution metrics",
+        "Ordered Stage attempts",
+        "Run metadata labels",
+        "Parameters and input revisions",
+        "Runtime infrastructure configuration",
+        "Run artifacts",
+        "Cancellation record",
+      ]);
+      // Only the execution metrics of an unsuccessful Run start open.
+      expect(sections.map((section) => section.open)).toEqual([
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+      ]);
+      for (const section of sections.slice(1)) {
+        await user.click(section.querySelector(":scope > summary")!);
+        expect(section.open).toBe(true);
+      }
+      expect(
+        within(sections[3]!).getByText("Review the project architecture"),
+      ).toBeInTheDocument();
+      expect(
+        within(sections[3]!).getByRole("link", {
+          name: "source inputs/source@input-r1",
+        }),
+      ).toHaveAttribute(
+        "href",
+        "/runs/run-router/artifacts/inputs/source?revision=input-r1",
+      );
+      expect(sections[6]).toHaveTextContent("Wrong project");
+      expect(sections[6]).toHaveTextContent("owner");
+      expect(
+        view.container.querySelector("#attempt-stage-router-1"),
+      ).not.toBeNull();
+    });
+
+    it("opens the focused attempt before following the triage shortcut", async () => {
+      const view = renderRun(
+        runFixture({
+          state: "succeeded",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [{ ...runFixture().attempts[0]!, state: "succeeded" }],
+        }),
+      );
+      const shortcut = await screen.findByRole("link", {
+        name: "Inspect focused attempt",
+      });
+      const attempts =
+        view.container.querySelector<HTMLDetailsElement>("#run-attempts")!;
+      const attempt = view.container.querySelector<HTMLDetailsElement>(
+        "#attempt-stage-router-1",
+      )!;
+      // The focused attempt is expanded inside its collapsed section.
+      expect(attempts.open).toBe(false);
+      expect(attempt.open).toBe(true);
+      // A finished Run without an event stream shows no live status line.
+      expect(screen.queryByText(/^Live events/)).toBeNull();
+      await userEvent.setup().click(shortcut);
+      expect(attempts.open).toBe(true);
+      expect(attempt.open).toBe(true);
+    });
+
+    it("leads back to the list view the Run was opened from", async () => {
+      renderRun(
+        runFixture({
+          state: "failed",
+          eventCursor: undefined,
+          activeStageExecutionId: undefined,
+          attempts: [failedAttempt],
+        }),
+        "/runs?view=completed&state=failed",
+      );
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("link", { name: "run-router" }));
+      const breadcrumb = await screen.findByRole("navigation", {
+        name: "Breadcrumb",
+      });
+      // The rail already names the destination; the trail starts at the view.
+      expect(
+        within(breadcrumb).queryByRole("link", { name: "Runs" }),
+      ).toBeNull();
+      expect(
+        within(breadcrumb).getByRole("link", { name: "Completed" }),
+      ).toHaveAttribute("href", "/runs?view=completed&state=failed");
+      expect(within(breadcrumb).getByText("run-router")).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    });
   });
 });

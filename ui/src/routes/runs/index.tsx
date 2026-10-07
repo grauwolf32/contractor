@@ -1,12 +1,20 @@
+import "./runs.css";
+import { useId } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
 import { useDocumentTitle } from "../../app/document-title";
 import { QueuePanel } from "../queue";
+import { useQueueAdmission } from "./admission";
 import { CompletedRunsPanel } from "./list";
 
+/**
+ * The one Runs destination (S18): Queue by default, Completed at
+ * ?view=completed. A terminal ?state=… without a view opens Completed.
+ */
 export function RunsRoute() {
   const [searchParams] = useSearchParams();
+  const titleId = useId();
   const requestedView = searchParams.get("view");
   const requestedState = searchParams.get("state");
   const terminalStateDeepLink = TERMINAL_RUN_STATES.some(
@@ -16,40 +24,44 @@ export function RunsRoute() {
     requestedView === "completed" ||
     (requestedView === null && terminalStateDeepLink);
   useDocumentTitle(completed ? "Completed · Runs" : "Queue · Runs");
+  const admission = useQueueAdmission();
 
   return (
-    <section className="route-page runs-page">
-      <header className="route-header-row runs-header">
-        <div>
-          <p className="eyebrow">Workflow execution</p>
-          <h2>Runs</h2>
-          <p className="lede">
-            Follow active work and inspect completed results.
-          </p>
-        </div>
-      </header>
-
-      <nav
-        className="operations-navigation section-navigation"
-        aria-label="Run views"
-      >
-        <Link
-          to="/runs"
-          className={completed ? undefined : "active"}
-          aria-current={completed ? undefined : "page"}
-        >
-          Queue
-        </Link>
-        <Link
-          to="/runs?view=completed"
-          className={completed ? "active" : undefined}
-          aria-current={completed ? "page" : undefined}
-        >
-          Completed
-        </Link>
-      </nav>
-
-      {completed ? <CompletedRunsPanel /> : <QueuePanel />}
-    </section>
+    <div className="runs-page">
+      <section className="runs-surface" aria-labelledby={titleId}>
+        <header className="runs-head">
+          <div className="runs-head-text">
+            <h1 id={titleId} className="runs-title">
+              Runs
+            </h1>
+            <p className="runs-subtitle">
+              Workflow Runs: active work waits in the Queue, finished Runs and
+              their results are in Completed.
+            </p>
+          </div>
+          {admission.control}
+        </header>
+        {admission.notice === null ? null : (
+          <div className="runs-head-notice">{admission.notice}</div>
+        )}
+        <nav className="runs-views" aria-label="Run views">
+          <Link
+            to="/runs"
+            className="runs-view-link"
+            aria-current={completed ? undefined : "page"}
+          >
+            Queue
+          </Link>
+          <Link
+            to="/runs?view=completed"
+            className="runs-view-link"
+            aria-current={completed ? "page" : undefined}
+          >
+            Completed
+          </Link>
+        </nav>
+        {completed ? <CompletedRunsPanel /> : <QueuePanel />}
+      </section>
+    </div>
   );
 }

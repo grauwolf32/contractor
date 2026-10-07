@@ -1,5 +1,3 @@
-import "./reading.css";
-import { ContextLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -21,15 +19,31 @@ import {
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactId, formatTimestamp } from "../../app/format";
-import { RunMetadataLabelChips, StateBadge } from "./components";
+import { formatTimestamp } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 import { DeleteIcon } from "../../app/delete-icon";
+import { Icon } from "../../app/icon";
+import { EmptyState, IdChip } from "../../ui";
+import {
+  DisclosureChevron,
+  RunMetadataLabelChips,
+  RunStateChip,
+} from "./components";
+import { RunIdLink, RunsFilter } from "./list-parts";
+import { RUN_STATE_LABELS } from "./run-state";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
+
+const STATE_OPTIONS = [
+  { value: "" as const, label: "All" },
+  ...TERMINAL_RUN_STATES.map((state) => ({
+    value: state,
+    label: RUN_STATE_LABELS[state].label,
+  })),
+];
 
 function decodeLabelSelectors(
   values: readonly string[],
@@ -69,6 +83,12 @@ function safelyDecodeLabelSelectors(values: readonly string[]): {
 
 function selectorToken(selector: RunMetadataLabelSelector): string {
   return `${selector.key}=${selector.value}`;
+}
+
+function selectorLabel(selector: RunMetadataLabelSelector): string {
+  return selector.value === ""
+    ? selector.key
+    : `${selector.key}:${selector.value}`;
 }
 
 function firstSelectorValue(
@@ -153,32 +173,31 @@ function RunLabelFilters({
 
   return (
     <details
-      className="run-label-filters"
+      className="run-label-filters runs-label-filters"
       open={filtersOpen}
       onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
     >
-      <summary>
-        <span className="run-label-filter-title">
+      <summary className="runs-label-filters-summary">
+        <DisclosureChevron />
+        <span className="runs-label-filters-title">
           <strong>Metadata &amp; eval filters</strong>
           <small>Find Runs by their labels</small>
         </span>
         <span
-          className={`run-label-filter-count ${selectors.length > 0 ? "has-active" : ""}`}
-          aria-label={`${selectors.length} ${selectors.length === 1 ? "active filter" : "active filters"}`}
+          className="runs-label-filters-count"
+          data-active={selectors.length > 0 ? "" : undefined}
         >
-          <strong>{selectors.length}</strong>
-          <small>
-            {selectors.length === 1 ? "active filter" : "active filters"}
-          </small>
+          {selectors.length}{" "}
+          {selectors.length === 1 ? "active filter" : "active filters"}
         </span>
       </summary>
-      <div className="run-label-filter-body">
-        <p className="muted-copy">
+      <div className="runs-label-filters-body">
+        <p className="runs-hint">
           Every active key=value pair must match. Values are exact and may
           contain “=”. Filters are URL-visible; do not use labels for secrets.
         </p>
         <form
-          className="run-eval-filter"
+          className="runs-filter-form"
           key={fingerprint}
           onSubmit={applyEval}
         >
@@ -206,11 +225,11 @@ function RunLabelFilters({
               defaultValue={firstSelectorValue(selectors, "eval.leg")}
             />
           </label>
-          <button className="secondary-button" type="submit">
+          <button className="ui-btn" data-size="sm" type="submit">
             Apply eval filters
           </button>
         </form>
-        <form className="run-exact-label-filter" onSubmit={addExact}>
+        <form className="runs-filter-form" onSubmit={addExact}>
           <label>
             Label key
             <input name="labelKey" type="text" autoComplete="off" />
@@ -220,7 +239,8 @@ function RunLabelFilters({
             <input name="labelValue" type="text" autoComplete="off" />
           </label>
           <button
-            className="secondary-button"
+            className="ui-btn"
+            data-size="sm"
             type="submit"
             disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
           >
@@ -228,13 +248,14 @@ function RunLabelFilters({
           </button>
         </form>
         {parseError === undefined && validationError === undefined ? null : (
-          <p className="field-error" role="alert">
+          <p className="runs-field-error" role="alert">
             {parseError ?? validationError}
           </p>
         )}
         {parseError === undefined ? null : (
           <button
-            className="secondary-button run-label-filter-recovery"
+            className="ui-btn"
+            data-size="sm"
             type="button"
             onClick={() => onReplace([])}
           >
@@ -242,32 +263,30 @@ function RunLabelFilters({
           </button>
         )}
         {selectors.length === 0 ? (
-          <p className="run-label-filter-empty">
+          <p className="runs-hint">
             No metadata filters applied — all Runs are included.
           </p>
         ) : (
-          <div className="run-active-label-filters">
+          <div className="runs-active-filters">
             {selectors.map((selector) => (
               <span
-                className="run-active-label-filter"
+                className="runs-active-filter"
                 key={selectorToken(selector)}
               >
-                <code>
-                  {selector.value === ""
-                    ? selector.key
-                    : `${selector.key}:${selector.value}`}
-                </code>
+                <code>{selectorLabel(selector)}</code>
                 <button
                   type="button"
-                  aria-label={`Remove filter ${selector.value === "" ? selector.key : `${selector.key}:${selector.value}`}`}
+                  aria-label={`Remove filter ${selectorLabel(selector)}`}
                   onClick={() => remove(selector)}
                 >
-                  ×
+                  <Icon name="close" />
                 </button>
               </span>
             ))}
             <button
-              className="secondary-button"
+              className="ui-btn"
+              data-size="xs"
+              data-variant="ghost"
               type="button"
               onClick={() => {
                 onReplace([]);
@@ -283,6 +302,15 @@ function RunLabelFilters({
   );
 }
 
+function contextSummary(labels: Readonly<Record<string, string>>): string {
+  const count = Object.keys(labels).length;
+  return (
+    labels["eval.name"] ??
+    labels.purpose ??
+    (count === 0 ? "Details" : `${count} ${count === 1 ? "label" : "labels"}`)
+  );
+}
+
 function CompletedRunRow({
   run,
   onDelete,
@@ -294,53 +322,44 @@ function CompletedRunRow({
   const contextId = useId();
   return (
     <>
-      <tr className={expanded ? "run-row-expanded" : undefined}>
-        <td className="run-list-id-cell" data-label="Run">
-          <ContextLink
-            returnLabel="Completed Runs"
-            className="run-list-id-link"
-            to={`/runs/${encodeURIComponent(run.runId)}`}
-            aria-label={run.runId}
-            title={run.runId}
-          >
-            {compactId(run.runId)}
-          </ContextLink>
+      <tr data-expanded={expanded ? "" : undefined}>
+        <td className="run-list-id-cell">
+          <RunIdLink runId={run.runId} returnLabel="Completed" />
         </td>
-        <td className="run-list-workflow-cell" data-label="Workflow">
-          <span className="run-list-mobile-label">Workflow</span>
+        <td className="run-list-workflow-cell">
+          <span className="runs-cell-label">Workflow</span>
           <code>{run.workflow}</code>
         </td>
-        <td className="run-list-state-cell" data-label="State">
-          <StateBadge state={run.state} />
+        <td className="run-list-state-cell">
+          <RunStateChip state={run.state} />
         </td>
-        <td className="run-list-labels-cell" data-label="Context">
+        <td className="run-list-labels-cell">
           <button
             type="button"
-            className="run-context-toggle"
+            className="runs-context-toggle"
             aria-label={`Context for ${run.runId}`}
             aria-expanded={expanded}
             aria-controls={contextId}
             onClick={() => setExpanded((value) => !value)}
           >
-            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-            {run.labels["eval.name"] ??
-              run.labels.purpose ??
-              (Object.keys(run.labels).length
-                ? `${Object.keys(run.labels).length} labels`
-                : "Details")}
+            <DisclosureChevron />
+            <span>{contextSummary(run.labels)}</span>
           </button>
         </td>
-        <td className="run-list-finished-cell" data-label="Finished">
+        <td className="run-list-finished-cell">
+          <span className="runs-cell-label">Finished</span>
           {run.finishedAt === undefined ? (
             "—"
           ) : (
             <RecordedTime value={run.finishedAt} />
           )}
         </td>
-        <td className="run-list-actions-cell" data-label="Actions">
+        <td className="run-list-actions-cell">
           {run.deletable === true ? (
             <button
-              className="run-delete-trigger"
+              className="ui-btn runs-delete"
+              data-size="sm"
+              data-variant="ghost"
               type="button"
               aria-label={`Delete Run ${run.runId}`}
               title="Delete completed Run"
@@ -352,19 +371,22 @@ function CompletedRunRow({
         </td>
       </tr>
       {expanded ? (
-        <tr className="run-context-row">
+        <tr className="runs-context-row">
           <td colSpan={6}>
             <section
-              className="run-context-details"
+              className="runs-context-details"
               id={contextId}
               aria-label={`Context for ${run.runId}`}
             >
-              <RunMetadataLabelChips labels={run.labels} />
-              <dl className="compact-record-facts">
+              <RunMetadataLabelChips
+                labels={run.labels}
+                empty="No metadata labels."
+              />
+              <dl className="runs-inline-facts">
                 <div>
                   <dt>Run ID</dt>
                   <dd>
-                    <code>{run.runId}</code>
+                    <IdChip value={run.runId} label="Run ID" />
                   </dd>
                 </div>
                 <div>
@@ -384,6 +406,11 @@ function CompletedRunRow({
   );
 }
 
+/**
+ * Runs → Completed: terminal Runs newest first (S18), filtered by state and
+ * exact metadata labels, with deletion for Runs the Server marks deletable.
+ * Filters and the page cursor live in the URL.
+ */
 export function CompletedRunsPanel() {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -420,6 +447,17 @@ export function CompletedRunsPanel() {
     },
   });
 
+  function replaceState(selected: WorkflowRunState | ""): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
+    if (selected === "") {
+      next.delete("state");
+    } else {
+      next.set("state", selected);
+    }
+    setSearchParams(next, { replace: true });
+  }
+
   function replaceLabelSelectors(
     nextSelectors: readonly RunMetadataLabelSelector[],
   ): void {
@@ -434,42 +472,22 @@ export function CompletedRunsPanel() {
   }
 
   return (
-    <div className="panel run-library run-view-panel">
-      <div className="section-heading">
-        <div>
-          <h3>Completed Runs</h3>
-        </div>
-        <div className="run-view-controls">
-          <label className="compact-select">
-            State
-            <select
-              value={state ?? ""}
-              onChange={(event) => {
-                const selected = event.target.value as WorkflowRunState | "";
-                const next = new URLSearchParams(searchParams);
-                next.delete("cursor");
-                if (selected === "") {
-                  next.delete("state");
-                } else {
-                  next.set("state", selected);
-                }
-                setSearchParams(next, { replace: true });
-              }}
-            >
-              <option value="">All states</option>
-              {TERMINAL_RUN_STATES.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate}
-                </option>
-              ))}
-            </select>
-          </label>
-          <RefreshButton
-            isFetching={query.isFetching}
-            disabled={decoded.error !== undefined}
-            onRefresh={() => void query.refetch()}
+    <div className="runs-view">
+      <div className="runs-toolbar">
+        <div className="runs-filters">
+          <RunsFilter
+            label="State"
+            options={STATE_OPTIONS}
+            value={state ?? ""}
+            onChange={replaceState}
           />
         </div>
+        <RefreshButton
+          className="runs-icon-button"
+          isFetching={query.isFetching}
+          disabled={decoded.error !== undefined}
+          onRefresh={() => void query.refetch()}
+        />
       </div>
       <RunLabelFilters
         key={encodedLabelSelectors.join("\u0000")}
@@ -477,39 +495,36 @@ export function CompletedRunsPanel() {
         parseError={decoded.error}
         onReplace={replaceLabelSelectors}
       />
-      {decoded.error !== undefined ? (
-        <div className="compact-empty">
-          Clear the malformed metadata filters to load Runs.
-        </div>
-      ) : (
-        <QueryView
-          query={query}
-          loading={
-            <p className="loading-copy" aria-live="polite">
-              Loading completed Runs…
-            </p>
-          }
-          onRetry={() => void query.refetch()}
-          isEmpty={(data) => data.items.length === 0}
-          empty={
-            <div className="compact-empty">
-              <strong>No completed Runs match this view.</strong>
-              <p>Terminal Runs appear here after execution finishes.</p>
-            </div>
-          }
-        >
-          {(data) => (
-            <div className="table-scroll">
-              <table className="responsive-table run-list-table compact-run-history">
+      <div className="runs-results">
+        {decoded.error !== undefined ? (
+          <EmptyState title="Clear the malformed metadata filters to load Runs." />
+        ) : (
+          <QueryView
+            query={query}
+            loading={
+              <p className="runs-loading" aria-live="polite">
+                Loading completed Runs…
+              </p>
+            }
+            onRetry={() => void query.refetch()}
+            isEmpty={(data) => data.items.length === 0}
+            empty={
+              <EmptyState title="No completed Runs match this view.">
+                <p>Terminal Runs appear here after execution finishes.</p>
+              </EmptyState>
+            }
+          >
+            {(data) => (
+              <table className="runs-table" data-has-actions="">
                 <thead>
                   <tr>
-                    <th>Run</th>
-                    <th>Workflow</th>
-                    <th>State</th>
-                    <th>Context & details</th>
-                    <th>Finished</th>
-                    <th>
-                      <span className="visually-hidden">Actions</span>
+                    <th scope="col">Run</th>
+                    <th scope="col">Workflow</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Context &amp; details</th>
+                    <th scope="col">Finished</th>
+                    <th scope="col">
+                      <span className="ui-visually-hidden">Actions</span>
                     </th>
                   </tr>
                 </thead>
@@ -526,10 +541,10 @@ export function CompletedRunsPanel() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </QueryView>
-      )}
+            )}
+          </QueryView>
+        )}
+      </div>
       <CursorControls label="Run pages" {...pages.controls(query.data?.page)} />
       {deleteTarget === undefined ? null : (
         <ConfirmRemovalDialog

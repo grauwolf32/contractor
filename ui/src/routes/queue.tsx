@@ -1,15 +1,12 @@
-import { ContextLink } from "../app/context-navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { usePublicAPI } from "../api/context";
 import {
-  getOwnerQueueControl,
   listRunQueue,
   QUEUE_MEMBERSHIPS,
   QUEUE_STATES,
-  setOwnerQueuePaused,
   type QueueItem,
   type QueueMembership,
   type QueueState,
@@ -18,12 +15,13 @@ import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
 import { CursorControls } from "../app/cursor-controls";
 import { useURLCursorStack } from "../app/pagination";
-import { ErrorNotice } from "../app/error-notice";
-import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
-import { compactId } from "../app/format";
+import { EmptyState } from "../ui";
+import { RunMetadataLabelChips, RunStateChip } from "./runs/components";
+import { RunIdLink, RunsFilter } from "./runs/list-parts";
+import { MEMBERSHIP_LABELS, RUN_STATE_LABELS } from "./runs/run-state";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 // Live subscriptions left waiting by a failed resync, or by a live session
@@ -31,28 +29,33 @@ const LIVE_SUBSCRIPTION_LIMIT = 24;
 // a failing read nor a refused socket can spin.
 const LIVE_RETRY_DELAY_MS = 10_000;
 
-function membershipLabel(value: QueueMembership): string {
-  switch (value) {
-    case "standalone":
-      return "Standalone";
-    case "project":
-      return "Projects";
-    case "evaluation":
-      return "Evaluations";
-  }
-}
+const STATE_OPTIONS = [
+  { value: "" as const, label: "All" },
+  ...QUEUE_STATES.map((state) => ({
+    value: state,
+    label: RUN_STATE_LABELS[state].label,
+  })),
+];
+
+const MEMBERSHIP_OPTIONS = [
+  { value: "" as const, label: "All" },
+  ...QUEUE_MEMBERSHIPS.map((membership) => ({
+    value: membership,
+    label: MEMBERSHIP_LABELS[membership],
+  })),
+];
 
 function QueueContext({ item }: { item: QueueItem }) {
   if (item.project === undefined) {
     return (
-      <span className="queue-context">
+      <span className="runs-context">
         <strong>Standalone</strong>
         <small>No Project</small>
       </span>
     );
   }
   return (
-    <span className="queue-context">
+    <span className="runs-context">
       <Link
         to={`${item.project.kind === "evaluation" ? "/evals" : "/projects"}/${encodeURIComponent(item.project.projectId)}`}
       >
@@ -141,9 +144,13 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
   }, [events, queryClient, targetFingerprint, resyncs]);
 }
 
+/**
+ * Runs → Queue: the owner-scoped active queue (S17/S18), oldest first,
+ * polled and refreshed by live lifecycle events for its first rows. State
+ * and context filters and the page cursor live in the URL.
+ */
 export function QueuePanel() {
   const api = usePublicAPI();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state");
   const state = QUEUE_STATES.find(
@@ -165,22 +172,6 @@ export function QueuePanel() {
       }),
     refetchInterval: 10_000,
   });
-  const controlQuery = useQuery({
-    queryKey: queryKeys.queue.control,
-    queryFn: () => getOwnerQueueControl(api),
-  });
-  const controlMutation = useMutation({
-    mutationFn: ({ paused, revision }: { paused: boolean; revision: string }) =>
-      setOwnerQueuePaused(api, paused, revision),
-    onSuccess: (control) => {
-      queryClient.setQueryData(queryKeys.queue.control, control);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.queue.control,
-      });
-    },
-  });
 
   useQueueInvalidation(query.data?.items ?? []);
 
@@ -196,182 +187,105 @@ export function QueuePanel() {
   }
 
   return (
-    <div className="panel queue-library run-view-panel">
-      <div className="section-heading queue-heading">
-        <div>
-          <p className="eyebrow">Display order</p>
-          <h3>Active queue · oldest first</h3>
-          <p className="muted-copy">Position here is not Scheduler priority.</p>
-        </div>
-        <div className="queue-filters run-view-controls">
-          <div
-            className={`queue-control-state ${controlQuery.data?.paused === true ? "paused" : ""}`}
-          >
-            <span className="queue-control-label" aria-live="polite">
-              <span aria-hidden="true" />
-              {controlQuery.isPending
-                ? "Checking admission…"
-                : controlQuery.data?.paused === true
-                  ? "Admission paused"
-                  : "Admission running"}
-            </span>
-            <button
-              className="secondary-button queue-control-button"
-              type="button"
-              disabled={
-                controlQuery.data === undefined ||
-                controlQuery.error !== null ||
-                controlMutation.isPending
-              }
-              onClick={() => {
-                const control = controlQuery.data;
-                if (control !== undefined) {
-                  controlMutation.mutate({
-                    paused: !control.paused,
-                    revision: control.revision,
-                  });
-                }
-              }}
-            >
-              {controlMutation.isPending
-                ? controlQuery.data?.paused === true
-                  ? "Resuming…"
-                  : "Pausing…"
-                : controlQuery.data?.paused === true
-                  ? "Resume queue"
-                  : "Pause queue"}
-            </button>
-          </div>
-          <label className="compact-select">
-            State
-            <select
-              value={state ?? ""}
-              onChange={(event) => replaceFilter("state", event.target.value)}
-            >
-              <option value="">All active states</option>
-              {QUEUE_STATES.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="compact-select">
-            Context
-            <select
-              value={membership ?? ""}
-              onChange={(event) =>
-                replaceFilter("membership", event.target.value)
-              }
-            >
-              <option value="">All contexts</option>
-              {QUEUE_MEMBERSHIPS.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {membershipLabel(candidate)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <RefreshButton
-            isFetching={query.isFetching}
-            onRefresh={() => void query.refetch()}
+    <div className="runs-view">
+      <div className="runs-toolbar">
+        <div className="runs-filters">
+          <RunsFilter
+            label="State"
+            options={STATE_OPTIONS}
+            value={state ?? ""}
+            onChange={(value) => replaceFilter("state", value)}
+          />
+          <RunsFilter
+            label="Context"
+            options={MEMBERSHIP_OPTIONS}
+            value={membership ?? ""}
+            onChange={(value) => replaceFilter("membership", value)}
           />
         </div>
+        <RefreshButton
+          className="runs-icon-button"
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+        />
       </div>
+      <p className="runs-note">
+        Oldest first. Position here is not Scheduler priority.
+      </p>
 
-      {controlQuery.error !== null ? (
-        <div className="queue-control-error">
-          <ErrorNotice error={controlQuery.error} />
-        </div>
-      ) : controlMutation.error !== null ? (
-        <div className="queue-control-error">
-          <ErrorNotice error={controlMutation.error} />
-        </div>
-      ) : controlQuery.data?.paused === true ? (
-        <p className="queue-pause-note" role="status">
-          Running Stages and cleanup will finish. No next Stage starts until you
-          resume the queue.
-        </p>
-      ) : null}
-
-      <QueryView
-        query={query}
-        loading={
-          <p className="loading-copy" role="status">
-            Loading Queue…
-          </p>
-        }
-        onRetry={() => void query.refetch()}
-        isEmpty={(queryData) => queryData.items.length === 0}
-        empty={
-          <div className="compact-empty">
-            <strong>No active Runs match this view.</strong>
-            <p>Terminal Runs remain available in execution history.</p>
-          </div>
-        }
-      >
-        {(queryData) => (
-          <div className="table-scroll">
-            <table className="responsive-table run-list-table queue-table">
+      <div className="runs-results">
+        <QueryView
+          query={query}
+          loading={
+            <p className="runs-loading" role="status">
+              Loading Queue…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+          isEmpty={(queryData) => queryData.items.length === 0}
+          empty={
+            <EmptyState title="No active Runs match this view.">
+              <p>Terminal Runs remain available in Completed.</p>
+            </EmptyState>
+          }
+        >
+          {(queryData) => (
+            <table className="runs-table">
               <thead>
                 <tr>
-                  <th>Run</th>
-                  <th>Workflow</th>
-                  <th>State</th>
-                  <th>Context</th>
-                  <th>Run metadata labels</th>
-                  <th>Created</th>
-                  <th>Updated</th>
+                  <th scope="col">Run</th>
+                  <th scope="col">Workflow</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Context</th>
+                  <th scope="col">Labels</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Updated</th>
                 </tr>
               </thead>
               <tbody>
-                {queryData.items.map((item) => (
-                  <tr key={item.runId}>
-                    <td className="run-list-id-cell" data-label="Run">
-                      <ContextLink
-                        returnLabel="Active queue"
-                        className="run-list-id-link"
-                        to={`/runs/${encodeURIComponent(item.runId)}`}
-                        aria-label={item.runId}
-                        title={item.runId}
+                {queryData.items.map((item) => {
+                  const unlabelled = Object.keys(item.labels).length === 0;
+                  return (
+                    <tr key={item.runId}>
+                      <td className="run-list-id-cell">
+                        <RunIdLink runId={item.runId} returnLabel="Queue" />
+                      </td>
+                      <td className="run-list-workflow-cell">
+                        <span className="runs-cell-label">Workflow</span>
+                        <code>{item.workflow}</code>
+                      </td>
+                      <td className="run-list-state-cell">
+                        <RunStateChip state={item.state} />
+                      </td>
+                      <td className="queue-context-cell">
+                        <span className="runs-cell-label">Context</span>
+                        <QueueContext item={item} />
+                      </td>
+                      <td
+                        className="run-list-labels-cell"
+                        data-empty={unlabelled ? "" : undefined}
                       >
-                        {compactId(item.runId)}
-                      </ContextLink>
-                    </td>
-                    <td
-                      className="run-list-workflow-cell"
-                      data-label="Workflow"
-                    >
-                      <span className="run-list-mobile-label">Workflow</span>
-                      <code>{item.workflow}</code>
-                    </td>
-                    <td className="run-list-state-cell" data-label="State">
-                      <StateBadge state={item.state} />
-                    </td>
-                    <td className="queue-context-cell" data-label="Context">
-                      <QueueContext item={item} />
-                    </td>
-                    <td
-                      className={`run-list-labels-cell ${Object.keys(item.labels).length === 0 ? "run-list-labels-empty" : ""}`}
-                      data-label="Run metadata labels"
-                    >
-                      <span className="run-list-mobile-label">Labels</span>
-                      <RunMetadataLabelChips labels={item.labels} />
-                    </td>
-                    <td className="run-list-created-cell" data-label="Created">
-                      <RecordedTime value={item.createdAt} />
-                    </td>
-                    <td className="run-list-updated-cell" data-label="Updated">
-                      <span className="run-list-mobile-label">Updated</span>
-                      <RecordedTime value={item.updatedAt} />
-                    </td>
-                  </tr>
-                ))}
+                        <span className="runs-cell-label">Labels</span>
+                        <RunMetadataLabelChips
+                          labels={item.labels}
+                          empty="None"
+                        />
+                      </td>
+                      <td className="run-list-created-cell">
+                        <RecordedTime value={item.createdAt} />
+                      </td>
+                      <td className="run-list-updated-cell">
+                        <span className="runs-cell-label">Updated</span>
+                        <RecordedTime value={item.updatedAt} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
-        )}
-      </QueryView>
+          )}
+        </QueryView>
+      </div>
 
       <CursorControls
         label="Queue pages"

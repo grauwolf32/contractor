@@ -1,91 +1,70 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import { usePublicAPI } from "../../api/context";
-import { queryKeys } from "../../api/query-keys";
-import { resumeRun, type RunStatus } from "../../api/runs";
+import { useId, useRef } from "react";
+
+import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
 
-export function RunResumeControl({ run }: { run: RunStatus }) {
-  const api = usePublicAPI();
-  const client = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
-  const inFlight = useRef(false);
-  const source = run.resumeStageExecutionId;
-  const stage = run.attempts.find(
-    (attempt) => attempt.stageExecutionId === source,
-  );
-  const mutation = useMutation({
-    mutationFn: (sourceID: string) => resumeRun(api, run.runId, sourceID),
-    onSuccess: () => setConfirming(false),
-    onSettled: async () => {
-      try {
-        await Promise.all([
-          client.invalidateQueries({ queryKey: queryKeys.runs.all }),
-          client.invalidateQueries({ queryKey: queryKeys.queue.all }),
-          ...(run.projectId === undefined
-            ? []
-            : [
-                client.invalidateQueries({
-                  queryKey: queryKeys.projects.detail(run.projectId),
-                }),
-              ]),
-        ]);
-      } finally {
-        inFlight.current = false;
-      }
-    },
-  });
-  if (run.state !== "failed") return null;
+/**
+ * Confirmation for Continue from failed stage (S06): it names the stage and
+ * warns that model and tool calls, including external side effects, repeat.
+ * Nothing is sent before Confirm continuation.
+ */
+export function ContinueRunDialog({
+  stage,
+  pending,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  stage: string;
+  pending: boolean;
+  error: Error | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const back = useRef<HTMLButtonElement>(null);
   return (
-    <section className="panel" aria-label="Continue failed Run">
-      <h3>Continue from failed stage</h3>
-      <p>
-        Successful stages and their results are preserved. The failed stage gets
-        a new attempt with its saved inputs and configuration.
-      </p>
-      {source === undefined ? (
-        <p className="muted-copy">
-          Continuation is unavailable: cleanup must finish and the Run must have
-          a failed stage. Audit-managed and evaluation Runs use their own
-          lifecycle controls.
+    <Dialog
+      className="project-dialog panel runs-dialog"
+      role="alertdialog"
+      labelledBy={titleId}
+      describedBy={descriptionId}
+      initialFocusRef={back}
+      onRequestClose={() => {
+        if (!pending) onCancel();
+      }}
+    >
+      <DialogHeader
+        id={titleId}
+        eyebrow="Continue failed Run"
+        title="Continue from failed stage?"
+      />
+      <div id={descriptionId} className="runs-dialog-text">
+        <p>
+          Retry stage <strong>{stage}</strong>? Model and tool calls will run
+          again and may repeat external side effects.
         </p>
-      ) : confirming ? (
-        <div role="group" aria-label="Confirm continuation">
-          <p>
-            Retry stage <strong>{stage?.stage ?? source}</strong>? Model and
-            tool calls will run again and may repeat external side effects.
-          </p>
-          <button
-            type="button"
-            disabled={mutation.isPending}
-            onClick={() => {
-              if (inFlight.current) return;
-              inFlight.current = true;
-              mutation.mutate(source);
-            }}
-          >
-            {mutation.isPending ? "Continuing…" : "Confirm continuation"}
-          </button>
-          <button
-            type="button"
-            disabled={mutation.isPending}
-            onClick={() => setConfirming(false)}
-          >
-            Back
-          </button>
-        </div>
-      ) : (
+        <p>
+          Successful stages and their results are preserved. The failed stage
+          gets a new attempt with its saved inputs and configuration.
+        </p>
+      </div>
+      {error === null ? null : <ErrorNotice error={error} />}
+      <div className="project-dialog-actions">
         <button
+          className="secondary-button"
           type="button"
-          onClick={() => {
-            mutation.reset();
-            setConfirming(true);
-          }}
+          ref={back}
+          disabled={pending}
+          onClick={onCancel}
         >
-          Continue from failed stage
+          Back
         </button>
-      )}
-      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
-    </section>
+        <button type="button" disabled={pending} onClick={onConfirm}>
+          {pending ? "Continuing…" : "Confirm continuation"}
+        </button>
+      </div>
+    </Dialog>
   );
 }

@@ -199,12 +199,17 @@ describe("Runs Queue view", () => {
         });
       }),
     );
-    renderQueueApplication(api);
+    const { router } = renderQueueApplication(api);
 
     expect(
       await screen.findByRole("link", { name: "run-standalone" }),
     ).toBeInTheDocument();
     expect(screen.getByText("No Project")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Oldest first. Position here is not Scheduler priority.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Payment service" }),
     ).toHaveAttribute("href", "/projects/project-payment");
@@ -238,17 +243,31 @@ describe("Runs Queue view", () => {
       await screen.findByRole("link", { name: "run-next" }),
     ).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Context"), "project");
+    const context = screen.getByRole("group", { name: "Context" });
+    await user.click(within(context).getByRole("button", { name: "Projects" }));
     expect(
       await screen.findByRole("link", { name: "run-project" }),
     ).toBeInTheDocument();
     expect(requests.at(-1)?.searchParams.get("membership")).toBe("project");
     expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(
+      within(context).getByRole("button", { name: "Projects" }),
+    ).toHaveAttribute("aria-pressed", "true");
 
-    await user.selectOptions(screen.getByLabelText("State"), "running");
+    const state = screen.getByRole("group", { name: "State" });
+    await user.click(within(state).getByRole("button", { name: "Running" }));
     await waitFor(() =>
       expect(requests.at(-1)?.searchParams.get("state")).toBe("running"),
     );
+    expect(router.state.location.search).toBe(
+      "?membership=project&state=running",
+    );
+
+    await user.click(within(context).getByRole("button", { name: "All" }));
+    await waitFor(() =>
+      expect(requests.at(-1)?.searchParams.has("membership")).toBe(false),
+    );
+    expect(router.state.location.search).toBe("?state=running");
   });
 
   it("drops the page cursor when a tab link changes the filters", async () => {
@@ -702,5 +721,97 @@ describe("Runs Queue view", () => {
     ).toBeEnabled();
     expect(screen.getByText("Admission running")).toBeInTheDocument();
     expect(controlWrites[1]?.headers.get("If-Match")).toBe('"1"');
+  });
+
+  it("shows an unknown admission state and keeps the control disabled when the gate cannot be read", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue/control") {
+          return new Response(
+            JSON.stringify({
+              code: "unavailable",
+              message: "Queue control unavailable",
+              retryable: true,
+            }),
+            {
+              status: 503,
+              headers: {
+                "content-type": "application/json",
+                "X-Contractor-API-Version": "contractor.public.v1",
+              },
+            },
+          );
+        }
+        if (url.pathname === "/v1/queue") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderQueueApplication(api);
+
+    expect(
+      await screen.findByText("Could not read the queue admission state"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Admission unknown")).toBeInTheDocument();
+    expect(screen.queryByText("Admission running")).toBeNull();
+    expect(screen.getByRole("button", { name: "Pause queue" })).toBeDisabled();
+  });
+
+  it("marks Queue rows for the compact narrow layout without hiding facts", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
+        }
+        if (url.pathname === "/v1/queue") {
+          return apiResponse({
+            items: [
+              queueItem("run-plain", "initializing"),
+              { ...queueItem("run-labelled"), labels: { purpose: "eval" } },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderQueueApplication(api);
+
+    const plain = (
+      await screen.findByRole("link", { name: "run-plain" })
+    ).closest("tr")!;
+    const labelled = screen
+      .getByRole("link", { name: "run-labelled" })
+      .closest("tr")!;
+    expect(within(plain).getByText("Initializing")).toBeInTheDocument();
+    expect(within(labelled).getByText("Running")).toBeInTheDocument();
+    // Phone rows label each fact themselves, since the header row is hidden.
+    expect(
+      [...plain.querySelectorAll(".runs-cell-label")].map(
+        (label) => label.textContent,
+      ),
+    ).toEqual(["Workflow", "Context", "Labels", "Updated"]);
+    expect(plain.querySelector(".run-list-labels-cell")).toHaveAttribute(
+      "data-empty",
+    );
+    expect(labelled.querySelector(".run-list-labels-cell")).not.toHaveAttribute(
+      "data-empty",
+    );
+    expect(
+      screen.queryByRole("columnheader", { name: /^(position|rank|eta)$/i }),
+    ).toBeNull();
   });
 });
