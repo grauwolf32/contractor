@@ -5,6 +5,7 @@ import {
   useResolvedTheme,
   useThemePreference,
 } from "../../app/theme";
+import { SettingSection, type SettingHeadingLevel } from "./section";
 
 const THEME_OPTIONS: Record<
   ThemePreference,
@@ -22,62 +23,50 @@ const THEME_OPTIONS: Record<
   },
 };
 
-export function AppearanceSettings({ ordinal }: { ordinal: string }) {
+export function AppearanceSettings({
+  titleAs = "h3",
+}: {
+  titleAs?: SettingHeadingLevel | undefined;
+}) {
   const preference = useThemePreference();
   const resolved = useResolvedTheme();
   return (
-    <section
+    <SettingSection
       id="appearance"
-      className="settings-section"
-      aria-labelledby="appearance-heading"
+      titleAs={titleAs}
+      eyebrow="Appearance"
+      title="Theme"
+      scope="This browser"
+      about={
+        <p>
+          Choose how Contractor looks. The choice is saved in this browser only
+          and applies to every open tab.
+        </p>
+      }
     >
-      <header className="settings-section-header">
-        <div className="settings-section-identity">
-          <span className="settings-section-mark" aria-hidden="true">
-            {ordinal}
-          </span>
-          <div>
-            <p className="eyebrow">Appearance</p>
-            <h3 id="appearance-heading">Theme</h3>
-          </div>
-        </div>
-        <span className="settings-scope-badge">This browser</span>
-      </header>
-
-      <div className="settings-section-grid">
-        <div className="settings-section-copy">
-          <p>
-            Choose how Contractor looks. The choice is saved in this browser
-            only and applies to every open tab.
-          </p>
-        </div>
-
-        <div className="settings-editor">
-          <fieldset className="appearance-options">
-            <legend className="visually-hidden">Theme</legend>
-            {THEME_PREFERENCES.map((option) => (
-              <label key={option} className="appearance-option">
-                <input
-                  type="radio"
-                  name="theme"
-                  value={option}
-                  checked={preference === option}
-                  onChange={() => setThemePreference(option)}
-                />
-                <span>
-                  <strong>{THEME_OPTIONS[option].label}</strong>
-                  <small>{THEME_OPTIONS[option].description}</small>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          {preference === "system" ? (
-            <p className="settings-related-link" role="status">
-              Showing the {resolved} theme now.
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </section>
+      <fieldset className="ops-theme-options">
+        <legend className="ui-visually-hidden">Theme</legend>
+        {THEME_PREFERENCES.map((option) => (
+          <label key={option} className="ops-theme-option">
+            <input
+              type="radio"
+              name="theme"
+              value={option}
+              checked={preference === option}
+              onChange={() => setThemePreference(option)}
+            />
+            <span>
+              <strong>{THEME_OPTIONS[option].label}</strong>
+              <small>{THEME_OPTIONS[option].description}</small>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {preference === "system" ? (
+        <p className="ops-note" role="status">
+          Showing the {resolved} theme now.
+        </p>
+      ) : null}
+    </SettingSection>
   );
 }

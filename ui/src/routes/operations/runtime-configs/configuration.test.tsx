@@ -418,7 +418,7 @@ describe("Runtime configuration hub navigation", () => {
     expect(
       screen.getByRole("heading", { name: "Runtime configuration" }),
     ).toBeVisible();
-    expect(screen.getByText("Server-wide")).toHaveClass("state-badge");
+    expect(screen.getByText("Server-wide")).toHaveClass("ops-scope");
     const tabs = screen.getByRole("navigation", {
       name: "Operations sections",
     });
@@ -467,7 +467,9 @@ describe("Runtime configuration hub navigation", () => {
       "/operations/configuration/debug/1?from=bookmark#worker",
     );
     await screen.findByRole("heading", { name: "debug@1" });
-    expect(screen.getByRole("heading", { name: "Worker Caido" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "Worker Caido" }),
+    ).toBeVisible();
     expect(screen.getByText("https://caido.example/graphql")).toBeVisible();
     expect(router.state.location).toMatchObject({
       pathname: "/operations/configuration/debug/1",
@@ -475,7 +477,10 @@ describe("Runtime configuration hub navigation", () => {
       hash: "#worker",
     });
     expect(
-      screen.getByRole("link", { name: /← Runtime configuration/ }),
+      within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole(
+        "link",
+        { name: "Runtime configuration" },
+      ),
     ).toHaveAttribute("href", "/operations/configuration");
   });
 

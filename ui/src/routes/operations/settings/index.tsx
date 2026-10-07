@@ -1,6 +1,6 @@
-import "../configuration-reading.css";
+import "./settings.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
@@ -14,9 +14,11 @@ import { queryKeys } from "../../../api/query-keys";
 import { useSession } from "../../../auth/session";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
+import { StatusGlyph } from "../../../ui";
 import { AppearanceSettings } from "../../settings/appearance";
 import { GitKeySettings } from "../../settings/git-key";
-import "./settings.css";
+import { SettingSection } from "../../settings/section";
+import { Glance } from "../common";
 
 function validateMaximum(value: string): string | undefined {
   if (value.trim() === "") {
@@ -32,16 +34,12 @@ function validateMaximum(value: string): string | undefined {
   return undefined;
 }
 
-export function OperationsSettingsRoute() {
+function SchedulerSettings() {
   const api = usePublicAPI();
-  const { session } = useSession();
-  const canManageScheduler =
-    session?.principal.capabilities.includes("operations") === true;
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.operations.schedulerSettings,
     queryFn: () => getSchedulerSettings(api),
-    enabled: canManageScheduler,
   });
   const [draft, setDraft] = useState<string>();
   const [editBaseline, setEditBaseline] = useState<SchedulerSettingsSnapshot>();
@@ -125,254 +123,224 @@ export function OperationsSettingsRoute() {
   };
 
   return (
-    <div className="operations-library operations-settings">
-      <header className="settings-page-header">
-        <div>
-          <h3>Settings</h3>
-          <p className="lede">
-            {canManageScheduler
-              ? "Tune execution admission, manage the credentials used by repository imports and choose the theme."
-              : "Manage the personal credential used by your private repository imports and choose the theme."}
+    <SettingSection
+      id="workflow-scheduling"
+      eyebrow="Workflow Scheduler"
+      title="Workflow scheduling"
+      scope="Server-wide"
+      about={
+        <>
+          <p>
+            Set the admission ceiling for active Scheduler lanes. Actual
+            throughput can be lower when compatible Runtime Agent slots are
+            unavailable, and one Workflow Run may require several agents.
+          </p>
+          <div className="ops-callout">
+            <StatusGlyph tone="info" size={15} />
+            <div>
+              <strong>Admission, not capacity.</strong>
+              <p>
+                Lowering the limit drains existing work naturally. It never
+                cancels active Runs or allocations.
+              </p>
+            </div>
+          </div>
+          <p className="ops-note">
+            Queue admission remains separate under{" "}
+            <Link to="/runs?view=queue">Runs / Queue</Link>.
+          </p>
+        </>
+      }
+    >
+      {query.isPending ? (
+        <p className="ops-loading" role="status">
+          Loading saved scheduling settings…
+        </p>
+      ) : query.data === undefined ? (
+        <ErrorNotice
+          error={query.error}
+          onRetry={() => void query.refetch()}
+          retryPending={query.isFetching}
+        />
+      ) : (
+        <form className="ops-setting-form" onSubmit={submit}>
+          <Glance
+            label="Saved Scheduler settings"
+            items={[
+              ["Saved limit", query.data.resource.maxConcurrentRuns],
+              ["Revision", <code key="r">{query.data.resource.revision}</code>],
+              ["Last updated", formatTimestamp(query.data.resource.updatedAt)],
+            ]}
+          />
+          <label className="ops-field ops-number-field">
+            Maximum concurrent Workflow Runs
+            <input
+              aria-label="Maximum concurrent Workflow Runs"
+              name="maxConcurrentRuns"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={32}
+              step={1}
+              required
+              value={displayedDraft}
+              aria-invalid={validationError !== undefined}
+              aria-describedby="scheduler-maximum-guidance scheduler-maximum-error"
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === String(query.data.resource.maxConcurrentRuns)) {
+                  setDraft(undefined);
+                  setEditBaseline(undefined);
+                  setConflict(undefined);
+                } else {
+                  setEditBaseline((current) => current ?? query.data);
+                  setDraft(value);
+                }
+                setSaved(undefined);
+                mutation.reset();
+              }}
+            />
+            <small id="scheduler-maximum-guidance" className="field-guidance">
+              A whole number from 1 through 32.
+            </small>
+          </label>
+          {validationError === undefined ? null : (
+            <p
+              id="scheduler-maximum-error"
+              className="ops-field-error"
+              role="alert"
+            >
+              {validationError}
+            </p>
+          )}
+          {conflictMessage === undefined ? null : (
+            <div className="notice notice-warning" role="alert">
+              {conflictMessage}
+            </div>
+          )}
+          {mutation.error === null ||
+          (mutation.error instanceof PublicAPIError &&
+            mutation.error.status === 412) ? null : (
+            <ErrorNotice error={mutation.error} reconcileWrite />
+          )}
+          {query.error === null || query.isPending ? null : (
+            <ErrorNotice error={query.error} />
+          )}
+          {saved === undefined ||
+          saved.revision !== query.data.resource.revision ? null : (
+            <div className="notice notice-success" role="status">
+              {saved.message}
+            </div>
+          )}
+
+          <div className="ops-form-actions">
+            <button
+              className="ui-btn"
+              data-variant="primary"
+              type="submit"
+              disabled={
+                mutation.isPending ||
+                validationError !== undefined ||
+                !dirty ||
+                stale
+              }
+            >
+              {mutation.isPending ? "Saving…" : "Save scheduling limit"}
+            </button>
+            <button
+              className="ui-btn"
+              type="button"
+              aria-label="Reset to saved value"
+              disabled={mutation.isPending || (!dirty && !stale)}
+              onClick={reset}
+            >
+              Reset
+            </button>
+            <button
+              className="ui-btn ops-push-end"
+              data-variant="ghost"
+              type="button"
+              disabled={mutation.isPending || query.isFetching}
+              onClick={() => void query.refetch()}
+            >
+              {query.isFetching ? "Reloading…" : "Reload saved value"}
+            </button>
+          </div>
+        </form>
+      )}
+    </SettingSection>
+  );
+}
+
+function SettingsDirectory({ scheduler }: { scheduler: boolean }) {
+  return (
+    <nav className="ops-settings-directory" aria-label="Settings on this page">
+      {scheduler ? (
+        <a href="#workflow-scheduling">
+          Workflow scheduling <small>Server-wide policy</small>
+        </a>
+      ) : null}
+      <a href="#repository-access">
+        Repository access <small>Personal credential</small>
+      </a>
+      <a href="#appearance">
+        Appearance <small>This browser</small>
+      </a>
+    </nav>
+  );
+}
+
+function PersonalSettingsPage({ children }: { children: ReactNode }) {
+  return (
+    <section
+      className="ops-page ops-settings-page"
+      aria-labelledby="settings-heading"
+    >
+      <header className="ops-page-head">
+        <div className="ops-page-heading">
+          <h1 id="settings-heading" className="ops-page-title">
+            Settings
+          </h1>
+          <p className="ops-page-lede">
+            Manage the personal credential used by your private repository
+            imports and choose the theme.
           </p>
         </div>
       </header>
+      <div className="ops-page-body">{children}</div>
+    </section>
+  );
+}
 
-      <nav className="settings-directory" aria-label="Settings on this page">
-        {canManageScheduler ? (
-          <a href="#workflow-scheduling">
-            <span className="settings-directory-number" aria-hidden="true">
-              01
-            </span>
-            <span>
-              <small>Server-wide policy</small>
-              <strong>Workflow scheduling</strong>
-              <p>Bound concurrent Workflow Runs admitted by the Scheduler.</p>
-            </span>
-            <span className="settings-directory-arrow" aria-hidden="true">
-              ↓
-            </span>
-          </a>
-        ) : null}
-        <a href="#repository-access">
-          <span className="settings-directory-number" aria-hidden="true">
-            {canManageScheduler ? "02" : "01"}
-          </span>
-          <span>
-            <small>Personal credential</small>
-            <strong>Repository access</strong>
-            <p>
-              Configure the write-only SSH key used for private Git imports.
-            </p>
-          </span>
-          <span className="settings-directory-arrow" aria-hidden="true">
-            ↓
-          </span>
-        </a>
-        <a href="#appearance">
-          <span className="settings-directory-number" aria-hidden="true">
-            {canManageScheduler ? "03" : "02"}
-          </span>
-          <span>
-            <small>This browser</small>
-            <strong>Appearance</strong>
-            <p>Choose the light, dark or black theme.</p>
-          </span>
-          <span className="settings-directory-arrow" aria-hidden="true">
-            ↓
-          </span>
-        </a>
-      </nav>
-
-      {canManageScheduler ? (
-        <section
-          id="workflow-scheduling"
-          className="settings-section"
-          aria-labelledby="workflow-scheduling-heading"
-        >
-          <header className="settings-section-header">
-            <div className="settings-section-identity">
-              <span className="settings-section-mark" aria-hidden="true">
-                01
-              </span>
-              <div>
-                <p className="eyebrow">Workflow Scheduler</p>
-                <h3 id="workflow-scheduling-heading">Workflow scheduling</h3>
-              </div>
-            </div>
-            <span className="settings-scope-badge">Server-wide</span>
-          </header>
-
-          <div className="settings-section-grid">
-            <div className="settings-section-copy">
-              <p>
-                Set the admission ceiling for active Scheduler lanes. Actual
-                throughput can be lower when compatible Runtime Agent slots are
-                unavailable, and one Workflow Run may require several agents.
-              </p>
-              <div className="settings-behavior-note">
-                <span aria-hidden="true">↘</span>
-                <div>
-                  <strong>Admission, not capacity.</strong>
-                  <p>
-                    Lowering the limit drains existing work naturally. It never
-                    cancels active Runs or allocations.
-                  </p>
-                </div>
-              </div>
-              <p className="settings-related-link">
-                Queue admission remains separate under{" "}
-                <Link to="/runs?view=queue">Runs / Queue</Link>.
-              </p>
-            </div>
-
-            <div className="settings-editor">
-              {query.isPending ? (
-                <p className="loading-copy" role="status">
-                  Loading saved scheduling settings…
-                </p>
-              ) : query.data === undefined ? (
-                <div className="settings-load-error">
-                  <ErrorNotice
-                    error={query.error}
-                    onRetry={() => void query.refetch()}
-                    retryPending={query.isFetching}
-                  />
-                </div>
-              ) : (
-                <form className="settings-form" onSubmit={submit}>
-                  <div className="settings-editor-heading">
-                    <div>
-                      <p className="eyebrow">Current value</p>
-                      <h4>Concurrency limit</h4>
-                    </div>
-                    <span className="settings-state-badge settings-state-active">
-                      Active
-                    </span>
-                  </div>
-
-                  <dl className="settings-fact-grid">
-                    <div>
-                      <dt>Saved limit</dt>
-                      <dd>{query.data.resource.maxConcurrentRuns}</dd>
-                    </div>
-                    <div>
-                      <dt>Revision</dt>
-                      <dd>
-                        <code>{query.data.resource.revision}</code>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Last updated</dt>
-                      <dd>{formatTimestamp(query.data.resource.updatedAt)}</dd>
-                    </div>
-                  </dl>
-
-                  <label className="settings-primary-field">
-                    Maximum concurrent Workflow Runs
-                    <input
-                      aria-label="Maximum concurrent Workflow Runs"
-                      name="maxConcurrentRuns"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={32}
-                      step={1}
-                      required
-                      value={displayedDraft}
-                      aria-invalid={validationError !== undefined}
-                      aria-describedby="scheduler-maximum-guidance scheduler-maximum-error"
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (
-                          value ===
-                          String(query.data.resource.maxConcurrentRuns)
-                        ) {
-                          setDraft(undefined);
-                          setEditBaseline(undefined);
-                          setConflict(undefined);
-                        } else {
-                          setEditBaseline((current) => current ?? query.data);
-                          setDraft(value);
-                        }
-                        setSaved(undefined);
-                        mutation.reset();
-                      }}
-                    />
-                    <small
-                      id="scheduler-maximum-guidance"
-                      className="field-guidance"
-                    >
-                      A whole number from 1 through 32.
-                    </small>
-                  </label>
-                  {validationError === undefined ? null : (
-                    <p
-                      id="scheduler-maximum-error"
-                      className="field-error"
-                      role="alert"
-                    >
-                      {validationError}
-                    </p>
-                  )}
-                  {conflictMessage === undefined ? null : (
-                    <div className="notice notice-warning" role="alert">
-                      {conflictMessage}
-                    </div>
-                  )}
-                  {mutation.error === null ||
-                  (mutation.error instanceof PublicAPIError &&
-                    mutation.error.status === 412) ? null : (
-                    <ErrorNotice error={mutation.error} reconcileWrite />
-                  )}
-                  {query.error === null || query.isPending ? null : (
-                    <ErrorNotice error={query.error} />
-                  )}
-                  {saved === undefined ||
-                  saved.revision !== query.data.resource.revision ? null : (
-                    <div className="notice notice-success" role="status">
-                      {saved.message}
-                    </div>
-                  )}
-
-                  <div className="settings-form-actions">
-                    <button
-                      type="submit"
-                      disabled={
-                        mutation.isPending ||
-                        validationError !== undefined ||
-                        !dirty ||
-                        stale
-                      }
-                    >
-                      {mutation.isPending ? "Saving…" : "Save scheduling limit"}
-                    </button>
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      aria-label="Reset to saved value"
-                      disabled={mutation.isPending || (!dirty && !stale)}
-                      onClick={reset}
-                    >
-                      Reset
-                    </button>
-                    <button
-                      className="text-button settings-reload-button"
-                      type="button"
-                      disabled={mutation.isPending || query.isFetching}
-                      onClick={() => void query.refetch()}
-                    >
-                      {query.isFetching ? "Reloading…" : "Reload saved value"}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <GitKeySettings ordinal={canManageScheduler ? "02" : "01"} />
-      <AppearanceSettings ordinal={canManageScheduler ? "03" : "02"} />
+export function OperationsSettingsRoute() {
+  const { session } = useSession();
+  const canManageScheduler =
+    session?.principal.capabilities.includes("operations") === true;
+  // Under Operations the sections sit below the Settings heading (h2);
+  // the personal page has only its h1 above them.
+  const titleAs = canManageScheduler ? "h3" : "h2";
+  const sections = (
+    <div className="ops-settings">
+      <SettingsDirectory scheduler={canManageScheduler} />
+      {canManageScheduler ? <SchedulerSettings /> : null}
+      <GitKeySettings titleAs={titleAs} />
+      <AppearanceSettings titleAs={titleAs} />
+    </div>
+  );
+  if (!canManageScheduler)
+    return <PersonalSettingsPage>{sections}</PersonalSettingsPage>;
+  return (
+    <div className="ops-stack">
+      <header className="ops-section-head">
+        <div className="ops-section-heading">
+          <h2 className="ops-section-title">Settings</h2>
+          <p className="ops-section-description">
+            Tune execution admission, manage the credentials used by repository
+            imports and choose the theme.
+          </p>
+        </div>
+      </header>
+      {sections}
     </div>
   );
 }

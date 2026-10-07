@@ -71,8 +71,10 @@ export function MetricSeriesChart({
   if (values.length === 0) {
     return (
       <article className="performance-chart-card">
-        <h4>{title}</h4>
-        <p className="compact-empty">No observations in this range.</p>
+        <div className="performance-chart-heading">
+          <h3>{title}</h3>
+        </div>
+        <p className="ops-empty">No observations in this range.</p>
         <small>{description}</small>
       </article>
     );
@@ -98,7 +100,7 @@ export function MetricSeriesChart({
       (height - padding.top - padding.bottom);
   const summaries = prepared.map((item) => (
     <div key={item.id}>
-      {showLegend && <h5>{item.label}</h5>}
+      {showLegend && <h4>{item.label}</h4>}
       <dl
         className="performance-chart-summary"
         aria-label={`${title}${showLegend ? ` · ${item.label}` : ""} numeric summary`}
@@ -125,11 +127,11 @@ export function MetricSeriesChart({
   return (
     <article className="performance-chart-card">
       <div className="performance-chart-heading">
-        <h4>{title}</h4>
+        <h3>{title}</h3>
         {prepared.length === 1 ? (
           <strong>{numeric(prepared[0]!.latest!.value, unit)}</strong>
         ) : (
-          <span className="muted-copy">{prepared.length} GPUs</span>
+          <span className="ops-section-aside">{prepared.length} GPUs</span>
         )}
       </div>
       <svg

@@ -1,8 +1,8 @@
-import "./layout.css";
+import "./operations.css";
 import { useDocumentTitle } from "../../app/document-title";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
 import type { PublicAPI } from "../../api/client";
@@ -20,9 +20,13 @@ import type {
   RunResyncReason,
 } from "../../events/run-events";
 import { QueryView } from "../../app/query-view";
+import type { StatusTone } from "../../app/status-tone";
+import { StatusChip, StatusGlyph } from "../../ui";
+import { Glance, TechnicalDisclosure } from "./common";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
 import { OperationsLiveRefresh } from "./live-refresh";
+import { SETTINGS_PATH } from "./settings/path";
 
 const navigation = [
   { to: "/operations", label: "Overview", end: true },
@@ -36,11 +40,20 @@ const navigation = [
     setup: true,
   },
   { to: "/operations/credentials", label: "Credentials", setup: true },
-  { to: "/operations/settings", label: "Settings", setup: true },
+  { to: SETTINGS_PATH, label: "Settings", setup: true },
 ] as const;
 
 /** First tab of the Setup group; a divider and label precede it. */
 const SETUP_GROUP_START = navigation.find((item) => "setup" in item)?.to;
+
+const CONNECTION_TONES: Readonly<Record<RunEventConnectionState, StatusTone>> =
+  {
+    connecting: "progress",
+    live: "done",
+    reconnecting: "warning",
+    resyncing: "warning",
+    error: "blocked",
+  };
 
 function snapshotQuery(api: PublicAPI) {
   return {
@@ -155,6 +168,89 @@ function OperationsLiveSubscription({
   return null;
 }
 
+/**
+ * Transport facts behind a quiet disclosure: the snapshot cursor and the
+ * state of the live Operations event stream.
+ */
+function SnapshotDiagnostics({
+  snapshot,
+  connection,
+  resyncReason,
+  liveError,
+}: {
+  snapshot: OperationsSnapshot;
+  connection: RunEventConnectionState;
+  resyncReason: RunResyncReason | undefined;
+  liveError: string | undefined;
+}) {
+  return (
+    <TechnicalDisclosure
+      className="ops-diagnostics operations-snapshot-record"
+      summary="Diagnostics: snapshot and live connection"
+      description="Snapshot cursor and live update transport, for operators and debugging."
+    >
+      <div className="ops-diagnostics-body">
+        <Glance
+          items={[
+            ["Generation", <code key="g">{snapshot.cursor.generation}</code>],
+            [
+              "Snapshot revision",
+              <code key="r">{snapshot.cursor.revision}</code>,
+            ],
+          ]}
+        />
+        <div className="ops-live-status" role="status">
+          <StatusChip tone={CONNECTION_TONES[connection]} size="sm">
+            Operations events: {connection}
+            {resyncReason === undefined
+              ? null
+              : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
+          </StatusChip>
+        </div>
+        {liveError === undefined ? null : (
+          <div className="notice notice-warning" role="alert">
+            <strong>{liveError}</strong>
+            <p>Use Refresh to reload the snapshot.</p>
+          </div>
+        )}
+        <p className="ops-note">
+          These are transport diagnostics. Runtime readiness and Run wait
+          reasons are separate Server-owned facts. Refresh the snapshot if live
+          updates are unavailable.
+        </p>
+      </div>
+    </TechnicalDisclosure>
+  );
+}
+
+/** What a session without the Operations capability sees under /operations. */
+function OperationsCapabilityRequired() {
+  return (
+    <section
+      className="ops-page ops-denied"
+      aria-labelledby="operations-heading"
+    >
+      <div className="ops-denied-body">
+        <span className="ops-denied-glyph">
+          <StatusGlyph tone="blocked" size={22} />
+        </span>
+        <p className="ops-eyebrow">Operations capability required</p>
+        <h1 id="operations-heading" className="ops-page-title">
+          Operations
+        </h1>
+        <div className="notice notice-error" role="alert">
+          This session is not authorized to observe or manage Operations
+          resources.
+        </div>
+        <p className="ops-note">
+          Your Git SSH key and theme stay available in{" "}
+          <Link to={SETTINGS_PATH}>Settings</Link>.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function OperationsLayoutRoute() {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -163,8 +259,7 @@ export function OperationsLayoutRoute() {
   const authorized =
     session?.principal.capabilities.includes("operations") === true;
   const normalizedPath = location.pathname.replace(/\/+$/, "");
-  const personalSettings =
-    !authorized && normalizedPath === "/operations/settings";
+  const personalSettings = !authorized && normalizedPath === SETTINGS_PATH;
   const independentRead =
     normalizedPath === "/operations/performance" ||
     normalizedPath === "/operations/allocations/completed";
@@ -175,9 +270,11 @@ export function OperationsLayoutRoute() {
         normalizedPath === item.to || normalizedPath.startsWith(item.to + "/"),
     );
   useDocumentTitle(
-    currentSection === undefined || currentSection.to === "/operations"
-      ? "Operations"
-      : `${currentSection.label} · Operations`,
+    personalSettings
+      ? "Settings"
+      : currentSection === undefined || currentSection.to === "/operations"
+        ? "Operations"
+        : `${currentSection.label} · Operations`,
   );
   const [connection, setConnection] =
     useState<RunEventConnectionState>("connecting");
@@ -221,48 +318,40 @@ export function OperationsLayoutRoute() {
       void queryClient.invalidateQueries({ queryKey });
   };
 
-  if (!authorized && !personalSettings) {
-    return (
-      <section className="route-page operations-page">
-        <p className="eyebrow">Operations capability required</p>
-        <h2>Operations</h2>
-        <div className="notice notice-error" role="alert">
-          This session is not authorized to observe or manage Operations
-          resources.
-        </div>
-      </section>
-    );
-  }
+  // Personal settings (Git SSH key, theme) are the one page without the
+  // capability; it is reached from the account menu and draws its own page.
+  if (personalSettings) return <Outlet />;
+  if (!authorized) return <OperationsCapabilityRequired />;
 
   const liveKey = `${query.data?.cursor.generation ?? "none"}:${liveEpoch}`;
   return (
-    <section className="route-page operations-page">
-      <header className="route-header-row">
-        <div>
-          <h2>Operations</h2>
-          <p className="lede">
+    <section className="ops-page" aria-labelledby="operations-heading">
+      <header className="ops-page-head">
+        <div className="ops-page-heading">
+          <h1 id="operations-heading" className="ops-page-title">
+            Operations
+          </h1>
+          <p className="ops-page-lede">
             Monitor Runtime Agents, inspect allocations and manage execution
             settings.
           </p>
         </div>
-        {independentRead || personalSettings ? null : (
-          <RefreshButton isFetching={query.isFetching} onRefresh={refresh} />
+        {independentRead ? null : (
+          <div className="ops-page-actions">
+            <RefreshButton isFetching={query.isFetching} onRefresh={refresh} />
+          </div>
         )}
       </header>
 
-      <nav
-        className="operations-navigation section-navigation"
-        aria-label="Operations sections"
-      >
-        {navigation
-          .filter((item) => authorized || item.to === "/operations/settings")
-          .map((item) => (
+      <div className="ops-page-tabs">
+        <nav
+          className="ops-tabs section-navigation"
+          aria-label="Operations sections"
+        >
+          {navigation.map((item) => (
             <Fragment key={item.to}>
-              {authorized && item.to === SETUP_GROUP_START ? (
-                <span
-                  className="operations-navigation-group"
-                  aria-hidden="true"
-                >
+              {item.to === SETUP_GROUP_START ? (
+                <span className="ops-tabs-group" aria-hidden="true">
                   Setup
                 </span>
               ) : null}
@@ -275,85 +364,57 @@ export function OperationsLayoutRoute() {
               </NavLink>
             </Fragment>
           ))}
-      </nav>
-      <MobileSectionPicker
-        label="Operations section"
-        value={currentSection?.to ?? "/operations"}
-        options={navigation.filter(
-          (item) => authorized || item.to === "/operations/settings",
-        )}
-        state={location.state}
-      />
+        </nav>
+        <MobileSectionPicker
+          label="Operations section"
+          value={currentSection?.to ?? "/operations"}
+          options={navigation}
+          state={location.state}
+        />
+      </div>
 
-      {independentRead || personalSettings ? (
-        <Outlet />
-      ) : (
-        <QueryView
-          query={query}
-          loading={
-            <p className="loading-copy" role="status">
-              Loading Operations snapshot…
-            </p>
-          }
-          onRetry={refresh}
-        >
-          {(snapshot) => (
-            <>
-              <OperationsLiveSubscription
-                key={liveKey}
-                snapshot={snapshot}
-                onConnection={recordConnection}
-                onError={recordLiveError}
-                onResync={recordResync}
-              />
-              <Outlet
-                context={
-                  {
-                    snapshot: snapshot,
-                    refresh,
-                    refreshing: query.isFetching,
-                  } satisfies OperationsOutletContext
-                }
-              />
-              <details className="panel operations-snapshot-record">
-                <summary>Diagnostics: snapshot and live connection</summary>
-                <dl className="key-value-list">
-                  <div>
-                    <dt>Generation</dt>
-                    <dd>
-                      <code>{snapshot.cursor.generation}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Snapshot revision</dt>
-                    <dd>
-                      <code>{snapshot.cursor.revision}</code>
-                    </dd>
-                  </div>
-                </dl>
-                <div className={`live-status live-${connection}`} role="status">
-                  <span className="status-dot" aria-hidden="true" />
-                  Operations events: {connection}
-                  {resyncReason === undefined
-                    ? null
-                    : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
-                </div>
-                {liveError === undefined ? null : (
-                  <div className="notice notice-warning" role="alert">
-                    <strong>{liveError}</strong>
-                    <p>Use Refresh to reload the snapshot.</p>
-                  </div>
-                )}
-                <p className="muted-copy">
-                  These are transport diagnostics. Runtime readiness and Run
-                  wait reasons are separate Server-owned facts. Refresh the
-                  snapshot if live updates are unavailable.
-                </p>
-              </details>
-            </>
-          )}
-        </QueryView>
-      )}
+      <div className="ops-page-body">
+        {independentRead ? (
+          <Outlet />
+        ) : (
+          <QueryView
+            query={query}
+            loading={
+              <p className="ops-loading" role="status">
+                Loading Operations snapshot…
+              </p>
+            }
+            onRetry={refresh}
+          >
+            {(snapshot) => (
+              <>
+                <OperationsLiveSubscription
+                  key={liveKey}
+                  snapshot={snapshot}
+                  onConnection={recordConnection}
+                  onError={recordLiveError}
+                  onResync={recordResync}
+                />
+                <Outlet
+                  context={
+                    {
+                      snapshot: snapshot,
+                      refresh,
+                      refreshing: query.isFetching,
+                    } satisfies OperationsOutletContext
+                  }
+                />
+                <SnapshotDiagnostics
+                  snapshot={snapshot}
+                  connection={connection}
+                  resyncReason={resyncReason}
+                  liveError={liveError}
+                />
+              </>
+            )}
+          </QueryView>
+        )}
+      </div>
     </section>
   );
 }

@@ -48,27 +48,27 @@ export function GPUCurrentMetrics({
           aria-label={`GPU ${device.name} · ${device.id.replace(/^GPU-/, "").slice(-8)}`}
         >
           <header>
-            <h4 className="performance-device-heading">
+            <h3 className="performance-device-heading">
               <span
                 className="performance-series-swatch"
                 style={{ backgroundColor: colors.get(device.id) }}
                 aria-hidden="true"
               />
               <span>
-                {device.name}
+                {device.name}{" "}
                 <small title={device.id}>
                   {device.id.replace(/^GPU-/, "").slice(-8)}
                 </small>
               </span>
-            </h4>
+            </h3>
             <OperationsState
               state={performanceFreshnessState(gpu.freshness, readAt)}
             />
           </header>
-          <p className="muted-copy">
+          <p className="ops-note">
             Server host GPU · includes other applications
           </p>
-          <dl className="metrics-grid performance-metrics-grid">
+          <dl className="ops-glance">
             {available.map(([field, label, unit]) => (
               <div key={field}>
                 <dt>{label}</dt>

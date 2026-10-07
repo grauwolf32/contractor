@@ -80,47 +80,6 @@ a {
   line-height: 1.65;
 }
 
-.brand-mark {
-  display: block;
-  width: 2.4rem;
-  height: 2.4rem;
-  margin-bottom: 1.2rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: var(--brand-bg);
-  object-fit: cover;
-}
-
-.login-card .brand-mark {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 9.75rem;
-  height: 9.75rem;
-  margin: 0;
-  transform: translate(-50%, -50%);
-}
-
-.login-product {
-  position: absolute;
-  top: -7.5rem;
-  left: 50%;
-  margin: 0;
-  transform: translateX(-50%);
-  color: var(--accent);
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.login-product-version {
-  text-transform: none;
-}
-
-.login-page,
 .centered-state {
   display: grid;
   min-height: 100vh;
@@ -129,102 +88,14 @@ a {
   text-align: center;
 }
 
-.login-page {
-  position: relative;
-  isolation: isolate;
-}
-
-.login-spiral {
-  position: fixed;
-  z-index: 0;
-  width: clamp(28rem, 52vw, 46rem);
-  aspect-ratio: 1;
-  fill: none;
-  opacity: 0.13;
-  pointer-events: none;
-  stroke: var(--muted);
-  stroke-linecap: round;
-  stroke-width: 1;
-}
-
-.login-spiral-near {
-  top: -18rem;
-  left: -14rem;
-  transform: rotate(-18deg);
-}
-
-.login-spiral-far {
-  right: -13rem;
-  bottom: -19rem;
-  transform: rotate(24deg) scale(0.88);
-  opacity: 0.1;
-}
-
-.login-spiral-spokes {
-  opacity: 0.72;
-}
-
-.login-spiral-accent {
-  stroke: var(--accent);
-  stroke-width: 1.4;
-  opacity: 0.38;
-}
-
 .centered-state > * {
   max-width: 42rem;
-}
-
-.login-card {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 29rem);
-  margin-top: 7.5rem;
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  padding: clamp(1.5rem, 5vw, 3rem);
-  padding-top: 6.375rem;
-  box-shadow: var(--shadow-lg);
-  text-align: left;
 }
 
 .centered-state h1,
 .route-page h2 {
   margin: 0;
   letter-spacing: -0.035em;
-}
-
-.login-card form {
-  display: grid;
-  gap: 1.1rem;
-  margin-top: 2rem;
-}
-
-.login-card form button {
-  justify-self: center;
-  padding-inline: 2rem;
-}
-
-.login-card label {
-  display: grid;
-  gap: 0.45rem;
-  color: var(--muted-strong);
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.login-card input {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 0.55rem;
-  background: var(--surface-subtle);
-  color: inherit;
-  padding: 0.8rem 0.9rem;
-}
-
-.login-card input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .form-error,
@@ -435,23 +306,6 @@ a {
   border-color: var(--warning-line);
   background: var(--warning-bg);
   color: var(--warning);
-}
-
-.in-use-details {
-  min-width: 0;
-}
-
-.in-use-details h4 {
-  margin: 0.6rem 0 0.2rem;
-}
-
-.in-use-details ul {
-  margin: 0 0 0.5rem;
-  padding-left: 1.25rem;
-}
-
-.in-use-details li {
-  overflow-wrap: anywhere;
 }
 
 .table-scroll {
@@ -1752,540 +1606,14 @@ code {
   color: var(--accent);
 }
 
-.allocation-view-tabs {
-  display: inline-flex;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface-subtle);
-  padding: 0.35rem;
-}
-
-.allocation-view-tabs a {
-  display: grid;
-  min-width: 11rem;
-  gap: 0.12rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  color: var(--muted-strong);
-  padding: 0.65rem 0.85rem;
-  text-decoration: none;
-}
-
-.allocation-view-tabs a:hover,
-.allocation-view-tabs a.active {
-  border-color: var(--accent-line);
-  background: var(--accent-dark);
-  color: var(--text);
-}
-
-.allocation-view-tabs a.active {
-  box-shadow: inset 0 -2px var(--accent);
-}
-
-.allocation-view-tabs strong {
-  font-size: 0.82rem;
-}
-
-.allocation-view-tabs small {
-  color: var(--muted);
-  font-size: 0.68rem;
-}
-
-.performance-heading {
-  align-items: flex-start;
-}
-
-.performance-observed-at {
-  overflow-wrap: anywhere;
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
-.performance-card-grid,
-.performance-chart-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.performance-metric-card,
-.performance-chart-card {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--surface-subtle);
-  padding: 1rem;
-}
-
-.performance-metric-card > header,
-.performance-chart-heading,
-.allocation-resource-card > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.performance-metric-card h4,
-.performance-chart-card h4 {
-  margin: 0;
-}
-
-.performance-metric-card > small,
-.performance-chart-card > small,
-.allocation-resource-card > small {
-  display: block;
-  margin-top: 0.75rem;
-  color: var(--muted);
-  font-size: 0.69rem;
-  line-height: 1.45;
-}
-
-.performance-metrics-grid,
-.allocation-resource-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 1rem;
-}
-
-.performance-metrics-grid dd,
-.allocation-resource-metrics dd {
-  overflow-wrap: anywhere;
-  font-size: 0.88rem;
-}
-
-.performance-history {
-  margin-top: 1.5rem;
-  border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
-}
-
-.performance-range-control,
-.allocation-history-filter label {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.performance-range-control select,
-.allocation-history-filter input {
-  min-width: 12rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--sunken);
-  color: inherit;
-  padding: 0.65rem 0.75rem;
-}
-
-.performance-range-control select:focus,
-.allocation-history-filter input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-}
-
-.performance-chart-card {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.performance-chart-heading strong {
-  flex-shrink: 0;
-  white-space: nowrap;
-  color: var(--accent);
-  font-size: 1.1rem;
-}
-
-.performance-chart {
-  width: 100%;
-  min-height: 10rem;
-  overflow: visible;
-}
-
-.performance-chart text {
-  fill: var(--muted);
-  font-size: 10px;
-}
-
-.performance-chart-axis {
-  stroke: var(--chart-axis);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.performance-chart-line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.performance-chart-point {
-  fill: var(--accent);
-  stroke: var(--surface);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.performance-series-swatch {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 50%;
-}
-
-.performance-device-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.performance-device-heading small {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: normal;
-}
-
-.performance-chart-legend {
-  display: grid;
-  gap: 0.65rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.performance-chart-legend li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.76rem;
-}
-
-.performance-chart-legend li > span:nth-child(2) {
-  overflow-wrap: anywhere;
-}
-
-.performance-chart-legend strong {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.performance-series-details summary {
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-}
-
-.performance-series-details h5 {
-  margin: 0.85rem 0 0.5rem;
-  font-weight: normal;
-}
-
-.performance-chart-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.performance-chart-summary > div {
-  min-width: 0;
-  border-top: 1px solid var(--line);
-  padding-top: 0.55rem;
-}
-
-.performance-chart-summary dt {
-  color: var(--muted);
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.performance-chart-summary dd {
-  overflow-wrap: anywhere;
-  margin: 0.2rem 0 0;
-  font-size: 0.76rem;
-}
-
-.completed-allocation-panel {
-  margin: 0;
-}
-
-.allocation-history-filter {
-  display: flex;
-  align-items: end;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-  margin: 1rem 0;
-}
-
-.allocation-resource-list {
-  display: grid;
-  gap: 0.8rem;
-  margin-top: 1rem;
-}
-
-.allocation-resource-card {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: var(--surface-subtle);
-  padding: 1rem;
-}
-
-.allocation-resource-card > header > div,
-.allocation-resource-card > header > span {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
-.allocation-resource-card > header code {
-  overflow: hidden;
-  max-width: 28rem;
-  text-overflow: ellipsis;
-}
-
-.allocation-resource-identity {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin: 1rem 0 0;
-}
-
-.allocation-resource-identity dt {
-  color: var(--muted);
-  font-size: 0.64rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.allocation-resource-identity dd {
-  overflow-wrap: anywhere;
-  margin: 0.2rem 0 0;
-  font-size: 0.76rem;
-}
-
-.allocation-resource-note {
-  margin: 0.8rem 0 0;
-  color: var(--muted-strong);
-  font-size: 0.74rem;
-}
-
-.operations-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.operations-summary-card > strong {
-  display: block;
-  color: var(--accent);
-  font-size: 2.4rem;
-  line-height: 1;
-}
-
-.operations-summary-card {
-  position: relative;
-  color: inherit;
-  text-decoration: none;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    transform 140ms ease;
-}
-
-.operations-summary-card::after {
-  color: var(--link);
-  content: "View →";
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.operations-summary-card:hover {
-  border-color: var(--accent-line);
-  background: var(--accent-dark);
-  transform: translateY(-1px);
-}
-
-.operations-summary-card h3 {
-  margin-top: 0.5rem;
-}
-
-.operations-summary-card p:last-child,
-.operations-snapshot-record p {
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.operations-snapshot-record {
-  grid-column: 1 / -1;
-}
-
-.operations-library,
-.configuration-detail,
-.credential-detail {
-  margin-top: 1rem;
-}
-
-.runtime-principal-grid,
-.runtime-config-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.runtime-library-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.runtime-config-table {
-  min-width: 48rem;
-}
-
-.runtime-credential-table {
-  min-width: 36rem;
-}
-
-.runtime-binding-trigger.has-bindings {
-  border: 1px solid var(--accent-line);
-  background: var(--accent-dark);
-  color: var(--accent);
-}
-
-.runtime-binding-trigger.has-bindings:not(:disabled):hover {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-}
-
-.project-dialog.runtime-configuration-dialog {
-  width: min(100%, 60rem);
-}
-
-.runtime-configuration-dialog > .configuration-draft {
-  margin: 0;
-  border: 0;
-  background: none;
-  padding: 0;
-}
-
-.runtime-principal-card h4 {
-  margin: 0;
-  font-family: var(--font-mono);
-}
-
-.runtime-principal-labels,
-.runtime-config-block {
-  display: grid;
-  gap: 0.65rem;
-  min-width: 0;
-  margin: 1rem 0 0;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  padding: 1rem;
-}
-
-.runtime-principal-labels legend,
-.runtime-config-block legend {
-  padding: 0 0.35rem;
-  font-weight: 800;
-}
-
-.runtime-binding-list,
-.runtime-secret-rows {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.runtime-binding-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  background: var(--surface-subtle);
-  padding: 0.9rem;
-}
-
-.runtime-binding-card > div:first-child,
 .runtime-label-preview {
   display: grid;
   gap: 0.2rem;
 }
 
-.runtime-default-binding,
 .runtime-default-preview {
   border-color: var(--accent-line) !important;
   background: var(--accent-dark) !important;
-}
-
-.runtime-binding-card select,
-.runtime-label-create select,
-.runtime-label-create input,
-.runtime-config-block select,
-.runtime-config-block input,
-.runtime-config-block textarea,
-.runtime-credential-form input,
-.runtime-credential-form select {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--sunken);
-  color: inherit;
-  padding: 0.65rem 0.75rem;
-}
-
-.runtime-binding-actions,
-.runtime-targets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.runtime-label-create {
-  margin-top: 1rem;
-}
-
-.runtime-label-create label,
-.runtime-secret-row label,
-.runtime-credential-form > label {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.runtime-secret-row {
-  display: grid;
-  grid-template-columns: minmax(10rem, 0.6fr) minmax(14rem, 1fr) auto;
-  align-items: end;
-  gap: 0.8rem;
-}
-
-.runtime-ca-field {
-  grid-column: 1 / -1;
-}
-
-.runtime-ca-field textarea {
-  min-height: 7rem;
-  resize: vertical;
-}
-
-.runtime-config-inspector {
-  min-width: 0;
 }
 
 .runtime-default-preview {
@@ -2318,21 +1646,6 @@ code {
   gap: 0.35rem;
 }
 
-.operations-library .section-heading > span {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.inline-details summary {
-  color: var(--accent);
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.inline-details[open] {
-  min-width: 18rem;
-}
-
 .reconciled,
 .reconciliation-warning {
   display: block;
@@ -2341,76 +1654,7 @@ code {
   font-size: 0.75rem;
 }
 
-.reconciliation-warning {
-  color: var(--warning);
-}
-
-.reason-record,
-.exact-config-ref,
-.nested-value {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.reason-record span {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.operations-safety-note {
-  margin-bottom: 0;
-}
-
-.allocation-card-list {
-  display: grid;
-  gap: 0.8rem;
-  margin-top: 1rem;
-}
-
-.allocation-card {
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: var(--surface-subtle);
-}
-
-.allocation-card > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  cursor: pointer;
-}
-
-.allocation-card > summary > span {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.allocation-card-body {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(18rem, 1fr) minmax(20rem, 1fr);
-  gap: 1rem;
-  border-top: 1px solid var(--line);
-  padding: 1rem;
-}
-
-.allocation-bindings {
-  margin: 0;
-}
-
-.operations-metrics {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.configuration-inspector,
-.configuration-draft,
-.credential-policy-panel,
-.credential-consumption-panel,
-.credential-delete-panel {
+.configuration-draft {
   margin-top: 1rem;
 }
 
@@ -2437,56 +1681,6 @@ code {
 .configuration-draft .form-grid input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
-}
-
-.configuration-body {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.compact-value-list {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.policy-selection {
-  display: grid;
-  gap: 0.65rem;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.65rem;
-  padding: 1rem;
-}
-
-.policy-selection legend {
-  padding: 0 0.35rem;
-  font-weight: 800;
-}
-
-.credential-create-form > button,
-.credential-delete-panel > button {
-  justify-self: start;
-}
-
-.credential-policy-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.credential-policy-grid > .key-value-list {
-  grid-column: 1 / -1;
-}
-
-.credential-policy-grid h4 {
-  margin: 0 0 0.65rem;
-}
-
-.credential-delete-panel {
-  display: grid;
-  gap: 0.8rem;
-  border-color: var(--danger-line);
 }
 
 .danger-button {
@@ -3042,13 +2236,8 @@ code {
 }
 
 @media (max-width: 1100px) {
-  .workflow-contract-grid,
-  .operations-overview-grid {
+  .workflow-contract-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .operations-snapshot-record {
-    grid-column: 1 / -1;
   }
 
   .project-card-grid {
@@ -3088,31 +2277,8 @@ code {
     grid-template-columns: 1fr;
   }
 
-  .operations-overview-grid,
-  .allocation-card-body,
-  .configuration-body,
-  .credential-policy-grid,
-  .runtime-principal-grid,
-  .runtime-config-detail-grid,
-  .runtime-label-options,
-  .runtime-binding-card,
-  .runtime-secret-row,
-  .performance-card-grid,
-  .performance-chart-grid,
-  .allocation-resource-identity {
+  .runtime-label-options {
     grid-template-columns: 1fr;
-  }
-
-  .operations-snapshot-record,
-  .credential-policy-grid > .key-value-list {
-    grid-column: auto;
-  }
-
-  .allocation-card > summary,
-  .allocation-card > summary > span,
-  .allocation-resource-card > header {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .artifact-update-panel {
@@ -3138,12 +2304,6 @@ code {
     background: color-mix(in srgb, var(--background) 94%, transparent);
     padding: 0.6rem 0.25rem;
     backdrop-filter: blur(0.8rem);
-  }
-
-  .performance-metrics-grid,
-  .allocation-resource-metrics,
-  .performance-chart-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -3315,13 +2475,11 @@ code {
     flex: 1;
   }
 
-  .stage-contract > summary,
-  .allocation-card > summary {
+  .stage-contract > summary {
     padding: 0.85rem;
   }
 
-  .stage-contract-body,
-  .allocation-card-body {
+  .stage-contract-body {
     padding: 0.85rem;
   }
 
@@ -3329,16 +2487,6 @@ code {
     min-height: 2.5rem;
     display: inline-flex;
     align-items: center;
-  }
-
-  .allocation-view-tabs {
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .allocation-view-tabs a {
-    min-width: 0;
   }
 }
 
@@ -3357,24 +2505,4 @@ code {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-.operations-readiness {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 0.75rem;
-}
-.runtime-binding-comparison {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-  gap: 0.75rem;
-}
-.runtime-binding-comparison dd {
-  display: grid;
-  gap: 0.3rem;
-  min-width: 0;
-}
-.runtime-binding-comparison code {
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
 }

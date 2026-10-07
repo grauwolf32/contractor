@@ -1,11 +1,9 @@
-import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
 import {
-  CONFIGURATION_KINDS,
+  isConfigurationKind,
   listConfigurations,
   type ConfigurationKind,
 } from "../../../api/operations";
@@ -14,17 +12,14 @@ import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
 import { compactDigest } from "../../../app/format";
+import { FilterChips } from "../../../ui";
+import { OpsSection, ScopeChip } from "../common";
+import { KIND_LABELS, KIND_ORDER } from "./kinds";
 
-const kindLabels: Record<ConfigurationKind, string> = {
-  "agent-templates": "AgentTemplates (read-only)",
-  "execution-configs": "ExecutionConfigs (read-only)",
-  "model-policies": "ModelPolicies",
-  "llm-gateways": "LLMGatewayConfigs",
-};
+const DEFAULT_KIND: ConfigurationKind = "model-policies";
 
-export function ConfigurationListRoute() {
+function ConfigurationTable({ kind }: { kind: ConfigurationKind }) {
   const api = usePublicAPI();
-  const [kind, setKind] = useState<ConfigurationKind>("model-policies");
   const pages = useCursorStack();
   const cursor = pages.cursor;
   const query = useQuery({
@@ -32,66 +27,35 @@ export function ConfigurationListRoute() {
     queryFn: () =>
       listConfigurations(api, kind, cursor === undefined ? {} : { cursor }),
   });
+  const label = KIND_LABELS[kind];
   return (
-    <div className="panel operations-library">
-      <div className="section-heading">
-        <div>
-          <h3>LLM configurations</h3>
-          <span className="state-badge">Server-wide</span>
-          <p className="muted-copy">
-            Model policies define LLM behavior and limits; gateways route model
-            requests. New versions take effect when selected for future
-            executions.
-          </p>
-        </div>
-        <label className="compact-select">
-          Kind
-          <select
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value as ConfigurationKind);
-              pages.reset();
-            }}
-          >
-            {CONFIGURATION_KINDS.map((candidate) => (
-              <option key={candidate} value={candidate}>
-                {kindLabels[candidate]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {kind === "agent-templates" ? (
-        <p>
-          <Link to="/catalog/agents">
-            Explore Agent instructions, Skills and Workflow usage in Catalog →
-          </Link>
-        </p>
-      ) : null}
+    <>
       <QueryView
         query={query}
         loading={
-          <p className="loading-copy" role="status">
+          <p className="ops-loading" role="status">
             Loading configurations…
           </p>
         }
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <div className="compact-empty">
-            No published {kindLabels[kind]} versions.
-          </div>
+          <p className="ops-empty">
+            No published {label.plural.toLowerCase()} versions.
+          </p>
         }
       >
         {(data) => (
-          <div className="table-scroll">
-            <table>
+          <div className="ops-table-wrap">
+            <table className="ops-table" data-stack="">
               <thead>
                 <tr>
                   <th>Version</th>
                   <th>Source</th>
                   <th>Digest</th>
-                  <th>Action</th>
+                  <th>
+                    <span className="ui-visually-hidden">Action</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -99,21 +63,23 @@ export function ConfigurationListRoute() {
                   <tr
                     key={`${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`}
                   >
-                    <td>
-                      <strong>
+                    <td data-label="Version">
+                      <strong className="ops-mono">
                         {resource.ref.name}@{resource.ref.version}
                       </strong>
                     </td>
-                    <td>
-                      <span className="state-badge">{resource.source}</span>
+                    <td data-label="Source">
+                      <ScopeChip>{resource.source}</ScopeChip>
                     </td>
-                    <td>
-                      <code title={resource.ref.digest}>
+                    <td data-label="Digest">
+                      <code className="ops-digest" title={resource.ref.digest}>
                         {compactDigest(resource.ref.digest)}
                       </code>
                     </td>
-                    <td>
+                    <td data-label="" className="ops-cell-actions">
                       <Link
+                        className="ui-btn"
+                        data-size="sm"
                         to={`/operations/configurations/${resource.ref.kind}/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
                       >
                         {resource.ref.kind === "model-policies" ||
@@ -133,6 +99,57 @@ export function ConfigurationListRoute() {
         label="Configuration pages"
         {...pages.controls(query.data?.page)}
       />
+    </>
+  );
+}
+
+export function ConfigurationListRoute() {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get("kind");
+  const kind =
+    requested !== null && isConfigurationKind(requested)
+      ? requested
+      : DEFAULT_KIND;
+  return (
+    <div className="ops-stack">
+      <OpsSection
+        id="llm-configurations-heading"
+        title="LLM configurations"
+        description={
+          <>
+            <p>
+              Model policies define LLM behavior and limits; gateways route
+              model requests. New versions take effect when selected for future
+              executions.
+            </p>
+            <p>Agent templates and execution configs are read-only here.</p>
+          </>
+        }
+        actions={<ScopeChip>Server-wide</ScopeChip>}
+      >
+        <FilterChips<ConfigurationKind>
+          label="Kind"
+          value={kind}
+          onChange={(next) =>
+            setParams(next === DEFAULT_KIND ? {} : { kind: next }, {
+              replace: true,
+            })
+          }
+          options={KIND_ORDER.map((candidate) => ({
+            value: candidate,
+            label: KIND_LABELS[candidate].plural,
+          }))}
+        />
+        {kind === "agent-templates" ? (
+          <p className="ops-note">
+            <Link to="/catalog/agents">
+              Explore Agent instructions, Skills and Workflow usage in the
+              Library →
+            </Link>
+          </p>
+        ) : null}
+        <ConfigurationTable key={kind} kind={kind} />
+      </OpsSection>
     </div>
   );
 }

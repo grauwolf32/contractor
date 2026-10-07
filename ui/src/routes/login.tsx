@@ -1,11 +1,13 @@
+import "./login.css";
 import { useDocumentTitle } from "../app/document-title";
 import { type FormEvent, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
-import contractorLogoUrl from "../assets/contractor-logo.png";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
+import { StatusGlyph } from "../ui";
 import { LoginBackdrop } from "./login-backdrop";
+import { SignInBrand } from "./login-brand";
 import { SessionConnectionError } from "./session-error";
 
 function safeDestination(state: unknown): string {
@@ -60,21 +62,15 @@ export function LoginRoute() {
   }
 
   return (
-    <main className="login-page">
+    <main className="ops-signin">
       <LoginBackdrop />
-      <section className="login-card" aria-label="Sign in">
-        <p className="login-product">
-          Contractor{" "}
-          <span className="login-product-version">UI {UI_VERSION}</span>
-        </p>
-        <img
-          className="brand-mark"
-          src={contractorLogoUrl}
-          alt=""
-          aria-hidden="true"
-        />
-        <p className="eyebrow">Security Research &amp; Automation</p>
-        <form onSubmit={(event) => void onSubmit(event)}>
+      <section className="ops-signin-card" aria-label="Sign in">
+        <SignInBrand />
+        <h1>Sign in</h1>
+        <form
+          className="ops-signin-form"
+          onSubmit={(event) => void onSubmit(event)}
+        >
           <label>
             Username
             <input
@@ -101,14 +97,23 @@ export function LoginRoute() {
             />
           </label>
           {error === null ? null : (
-            <p className="form-error" role="alert">
-              {error}
+            <p className="ops-signin-error" role="alert">
+              <StatusGlyph tone="blocked" size={15} />
+              <span>{error}</span>
             </p>
           )}
-          <button type="submit" disabled={isLoggingIn || isLoading}>
+          <button
+            className="ui-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={isLoggingIn || isLoading}
+          >
             {isLoggingIn ? "Signing in…" : "Sign in"}
           </button>
         </form>
+        <footer className="ops-signin-footer">
+          <span className="ops-signin-version">UI {UI_VERSION}</span>
+        </footer>
       </section>
     </main>
   );

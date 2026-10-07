@@ -1,3 +1,4 @@
+import "./login.css";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Outlet, useLocation } from "react-router";
 
@@ -16,9 +17,11 @@ export function AuthenticatedRoute() {
 
   if (isLoading) {
     return (
-      <main className="centered-state" aria-live="polite">
-        <span className="spinner" aria-hidden="true" />
-        <p>Checking Server session…</p>
+      <main className="ops-state" aria-live="polite">
+        <div className="ops-state-progress">
+          <span className="ops-spinner" aria-hidden="true" />
+          <p>Checking Server session…</p>
+        </div>
       </main>
     );
   }
@@ -44,17 +47,19 @@ export function AuthenticatedRoute() {
   return (
     <>
       {error === null ? null : (
-        <ErrorNotice
-          error={error}
-          context="Could not refresh the Server session"
-          onRetry={() =>
-            void queryClient.refetchQueries({
-              queryKey: queryKeys.session,
-              exact: true,
-            })
-          }
-          retryPending={refreshing}
-        />
+        <div className="ops-session-refresh">
+          <ErrorNotice
+            error={error}
+            context="Could not refresh the Server session"
+            onRetry={() =>
+              void queryClient.refetchQueries({
+                queryKey: queryKeys.session,
+                exact: true,
+              })
+            }
+            retryPending={refreshing}
+          />
+        </div>
       )}
       <Outlet />
     </>
