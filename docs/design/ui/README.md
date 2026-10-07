@@ -15,7 +15,7 @@ Accepted behaviour belongs in the [specification](../../spec/README.md).
 | Main journey, first round | [V1 Guided](v1-guided.md), [V2 Workspace](v2-workspace.md), [V3 Inbox](v3-inbox.md) | **V3 Inbox** chosen as the base |
 | Main journey, V3 variations | [V3A Focus](v3a-focus.md), [V3B Panes](v3b-panes.md), [V3C Board](v3c-board.md) | **V3B Panes** implemented on `main` |
 | Palette and themes | [Themes](themes.md) | Accepted: neutral accent instead of lime; light, dark and black themes |
-| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** implemented: local YAML authoring, automatic graph layout, catalog selectors and live Check view; advanced follow-ups documented |
+| Workflow / Audit / Agent editor | [Editor studio A, B, C](editor-studio.md) | **B (node studio)** implemented: local YAML authoring, automatic graph layout, catalog selectors, workspace/execution forms and live Check view; composition/round design proposed |
 
 V3B Panes is the implemented direction for the `ui/` redesign. The
 [comparison](#variants-at-a-glance) gives the reasoning, and the [V3B

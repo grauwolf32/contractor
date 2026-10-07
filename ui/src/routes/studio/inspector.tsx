@@ -12,6 +12,14 @@ import {
 import { nodeValue, type StudioNode } from "./graph";
 import { OUTCOMES } from "./validation";
 import { CatalogField, type CatalogKind } from "./catalog-picker";
+import { WorkspaceForm } from "./workspace-form";
+import {
+  EscalationForm,
+  ExecutionDefaultsForm,
+  StageExecutionForm,
+} from "./execution-form";
+import { ToolExecutionForm } from "./tool-execution-form";
+import type { FormEditor } from "./form-editor";
 
 export function Inspector({
   draft,
@@ -40,6 +48,12 @@ export function Inspector({
     );
   const value = record(nodeValue(draft, node)),
     p = node.path;
+  const editor: FormEditor = {
+    draft,
+    onPatch,
+    onReplace,
+    onRemove: (path, title) => onRemove({ ...node, path, title }),
+  };
   const field = (
     label: string,
     path: Path,
@@ -276,14 +290,14 @@ export function Inspector({
                           false,
                           true,
                         )}
-                        {type === "escalate"
-                          ? field("Escalation configuration", [
-                              ...path,
-                              type,
-                              "executionConfig",
-                              "ref",
-                            ])
-                          : null}
+                        {type === "escalate" ? (
+                          <EscalationForm
+                            editor={editor}
+                            path={[...path, type, "executionConfig"]}
+                            agents={Object.keys(record(value.agents))}
+                            outcome={outcome}
+                          />
+                        ) : null}
                         <label className="studio-field">
                           <span>After attempts</span>
                           <select
@@ -477,7 +491,8 @@ export function Inspector({
                     ))}
                 </select>
               </label>
-              <p>Workspace configuration remains available in block YAML.</p>
+              <WorkspaceForm editor={editor} stagePath={p} />
+              <StageExecutionForm editor={editor} name={node.title} />
             </>
           ) : null}
           {node.type === "input" || node.type === "output" ? (
@@ -512,6 +527,12 @@ export function Inspector({
           {node.type === "parameter"
             ? check("Required", [...p, "required"])
             : null}
+          {node.type === "routing" ? (
+            <ExecutionDefaultsForm editor={editor} />
+          ) : null}
+          {node.type === "toolExecution" ? (
+            <ToolExecutionForm editor={editor} />
+          ) : null}
           {node.type === "role" ? (
             <>
               {select(

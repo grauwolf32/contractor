@@ -10,11 +10,18 @@ import { Dialog, DialogHeader } from "../../app/dialog";
 import { nextPageCursor, type PageContinuation } from "../../app/pagination";
 import { record, textValue } from "./document";
 
-export type CatalogKind = "agent-templates" | "workflows" | "model-policies";
+export type CatalogKind =
+  | "agent-templates"
+  | "workflows"
+  | "model-policies"
+  | "llm-gateways"
+  | "execution-configs";
 const titles: Record<CatalogKind, string> = {
   "agent-templates": "Choose an agent template",
   workflows: "Choose a Workflow",
   "model-policies": "Choose a model policy",
+  "llm-gateways": "Choose an LLM gateway",
+  "execution-configs": "Choose an execution configuration",
 };
 interface Choice {
   selector: string;

@@ -7,6 +7,191 @@ import { presetFixture } from "../src/test/audit-presets-fixture";
 
 const configRoot = resolve(process.cwd(), "../configs");
 for (const width of [1440, 390, 320]) {
+  test(`studio advanced forms preserve authored contracts at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const origin = new URL(String(testInfo.project.use.baseURL)).origin;
+    const errors: string[] = [],
+      mutations: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/runtime-config.json", (route) =>
+      route.fulfill({
+        json: {
+          uiVersion: packageMetadata.version,
+          supportedApiVersions: ["contractor.public.v1"],
+          apiBaseUrl: origin,
+        },
+      }),
+    );
+    await page.route(`${origin}/v1/**`, async (route) => {
+      const request = route.request(),
+        url = new URL(request.url());
+      if (request.method() !== "GET") mutations.push(request.method());
+      const headers = { "x-contractor-api-version": "contractor.public.v1" };
+      const kind = url.pathname.split("/").at(-1)!;
+      await route.fulfill({
+        headers,
+        json:
+          url.pathname === "/v1/auth/session"
+            ? {
+                principal: {
+                  userId: "owner",
+                  username: "owner",
+                  capabilities: ["user"],
+                },
+                csrfToken: "a".repeat(43),
+                idleExpiresAt: "2099-01-01T00:00:00Z",
+                absoluteExpiresAt: "2099-01-02T00:00:00Z",
+              }
+            : {
+                items:
+                  kind === "llm-gateways"
+                    ? [
+                        {
+                          ref: {
+                            kind,
+                            name: "local-litellm",
+                            version: "1",
+                            digest: `sha256:${"a".repeat(64)}`,
+                          },
+                          source: "operator",
+                          body: { description: "Local gateway" },
+                        },
+                      ]
+                    : [],
+                page: { hasMore: false },
+              },
+      });
+    });
+    await page.goto("/catalog/studio");
+    const load = async (source: string) => {
+      await page
+        .getByRole("button", { name: "Import YAML", exact: true })
+        .click();
+      await page.getByLabel("Paste YAML").fill(source);
+      await page
+        .getByRole("button", { name: "Load draft", exact: true })
+        .click();
+    };
+    const select = async (title: string) => {
+      if (width <= 800)
+        await page.getByRole("button", { name: "Graph", exact: true }).click();
+      await page
+        .locator(".studio-node-select")
+        .filter({ hasText: title })
+        .click();
+    };
+    const exported = async () => {
+      const promise = page.waitForEvent("download");
+      await page
+        .getByRole("button", { name: "Export YAML", exact: true })
+        .click();
+      return readFileSync((await (await promise).path())!, "utf8");
+    };
+    const original = readFileSync(
+      resolve(configRoot, "workflows/openapi_from_workspace_v7_memory.yaml"),
+      "utf8",
+    );
+    const expected = parse(original),
+      stage = expected.spec.stages.dependency_discovery;
+    await load(`# Advanced form note\n${original}`);
+    await select("dependency_discovery");
+    await page.getByLabel("Source 1 target").fill("project");
+    await page.getByLabel("Source 1 target").press("Tab");
+    stage.context.workspace.sources[0].target = "project";
+    await page
+      .getByRole("button", { name: "Remove workspace export", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Remove block", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Add workspace export", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Add workspace export", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(
+      page.getByRole("combobox", { name: "State output", exact: true }),
+    ).toHaveValue("workspace_state");
+    await page.getByText("Stage execution overrides", { exact: true }).click();
+    await page
+      .getByRole("button", {
+        name: "Choose stage agent analyst gateway from catalog",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Use local-litellm@1", exact: true })
+      .click();
+    expected.spec.executionConfig.stages = {
+      dependency_discovery: {
+        agents: { analyst: { llmGateway: "local-litellm@1" } },
+      },
+    };
+    await select("Execution defaults");
+    await page
+      .getByLabel("Default workers model policy", { exact: true })
+      .fill("worker@3");
+    await page
+      .getByLabel("Default workers model policy", { exact: true })
+      .press("Tab");
+    expected.spec.executionConfig.workers.modelPolicy = "worker@3";
+    for (const theme of ["light", "dark", "black"]) {
+      await page.evaluate((theme) => {
+        document.documentElement.dataset.theme = theme;
+      }, theme);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath(`studio-routing-${theme}-${width}.png`),
+      });
+    }
+    const source = await exported();
+    expect(source).toContain("# Advanced form note");
+    expect(parse(source)).toEqual(expected);
+    const toolSource = readFileSync(
+        resolve(configRoot, "agent-templates/audit_sqlmap_scan.yaml"),
+        "utf8",
+      ),
+      toolExpected = parse(toolSource);
+    await load(toolSource);
+    await select("Tool execution");
+    await page.getByLabel("level literal type").selectOption("boolean");
+    toolExpected.spec.execution.arguments.level.value = false;
+    await page.getByLabel("risk source").selectOption("parameter");
+    await page.getByLabel("risk binding name").fill("risk_level");
+    await page.getByLabel("risk binding name").press("Tab");
+    toolExpected.spec.execution.arguments.risk = {
+      source: "parameter",
+      name: "risk_level",
+    };
+    await page.getByRole("button", { name: "Validate", exact: true }).click();
+    await expect(
+      page.getByText("No errors in local checks.", { exact: true }),
+    ).toBeVisible();
+    const result = await exported();
+    expect(result).toContain("# SQLMap's lowest supported test level and risk");
+    expect(parse(result)).toEqual(toolExpected);
+    expect(
+      await page.evaluate(() =>
+        Object.keys(localStorage).filter((key) => key !== "contractor.theme"),
+      ),
+    ).toEqual([]);
+    expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+    expect(errors).toEqual([]);
+    expect(mutations).toEqual([]);
+  });
+}
+for (const width of [1440, 390, 320]) {
   test(`studio imports, edits and exports authored YAML at ${width}px`, async ({
     page,
   }, testInfo) => {

@@ -688,7 +688,14 @@ export function StudioRoute() {
               if (removing) {
                 try {
                   push(removeBlock(draft, removing.path));
-                  setSelected("");
+                  if (
+                    node &&
+                    removing.path.length <= node.path.length &&
+                    removing.path.every(
+                      (part, index) => node.path[index] === part,
+                    )
+                  )
+                    setSelected("");
                 } catch (error) {
                   setNotice(
                     error instanceof Error

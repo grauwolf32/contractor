@@ -86,7 +86,10 @@ describe("Studio dependency layout", () => {
         self: { on: { succeeded: { next: "self" } } },
       },
     });
-    expect(result.nodes).toHaveLength(5);
+    expect(result.nodes).toHaveLength(6);
+    expect(
+      result.nodes.find((node) => node.type === "routing")!.y,
+    ).toBeGreaterThan(block(result, "stages", "start").y);
     expect(block(result, "stages", "start").x).toBe(
       block(result, "stages", "again").x,
     );
@@ -205,7 +208,7 @@ describe("Studio dependency layout", () => {
         ]),
       ),
     });
-    expect(result.nodes).toHaveLength(257);
+    expect(result.nodes).toHaveLength(258);
     expect(block(result, "stages", "stage-255").x).toBeGreaterThan(
       block(result, "stages", "stage-0").x,
     );

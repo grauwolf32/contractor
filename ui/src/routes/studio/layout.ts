@@ -5,7 +5,7 @@ export const NODE_WIDTH = 218;
 export const NODE_HEIGHT = 154;
 const COLUMN = 340;
 const ROW = 206;
-const FOOTERS = new Set(["failure", "execution", "interaction"]);
+const FOOTERS = new Set(["failure", "execution", "interaction", "routing"]);
 const compare = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
 

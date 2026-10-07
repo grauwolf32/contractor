@@ -1,4 +1,5 @@
 import { at, record, textValue, type Draft, type Path } from "./document";
+import { validateAdvanced } from "./advanced-validation";
 
 export interface Problem {
   severity: "error" | "warning";
@@ -640,5 +641,5 @@ export function validateDraft(draft: Draft): Problem[] {
       if (!allowed.includes(textValue(record(spec.interaction)[key])))
         error(["spec", "interaction", key], `Choose ${allowed.join(" or ")}.`);
   }
-  return problems;
+  return [...problems, ...validateAdvanced(draft)];
 }

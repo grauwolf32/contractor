@@ -205,59 +205,59 @@ describe("Studio catalog selectors", () => {
       ).toBeVisible();
     },
   );
-  it.each(["workflows", "model-policies"] as const)(
-    "reads published %s through its own endpoint",
-    async (kind) => {
-      const user = userEvent.setup();
-      const { change, requests } = mount(
-        async () =>
-          response({
-            items: [
-              kind === "workflows"
-                ? {
-                    ref: {
-                      name: "workflow",
-                      version: "5",
-                      digest: `sha256:${"a".repeat(64)}`,
-                    },
-                    entryStage: "start",
-                    inputs: {},
-                    outputs: {},
-                    parameters: {},
-                    presentation: {
-                      displayName: "Workflow",
-                      description: "Published workflow",
-                    },
-                  }
-                : {
-                    ref: {
-                      kind,
-                      name: "policy",
-                      version: "3",
-                      digest: `sha256:${"a".repeat(64)}`,
-                    },
-                    source: "operator",
-                    body: { model: "test-model", contextWindowTokens: 1000 },
+  it.each([
+    "workflows",
+    "model-policies",
+    "llm-gateways",
+    "execution-configs",
+  ] as const)("reads published %s through its own endpoint", async (kind) => {
+    const user = userEvent.setup();
+    const { change, requests } = mount(
+      async () =>
+        response({
+          items: [
+            kind === "workflows"
+              ? {
+                  ref: {
+                    name: "workflow",
+                    version: "5",
+                    digest: `sha256:${"a".repeat(64)}`,
                   },
-            ],
-            page: { hasMore: false },
-          }),
-        kind,
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Choose template from catalog" }),
-      );
-      const dialog = await screen.findByRole("dialog");
-      const selector = kind === "workflows" ? "workflow@5" : "policy@3";
-      await user.click(
-        await within(dialog).findByRole("button", { name: `Use ${selector}` }),
-      );
-      expect(change).toHaveBeenCalledExactlyOnceWith(selector);
-      expect(new URL(requests[0]!.url).pathname).toBe(
-        kind === "workflows"
-          ? "/v1/workflows"
-          : "/v1/configurations/model-policies",
-      );
-    },
-  );
+                  entryStage: "start",
+                  inputs: {},
+                  outputs: {},
+                  parameters: {},
+                  presentation: {
+                    displayName: "Workflow",
+                    description: "Published workflow",
+                  },
+                }
+              : {
+                  ref: {
+                    kind,
+                    name: "policy",
+                    version: "3",
+                    digest: `sha256:${"a".repeat(64)}`,
+                  },
+                  source: "operator",
+                  body: { model: "test-model", contextWindowTokens: 1000 },
+                },
+          ],
+          page: { hasMore: false },
+        }),
+      kind,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Choose template from catalog" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const selector = kind === "workflows" ? "workflow@5" : "policy@3";
+    await user.click(
+      await within(dialog).findByRole("button", { name: `Use ${selector}` }),
+    );
+    expect(change).toHaveBeenCalledExactlyOnceWith(selector);
+    expect(new URL(requests[0]!.url).pathname).toBe(
+      kind === "workflows" ? "/v1/workflows" : `/v1/configurations/${kind}`,
+    );
+  });
 });

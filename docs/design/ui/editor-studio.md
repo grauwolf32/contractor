@@ -31,10 +31,20 @@ decision and use the former lime accent and Inter.
   files, results, output mappings and outcome/retry/escalation transitions;
   Check type inputs, role bindings, inventory, execution limits and review
   policies; and Agent model, instructions, sandbox, summarizer, tools and skills.
+  Dedicated workspace forms cover direct/overlay sources, relative targets,
+  state restoration and runtime-owned state/diff exports. Adding exports is one
+  undo entry and creates compatible result slots when needed. Workflow execution
+  defaults and stage overrides edit their native `spec.executionConfig` paths;
+  unset fields inherit rather than copying resolved values. Escalation chooses
+  an exact published configuration or inline selections, with credential clearing
+  available only inline. Tool-agent execution has typed argument bindings,
+  result names and deadlines. Removing a nested setting keeps its parent selected.
   Advanced settings remain editable through block YAML and whole-document YAML.
   Renaming mapped blocks updates their explicit structural references.
 - Agent template references, Check type Workflow references and Agent/summarizer
-  model policies can be chosen from the published catalog. The shared Dialog
+  model policies, LLM gateways and escalation configurations can be chosen from
+  the published catalog. Credential controls accept IDs, never credential values.
+  The shared Dialog
   searches on the Server and reads 50 versions per page on demand. Selecting
   `name@version` edits only that reference and supports undo/redo; published
   projections never replace authored definitions. Manual references still work
@@ -44,6 +54,8 @@ decision and use the former lime accent and Inter.
 - Problems, unapplied YAML and Diff since import have distinct states. Local
   checks cover graph cycles/reachability, outcome contracts, required output
   flow at joins, role dependency cycles, selectors and common structural rules.
+  Advanced checks cover workspace aliases, bounded non-overlapping targets,
+  export slots, execution inheritance/null rules and tool argument contracts.
   Reads of a known later artifact are warnings: runtime/project namespaces can
   supply files that are absent from authored stage declarations. They cannot
   truthfully be treated as definite read-before-write errors without that context.
@@ -64,9 +76,26 @@ decision and use the former lime accent and Inter.
   that an unloaded page was read. Design edits are kept separate from execution.
   Studio makes no mutation requests and introduces no API or publishing flow.
 
-Useful follow-ups are dedicated forms for the advanced workspace and execution
-policies currently edited in YAML. These do not block authored import/edit/export
-or the live view.
+## Composition and rounds: proposed next direction
+
+Keep the distinction established in [the Audit contract](../../spec/19-audits.md):
+Workflow defines one task's stages and local retry/escalation; AuditProfile
+composes ordinary WorkflowRuns, and Audit holds process state and immutable
+rounds. A later round represents new work after assessment, not another attempt
+of an unchanged task.
+
+The next Audit design should make preparation, worklist, role dependencies,
+assessment, next-round decisions and stopping budgets visible together. Definition
+and execution need separate views of the same process: configured policies in
+Design, exact accepted rounds and their provenance in Live. This is a design
+proposal; this Studio increment adds no new Audit contract or controller behavior.
+
+Develop the existing source-to-OpenAPI-to-check composition first. The V62 task
+files own readiness; round snapshots, retained cross-round dependencies and
+proposal routing remain deferred under their stated reactivation conditions.
+Once a second practical scenario, such as generation/validation/refinement,
+demonstrates shared requirements, consider extracting a reusable composition
+core while retaining Audit's check, evidence and review semantics.
 
 ## Scope decisions
 
@@ -104,7 +133,7 @@ is marked red. A form panel on the right edits the selected Stage.
 
 ![A · Audit](screenshots/studio-a-audit.webp)
 
-**Audit:** a new *Flow* tab on the Audit page. It shows the profile pipeline
+**Audit:** a new _Flow_ tab on the Audit page. It shows the profile pipeline
 (inputs → inventory → round → role → results → review → report) with live
 counters, and the items table below.
 
@@ -125,8 +154,8 @@ layout, drag and drop, and a story for small screens.
 Agent templates, planners) feeds a canvas of nodes with Artifact "wires" and a
 shared failure bus. A draft Stage with no incoming transition is flagged as
 unreachable. An inspector edits the selected Stage: planner, session, agent,
-outcome transitions and wires in and out. A bottom console has *Problems*,
-*YAML* and *Diff vs @7* tabs. *Validate* and *Export YAML* sit in the header,
+outcome transitions and wires in and out. A bottom console has _Problems_,
+_YAML_ and _Diff vs @7_ tabs. _Validate_ and _Export YAML_ sit in the header,
 next to a Design / Live switch.
 
 ![B · Audit live](screenshots/studio-b-audit.webp)
@@ -153,7 +182,7 @@ obvious here.
 ![C · Audit Sankey](screenshots/studio-c-audit.webp)
 
 **Audit:** the profile as a text outline on the left, a Sankey on the right
-(operations → state → outcome → coverage), and a *Needs attention* list.
+(operations → state → outcome → coverage), and a _Needs attention_ list.
 
 ![C · Agent capability matrix](screenshots/studio-c-agent.webp)
 

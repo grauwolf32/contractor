@@ -95,6 +95,21 @@ export function patchDraft(draft: Draft, path: Path, value: unknown): Draft {
   document.setIn(path, value);
   return readDraft(document.toString());
 }
+/** Several related edits form one undo entry and keep untouched syntax nodes. */
+export function editDraft(
+  draft: Draft,
+  edit: (document: Document) => void,
+): Draft {
+  const document = draft.document.clone();
+  edit(document);
+  return readDraft(document.toString());
+}
+export function appendDraft(draft: Draft, path: Path, value: unknown): Draft {
+  return editDraft(draft, (document) => {
+    if (!document.hasIn(path)) document.setIn(path, []);
+    document.addIn(path, value);
+  });
+}
 export function removeBlock(draft: Draft, path: Path): Draft {
   const document = draft.document.clone();
   document.deleteIn(path);
@@ -128,6 +143,11 @@ export function renameBlock(draft: Draft, path: Path, name: string): Draft {
   if (draft.kind === "Workflow") {
     if (section === "stages" && spec.entryStage === old)
       document.setIn(["spec", "entryStage"], name);
+    if (
+      section === "stages" &&
+      Object.hasOwn(record(record(spec.executionConfig).stages), old)
+    )
+      renameKey(["spec", "executionConfig", "stages"], old, name);
     for (const [stageName, value] of Object.entries(record(spec.stages))) {
       const stage = record(value),
         p: Path = [

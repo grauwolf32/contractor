@@ -141,6 +141,12 @@ export function buildGraph(draft: Draft): StudioGraph {
       "Failure",
       "Shared terminal · retry limits stay on stages",
     );
+    node(
+      ["spec", "executionConfig"],
+      "routing",
+      "Execution defaults",
+      "Planner and worker selections",
+    );
   } else if (draft.kind === "AuditProfile") {
     files("inputs");
     node(
@@ -218,6 +224,12 @@ export function buildGraph(draft: Draft): StudioGraph {
       ["sandboxProfile", "Sandbox"],
       ["summarizer", "Summarizer"],
     ] as const) {
+      if (
+        spec.runtime === "tool@1" &&
+        key !== "sandboxProfile" &&
+        spec[key] === undefined
+      )
+        continue;
       node(
         ["spec", key],
         key,
@@ -228,6 +240,16 @@ export function buildGraph(draft: Draft): StudioGraph {
           "Unconfigured",
       );
       edge(["spec", key], ["metadata"], title, "wire");
+    }
+    if (spec.runtime === "tool@1" || spec.execution !== undefined) {
+      node(
+        ["spec", "execution"],
+        "toolExecution",
+        "Tool execution",
+        textValue(record(spec.execution).tool) ||
+          "Configure operation and arguments",
+      );
+      edge(["spec", "execution"], ["metadata"], "Execution", "wire");
     }
     for (const key of ["toolsets", "skills"]) {
       const values = spec[key];
