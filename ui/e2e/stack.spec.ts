@@ -180,16 +180,28 @@ async function invokeControl(
   expect(response.status(), await response.text()).toBe(204);
 }
 
+// Sign out lives in the account menu at the bottom of the rail.
+async function openAccountMenu(page: Page): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("button", { name: "Account", exact: true })
+    .click();
+}
+
 async function login(page: Page, username: string, password: string) {
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await openAccountMenu(page);
+  const signOut = page.getByRole("button", { name: "Sign out" });
+  await expect(signOut).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(signOut).toBeHidden();
 }
 
 async function uploadProjectArtifact(
   page: Page,
-  shortcut: "Sources" | "OpenAPI",
+  shortcut: "Source code ZIP" | "OpenAPI",
   input: {
     namespace: string;
     name: string;
@@ -200,9 +212,9 @@ async function uploadProjectArtifact(
 ) {
   await page
     .getByRole("navigation", { name: "Project sections" })
-    .getByRole("link", { name: "Artifacts", exact: true })
+    .getByRole("link", { name: "Materials", exact: true })
     .click();
-  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
+  await page.getByRole("button", { name: "Add material", exact: true }).click();
   await page.getByRole("button", { name: shortcut, exact: true }).click();
   const dialog = page.getByRole("dialog", { name: shortcut });
   if (input.path !== undefined) {
@@ -449,7 +461,11 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       .fill(value);
   }
   await runSetup.getByRole("button", { name: "Close Run setup" }).click();
-  await page.getByRole("link", { name: "Artifacts", exact: true }).click();
+  // The rail has no Files item; the Library's section tabs link to Files.
+  await page
+    .getByRole("navigation", { name: "Library sections" })
+    .getByRole("link", { name: "Files", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/artifacts$/);
   await page.goBack();
   await page
@@ -618,12 +634,19 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await invokeControl(request, controlURL, controlToken, "release-worker");
 
   await page.goto(`/runs/${streamlineRunID}`);
+  // The triage region is named by its outcome title, which reads
+  // "Run completed successfully" only for a succeeded Run.
   await expect(
-    page.locator(".run-triage").getByText("succeeded", { exact: true }),
+    page.getByRole("region", {
+      name: "Run completed successfully",
+      exact: true,
+    }),
   ).toBeVisible({
     timeout: 45_000,
   });
+  // Metadata labels are a Technical details section, collapsed by default.
   const streamlineMetadata = page.locator(".run-metadata-label-panel");
+  await openDetails(streamlineMetadata);
   await expect(streamlineMetadata).toContainText("eval.id:ui-stack-eval-01");
   await expect(streamlineMetadata).toContainText("eval.leg:a");
   await expect(streamlineMetadata).toContainText(
@@ -738,22 +761,22 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await runSetup.getByRole("button", { name: "Close Run setup" }).click();
 
   await page.goto("/projects");
-  await page.getByRole("button", { name: "New Project" }).first().click();
-  const projectForm = page.getByRole("dialog", { name: "New Project" });
+  await page.getByRole("button", { name: "New project" }).first().click();
+  const projectForm = page.getByRole("dialog", { name: "New project" });
   await projectForm
     .getByLabel("Name", { exact: true })
     .fill("UI Stack Workspace");
   await projectForm
     .getByLabel("Description", { exact: true })
     .fill("Production browser Project workflow fixture");
-  await projectForm.getByRole("button", { name: "Create Project" }).click();
+  await projectForm.getByRole("button", { name: "Create project" }).click();
   await expect(page).toHaveURL(/\/projects\/project_[A-Za-z0-9_-]+$/);
   await expect(
     page.getByRole("heading", { name: "UI Stack Workspace" }),
   ).toBeVisible();
   const projectURL = page.url();
 
-  await uploadProjectArtifact(page, "Sources", {
+  await uploadProjectArtifact(page, "Source code ZIP", {
     namespace: "sources",
     name: "ui-stack-source",
     mediaType: "application/zip",
@@ -813,7 +836,10 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto(`/runs/${openAPIRunID}`);
   try {
     await expect(
-      page.locator(".run-triage").getByText("succeeded", { exact: true }),
+      page.getByRole("region", {
+        name: "Run completed successfully",
+        exact: true,
+      }),
     ).toBeVisible({
       timeout: 180_000,
     });
@@ -1060,6 +1086,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .textContent();
   expect(generationAfter).not.toBe(generationBefore);
 
+  await openAccountMenu(page);
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("region", { name: "Sign in" })).toBeVisible();
   expect(await context.cookies([apiURL])).toHaveLength(0);
