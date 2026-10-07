@@ -17,7 +17,6 @@ import { locationDestination } from "../catalog/navigation";
 import { WorkflowOverview } from "./overview";
 import { workflowSelector } from "./presentation";
 
-import "../primary-actions.css";
 import { compactDigest } from "../../app/format";
 import { artifactDetailPath } from "../artifacts/paths";
 
@@ -59,7 +58,7 @@ function ConsumerConfigView({
 
 function ResolvedConfigView({ config }: { config: ResolvedConfig }) {
   return (
-    <ul className="consumer-config-list">
+    <ul className="workflow-consumer-list">
       {config.planner === undefined ? null : (
         <ConsumerConfigView name="Planner" config={config.planner} />
       )}
@@ -109,7 +108,7 @@ function FailureTransitionView({
   if (transition.kind === "escalate") {
     const ref = transition.executionConfig.ref;
     return (
-      <div className="escalation-contract">
+      <div className="workflow-escalation">
         <span>
           escalate up to {transition.maxAttempts}{" "}
           {transition.maxAttempts === 1 ? "attempt" : "attempts"} using{" "}
@@ -142,24 +141,26 @@ function StageContract({
     return null;
   }
   return (
-    <details className="stage-contract" open={name === workflow.entryStage}>
+    <details className="workflow-stage" open={name === workflow.entryStage}>
       <summary>
-        <span>
+        <span className="workflow-stage-name">
           <code>{name}</code>
-          {name === workflow.entryStage ? <strong>entry</strong> : null}
+          {name === workflow.entryStage ? (
+            <span className="workflow-entry-label">Entry</span>
+          ) : null}
         </span>
-        <span>
+        <span className="workflow-stage-summary">
           {stage.planner.plannerId}@{stage.planner.version} ·{" "}
           {Object.keys(stage.agents).length} logical Worker
           {Object.keys(stage.agents).length === 1 ? "" : "s"}
         </span>
       </summary>
-      <div className="stage-contract-body">
+      <div className="workflow-stage-body">
         <div>
           <h4>Objective</h4>
           <p>{stage.objective}</p>
         </div>
-        <dl className="stage-reference-grid">
+        <dl className="workflow-stage-facts">
           <div>
             <dt>Planner</dt>
             <dd>
@@ -180,7 +181,7 @@ function StageContract({
         </dl>
         <div>
           <h4>Logical Workers</h4>
-          <ul className="agent-contract-list">
+          <ul className="workflow-agent-list">
             {Object.entries(stage.agents)
               .sort(([left], [right]) => left.localeCompare(right))
               .map(([logicalName, binding]) => (
@@ -231,7 +232,7 @@ function StageContract({
         </div>
         <div>
           <h4>Scheduler transitions</h4>
-          <dl className="transition-grid">
+          <dl className="workflow-stage-facts">
             <div>
               <dt>succeeded</dt>
               <dd>
@@ -269,25 +270,29 @@ export function WorkflowDetailRoute() {
   });
   if (!valid) {
     return (
-      <section className="route-page">
+      <div className="library-detail">
         <ErrorNotice error={new Error("Workflow route is invalid")} />
-        <Link to="/catalog/workflows">Return to Workflows</Link>
-      </section>
+        <Link className="library-back" to="/catalog/workflows">
+          Return to Workflows
+        </Link>
+      </div>
     );
   }
 
   if (query.isPending)
     return (
-      <p className="loading-copy" role="status">
+      <p className="library-muted" role="status">
         Loading Workflow contract…
       </p>
     );
   if (!query.data)
     return (
-      <section className="route-page">
+      <div className="library-detail">
         <ErrorNotice error={query.error} />
-        <Link to="/catalog/workflows">Return to Workflows</Link>
-      </section>
+        <Link className="library-back" to="/catalog/workflows">
+          Return to Workflows
+        </Link>
+      </div>
     );
 
   return (
@@ -299,8 +304,25 @@ export function WorkflowDetailRoute() {
       error={query.error}
     >
       <details className="workflow-technical-details">
-        <summary>Agents, execution settings and transitions</summary>
-        <div className="workflow-technical-details-body workflow-stages">
+        <summary>
+          <svg
+            className="workflow-technical-chevron"
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M9.5 6l6 6-6 6" />
+          </svg>
+          Agents, execution settings and transitions
+        </summary>
+        <div className="workflow-technical-details-body">
           {Object.keys(query.data.stages)
             .sort()
             .map((stageName) => (

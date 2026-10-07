@@ -102,8 +102,12 @@ export function SkillUploadDialog({
         }}
       />
       <p id={description} className="muted-copy">
-        Upload one reviewed ZIP package with a root <code>SKILL.md</code>. It
-        will be available across your Projects.
+        Upload one reviewed ZIP package with a root <code>SKILL.md</code>, up to{" "}
+        {MAXIMUM_SKILL_ARCHIVE_BYTES / (1024 * 1024)} MiB. Every Project can use
+        it.
+      </p>
+      <p className="skill-upload-format">
+        Stored as a Skill package: <code>{SKILL_ARCHIVE_MEDIA_TYPE}</code>
       </p>
       <form onSubmit={submit}>
         <fieldset disabled={mutation.isPending} className="skill-upload-fields">
@@ -134,14 +138,19 @@ export function SkillUploadDialog({
         )}
         <div className="skill-upload-actions">
           <button
-            className="secondary-button"
+            className="ui-btn"
             type="button"
             disabled={mutation.isPending}
             onClick={onClose}
           >
             Cancel
           </button>
-          <button type="submit" disabled={mutation.isPending}>
+          <button
+            className="ui-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Uploading…" : "Upload"}
           </button>
         </div>

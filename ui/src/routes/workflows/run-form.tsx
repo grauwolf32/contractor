@@ -60,6 +60,7 @@ import {
 } from "../../run-drafts/validation";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
+import { StatusChip, type StatusTone } from "../../ui";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { artifactDetailPath } from "../artifacts/paths";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
@@ -172,7 +173,7 @@ function RunMetadataLabelEditor({
         Add labels to find and group Runs. Edit a badge directly or remove it
         with × before starting the Run.
       </p>
-      <div className="notice notice-warning run-label-secret-warning">
+      <div className="run-label-secret-warning">
         <strong>Do not put secrets in labels.</strong>
         <p>
           Keys and values are visible through the Run API, list filters and
@@ -212,7 +213,8 @@ function RunMetadataLabelEditor({
         </div>
         <button
           ref={addButtonRef}
-          className="secondary-button"
+          className="ui-btn"
+          data-size="sm"
           type="button"
           disabled={atLimit}
           onClick={() => {
@@ -229,7 +231,8 @@ function RunMetadataLabelEditor({
       </div>
       <div className="run-metadata-label-actions">
         <button
-          className="secondary-button"
+          className="ui-btn"
+          data-size="sm"
           type="button"
           disabled={
             missingEvalLabels === 0 ||
@@ -541,7 +544,7 @@ function RepeatRunReview({
           ))}
         </ul>
       )}
-      <label className="checkbox-label run-repeat-confirmation">
+      <label className="run-repeat-confirmation">
         <input
           type="checkbox"
           checked={repeat.reviewed}
@@ -582,7 +585,7 @@ function RunDraftCapacity({
   onDiscard: (key: string) => void;
 }) {
   return (
-    <section className="notice notice-warning run-draft-capacity" role="alert">
+    <section className="run-draft-capacity" role="alert">
       <div>
         <strong>The in-memory Run draft limit is reached.</strong>
         <p>
@@ -605,7 +608,9 @@ function RunDraftCapacity({
               </small>
             </span>
             <button
-              className="danger-button"
+              className="ui-btn"
+              data-variant="danger"
+              data-size="sm"
               type="button"
               onClick={() => onDiscard(draft.key)}
             >
@@ -693,19 +698,24 @@ function DiscardRunDraftDialog({
         close={{ label: "Close discard confirmation", onClose: onClose }}
       />
       <p>
-        Parameters, Artifact selections, labels, overrides and any ambiguous
+        Parameters, input selections, labels, overrides and any ambiguous
         submission identity in this tab will be removed.
       </p>
       <div className="run-draft-actions">
         <button
           ref={safeAction}
-          className="secondary-button"
+          className="ui-btn"
           type="button"
           onClick={onClose}
         >
           Keep editing
         </button>
-        <button className="danger-button" type="button" onClick={onDiscard}>
+        <button
+          className="ui-btn"
+          data-variant="danger"
+          type="button"
+          onClick={onDiscard}
+        >
           Discard Run draft
         </button>
       </div>
@@ -789,6 +799,9 @@ function WorkflowRunFormBody({
     overrides,
   } = draft;
   const keyring = draftEntry.keyring;
+  // Artifacts are files in the Library and materials in a Project (§3).
+  const inputNoun = projectId === undefined ? "file" : "material";
+  const inputNouns = projectId === undefined ? "files" : "materials";
 
   useEffect(() => {
     draftStore.retain(draftEntry);
@@ -1278,12 +1291,19 @@ function WorkflowRunFormBody({
     : repeatReviewPending
       ? "Review retained values for this new Run"
       : artifactInventory.isPending && requiredArtifactNames.length > 0
-        ? "Loading Artifact choices…"
+        ? `Loading ${inputNoun} choices…`
         : remainingRequiredFieldCount > 0
           ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
           : reviewRequiredNames.length > 0
             ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
             : "Review highlighted settings";
+  const readinessTone: StatusTone = draftReady
+    ? "success"
+    : remainingRequiredFieldCount === 0 && reviewRequiredNames.length > 0
+      ? "review"
+      : requiredFieldCount === 0
+        ? "neutral"
+        : "idle";
 
   function renderParameters(
     slots: [string, WorkflowResource["parameters"][string]][],
@@ -1317,7 +1337,7 @@ function WorkflowRunFormBody({
                 return (
                   <div className="run-field" key={name}>
                     {!slot.required ? (
-                      <label className="checkbox-label">
+                      <label className="run-field-check">
                         <input
                           type="checkbox"
                           checked={included}
@@ -1449,7 +1469,7 @@ function WorkflowRunFormBody({
         />
       ) : null}
       {presentation === "page" ? (
-        <div className="section-heading run-draft-heading">
+        <div className="run-draft-heading">
           <div>
             <p className="eyebrow">Run setup</p>
             <h3>
@@ -1465,17 +1485,16 @@ function WorkflowRunFormBody({
               {workflow.ref.name}@{workflow.ref.version}
             </code>
           </div>
-          <span
-            className={`run-draft-readiness ${draftReady ? "is-ready" : ""}`}
-            aria-live="polite"
-          >
-            <strong>{readinessValue}</strong>
+          <span className="run-draft-readiness" aria-live="polite">
+            <StatusChip tone={readinessTone}>{readinessValue}</StatusChip>
             <small>{readinessCopy}</small>
           </span>
         </div>
       ) : (
-        <p className="workflow-drawer-readiness" aria-live="polite">
-          <strong>{readinessValue}</strong>
+        <p className="run-draft-readiness is-inline" aria-live="polite">
+          <StatusChip tone={readinessTone} size="sm">
+            {readinessValue}
+          </StatusChip>
           <span>{readinessCopy}</span>
         </p>
       )}
@@ -1496,14 +1515,14 @@ function WorkflowRunFormBody({
 
       <fieldset className="run-draft-section">
         <legend>
-          {projectId === undefined ? "Library" : "Project"} Artifact inputs
+          {projectId === undefined ? "Input files" : "Input materials"}
         </legend>
         {artifactInventory.error === null ? null : (
           <ErrorNotice error={artifactInventory.error} />
         )}
         {Object.entries(workflow.inputs).length === 0 ? (
-          <p className="compact-empty">
-            This Workflow declares no Artifact inputs.
+          <p className="run-draft-empty">
+            This Workflow declares no input {inputNouns}.
           </p>
         ) : (
           <div className="run-field-grid">
@@ -1570,7 +1589,7 @@ function WorkflowRunFormBody({
                         <option value="">
                           {slot.required
                             ? "Select a revision"
-                            : "No Artifact supplied"}
+                            : `No ${inputNoun} supplied`}
                         </option>
                         {compatible.map((metadata) => (
                           <option
@@ -1584,8 +1603,8 @@ function WorkflowRunFormBody({
                     </label>
                     <small>
                       Slot <code>{name}</code> accepts{" "}
-                      {slot.mediaTypes.join(", ")}. MIME compatibility does not
-                      verify Artifact contents.
+                      {slot.mediaTypes.join(", ")}. A format match does not
+                      check what the {inputNoun} contains.
                     </small>
                     {selectedMetadata === undefined ? null : (
                       <section
@@ -1603,9 +1622,12 @@ function WorkflowRunFormBody({
                             </small>
                             <code>{selected}</code>
                           </span>
-                          <strong>
+                          <StatusChip
+                            tone={reviewed ? "success" : "review"}
+                            size="sm"
+                          >
                             {reviewed ? "Confirmed" : "Review needed"}
-                          </strong>
+                          </StatusChip>
                         </div>
                         <dl className="run-input-review-facts">
                           <div>
@@ -1628,7 +1650,7 @@ function WorkflowRunFormBody({
                             <dt>Provenance</dt>
                             <dd>
                               {selectedMetadata.gitSource === undefined
-                                ? `Artifact write · ${formatTimestamp(selectedMetadata.createdAt)}`
+                                ? `Stored · ${formatTimestamp(selectedMetadata.createdAt)}`
                                 : `Git import · ${formatTimestamp(selectedMetadata.gitSource.importedAt)}`}
                             </dd>
                           </div>
@@ -1643,7 +1665,8 @@ function WorkflowRunFormBody({
                         <div className="run-input-review-actions">
                           {needsReview ? (
                             <button
-                              className="secondary-button"
+                              className="ui-btn"
+                              data-size="sm"
                               type="button"
                               onClick={() => confirmArtifact(name)}
                             >
@@ -1658,14 +1681,15 @@ function WorkflowRunFormBody({
                               selectedMetadata.artifact,
                             )}
                           >
-                            Preview Artifact details
+                            Preview {inputNoun} details
                           </Link>
                         </div>
                       </section>
                     )}
-                    <div className="run-draft-actions">
+                    <div className="run-field-actions">
                       <button
-                        className="secondary-button"
+                        className="ui-btn"
+                        data-size="sm"
                         type="button"
                         onClick={() => setUploadSlot(name)}
                       >
@@ -1675,7 +1699,8 @@ function WorkflowRunFormBody({
                         ["application/zip", "*/*"].includes(type),
                       ) ? (
                         <button
-                          className="secondary-button git-import-icon-button"
+                          className="ui-btn git-import-icon-button"
+                          data-size="sm"
                           type="button"
                           aria-label={`Import Git for ${name}`}
                           title={`Import Git repository for ${name}`}
@@ -1711,7 +1736,7 @@ function WorkflowRunFormBody({
                     )}
                     {!artifactInventory.isPending && compatible.length === 0 ? (
                       <p className="field-guidance">
-                        No matching artifacts found in the loaded list.{" "}
+                        No matching {inputNouns} found in the loaded list.{" "}
                         <Link
                           to={
                             projectId === undefined
@@ -1731,8 +1756,8 @@ function WorkflowRunFormBody({
         )}
         <LoadMoreButton
           query={artifactInventory}
-          label="Load more Artifacts"
-          pendingLabel="Loading Artifacts…"
+          label={`Load more ${inputNouns}`}
+          pendingLabel={`Loading ${inputNouns}…`}
         />
       </fieldset>
       {presentation === "drawer" ? (
@@ -1806,7 +1831,7 @@ function WorkflowRunFormBody({
           {runtimeLabelInventory.error === null ? null : (
             <ErrorNotice error={runtimeLabelInventory.error} />
           )}
-          <div className="runtime-default-preview">
+          <div className="run-runtime-default">
             <strong>Default · always applied</strong>
             {defaultRuntimeConfig === undefined ? (
               <span className="muted-copy">Loading binding…</span>
@@ -1979,7 +2004,7 @@ function WorkflowRunFormBody({
               className="retained-stage-overrides"
               aria-labelledby="retained-stage-overrides-title"
             >
-              <div className="section-heading">
+              <div className="run-draft-subheading">
                 <div>
                   <p className="eyebrow">Configuration</p>
                   <h4 id="retained-stage-overrides-title">
@@ -1987,7 +2012,8 @@ function WorkflowRunFormBody({
                   </h4>
                 </div>
                 <button
-                  className="secondary-button"
+                  className="ui-btn"
+                  data-size="sm"
                   type="button"
                   onClick={() =>
                     setOverrides((current) => {
@@ -2027,7 +2053,7 @@ function WorkflowRunFormBody({
 
       {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
       {responseLost ? (
-        <div className="notice notice-warning" role="alert">
+        <div className="run-draft-notice" role="alert">
           <strong>The Run may already exist.</strong>
           {exactRetry ? (
             <p>
@@ -2051,7 +2077,8 @@ function WorkflowRunFormBody({
         <div className="run-draft-actions">
           {draftEntry.meaningful ? (
             <button
-              className="secondary-button"
+              className="ui-btn"
+              data-variant="ghost"
               type="button"
               disabled={mutation.isPending}
               onClick={() => setDiscardRequested(true)}
@@ -2060,6 +2087,8 @@ function WorkflowRunFormBody({
             </button>
           ) : null}
           <button
+            className="ui-btn"
+            data-variant="primary"
             type="submit"
             disabled={
               mutation.isPending ||

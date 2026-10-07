@@ -1,49 +1,47 @@
+import { Navigate, Outlet, useLocation } from "react-router";
+
 import { useDocumentTitle } from "../../app/document-title";
-import { Navigate, NavLink, Outlet, useLocation, useMatch } from "react-router";
+import { TERMS } from "../../app/vocabulary";
+import { LibraryHeader } from "./library-tabs";
 
 import "./catalog.css";
 
+/** /catalog opens the first Library section, keeping its query and hash. */
 export function CatalogIndexRedirect() {
   const { search, hash } = useLocation();
   return (
-    <Navigate replace to={{ pathname: "/catalog/workflows", search, hash }} />
+    <Navigate
+      replace
+      to={{ pathname: "/catalog/audit-presets", search, hash }}
+    />
   );
 }
 
-const catalogSections = [
+const LIBRARY_SECTIONS = [
+  { prefix: "/catalog/audit-presets", label: "Check types" },
   { prefix: "/catalog/workflows", label: "Workflows" },
-  { prefix: "/catalog/audit-presets", label: "Audit presets" },
   { prefix: "/catalog/agents", label: "Agents" },
   { prefix: "/catalog/skills", label: "Skills" },
 ] as const;
 
+/** The section a Library path belongs to, for the document title. */
+function librarySectionLabel(pathname: string): string | undefined {
+  return LIBRARY_SECTIONS.find(
+    (section) =>
+      pathname === section.prefix || pathname.startsWith(`${section.prefix}/`),
+  )?.label;
+}
+
+/** Library: the title and section tabs above every section page. */
 export function CatalogLayoutRoute() {
-  const workflowDetail = useMatch("/catalog/workflows/:name/:version");
   const { pathname } = useLocation();
-  const section = catalogSections.find((item) =>
-    pathname.startsWith(item.prefix),
+  const section = librarySectionLabel(pathname);
+  useDocumentTitle(
+    section === undefined ? TERMS.library : `${section} · ${TERMS.library}`,
   );
-  useDocumentTitle(section ? `${section.label} · Catalog` : "Catalog");
-  if (workflowDetail)
-    return (
-      <div className="catalog-page">
-        <Outlet />
-      </div>
-    );
   return (
-    <div className="catalog-page">
-      <header>
-        <h2>Catalog</h2>
-      </header>
-      <nav
-        className="catalog-navigation section-navigation"
-        aria-label="Catalog navigation"
-      >
-        <NavLink to="/catalog/workflows">Workflows</NavLink>
-        <NavLink to="/catalog/audit-presets">Audit presets</NavLink>
-        <NavLink to="/catalog/agents">Agents</NavLink>
-        <NavLink to="/catalog/skills">Skills</NavLink>
-      </nav>
+    <div className="library-page">
+      <LibraryHeader />
       <Outlet />
     </div>
   );

@@ -9,6 +9,10 @@ import { usePublicAPI } from "../api/context";
 import { splitFrontmatter } from "./artifacts/previews/frontmatter";
 import { queryKeys } from "../api/query-keys";
 
+/**
+ * A Skill package's purpose: the `description` of its SKILL.md front matter
+ * and its file count, read once the row scrolls into view.
+ */
 export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
   const element = useRef<HTMLDivElement>(null);
@@ -57,11 +61,12 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
   if (query.isError) {
     return (
       <div ref={element} className="skill-description-error">
-        <p className="skill-description muted-copy" role="status">
+        <p className="skill-description" role="status">
           Description unavailable
         </p>
         <button
-          className="secondary-button skill-description-retry"
+          className="ui-btn skill-description-retry"
+          data-size="xs"
           type="button"
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
@@ -72,7 +77,7 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
     );
   }
   return (
-    <div ref={element}>
+    <div ref={element} className="skill-purpose">
       <p className="skill-description" title={query.data?.description}>
         {query.data?.description ??
           (query.isFetching
@@ -80,7 +85,9 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
             : "Open the package to inspect its instructions.")}
       </p>
       {query.data === undefined ? null : (
-        <small>{query.data.count} files</small>
+        <small className="skill-files">
+          {query.data.count} {query.data.count === 1 ? "file" : "files"}
+        </small>
       )}
     </div>
   );

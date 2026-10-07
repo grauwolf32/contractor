@@ -1,91 +1,41 @@
-.workflow-overview-page {
-  display: grid;
-  gap: 1.4rem;
-}
+/*
+ * A Workflow version in the Library (contract, stages, launch card) and the
+ * "Configure Run" sheet, which Projects open too. Colours come only from
+ * theme.css tokens.
+ */
 
-.workflow-breadcrumbs,
-.workflow-overview-title,
-.workflow-overview-heading,
-.workflow-drawer-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  min-width: 0;
-}
+/* ---------- Overview ---------- */
 
-.workflow-breadcrumbs {
-  flex-wrap: wrap;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.workflow-breadcrumbs a {
-  color: var(--muted-strong);
-}
-
-.workflow-overview-heading {
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.workflow-overview-identity {
-  display: grid;
-  min-width: 0;
-  gap: 0.65rem;
-}
-
-.workflow-overview-page .workflow-overview-title h2 {
+.workflow-overview-lede {
+  max-width: 52rem;
   margin: 0;
-  font-size: clamp(1.5rem, 2.5vw, 2.3rem);
-  line-height: 1.2;
+  color: var(--muted-strong);
+  font-size: 0.9375rem;
+  line-height: 1.6;
 }
 
-.workflow-overview-page :is(h2, h3, code, p, dd, dt),
-.workflow-run-drawer :is(h2, h3, code, p, small) {
+.workflow-overview-page :is(h2, h3, code, p, dd, dt) {
   overflow-wrap: anywhere;
-}
-
-.workflow-overview-identity .lede {
-  margin: 0.2rem 0 0;
 }
 
 .workflow-overview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 19rem);
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 18rem);
   align-items: start;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .workflow-overview-content {
-  display: grid;
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   min-width: 0;
-}
-
-.workflow-overview-page .panel {
-  padding: 1.25rem;
-  background: var(--surface);
-  border-color: var(--line);
-}
-
-.workflow-overview-page .section-heading {
-  margin-bottom: 1rem;
-}
-
-.workflow-overview-page .section-heading h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.workflow-overview-page .section-heading > span {
-  color: var(--muted);
-  font-size: 0.75rem;
 }
 
 .workflow-overview-io {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .workflow-overview-io.is-single-stage {
@@ -94,16 +44,17 @@
 
 .workflow-overview-slots {
   min-width: 0;
-  padding: 1rem;
+  padding: 0.875rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.65rem;
+  border-radius: 10px;
   background: var(--surface-subtle);
 }
 
 .workflow-overview-slots h4 {
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.625rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.71875rem;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -111,7 +62,7 @@
 .workflow-overview-slots dl,
 .workflow-overview-parameters dl {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.75rem;
   margin: 0;
 }
 
@@ -119,7 +70,14 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.workflow-overview-slots dt code {
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .workflow-overview-slots dt span,
@@ -128,62 +86,76 @@
   font-size: 0.75rem;
 }
 
+.workflow-overview-slots dt .workflow-primary-output {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .workflow-overview-slots dd {
   display: grid;
-  gap: 0.2rem;
-  margin: 0.35rem 0 0;
+  gap: 0.125rem;
+  margin: 0.25rem 0 0;
 }
 
 .workflow-overview-flow {
   display: grid;
   align-content: center;
   justify-items: center;
+  gap: 0.25rem;
   max-width: 6rem;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.71875rem;
 }
 
 .workflow-overview-flow > span {
-  color: var(--accent);
-  font-size: 1.6rem;
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
 }
 
 .workflow-stage-overview {
   display: grid;
-  gap: 1rem;
+  gap: 0.875rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .workflow-stage-overview li {
-  border-left: 2px solid var(--line-strong);
-  padding-left: 1rem;
-}
-
-.workflow-stage-overview li:first-child {
-  border-color: var(--accent);
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .workflow-stage-overview li > div {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.5rem;
+}
+
+.workflow-stage-overview code {
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .workflow-entry-label {
-  color: var(--accent);
-  background: var(--accent-dark);
-  border-radius: 0.3rem;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.65rem;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  background: var(--sel);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+  font-size: 0.6875rem;
+  font-weight: 700;
 }
 
 .workflow-stage-overview p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.55;
   white-space: pre-wrap;
-  margin: 0.4rem 0 0;
-  font-size: 0.85rem;
 }
 
 .workflow-stage-overview small {
@@ -191,12 +163,37 @@
   font-size: 0.75rem;
 }
 
+/* The stage internals, behind a quiet "Technical details"-style summary. */
+.workflow-overview-page .workflow-technical-details {
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
 .workflow-overview-page .workflow-technical-details > summary {
-  display: list-item;
-  min-height: var(--control-height);
-  padding: 0.85rem 1rem;
-  color: var(--muted-strong);
-  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+  list-style: none;
+}
+
+.workflow-overview-page
+  .workflow-technical-details
+  > summary::-webkit-details-marker {
+  display: none;
 }
 
 .workflow-overview-page .workflow-technical-details > summary::after,
@@ -204,19 +201,179 @@
   content: none;
 }
 
-.workflow-overview-parameters > summary {
-  cursor: pointer;
-  font-size: 0.85rem;
+.workflow-overview-page .workflow-technical-details > summary:hover {
+  color: var(--text);
 }
 
-.workflow-overview-parameters summary span {
-  margin-left: 0.75rem;
+.workflow-technical-chevron {
+  flex: none;
+  transition: transform 140ms ease;
+}
+
+.workflow-technical-details[open] .workflow-technical-chevron {
+  transform: rotate(90deg);
+}
+
+.workflow-overview-page .workflow-technical-details-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.875rem 0 0;
+  border: 0;
+}
+
+.workflow-stage {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.workflow-stage > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem 1rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.workflow-stage > summary:hover {
+  background: var(--row-hover);
+}
+
+.workflow-stage[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.workflow-stage-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-stage-name code {
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.workflow-stage-summary {
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+
+.workflow-stage-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+  padding: 1rem;
+}
+
+.workflow-stage-body > div {
+  display: grid;
+  align-content: start;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.workflow-stage-body h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workflow-stage-body p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.84375rem;
+  line-height: 1.55;
+}
+
+.workflow-stage-facts {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+}
+
+.workflow-stage-facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.workflow-stage-facts dd {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.workflow-stage-facts small {
+  color: var(--muted);
+}
+
+.workflow-agent-list,
+.workflow-consumer-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-agent-list li,
+.workflow-consumer-list li {
+  display: grid;
+  gap: 0.125rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+}
+
+.workflow-agent-list li span,
+.workflow-consumer-list li span {
   color: var(--muted);
   font-size: 0.75rem;
 }
 
+.workflow-skill-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+.workflow-escalation {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.workflow-overview-parameters {
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.workflow-overview-parameters > summary {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workflow-overview-parameters summary span {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .workflow-overview-parameters dl {
-  margin-top: 1rem;
+  margin-top: 0.875rem;
 }
 
 .workflow-overview-parameters dl > div,
@@ -224,7 +381,7 @@
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .workflow-overview-parameters dd,
@@ -234,40 +391,88 @@
   text-align: right;
 }
 
+.workflow-launch-card dt {
+  color: var(--muted);
+}
+
+/* The launch card: the exact version and the one way into the Run sheet. */
 .workflow-launch-card {
   position: sticky;
   top: 1rem;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.625rem;
   min-width: 0;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
 }
 
 .workflow-launch-card :is(h3, p) {
   margin: 0;
 }
 
-.workflow-launch-card h3 {
-  font-size: 0.95rem;
+.workflow-launch-kind {
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.workflow-launch-card > p:not(.eyebrow),
+.workflow-launch-selector {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.workflow-launch-card > p:not(.workflow-launch-kind),
 .workflow-launch-card > small {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.78125rem;
 }
 
 .workflow-launch-card dl {
   display: grid;
-  gap: 1rem;
-  margin: 0.5rem 0;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--line);
-  padding-top: 1.25rem;
 }
 
-.workflow-launch-card button {
+.workflow-launch-card .ui-btn {
   width: 100%;
-  margin: 0.35rem 0;
 }
+
+@container (max-width: 56rem) {
+  .workflow-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workflow-launch-card {
+    position: static;
+    order: -1;
+  }
+
+  .workflow-launch-card dl {
+    display: none;
+  }
+}
+
+@container (max-width: 40rem) {
+  .workflow-overview-io,
+  .workflow-overview-io.is-single-stage,
+  .workflow-stage-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workflow-overview-flow {
+    display: none;
+  }
+}
+
+/* ---------- Configure Run sheet ---------- */
 
 .project-dialog-backdrop.workflow-run-backdrop {
   padding: 0;
@@ -278,163 +483,113 @@
 }
 
 .workflow-run-drawer {
+  display: flex;
+  flex-direction: column;
   width: min(100vw, 42rem);
   height: 100dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-padding-bottom: 8rem;
-  background: var(--surface);
   border-left: 1px solid var(--line-strong);
+  background: var(--surface);
   box-shadow: var(--shadow-lg);
-  padding: 1.5rem;
+  color: var(--text);
+}
+
+.workflow-run-drawer:focus-visible {
+  outline: none;
+}
+
+.workflow-run-drawer :is(h2, h3, code, p, small) {
+  overflow-wrap: anywhere;
 }
 
 .workflow-drawer-heading {
-  justify-content: space-between;
+  display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.workflow-drawer-titles {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.workflow-drawer-kind {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .workflow-drawer-heading h2 {
-  margin: 0 0 0.3rem;
-  font-size: 1.6rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-.workflow-drawer-heading .project-dialog-close {
+/* The exact version (UUS:62-63) as an identifier chip. */
+.workflow-drawer-selector {
+  width: fit-content;
+  max-width: 100%;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.workflow-drawer-heading .workflow-drawer-close {
   flex: none;
-}
-
-.workflow-drawer-description {
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin: 1rem 0;
-}
-
-.workflow-run-drawer .run-draft {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  width: 2.375rem;
   padding: 0;
 }
 
-.workflow-drawer-readiness {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.workflow-drawer-close .app-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.workflow-drawer-description {
   margin: 0;
-  color: var(--muted-strong);
-  font-size: 0.8rem;
+  padding: 0.875rem 1.5rem 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
 }
 
-.workflow-drawer-readiness strong {
-  padding: 0.3rem 0.5rem;
-  background: var(--surface-raised);
-  border-radius: 0.35rem;
-}
-
-.workflow-run-drawer .run-field-grid,
-.workflow-run-drawer .run-draft-advanced-heading {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.workflow-run-drawer .run-draft-advanced-heading {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.workflow-run-drawer .run-draft-advanced-heading > p {
-  text-align: left;
-}
-
-.workflow-run-drawer .run-draft-section,
-.workflow-run-drawer .run-draft-disclosure {
-  min-width: 0;
-  background: var(--surface-subtle);
-  border-color: var(--line);
-}
-
-.workflow-run-drawer .workflow-optional-parameters > fieldset {
-  margin: 0 0.75rem 0.75rem;
-}
-
-.workflow-run-drawer .run-submit-row {
-  position: sticky;
-  bottom: -1.5rem;
-  margin: 0 -1.5rem -1.5rem;
-  padding: 1rem 1.5rem;
-  background: var(--surface);
-  border: 0;
-  border-top: 1px solid var(--line-strong);
-  border-radius: 0;
-  z-index: 1;
-  flex-wrap: wrap;
-}
-
-.workflow-run-drawer .run-submit-status small {
-  display: none;
-}
-
-@media (max-width: 1100px) {
-  .workflow-overview-grid {
-    grid-template-columns: minmax(0, 1fr) 16rem;
-  }
-
-  .workflow-overview-io,
-  .workflow-overview-io.is-single-stage {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .workflow-overview-flow {
-    display: none;
-  }
+.workflow-drawer-body {
+  flex: 1 0 auto;
+  padding: 1rem 1.5rem 0;
 }
 
 @media (max-width: 760px) {
-  .workflow-overview-grid {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .workflow-launch-card {
-    order: -1;
-    position: static;
-    width: 100%;
-  }
-
-  .workflow-overview-content {
-    width: 100%;
-  }
-
-  .workflow-launch-card dl {
-    display: none;
-  }
-
-  .workflow-overview-page .section-heading {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .workflow-overview-page .panel {
-    padding: 1rem;
-  }
-
   .workflow-run-drawer {
     width: 100vw;
     border: 0;
-    padding: 1rem;
   }
 
-  .workflow-run-drawer .run-submit-row {
-    position: static;
-    margin: 0;
-    padding: 1rem 0 0;
+  .workflow-drawer-heading {
+    padding: 1rem 1rem 0.875rem;
+  }
+
+  .workflow-drawer-description {
+    padding: 0.75rem 1rem 0;
+  }
+
+  .workflow-drawer-body {
+    padding: 0.875rem 1rem 0;
   }
 }
 
-.workflow-run-drawer .run-draft-advanced-heading .eyebrow {
-  display: none;
-}
-
-.workflow-run-drawer .run-draft-advanced-heading h4 {
-  margin: 0;
+@media (prefers-reduced-motion: reduce) {
+  .workflow-technical-chevron {
+    transition: none;
+  }
 }

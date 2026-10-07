@@ -335,9 +335,7 @@ describe("Workflow overview and Run drawer", () => {
     expect(
       await screen.findByRole("heading", { name: "Inputs and results" }),
     ).toBeVisible();
-    expect(
-      screen.getByRole("region", { name: "Artifact inputs" }),
-    ).toBeVisible();
+    expect(screen.getByRole("region", { name: "Input files" })).toBeVisible();
     expect(
       screen.getByRole("region", { name: "Declared outputs" }),
     ).toBeVisible();
@@ -375,6 +373,13 @@ describe("Workflow overview and Run drawer", () => {
     expect(
       within(drawer).getByRole("button", { name: "Close Run setup" }),
     ).toHaveFocus();
+    // The exact version stays visible, and copyable, before the Run starts.
+    expect(
+      drawer.querySelector(".workflow-drawer-heading code"),
+    ).toHaveTextContent(/^openapi-from-workspace@1$/);
+    expect(
+      within(drawer).getByRole("button", { name: "Copy workflow version" }),
+    ).toBeVisible();
     const objective = within(drawer).getByLabelText(/^objective/);
     const source = within(drawer).getByLabelText(/^source/);
     expect(
@@ -764,7 +769,10 @@ describe("Workflow routes", () => {
       screen.getAllByText(/Suggested only because text\/markdown/),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("link", { name: "Preview Artifact details" }),
+      screen.getAllByText(/A format match does not check what the file/),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("link", { name: "Preview file details" }),
     ).toHaveLength(2);
 
     const user = userEvent.setup();
@@ -836,7 +844,13 @@ describe("Workflow routes", () => {
       ).toBeNull();
       const document = screen.getByRole("combobox", { name: "document" });
       expect(within(document).getAllByRole("option")).toHaveLength(1);
-      expect(screen.getByText(/No matching artifacts found/)).toBeVisible();
+      expect(
+        screen.getByText(
+          projectId === undefined
+            ? /No matching files found/
+            : /No matching materials found/,
+        ),
+      ).toBeVisible();
       const any = screen.getByRole("combobox", { name: "any" });
       expect(within(any).getAllByRole("option")).toHaveLength(3);
       expect(screen.queryByRole("option", { name: /Incompatible/ })).toBeNull();
@@ -1275,8 +1289,8 @@ describe("Workflow routes", () => {
     );
     await screen.findByRole("button", { name: "Retry same request" });
     await user.type(screen.getByLabelText("Add a label"), "pending:restored");
-    await router.navigate("/artifacts");
-    await screen.findByRole("heading", { name: "Artifacts" });
+    await router.navigate("/catalog/skills");
+    await screen.findByRole("heading", { level: 2, name: "Skills" });
     await router.navigate(workflowRoute);
     await openRunSetup();
     expect(await screen.findByLabelText(/^objective/i)).toHaveValue(

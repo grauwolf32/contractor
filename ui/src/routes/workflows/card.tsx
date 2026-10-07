@@ -1,10 +1,12 @@
 import { useId } from "react";
 import { Link } from "react-router";
+
 import type { WorkflowSummary } from "../../api/workflows";
-import { Icon } from "../../app/icon";
+import { IdChip, StatusChip, StatusGlyph, TechnicalDetails } from "../../ui";
+import type { StatusTone } from "../../ui";
 import type { WorkflowCompatibility } from "../projects/recommendations";
-import { workflowDisplayName, workflowSelector } from "./presentation";
 import { workflowFormats } from "./formats";
+import { workflowDisplayName, workflowSelector } from "./presentation";
 import "./cards.css";
 
 function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
@@ -37,6 +39,18 @@ function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
   );
 }
 
+/** Whether a project's materials fit the Workflow, in the "format matches" sense. */
+function matchingStatus(
+  matching: WorkflowCompatibility,
+  ambiguous: boolean,
+): { label: string; tone: StatusTone } {
+  if (matching.suppressed)
+    return { label: "Primary result exists", tone: "info" };
+  if (!matching.compatible) return { label: "Missing inputs", tone: "warning" };
+  if (ambiguous) return { label: "Choose inputs", tone: "review" };
+  return { label: "Format matches found", tone: "success" };
+}
+
 export function WorkflowCard({
   workflow,
   versions,
@@ -58,80 +72,66 @@ export function WorkflowCard({
   const selector = workflowSelector(workflow);
   const route = `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`;
   const state = { returnTo, returnLabel: "Workflow search", returnState };
-  const latest = versions.every((w) => /^\d+(?:\.\d+)*$/.test(w.ref.version));
+  const numeric = versions.every((w) => /^\d+(?:\.\d+)*$/.test(w.ref.version));
+  const latest = workflow.ref.version === versions[0]?.ref.version;
   const ambiguous =
-    matching &&
+    matching !== undefined &&
     Object.values(matching.candidates).some((items) => items.length > 1);
-  const status = !matching
-    ? undefined
-    : matching.suppressed
-      ? "Primary result exists"
-      : !matching.compatible
-        ? "Missing inputs"
-        : ambiguous
-          ? "Choose inputs"
-          : "Format matches found";
+  const status =
+    matching === undefined ? undefined : matchingStatus(matching, ambiguous);
   const parameters = Object.values(workflow.parameters);
+  const requiredInputs = Object.entries(workflow.inputs).filter(
+    ([, slot]) => slot.required,
+  );
   return (
     <article
       className={`workflow-card ${matching ? "workflow-card-project" : "workflow-card-catalog"}`}
       aria-labelledby={heading}
     >
       <header className="workflow-card-heading">
-        <span className="workflow-card-icon">
-          <Icon name="catalog" />
-        </span>
-        <div>
-          <h3 id={heading}>
-            {matching ? (
-              workflowDisplayName(workflow)
-            ) : (
-              <Link to={route} state={state}>
-                {workflowDisplayName(workflow)}
-              </Link>
-            )}
-          </h3>
-          <div className="workflow-card-version">
-            <label>
-              Version{" "}
-              <select
-                aria-label={`Version of ${workflow.ref.name}`}
-                value={workflow.ref.version}
-                onChange={(event) => onVersion(event.target.value)}
-              >
-                {versions.map((version) => (
-                  <option key={version.ref.version} value={version.ref.version}>
-                    {version.ref.version}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {latest ? (
-              <span
-                className={
-                  workflow.ref.version === versions[0]?.ref.version
-                    ? "workflow-version-latest"
-                    : ""
-                }
-              >
-                {workflow.ref.version === versions[0]?.ref.version
-                  ? "Latest"
-                  : "Earlier version"}
-              </span>
-            ) : null}
-            <span>
-              {versions.length} version{versions.length === 1 ? "" : "s"}
-            </span>
-          </div>
-        </div>
+        <h3 id={heading}>
+          {matching ? (
+            workflowDisplayName(workflow)
+          ) : (
+            <Link to={route} state={state}>
+              {workflowDisplayName(workflow)}
+            </Link>
+          )}
+        </h3>
+        {status === undefined ? null : (
+          <StatusChip tone={status.tone} size="sm">
+            {status.label}
+          </StatusChip>
+        )}
       </header>
-      {status ? (
-        <p
-          className={`workflow-card-status ${matching?.compatible && !ambiguous ? "is-found" : "is-missing"}`}
-        >
-          {status}
-        </p>
-      ) : null}
+      <div className="workflow-card-version">
+        <IdChip value={selector} display={selector} label="workflow version" />
+        <label className="workflow-card-select">
+          <span>Version</span>
+          <select
+            aria-label={`Version of ${workflow.ref.name}`}
+            value={workflow.ref.version}
+            onChange={(event) => onVersion(event.target.value)}
+          >
+            {versions.map((version) => (
+              <option key={version.ref.version} value={version.ref.version}>
+                {version.ref.version}
+              </option>
+            ))}
+          </select>
+        </label>
+        {numeric ? (
+          <span
+            className="workflow-card-tag"
+            data-tone={latest ? "accent" : undefined}
+          >
+            {latest ? "Latest" : "Earlier version"}
+          </span>
+        ) : null}
+        <span className="workflow-card-count">
+          {versions.length} version{versions.length === 1 ? "" : "s"}
+        </span>
+      </div>
       {workflow.presentation?.description ? (
         <p className="workflow-card-description">
           {workflow.presentation.description}
@@ -139,29 +139,32 @@ export function WorkflowCard({
       ) : null}
       {matching ? (
         <>
-          <div className="workflow-card-inputs">
-            {Object.entries(workflow.inputs)
-              .filter(([, slot]) => slot.required)
-              .map(([name]) => {
-                const count = matching.candidates[name]?.length ?? 0;
-                return (
-                  <span
-                    key={name}
-                    className={count === 1 ? "" : "needs-attention"}
-                  >
-                    {count === 1 ? "✓" : "!"} {name}
-                    {count === 0
-                      ? " · missing"
-                      : count > 1
-                        ? ` · choose 1 of ${count}`
-                        : ""}
-                  </span>
-                );
-              })}
-            {Object.values(workflow.inputs).every((slot) => !slot.required) ? (
-              <span>No required Artifact inputs</span>
+          <ul className="workflow-card-inputs" aria-label="Required inputs">
+            {requiredInputs.map(([name]) => {
+              const count = matching.candidates[name]?.length ?? 0;
+              return (
+                <li key={name} data-state={count === 1 ? "found" : "attention"}>
+                  {count === 1 ? (
+                    <StatusGlyph tone="success" size={14} label="Found" />
+                  ) : (
+                    <StatusGlyph
+                      tone={count === 0 ? "warning" : "review"}
+                      size={14}
+                    />
+                  )}
+                  <code>{name}</code>
+                  {count === 0
+                    ? " · missing"
+                    : count > 1
+                      ? ` · choose 1 of ${count}`
+                      : ""}
+                </li>
+              );
+            })}
+            {requiredInputs.length === 0 ? (
+              <li data-state="found">No required inputs</li>
             ) : null}
-          </div>
+          </ul>
           <p className="workflow-card-result">
             Primary outputs{" "}
             <code>{matching.primaryOutputs.join(", ") || "None declared"}</code>
@@ -187,34 +190,44 @@ export function WorkflowCard({
         </>
       )}
       <footer className="workflow-card-footer">
-        <details>
-          <summary>
-            {matching ? "Inputs & contract" : "Technical details"}
-          </summary>
-          <code>{selector}</code>
-          <p>
-            Entry stage: <code>{workflow.entryStage}</code>
-          </p>
-          {Object.entries(workflow.inputs).map(([name, slot]) => (
-            <p key={name}>
-              <code>{name}</code> · {slot.required ? "required" : "optional"}
-              <br />
-              {slot.mediaTypes.join(", ")}
-              {matching
-                ? ` · ${matching.candidates[name]?.length ?? 0} matching artifacts`
-                : ""}
-            </p>
-          ))}
-          {Object.entries(workflow.parameters).map(([name, slot]) => (
-            <p key={name}>
-              <code>{name}</code> · {slot.required ? "required" : "optional"}{" "}
-              string parameter
-            </p>
-          ))}
-        </details>
+        <TechnicalDetails
+          summary={matching ? "Inputs & contract" : "Technical details"}
+        >
+          <dl className="workflow-card-technical">
+            <div>
+              <dt>Entry stage</dt>
+              <dd>
+                <code>{workflow.entryStage}</code>
+              </dd>
+            </div>
+            {Object.entries(workflow.inputs).map(([name, slot]) => (
+              <div key={`input:${name}`}>
+                <dt>
+                  Input <code>{name}</code> ·{" "}
+                  {slot.required ? "required" : "optional"}
+                </dt>
+                <dd>
+                  {slot.mediaTypes.join(", ")}
+                  {matching
+                    ? ` · ${matching.candidates[name]?.length ?? 0} matching materials`
+                    : ""}
+                </dd>
+              </div>
+            ))}
+            {Object.entries(workflow.parameters).map(([name, slot]) => (
+              <div key={`parameter:${name}`}>
+                <dt>
+                  Parameter <code>{name}</code>
+                </dt>
+                <dd>{slot.required ? "Required" : "Optional"} string</dd>
+              </div>
+            ))}
+          </dl>
+        </TechnicalDetails>
         {matching ? (
           <button
-            className="secondary-button workflow-card-action"
+            className="ui-btn workflow-card-action"
+            data-size="sm"
             type="button"
             aria-label={
               matching.suppressed
@@ -228,7 +241,7 @@ export function WorkflowCard({
               : matching.compatible
                 ? "Configure run"
                 : "Review inputs"}
-            <span aria-hidden="true"> →</span>
+            <span aria-hidden="true">→</span>
           </button>
         ) : (
           <Link className="workflow-card-action" to={route} state={state}>

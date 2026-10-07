@@ -1,14 +1,24 @@
+import { useId } from "react";
 import { useLocation } from "react-router";
+
+import { QueryView } from "../../app/query-view";
+import { RefreshButton } from "../../app/refresh-button";
+import { EmptyState } from "../../ui";
+import { LibrarySearch, LibrarySectionHeader } from "../catalog/library-parts";
 import { locationDestination } from "../catalog/navigation";
 import { useCatalogQueryState } from "../catalog/query-state";
 import { WorkflowCard } from "./card";
 import { useWorkflowFamilies } from "./families";
 import { useWorkflowInventory } from "./inventory";
-import { RefreshButton } from "../../app/refresh-button";
-import { QueryView } from "../../app/query-view";
 
+function count(value: number, singular: string, plural: string): string {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+/** Library → Workflows: every published Workflow family and its versions. */
 export function WorkflowListRoute() {
   const location = useLocation();
+  const heading = useId();
   const state = useCatalogQueryState();
   const query = useWorkflowInventory();
   const { families, selectVersion } = useWorkflowFamilies(query.data ?? []);
@@ -21,42 +31,40 @@ export function WorkflowListRoute() {
     ),
   );
   return (
-    <section className="route-page workflow-page">
-      <header className="route-header-row">
-        <div>
-          <h2>Workflows</h2>
-          <p className="lede">
-            Explore required materials, results and published versions.
-          </p>
-        </div>
-      </header>
-      <div className="workflow-discovery-toolbar">
-        <p className="muted-copy" role="status">
-          {query.data
-            ? `${filtered.length} workflows · ${query.data.length} published versions`
-            : "Loading published versions…"}
-        </p>
-        <div className="catalog-discovery-actions">
-          <label className="catalog-search">
-            Search workflows
-            <input
-              type="search"
-              value={state.draftSearch}
+    <section
+      className="library-section workflow-page"
+      aria-labelledby={heading}
+    >
+      <LibrarySectionHeader
+        id={heading}
+        title="Workflows"
+        description="Explore required inputs, results and published versions."
+        actions={
+          <>
+            <LibrarySearch
+              label="Search workflows"
               placeholder="Name, version or description"
-              onChange={(event) => state.changeDraftSearch(event.target.value)}
+              value={state.draftSearch}
+              onChange={state.changeDraftSearch}
             />
-          </label>
-          <RefreshButton
-            isFetching={query.isFetching}
-            onRefresh={() => void query.refetch()}
-            label="Refresh"
-          />
-        </div>
-      </div>
+            <RefreshButton
+              className="ui-btn"
+              isFetching={query.isFetching}
+              onRefresh={() => void query.refetch()}
+              label="Refresh"
+            />
+          </>
+        }
+      />
+      <p className="library-count" role="status">
+        {query.data
+          ? `${count(filtered.length, "workflow", "workflows")} · ${count(query.data.length, "published version", "published versions")}`
+          : "Loading published versions…"}
+      </p>
       <QueryView
         query={query}
         loading={
-          <p className="loading-copy" role="status">
+          <p className="library-muted" role="status">
             Loading the complete Workflow inventory…
           </p>
         }
@@ -64,26 +72,30 @@ export function WorkflowListRoute() {
       >
         {() =>
           filtered.length === 0 ? (
-            <div className="panel compact-empty">
-              <strong>
-                {term
-                  ? "No Workflows match this search."
-                  : "No published Workflows found."}
-              </strong>
-              <p>
+            <div className="library-empty">
+              <EmptyState
+                title={
+                  term
+                    ? "No Workflows match this search."
+                    : "No published Workflows found."
+                }
+                action={
+                  term ? (
+                    <button
+                      type="button"
+                      className="ui-btn"
+                      data-size="sm"
+                      onClick={() => state.changeDraftSearch("")}
+                    >
+                      Clear search
+                    </button>
+                  ) : undefined
+                }
+              >
                 {term
                   ? "Try a different name, version or description."
                   : "Publish a Workflow to make it available here."}
-              </p>
-              {term ? (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => state.changeDraftSearch("")}
-                >
-                  Clear search
-                </button>
-              ) : null}
+              </EmptyState>
             </div>
           ) : (
             <div className="workflow-family-grid">

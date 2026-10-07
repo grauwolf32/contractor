@@ -14,6 +14,7 @@ import {
   presetFixture,
   standardFixture,
 } from "../../test/audit-presets-fixture";
+import { auditPresetLabel } from "../projects/audits/labels";
 
 const session: AuthSession = {
   principal: { userId: "owner", username: "owner", capabilities: ["user"] },
@@ -131,7 +132,7 @@ function setup(
   return { router, fetcher };
 }
 
-describe("Audit presets catalog", () => {
+describe("Library check types", () => {
   it("keeps Fast WSTG variants separate and describes their limited coverage", async () => {
     const profiles: AuditProfile[] = [
       "owasp-wstg-4-2-source-review",
@@ -151,26 +152,32 @@ describe("Audit presets catalog", () => {
     }));
     setup("/catalog/audit-presets", { profiles });
     expect(
-      await screen.findByRole("link", { name: "WSTG 4.2 · Fast HTTP checks" }),
+      await screen.findByRole("link", {
+        name: auditPresetLabel("owasp-wstg-4-2-fast-active-http"),
+      }),
     ).toHaveAttribute(
       "href",
       "/catalog/audit-presets/owasp-wstg-4-2-fast-active-http/1",
     );
     expect(screen.getAllByRole("article")).toHaveLength(3);
     expect(
-      screen.getByRole("link", { name: "WSTG 4.2 · Fast source review" }),
+      screen.getByRole("link", {
+        name: auditPresetLabel("owasp-wstg-4-2-fast-source-review"),
+      }),
     ).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "WSTG 4.2 · Source review" }),
+      screen.getByRole("link", {
+        name: auditPresetLabel("owasp-wstg-4-2-source-review"),
+      }),
     ).toBeVisible();
     expect(
       screen.getAllByText(
-        "16 priority WSTG checks. Focused first pass; other scenarios are outside scope.",
+        "16 priority WSTG scenarios. Focused first pass; other scenarios are outside scope.",
       ),
     ).toHaveLength(2);
   });
 
-  it("groups all pages by name, selects the highest version and finds later-page presets", async () => {
+  it("groups all pages by name, selects the highest version and finds later-page check types", async () => {
     const user = userEvent.setup();
     const { router } = setup("/catalog/audit-presets?keep=yes");
     expect(
@@ -179,8 +186,8 @@ describe("Audit presets catalog", () => {
     expect(screen.getAllByRole("article")).toHaveLength(2);
     expect(
       within(
-        screen.getByRole("navigation", { name: "Catalog navigation" }),
-      ).getByRole("link", { name: "Audit presets" }),
+        screen.getByRole("navigation", { name: "Library sections" }),
+      ).getByRole("link", { name: "Check types" }),
     ).toHaveAttribute("aria-current", "page");
     await user.selectOptions(
       screen.getByLabelText("Version of source-review"),
@@ -190,22 +197,53 @@ describe("Audit presets catalog", () => {
       "href",
       "/catalog/audit-presets/source-review/1",
     );
-    await user.type(screen.getByLabelText("Search audit presets"), "OpenAPI");
+    expect(screen.getByText("source-review@1")).toBeVisible();
+    await user.type(screen.getByLabelText("Search check types"), "OpenAPI");
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(1));
-    await user.click(screen.getByRole("link", { name: "View checks →" }));
-    await screen.findByText("The check list depends on your audit inputs.");
-    await user.click(screen.getByRole("link", { name: "← Audit presets" }));
+    await user.click(screen.getByRole("link", { name: "View details" }));
+    await screen.findByText(
+      "The endpoint list depends on the inputs of each check.",
+    );
+    await user.click(screen.getByRole("link", { name: "All check types" }));
     expect(router.state.location.search).toBe("?keep=yes&q=OpenAPI");
-    expect(await screen.findByLabelText("Search audit presets")).toHaveValue(
+    expect(await screen.findByLabelText("Search check types")).toHaveValue(
       "OpenAPI",
     );
   });
 
-  it("shows the exact selected requirements, reads check details and searches their text", async () => {
+  it("names check type items by their kind and counts them", async () => {
+    setup("/catalog/audit-presets");
+    const card = (
+      await screen.findByRole("link", { name: "source review" })
+    ).closest("article")!;
+    expect(within(card).getByText("Requirements verification")).toBeVisible();
+    expect(within(card).getByText("Available")).toBeVisible();
+    expect(
+      within(card).getByRole("link", { name: "View requirements" }),
+    ).toHaveAttribute("href", "/catalog/audit-presets/source-review/10");
+    expect(
+      within(card).getByRole("button", { name: "Copy check type version" }),
+    ).toBeVisible();
+    const dynamic = screen
+      .getByRole("link", { name: auditPresetLabel("openapi-operation-trace") })
+      .closest("article")!;
+    expect(within(dynamic).getByText("Endpoint tracing")).toBeVisible();
+    expect(
+      within(dynamic).getByText(
+        "One endpoint per operation in your OpenAPI document.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("2 check types")).toBeVisible();
+  });
+
+  it("shows the exact selected requirements, reads their details and searches their text", async () => {
     const user = userEvent.setup();
     setup("/catalog/audit-presets/source-review/1");
     await screen.findByText("Check authorization");
-    expect(screen.getByText("2 checks")).toBeVisible();
+    expect(screen.getByText("2 requirements")).toBeVisible();
+    expect(
+      screen.getByText("2 requirements selected · Levels 1"),
+    ).toBeVisible();
     expect(
       screen.queryByText("Check transport security"),
     ).not.toBeInTheDocument();
@@ -218,22 +256,50 @@ describe("Audit presets catalog", () => {
     expect(
       screen.getByText("Trace permission checks from the request handler."),
     ).toBeVisible();
-    const check = screen.getByText("Check authorization").closest("details")!;
+    const item = screen.getByText("Check authorization").closest("details")!;
+    expect(within(item).getByText("1–5 evidence items · file")).toBeVisible();
     expect(
-      within(check).getByText("1–5 evidence items · artifact"),
+      within(item).getByText("Met, Issue found, Inconclusive"),
     ).toBeVisible();
-    await user.type(screen.getByLabelText("Search checks"), "trust boundary");
+    expect(screen.getByText("Full text")).toBeVisible();
+    await user.type(
+      screen.getByLabelText("Search requirements"),
+      "trust boundary",
+    );
     await waitFor(() =>
       expect(screen.queryByText("Check authorization")).not.toBeInTheDocument(),
     );
     expect(screen.getByText("Check input validation")).toBeVisible();
-    expect(screen.getByText("1 of 2 checks")).toBeVisible();
+    expect(screen.getByText("1 of 2 requirements")).toBeVisible();
     expect(
       screen.queryByText("Check transport security"),
     ).not.toBeInTheDocument();
   });
 
-  it("switches exact versions and preserves check searches through workflow visits", async () => {
+  it("starts a check with an available type and explains an unavailable one", async () => {
+    const { router } = setup("/catalog/audit-presets/source-review/10");
+    const start = await screen.findByRole("link", {
+      name: "Start a check with this type",
+    });
+    expect(start).toHaveAttribute("href", "/checks/new?type=source-review");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "source review" }),
+    ).toBeVisible();
+    expect(screen.getByText("Available")).toBeVisible();
+    const facts = screen.getByText("Time limit").closest("dl")!;
+    expect(within(facts).getByText("10 min")).toBeVisible();
+    expect(within(facts).getByText("Never run")).toBeVisible();
+    expect(within(facts).getByText("You confirm each one")).toBeVisible();
+    expect(within(facts).getByText("Accepted automatically")).toBeVisible();
+    await act(async () => {
+      await router.navigate("/catalog/audit-presets");
+    });
+    await waitFor(() =>
+      expect(document.title).toBe("Check types · Library · Contractor"),
+    );
+  });
+
+  it("switches exact versions and preserves requirement searches through workflow visits", async () => {
     const user = userEvent.setup();
     const { router } = setup(
       "/catalog/audit-presets/source-review/1?q=authorization",
@@ -245,11 +311,11 @@ describe("Audit presets catalog", () => {
     );
     expect(router.state.location.search).toBe("?q=authorization");
     await user.selectOptions(
-      await screen.findByLabelText("Preset version"),
+      await screen.findByLabelText("Check type version"),
       "10",
     );
     await screen.findByText("Check transport security");
-    expect(screen.getByText("3 checks")).toBeVisible();
+    expect(screen.getByText("3 requirements")).toBeVisible();
     expect(router.state.location.pathname).toBe(
       "/catalog/audit-presets/source-review/10",
     );
@@ -257,14 +323,14 @@ describe("Audit presets catalog", () => {
     await act(async () => {
       await router.navigate(-1);
     });
-    expect(await screen.findByLabelText("Preset version")).toHaveValue("1");
+    expect(await screen.findByLabelText("Check type version")).toHaveValue("1");
     expect(
       screen.queryByText("Check transport security"),
     ).not.toBeInTheDocument();
   });
 
   it.each(["metadata", "identifiers"] as const)(
-    "renders %s disclosure without pretending the preset has no checks",
+    "renders %s disclosure without pretending the check type has no requirements",
     async (disclosure) => {
       const standard: AuditStandard = {
         ...standardFixture,
@@ -278,11 +344,14 @@ describe("Audit presets catalog", () => {
       delete standard.evidenceContracts;
       setup("/catalog/audit-presets/source-review/1", { standard });
       await screen.findByText(
-        new RegExp(
-          `This standard exposes ${disclosure === "metadata" ? "metadata" : "requirement identifiers"} only`,
-        ),
+        new RegExp(`This standard exposes ${disclosure} only`),
       );
-      expect(screen.queryByText("0 checks")).not.toBeInTheDocument();
+      expect(
+        screen.getByText(
+          disclosure === "metadata" ? "Metadata only" : "Identifiers only",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("0 requirements")).not.toBeInTheDocument();
       expect(screen.queryByText("Check authorization")).not.toBeInTheDocument();
       if (disclosure === "identifiers") {
         expect(screen.getByText("REQ-1")).toBeVisible();
@@ -294,13 +363,16 @@ describe("Audit presets catalog", () => {
     },
   );
 
-  it("explains dynamic check lists without fetching an unrelated standard", async () => {
+  it("explains dynamic endpoint lists without fetching an unrelated standard", async () => {
     const { fetcher } = setup(
       "/catalog/audit-presets/openapi-operation-trace/1",
     );
-    await screen.findByText("The check list depends on your audit inputs.");
+    await screen.findByText(
+      "The endpoint list depends on the inputs of each check.",
+    );
+    expect(screen.getByRole("heading", { name: "Endpoints" })).toBeVisible();
     expect(screen.getByText(/Coverage tab/)).toBeVisible();
-    expect(screen.queryByLabelText("Search checks")).not.toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
     expect(
       fetcher.mock.calls.some(([input]) =>
         String(input instanceof Request ? input.url : input).includes(
@@ -310,7 +382,7 @@ describe("Audit presets catalog", () => {
     ).toBe(false);
   });
 
-  it("keeps unavailable presets readable and surfaces standard loading errors", async () => {
+  it("keeps unavailable check types readable and surfaces standard loading errors", async () => {
     setup("/catalog/audit-presets/source-review/1", {
       profiles: [
         {
@@ -321,11 +393,45 @@ describe("Audit presets catalog", () => {
       ],
       failStandard: true,
     });
-    await screen.findByText("This preset cannot run on this server.");
+    await screen.findByText("This check type cannot run on this server.");
+    expect(
+      screen.getByText(
+        "This type needs more than one round, which this server does not run.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("multiple_rounds_unsupported")).toBeVisible();
+    expect(screen.getByText("Unavailable on this server")).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Start a check with this type" }),
+    ).not.toBeInTheDocument();
     await screen.findByText("Standard unavailable");
     expect(
-      screen.queryByText("No checks are defined for this preset."),
+      screen.queryByText("This check type defines no requirements."),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks unavailable check types in the list with their reasons", async () => {
+    setup("/catalog/audit-presets", {
+      profiles: [
+        {
+          ...presetFixture,
+          serverCompatible: false,
+          compatibilityReasons: ["preparation_unsupported"],
+        },
+      ],
+    });
+    const card = (
+      await screen.findByRole("link", { name: "source review" })
+    ).closest("article")!;
+    expect(within(card).getByText("Unavailable on this server")).toBeVisible();
+    expect(
+      within(card).getByText(
+        "This server cannot run the preparation step this type needs yet.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("1 check type · 1 unavailable on this server"),
+    ).toBeVisible();
   });
 
   it("rejects a standard from a different version", async () => {
@@ -341,7 +447,7 @@ describe("Audit presets catalog", () => {
     expect(screen.queryByText("Check authorization")).not.toBeInTheDocument();
   });
 
-  it("rejects a truncated standard instead of showing an incomplete check list", async () => {
+  it("rejects a truncated standard instead of showing an incomplete requirement list", async () => {
     setup("/catalog/audit-presets/source-review/1", {
       standard: {
         ...standardFixture,
@@ -366,13 +472,13 @@ describe("Audit presets catalog", () => {
       setup("/catalog/audit-presets", options);
       await screen.findByText(message);
       expect(
-        screen.queryByText("No audit presets published."),
+        screen.queryByText("No check types published."),
       ).not.toBeInTheDocument();
     },
   );
 
-  it("shows a useful empty catalog state", async () => {
+  it("shows a useful empty state", async () => {
     setup("/catalog/audit-presets", { profiles: [] });
-    await screen.findByText("No audit presets published.");
+    await screen.findByText("No check types published.");
   });
 });
