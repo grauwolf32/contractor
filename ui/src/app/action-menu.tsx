@@ -98,7 +98,7 @@ export function ActionMenu({
   return (
     <details
       ref={disclosure}
-      className="additional-actions project-actions-menu"
+      className="additional-actions"
       onToggle={(event) => {
         const isOpen = event.currentTarget.open;
         if (!isOpen && menu.current) {
