@@ -49,6 +49,8 @@ export function RunInputUploadDialog({
     onClose();
   }
 
+  // The dialog title names the slot and labels the form, so the form shows
+  // no heading of its own (and no internal "Artifact" noun).
   const form =
     projectId === undefined ? (
       <ArtifactWriteForm
@@ -57,6 +59,7 @@ export function RunInputUploadDialog({
         acceptedMediaTypes={mediaTypes}
         startOperation={startOperation}
         submitLabel="Upload and select"
+        headingId={heading}
         onPendingChange={setPending}
         onWritten={uploaded}
       />
@@ -68,6 +71,7 @@ export function RunInputUploadDialog({
         acceptedMediaTypes={mediaTypes}
         startOperation={startOperation}
         submitLabel="Upload and select"
+        headingId={heading}
         onPendingChange={setPending}
         onWritten={uploaded}
       />

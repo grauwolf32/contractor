@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { compareWorkflowVersions } from "../workflows/families";
 import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { agentPath } from "../../api/agents";
@@ -8,16 +7,96 @@ import { usePublicAPI } from "../../api/context";
 import {
   listConfigurations,
   type AgentTemplateBody,
+  type ConfigurationResource,
 } from "../../api/operations";
+import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
+import { QueryView } from "../../app/query-view";
+import { EmptyState } from "../../ui";
+import { compareWorkflowVersions } from "../workflows/families";
+import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
 import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
-import { QueryView } from "../../app/query-view";
-import { queryKeys } from "../../api/query-keys";
 
+function plural(count: number, singular: string, many: string): string {
+  return `${count} ${count === 1 ? singular : many}`;
+}
+
+function AgentCard({
+  name,
+  versions,
+  item,
+  onVersion,
+}: {
+  name: string;
+  versions: ConfigurationResource[];
+  item: ConfigurationResource;
+  onVersion: (version: string) => void;
+}) {
+  const location = useLocation();
+  const body = item.body as AgentTemplateBody;
+  const tools =
+    body.toolsets?.reduce(
+      (total, toolset) => total + toolset.tools.length,
+      0,
+    ) ?? 0;
+  return (
+    <article className="library-card library-agent-card">
+      <div className="library-card-top">
+        <label className="library-version">
+          <span>Version</span>
+          <select
+            aria-label={`Version of ${name}`}
+            value={item.ref.version}
+            onChange={(event) => onVersion(event.target.value)}
+          >
+            {versions.map((version) => (
+              <option key={version.ref.version} value={version.ref.version}>
+                {version.ref.version}
+              </option>
+            ))}
+          </select>
+        </label>
+        <small className="library-muted">
+          {plural(versions.length, "matching version", "matching versions")} on
+          this page
+        </small>
+      </div>
+      <Link
+        className="library-agent-link"
+        to={agentPath(item.ref.name, item.ref.version)}
+        state={{
+          returnTo: locationDestination(location),
+          returnLabel: "Agent search",
+          returnState: location.state,
+        }}
+      >
+        <span className="library-agent-identity">
+          <strong>{item.ref.name}</strong>
+          <span className="library-tag">{item.ref.version}</span>
+        </span>
+        <span className="library-card-text">
+          {body.description || "No authored description."}
+        </span>
+        <span className="library-agent-facts">
+          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill", "Skills")}{" "}
+          · {plural(tools, "tool", "tools")}
+        </span>
+        <code className="library-selector">
+          {item.ref.name}@{item.ref.version}
+        </code>
+        <span className="library-agent-open">
+          Inspect version <span aria-hidden="true">→</span>
+        </span>
+      </Link>
+    </article>
+  );
+}
+
+/** Library → Agents: published Agent templates, searched on the server. */
 export function AgentListRoute() {
   const api = usePublicAPI();
-  const location = useLocation();
+  const heading = useId();
   const state = useCatalogQueryState();
   const query = useQuery({
     queryKey: queryKeys.catalog.agentTemplates(
@@ -31,9 +110,8 @@ export function AgentListRoute() {
         signal,
       }),
   });
-  const returnTo = locationDestination(location);
   const [choices, setChoices] = useState<Record<string, string>>({});
-  const families = new Map<string, NonNullable<typeof query.data>["items"]>();
+  const families = new Map<string, ConfigurationResource[]>();
   for (const item of query.data?.items ?? []) {
     const family = families.get(item.ref.name) ?? [];
     family.push(item);
@@ -41,34 +119,29 @@ export function AgentListRoute() {
   }
 
   return (
-    <section className="catalog-agents">
-      <header className="route-header-row catalog-discovery-header">
-        <div>
-          <h2>Agents</h2>
-          <p className="lede">
-            Explore Agent versions, instructions, Skills, tools and Workflow
-            usage.
-          </p>
-        </div>
-        <label className="catalog-search">
-          Search agents
-          <input
-            type="search"
-            value={state.draftSearch}
+    <section className="library-section" aria-labelledby={heading}>
+      <LibrarySectionHeader
+        id={heading}
+        title="Agents"
+        description="Agent versions with their instructions, Skills, tools and the Workflows that use them."
+        actions={
+          <LibrarySearch
+            label="Search agents"
             placeholder="Name, version or description"
-            onChange={(event) => state.changeDraftSearch(event.target.value)}
+            value={state.draftSearch}
+            onChange={state.changeDraftSearch}
           />
-        </label>
-      </header>
+        }
+      />
 
-      <div className="catalog-result-summary" aria-live="polite">
+      <p className="library-count" aria-live="polite">
         <span>Page {state.page}</span>
         {state.committedSearch === "" ? null : (
           <span>
             Results for <strong>{state.committedSearch}</strong>
           </span>
         )}
-      </div>
+      </p>
 
       <QueryView
         query={query}
@@ -76,20 +149,23 @@ export function AgentListRoute() {
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <div className="panel compact-empty">
-            <strong>
+          <div className="library-empty">
+            <EmptyState
+              title={
+                state.committedSearch === ""
+                  ? "No Agents published."
+                  : "No Agents match this search."
+              }
+            >
               {state.committedSearch === ""
-                ? "No Agents published."
-                : "No Agents match this search."}
-            </strong>
-            {state.committedSearch === "" ? null : (
-              <p>Try a different literal name, version or description.</p>
-            )}
+                ? null
+                : "Try a different literal name, version or description."}
+            </EmptyState>
           </div>
         }
       >
         {() => (
-          <div className="catalog-agent-grid">
+          <div className="library-grid">
             {[...families].map(([name, versions]) => {
               versions.sort((a, b) =>
                 compareWorkflowVersions(b.ref.version, a.ref.version),
@@ -98,66 +174,16 @@ export function AgentListRoute() {
                 versions.find(
                   (version) => version.ref.version === choices[name],
                 ) ?? versions[0]!;
-              const body = item.body as AgentTemplateBody;
               return (
-                <article className="panel catalog-agent-family" key={name}>
-                  <label className="catalog-agent-version">
-                    Version
-                    <select
-                      aria-label={`Version of ${name}`}
-                      value={item.ref.version}
-                      onChange={(event) =>
-                        setChoices((previous) => ({
-                          ...previous,
-                          [name]: event.target.value,
-                        }))
-                      }
-                    >
-                      {versions.map((version) => (
-                        <option
-                          key={version.ref.version}
-                          value={version.ref.version}
-                        >
-                          {version.ref.version}
-                        </option>
-                      ))}
-                    </select>
-                    <small>
-                      {versions.length} matching{" "}
-                      {versions.length === 1 ? "version" : "versions"} on this
-                      page
-                    </small>
-                  </label>
-                  <Link
-                    className="catalog-agent-card"
-                    to={agentPath(item.ref.name, item.ref.version)}
-                    state={{
-                      returnTo,
-                      returnLabel: "Agent search",
-                      returnState: location.state,
-                    }}
-                  >
-                    <div className="catalog-agent-identity">
-                      <strong>{item.ref.name}</strong>
-                      <span className="state-badge">{item.ref.version}</span>
-                    </div>
-                    <p>{body.description || "No authored description."}</p>
-                    <span className="muted-copy">
-                      {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
-                      {body.toolsets?.reduce(
-                        (total, toolset) => total + toolset.tools.length,
-                        0,
-                      ) ?? 0}{" "}
-                      tools
-                    </span>
-                    <code className="catalog-exact-selector">
-                      {item.ref.name}@{item.ref.version}
-                    </code>
-                    <span className="catalog-agent-open">
-                      Inspect version →
-                    </span>
-                  </Link>
-                </article>
+                <AgentCard
+                  key={name}
+                  name={name}
+                  versions={versions}
+                  item={item}
+                  onVersion={(version) =>
+                    setChoices((previous) => ({ ...previous, [name]: version }))
+                  }
+                />
               );
             })}
           </div>

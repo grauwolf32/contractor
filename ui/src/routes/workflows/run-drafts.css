@@ -1,11 +1,960 @@
+/*
+ * The Run form (run-form.tsx): parameters, inputs with their review, the
+ * advanced settings, drafts and submission. It renders in the Library's
+ * "Configure Run" sheet, in a Project's sheet and on the Project Run page,
+ * so it carries all of its own styles. Every rule starts at .run-draft (or a
+ * dialog of the form), which also keeps the older global rules for these
+ * classes in src/styles.css from winning. Colours come only from theme.css
+ * tokens.
+ */
+
+.run-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  container-type: inline-size;
+}
+
+.workflow-run-drawer .run-draft {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.run-draft :is(p, h3, h4) {
+  margin: 0;
+}
+
+.run-draft .eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.run-draft .muted-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.run-draft .compact-empty,
+.run-draft .run-draft-empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* ---------- Heading and readiness ---------- */
+
+.run-draft .run-draft-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.run-draft .run-draft-heading > div {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.run-draft .run-draft-heading h3 {
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.run-draft .run-draft-intro {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.run-draft .run-draft-workflow {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 6px;
+  background: var(--chrome);
+  color: var(--text);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.run-draft .run-draft-readiness {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: right;
+}
+
+.run-draft .run-draft-readiness small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.run-draft .run-draft-readiness.is-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-items: start;
+  gap: 0.375rem 0.625rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+/* ---------- Sections and fields ---------- */
+
+.run-draft .run-draft-section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.run-draft .run-draft-section > legend {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.run-draft :is(.run-field-grid, .override-grid) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.workflow-run-drawer .run-draft :is(.run-field-grid, .override-grid) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Slot and parameter names come from the Workflow (an input name may have
+   128 characters), so a field's parts may shrink below their content and a
+   long name breaks instead of widening the sheet. */
+.run-draft .run-field {
+  display: grid;
+  align-content: start;
+  gap: 0.375rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.run-draft .run-field > * {
+  min-width: 0;
+}
+
+.run-draft :is(.run-field > label, .override-consumer > label) {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.run-draft .run-field label > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 0.25rem 0.375rem;
+}
+
+.run-draft .run-field label > span strong {
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--chrome);
+  color: var(--muted-strong);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.run-draft .run-field label > span small {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.71875rem;
+  font-weight: 500;
+}
+
+.run-draft
+  :is(.run-field, .override-consumer)
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="file"]),
+    select,
+    textarea
+  ) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.375rem;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.625rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.run-draft .run-field textarea {
+  min-height: 4.5rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.run-draft
+  :is(.run-field, .override-consumer)
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="file"]),
+    select,
+    textarea
+  ):focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.run-draft
+  .run-field
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="file"]),
+    select,
+    textarea
+  ):disabled {
+  background: var(--surface-subtle);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.run-draft
+  .run-field
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="file"]),
+    select,
+    textarea
+  )[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.run-draft :is(input, select, textarea)::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.run-draft .run-field small,
+.run-draft .field-guidance,
+.run-draft .inventory-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.run-draft .run-field small code {
+  font-size: 0.71875rem;
+}
+
+.run-draft .run-field > .run-field-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted-strong);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.run-draft input:is([type="checkbox"], [type="radio"]) {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.run-draft .run-field-actions,
+.run-draft .run-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* "Upload local file for …" and "Confirm input for …" name their slot: a
+   long name wraps inside the button. */
+.run-draft
+  :is(.run-field-actions, .run-input-review-actions)
+  .ui-btn:not(.git-import-icon-button) {
+  max-width: 100%;
+  height: auto;
+  min-height: 2rem;
+  padding-block: 0.375rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.run-draft .git-import-icon-button {
+  width: 2rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.run-draft .git-import-icon-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.run-draft .field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.78125rem;
+}
+
+.run-draft .load-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.run-draft .secondary-button {
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border-color: var(--line-strong);
+  border-radius: 0.5625rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+/* ---------- Input review ---------- */
+
+.run-draft .run-input-review {
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+}
+
+.run-draft .run-input-review.needs-review {
+  border-color: var(--warning-line);
+}
+
+.run-draft .run-input-review-heading,
+.run-draft .run-input-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.run-draft .run-input-review-heading > span:first-child {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.run-draft .run-input-review-heading small {
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 700;
+}
+
+.run-draft .run-input-review-heading code {
+  color: var(--text);
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.run-draft .run-input-review-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.run-draft .run-input-review-facts div {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+
+.run-draft .run-input-review-facts dt {
+  color: var(--muted);
+  font-size: 0.71875rem;
+  font-weight: 700;
+}
+
+.run-draft .run-input-review-facts dd {
+  margin: 0;
+  font-size: 0.78125rem;
+  overflow-wrap: anywhere;
+}
+
+.run-draft .run-input-review > p {
+  color: var(--muted-strong);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.run-draft .run-input-review-actions {
+  justify-content: flex-start;
+}
+
+.run-draft .run-input-review-actions a {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+/* ---------- Advanced settings ---------- */
+
+.run-draft .run-draft-advanced-heading {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.run-draft .run-draft-advanced-heading > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.run-draft .run-draft-advanced-heading h4 {
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.run-draft .run-draft-advanced-heading > p {
+  max-width: none;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.run-draft .run-draft-disclosure {
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.run-draft .run-draft-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  list-style: none;
+}
+
+.run-draft .run-draft-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-draft .run-draft-disclosure > summary:hover {
+  background: var(--row-hover);
+}
+
+.run-draft .run-draft-disclosure > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.run-draft .run-draft-disclosure > summary::after {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: none;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  content: "";
+  transform: rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.run-draft .run-draft-disclosure[open] > summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  background: none;
+}
+
+.run-draft .run-draft-disclosure[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.run-draft .run-draft-disclosure-title {
+  display: grid;
+  min-width: 0;
+  gap: 0.0625rem;
+}
+
+.run-draft .run-draft-disclosure-title strong {
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.run-draft .run-draft-disclosure-title small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.run-draft .run-draft-disclosure-status {
+  flex: none;
+  margin-left: auto;
+  padding: 0.125rem 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chrome);
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.run-draft .run-draft-disclosure-status.is-active {
+  border: 0;
+  background: var(--sel);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+}
+
+.run-draft .run-draft-disclosure > .run-draft-section,
+.run-draft .run-draft-disclosure-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.875rem;
+}
+
+.run-draft .run-draft-disclosure > .run-draft-section > legend {
+  margin-bottom: 0;
+}
+
+/* Runtime placement */
+.run-draft .run-runtime-default {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  font-size: 0.8125rem;
+}
+
+.run-draft .runtime-label-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.625rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.run-draft .runtime-label-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.run-draft .runtime-label-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.run-draft .runtime-label-option:has(input:checked) {
+  border-color: var(--sel-line);
+  background: var(--sel);
+}
+
+.run-draft .runtime-label-option > span {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.run-draft .runtime-label-option.retained-selection {
+  border-color: var(--warning-line);
+}
+
+.run-draft .runtime-label-option.retained-selection small {
+  color: var(--warning);
+}
+
+/* Run metadata labels */
+.run-draft .run-label-secret-warning {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 8px;
+  background: var(--warning-bg);
+  font-size: 0.8125rem;
+}
+
+.run-draft .run-label-secret-warning strong {
+  color: var(--warning);
+}
+
+.run-draft .run-label-secret-warning p {
+  margin: 0;
+  color: var(--text);
+}
+
+.run-draft .run-label-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+/* Level with the field, below its label. */
+.run-draft .run-label-composer > .ui-btn {
+  margin-top: calc(1.0625rem + 0.375rem + 3px);
+}
+
+.run-draft .run-label-composer .run-field > label {
+  font-size: 0.8125rem;
+}
+
+.run-draft .run-metadata-label-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.run-draft .run-metadata-label-actions small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.run-draft .run-label-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.run-draft .run-label-badge-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.run-draft .run-label-badge {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2rem;
+  padding: 0.0625rem 0.125rem 0.0625rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--chrome);
+  color: var(--muted-strong);
+}
+
+.run-draft .run-label-badge:focus-within {
+  border-color: var(--focus);
+}
+
+.run-draft .run-label-badge.has-error {
+  border-color: var(--danger);
+}
+
+.run-draft .run-label-badge input {
+  min-width: 0;
+  min-height: 0;
+  padding: 0.1875rem 0.0625rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  text-overflow: ellipsis;
+}
+
+.run-draft .run-label-badge input:focus-visible {
+  outline: none;
+}
+
+.run-draft .run-label-badge input.run-label-badge-key {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.run-draft .run-label-badge input::placeholder {
+  color: var(--faint);
+}
+
+.run-draft
+  .run-label-badge.is-key-only:not(:focus-within)
+  .run-label-badge-value {
+  max-width: 0;
+  padding-inline: 0;
+  opacity: 0;
+}
+
+.run-draft
+  .run-label-badge.is-key-only:not(:focus-within)
+  .run-label-badge-separator {
+  display: none;
+}
+
+.run-draft .run-label-badge-remove,
+.run-draft .run-label-badge-remove:not(:disabled):active {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.625rem;
+  min-height: 0;
+  height: 1.625rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  transform: none;
+}
+
+.run-draft .run-label-badge-remove:not(:disabled):hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Execution overrides */
+.run-draft .override-consumer {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 0.875rem 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.run-draft .override-consumer legend {
+  padding: 0 0.25rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.run-draft .retained-stage-overrides {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.run-draft .run-draft-subheading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.run-draft .run-draft-subheading h4 {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.run-draft .retained-stage-overrides pre {
+  max-height: 18rem;
+  margin: 0;
+  overflow: auto;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font-size: 0.75rem;
+}
+
+/* ---------- Repeat review, capacity and response loss ---------- */
+
+.run-draft .run-repeat-review,
+.run-draft .run-draft-notice {
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 10px;
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: 0.84375rem;
+  line-height: 1.5;
+}
+
+.run-draft .run-repeat-review.is-reviewed {
+  border-color: var(--success-line);
+  background: var(--surface-subtle);
+}
+
+.run-draft .run-draft-notice > strong {
+  color: var(--warning);
+}
+
+.run-repeat-review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.run-repeat-review-heading h4 {
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.run-repeat-notices {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-repeat-notice {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.run-repeat-notice > span {
+  align-self: start;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 999px;
+  background: var(--chrome);
+  color: var(--muted-strong);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.run-repeat-notice.is-blocking {
+  border-color: var(--danger-line);
+}
+
+.run-repeat-notice.is-blocking > span {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.run-repeat-notice > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.run-repeat-notice code,
+.run-repeat-notice small {
+  overflow-wrap: anywhere;
+}
+
+.run-repeat-notice small {
+  color: var(--muted);
+}
+
+.run-draft .run-repeat-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+
 .run-draft-capacity {
   display: grid;
-  gap: 1rem;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid var(--warning-line);
+  border-radius: 12px;
+  background: var(--warning-bg);
+  color: var(--text);
+}
+
+.run-draft-capacity strong {
+  color: var(--warning);
+}
+
+.run-draft-capacity p {
+  margin: 0.25rem 0 0;
+  font-size: 0.84375rem;
 }
 
 .run-draft-capacity-list {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -16,16 +965,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0.625rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--surface-raised);
-  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .run-draft-capacity-list li > span {
   display: grid;
+  gap: 0.125rem;
   min-width: 0;
-  gap: 0.2rem;
+}
+
+.run-draft-capacity-list small {
+  color: var(--muted);
 }
 
 .run-draft-capacity-list code,
@@ -38,7 +991,7 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .run-draft-discard-dialog,
@@ -46,202 +999,95 @@
   width: min(100%, 42rem);
 }
 
-.run-repeat-review {
-  display: grid;
-  gap: 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--warning) 62%, var(--line));
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised));
-  padding: 1rem;
-}
-
-.run-repeat-review.is-reviewed {
-  border-color: color-mix(in srgb, var(--success) 45%, var(--line));
-  background: color-mix(in srgb, var(--success) 6%, var(--surface-raised));
-}
-
-.run-repeat-review-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.run-repeat-review-heading h4,
-.run-repeat-review p,
-.run-repeat-notice p {
-  margin: 0;
-}
-
-.run-repeat-notices {
-  display: grid;
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.run-repeat-notice {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-  background: var(--surface);
-  padding: 0.7rem;
-}
-
-.run-repeat-notice > span {
-  align-self: start;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--muted-strong);
-  padding: 0.2rem 0.45rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.run-repeat-notice.is-blocking {
-  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
-}
-
-.run-repeat-notice.is-blocking > span {
-  color: var(--danger);
-}
-
-.run-repeat-notice > div {
-  display: grid;
-  min-width: 0;
-  gap: 0.25rem;
-}
-
-.run-repeat-notice code,
-.run-repeat-notice small {
+/* The title names the slot: a long name breaks instead of widening the
+   dialog. */
+.run-input-upload-dialog .project-dialog-heading h2 {
   overflow-wrap: anywhere;
 }
 
-.run-repeat-notice small {
-  color: var(--muted);
-}
+/* ---------- Submit ---------- */
 
-.run-repeat-confirmation {
-  align-items: flex-start;
-  border-top: 1px solid var(--line);
-  padding-top: 0.75rem;
-  font-weight: 700;
-}
-
-.runtime-label-option.retained-selection {
-  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
-}
-
-.runtime-label-option.retained-selection small {
-  color: var(--warning);
-}
-
-.retained-stage-overrides {
-  display: grid;
-  gap: 0.7rem;
-  margin-top: 1rem;
-  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
-  border-radius: 0.65rem;
-  background: var(--surface);
-  padding: 0.85rem;
-}
-
-.retained-stage-overrides h4 {
-  margin: 0;
-}
-
-.retained-stage-overrides pre {
-  overflow: auto;
-  max-height: 18rem;
-  margin: 0;
-  border-radius: 0.5rem;
-  background: var(--sunken);
-  padding: 0.75rem;
-  font-size: 0.75rem;
-}
-
-.run-input-review {
-  display: grid;
-  gap: 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  padding: 0.85rem;
-}
-
-.run-input-review.needs-review {
-  border-color: color-mix(in srgb, var(--warning) 58%, var(--line));
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised));
-}
-
-.run-input-review.is-reviewed {
-  border-color: color-mix(in srgb, var(--success) 42%, var(--line));
-}
-
-.run-input-review-heading,
-.run-input-review-actions {
+.run-draft .run-submit-row {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.75rem 1rem;
+  margin: 0;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
 }
 
-.run-input-review-heading > span {
+.run-draft .run-submit-status {
   display: grid;
+  flex: 1 1 14rem;
+  gap: 0.125rem;
   min-width: 0;
-  gap: 0.15rem;
 }
 
-.run-input-review-heading code {
-  overflow-wrap: anywhere;
+.run-draft .run-submit-status strong {
+  color: var(--text);
+  font-size: 0.84375rem;
 }
 
-.run-input-review-heading > strong {
-  border-radius: 999px;
-  background: var(--surface);
-  padding: 0.28rem 0.55rem;
+.run-draft .run-submit-status small {
+  color: var(--muted);
   font-size: 0.75rem;
 }
 
-.run-input-review-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.55rem;
-  margin: 0;
+/* In the sheet the submit bar stays at the bottom while the form scrolls. */
+.workflow-run-drawer .run-draft .run-submit-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -1.5rem;
+  padding: 0.875rem 1.5rem;
+  background: var(--surface);
 }
 
-.run-input-review-facts div {
-  min-width: 0;
-  display: grid;
-  gap: 0.15rem;
+.workflow-run-drawer .run-submit-status small {
+  display: none;
 }
 
-.run-input-review-facts dd {
-  overflow-wrap: anywhere;
+@container (max-width: 40rem) {
+  .run-draft :is(.run-field-grid, .override-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .run-draft .run-draft-readiness {
+    justify-items: start;
+    text-align: left;
+  }
 }
 
-.run-input-review-facts dt {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+@container (max-width: 28rem) {
+  .run-draft .run-label-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .run-draft .run-label-composer > .ui-btn {
+    justify-self: start;
+    margin-top: 0;
+  }
+
+  .run-draft .run-submit-row > .run-draft-actions {
+    width: 100%;
+  }
+
+  .run-draft .run-submit-row > .run-draft-actions > .ui-btn {
+    flex: 1 1 auto;
+  }
 }
 
-.run-input-review-facts dd,
-.run-input-review p {
-  margin: 0;
-}
-
-.run-input-review-actions {
-  justify-content: flex-start;
+@media (max-width: 760px) {
+  .workflow-run-drawer .run-draft .run-submit-row {
+    margin: 0 -1rem;
+    padding: 0.875rem 1rem;
+  }
 }
 
 @media (max-width: 44rem) {
@@ -250,11 +1096,13 @@
     flex-direction: column;
   }
 
-  .run-input-review-actions > * {
-    width: 100%;
-  }
-
   .run-repeat-notice {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-draft .run-draft-disclosure > summary::after {
+    transition: none;
   }
 }

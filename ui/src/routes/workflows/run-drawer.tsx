@@ -1,9 +1,16 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
+
 import type { WorkflowSummary } from "../../api/workflows";
 import { Dialog } from "../../app/dialog";
+import { Icon } from "../../app/icon";
+import { IdChip } from "../../ui";
 import { workflowSelector } from "./presentation";
 import "./overview.css";
 
+/**
+ * The "Configure Run" sheet: the exact Workflow version (UUS:62-63) above
+ * the Run form, which keeps its draft in this tab when the sheet closes.
+ */
 export function WorkflowRunDrawer({
   workflow,
   projectId,
@@ -17,33 +24,44 @@ export function WorkflowRunDrawer({
 }) {
   const heading = useId();
   const description = useId();
+  const close = useRef<HTMLButtonElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const selector = workflowSelector(workflow);
   return (
     <Dialog
       className="workflow-run-drawer"
       backdropClassName="workflow-run-backdrop"
       labelledBy={heading}
       describedBy={description}
+      initialFocusRef={close}
       onRequestClose={() => {
         if (!submitting) onClose();
       }}
     >
       <header className="workflow-drawer-heading">
-        <div>
-          <p className="eyebrow">
+        <div className="workflow-drawer-titles">
+          <p className="workflow-drawer-kind">
             {projectId ? "Project Run" : "Standalone Run"}
           </p>
           <h2 id={heading}>Configure Run</h2>
-          <code>{workflowSelector(workflow)}</code>
+          <code className="workflow-drawer-selector">
+            <IdChip
+              value={selector}
+              display={selector}
+              label="workflow version"
+            />
+          </code>
         </div>
         <button
-          className="project-dialog-close"
+          ref={close}
+          className="ui-btn workflow-drawer-close"
+          data-variant="ghost"
           type="button"
           aria-label="Close Run setup"
           disabled={submitting}
           onClick={onClose}
         >
-          ×
+          <Icon name="close" />
         </button>
       </header>
       <p className="workflow-drawer-description" id={description}>

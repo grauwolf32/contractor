@@ -1,17 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 import { getAuditStandard, type AuditStandard } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { ErrorNotice } from "../../app/error-notice";
 import { queryKeys } from "../../api/query-keys";
+import { ErrorNotice } from "../../app/error-notice";
+import {
+  capitalize,
+  COVERAGE_STATUS_LABELS,
+  itemNoun,
+  type ItemKind,
+} from "../../app/vocabulary";
 
 export function SourceLink({
   url,
   children,
 }: {
   url: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return /^https?:\/\//i.test(url) ? (
     <a href={url} target="_blank" rel="noreferrer">
@@ -22,13 +29,93 @@ export function SourceLink({
   );
 }
 
-function StandardChecks({
+type Mapping = NonNullable<AuditStandard["mappings"]>[number];
+type EvidenceContract = NonNullable<AuditStandard["evidenceContracts"]>[number];
+
+const METHOD_LABELS: Readonly<Record<Mapping["method"], string>> = {
+  "source-analysis": "Source analysis",
+  "configuration-review": "Configuration review",
+  "documentation-review": "Documentation review",
+  "active-test": "Active test",
+  "manual-review": "Manual review",
+};
+
+const DISCLOSURE_LABELS: Readonly<
+  Record<AuditStandard["license"]["disclosure"], string>
+> = {
+  full: "Full text",
+  identifiers: "Identifiers only",
+  metadata: "Metadata only",
+};
+
+const EVIDENCE_KIND_LABELS: Readonly<
+  Record<EvidenceContract["evidenceKinds"][number], string>
+> = {
+  artifact: "file",
+  observation: "observation",
+  "tool-result": "tool result",
+  "manual-attestation": "manual attestation",
+  "runtime-metric": "runtime metric",
+};
+
+const HUMAN_REVIEW_LABELS: Readonly<
+  Record<EvidenceContract["humanReview"], string>
+> = {
+  never: "Not needed",
+  "on-inconclusive": "When the result is inconclusive",
+  required: "Always",
+};
+
+function labelOf<K extends string>(
+  table: Readonly<Record<K, string>>,
+  value: K,
+): string {
+  return Object.hasOwn(table, value)
+    ? table[value]
+    : capitalize(value.replaceAll(/[_-]+/g, " "));
+}
+
+/** Coverage words from the shared vocabulary ("Met", "Issue found", …). */
+function outcomeLabel(assessment: string): string {
+  return Object.hasOwn(COVERAGE_STATUS_LABELS, assessment)
+    ? COVERAGE_STATUS_LABELS[assessment as keyof typeof COVERAGE_STATUS_LABELS]
+        .label
+    : capitalize(assessment.replaceAll("-", " "));
+}
+
+function EvidenceContractFacts({ contract }: { contract: EvidenceContract }) {
+  return (
+    <dl className="library-evidence">
+      <div>
+        <dt>Evidence</dt>
+        <dd>
+          {contract.minimumEvidence}–{contract.maximumEvidence} evidence items ·{" "}
+          {contract.evidenceKinds
+            .map((kind) => labelOf(EVIDENCE_KIND_LABELS, kind))
+            .join(", ")}
+        </dd>
+      </div>
+      <div>
+        <dt>Possible outcomes</dt>
+        <dd>{contract.assessments.map(outcomeLabel).join(", ")}</dd>
+      </div>
+      <div>
+        <dt>Human review</dt>
+        <dd>{labelOf(HUMAN_REVIEW_LABELS, contract.humanReview)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function StandardItems({
   standard,
   profile,
+  kind,
   search,
 }: {
   standard: AuditStandard;
   profile: AuditProfile;
+  kind: ItemKind;
   search: string;
 }) {
   const selection = profile.inventory.standardSelection;
@@ -61,34 +148,36 @@ function StandardChecks({
       (selected === undefined || selected.has(entry.id)) &&
       entry.id.toLowerCase().includes(search),
   );
+  const noun = itemNoun(kind, 1);
+  const plural = itemNoun(kind, 2);
 
   return (
-    <section
-      className="panel catalog-audit-standard"
-      aria-label={standard.title}
-    >
-      <header>
+    <section className="library-standard" aria-label={standard.title}>
+      <header className="library-standard-header">
         <h4>{standard.title}</h4>
-        <code>
-          {standard.reference.scheme}@{standard.reference.version}
-        </code>
-        <p>{standard.description}</p>
+        <p className="library-standard-meta">
+          <code>
+            {standard.reference.scheme}@{standard.reference.version}
+          </code>
+          <span>{DISCLOSURE_LABELS[standard.license.disclosure]}</span>
+        </p>
+        {standard.description ? <p>{standard.description}</p> : null}
       </header>
       {standard.license.disclosure === "metadata" ? (
-        <p className="notice">
-          This standard exposes metadata only. Check texts and identifiers are
-          not available in the catalog.
+        <p className="library-note">
+          This standard exposes metadata only. {capitalize(noun)} texts and
+          identifiers are not available in the Library.
         </p>
       ) : standard.license.disclosure === "identifiers" ? (
         <>
-          <p className="notice">
-            This standard exposes requirement identifiers only. Check texts are
-            not available in the catalog.
+          <p className="library-note">
+            This standard exposes identifiers only. {capitalize(noun)} texts are
+            not available in the Library.
           </p>
           {identifiers.length === 0 ? (
-            <p>No requirements match this search.</p>
+            <p className="library-muted">No {plural} match this search.</p>
           ) : (
-            <ul className="catalog-slot-list">
+            <ul className="library-identifiers">
               {identifiers.map((entry) => (
                 <li key={entry.id}>
                   <code>{entry.id}</code>
@@ -100,20 +189,20 @@ function StandardChecks({
         </>
       ) : (
         <>
-          <p className="muted-copy" role="status">
+          <p className="library-count" role="status">
             {search
               ? `${visible.length} of ${mappings.length}`
               : mappings.length}{" "}
-            checks
+            {itemNoun(kind, mappings.length)}
           </p>
           {visible.length === 0 ? (
-            <p>
+            <p className="library-muted">
               {search
-                ? "No checks match this search."
-                : "No checks are defined for this preset."}
+                ? `No ${plural} match this search.`
+                : `This check type defines no ${plural}.`}
             </p>
           ) : (
-            <div className="catalog-audit-check-list">
+            <div className="library-items">
               {visible.map((mapping) => {
                 const contract = standard.evidenceContracts?.find(
                   (item) =>
@@ -121,24 +210,41 @@ function StandardChecks({
                     item.version === mapping.evidenceContract.version,
                 );
                 return (
-                  <details className="catalog-audit-check" key={mapping.key}>
+                  <details className="library-item" key={mapping.key}>
                     <summary>
-                      <span>
-                        <code>{mapping.key}</code>
-                        <strong>{mapping.title}</strong>
+                      <svg
+                        className="library-item-chevron"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path d="M9.5 6l6 6-6 6" />
+                      </svg>
+                      <span className="library-item-heading">
+                        <code className="library-item-key">{mapping.key}</code>
+                        <span className="library-item-title">
+                          {mapping.title}
+                        </span>
                       </span>
-                      <span className="muted-copy">
-                        {mapping.method.replaceAll("-", " ")}
+                      <span className="library-item-method">
+                        {labelOf(METHOD_LABELS, mapping.method)}
                       </span>
                     </summary>
-                    <div className="catalog-audit-check-body">
+                    <div className="library-item-body">
                       <p>{mapping.objective}</p>
                       {mapping.entryIds.map((id) => {
                         const entry = entries.get(id);
                         return (
-                          <div key={id}>
+                          <div className="library-entry" key={id}>
                             <strong>{entry?.title ?? id}</strong>
-                            <p className="muted-copy">
+                            <p className="library-muted">
                               <code>{id}</code>
                               {entry?.level ? ` · Level ${entry.level}` : ""}
                             </p>
@@ -147,17 +253,7 @@ function StandardChecks({
                         );
                       })}
                       {contract ? (
-                        <div>
-                          <strong>Evidence</strong>
-                          <p>
-                            {contract.minimumEvidence}–
-                            {contract.maximumEvidence} evidence items ·{" "}
-                            {contract.evidenceKinds.join(", ")}
-                          </p>
-                          <p className="muted-copy">
-                            Assessments: {contract.assessments.join(", ")}
-                          </p>
-                        </div>
+                        <EvidenceContractFacts contract={contract} />
                       ) : null}
                     </div>
                   </details>
@@ -167,7 +263,7 @@ function StandardChecks({
           )}
         </>
       )}
-      <footer className="catalog-audit-attribution">
+      <footer className="library-attribution">
         <span>
           <SourceLink url={standard.source.url}>
             {standard.source.name}
@@ -183,13 +279,16 @@ function StandardChecks({
   );
 }
 
+/** One referenced standard with the requirements (or scenarios) it maps. */
 export function AuditPresetStandardChecks({
   reference,
   profile,
+  kind,
   search,
 }: {
   reference: AuditProfile["standards"][number];
   profile: AuditProfile;
+  kind: ItemKind;
   search: string;
 }) {
   const api = usePublicAPI();
@@ -203,12 +302,24 @@ export function AuditPresetStandardChecks({
   });
   if (query.isPending)
     return (
-      <p role="status">
-        Loading checks from {reference.scheme}@{reference.version}…
+      <p role="status" className="library-muted">
+        Loading {itemNoun(kind, 2)} from {reference.scheme}@{reference.version}…
       </p>
     );
-  if (query.error) return <ErrorNotice error={query.error} />;
+  if (query.error)
+    return (
+      <ErrorNotice
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        retryPending={query.isFetching}
+      />
+    );
   return (
-    <StandardChecks standard={query.data} profile={profile} search={search} />
+    <StandardItems
+      standard={query.data}
+      profile={profile}
+      kind={kind}
+      search={search}
+    />
   );
 }

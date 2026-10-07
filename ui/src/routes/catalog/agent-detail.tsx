@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import {
@@ -18,15 +18,17 @@ import { queryKeys } from "../../api/query-keys";
 import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
 import { CursorControls } from "../../app/cursor-controls";
 import { ErrorNotice } from "../../app/error-notice";
+import { LoadMoreButton } from "../../app/load-more";
+import { nextPageCursor } from "../../app/pagination";
+import { QueryView } from "../../app/query-view";
+import { DetailHeader, DetailPane } from "../../ui";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
-import { catalogReturnState, locationDestination } from "./navigation";
 import {
   useCatalogCursorState,
   withoutCatalogPagination,
 } from "./cursor-state";
-import { nextPageCursor } from "../../app/pagination";
-import { QueryView } from "../../app/query-view";
-import { LoadMoreButton } from "../../app/load-more";
+import { LibraryBackLink } from "./library-parts";
+import { locationDestination } from "./navigation";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 const INITIAL_CURSOR = null;
@@ -65,9 +67,9 @@ function AgentVersionSelector({
   }, [query.data, resource]);
 
   return (
-    <section className="catalog-version-picker" aria-label="Agent versions">
-      <label>
-        Published version
+    <section className="library-agent-versions" aria-label="Agent versions">
+      <label className="library-field">
+        <span>Published version</span>
         <select
           value={resource.ref.version}
           onChange={(event) =>
@@ -86,18 +88,18 @@ function AgentVersionSelector({
           ))}
         </select>
       </label>
-      <div>
-        <span className="muted-copy">
-          {versions.length} version{versions.length === 1 ? "" : "s"} loaded
-        </span>
-        <LoadMoreButton
-          query={query}
-          label="Load more versions"
-          pendingLabel="Loading versions…"
-        />
-      </div>
+      <span className="library-muted">
+        {versions.length} version{versions.length === 1 ? "" : "s"} loaded
+      </span>
+      <LoadMoreButton
+        query={query}
+        label="Load more versions"
+        pendingLabel="Loading versions…"
+      />
       {query.isPending ? (
-        <p role="status">Loading published versions…</p>
+        <p className="library-muted" role="status">
+          Loading published versions…
+        </p>
       ) : null}
       {query.error ? <ErrorNotice error={query.error} /> : null}
     </section>
@@ -106,6 +108,7 @@ function AgentVersionSelector({
 
 function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
   const api = usePublicAPI();
+  const heading = useId();
   const [view, setView] = useState<"preview" | "source">("preview");
   const [copyStatus, setCopyStatus] = useState("");
   const query = useQuery({
@@ -125,7 +128,7 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
         result.instructions.ref !== body.instructions.ref
       ) {
         throw new Error(
-          "Agent instructions do not match this version. Refresh to reload the catalog.",
+          "Agent instructions do not match this version. Refresh to reload the Library.",
         );
       }
       return result;
@@ -143,47 +146,57 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
     }
   }
   return (
-    <div className="catalog-agent-detail-grid">
-      <section className="panel catalog-prompt" aria-label="Base prompt">
-        <div className="catalog-prompt-toolbar">
+    <div className="library-agent-grid">
+      <section
+        className="library-panel library-prompt"
+        aria-labelledby={heading}
+      >
+        <header className="library-panel-header">
           <div>
-            <h3>Base prompt</h3>
-            <p className="muted-copy">
+            <h3 id={heading} className="library-block-title">
+              Base prompt
+            </h3>
+            <p className="library-muted">
               Task context and Skill instructions are added during execution.
             </p>
           </div>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={query.data === undefined || query.error !== null}
-            onClick={() => void copyPrompt()}
-          >
-            Copy
-          </button>
-        </div>
-        <div
-          className="artifact-preview-tabs"
-          role="group"
-          aria-label="Prompt view"
-        >
-          <button
-            type="button"
-            aria-pressed={view === "preview"}
-            className={view === "preview" ? "selected" : ""}
-            onClick={() => setView("preview")}
-          >
-            Preview
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === "source"}
-            className={view === "source" ? "selected" : ""}
-            onClick={() => setView("source")}
-          >
-            Source
-          </button>
-        </div>
-        {copyStatus && <p role="status">{copyStatus}</p>}
+          <div className="library-panel-actions">
+            <div
+              className="library-segmented"
+              role="group"
+              aria-label="Prompt view"
+            >
+              <button
+                type="button"
+                aria-pressed={view === "preview"}
+                onClick={() => setView("preview")}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "source"}
+                onClick={() => setView("source")}
+              >
+                Source
+              </button>
+            </div>
+            <button
+              type="button"
+              className="ui-btn"
+              data-size="sm"
+              disabled={query.data === undefined || query.error !== null}
+              onClick={() => void copyPrompt()}
+            >
+              Copy
+            </button>
+          </div>
+        </header>
+        {copyStatus && (
+          <p className="library-muted" role="status">
+            {copyStatus}
+          </p>
+        )}
         <QueryView
           query={query}
           loading={<p role="status">Loading prompt…</p>}
@@ -195,27 +208,37 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
                 {data.instructions.text}
               </pre>
             ) : (
-              <Suspense fallback={<p role="status">Loading preview…</p>}>
-                <MarkdownPreview source={data.instructions.text} />
-              </Suspense>
+              <div className="library-prompt-preview">
+                <Suspense fallback={<p role="status">Loading preview…</p>}>
+                  <MarkdownPreview source={data.instructions.text} />
+                </Suspense>
+              </div>
             )
           }
         </QueryView>
       </section>
-      <aside
-        className="panel catalog-agent-configuration"
-        aria-label="Agent configuration"
-      >
-        <h3>Configuration</h3>
-        <ConfigurationBodyView resource={resource} />
-      </aside>
+      <AgentConfiguration resource={resource} />
     </div>
+  );
+}
+
+/** The template's declared settings: runtime, model policy, tools, Skills. */
+function AgentConfiguration({ resource }: { resource: ConfigurationResource }) {
+  return (
+    <aside
+      className="library-panel library-agent-configuration"
+      aria-label="Agent configuration"
+    >
+      <h3 className="library-block-title">Configuration</h3>
+      <ConfigurationBodyView resource={resource} />
+    </aside>
   );
 }
 
 function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   const api = usePublicAPI();
   const location = useLocation();
+  const heading = useId();
   const pagination = useCatalogCursorState("usageCursor", "usagePage");
   const { cursor, page } = pagination;
   const query = useQuery({
@@ -230,29 +253,26 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   });
 
   return (
-    <section
-      className="panel catalog-agent-usage"
-      aria-labelledby="agent-usage-title"
-    >
-      <div className="section-heading">
-        <div>
-          <h3 id="agent-usage-title">Where used</h3>
-        </div>
-        <span>Page {page}</span>
-      </div>
+    <section className="library-block" aria-labelledby={heading}>
+      <header className="library-block-header">
+        <h3 id={heading} className="library-block-title">
+          Where used
+        </h3>
+        <span className="library-muted">Page {page}</span>
+      </header>
       <QueryView
         query={query}
         loading={<p role="status">Loading Workflow bindings…</p>}
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <p className="compact-empty">
+          <p className="library-muted">
             This Agent version is not referenced by a published Workflow.
           </p>
         }
       >
         {(data) => (
-          <ul className="catalog-usage-list">
+          <ul className="library-rows library-usage">
             {data.items.map((binding) => {
               const workflow = `${binding.workflow.name}@${binding.workflow.version}`;
               return (
@@ -260,6 +280,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
                   key={`${workflow}:${binding.stage}:${binding.logicalWorker}`}
                 >
                   <Link
+                    className="library-row-name"
                     to={`/catalog/workflows/${encodeURIComponent(binding.workflow.name)}/${encodeURIComponent(binding.workflow.version)}`}
                     state={{
                       returnTo: locationDestination(location),
@@ -269,10 +290,10 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
                   >
                     {workflow}
                   </Link>
-                  <span>
+                  <span className="library-row-detail">
                     Stage <code>{binding.stage}</code>
                   </span>
-                  <span>
+                  <span className="library-row-detail">
                     Worker <code>{binding.logicalWorker}</code>
                   </span>
                 </li>
@@ -291,9 +312,10 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   );
 }
 
+/** Library → Agents → one Agent template at an exact version. */
 export function AgentDetailRoute() {
   const api = usePublicAPI();
-  const location = useLocation();
+  const titleId = useId();
   const { name = "", version = "" } = useParams();
   const valid =
     CONFIG_ID_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
@@ -303,49 +325,70 @@ export function AgentDetailRoute() {
       getConfiguration(api, "agent-templates", name, version, signal),
     enabled: valid,
   });
-  const back = catalogReturnState(location.state, {
-    returnTo: "/catalog/agents",
-    returnLabel: "All agents",
-  });
+  const body = query.data?.body as AgentTemplateBody | undefined;
   return (
-    <section className="catalog-agent-detail">
-      <Link className="back-link" to={back.returnTo} state={back.returnState}>
-        ← {back.returnLabel}
-      </Link>
-      <header>
-        <p className="eyebrow">Agent template</p>
-        <h2>
-          {name}
-          <span className="catalog-version-label">@{version}</span>
-        </h2>
-      </header>
-      {!valid ? (
-        <ErrorNotice error={new Error("Agent version is invalid")} />
-      ) : (
-        <QueryView
-          query={query}
-          loading={<p role="status">Loading Agent version…</p>}
-          onRetry={() => void query.refetch()}
+    <div className="library-detail">
+      <LibraryBackLink
+        fallback={{ returnTo: "/catalog/agents", returnLabel: "All agents" }}
+      />
+      <article className="library-sheet" aria-labelledby={titleId}>
+        <DetailPane
+          header={
+            <DetailHeader
+              title={
+                <span id={titleId}>
+                  {name}
+                  <span className="library-title-version">@{version}</span>
+                </span>
+              }
+              meta={
+                <>
+                  <span>Agent template</span>
+                  {body === undefined ? null : <span>{body.runtime}</span>}
+                </>
+              }
+            />
+          }
         >
-          {(data) => (
-            <>
-              <AgentVersionSelector resource={data} />
-              {(data.body as AgentTemplateBody).runtime === "tool@1" ? (
-                <p>
-                  This agent runs its configured tool directly without a model
-                  or prompt.
+          {!valid ? (
+            <ErrorNotice error={new Error("Agent version is invalid")} />
+          ) : (
+            <QueryView
+              query={query}
+              loading={
+                <p className="library-muted" role="status">
+                  Loading Agent version…
                 </p>
-              ) : (
-                <AgentPrompt
-                  key={`prompt:${data.ref.digest}`}
-                  resource={data}
-                />
+              }
+              onRetry={() => void query.refetch()}
+            >
+              {(data) => (
+                <>
+                  <AgentVersionSelector resource={data} />
+                  {(data.body as AgentTemplateBody).runtime === "tool@1" ? (
+                    <div className="library-agent-tool">
+                      <p className="library-note">
+                        This agent runs its configured tool directly without a
+                        model or prompt.
+                      </p>
+                      <AgentConfiguration resource={data} />
+                    </div>
+                  ) : (
+                    <AgentPrompt
+                      key={`prompt:${data.ref.digest}`}
+                      resource={data}
+                    />
+                  )}
+                  <AgentUsage
+                    key={`usage:${data.ref.digest}`}
+                    resource={data}
+                  />
+                </>
               )}
-              <AgentUsage key={`usage:${data.ref.digest}`} resource={data} />
-            </>
+            </QueryView>
           )}
-        </QueryView>
-      )}
-    </section>
+        </DetailPane>
+      </article>
+    </div>
   );
 }

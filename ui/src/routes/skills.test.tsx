@@ -142,10 +142,10 @@ describe("Skills catalog", () => {
 
     const broken = (
       await screen.findByRole("link", { name: "broken" })
-    ).closest("tr") as HTMLElement;
+    ).closest("li") as HTMLElement;
     const plain = screen
       .getByRole("link", { name: "plain" })
-      .closest("tr") as HTMLElement;
+      .closest("li") as HTMLElement;
 
     // The failed archive request is an explicit, retryable state.
     expect(
@@ -172,5 +172,140 @@ describe("Skills catalog", () => {
     ).toBeInTheDocument();
     expect(within(broken).queryByText("Description unavailable")).toBeNull();
     expect(brokenArchiveReads).toBe(2);
+  });
+
+  it("explains how to create the first package in Library words", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === "/v1/artifacts") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const router = createMemoryRouter(applicationRoutes(), {
+      initialEntries: ["/catalog/skills"],
+    });
+    render(<Application api={api} publicAPI={api} router={router} />);
+
+    const empty = (await screen.findByText("No global Skill packages found."))
+      .parentElement!;
+    expect(empty).toHaveTextContent(
+      "Upload a Skill ZIP to create the first package.",
+    );
+    expect(empty).toHaveTextContent(/bundled with the server configuration/);
+    // Files refuses the skills namespace, so the hint does not send users there.
+    expect(empty).not.toHaveTextContent(/artifact|Files/i);
+    expect(screen.getByRole("button", { name: "Upload Skills" })).toBeVisible();
+  });
+
+  it("lists packages with size, files and revision, and uploads a Skill ZIP", async () => {
+    const puts: Request[] = [];
+    let stored = false;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          return apiResponse({
+            items: stored
+              ? [skill("review", "r1"), skill("triage", "r9")]
+              : [skill("review", "r1")],
+            page: { hasMore: false },
+          });
+        }
+        if (url.pathname === "/v1/artifacts/skills/review/archive") {
+          return apiResponse(
+            {
+              artifact: { namespace: "skills", name: "review", revision: "r1" },
+              entries: [
+                { kind: "file", path: "notes.md", size: 4, previewable: true },
+              ],
+            },
+            200,
+            { ETag: '"r1"' },
+          );
+        }
+        if (url.pathname.startsWith("/v1/artifacts/skills/triage/archive")) {
+          return apiResponse({ code: "unavailable", message: "Later" }, 503);
+        }
+        if (
+          url.pathname === "/v1/artifacts/skills/triage" &&
+          request.method === "PUT"
+        ) {
+          puts.push(request.clone());
+          stored = true;
+          return apiResponse(
+            {
+              artifact: { namespace: "skills", name: "triage", revision: "r9" },
+              mediaType: "application/vnd.contractor.agent-skill+zip",
+              size: 3,
+            },
+            201,
+            { ETag: '"r9"' },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const router = createMemoryRouter(applicationRoutes(), {
+      initialEntries: ["/catalog/skills"],
+    });
+    render(<Application api={api} publicAPI={api} router={router} />);
+
+    const link = await screen.findByRole("link", { name: "review" });
+    expect(link).toHaveAttribute("href", "/artifacts/skills/review");
+    const row = link.closest("li") as HTMLElement;
+    expect(within(row).getByText("2.0 KiB · Skill package")).toBeVisible();
+    expect(await within(row).findByText("1 file")).toBeVisible();
+    expect(within(row).getByText("Current revision")).toBeVisible();
+    expect(within(row).getByText("r1")).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Upload Skills" }));
+    const dialog = screen.getByRole("dialog", { name: "Upload Skills" });
+    expect(dialog).toHaveTextContent("up to 16 MiB");
+    expect(dialog).toHaveTextContent(
+      "Stored as a Skill package: application/vnd.contractor.agent-skill+zip",
+    );
+    await user.type(within(dialog).getByLabelText("Name"), "triage");
+    const oversized = new File(["zip"], "too-big.zip", {
+      type: "application/zip",
+    });
+    Object.defineProperty(oversized, "size", { value: 16 * 1024 * 1024 + 1 });
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      oversized,
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Upload" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Skill package exceeds the 16 MiB upload limit.",
+    );
+    expect(puts).toHaveLength(0);
+
+    // The drop zone is now named by the chosen file.
+    await user.upload(
+      within(dialog).getByLabelText("too-big.zip"),
+      new File(["zip"], "triage.zip", { type: "application/zip" }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Upload" }));
+    expect(
+      await screen.findByText("Global Skill revision stored."),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(puts).toHaveLength(1);
+    expect(puts[0]!.headers.get("Content-Type")).toBe(
+      "application/vnd.contractor.agent-skill+zip",
+    );
+    expect(await screen.findByRole("link", { name: "triage" })).toHaveAttribute(
+      "href",
+      "/artifacts/skills/triage",
+    );
   });
 });

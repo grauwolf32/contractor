@@ -51,6 +51,7 @@ function setup(
     slowSearch?: string;
     paginated?: boolean;
     paginatedUsage?: boolean;
+    toolAgent?: boolean;
   } = {},
 ) {
   const abortedSearches: string[] = [];
@@ -116,7 +117,16 @@ function setup(
         stages: {},
       };
     } else if (url.pathname.includes("/versions/"))
-      body = configuration(version);
+      body = options.toolAgent
+        ? {
+            ...configuration(version),
+            body: {
+              ...configuration(version).body,
+              runtime: "tool@1",
+              instructions: undefined,
+            },
+          }
+        : configuration(version);
     else if (url.pathname.endsWith("/agent-templates")) {
       if (options.failAgentList && url.searchParams.get("name") === null) {
         body = {
@@ -453,9 +463,69 @@ describe("Catalog", () => {
     ).not.toBeInTheDocument();
     expect(
       within(
-        screen.getByRole("navigation", { name: "Catalog navigation" }),
+        screen.getByRole("navigation", { name: "Library sections" }),
       ).getByRole("link", { name: "Agents" }),
     ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("opens Check types first and keeps the query and hash", async () => {
+    const { router } = setup("/catalog?keep=yes#section");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/catalog/audit-presets"),
+    );
+    expect(router.state.location.search).toBe("?keep=yes");
+    expect(router.state.location.hash).toBe("#section");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Library" }),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Check types" }),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(document.title).toBe("Check types · Library · Contractor"),
+    );
+  });
+
+  it("shows the Library tabs with Files on every section", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents");
+    const tabs = await screen.findByRole("navigation", {
+      name: "Library sections",
+    });
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((link) => [link.textContent, link.getAttribute("href")]),
+    ).toEqual([
+      ["Check types", "/catalog/audit-presets"],
+      ["Workflows", "/catalog/workflows"],
+      ["Agents", "/catalog/agents"],
+      ["Skills", "/catalog/skills"],
+      ["Files", "/artifacts"],
+    ]);
+    await waitFor(() =>
+      expect(document.title).toBe("Agents · Library · Contractor"),
+    );
+    await user.click(within(tabs).getByRole("link", { name: "Workflows" }));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/catalog/workflows"),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Workflows" }),
+    ).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Library sections" }),
+      ).getByRole("link", { name: "Workflows" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Primary navigation" }),
+      ).getByRole("link", { name: "Library" }),
+    ).toHaveAttribute("aria-current", "page");
+    await waitFor(() =>
+      expect(document.title).toBe("Workflows · Library · Contractor"),
+    );
   });
 
   it("searches the complete Agent catalog on the server and preserves the query on return", async () => {
@@ -619,6 +689,36 @@ describe("Catalog", () => {
       "href",
       "/projects",
     );
+  });
+
+  it("shows a tool agent's configuration without a prompt", async () => {
+    const { fetcher } = setup("/catalog/agents/researcher/1", {
+      toolAgent: true,
+    });
+    expect(
+      await screen.findByText(
+        "This agent runs its configured tool directly without a model or prompt.",
+      ),
+    ).toBeVisible();
+    const configuration = screen.getByRole("complementary", {
+      name: "Agent configuration",
+    });
+    expect(within(configuration).getByText("tool@1")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Copy" }),
+    ).not.toBeInTheDocument();
+    expect(
+      await within(
+        screen.getByRole("region", { name: "Where used" }),
+      ).findByRole("link", { name: "openapi-from-source@1" }),
+    ).toBeVisible();
+    expect(
+      fetcher.mock.calls.some(([input]) =>
+        String(input instanceof Request ? input.url : input).includes(
+          "/instructions",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("does not display or copy instructions from another digest", async () => {
