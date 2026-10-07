@@ -117,6 +117,48 @@ describe("ListRow", () => {
     }
   });
 
+  it("starts each meta part after the first with its separator", () => {
+    render(
+      <MemoryRouter>
+        <ul>
+          <ListRow
+            to="/checks?check=a"
+            title="OpenAPI · Operation trace"
+            meta={["crapi-workshop", null, "Finished", "Updated 2 days ago"]}
+          />
+        </ul>
+      </MemoryRouter>,
+    );
+    const item = screen.getByRole("listitem");
+    const meta = item.querySelector(".ui-row-meta");
+    // The meta line clips the separator of a part that starts a wrapped line.
+    expect(meta).toHaveAttribute("data-parts", "");
+    const parts = Array.from(item.querySelectorAll(".ui-row-part"));
+    expect(parts.map((part) => part.textContent)).toEqual([
+      "crapi-workshop",
+      "·Finished",
+      "·Updated 2 days ago",
+    ]);
+    expect(parts[0]?.querySelector(".ui-row-sep")).toBeNull();
+    for (const part of parts.slice(1)) {
+      expect(part.firstElementChild).toHaveClass("ui-row-sep");
+      expect(part.firstElementChild).toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
+  it("leaves a single meta node as it is", () => {
+    render(
+      <MemoryRouter>
+        <ul>
+          <ListRow to="/runs/r" title="Run" meta={<span>Queued</span>} />
+        </ul>
+      </MemoryRouter>,
+    );
+    const meta = screen.getByRole("listitem").querySelector(".ui-row-meta");
+    expect(meta).not.toHaveAttribute("data-parts");
+    expect(meta?.querySelector(".ui-row-sep")).toBeNull();
+  });
+
   it("also calls onSelect when a linked row is clicked", async () => {
     const onSelect = vi.fn();
     render(

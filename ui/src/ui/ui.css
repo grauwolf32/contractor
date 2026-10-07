@@ -445,6 +445,44 @@ span.ui-row-control {
   line-height: 1.4;
 }
 
+/*
+ * An array meta (ListRow): every part after the first starts with its "·" in
+ * a 1rem slot, and the parts are shifted left by one slot inside a clipping
+ * box, so the "·" of a part that starts a wrapped line is clipped instead of
+ * dangling at the end of the line above. The first part keeps the slot as
+ * padding; the clip margin keeps focus rings and chip borders whole.
+ */
+.ui-row-meta[data-parts] {
+  overflow: clip;
+  overflow-clip-margin: 0.25rem;
+}
+
+.ui-row-parts {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.125rem;
+  min-width: 0;
+  margin-inline-start: -1rem;
+}
+
+.ui-row-part {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.ui-row-part:first-child {
+  padding-inline-start: 1rem;
+}
+
+.ui-row-part > .ui-row-sep {
+  flex: none;
+  width: 1rem;
+  text-align: center;
+}
+
 /* Inline actions, and controls or identifiers in the meta line, sit above the
    title's row-wide click area; the rest of the row still opens it. */
 .ui-row-extra,

@@ -1,4 +1,4 @@
-import { Fragment, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Link, type To } from "react-router";
 
 export interface ListSectionProps {
@@ -66,19 +66,29 @@ function isPresent(part: ReactNode): boolean {
   return part !== null && part !== undefined && part !== false && part !== "";
 }
 
+/**
+ * An array meta: the parts with "·" separators. Each separator starts the
+ * part it precedes, so on a wrapped line it travels with that part and the
+ * meta line clips it (ui.css) instead of leaving a "·" at the end of the
+ * line above.
+ */
 function renderMeta(meta: ReactNode): ReactNode {
   if (!Array.isArray(meta)) return meta;
-  return (meta as ReactNode[]).filter(isPresent).map((part, position) => (
-    // Meta parts are positional.
-    <Fragment key={position}>
-      {position > 0 ? (
-        <span className="ui-row-sep" aria-hidden="true">
-          ·
+  return (
+    <span className="ui-row-parts">
+      {(meta as ReactNode[]).filter(isPresent).map((part, position) => (
+        // Meta parts are positional.
+        <span key={position} className="ui-row-part">
+          {position > 0 ? (
+            <span className="ui-row-sep" aria-hidden="true">
+              ·
+            </span>
+          ) : null}
+          <span>{part}</span>
         </span>
-      ) : null}
-      <span>{part}</span>
-    </Fragment>
-  ));
+      ))}
+    </span>
+  );
 }
 
 export interface ListRowProps {
@@ -178,7 +188,12 @@ export function ListRow({
       <div className="ui-row-main">
         {control}
         {isPresent(meta) ? (
-          <div className="ui-row-meta">{renderMeta(meta)}</div>
+          <div
+            className="ui-row-meta"
+            data-parts={Array.isArray(meta) ? "" : undefined}
+          >
+            {renderMeta(meta)}
+          </div>
         ) : null}
         {children === undefined || children === null ? null : (
           <div className="ui-row-extra">{children}</div>
