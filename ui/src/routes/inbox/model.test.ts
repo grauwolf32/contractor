@@ -9,13 +9,16 @@ import type { RunStatus, RunSummary } from "../../api/runs";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import {
   buildInbox,
+  finishedRecently,
   inboxSearch,
   inboxSubtitle,
+  moreRecentRunsMayFollow,
   nextToDecide,
   parseRefKey,
   RECENT_MS,
   recentRuns,
   refKey,
+  rowIndex,
   type InboxInput,
 } from "./model";
 import { checkProgress, primaryOutput } from "./present";
@@ -123,17 +126,29 @@ describe("Inbox selection keys", () => {
 });
 
 describe("Inbox sections", () => {
-  it("lists a stuck running check in Unblock and Running but moves through it once", () => {
-    const running = check("audit_run", "active");
+  it("lists a stuck running check in Unblock and Running and moves through both rows", () => {
     const model = buildInbox(
       input({
-        checks: [running],
+        checks: [check("audit_run", "active"), check("audit_late", "paused")],
         workspaces: new Map([["audit_run", workspace("audit_run", 2)]]),
       }),
     );
-    expect(model.unblock.map((row) => row.key)).toEqual(["check:audit_run"]);
+    expect(model.unblock.map((row) => row.key)).toEqual([
+      "check:audit_late",
+      "check:audit_run",
+    ]);
     expect(model.running.map((row) => row.key)).toEqual(["check:audit_run"]);
-    expect(model.order.map((row) => row.key)).toEqual(["check:audit_run"]);
+    // The keys follow the rows as shown.
+    expect(model.order.map((row) => `${row.section} ${row.key}`)).toEqual([
+      "unblock check:audit_late",
+      "unblock check:audit_run",
+      "running check:audit_run",
+    ]);
+    // The URL names the item: its first row, or the row the user chose.
+    expect(rowIndex(model.order, "check:audit_run")).toBe(1);
+    expect(rowIndex(model.order, "check:audit_run", "running")).toBe(2);
+    expect(rowIndex(model.order, "check:audit_late", "running")).toBe(0);
+    expect(rowIndex(model.order, "check:gone", "running")).toBe(-1);
   });
 
   it("keeps failed and finished work of the last 7 days only", () => {
@@ -195,6 +210,33 @@ describe("Inbox sections", () => {
     expect(runs.shown).toHaveLength(5);
     expect(runs.hidden).toBe(3);
     expect(runs.shown[0]?.runId).toBe("run_0");
+  });
+
+  it("knows when recent Runs may continue on the Server's next page", () => {
+    const recent = [run("run_a", "failed", 10), run("run_b", "failed", 20)];
+    const old = run("run_old", "failed", RECENT_MS / 60_000 + 10);
+    // A full page of recent Runs: the next page may hold more of them.
+    expect(moreRecentRunsMayFollow(recent, true, NOW)).toBe(true);
+    // The page reaches past the 7 days, or it is the last page.
+    expect(moreRecentRunsMayFollow([...recent, old], true, NOW)).toBe(false);
+    expect(moreRecentRunsMayFollow(recent, false, NOW)).toBe(false);
+    expect(moreRecentRunsMayFollow([], true, NOW)).toBe(false);
+  });
+
+  it("reads reports only of checks that finished in the last 7 days", () => {
+    expect(
+      finishedRecently(check("a", "completed", { finishedAt: ago(30) }), NOW),
+    ).toBe(true);
+    expect(
+      finishedRecently(
+        check("b", "completed", { finishedAt: ago(60 * 24 * 8) }),
+        NOW,
+      ),
+    ).toBe(false);
+    for (const state of ["failed", "cancelled", "waiting_review"] as const)
+      expect(
+        finishedRecently(check("c", state, { finishedAt: ago(30) }), NOW),
+      ).toBe(false);
   });
 
   it("lists a waiting Run only once the Server says it needs a retry", () => {
@@ -263,6 +305,11 @@ describe("Inbox words", () => {
     expect(nextToDecide(rows, "check:c")?.key).toBe("check:b");
     expect(nextToDecide(rows, "check:gone")?.key).toBe("check:a");
     expect(nextToDecide([], "check:a")).toBeUndefined();
+    // A refresh removed the decided item first: its neighbour moved into
+    // the place it held, or it was last and the new last item is next.
+    expect(nextToDecide(rows, "check:gone", 1)?.key).toBe("check:b");
+    expect(nextToDecide(rows, "check:gone", 3)?.key).toBe("check:c");
+    expect(nextToDecide([], "check:gone", 1)).toBeUndefined();
   });
 
   it("builds a progress line from the workspace counts", () => {

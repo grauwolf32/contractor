@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
@@ -15,6 +21,7 @@ import {
   nextToDecide,
   parseRefKey,
   refKey,
+  rowIndex,
   type InboxRef,
   type InboxRow,
   type InboxSectionId,
@@ -22,6 +29,15 @@ import {
 import { rowPage } from "./present";
 
 import "./inbox.css";
+
+/** The overview, where focus requests and announcements name no item. */
+const OVERVIEW = "";
+
+/** The row the user chose for an item that is listed twice. */
+interface RowChoice {
+  key: string;
+  section: InboxSectionId;
+}
 
 function plural(count: number, one: string, many: string): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
@@ -73,7 +89,7 @@ function listing(ref: InboxRef, data: InboxData): boolean {
     case "review":
       return data.pending.decide;
     case "report":
-      return data.reports.isPending;
+      return data.checks.isPending || data.reports.pending;
     case "check":
       return data.checks.isPending;
     case "run":
@@ -97,23 +113,79 @@ export function InboxRoute() {
   const [params] = useSearchParams();
   const selected = parseRefKey(params.get("item"));
   const selectedKey = selected === undefined ? undefined : refKey(selected);
+  // The URL names the item. A check listed twice (stuck and running) is
+  // selected in the row the user chose, otherwise in its first row.
+  const [choice, setChoice] = useState<RowChoice | undefined>();
   const index =
     selectedKey === undefined
       ? -1
-      : model.order.findIndex((row) => row.key === selectedKey);
+      : rowIndex(
+          model.order,
+          selectedKey,
+          choice?.key === selectedKey ? choice.section : undefined,
+        );
   const row = index < 0 ? undefined : model.order[index];
+  const position = row?.section === "decide" ? model.decide.indexOf(row) : -1;
 
-  // "Decision recorded" outlives the decision bar, which leaves with its item.
-  const { text: recorded, announce, clear } = useAnnouncement();
-  // The item focus moves to once it shows; "" is the overview.
+  // Where the page is: the selected item, or the overview.
+  const place = selectedKey ?? OVERVIEW;
+
+  // "Decision recorded" outlives the decision bar, which leaves with its
+  // item. It shows where it was announced: on the item the decision moved
+  // to, or where the user already was when the answer came.
+  const { text: announced, announce, clear } = useAnnouncement();
+  const [announcedAt, setAnnouncedAt] = useState<string | undefined>();
+  // The item (or OVERVIEW) that takes focus once it shows after a decision.
+  // The move happens once: opening that item again leaves focus alone.
   const [focusKey, setFocusKey] = useState<string | undefined>();
+  const onFocused = useCallback(() => setFocusKey(undefined), []);
+  // Any other change of selection (a row, a key, Back, a link) ends both.
+  // Adjusted while rendering, as React recommends over an effect: the
+  // decision sets them for the place it moves to before the URL follows.
+  const [lastPlace, setLastPlace] = useState(place);
+  if (lastPlace !== place) {
+    setLastPlace(place);
+    if (announcedAt !== place) setAnnouncedAt(undefined);
+    if (focusKey !== undefined && focusKey !== place) setFocusKey(undefined);
+  }
+  const recorded = announcedAt === place ? announced : "";
+
+  // A decision's answer can arrive after the user moved on or left the
+  // Inbox: these hold what the page last showed, and whether it still does.
+  const selectedKeyRef = useRef(selectedKey);
+  const decideRows = useRef(model.decide);
+  // Where the selected decision sat in Decide: a refresh can remove it
+  // before the Server answers, and the item after it moved into its place.
+  const decisionPosition = useRef<{ key: string; index: number } | undefined>(
+    undefined,
+  );
+  useLayoutEffect(() => {
+    selectedKeyRef.current = selectedKey;
+    decideRows.current = model.decide;
+    if (selectedKey !== undefined && position >= 0)
+      decisionPosition.current = { key: selectedKey, index: position };
+  });
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const select = useCallback(
     (
       target: InboxRow | undefined,
       options: { replace?: boolean; focus?: boolean } = {},
     ) => {
-      setFocusKey(options.focus === true ? (target?.key ?? "") : undefined);
+      setChoice(
+        target === undefined
+          ? undefined
+          : { key: target.key, section: target.section },
+      );
+      setFocusKey(
+        options.focus === true ? (target?.key ?? OVERVIEW) : undefined,
+      );
       void navigate(
         {
           pathname: "/",
@@ -132,22 +204,47 @@ export function InboxRoute() {
     },
     [clear, select],
   );
-
-  // The decide list as last rendered: the decided item may have left it by
-  // the time the Server's answer arrives.
-  const decideRows = useRef(model.decide);
-  useEffect(() => {
-    decideRows.current = model.decide;
-  });
-  const onDecided = useCallback(
-    (key: string, outcome: string) => {
-      select(nextToDecide(decideRows.current, key), {
-        replace: true,
-        focus: true,
-      });
-      announce(`Decision recorded: ${outcome}.`);
+  // A row the user clicked; its link puts the item in the URL.
+  const choose = useCallback(
+    (target: InboxRow) => {
+      clear();
+      setFocusKey(undefined);
+      setChoice({ key: target.key, section: target.section });
     },
-    [announce, select],
+    [clear],
+  );
+
+  const announceAt = useCallback(
+    (at: string, text: string) => {
+      setAnnouncedAt(at);
+      announce(text);
+    },
+    [announce],
+  );
+  const onDecided = useCallback(
+    (key: string, outcome: string, title: string) => {
+      // The user left the Inbox while the decision was on its way.
+      if (!mounted.current) return;
+      const current = selectedKeyRef.current;
+      if (current !== key) {
+        // They moved on in the Inbox: they stay where they are, and the
+        // message names what was decided.
+        announceAt(
+          current ?? OVERVIEW,
+          `Decision recorded on “${title}”: ${outcome}.`,
+        );
+        return;
+      }
+      const former = decisionPosition.current;
+      const next = nextToDecide(
+        decideRows.current,
+        key,
+        former?.key === key ? former.index : undefined,
+      );
+      announceAt(next?.key ?? OVERVIEW, `Decision recorded: ${outcome}.`);
+      select(next, { replace: true, focus: true });
+    },
+    [announceAt, select],
   );
 
   const { containerProps } = useListNavigation({
@@ -178,7 +275,6 @@ export function InboxRoute() {
       })
     : "Checking what needs you…";
 
-  const position = row?.section === "decide" ? model.decide.indexOf(row) : -1;
   const context: DetailContext = {
     data,
     previous: index > 0 ? model.order[index - 1] : undefined,
@@ -187,6 +283,7 @@ export function InboxRoute() {
     onSelect: move,
     onDecided,
     focusKey,
+    onFocused,
     recorded,
   };
 
@@ -205,7 +302,8 @@ export function InboxRoute() {
           <InboxList
             data={data}
             subtitle={subtitle}
-            selectedKey={selectedKey}
+            selected={row}
+            onChoose={choose}
             containerProps={containerProps}
           />
         }

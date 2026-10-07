@@ -2,12 +2,15 @@
  * The Inbox reads: the cross-project lists (src/api/cross-project.ts) with
  * the Inbox check states, so they match the rail badge and share its reads;
  * the owner's Runs (failed, succeeded and active, first page each); the
- * workspace counters of listed checks; and queue admission.
+ * workspace counters of listed checks; the reports of checks that finished
+ * in the last 7 days; the work items waiting for a decision; and queue
+ * admission.
  *
- * Per-check reads (workspace counters, work items) are pinned to the check's
- * revision like the cross-project reads: the polled check pages decide when
- * they change. Run lists and queue admission are polled on the same 20 s
- * interval. Failures never throw: they are counted for the page's notice.
+ * Per-check reads (workspace counters, reports, work items) are pinned to the
+ * check's revision like the cross-project reads: the polled check pages
+ * decide when they change. Run lists and queue admission are polled on the
+ * same 20 s interval. Failures never throw: they are counted for the page's
+ * notice.
  */
 import {
   useQueries,
@@ -25,10 +28,11 @@ import {
   type AuditCollection,
 } from "../../api/audit-collections";
 import {
+  getAuditReport,
   getAuditWorkspace,
-  listAuditItems,
   type AuditFindingState,
   type AuditItem,
+  type AuditReport,
   type AuditReviewRequest,
   type AuditWorkspace,
 } from "../../api/audits";
@@ -38,17 +42,18 @@ import {
   INBOX_CHECK_STATES,
   useAllChecks,
   useAllPossibleIssues,
-  useAllReports,
   useInboxSummary,
   usePendingDecisions,
   useProjectsIndex,
   type AllChecks,
   type AllPossibleIssues,
-  type AllReports,
   type CrossProjectCheck,
+  type CrossProjectReport,
   type InboxSummary,
   type PendingDecisions,
 } from "../../api/cross-project";
+import { PublicAPIError } from "../../api/error";
+import { listAwaitingReviewItems } from "../../api/inbox";
 import { queryKeys } from "../../api/query-keys";
 import { getOwnerQueueControl, type OwnerQueueControl } from "../../api/queue";
 import {
@@ -59,7 +64,6 @@ import {
   type RunSummary,
 } from "../../api/runs";
 import { getWorkflow, type WorkflowResource } from "../../api/workflows";
-import type { AuditReportStatus } from "../../app/vocabulary";
 import {
   parseWorkflowIdentity,
   requireWorkflowOutputs,
@@ -69,6 +73,7 @@ import {
 import {
   buildInbox,
   COUNTED_CHECK_STATES,
+  finishedRecently,
   LISTED_CHECK_STATES,
   recentRuns,
   waitingRuns,
@@ -87,9 +92,6 @@ const DECISION_KINDS: readonly AuditReviewRequest["kind"][] = [
   "requirement-applicability",
   "report-acceptance",
 ];
-
-/** Proposed reports wait for acceptance and are decisions, not results. */
-const READY_REPORTS: readonly AuditReportStatus[] = ["ready"];
 
 // Run lists and queue admission: polled while the page is visible.
 const POLLED = {
@@ -128,7 +130,7 @@ function pinned<T>() {
  * revision), so a check's previous counts stay shown while its new revision
  * loads.
  */
-function newestCached<T>(
+export function newestCached<T>(
   queryClient: QueryClient,
   prefix: QueryKey,
 ): T | undefined {
@@ -233,6 +235,16 @@ export interface RunList {
   recent: Shown<RunSummary>;
 }
 
+/** Ready reports of the checks that finished in the last 7 days. */
+export interface ReadyReports {
+  /** Newest check first. */
+  reports: CrossProjectReport[];
+  /** Some of those reports have not been read yet. */
+  pending: boolean;
+  /** Reports that could not be read. */
+  failed: number;
+}
+
 export interface InboxData {
   now: number;
   model: InboxModel;
@@ -240,7 +252,7 @@ export interface InboxData {
   issues: AllPossibleIssues;
   decisions: PendingDecisions;
   checks: AllChecks;
-  reports: AllReports;
+  reports: ReadyReports;
   failedRuns: RunList;
   succeededRuns: RunList;
   activeRuns: UseQueryResult<RunPage>;
@@ -252,7 +264,10 @@ export interface InboxData {
   /** Declared outputs by "name@version"; absent while loading. */
   workflowOutputs: Map<string, WorkflowOutputs>;
   workspaces: PerCheck<AuditWorkspace>;
-  /** Work items by check ID, for checks with pending item decisions. */
+  /**
+   * Work items that wait for a decision, by check ID, for checks with
+   * pending approval or applicability requests.
+   */
   items: PerCheck<AuditCollection<AuditItem>>;
   queue: UseQueryResult<OwnerQueueControl>;
   /** A section's reads have not settled yet. */
@@ -284,7 +299,6 @@ export function useInboxData(): InboxData {
   });
   // Several states: the per-project check pages every list above shares.
   const checks = useAllChecks({ states: LISTED_CHECK_STATES });
-  const reports = useAllReports({ statuses: READY_REPORTS });
   const index = useProjectsIndex();
   const projectNames = useMemo(
     () =>
@@ -311,6 +325,44 @@ export function useInboxData(): InboxData {
     loadWorkspace,
   );
 
+  // Ready lists reports of checks that finished in the last 7 days only, so
+  // only those are read: failed and stopped checks rarely have one.
+  const finished = useMemo(
+    () => checks.checks.filter((check) => finishedRecently(check, now)),
+    [checks.checks, now],
+  );
+  const loadReport = useCallback(
+    async (auditId: string): Promise<AuditReport | null> => {
+      try {
+        return await getAuditReport(api, auditId);
+      } catch (error) {
+        // A check deleted since its project's page was read has no report.
+        if (error instanceof PublicAPIError && error.status === 404)
+          return null;
+        throw error;
+      }
+    },
+    [api],
+  );
+  const reportReads = usePerCheckReads(
+    finished,
+    queryKeys.inbox.report,
+    loadReport,
+  );
+  const readyReports = useMemo(
+    () =>
+      finished.flatMap((check): CrossProjectReport[] => {
+        const report = reportReads.byCheck.get(check.audit.auditId);
+        // A proposed report waits for acceptance: a decision, not a result.
+        return report === undefined ||
+          report === null ||
+          report.status !== "ready"
+          ? []
+          : [{ project: check.project, audit: check.audit, report }];
+      }),
+    [finished, reportReads.byCheck],
+  );
+
   const itemChecks = useMemo(
     () =>
       uniqueBy(
@@ -323,14 +375,20 @@ export function useInboxData(): InboxData {
       ),
     [decisions.decisions],
   );
+  // Only the items under a pending request: one small page, however many
+  // items (an ASVS check has hundreds) the check has.
   const loadItems = useCallback(
     (auditId: string) =>
       collectAuditPages((cursor) =>
-        listAuditItems(api, auditId, cursor === undefined ? {} : { cursor }),
+        listAwaitingReviewItems(api, auditId, cursor),
       ),
     [api],
   );
-  const items = usePerCheckReads(itemChecks, queryKeys.inbox.items, loadItems);
+  const items = usePerCheckReads(
+    itemChecks,
+    queryKeys.inbox.awaitingItems,
+    loadItems,
+  );
 
   const failed = useQuery({
     queryKey: queryKeys.runs.list("failed", undefined),
@@ -464,7 +522,7 @@ export function useInboxData(): InboxData {
         issues: issues.issues,
         decisions: decisions.decisions,
         checks: checks.checks,
-        reports: reports.reports,
+        reports: readyReports,
         workspaces: workspaces.byCheck,
         failedRuns: failedRecent,
         succeededRuns: succeededRecent,
@@ -477,7 +535,7 @@ export function useInboxData(): InboxData {
       failedRecent,
       issues.issues,
       now,
-      reports.reports,
+      readyReports,
       runStatuses.byRun,
       succeededRecent,
       waiting,
@@ -494,7 +552,7 @@ export function useInboxData(): InboxData {
       active.isPending ||
       workspaces.pending ||
       (waiting.length > 0 && runStatuses.pending),
-    ready: checks.isPending || reports.isPending || succeeded.isPending,
+    ready: checks.isPending || reportReads.pending || succeeded.isPending,
     running: checks.isPending || active.isPending,
   };
   const unavailable: Record<InboxSectionId, boolean> = {
@@ -509,7 +567,11 @@ export function useInboxData(): InboxData {
       failed.isError ||
       active.isError ||
       workspaces.failed > 0,
-    ready: reports.partial || reports.error !== null || succeeded.isError,
+    ready:
+      checks.partial ||
+      indexFailed ||
+      reportReads.failed > 0 ||
+      succeeded.isError,
     running: checks.partial || indexFailed || active.isError,
   };
   const incomplete =
@@ -549,7 +611,11 @@ export function useInboxData(): InboxData {
     issues,
     decisions,
     checks,
-    reports,
+    reports: {
+      reports: readyReports,
+      pending: reportReads.pending,
+      failed: reportReads.failed,
+    },
     failedRuns: { query: failed, recent: failedRecent },
     succeededRuns: { query: succeeded, recent: succeededRecent },
     activeRuns: active,

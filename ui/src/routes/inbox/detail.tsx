@@ -5,7 +5,7 @@ import {
   type Query,
   type QueryKey,
 } from "@tanstack/react-query";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import {
@@ -56,7 +56,7 @@ import { firstParagraph, plainText } from "../decisions/text";
 import { artifactDetailPath } from "../artifacts/paths";
 import { describeStopReason } from "../projects/audits/stop-reason";
 import { deriveRunTriage, formatRunDuration } from "../runs/triage";
-import type { InboxData } from "./data";
+import { newestCached, type InboxData } from "./data";
 import {
   refKey,
   type InboxRef,
@@ -99,12 +99,33 @@ export interface DetailContext {
     row: InboxRow | undefined,
     options?: { replace?: boolean },
   ) => void;
-  /** A decision was recorded on the item with this key. */
-  onDecided: (key: string, outcome: string) => void;
+  /**
+   * A decision was recorded on the item with this key and title; the
+   * outcome is its label ("Not an issue").
+   */
+  onDecided: (key: string, outcome: string, title: string) => void;
   /** The item to move focus to once it shows, after a decision. */
   focusKey: string | undefined;
+  /** Focus has moved there: the request is used up. */
+  onFocused: () => void;
   /** "Decision recorded: …" while it is announced. */
   recorded: string;
+}
+
+/**
+ * Moves focus to `target` once when `focus` turns on, then reports the
+ * request used up, so a later visit to the same item leaves focus alone.
+ */
+function useFocusRequest(
+  target: { readonly current: HTMLElement | null },
+  focus: boolean,
+  onFocused: () => void,
+) {
+  useEffect(() => {
+    if (!focus) return;
+    target.current?.focus();
+    onFocused();
+  }, [focus, onFocused, target]);
 }
 
 function OpenIcon() {
@@ -174,9 +195,7 @@ function DetailBar({
   focus: boolean;
 }) {
   const place = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
-    if (focus) place.current?.focus();
-  }, [focus]);
+  useFocusRequest(place, focus, context.onFocused);
   const { previous, next, onSelect } = context;
   return (
     <div className="inbox-detail-bar">
@@ -287,6 +306,7 @@ function IssueDetail({
   );
   const position = issues.findIndex((candidate) => candidate.key === row.key);
   const { nextDecision, onSelect, onDecided } = context;
+  const title = finding.firstProposal.document.title;
   return (
     <DetailPane
       header={
@@ -319,7 +339,7 @@ function IssueDetail({
                 }
           }
           onDecided={(result) =>
-            onDecided(row.key, decisionOutcome(result.decision).label)
+            onDecided(row.key, decisionOutcome(result.decision).label, title)
           }
         />
       }
@@ -388,6 +408,7 @@ function ReviewDetail({
   });
   const item = reviewSubjectItem(row.decision, context.data.items.byCheck);
   const kindLabel = reviewKindLabel(review.kind);
+  const title = reviewTitle(row.decision, item, kindLabel);
   const state = reviewStateLabel(review.state);
   const decided = context.onDecided;
   return (
@@ -413,12 +434,13 @@ function ReviewDetail({
       }
       footer={
         acceptance ? (
+          // A report that could not be read is explained here, with Try again.
           <ReportDecision
             auditId={audit.auditId}
             review={review}
             report={report.data}
             onDecided={(result) =>
-              decided(row.key, decisionOutcome(result.decision).label)
+              decided(row.key, decisionOutcome(result.decision).label, title)
             }
           />
         ) : (
@@ -426,18 +448,14 @@ function ReviewDetail({
             auditId={audit.auditId}
             review={review}
             onDecided={(result) =>
-              decided(row.key, decisionOutcome(result.decision).label)
+              decided(row.key, decisionOutcome(result.decision).label, title)
             }
           />
         )
       }
     >
       <Recorded text={context.recorded} />
-      <Head
-        tone={state.tone}
-        state={state.label}
-        title={reviewTitle(row.decision, item, kindLabel)}
-      />
+      <Head tone={state.tone} state={state.label} title={title} />
       <dl className="inbox-facts">
         <Fact term="Check">
           <Link to={checkPath(project.projectId, audit.auditId)}>
@@ -463,21 +481,16 @@ function ReviewDetail({
           </Fact>
         )}
       </dl>
-      {acceptance ? (
+      {!acceptance ? null : report.data !== undefined ? (
         <Block title="Proposed report">
-          {report.isPending ? (
-            <p className="inbox-quiet-note">Loading the report…</p>
-          ) : report.isError ? (
-            <ErrorNotice
-              error={report.error}
-              context="The report could not be loaded."
-              onRetry={() => void report.refetch()}
-            />
-          ) : (
-            <ReportExcerpt auditId={audit.auditId} report={report.data} />
-          )}
+          <ReportExcerpt auditId={audit.auditId} report={report.data} />
         </Block>
-      ) : null}
+      ) : report.isPending ? (
+        <Block title="Proposed report">
+          <p className="inbox-quiet-note">Loading the report…</p>
+        </Block>
+      ) : // A failed read: the decision below says so once, with Try again.
+      null}
       <TechnicalDetails description="Request and subject identifiers.">
         <dl className="inbox-facts" data-size="sm">
           <Fact term="Request ID">
@@ -777,11 +790,25 @@ function CheckDetail({
   context: DetailContext;
 }) {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
   const { project, audit } = check;
+  const { auditId, revision } = audit;
+  // While a new revision loads, the counts shown last (or the newest cached
+  // ones, e.g. read by the list) stay, as they do in the list.
+  const placeholder = useCallback(
+    (previous: AuditWorkspace | undefined) =>
+      previous ??
+      newestCached<AuditWorkspace>(
+        queryClient,
+        queryKeys.inbox.workspace(auditId, revision).slice(0, -1),
+      ),
+    [auditId, queryClient, revision],
+  );
   // The list's read when the check is counted there; otherwise read here.
   const workspace = useQuery({
-    queryKey: queryKeys.inbox.workspace(audit.auditId, audit.revision),
-    queryFn: () => getAuditWorkspace(api, audit.auditId),
+    queryKey: queryKeys.inbox.workspace(auditId, revision),
+    queryFn: () => getAuditWorkspace(api, auditId),
+    placeholderData: placeholder,
     staleTime: pinnedStaleTime,
     refetchOnWindowFocus: false,
     retry: false,
@@ -1002,10 +1029,8 @@ export function Overview({
 }) {
   const { model } = context.data;
   const heading = useRef<HTMLHeadingElement>(null);
-  const focus = context.focusKey === "";
-  useEffect(() => {
-    if (focus) heading.current?.focus();
-  }, [focus]);
+  // "": the last decision left nothing to select.
+  useFocusRequest(heading, context.focusKey === "", context.onFocused);
   return (
     <DetailPane>
       <Recorded text={context.recorded} />

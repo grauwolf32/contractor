@@ -468,7 +468,7 @@ export const queryKeys = {
       ["cross-project", "report", auditId] as const,
   },
   /**
-   * Inbox reads (src/routes/inbox) that no other page shares. Both are pinned
+   * Inbox reads (src/routes/inbox) that no other page shares. All are pinned
    * to a check revision, like the cross-project per-check reads: a revision
    * never changes, so a read with data is never refetched.
    */
@@ -477,9 +477,15 @@ export const queryKeys = {
     /** Workspace counters of one check at one revision. */
     workspace: (auditId: string, revision: number) =>
       ["inbox", "workspace", auditId, revision] as const,
-    /** Work items of one check at one revision, to name review subjects. */
-    items: (auditId: string, revision: number) =>
-      ["inbox", "items", auditId, revision] as const,
+    /**
+     * Work items of one check that wait for the owner's decision, at one
+     * revision, to name the subjects of approval and applicability requests.
+     */
+    awaitingItems: (auditId: string, revision: number) =>
+      ["inbox", "awaiting-items", auditId, revision] as const,
+    /** The report of one finished check at one revision; null when none. */
+    report: (auditId: string, revision: number) =>
+      ["inbox", "report", auditId, revision] as const,
   },
 };
 

@@ -35,7 +35,10 @@ export type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
 export type RunReason = "model" | "failed" | "finished";
 
 interface RowBase {
-  /** `refKey(ref)`; a check can show in two sections under one key. */
+  /**
+   * `refKey(ref)`. A running check that is also stuck shows in Unblock and
+   * in Running under one key; `section` tells the two rows apart.
+   */
   key: string;
   ref: InboxRef;
   section: InboxSectionId;
@@ -97,7 +100,11 @@ export interface InboxModel {
   unblock: InboxRow[];
   ready: InboxRow[];
   running: InboxRow[];
-  /** Every item once, in display order: what J and K move through. */
+  /**
+   * Every row in display order, what J, K and the arrow keys move through. A
+   * check listed in two sections is two rows here, so the keys follow the
+   * rows as shown.
+   */
   order: InboxRow[];
   /** Matching items left out of Ready (reports, finished checks). */
   hiddenReports: number;
@@ -221,6 +228,28 @@ export function checkTime(check: CrossProjectCheck): string {
 /** Ended (or changed) in the last 7 days; a clock ahead of ours counts too. */
 function isRecent(value: string | undefined, now: number): boolean {
   return time(value) >= now - RECENT_MS;
+}
+
+/** A check that finished in the last 7 days: Ready lists it or its report. */
+export function finishedRecently(
+  check: CrossProjectCheck,
+  now: number,
+): boolean {
+  return check.audit.state === "completed" && isRecent(checkTime(check), now);
+}
+
+/**
+ * Whether Runs beyond the Server's first page may still have ended in the
+ * last 7 days: more pages follow and even the earliest-ending Run on this
+ * one is recent. Counts of recent Runs are then lower bounds.
+ */
+export function moreRecentRunsMayFollow(
+  runs: readonly RunSummary[],
+  hasMore: boolean,
+  now: number,
+): boolean {
+  if (!hasMore || runs.length === 0) return false;
+  return runs.every((run) => isRecent(runTime(run), now));
 }
 
 /**
@@ -363,9 +392,7 @@ export function buildInbox(input: InboxInput): InboxModel {
   const finished = cut(
     checks.filter(
       (check) =>
-        check.audit.state === "completed" &&
-        !reported.has(check.audit.auditId) &&
-        isRecent(checkTime(check), now),
+        finishedRecently(check, now) && !reported.has(check.audit.auditId),
     ),
   );
   const ready: InboxRow[] = [
@@ -391,19 +418,12 @@ export function buildInbox(input: InboxInput): InboxModel {
     .filter((check) => RUNNING_CHECK_STATES.has(check.audit.state))
     .map((check) => checkRow("running", check, "running", workspaces));
 
-  const seen = new Set<string>();
-  const order: InboxRow[] = [];
-  for (const row of [...decide, ...unblock, ...ready, ...running]) {
-    if (seen.has(row.key)) continue;
-    seen.add(row.key);
-    order.push(row);
-  }
   return {
     decide,
     unblock,
     ready,
     running,
-    order,
+    order: [...decide, ...unblock, ...ready, ...running],
     hiddenReports: reports.hidden,
     hiddenFinishedChecks: finished.hidden,
   };
@@ -443,14 +463,40 @@ export function inboxSubtitle(counts: SubtitleCounts): string {
 }
 
 /**
+ * The selected row: the copy of the item in `section` when it is listed
+ * there, else its first copy (a URL names the item, not one of its rows);
+ * -1 when the item is not listed.
+ */
+export function rowIndex(
+  order: readonly InboxRow[],
+  key: string,
+  section?: InboxSectionId,
+): number {
+  if (section !== undefined) {
+    const chosen = order.findIndex(
+      (row) => row.key === key && row.section === section,
+    );
+    if (chosen >= 0) return chosen;
+  }
+  return order.findIndex((row) => row.key === key);
+}
+
+/**
  * The next item to decide after `key` leaves the list: the one after it, or
  * the one before it when it was the last; undefined when none is left.
+ *
+ * A refresh can remove the decided item before the Server's answer arrives.
+ * `formerIndex`, where it last sat, then names its neighbour: the item that
+ * followed it now sits there (or the last one, when it was last). Without it
+ * the first item is next.
  */
 export function nextToDecide(
   decide: readonly InboxRow[],
   key: string,
+  formerIndex?: number,
 ): InboxRow | undefined {
   const index = decide.findIndex((row) => row.key === key);
-  if (index < 0) return decide[0];
-  return decide[index + 1] ?? decide[index - 1];
+  if (index >= 0) return decide[index + 1] ?? decide[index - 1];
+  if (formerIndex === undefined || formerIndex < 0) return decide[0];
+  return decide[Math.min(formerIndex, decide.length - 1)];
 }

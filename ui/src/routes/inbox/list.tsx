@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -24,10 +24,12 @@ import { weaknessReferences } from "../decisions/text";
 import { describeStopReason } from "../projects/audits/stop-reason";
 import { deriveRunTriage } from "../runs/triage";
 import { useWorkflowInventory } from "../workflows/inventory";
-import type { InboxData } from "./data";
+import type { InboxData, RunList } from "./data";
 import {
   inboxSearch,
+  moreRecentRunsMayFollow,
   runTime,
+  SHOWN_PER_KIND,
   type InboxRow,
   type InboxRowOf,
   type InboxSectionId,
@@ -40,6 +42,7 @@ import {
   excerpt,
   FAILED_RUNS_PATH,
   gapsTitle,
+  pendingReviewsPath,
   primaryOutput,
   reviewSubjectItem,
   reviewTitle,
@@ -49,8 +52,19 @@ import {
 
 const UNAVAILABLE = "Some of this could not be loaded. Try again above.";
 
-function rowLink(row: InboxRow) {
-  return { pathname: "/", search: inboxSearch(row.ref) };
+/** Called when the user clicks a row, before its link selects the item. */
+type ChooseRow = (row: InboxRow) => void;
+
+/**
+ * The row's link (the item in the URL), its selected state and the click
+ * that tells the page which row was chosen: a check can be listed twice.
+ */
+function rowControl(row: InboxRow, selected: boolean, onChoose: ChooseRow) {
+  return {
+    to: { pathname: "/", search: inboxSearch(row.ref) },
+    selected,
+    onSelect: () => onChoose(row),
+  };
 }
 
 /** The status word of a row's meta line: the glyph is decorative. */
@@ -65,17 +79,17 @@ function Project({ name }: { name: string }) {
 interface RowProps<T extends InboxRow["type"]> {
   row: InboxRowOf<T>;
   selected: boolean;
+  onChoose: ChooseRow;
   data: InboxData;
 }
 
-function IssueRow({ row, selected }: RowProps<"issue">) {
+function IssueRow({ row, selected, onChoose }: RowProps<"issue">) {
   const { project, audit, finding } = row.issue;
   const document = finding.firstProposal.document;
   const weakness = weaknessReferences(document)[0];
   return (
     <ListRow
-      to={rowLink(row)}
-      selected={selected}
+      {...rowControl(row, selected, onChoose)}
       glyph={<StatusGlyph tone="review" />}
       title={document.title}
       meta={[
@@ -91,13 +105,12 @@ function IssueRow({ row, selected }: RowProps<"issue">) {
   );
 }
 
-function ReviewRow({ row, selected, data }: RowProps<"review">) {
+function ReviewRow({ row, selected, onChoose, data }: RowProps<"review">) {
   const { project, audit, review } = row.decision;
   const item = reviewSubjectItem(row.decision, data.items.byCheck);
   return (
     <ListRow
-      to={rowLink(row)}
-      selected={selected}
+      {...rowControl(row, selected, onChoose)}
       glyph={<StatusGlyph tone="review" />}
       title={reviewTitle(row.decision, item, reviewKindLabel(review.kind))}
       meta={[
@@ -121,7 +134,7 @@ const CHECK_GLYPHS: Readonly<
   finished: "done",
 };
 
-function CheckRow({ row, selected }: RowProps<"check">) {
+function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
   const { project, audit } = row.check;
   const glyph = <StatusGlyph tone={CHECK_GLYPHS[row.reason]} />;
   const kind = checkKind(row.check);
@@ -139,8 +152,7 @@ function CheckRow({ row, selected }: RowProps<"check">) {
               : excerpt(stop.message, 80)));
       return (
         <ListRow
-          to={rowLink(row)}
-          selected={selected}
+          {...rowControl(row, selected, onChoose)}
           glyph={glyph}
           title={checkName(row.check)}
           meta={[
@@ -161,8 +173,7 @@ function CheckRow({ row, selected }: RowProps<"check">) {
     case "gaps":
       return (
         <ListRow
-          to={rowLink(row)}
-          selected={selected}
+          {...rowControl(row, selected, onChoose)}
           glyph={glyph}
           title={gapsTitle(row.workspace?.gaps ?? 0, kind)}
           meta={[
@@ -179,8 +190,7 @@ function CheckRow({ row, selected }: RowProps<"check">) {
           : checkProgress(row.workspace, kind);
       return (
         <ListRow
-          to={rowLink(row)}
-          selected={selected}
+          {...rowControl(row, selected, onChoose)}
           glyph={glyph}
           title={checkName(row.check)}
           meta={[
@@ -205,8 +215,7 @@ function CheckRow({ row, selected }: RowProps<"check">) {
     case "finished":
       return (
         <ListRow
-          to={rowLink(row)}
-          selected={selected}
+          {...rowControl(row, selected, onChoose)}
           glyph={glyph}
           title={`${project.name} check finished`}
           meta={[
@@ -221,12 +230,11 @@ function CheckRow({ row, selected }: RowProps<"check">) {
   }
 }
 
-function ReportRow({ row, selected }: RowProps<"report">) {
+function ReportRow({ row, selected, onChoose }: RowProps<"report">) {
   const { project, audit } = row.report;
   return (
     <ListRow
-      to={rowLink(row)}
-      selected={selected}
+      {...rowControl(row, selected, onChoose)}
       glyph={<StatusGlyph tone="done" />}
       title={`${project.name} report is ready`}
       meta={[
@@ -249,7 +257,7 @@ function failureCause(row: InboxRowOf<"run">, data: InboxData) {
     : excerpt(issue.message, 120);
 }
 
-function RunRow({ row, selected, data }: RowProps<"run">) {
+function RunRow({ row, selected, onChoose, data }: RowProps<"run">) {
   const { run } = row;
   const project =
     run.projectId === undefined
@@ -285,8 +293,7 @@ function RunRow({ row, selected, data }: RowProps<"run">) {
   }
   return (
     <ListRow
-      to={rowLink(row)}
-      selected={selected}
+      {...rowControl(row, selected, onChoose)}
       glyph={<StatusGlyph tone={tone} />}
       title={run.workflow}
       clamp={1}
@@ -301,27 +308,34 @@ function RunRow({ row, selected, data }: RowProps<"run">) {
   );
 }
 
+interface Selection {
+  /** The selected row; a check listed twice is selected in one of them. */
+  selected: InboxRow | undefined;
+  onChoose: ChooseRow;
+}
+
 function InboxListRow({
   row,
-  selectedKey,
+  selected: current,
+  onChoose,
   data,
-}: {
-  row: InboxRow;
-  selectedKey: string | undefined;
-  data: InboxData;
-}) {
-  const selected = row.key === selectedKey;
+}: Selection & { row: InboxRow; data: InboxData }) {
+  const selected =
+    current !== undefined &&
+    row.key === current.key &&
+    row.section === current.section;
+  const props = { selected, onChoose, data };
   switch (row.type) {
     case "issue":
-      return <IssueRow row={row} selected={selected} data={data} />;
+      return <IssueRow row={row} {...props} />;
     case "review":
-      return <ReviewRow row={row} selected={selected} data={data} />;
+      return <ReviewRow row={row} {...props} />;
     case "check":
-      return <CheckRow row={row} selected={selected} data={data} />;
+      return <CheckRow row={row} {...props} />;
     case "report":
-      return <ReportRow row={row} selected={selected} data={data} />;
+      return <ReportRow row={row} {...props} />;
     case "run":
-      return <RunRow row={row} selected={selected} data={data} />;
+      return <RunRow row={row} {...props} />;
   }
 }
 
@@ -333,17 +347,20 @@ function More({ children }: { children: ReactNode }) {
 function Section({
   id,
   rows,
-  selectedKey,
+  selection,
   data,
   empty,
+  count = rows.length,
   children,
 }: {
   id: InboxSectionId;
   rows: readonly InboxRow[];
-  selectedKey: string | undefined;
+  selection: Selection;
   data: InboxData;
   /** Nothing to list, not even the rows in `children`. */
   empty: boolean;
+  /** Rows listed, when `children` holds rows that are not items. */
+  count?: number;
   /** Rows that are not items, notes and links after the rows. */
   children?: ReactNode;
 }) {
@@ -352,14 +369,14 @@ function Section({
   return (
     <ListSection
       title={section.title}
-      count={pending && rows.length === 0 ? undefined : rows.length}
+      count={pending && count === 0 ? undefined : count}
       aside={section.aside}
     >
       {rows.map((row) => (
         <InboxListRow
           key={`${row.section}:${row.key}`}
           row={row}
-          selectedKey={selectedKey}
+          {...selection}
           data={data}
         />
       ))}
@@ -381,30 +398,98 @@ function plural(count: number, one: string, many: string): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
 }
 
-function DecideMore({ data }: { data: InboxData }) {
-  const truncated =
-    data.issues.truncatedAuditIds.length > 0 ||
-    data.decisions.truncatedAuditIds.length > 0;
-  if (!truncated) return null;
+/**
+ * Where to decide the requests the Inbox leaves out: each check with more
+ * pending requests than its first page links to its own pending requests
+ * (the Issues page lists possible issues only).
+ */
+function MoreRequests({ data }: { data: InboxData }) {
+  const ids = data.decisions.truncatedAuditIds;
+  if (ids.length === 0) return null;
+  const byId = new Map(
+    data.checks.checks.map((check) => [check.audit.auditId, check]),
+  );
+  const links = ids.map((auditId) => {
+    const check = byId.get(auditId);
+    return check === undefined
+      ? {
+          auditId,
+          to: `/checks?check=${encodeURIComponent(auditId)}`,
+          label: auditId,
+        }
+      : {
+          auditId,
+          to: pendingReviewsPath(check.project.projectId, auditId),
+          label: checkName(check),
+        };
+  });
+  const shown = links.slice(0, SHOWN_PER_KIND);
+  const hidden = links.length - shown.length;
   return (
     <More>
-      Some checks have more to decide than the Inbox lists.{" "}
-      <Link to="/issues">Open Issues</Link>
+      More decisions wait in{" "}
+      {links.length === 1 ? "this check" : "these checks"} than the Inbox lists:{" "}
+      {shown.map((link, position) => (
+        <Fragment key={link.auditId}>
+          {position === 0 ? null : ", "}
+          <Link to={link.to}>{link.label}</Link>
+        </Fragment>
+      ))}
+      {hidden === 0 ? null : (
+        <>
+          , and {plural(hidden, "more check", "more checks")} in{" "}
+          <Link to="/checks">Checks</Link>
+        </>
+      )}
+      .
     </More>
   );
 }
 
+function DecideMore({ data }: { data: InboxData }) {
+  return (
+    <>
+      {data.issues.truncatedAuditIds.length === 0 ? null : (
+        <More>
+          Some checks have more possible issues than the Inbox lists.{" "}
+          <Link to="/issues">Open Issues</Link>
+        </More>
+      )}
+      <MoreRequests data={data} />
+    </>
+  );
+}
+
+/**
+ * What a cut list of recent Runs leaves out: "3 more failed Runs in the last
+ * 7 days." ("3+" when the Server's next page may hold more of them), or that
+ * older ones are not listed when the Server has more pages.
+ */
+function runsLeftOut(
+  list: RunList,
+  now: number,
+  one: string,
+  many: string,
+): string {
+  const { recent, query } = list;
+  const page = query.data;
+  const more =
+    page !== undefined &&
+    moreRecentRunsMayFollow(page.items, page.page.hasMore, now);
+  if (recent.hidden > 0)
+    return `${recent.hidden.toLocaleString("en-US")}${more ? "+" : ""} more ${
+      recent.hidden === 1 && !more ? one : many
+    } in the last 7 days. `;
+  return page?.page.hasMore === true
+    ? `Older ${many} are not listed here. `
+    : "";
+}
+
 function UnblockMore({ data }: { data: InboxData }) {
-  const { recent, query } = data.failedRuns;
-  if (recent.shown.length === 0) return null;
+  if (data.failedRuns.recent.shown.length === 0) return null;
   return (
     <More>
-      {recent.hidden > 0
-        ? `${plural(recent.hidden, "more failed Run", "more failed Runs")} in the last 7 days. `
-        : // The first page holds the newest Runs; a full one may hide more.
-          query.data?.page.hasMore === true
-          ? "Older failed Runs are not listed here. "
-          : null}
+      {runsLeftOut(data.failedRuns, data.now, "failed Run", "failed Runs")}
       <Link to={FAILED_RUNS_PATH}>See all failed Runs</Link>
     </More>
   );
@@ -412,7 +497,6 @@ function UnblockMore({ data }: { data: InboxData }) {
 
 function ReadyMore({ data }: { data: InboxData }) {
   const { model } = data;
-  const runs = data.succeededRuns.recent.hidden;
   return (
     <>
       {model.hiddenReports === 0 ? null : (
@@ -431,9 +515,14 @@ function ReadyMore({ data }: { data: InboxData }) {
           . <Link to="/checks">See all checks</Link>
         </More>
       )}
-      {runs === 0 ? null : (
+      {data.succeededRuns.recent.shown.length === 0 ? null : (
         <More>
-          {plural(runs, "more finished Run", "more finished Runs")}.{" "}
+          {runsLeftOut(
+            data.succeededRuns,
+            data.now,
+            "finished Run",
+            "finished Runs",
+          )}
           <Link to={SUCCEEDED_RUNS_PATH}>See all finished Runs</Link>
         </More>
       )}
@@ -491,6 +580,20 @@ function CapacityCounts({ data }: { data: InboxData }) {
     (agent) => agent.slotState === "idle",
   ).length;
   const failed = data.failedRuns.recent;
+  const failedPage = data.failedRuns.query.data;
+  // A lower bound when the Server's next page may hold more recent ones.
+  const failedCount =
+    failedPage === undefined
+      ? "—"
+      : `${failed.shown.length + failed.hidden}${
+          moreRecentRunsMayFollow(
+            failedPage.items,
+            failedPage.page.hasMore,
+            data.now,
+          )
+            ? "+"
+            : ""
+        }`;
   return (
     <>
       <dl className="inbox-facts" data-size="sm">
@@ -503,10 +606,7 @@ function CapacityCounts({ data }: { data: InboxData }) {
         <div>
           <dt>Failed Runs, last 7 days</dt>
           <dd>
-            {data.failedRuns.query.data === undefined
-              ? "—"
-              : failed.shown.length + failed.hidden}{" "}
-            · <Link to={FAILED_RUNS_PATH}>See all</Link>
+            {failedCount} · <Link to={FAILED_RUNS_PATH}>See all</Link>
           </dd>
         </div>
         <div>
@@ -544,10 +644,9 @@ function CapacityCounts({ data }: { data: InboxData }) {
   );
 }
 
-export interface InboxListProps {
+export interface InboxListProps extends Selection {
   data: InboxData;
   subtitle: string;
-  selectedKey: string | undefined;
   containerProps: ListNavigationContainerProps;
 }
 
@@ -555,13 +654,15 @@ export interface InboxListProps {
 export function InboxList({
   data,
   subtitle,
-  selectedKey,
+  selected,
+  onChoose,
   containerProps,
 }: InboxListProps) {
   const { model } = data;
   const [retrying, setRetrying] = useState(false);
   const paused = data.queue.data?.paused === true;
   const activeRuns = data.activeRuns.data?.items.length ?? 0;
+  const selection: Selection = { selected, onChoose };
   function retry() {
     setRetrying(true);
     void data.retry().finally(() => setRetrying(false));
@@ -605,11 +706,14 @@ export function InboxList({
       }
     >
       {paused ? (
+        // S18 drain semantics: no Run of the owner, running ones included,
+        // is admitted to its next stage; idle slots do not change that.
         <div className="inbox-notice" data-tone="warning" role="status">
           <StatusGlyph tone="warning" />
           <p>
-            Queue admission is paused. New Runs wait until you resume it in
-            Runs. <Link to="/runs">Open Runs</Link>
+            Queue admission is paused: your Runs, including running ones, start
+            no new stages until you resume it in Runs. Idle Runtime slots do not
+            bypass the pause. <Link to="/runs">Open Runs</Link>
           </p>
         </div>
       ) : null}
@@ -641,7 +745,7 @@ export function InboxList({
         <Section
           id="decide"
           rows={model.decide}
-          selectedKey={selectedKey}
+          selection={selection}
           data={data}
           empty={model.decide.length === 0}
         >
@@ -650,7 +754,7 @@ export function InboxList({
         <Section
           id="unblock"
           rows={model.unblock}
-          selectedKey={selectedKey}
+          selection={selection}
           data={data}
           empty={model.unblock.length === 0}
         >
@@ -659,7 +763,7 @@ export function InboxList({
         <Section
           id="ready"
           rows={model.ready}
-          selectedKey={selectedKey}
+          selection={selection}
           data={data}
           empty={model.ready.length === 0}
         >
@@ -668,9 +772,11 @@ export function InboxList({
         <Section
           id="running"
           rows={model.running}
-          selectedKey={selectedKey}
+          selection={selection}
           data={data}
           empty={model.running.length === 0 && activeRuns === 0}
+          // The active Runs row is a row too.
+          count={model.running.length + (activeRuns > 0 ? 1 : 0)}
         >
           <ActiveRunsRow data={data} />
         </Section>
