@@ -1,0 +1,56 @@
+/*
+ * ActionMenu ("⋯") — the base look lives here so the menu looks the same on
+ * every route, whatever route CSS has been loaded. Areas restyle the trigger
+ * and the panel with their own classes.
+ */
+.additional-actions {
+  position: relative;
+}
+
+.additional-actions > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.additional-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.additional-actions-menu {
+  display: grid;
+  width: min(20rem, calc(100vw - 1rem));
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  padding: 0.8rem;
+  text-align: left;
+}
+
+.additional-actions-menu small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/*
+ * The open panel is a manual popover in the top layer, placed in viewport
+ * coordinates by ActionMenu, so scrolling panes, containment and overflow
+ * never clip or offset it. The selector outranks older route rules that
+ * positioned it absolutely or statically, and resets the popover UA styles.
+ */
+.additional-actions[open] > .additional-actions-menu {
+  position: fixed;
+  z-index: 40;
+  inset: auto;
+  max-width: calc(100vw - 1rem);
+  height: auto;
+  margin: 0;
+  overflow: auto;
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Hidden only until the first measurement, to avoid a flash at 0,0. */
+.additional-actions[open] > .additional-actions-menu:not([data-placed]) {
+  visibility: hidden;
+}

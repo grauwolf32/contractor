@@ -26,4 +26,24 @@ describe("ActionMenu", () => {
     expect(trigger.parentElement).not.toHaveAttribute("open");
     expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus();
   });
+
+  it("places the open menu in viewport coordinates and forgets it on close", async () => {
+    render(
+      <ActionMenu label="Check actions">
+        <button>Delete check</button>
+      </ActionMenu>,
+    );
+    const user = userEvent.setup();
+    const trigger = screen.getByLabelText("Check actions");
+    const panel = screen.getByRole("button", { name: "Delete check" })
+      .parentElement as HTMLElement;
+    expect(panel).not.toHaveAttribute("data-placed");
+    await user.click(trigger);
+    expect(panel).toHaveAttribute("data-placed");
+    expect(panel.style.top).not.toBe("");
+    expect(panel.style.left).not.toBe("");
+    await user.keyboard("{Escape}");
+    expect(panel).not.toHaveAttribute("data-placed");
+    expect(panel.style.top).toBe("");
+  });
 });
