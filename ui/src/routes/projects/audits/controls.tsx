@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
+
 import {
   auditMutationAudit,
   mutateAudit,
@@ -7,24 +8,29 @@ import {
   type AuditMutationAction,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
+import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { ActionMenu } from "../../../app/action-menu";
-import { Dialog, DialogHeader } from "../../../app/dialog";
-import { Icon } from "../../../app/icon";
-import { AuditTimeLimitDialog } from "./time-limit-dialog";
 import { DeleteIcon } from "../../../app/delete-icon";
-import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import { Dialog, DialogHeader } from "../../../app/dialog";
 import { ErrorNotice } from "../../../app/error-notice";
+import { Icon } from "../../../app/icon";
+import { checkStateLabel } from "../../../app/vocabulary";
+import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import { auditProfileLabel } from "./labels";
+import { AuditTimeLimitDialog } from "./time-limit-dialog";
+
+import "./checks.css";
 
 export function AuditMutationNotice({ error }: { error: unknown }) {
   return (
     <>
       <ErrorNotice error={error} reconcileWrite />
       {error instanceof PublicAPIError && error.status === 412 ? (
-        <p className="muted-copy" role="status">
-          The Audit revision changed. The page has refreshed current state;
-          review it before retrying the action.
+        <p className="checks-quiet" role="status">
+          The check changed in the meantime. The page now shows its current
+          state; review it before trying again.
         </p>
       ) : null}
     </>
@@ -33,24 +39,27 @@ export function AuditMutationNotice({ error }: { error: unknown }) {
 
 type DestructiveAuditAction = Extract<AuditMutationAction, "cancel" | "delete">;
 
+/** States that accept Stop (cancel). */
+const STOPPABLE: readonly Audit["state"][] = [
+  "active",
+  "waiting_review",
+  "paused",
+  "finalizing",
+];
+
+/** States that accept Delete. */
+const DELETABLE: readonly Audit["state"][] = [
+  "draft",
+  "completed",
+  "cancelled",
+  "failed",
+];
+
 function auditActionAllowed(
   audit: Audit,
   action: DestructiveAuditAction,
 ): boolean {
-  if (action === "cancel") {
-    return (
-      audit.state === "active" ||
-      audit.state === "waiting_review" ||
-      audit.state === "paused" ||
-      audit.state === "finalizing"
-    );
-  }
-  return (
-    audit.state === "draft" ||
-    audit.state === "completed" ||
-    audit.state === "cancelled" ||
-    audit.state === "failed"
-  );
+  return (action === "cancel" ? STOPPABLE : DELETABLE).includes(audit.state);
 }
 
 function AuditMutationDialog({
@@ -74,10 +83,11 @@ function AuditMutationDialog({
   const description = useId();
   const safeAction = useRef<HTMLButtonElement>(null);
   const allowed = auditActionAllowed(audit, action);
-  const cancelling = action === "cancel";
+  const stopping = action === "cancel";
+  const state = checkStateLabel(audit.state).label;
   return (
     <Dialog
-      className="project-dialog panel audit-mutation-dialog"
+      className="project-dialog panel checks-dialog"
       labelledBy={heading}
       describedBy={description}
       initialFocusRef={safeAction}
@@ -86,36 +96,37 @@ function AuditMutationDialog({
     >
       <DialogHeader
         id={heading}
-        eyebrow="Audit action"
-        title={cancelling ? "Cancel this Audit?" : "Delete this Audit?"}
+        title={stopping ? "Stop this check?" : "Delete this check?"}
         close={{
-          label: "Close Audit confirmation",
+          label: "Close confirmation",
           disabled: pending,
           onClose: onClose,
         }}
       />
-      <p id={description}>
-        {cancelling
-          ? "Stop this audit and cancel its running checks. Results already collected will remain available. Cancellation may take a moment."
-          : "Permanently delete this audit, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
+      <p id={description} className="checks-dialog-text">
+        {stopping
+          ? "Stop this check and cancel its running work. Results already collected stay available. Stopping may take a moment."
+          : "Permanently delete this check, its results and retained evidence. This cannot be undone. Deletion runs in the background and may take a moment."}
       </p>
-      <dl className="metadata-grid audit-mutation-identity">
+      <dl className="checks-facts checks-dialog-facts">
         <div>
           <dt>Project</dt>
           <dd>
-            {projectName ?? audit.projectId} <code>{audit.projectId}</code>
+            {projectName ?? audit.projectId}{" "}
+            <code className="checks-mono">{audit.projectId}</code>
           </dd>
         </div>
         <div>
-          <dt>Audit</dt>
+          <dt>Check</dt>
           <dd>
-            <code>{audit.auditId}</code>
+            <code className="checks-mono">{audit.auditId}</code>
           </dd>
         </div>
         <div>
-          <dt>Profile</dt>
+          <dt>Check type</dt>
           <dd>
-            <code>
+            {auditProfileLabel(audit)}{" "}
+            <code className="checks-mono">
               {audit.profile.name}@{audit.profile.version}
             </code>
           </dd>
@@ -123,49 +134,127 @@ function AuditMutationDialog({
         <div>
           <dt>Current state</dt>
           <dd>
-            {audit.state} · revision {audit.revision}
+            {state} · revision {audit.revision}
           </dd>
         </div>
       </dl>
       {!allowed ? (
-        <div className="notice notice-warning" role="status">
+        <div className="checks-notice" data-tone="warning" role="status">
           <strong>This action is no longer available.</strong>
           <p>
-            The audit is now <code>{audit.state}</code>. Close this confirmation
-            and review its updated status.
+            The check is now {state.toLocaleLowerCase()}. Close this
+            confirmation and review its current state.
           </p>
         </div>
       ) : null}
       {error === null ? null : <AuditMutationNotice error={error} />}
-      <div className="inline-actions audit-mutation-actions">
+      <div className="checks-dialog-actions">
         <button
           ref={safeAction}
           type="button"
-          className="secondary-button"
+          className="ui-btn"
           disabled={pending}
           onClick={onClose}
         >
-          Keep Audit unchanged
+          {stopping ? "Keep the check running" : "Keep the check"}
         </button>
         <button
           type="button"
-          className="danger-button"
+          className="ui-btn"
+          data-variant="danger"
           disabled={pending || !allowed}
           onClick={onConfirm}
         >
           {pending
-            ? cancelling
-              ? "Cancelling…"
-              : "Starting deletion…"
-            : cancelling
-              ? "Confirm cancellation"
-              : "Begin Audit deletion"}
+            ? stopping
+              ? "Stopping…"
+              : "Deleting…"
+            : stopping
+              ? "Stop check"
+              : "Delete check"}
         </button>
       </div>
     </Dialog>
   );
 }
 
+interface ControlButton {
+  action: AuditMutationAction;
+  /** Visible text. */
+  text: string;
+  /** Accessible name; starts with the visible text. */
+  name: string;
+  title: string;
+  icon: ReactNode;
+  variant: "primary" | "secondary" | "ghost" | "danger";
+}
+
+function controlButtons(audit: Audit): ControlButton[] {
+  const buttons: ControlButton[] = [];
+  if (audit.state === "draft")
+    buttons.push({
+      action: "start",
+      text: "Start check",
+      name: "Start check",
+      title: "Start check",
+      icon: <Icon name="play" />,
+      variant: "primary",
+    });
+  if (audit.state === "active" || audit.state === "waiting_review")
+    buttons.push({
+      action: "pause",
+      text: "Pause",
+      name: "Pause new work",
+      title: "Pause new work; running work can finish",
+      icon: <Icon name="pause" />,
+      variant: "secondary",
+    });
+  if (audit.state === "paused")
+    buttons.push({
+      action: "resume",
+      text: "Continue",
+      name: "Continue check",
+      title: "Continue check",
+      icon: <Icon name="play" />,
+      variant: "primary",
+    });
+  if (STOPPABLE.includes(audit.state))
+    buttons.push({
+      action: "cancel",
+      text: "Stop",
+      name: "Stop check",
+      title: "Stop check",
+      icon: <Icon name="stop" />,
+      variant: "ghost",
+    });
+  if (DELETABLE.includes(audit.state))
+    buttons.push({
+      action: "delete",
+      text: "Delete check",
+      name: "Delete check",
+      title: "Delete check",
+      icon: <DeleteIcon />,
+      variant: "danger",
+    });
+  return buttons;
+}
+
+function deleteHint(audit: Audit): string {
+  if (audit.state === "deleting")
+    return "Deleting the check and its retained results…";
+  if (audit.state === "cancelling") return "Waiting for the check to stop.";
+  return "Stop the check or let it finish before deleting it.";
+}
+
+/**
+ * Start, Pause new work, Continue, Stop and Delete for one check, as its
+ * state allows. Start and Continue ask for a time limit; Stop and Delete ask
+ * for confirmation. Nothing changes before the Server answers; the check,
+ * its project lists and the cross-project lists are read again afterwards.
+ *
+ * `compact`: icon buttons for list rows. `menu`: Delete moves into a "Check
+ * actions" menu next to the other controls (headers).
+ */
 export function AuditControls({
   audit,
   projectName,
@@ -175,7 +264,6 @@ export function AuditControls({
   audit: Audit;
   projectName: string | undefined;
   compact?: boolean;
-  /** Header layout: Delete lives in an overflow menu next to the controls. */
   menu?: boolean;
 }) {
   const api = usePublicAPI();
@@ -236,15 +324,13 @@ export function AuditControls({
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.allCoverage(updated.auditId),
-          // URL-pinned Coverage belongs to its original revision.
+          // URL-pinned coverage belongs to its original revision.
           predicate: (query) => query.queryKey.at(-1) === null,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: [...queryKeys.audits.detail(updated.auditId), "workspace"],
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.report(updated.auditId),
         }),
+        invalidateCrossProject(queryClient),
       ]);
     },
     onError: async () => {
@@ -255,6 +341,7 @@ export function AuditControls({
         queryClient.invalidateQueries({
           queryKey: queryKeys.projects.audits.all(audit.projectId),
         }),
+        invalidateCrossProject(queryClient),
       ]);
     },
     onSettled: () => {
@@ -279,147 +366,93 @@ export function AuditControls({
     mutation.reset();
     mutation.mutate({ action: confirmation });
   }
-  const buttons: Array<{
-    action: AuditMutationAction;
-    label: string;
-    dangerous?: boolean;
-  }> = [];
-  if (audit.state === "draft")
-    buttons.push({ action: "start", label: "Start Audit" });
-  if (audit.state === "active" || audit.state === "waiting_review") {
-    buttons.push({ action: "pause", label: "Pause new Audit Runs" });
+  function activate(button: ControlButton): void {
+    if (button.action === "cancel" || button.action === "delete") {
+      mutation.reset();
+      setConfirmation(button.action);
+    } else if (button.action === "start" || button.action === "resume") {
+      mutation.reset();
+      setTimeAction(button.action);
+    } else {
+      mutation.mutate({ action: button.action });
+    }
   }
-  if (audit.state === "paused")
-    buttons.push({ action: "resume", label: "Continue Audit" });
-  if (
-    audit.state === "active" ||
-    audit.state === "waiting_review" ||
-    audit.state === "paused" ||
-    audit.state === "finalizing"
-  ) {
-    buttons.push({ action: "cancel", label: "Cancel", dangerous: true });
-  }
-  if (
-    audit.state === "draft" ||
-    audit.state === "completed" ||
-    audit.state === "cancelled" ||
-    audit.state === "failed"
-  ) {
-    buttons.push({ action: "delete", label: "Delete Audit", dangerous: true });
-  }
-  function renderButton(button: (typeof buttons)[number], inMenu = false) {
+  const buttons = controlButtons(audit);
+  function renderButton(button: ControlButton, inMenu = false) {
+    const iconOnly = compact && !inMenu;
     return (
       <button
         key={button.action}
-        className={
-          button.action === "delete"
-            ? inMenu
-              ? "danger-button"
-              : "danger-button delete-icon-button"
-            : button.dangerous
-              ? `danger-button ${compact ? "icon-button" : ""}`
-              : (button.action === "start" || button.action === "resume") &&
-                  !compact
-                ? "primary-button"
-                : "secondary-button icon-button"
-        }
         type="button"
-        aria-label={inMenu ? undefined : button.label}
-        title={
-          button.action === "pause"
-            ? "Pause new Audit Runs; running work can finish"
-            : button.label
+        className="ui-btn"
+        data-size="sm"
+        data-variant={
+          iconOnly && button.variant === "ghost" ? "secondary" : button.variant
         }
+        data-icon-only={iconOnly ? "" : undefined}
+        aria-label={
+          iconOnly || button.name !== button.text ? button.name : undefined
+        }
+        title={button.title}
         aria-haspopup={button.action === "pause" ? undefined : "dialog"}
         disabled={mutation.isPending}
-        onClick={() => {
-          if (button.dangerous) {
-            mutation.reset();
-            setConfirmation(button.action as DestructiveAuditAction);
-          } else if (button.action === "start" || button.action === "resume") {
-            mutation.reset();
-            setTimeAction(button.action);
-          } else {
-            mutation.mutate({ action: button.action });
-          }
-        }}
+        onClick={() => activate(button)}
       >
-        {button.action === "delete" ? (
-          <>
-            <DeleteIcon />
-            {inMenu ? <span>{button.label}</span> : null}
-          </>
-        ) : button.action === "pause" ? (
-          <Icon name="pause" />
-        ) : button.action === "start" || button.action === "resume" ? (
-          <>
-            <Icon name="play" />
-            {compact ? null : <span>{button.label}</span>}
-          </>
-        ) : compact ? (
-          <Icon name="stop" />
-        ) : (
-          button.label
-        )}
+        {button.icon}
+        {iconOnly ? null : <span>{button.text}</span>}
       </button>
     );
   }
   const deleteButton = buttons.find((button) => button.action === "delete");
-  const deleteHint =
-    audit.state === "deleting"
-      ? "Deleting audit and retained results…"
-      : audit.state === "cancelling"
-        ? "Waiting for cancellation to finish."
-        : "Cancel or finish the audit before deleting it.";
+  const visible = buttons.filter(
+    (button) => !(menu && button.action === "delete"),
+  );
   return (
     <div
-      className={`audit-controls ${menu ? "audit-header-actions" : ""}`.trim()}
-      id={compact ? undefined : "audit-controls"}
+      className="checks-controls"
+      data-layout={compact ? "compact" : menu ? "menu" : undefined}
     >
-      {!compact &&
-      audit.state === "paused" &&
-      audit.stopReason?.code === "deadline_exhausted" ? (
-        <p className="audit-control-reason">
-          <strong>Time limit reached.</strong> Continue with a longer limit;
-          collected results are retained.
-        </p>
-      ) : null}
-      {buttons
-        .filter((button) => !(menu && button.action === "delete"))
-        .map((button) => renderButton(button))}
+      {visible.map((button) => renderButton(button))}
       {menu ? (
-        <ActionMenu label="Audit actions">
+        <ActionMenu label="Check actions">
           {deleteButton === undefined ? (
             <>
-              <button className="danger-button" type="button" disabled>
+              <button
+                className="ui-btn"
+                data-size="sm"
+                data-variant="danger"
+                type="button"
+                disabled
+              >
                 <DeleteIcon />
-                <span>Delete Audit</span>
+                <span>Delete check</span>
               </button>
-              <small>{deleteHint}</small>
+              <small className="checks-quiet">{deleteHint(audit)}</small>
             </>
           ) : (
             renderButton(deleteButton, true)
           )}
         </ActionMenu>
       ) : null}
-      {!menu && !auditActionAllowed(audit, "delete") ? (
-        <div className="audit-delete-hint">
-          <button
-            className="danger-button delete-icon-button"
-            type="button"
-            aria-label="Delete Audit"
-            title="Delete Audit"
-            disabled
-          >
-            <DeleteIcon />
-          </button>
-          {compact ? null : <small>{deleteHint}</small>}
-        </div>
+      {!menu && deleteButton === undefined ? (
+        <button
+          className="ui-btn"
+          data-size="sm"
+          data-variant="danger"
+          data-icon-only={compact ? "" : undefined}
+          type="button"
+          aria-label="Delete check"
+          title={deleteHint(audit)}
+          disabled
+        >
+          <DeleteIcon />
+          {compact ? null : <span>Delete check</span>}
+        </button>
       ) : null}
       {confirmation === undefined &&
       timeAction === undefined &&
       mutation.error !== null ? (
-        <div className="audit-control-error">
+        <div className="checks-controls-error">
           <AuditMutationNotice error={mutation.error} />
         </div>
       ) : null}

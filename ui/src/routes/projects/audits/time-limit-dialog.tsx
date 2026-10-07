@@ -1,8 +1,17 @@
 import { useId, useRef, useState } from "react";
+
 import type { Audit } from "../../../api/audits";
 import { Dialog, DialogHeader } from "../../../app/dialog";
 import { AuditMutationNotice } from "./controls";
 
+import "./checks.css";
+
+/**
+ * Asks for the time limit before a check starts or continues: 7 days (the
+ * default), 24 hours, no time limit or a custom duration up to 365 days. A
+ * paused check that still has time left keeps it by default. Closing the
+ * dialog sends nothing.
+ */
 export function AuditTimeLimitDialog({
   audit,
   action,
@@ -37,10 +46,10 @@ export function AuditTimeLimitDialog({
     (Number.isSafeInteger(seconds) &&
       seconds >= (choice === "custom" ? 1 : 0) &&
       seconds <= 31536000);
-  const title = action === "start" ? "Start Audit" : "Continue Audit";
+  const title = action === "start" ? "Start check" : "Continue check";
   return (
     <Dialog
-      className="project-dialog panel audit-time-dialog"
+      className="project-dialog panel checks-dialog"
       labelledBy={heading}
       initialFocusRef={initialFocus}
       onRequestClose={() => {
@@ -48,6 +57,7 @@ export function AuditTimeLimitDialog({
       }}
     >
       <form
+        className="checks-dialog-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (valid && !pending) onConfirm(seconds);
@@ -55,21 +65,20 @@ export function AuditTimeLimitDialog({
       >
         <DialogHeader
           id={heading}
-          eyebrow="Execution time"
           title={title}
           close={{
-            label: "Close Audit time settings",
+            label: "Close time limit settings",
             disabled: pending,
             onClose: onClose,
           }}
         />
-        <p>
+        <p className="checks-dialog-text">
           {action === "start"
-            ? "Choose how long this audit may submit new Runs."
-            : "Continue with the same inputs and accepted results. Finished checks stay complete; running work can finish."}
+            ? "Choose how long this check may start new work."
+            : "Continue with the same inputs and accepted results. Finished items stay finished; running work can finish."}
         </p>
-        <label>
-          Audit time limit
+        <label className="checks-field">
+          <span>Time limit</span>
           <select
             ref={initialFocus}
             value={choice}
@@ -86,8 +95,8 @@ export function AuditTimeLimitDialog({
           </select>
         </label>
         {choice === "custom" ? (
-          <label>
-            Time limit in hours
+          <label className="checks-field">
+            <span>Time limit in hours</span>
             <input
               type="number"
               min="0.01"
@@ -100,9 +109,9 @@ export function AuditTimeLimitDialog({
             />
           </label>
         ) : null}
-        <p className="muted-copy">
-          The timer includes queue waiting and stops while the audit is paused.
-          Reaching the limit pauses new Runs; running work can finish.
+        <p className="checks-quiet">
+          The time includes waiting in the queue and stops while the check is
+          paused. Reaching the limit pauses new work; running work can finish.
         </p>
         {!valid ? (
           <p className="form-error" role="alert">
@@ -110,16 +119,21 @@ export function AuditTimeLimitDialog({
           </p>
         ) : null}
         {error === null ? null : <AuditMutationNotice error={error} />}
-        <div className="inline-actions">
+        <div className="checks-dialog-actions">
           <button
             type="button"
-            className="secondary-button"
+            className="ui-btn"
             disabled={pending}
             onClick={onClose}
           >
             Close
           </button>
-          <button type="submit" disabled={pending || !valid}>
+          <button
+            type="submit"
+            className="ui-btn"
+            data-variant="primary"
+            disabled={pending || !valid}
+          >
             {pending ? "Applying…" : title}
           </button>
         </div>
