@@ -191,6 +191,80 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 }
 
 describe("Audit API", () => {
+  it("queues report reads in order without exhausting file transfer capacity", async () => {
+    const started: string[] = [];
+    const finish: Array<() => void> = [];
+    let active = 0;
+    let maximum = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        started.push(new URL(request.url).pathname);
+        active++;
+        maximum = Math.max(maximum, active);
+        await new Promise<void>((resolve) => finish.push(resolve));
+        active--;
+        return response({ status: "pending" });
+      }),
+    );
+    const reads = Array.from({ length: 6 }, (_, index) =>
+      getAuditReport(api, `audit_${index}`),
+    );
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    for (let index = 0; index < reads.length; index++) {
+      await vi.waitFor(() => expect(finish[index]).toBeDefined());
+      finish[index]!();
+      await reads[index];
+      await vi.waitFor(() =>
+        expect(started).toHaveLength(Math.min(index + 3, reads.length)),
+      );
+    }
+    expect(maximum).toBe(2);
+    expect(started).toEqual(
+      Array.from(
+        { length: 6 },
+        (_, index) => `/v1/audits/audit_${index}/report`,
+      ),
+    );
+  });
+
+  it("releases report slots after failure and isolates API clients", async () => {
+    const finish: Array<() => void> = [];
+    const blocked = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => {
+        await new Promise<void>((resolve) => finish.push(resolve));
+        return response(
+          {
+            code: "artifact_transfer_capacity",
+            message: "Busy",
+            retryable: true,
+          },
+          { status: 503 },
+        );
+      }),
+    );
+    const reads = Array.from({ length: 3 }, (_, index) =>
+      getAuditReport(blocked, `audit_${index}`).catch(
+        (error: unknown) => error,
+      ),
+    );
+    await vi.waitFor(() => expect(finish).toHaveLength(2));
+    const independent = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response({ status: "pending" })),
+    );
+    await expect(getAuditReport(independent, audit.auditId)).resolves.toEqual({
+      status: "pending",
+    });
+    for (let index = 0; index < reads.length; index++) {
+      await vi.waitFor(() => expect(finish[index]).toBeDefined());
+      finish[index]!();
+      await expect(reads[index]).resolves.toMatchObject({ status: 503 });
+    }
+  });
+
   it.each([
     { status: "ready", mediaType: "text/markdown", accepted: true },
     { status: "ready", mediaType: "text/plain", accepted: false },

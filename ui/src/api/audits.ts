@@ -464,15 +464,48 @@ export async function listAuditCoverage(
   return { items: structuredClone(page.items), page: page.page };
 }
 
+interface ReportReadQueue {
+  active: number;
+  waiting: Array<() => void>;
+}
+
+// Inbox and Reports can read many retained reports at once. Each report
+// reads file content on Server, whose transfer capacity is deliberately small.
+// Share two slots across the views using the same API client.
+const reportReadQueues = new WeakMap<PublicAPI, ReportReadQueue>();
+
+async function readReportWithCapacity<T>(
+  api: PublicAPI,
+  read: () => Promise<T>,
+): Promise<T> {
+  let queue = reportReadQueues.get(api);
+  if (queue === undefined) {
+    queue = { active: 0, waiting: [] };
+    reportReadQueues.set(api, queue);
+  }
+  if (queue.active < 2) queue.active++;
+  else await new Promise<void>((resolve) => queue.waiting.push(resolve));
+  try {
+    return await read();
+  } finally {
+    // Transfer the slot to the oldest waiter before admitting another read.
+    const next = queue.waiting.shift();
+    if (next === undefined) queue.active--;
+    else next();
+  }
+}
+
 export async function getAuditReport(
   api: PublicAPI,
   auditId: string,
 ): Promise<AuditReport> {
   requireAuditID(auditId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/report", {
-      params: { path: { auditId } },
-    }),
+  const result = await readReportWithCapacity(api, () =>
+    api.request((client) =>
+      client.GET("/v1/audits/{auditId}/report", {
+        params: { path: { auditId } },
+      }),
+    ),
   );
   const report = requireData(result);
   if (

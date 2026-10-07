@@ -23,6 +23,9 @@ revision, evidence, browser storage and destructive-action checks.
 
 The API gaps below remain: global lists still use bounded client fan-out,
 activity is assembled from snapshots, and suggestions use static rules.
+Report reads share a queue of two concurrent requests per API client, including
+Inbox, Reports and check details, to avoid exhausting Server's file transfer
+capacity when opening a list.
 
 The map was built from four read-only inventories of `ui/` (projects and
 audits; runs, artifacts, catalog and evals; shell, operations and the visual
