@@ -803,6 +803,53 @@ describe("Start a check: options and starting", () => {
     },
   );
 
+  it("leaves the user where they went when the start answers after they left", async () => {
+    let releaseStart = () => {};
+    const startAnswered = new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    });
+    let releaseRuns = () => {};
+    const runsCode = new Promise<void>((resolve) => {
+      releaseRuns = resolve;
+    });
+    const { user, router, sent } = renderStart(
+      `${START}&type=owasp-top10-2025-source-risk`,
+      {
+        profiles: [top10],
+        materials: [sourceZip],
+        start: async (_request, url) => {
+          await startAnswered;
+          const auditId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
+          const started = startResponse(draftAudit(top10, { auditId }));
+          return json(started, 200, { ETag: `"${started.audit.revision}"` });
+        },
+        slowPage: { path: "/runs", until: runsCode },
+      },
+    );
+    await waitForTypes();
+    await user.click(startButton());
+    await waitFor(() => expect(sent("POST", "/start")).toHaveLength(1));
+
+    // The user goes to Runs while the start is on its way; Runs' code is
+    // still loading, so the start page stays on screen meanwhile.
+    act(() => {
+      void router.navigate("/runs");
+    });
+    await waitFor(() =>
+      expect(router.state.navigation.location?.pathname).toBe("/runs"),
+    );
+    await act(async () => {
+      releaseStart();
+      await startAnswered;
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    });
+    expect(router.state.navigation.location?.pathname).toBe("/runs");
+
+    releaseRuns();
+    expect(await screen.findByText("The slow page")).toBeVisible();
+    expect(router.state.location.pathname).toBe("/runs");
+  });
+
   it("refuses a custom time limit outside 0.01 to 8760 hours", async () => {
     const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
       profiles: [top10],

@@ -83,6 +83,8 @@ export interface FakeStartServer {
    * answers left it (a draft at revision 1 when they were replaced).
    */
   audit?: Answer;
+  /** A page whose code loads only once `until` settles: a slow next page. */
+  slowPage?: { path: string; until: Promise<void> };
 }
 
 function auditResponse(audit: Audit): Response {
@@ -182,6 +184,17 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
   const router = createMemoryRouter(
     [
       { path: "/checks/new", element: <StartCheckRoute /> },
+      ...(server.slowPage === undefined
+        ? []
+        : [
+            {
+              path: server.slowPage.path,
+              lazy: async () => {
+                await server.slowPage?.until;
+                return { element: <p>The slow page</p> };
+              },
+            },
+          ]),
       // Elsewhere: tests read router.state.location.
       { path: "*", element: <p>Another page</p> },
     ],
