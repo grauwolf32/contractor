@@ -15,7 +15,7 @@ for (const width of [390, 1280]) {
       await page
         .getByLabel("Execution kind", { exact: true })
         .selectOption(kind);
-      const label = kind === "audit" ? "AuditProfile" : "Workflow";
+      const label = kind === "audit" ? "Check type" : "Workflow";
       const prefix = kind === "audit" ? "audit" : "trace";
       await page
         .getByLabel(`A ${label} family`, { exact: true })
@@ -39,7 +39,7 @@ for (const width of [390, 1280]) {
         .getByRole("button", { name: "Next step", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "Add assessment check", exact: true })
+        .getByRole("button", { name: "Add criterion", exact: true })
         .click();
       await page.getByLabel("Repetitions", { exact: true }).fill("2");
       await page
@@ -137,7 +137,7 @@ test("dataset authoring keeps private review material separate from visible case
   await page
     .getByRole("button", { name: "Add human rubric", exact: true })
     .click();
-  await page.getByLabel("Review check ID", { exact: true }).fill("review");
+  await page.getByLabel("Review criterion ID", { exact: true }).fill("review");
   await page.getByLabel("Rubric revision", { exact: true }).fill("r1");
   await page
     .getByLabel("Private rubric", { exact: true })

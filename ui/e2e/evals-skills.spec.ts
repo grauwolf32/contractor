@@ -158,12 +158,12 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
     "Workspace settings",
   ]);
   await expect(page.getByRole("heading", { name: "Artifacts" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add sources" })).toHaveCount(
+  await expect(page.getByRole("button", { name: "Add material" })).toHaveCount(
     0,
   );
   await expect(page.getByText("Format matches")).toHaveCount(0);
 
-  await page.getByRole("link", { name: "Catalog", exact: true }).click();
+  await page.getByRole("link", { name: "Library", exact: true }).click();
   await page.getByRole("link", { name: "Skills", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible();
   const skill = page.getByRole("link", { name: "architecture-review" });

@@ -110,6 +110,6 @@ test("external Audit keeps inspection and exact execution navigation without dis
     .getByRole("link", { name: "unsafe-query / sample 1", exact: true })
     .click();
   await expect(
-    page.getByRole("link", { name: "audit audit-1", exact: true }).first(),
+    page.getByRole("link", { name: "Check audit-1", exact: true }).first(),
   ).toHaveAttribute("href", "/projects/member-project/audits/audit-1");
 });
