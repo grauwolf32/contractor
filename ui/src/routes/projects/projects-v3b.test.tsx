@@ -223,6 +223,19 @@ function serve(server: FakeServer) {
           throw new Error(`unexpected POST ${path}`);
         return server.mutateAudit(match[1]!, match[2]!);
       }
+      match = /^\/v1\/audits\/([^/]+)$/.exec(path);
+      if (match !== null && request.method === "GET") {
+        const auditId = match[1];
+        const found = Object.values(server.audits ?? {})
+          .flat()
+          .find((audit) => audit.auditId === auditId);
+        return found === undefined
+          ? json(
+              { code: "not_found", message: "not found", retryable: false },
+              { status: 404 },
+            )
+          : json(found, { headers: { ETag: `"${found.revision}"` } });
+      }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
         if (match[2] === "findings") await server.holdFindings?.(match[1]!);
@@ -1124,6 +1137,53 @@ describe("Project overview", () => {
     const after = await screen.findByRole("region", { name: "At a glance" });
     expect(await within(after).findByText("None running")).toBeVisible();
     expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
+  });
+
+  it("stops listing a check deleted elsewhere once its page finds it gone", async () => {
+    const checks = [...overviewServer.audits!.project_a!];
+    const { router, user } = renderAt(
+      { ...overviewServer, audits: { project_a: checks } },
+      "/projects/project_a",
+    );
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    expect(
+      await within(glance).findByRole("link", { name: "1 running" }),
+    ).toBeVisible();
+    const timeline = screen.getByRole("region", { name: "Timeline" });
+    const link = await within(timeline).findByRole("link", {
+      name: "OpenAPI · Operation trace",
+    });
+    // The running check is deleted in another tab; the overview still lists
+    // it and links to it.
+    checks.splice(
+      checks.findIndex((audit) => audit.auditId === "audit_running"),
+      1,
+    );
+    await user.click(link);
+    // The check page answers 404 and returns to the project's checks.
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_a/audits"),
+    );
+    const sections = await screen.findByRole("navigation", {
+      name: "Project sections",
+    });
+    // Back within the overview's polling interval: the 404 refreshed the
+    // check page the overview reads, so it neither counts nor links the
+    // deleted check.
+    await user.click(within(sections).getByRole("link", { name: "Overview" }));
+    const after = await screen.findByRole("region", { name: "At a glance" });
+    expect(await within(after).findByText("None running")).toBeVisible();
+    expect(within(after).queryByRole("link", { name: "1 running" })).toBeNull();
+    // Its possible issue ("Order IDOR") is no longer counted either.
+    expect(
+      await within(after).findByRole("link", { name: "2 to review" }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Timeline" })).queryByRole(
+        "link",
+        { name: "OpenAPI · Operation trace" },
+      ),
+    ).toBeNull();
   });
 });
 
