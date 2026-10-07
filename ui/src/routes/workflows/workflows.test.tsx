@@ -1276,7 +1276,7 @@ describe("Workflow routes", () => {
     await screen.findByRole("button", { name: "Retry same request" });
     await user.type(screen.getByLabelText("Add a label"), "pending:restored");
     await router.navigate("/artifacts");
-    await screen.findByRole("heading", { name: "Artifacts" });
+    await screen.findByRole("heading", { name: "Files" });
     await router.navigate(workflowRoute);
     await openRunSetup();
     expect(await screen.findByLabelText(/^objective/i)).toHaveValue(

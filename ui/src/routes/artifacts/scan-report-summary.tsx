@@ -140,9 +140,9 @@ export function ScanReportSummary({ source }: { source: string }) {
   }
   const observation = report.observation;
   return (
-    <section aria-label="Scanner execution">
-      <h3>Scanner execution</h3>
-      <dl className="metadata-grid">
+    <section className="materials-scan" aria-label="Scanner execution">
+      <h3 className="materials-subtitle">Scanner execution</h3>
+      <dl className="materials-facts">
         <div>
           <dt>Tool</dt>
           <dd>{report.tool}</dd>
@@ -175,7 +175,7 @@ export function ScanReportSummary({ source }: { source: string }) {
           </div>
         ) : null}
       </dl>
-      <p className="muted-copy">
+      <p className="materials-quiet">
         This describes scanner execution. A completed scan or an empty report
         does not establish that the target is free of vulnerabilities.
         {report.tool === "scan_katana"

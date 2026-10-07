@@ -12,6 +12,7 @@ import {
   type ArtifactPreviewPlan,
 } from "./preview-plan";
 import { ScanReportSummary } from "./scan-report-summary";
+import "./materials.css";
 
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
 const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));
@@ -53,7 +54,9 @@ class RendererErrorBoundary extends Component<
   static getDerivedStateFromError(error: unknown): { message: string } {
     return {
       message:
-        error instanceof Error ? error.message : "Artifact rendering failed",
+        error instanceof Error
+          ? error.message
+          : "The preview could not be rendered",
     };
   }
 
@@ -103,14 +106,14 @@ export function LoadedArtifactPreview({
   }
   if (plan.kind === "source") {
     return (
-      <>
+      <div className="materials-preview-source">
         {mediaType === "application/json" ? (
           <ScanReportSummary source={source} />
         ) : null}
         <pre className="artifact-preview" tabIndex={0}>
           {source}
         </pre>
-      </>
+      </div>
     );
   }
 
@@ -119,10 +122,10 @@ export function LoadedArtifactPreview({
   const sourceTabId = `${id}-source-tab`;
   const sourcePanelId = `${id}-source-panel`;
   return (
-    <div className="artifact-preview-shell">
+    <div className="materials-preview-shell">
       <div
-        aria-label="Artifact preview mode"
-        className="artifact-preview-tabs"
+        aria-label="Preview mode"
+        className="materials-tabs"
         role="tablist"
         onKeyDown={(event) => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
@@ -146,7 +149,7 @@ export function LoadedArtifactPreview({
           aria-controls={renderedPanelId}
           aria-selected={tab === "rendered"}
           tabIndex={tab === "rendered" ? 0 : -1}
-          className={tab === "rendered" ? "selected" : undefined}
+          className="materials-tab"
           id={renderedTabId}
           role="tab"
           type="button"
@@ -158,7 +161,7 @@ export function LoadedArtifactPreview({
           aria-controls={sourcePanelId}
           aria-selected={tab === "source"}
           tabIndex={tab === "source" ? 0 : -1}
-          className={tab === "source" ? "selected" : undefined}
+          className="materials-tab"
           id={sourceTabId}
           role="tab"
           type="button"
@@ -166,7 +169,7 @@ export function LoadedArtifactPreview({
         >
           Source
         </button>
-        <span>{rendererLabel(plan)}</span>
+        <span className="materials-tabs-note">{rendererLabel(plan)}</span>
       </div>
       <div
         aria-labelledby={renderedTabId}

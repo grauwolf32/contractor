@@ -1,103 +1,171 @@
-import { type ReactNode, useState } from "react";
-import type { ArtifactMetadata } from "../../api/artifacts";
-import { workflowFormats } from "../workflows/formats";
-import { formatBytes, formatTimestamp } from "../../app/format";
-import { GitSourceDetails } from "./git-import-dialog";
-import "./reader.css";
+import { useEffect, useRef, useState } from "react";
 
+import type { ArtifactArchiveScope } from "../../api/artifact-archive";
+import type { ArtifactMetadata } from "../../api/artifacts";
+import { formatBytes, formatTimestamp } from "../../app/format";
+import { RecordedTime } from "../../app/recorded-time";
+import { IdChip, StatusGlyph, TechnicalDetails } from "../../ui";
+import { ArtifactHistory } from "./history";
+import { MaterialIcon } from "./icons";
+import { formatLabel } from "./kinds";
+import "./materials.css";
+
+/** Id of the technical details that hold versions and lineage. */
+const HISTORY_ID = "artifact-history";
+
+/**
+ * Whether the shown revision is the current one. Nothing is claimed before
+ * the metadata has loaded.
+ */
 export function ArtifactRevisionLede({
   metadata,
 }: {
   metadata: ArtifactMetadata | undefined;
 }) {
+  if (metadata === undefined) return null;
   return (
-    <p className="lede">
-      {metadata === undefined
-        ? "Artifact revision"
-        : metadata.current
-          ? "Current revision"
-          : "Historical revision"}
+    <p
+      className="lede materials-revision"
+      data-current={metadata.current ? "" : undefined}
+    >
+      <StatusGlyph tone={metadata.current ? "done" : "idle"} size={14} />
+      {metadata.current ? "Current revision" : "Historical revision"}
     </p>
   );
 }
 
-export function ArtifactMetadataSummary({
+/** Format, size, creation, lock and the Git source of one revision. */
+export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
+  const git = metadata.gitSource;
+  return (
+    <dl className="materials-facts">
+      <div>
+        <dt>Format</dt>
+        <dd>{formatLabel(metadata.mediaType)}</dd>
+      </div>
+      <div>
+        <dt>Size</dt>
+        <dd>{formatBytes(metadata.size)}</dd>
+      </div>
+      <div>
+        <dt>Created</dt>
+        <dd>
+          <time dateTime={metadata.createdAt}>
+            {formatTimestamp(metadata.createdAt)}
+          </time>
+        </dd>
+      </div>
+      <div>
+        <dt>Locked</dt>
+        <dd>{metadata.frozen ? "yes" : "no"}</dd>
+      </div>
+      {git === undefined ? null : (
+        <>
+          <div className="materials-fact-wide">
+            <dt>Git repository</dt>
+            <dd className="materials-mono materials-wrap">
+              {git.repositoryUrl}
+            </dd>
+          </div>
+          <div>
+            <dt>Branch or tag</dt>
+            <dd>{git.requestedRef ?? "Default branch"}</dd>
+          </div>
+          <div>
+            <dt>Git commit</dt>
+            <dd>
+              <IdChip value={git.resolvedCommit} label="Git commit" />
+            </dd>
+          </div>
+          <div>
+            <dt>Imported</dt>
+            <dd>
+              <RecordedTime value={git.importedAt} />
+            </dd>
+          </div>
+        </>
+      )}
+    </dl>
+  );
+}
+
+/**
+ * Revision, media type, versions and lineage behind Technical details. The
+ * history loads the first time the details open.
+ */
+export function ArtifactTechnicalDetails({
+  scope,
   metadata,
 }: {
+  scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
 }) {
-  const revision = metadata.artifact.revision;
-  const short =
-    revision.length > 22
-      ? `${revision.slice(0, 12)}…${revision.slice(-6)}`
-      : revision;
+  const wrapper = useRef<HTMLDivElement>(null);
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    const node = wrapper.current;
+    if (node === null) return undefined;
+    // `toggle` does not bubble; a capturing listener still sees it.
+    const onToggle = (event: Event) => {
+      if (event.target instanceof HTMLDetailsElement && event.target.open)
+        setOpened(true);
+    };
+    node.addEventListener("toggle", onToggle, true);
+    return () => node.removeEventListener("toggle", onToggle, true);
+  }, []);
   return (
-    <div className="artifact-metadata-summary">
-      <span>{workflowFormats[metadata.mediaType] ?? metadata.mediaType}</span>
-      <span>{formatBytes(metadata.size)}</span>
-      <details>
-        <summary>
-          {metadata.current ? "Current" : "Historical"} ·{" "}
-          <code title={revision}>{short}</code> · Details
-        </summary>
-        <dl className="metadata-grid">
-          <div>
+    <div ref={wrapper} id={HISTORY_ID} className="materials-tech">
+      <TechnicalDetails description="Revision, media type, versions and lineage.">
+        <dl className="materials-facts materials-tech-facts">
+          <div className="materials-fact-wide">
             <dt>Revision</dt>
             <dd>
-              <code>{revision}</code>
+              <code>{metadata.artifact.revision}</code>
             </dd>
           </div>
           <div>
             <dt>Media type</dt>
-            <dd>{metadata.mediaType}</dd>
-          </div>
-          <div>
-            <dt>Created</dt>
-            <dd>{formatTimestamp(metadata.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Locked</dt>
-            <dd>{metadata.frozen ? "yes" : "no"}</dd>
+            <dd>
+              <code>{metadata.mediaType}</code>
+            </dd>
           </div>
         </dl>
-        <GitSourceDetails source={metadata.gitSource} />
-      </details>
+        {opened ? (
+          <ArtifactHistory
+            key={metadata.artifact.revision}
+            scope={scope}
+            metadata={metadata}
+          />
+        ) : null}
+      </TechnicalDetails>
     </div>
   );
 }
 
-export function ArtifactHistoryDisclosure({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const [opened, setOpened] = useState(false);
-  return (
-    <details
-      id="artifact-history"
-      className="artifact-history-disclosure"
-      onToggle={(event) => setOpened(event.currentTarget.open)}
-    >
-      <summary>Versions and lineage</summary>
-      {opened ? children : null}
-    </details>
-  );
-}
-
-export function ArtifactHistoryButton() {
+/** Opens Technical details at the version history and moves focus there. */
+export function ArtifactVersionsButton() {
   return (
     <button
-      className="secondary-button"
       type="button"
+      className="ui-btn"
+      data-size="sm"
+      data-variant="ghost"
       onClick={() => {
-        const history = document.getElementById("artifact-history");
-        if (history instanceof HTMLDetailsElement) {
-          history.open = true;
-          history.scrollIntoView?.({ block: "start", behavior: "smooth" });
-          history.querySelector("summary")?.focus();
-        }
+        const node = document.getElementById(HISTORY_ID);
+        const details = node?.querySelector("details");
+        if (node === null || details === null || details === undefined) return;
+        details.open = true;
+        const reduceMotion =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        node.scrollIntoView?.({
+          block: "start",
+          behavior: reduceMotion ? "auto" : "smooth",
+        });
+        details.querySelector("summary")?.focus({ preventScroll: true });
       }}
     >
+      <MaterialIcon name="history" />
       Versions
     </button>
   );

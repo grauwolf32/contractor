@@ -1,22 +1,28 @@
+/* Archive browser of a ZIP or Skill package (archive-preview.tsx). */
+.archive-preview-panel {
+  container-type: inline-size;
+}
+
 .archive-browser {
   display: grid;
-  grid-template-columns: minmax(13rem, 25%) minmax(0, 1fr);
+  grid-template-columns: minmax(13rem, 28%) minmax(0, 1fr);
   gap: 1rem;
-  margin-top: 1rem;
   align-items: start;
+  min-width: 0;
 }
 
 .archive-file-list {
   max-height: 36rem;
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 0.55rem;
-  padding: 0.5rem;
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0.375rem;
 }
 
 .archive-tree {
   margin: 0;
-  padding: 0 0 0 0.8rem;
+  padding: 0 0 0 0.75rem;
   list-style: none;
 }
 
@@ -25,54 +31,70 @@
 }
 
 .archive-tree summary {
-  cursor: pointer;
-  padding: 0.45rem 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
 
-.archive-file-button {
+.archive-tree summary:hover {
+  background: var(--row-hover);
+}
+
+.archive-file-button,
+.archive-file-button:not(:disabled):active {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.45rem 0.5rem;
-  border: 1px solid transparent;
+  min-height: 0;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
   background: transparent;
-  color: inherit;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78125rem;
+  font-weight: 500;
   text-align: left;
-  font-weight: 400;
+  transform: none;
 }
 
 .archive-file-button bdi,
 .archive-file-heading bdi {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.archive-file-button[aria-pressed="true"] {
-  border-color: var(--line);
-  background: var(--accent-dark);
-}
-
 .archive-file-button:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--surface-hover);
+  background: var(--row-hover);
   color: var(--text);
 }
 
+/* The chosen file reads like a selected row: tint and a 3 px bar. */
+.archive-file-button[aria-pressed="true"],
 .archive-file-button[aria-pressed="true"]:not(:disabled):hover {
-  border-color: var(--accent);
-  background: var(--surface-hover);
+  background: var(--sel);
+  box-shadow: inset 3px 0 var(--sel-bar);
 }
 
 .archive-file-button span,
 .archive-file-heading span {
   flex-shrink: 0;
-  font-size: 0.75rem;
-  opacity: 0.75;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 0.71875rem;
 }
 
 .archive-file-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   min-width: 0;
 }
 
@@ -81,9 +103,22 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
 }
 
+/* One column on phones and in narrow panes. */
 @media (max-width: 760px) {
+  .archive-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .archive-file-list {
+    max-height: 16rem;
+  }
+}
+
+@container (max-width: 34rem) {
   .archive-browser {
     grid-template-columns: minmax(0, 1fr);
   }

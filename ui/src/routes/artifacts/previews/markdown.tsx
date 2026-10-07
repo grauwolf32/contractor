@@ -1,6 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { splitFrontmatter } from "./frontmatter";
+import "../reader.css";
 
 export default function MarkdownArtifactPreview({
   source,

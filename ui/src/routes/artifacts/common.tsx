@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type DragEvent,
   type FormEvent,
+  type ReactNode,
   useEffect,
   useId,
   useRef,
@@ -25,7 +26,9 @@ import {
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
+import { MaterialIcon } from "./icons";
 import { ArtifactMediaTypeField } from "./media-type-field";
+import "./materials.css";
 
 export function ArtifactFileDrop({
   file,
@@ -75,7 +78,7 @@ export function ArtifactFileDrop({
         onChange={(event) => onSelect(event.target.files?.[0])}
       />
       <span className="artifact-file-drop-mark" aria-hidden="true">
-        ↑
+        <MaterialIcon name="upload" size={20} />
       </span>
       <strong id={copyId}>
         {file === null ? "Drop a file here" : file.name}
@@ -86,7 +89,8 @@ export function ArtifactFileDrop({
           : `${formatBytes(file.size)} · ready to upload`}
       </small>
       <button
-        className="secondary-button"
+        className="ui-btn"
+        data-size="sm"
         type="button"
         onClick={() => fileInput.current?.click()}
       >
@@ -114,6 +118,7 @@ export function ArtifactWriteForm({
   onPendingChange,
   onCancel,
   onWriteError,
+  writeErrorHint,
   onWritten,
 }: {
   scope?: WritableArtifactScope;
@@ -144,6 +149,8 @@ export function ArtifactWriteForm({
    * whose reconcile remounts or replaces the form keeps it visible.
    */
   onWriteError?: (error: unknown) => void;
+  /** Extra guidance under the form's own notice of a failed write. */
+  writeErrorHint?: (error: unknown) => ReactNode;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
@@ -275,31 +282,24 @@ export function ArtifactWriteForm({
   const update = expectedRevision !== undefined;
   return (
     <form
-      className={project ? "project-artifact-form" : "artifact-form"}
+      className={`${project ? "project-artifact-form" : "artifact-form"} materials-write-form`}
       onSubmit={submit}
       aria-labelledby={formId}
     >
       {headingId === undefined ? (
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">
-              {update
-                ? "New version"
+        <div className="materials-form-head">
+          <p className="materials-kicker">
+            {update ? "New version" : project ? "Material" : "File"}
+          </p>
+          <h3 id={formId}>
+            {update
+              ? "Upload a new version"
+              : suggested !== undefined
+                ? `Add ${suggested.label}`
                 : project
-                  ? "Project artifact"
-                  : "New Artifact"}
-            </p>
-            <h3 id={formId}>
-              {update
-                ? "Upload a new version"
-                : suggested === undefined
-                  ? "Upload Artifact"
-                  : `Add ${suggested.label}`}
-            </h3>
-          </div>
-          {update ? (
-            <code>If-Match: &quot;{expectedRevision}&quot;</code>
-          ) : null}
+                  ? "Upload material"
+                  : "Upload file"}
+          </h3>
         </div>
       ) : null}
       <ArtifactFileDrop
@@ -309,13 +309,15 @@ export function ArtifactWriteForm({
         onSelect={selectFile}
       />
       {acceptedMediaTypes === undefined ? null : (
-        <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
+        <small className="materials-quiet">
+          Accepted by this input: {acceptedMediaTypes.join(", ")}
+        </small>
       )}
       <div
         className={
           project
-            ? "form-grid project-artifact-fields"
-            : "form-grid artifact-fields"
+            ? "form-grid project-artifact-fields materials-fields"
+            : "form-grid artifact-fields materials-fields"
         }
       >
         <label>
@@ -366,24 +368,28 @@ export function ArtifactWriteForm({
         </p>
       )}
       {mutation.error === null || onWriteError !== undefined ? null : (
-        <ErrorNotice error={mutation.error} reconcileWrite />
+        <>
+          <ErrorNotice error={mutation.error} reconcileWrite />
+          {writeErrorHint?.(mutation.error)}
+        </>
       )}
-      <div
-        className={
-          onCancel === undefined ? undefined : "project-dialog-actions"
-        }
-      >
+      <div className="materials-form-actions">
         {onCancel === undefined ? null : (
           <button
             type="button"
-            className="secondary-button"
+            className="ui-btn"
             disabled={mutation.isPending}
             onClick={onCancel}
           >
             Cancel
           </button>
         )}
-        <button type="submit" disabled={mutation.isPending}>
+        <button
+          type="submit"
+          className="ui-btn"
+          data-variant="primary"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending
             ? "Uploading…"
             : (submitLabel ??

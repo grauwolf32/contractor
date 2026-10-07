@@ -55,6 +55,95 @@ function renderArtifactApplication(
 }
 
 describe("Artifact routes", () => {
+  it("shows Files inside the Library with its tabs, without Skill packages, paged in the URL", async () => {
+    const requests: URL[] = [];
+    const file = {
+      artifact: { namespace: "inputs", name: "wordlist", revision: "r1" },
+      mediaType: "text/vnd.contractor.wordlist",
+      size: 2048,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/artifacts") {
+          requests.push(url);
+          return jsonResponse(
+            url.searchParams.get("cursor") === "page-2"
+              ? {
+                  items: [
+                    {
+                      ...file,
+                      artifact: { ...file.artifact, name: "second" },
+                    },
+                  ],
+                  page: { hasMore: false },
+                }
+              : {
+                  items: [file],
+                  page: { hasMore: true, nextCursor: "page-2" },
+                },
+          );
+        }
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderArtifactApplication(api, "/artifacts");
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Library" }),
+    ).toBeVisible();
+    const tabs = screen.getByRole("navigation", { name: "Library sections" });
+    expect(within(tabs).getByRole("link", { name: "Files" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Check types", "Workflows", "Agents", "Skills", "Files"]);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Files" }),
+    ).toBeVisible();
+    await vi.waitFor(() =>
+      expect(document.title).toBe("Files · Library · Contractor"),
+    );
+    const files = screen.getByRole("region", { name: "Files" });
+    expect(within(files).getByRole("link", { name: "Skills" })).toHaveAttribute(
+      "href",
+      "/catalog/skills",
+    );
+    const row = await within(files).findByRole("link", {
+      name: "inputs/wordlist",
+    });
+    expect(row).toHaveAttribute("href", "/artifacts/inputs/wordlist");
+    expect(row.closest("li")).toHaveTextContent("Wordlist");
+    expect(row.closest("li")).toHaveTextContent("2.0 KiB");
+    expect(
+      requests.every(
+        (url) => url.searchParams.get("excludeNamespace") === "skills",
+      ),
+    ).toBe(true);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "inputs/second" }),
+    ).toBeVisible();
+    expect(router.state.location.search).toBe("?cursor=page-2");
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    expect(
+      await screen.findByRole("link", { name: "inputs/wordlist" }),
+    ).toBeVisible();
+    expect(router.state.location.search).toBe("");
+  });
+
   it("keeps the revision lede neutral while metadata is loading or unavailable", async () => {
     let respond!: (response: Response) => void;
     const metadata = new Promise<Response>((resolve) => {
@@ -71,13 +160,11 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts/projects/source");
-    expect(await screen.findByText("Loading Artifact metadata…")).toBeVisible();
+    expect(await screen.findByText("Loading this file…")).toBeVisible();
     expect(
-      screen.getByText("Artifact revision", { selector: ".lede" }),
+      screen.getByRole("heading", { level: 1, name: "projects/source" }),
     ).toBeVisible();
-    expect(
-      screen.queryByText("Current revision", { selector: ".lede" }),
-    ).toBeNull();
+    expect(screen.queryByText(/(Current|Historical) revision/)).toBeNull();
     await act(async () => {
       respond(
         jsonResponse(
@@ -91,12 +178,11 @@ describe("Artifact routes", () => {
       );
       await metadata;
     });
+    expect(await screen.findByText("Could not load this file")).toBeVisible();
+    expect(screen.queryByText(/(Current|Historical) revision/)).toBeNull();
     expect(
-      await screen.findByText("Could not load this Artifact"),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Artifact revision", { selector: ".lede" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "Download this revision" }),
+    ).toBeNull();
   });
 
   it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
@@ -128,9 +214,7 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts?namespace=projects");
-    expect(
-      await screen.findByText("Could not load Artifact bindings"),
-    ).toBeVisible();
+    expect(await screen.findByText("Could not load files")).toBeVisible();
     expect(
       screen.getByText("Storage is temporarily unavailable"),
     ).toBeVisible();
@@ -138,7 +222,7 @@ describe("Artifact routes", () => {
       .setup()
       .click(screen.getByRole("button", { name: "Try again" }));
     expect(
-      await screen.findByText("No Artifact bindings found."),
+      await screen.findByText("Nothing in the projects namespace"),
     ).toBeVisible();
     expect(
       within(
@@ -146,7 +230,7 @@ describe("Artifact routes", () => {
       ).getByLabelText("Namespace"),
     ).toHaveValue("projects");
     expect(
-      screen.queryByRole("navigation", { name: "Artifact pages" }),
+      screen.queryByRole("navigation", { name: "File pages" }),
     ).not.toBeInTheDocument();
     expect(reads).toBe(2);
     expect(requests.every((request) => request.method === "GET")).toBe(true);
@@ -241,7 +325,7 @@ describe("Artifact routes", () => {
       await screen.findByRole("link", { name: "projects/existing" }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
+    await user.click(screen.getByRole("button", { name: "Upload file" }));
     const file = new File(["zip"], "source.zip", {
       type: "application/zip",
     });
@@ -255,11 +339,14 @@ describe("Artifact routes", () => {
     await vi.waitFor(() => {
       expect(requests.some((request) => request.method === "PUT")).toBe(true);
     });
+    const notice = await screen.findByRole("status", {
+      name: /File uploaded to your library/,
+    });
+    expect(notice).toHaveTextContent("projects/source");
     expect(
-      await screen.findByRole("link", {
-        name: /projects\/source@revision-2/,
-      }),
-    ).toBeInTheDocument();
+      within(notice).getByRole("link", { name: "Open file" }),
+    ).toHaveAttribute("href", "/artifacts/projects/source?revision=revision-2");
+    await vi.waitFor(() => expect(notice).toHaveFocus());
     const put = requests.find((request) => request.method === "PUT");
     expect(put?.headers.get("If-None-Match")).toBe("*");
     expect(put?.headers.get("If-Match")).toBeNull();
@@ -296,9 +383,9 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts");
-    await screen.findByText("No Artifact bindings found.");
+    await screen.findByText("No files yet");
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
+    await user.click(screen.getByRole("button", { name: "Upload file" }));
     await user.type(screen.getByLabelText("Name"), "source");
     await user.upload(
       screen.getByLabelText("Drop a file here"),
@@ -336,11 +423,11 @@ describe("Artifact routes", () => {
       }),
     );
     renderArtifactApplication(api, "/artifacts");
-    await screen.findByText("No Artifact bindings found.");
+    await screen.findByText("No files yet");
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
-    const uploadForm = screen.getByRole("dialog", { name: "Upload Artifact" });
+    await user.click(screen.getByRole("button", { name: "Upload file" }));
+    const uploadForm = screen.getByRole("dialog", { name: "Upload file" });
     const namespace = within(uploadForm).getByLabelText("Namespace");
     await user.clear(namespace);
     await user.type(namespace, "skills");
@@ -674,8 +761,9 @@ describe("Artifact routes", () => {
         screen.getByRole("button", { name: "Upload new version" }),
       );
 
+      // The page and the new-version form moved to the new current revision.
       expect(
-        await screen.findByText('If-Match: "revision-2"'),
+        await screen.findByText("revision-2", { selector: "code" }),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Current revision", { selector: ".lede" }),
@@ -700,7 +788,7 @@ describe("Artifact routes", () => {
         expect(router.state.location.search).toBe("?revision=revision-3"),
       );
       expect(
-        await screen.findByText('If-Match: "revision-3"'),
+        await screen.findByText("revision-3", { selector: "code" }),
       ).toBeInTheDocument();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       expect(writes.map((write) => write.headers.get("If-Match"))).toEqual([
@@ -790,7 +878,7 @@ describe("Artifact routes", () => {
     await user.click(
       await screen.findByRole("link", { name: "sources/example" }),
     );
-    await user.click(await screen.findByRole("link", { name: "← Artifacts" }));
+    await user.click(await screen.findByRole("link", { name: "← Files" }));
     expect(router.state.location.search).toBe(
       "?namespace=sources&cursor=page-two",
     );

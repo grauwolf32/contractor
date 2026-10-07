@@ -430,7 +430,7 @@ describe("Git artifacts", () => {
     fireEvent.change(screen.getByLabelText("Repository URL"), {
       target: { value: "https://example.test/repo.git" },
     });
-    fireEvent.change(screen.getByLabelText("Artifact name"), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "has spaces" },
     });
     await userEvent.click(
@@ -438,7 +438,7 @@ describe("Git artifacts", () => {
     );
     await screen.findByRole("alert");
     expect(fetch).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Artifact name"), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "source" },
     });
     await userEvent.click(
