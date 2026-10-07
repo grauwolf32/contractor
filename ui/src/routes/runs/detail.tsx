@@ -1,44 +1,54 @@
-import "./reading.css";
-import { ReturnLink } from "../../app/context-navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import "./runs.css";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type ReactNode,
+  type Ref,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
+import { Link, useLocation, useParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
-  cancelRun,
   getRun,
-  getRunRepeatDraft,
   isTerminalRunState,
   RUN_ID_PATTERN,
   type RunStatus,
 } from "../../api/runs";
 import { useSession } from "../../auth/session";
-import { runtimeConfigVersionPath } from "../../app/navigation";
-import { useRunDraftStore } from "../../run-drafts/context";
-import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
+import {
+  catalogReturnState,
+  runtimeConfigVersionPath,
+} from "../../app/navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { compactDigest, formatTimestamp } from "../../app/format";
+import { compactDigest, compactId, formatTimestamp } from "../../app/format";
+import { StaleDataWarning } from "../../app/query-view";
+import { RefreshButton } from "../../app/refresh-button";
+import { useDocumentTitle } from "../../app/document-title";
+import { RecordedTime } from "../../app/recorded-time";
+import { IdChip, StatusChip, StatusGlyph, type StatusTone } from "../../ui";
+import { artifactDetailPath } from "../artifacts/paths";
+import { RunActions } from "./actions";
+import { RunArtifactLibrary, RunOutputGallery } from "./artifacts";
 import {
   DefinitionList,
   RunArtifactRef,
   type RunDisclosureProps,
-  RunDisclosureSummary,
   RunMetadataLabelChips,
+  RunSection,
+  RunStateChip,
   StageAttemptView,
-  StateBadge,
 } from "./components";
-import { RunArtifactLibrary, RunOutputGallery } from "./artifacts";
-import { RunRecoveryControl } from "./recovery";
-import { RunResumeControl } from "./resume";
-import { useLiveRunProjection } from "./live";
+import { type LiveRunProjection, useLiveRunProjection } from "./live";
+import { RecoveryStatus } from "./recovery";
+import { parseWorkflowIdentity } from "./output-model";
+import { publicationStatusLabel, runStateLabel } from "./run-state";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
-import { QueryView } from "../../app/query-view";
-import { RefreshButton } from "../../app/refresh-button";
-import { useDocumentTitle } from "../../app/document-title";
-import { RecordedTime } from "../../app/recorded-time";
-import { artifactDetailPath } from "../artifacts/paths";
 
 function compactMetric(value: number): string {
   if (value < 1_000) {
@@ -48,6 +58,10 @@ function compactMetric(value: number): string {
     return `${Number((value / 1_000).toFixed(1))}K`;
   }
   return `${Number((value / 1_000_000).toFixed(1))}M`;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function triageTitle(run: RunStatus, triage: RunTriage): string {
@@ -96,148 +110,135 @@ function triageDescription(run: RunStatus, triage: RunTriage): string {
     case "initializing":
       return "Preparing to start the first stage.";
     case "running":
-      return "Follow the current stage and its progress below.";
+      return "Follow the current stage and its progress under Technical details.";
   }
+}
+
+function retryabilityLabel(issue: NonNullable<RunTriage["issue"]>): {
+  label: string;
+  tone: StatusTone;
+} {
+  if (issue.source === "cancellation") {
+    return { label: "User requested", tone: "neutral" };
+  }
+  if (issue.retryable === undefined) {
+    return { label: "Retryability unknown", tone: "neutral" };
+  }
+  return issue.retryable
+    ? { label: "Retryable", tone: "warning" }
+    : { label: "Not retryable", tone: "blocked" };
 }
 
 function RunTriageSummary({
   run,
   triage,
+  onOpenAttempt,
 }: {
   run: RunStatus;
   triage: RunTriage;
+  onOpenAttempt: (stageExecutionId: string) => void;
 }) {
   const { session } = useSession();
   const canOperate =
     session?.principal.capabilities.includes("operations") === true;
-  const attemptAnchor =
-    triage.stageExecutionId === undefined
-      ? undefined
-      : `#attempt-${triage.stageExecutionId}`;
+  const focusedAttempt = triage.stageExecutionId;
+  const state = runStateLabel(run.state);
+  const issue = triage.issue;
+  const retry = issue === undefined ? undefined : retryabilityLabel(issue);
   return (
     <section
-      className={`panel run-triage run-triage-${run.state}`}
+      className={`runs-triage run-triage run-triage-${run.state}`}
       aria-labelledby="run-triage-title"
     >
-      <div className="run-triage-heading">
-        <div>
-          <p className="eyebrow">Run status</p>
-          <h3 id="run-triage-title">{triageTitle(run, triage)}</h3>
+      <div className="runs-triage-head">
+        <StatusGlyph tone={state.tone} size={20} />
+        <div className="runs-triage-heading">
+          <h2 className="runs-h2" id="run-triage-title">
+            {triageTitle(run, triage)}
+          </h2>
+          {issue === undefined ? (
+            <p className="runs-triage-text">{triageDescription(run, triage)}</p>
+          ) : null}
         </div>
-        <StateBadge state={run.state} />
       </div>
-      {triage.issue === undefined ? (
-        <p className="run-triage-description">
-          {triageDescription(run, triage)}
-        </p>
-      ) : (
-        <div className="run-triage-issue">
-          <div>
-            <span>
-              {triage.issue.source === "cancellation"
-                ? "Lifecycle reason"
-                : "Primary cause"}
-            </span>
-            <code>{triage.issue.code}</code>
-            <strong>
-              {triage.issue.source === "cancellation"
-                ? "user requested"
-                : triage.issue.retryable === undefined
-                  ? "retryability unknown"
-                  : triage.issue.retryable
-                    ? "retryable"
-                    : "not retryable"}
-            </strong>
+      {issue === undefined || retry === undefined ? null : (
+        <div className="runs-cause" data-source={issue.source}>
+          <p className="runs-label">
+            {issue.source === "cancellation"
+              ? "Lifecycle reason"
+              : "Primary cause"}
+          </p>
+          <div className="runs-cause-line">
+            <code>{issue.code}</code>
+            <StatusChip tone={retry.tone} size="sm" glyph={false}>
+              {retry.label}
+            </StatusChip>
           </div>
-          <p>{triageDescription(run, triage)}</p>
-          {triage.issue.participant === undefined ? null : (
+          <p className="runs-cause-message">{triageDescription(run, triage)}</p>
+          {issue.participant === undefined ? null : (
             <small>
-              Reported by {triage.issue.participant}
-              {triage.issue.logicalAgent === undefined
-                ? ""
-                : ` ${triage.issue.logicalAgent}`}
+              Reported by {issue.participant}
+              {issue.logicalAgent === undefined ? "" : ` ${issue.logicalAgent}`}
             </small>
           )}
         </div>
       )}
-      <RunRecoveryControl run={run} />
-      <div className={`run-next-action is-${triage.guidance.kind}`}>
-        <span>Next action</span>
-        <strong>{triage.guidance.title}</strong>
-        <p>{triage.guidance.message}</p>
-        {run.state === "succeeded" && triage.outputCount > 0 ? (
-          <a className="primary-button" href="#run-outputs">
-            Read results
-          </a>
-        ) : null}
-        {triage.guidance.operationsPath === undefined || !canOperate ? null : (
-          <Link to={triage.guidance.operationsPath}>
-            Open Operations diagnostics →
-          </Link>
+      <RecoveryStatus run={run} />
+      <div className="runs-next" data-kind={triage.guidance.kind}>
+        <p className="runs-label">Next step</p>
+        <p className="runs-next-title">{triage.guidance.title}</p>
+        <p className="runs-next-text">{triage.guidance.message}</p>
+        {run.state !== "failed" ? null : run.resumeStageExecutionId ===
+          undefined ? (
+          <p className="runs-next-text">
+            Continuation is unavailable: cleanup must finish and the Run must
+            have a failed stage. Audit-managed and evaluation Runs use their own
+            lifecycle controls.
+          </p>
+        ) : (
+          <p className="runs-next-text">
+            Continue from failed stage keeps the successful stages and their
+            results, and gives the failed stage a new attempt.
+          </p>
         )}
+        {(run.state === "succeeded" && triage.outputCount > 0) ||
+        (triage.guidance.operationsPath !== undefined && canOperate) ? (
+          <div className="runs-next-links">
+            {run.state === "succeeded" && triage.outputCount > 0 ? (
+              <a
+                className="ui-btn"
+                data-size="sm"
+                data-variant="primary"
+                href="#run-outputs"
+              >
+                Read results
+              </a>
+            ) : null}
+            {triage.guidance.operationsPath === undefined ||
+            !canOperate ? null : (
+              <Link
+                className="ui-btn"
+                data-size="sm"
+                to={triage.guidance.operationsPath}
+              >
+                Open Operations diagnostics
+              </Link>
+            )}
+          </div>
+        ) : null}
       </div>
-      <details
-        className="run-metrics-disclosure"
-        open={run.state !== "succeeded"}
-      >
-        <summary>
-          Execution metrics · {formatRunDuration(triage.durationMs)} ·{" "}
-          {triage.attemptCount} attempts
-        </summary>
-        <dl className="run-triage-facts">
-          <div>
-            <dt>Duration</dt>
-            <dd>{formatRunDuration(triage.durationMs)}</dd>
-          </div>
-          <div>
-            <dt>Attempts</dt>
-            <dd>{triage.attemptCount}</dd>
-            <small>across all stages</small>
-          </div>
-          <div>
-            <dt>Total tokens</dt>
-            <dd title={triage.metrics?.totalTokens.toLocaleString()}>
-              {triage.metrics === undefined
-                ? "—"
-                : compactMetric(triage.metrics.totalTokens)}
-            </dd>
-            <small>
-              {triage.metrics === undefined
-                ? "not reported"
-                : `${triage.metrics.modelCalls} model call${triage.metrics.modelCalls === 1 ? "" : "s"}${triage.metrics.incomplete ? " · partial" : ""}`}
-            </small>
-          </div>
-          <div>
-            <dt>Tool calls</dt>
-            <dd>
-              {triage.metrics === undefined
-                ? "—"
-                : compactMetric(triage.metrics.toolCalls)}
-            </dd>
-            <small>
-              {triage.metrics === undefined
-                ? "not reported"
-                : `${triage.metrics.errorCount} reported error${triage.metrics.errorCount === 1 ? "" : "s"}`}
-            </small>
-          </div>
-          <div>
-            <dt>Outputs</dt>
-            <dd>{triage.outputCount}</dd>
-            <small>ready to inspect</small>
-          </div>
-        </dl>
-      </details>
-      {attemptAnchor === undefined && triage.outputCount === 0 ? null : (
-        <nav className="run-triage-actions" aria-label="Run triage shortcuts">
-          {attemptAnchor === undefined ? null : (
-            <a className="triage-action" href={attemptAnchor}>
+      {focusedAttempt === undefined && triage.outputCount === 0 ? null : (
+        <nav className="runs-shortcuts" aria-label="Run triage shortcuts">
+          {focusedAttempt === undefined ? null : (
+            <a
+              href={`#attempt-${focusedAttempt}`}
+              onClick={() => onOpenAttempt(focusedAttempt)}
+            >
               Inspect focused attempt
             </a>
           )}
           {triage.outputCount === 0 ? null : (
-            <a className="triage-action" href="#run-outputs">
-              Preview outputs
-            </a>
+            <a href="#run-outputs">Preview outputs</a>
           )}
         </nav>
       )}
@@ -245,341 +246,183 @@ function RunTriageSummary({
   );
 }
 
-type RepeatControlOutcome =
-  | {
-      kind: "conflict" | "capacity" | "blocked" | "audit-unavailable";
-      message: string;
-      destination?: string;
-    }
-  | undefined;
-
-function RunRepeatControl({ run }: { run: RunStatus }) {
-  const api = usePublicAPI();
-  const navigate = useNavigate();
-  const drafts = useRunDraftStore();
-  const [outcome, setOutcome] = useState<RepeatControlOutcome>();
-  const mutation = useMutation({
-    mutationFn: () => getRunRepeatDraft(api, run.runId),
-  });
-
-  if (!isTerminalRunState(run.state)) return null;
-
-  async function configureAnotherRun(): Promise<void> {
-    mutation.reset();
-    setOutcome(undefined);
-    try {
-      const response = await mutation.mutateAsync();
-      if (response.authority === "audit-managed") {
-        const destination = auditDestination(response);
-        if (destination === undefined) {
-          setOutcome({
-            kind: "audit-unavailable",
-            message:
-              response.notices[0]?.message ??
-              "This Run is Audit-managed, but its owning Audit route is unavailable.",
-          });
-          return;
-        }
-        await navigate(destination);
-        return;
-      }
-      const routeBlock = response.notices.find(
-        (notice) =>
-          notice.code === "workflow_unavailable" ||
-          notice.code === "project_unavailable" ||
-          notice.code === "project_deleting",
-      );
-      if (routeBlock !== undefined) {
-        setOutcome({ kind: "blocked", message: routeBlock.message });
-        return;
-      }
-      const prepared = prepareRepeatDraft(response);
-      if (prepared === undefined) {
-        setOutcome({
-          kind: "blocked",
-          message:
-            response.notices.find((notice) => notice.severity === "blocking")
-              ?.message ??
-            "The Server did not provide an ordinary repeat draft.",
-        });
-        return;
-      }
-      const seeded = drafts.seed(prepared.identity, prepared.state);
-      if (seeded.kind === "conflict") {
-        setOutcome({
-          kind: "conflict",
-          message:
-            "An edited draft already exists for this Workflow and scope. It was not overwritten.",
-          destination: prepared.destination,
-        });
-        return;
-      }
-      if (seeded.kind === "capacity") {
-        setOutcome({
-          kind: "capacity",
-          message: `The in-memory draft limit is reached (${seeded.drafts.length} retained). Open a draft and discard it before importing this request.`,
-        });
-        return;
-      }
-      await navigate(prepared.destination);
-    } catch {
-      // The mutation owns and renders the normalized API failure.
-    }
-  }
-
-  return (
-    <section className="panel run-repeat-control">
-      <div>
-        <h3>Configure another Run</h3>
-        <p className="muted-copy">
-          Review the saved inputs and configuration before starting a new Run.
-        </p>
-      </div>
-      <button
-        type="button"
-        disabled={mutation.isPending}
-        className="secondary-button"
-        onClick={() => void configureAnotherRun()}
-      >
-        {mutation.isPending
-          ? "Loading retained request…"
-          : "Configure another Run"}
-      </button>
-      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
-      {outcome === undefined ? null : (
-        <div className="notice notice-warning" role="alert">
-          <strong>
-            {outcome.kind === "conflict"
-              ? "Existing draft preserved"
-              : outcome.kind === "capacity"
-                ? "Draft limit reached"
-                : outcome.kind === "audit-unavailable"
-                  ? "Continue from Audit"
-                  : "Repeat draft unavailable"}
-          </strong>
-          <p>{outcome.message}</p>
-          {outcome.destination === undefined ? null : (
-            <Link to={outcome.destination}>Open the existing draft →</Link>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function CancellationControl({ run }: { run: RunStatus }) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [reason, setReason] = useState("");
-  const [validationError, setValidationError] = useState<string | undefined>();
-  const mutation = useMutation({
-    mutationFn: (value: string) => cancelRun(api, run.runId, value),
-    onSettled: async () => {
-      // Both acceptance and a terminal-completion race are reconciled from the
-      // authoritative aggregate. The mutation response is never projected.
-      await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
-    },
-  });
-
-  function submit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    mutation.reset();
-    const normalized = reason.trim();
-    if (normalized.length === 0 || normalized.length > 4096) {
-      setValidationError("Give a cancellation reason of 1–4096 characters.");
-      return;
-    }
-    setValidationError(undefined);
-    mutation.mutate(normalized);
-  }
-
-  if (isTerminalRunState(run.state)) {
-    // A terminal Run cannot be cancelled; the panel would only add noise.
-    return null;
-  }
-  if (run.state === "cancelling") {
-    return (
-      <div className="panel cancellation-panel">
-        <p className="eyebrow">Cancellation</p>
-        <h3>Cleanup in progress</h3>
-        <p className="muted-copy">
-          Scheduler is aborting and draining active work. This page does not
-          predict when cleanup becomes terminal.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <form className="panel cancellation-panel" onSubmit={submit} noValidate>
-      <h3>Cancel Run</h3>
-      <label>
-        Explicit reason
-        <textarea
-          name="cancellationReason"
-          maxLength={4096}
-          value={reason}
-          aria-invalid={validationError === undefined ? undefined : true}
-          aria-describedby={
-            validationError === undefined ? undefined : "cancel-reason-error"
-          }
-          onChange={(event) => {
-            setReason(event.target.value);
-            setValidationError(undefined);
-          }}
-        />
-      </label>
-      {validationError === undefined ? null : (
-        <p className="field-error" id="cancel-reason-error" role="alert">
-          {validationError}
-        </p>
-      )}
-      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending
-          ? "Requesting cancellation…"
-          : "Request cancellation"}
-      </button>
-      <small>
-        No terminal state is applied optimistically; Server cleanup remains
-        visible as Stage attempts change.
-      </small>
-    </form>
-  );
-}
-
-function RunTimestamps({ run }: { run: RunStatus }) {
-  const values: Array<[string, string | undefined]> = [
-    ["created", run.createdAt],
-    ["updated", run.updatedAt],
-    ["started", run.startedAt],
-    ["finished", run.finishedAt],
-  ];
-  return (
-    <dl className="metadata-grid panel run-metadata">
-      <div>
-        <dt>Workflow</dt>
-        <dd>
-          <code>{run.workflow}</code>
-        </dd>
-      </div>
-      {run.projectId === undefined ? null : (
-        <div>
-          <dt>Project</dt>
-          <dd>
-            <Link to={`/projects/${encodeURIComponent(run.projectId)}`}>
-              <code>{run.projectId}</code>
-            </Link>
-          </dd>
-        </div>
-      )}
-      {values.map(([label, value]) =>
-        value === undefined ? null : (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{formatTimestamp(value)}</dd>
-          </div>
-        ),
-      )}
-    </dl>
-  );
-}
-
 function RunOutputPublications({ run }: { run: RunStatus }) {
+  const headingId = useId();
   const projectId = run.projectId;
   if (projectId === undefined) {
     return null;
   }
   return (
-    <section className="panel run-output-publications">
-      <div className="section-heading">
+    <section
+      className="runs-block-section runs-publications"
+      aria-labelledby={headingId}
+    >
+      <div className="runs-section-head">
         <div>
-          <p className="eyebrow">Project outputs</p>
-          <h3>Reusable output status</h3>
+          <p className="runs-label">Project outputs</p>
+          <h2 className="runs-h2" id={headingId}>
+            Reusable output status
+          </h2>
         </div>
-        <Link to={`/projects/${encodeURIComponent(projectId)}/artifacts`}>
-          Open Project →
+        <Link
+          className="runs-section-link"
+          to={`/projects/${encodeURIComponent(projectId)}/artifacts`}
+        >
+          Open Project
         </Link>
       </div>
       {run.outputPublications.length === 0 ? (
-        <div className="compact-empty">
+        <p className="runs-hint">
           {isTerminalRunState(run.state)
             ? "No present declared output required a publication receipt."
             : "Publication is recorded only after successful terminal output freezing."}
-        </div>
+        </p>
       ) : (
-        <ul className="run-output-publication-list">
-          {run.outputPublications.map((publication) => (
-            <li key={`${publication.output}:${publication.source.revision}`}>
-              <div>
-                <strong>{publication.output}</strong>
-                <span
-                  className={`publication-status publication-${publication.status}`}
-                >
-                  {publication.status.replaceAll("_", " ")}
+        <ul className="runs-publication-list">
+          {run.outputPublications.map((publication) => {
+            const status = publicationStatusLabel(publication.status);
+            return (
+              <li key={`${publication.output}:${publication.source.revision}`}>
+                <div className="runs-publication-head">
+                  <strong>{publication.output}</strong>
+                  <StatusChip tone={status.tone} size="sm">
+                    {status.label}
+                  </StatusChip>
+                  <small>
+                    <RecordedTime value={publication.createdAt} />
+                  </small>
+                </div>
+                <span className="runs-publication-ref">
+                  source{" "}
+                  <code>
+                    {publication.source.namespace}/{publication.source.name}@
+                    {publication.source.revision}
+                  </code>
                 </span>
-              </div>
-              <span>
-                source{" "}
-                <code>
-                  {publication.source.namespace}/{publication.source.name}@
-                  {publication.source.revision}
-                </code>
-              </span>
-              {publication.target === undefined ? null : (
-                <Link
-                  to={artifactDetailPath(
-                    { kind: "project", id: projectId },
-                    publication.target,
-                  )}
-                >
-                  target {publication.target.namespace}/
-                  {publication.target.name}@{publication.target.revision}
-                </Link>
-              )}
-              {publication.errorMessage === undefined ? null : (
-                <p>
-                  <code>{publication.errorCode ?? "publication_failed"}</code>{" "}
-                  {publication.errorMessage}
-                </p>
-              )}
-              <small>
-                <RecordedTime value={publication.createdAt} />
-              </small>
-            </li>
-          ))}
+                {publication.target === undefined ? null : (
+                  <Link
+                    className="runs-publication-ref"
+                    to={artifactDetailPath(
+                      { kind: "project", id: projectId },
+                      publication.target,
+                    )}
+                  >
+                    target {publication.target.namespace}/
+                    {publication.target.name}@{publication.target.revision}
+                  </Link>
+                )}
+                {publication.errorMessage === undefined ? null : (
+                  <p className="runs-publication-error">
+                    <code>{publication.errorCode ?? "publication_failed"}</code>{" "}
+                    {publication.errorMessage}
+                  </p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
   );
 }
 
-function RunBindings({ run }: { run: RunStatus }) {
+function RunExecutionMetrics({
+  run,
+  triage,
+  ...disclosure
+}: { run: RunStatus; triage: RunTriage } & RunDisclosureProps) {
   return (
-    <div className="run-binding-grid">
-      <DefinitionList title="String parameters">
-        {Object.entries(run.parameters ?? {}).length === 0 ? (
-          <div className="compact-empty">None supplied.</div>
-        ) : (
-          <dl className="key-value-list">
-            {Object.entries(run.parameters ?? {})
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([name, value]) => (
+    <RunSection
+      id="run-metrics"
+      title="Execution metrics"
+      description="Duration, attempts, tokens and tool calls"
+      aside={`${formatRunDuration(triage.durationMs)} · ${plural(triage.attemptCount, "attempt")}`}
+      {...disclosure}
+    >
+      <dl className="runs-metric-tiles">
+        <div>
+          <dt>Duration</dt>
+          <dd>{formatRunDuration(triage.durationMs)}</dd>
+        </div>
+        <div>
+          <dt>Attempts</dt>
+          <dd>{triage.attemptCount}</dd>
+          <small>across all stages</small>
+        </div>
+        <div>
+          <dt>Total tokens</dt>
+          <dd title={triage.metrics?.totalTokens.toLocaleString()}>
+            {triage.metrics === undefined
+              ? "—"
+              : compactMetric(triage.metrics.totalTokens)}
+          </dd>
+          <small>
+            {triage.metrics === undefined
+              ? "not reported"
+              : `${plural(triage.metrics.modelCalls, "model call")}${triage.metrics.incomplete ? " · partial" : ""}`}
+          </small>
+        </div>
+        <div>
+          <dt>Tool calls</dt>
+          <dd>
+            {triage.metrics === undefined
+              ? "—"
+              : compactMetric(triage.metrics.toolCalls)}
+          </dd>
+          <small>
+            {triage.metrics === undefined
+              ? "not reported"
+              : plural(triage.metrics.errorCount, "reported error")}
+          </small>
+        </div>
+        <div>
+          <dt>Outputs</dt>
+          <dd>{Object.keys(run.outputs).length}</dd>
+          <small>ready to inspect</small>
+        </div>
+      </dl>
+    </RunSection>
+  );
+}
+
+function RunBindings({
+  run,
+  ...disclosure
+}: { run: RunStatus } & RunDisclosureProps) {
+  const parameters = Object.entries(run.parameters ?? {}).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+  const inputs = Object.entries(run.inputs ?? {}).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return (
+    <RunSection
+      title="Parameters and input revisions"
+      description="What this Run was started with"
+      aside={`${plural(parameters.length, "parameter")} · ${plural(inputs.length, "input")}`}
+      {...disclosure}
+    >
+      <div className="runs-binding-grid">
+        <DefinitionList title="String parameters">
+          {parameters.length === 0 ? (
+            <p className="runs-hint">None supplied.</p>
+          ) : (
+            <dl className="runs-facts-list">
+              {parameters.map(([name, value]) => (
                 <div key={name}>
                   <dt>{name}</dt>
                   <dd>{value}</dd>
                 </div>
               ))}
-          </dl>
-        )}
-      </DefinitionList>
-      <DefinitionList title="Input revisions">
-        {Object.entries(run.inputs ?? {}).length === 0 ? (
-          <div className="compact-empty">No inputs.</div>
-        ) : (
-          <div className="artifact-ref-list">
-            {Object.entries(run.inputs ?? {})
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([slot, artifact]) => (
+            </dl>
+          )}
+        </DefinitionList>
+        <DefinitionList title="Input revisions">
+          {inputs.length === 0 ? (
+            <p className="runs-hint">No inputs.</p>
+          ) : (
+            <div className="runs-ref-list">
+              {inputs.map(([slot, artifact]) => (
                 <RunArtifactRef
                   key={slot}
                   runId={run.runId}
@@ -587,28 +430,31 @@ function RunBindings({ run }: { run: RunStatus }) {
                   artifact={artifact}
                 />
               ))}
-          </div>
-        )}
-      </DefinitionList>
-    </div>
+            </div>
+          )}
+        </DefinitionList>
+      </div>
+    </RunSection>
   );
 }
 
-function RunMetadataLabels({ run }: { run: RunStatus }) {
+function RunMetadataLabels({
+  run,
+  ...disclosure
+}: { run: RunStatus } & RunDisclosureProps) {
   return (
-    <section className="panel run-metadata-label-panel">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Labels</p>
-          <h3>Run metadata labels</h3>
-        </div>
-        <span>{Object.keys(run.labels).length} labels</span>
-      </div>
-      <p className="muted-copy">
+    <RunSection
+      className="run-metadata-label-panel"
+      title="Run metadata labels"
+      description="Labels are fixed at creation"
+      aside={plural(Object.keys(run.labels).length, "label")}
+      {...disclosure}
+    >
+      <p className="runs-hint">
         Use these labels to find related Runs. Labels are fixed at creation.
       </p>
       <RunMetadataLabelChips labels={run.labels} empty="No metadata labels." />
-    </section>
+    </RunSection>
   );
 }
 
@@ -626,59 +472,106 @@ function RunRuntimeConfiguration({
   const operator =
     session?.principal.capabilities.includes("operations") === true;
   return (
-    <details className="panel run-runtime-configuration" {...disclosure}>
-      <summary>
-        <span>
-          <span className="eyebrow">Pinned at Run creation</span>
-          <strong>Runtime infrastructure configuration</strong>
-        </span>
-        <span>{run.runtimeLabels.length} explicit Runtime labels</span>
-      </summary>
-      <div className="run-runtime-configuration-body">
-        <p className="muted-copy">
-          Runtime labels below are pinned for this Run and cannot be rebound
-          later.
-        </p>
-        <div className="runtime-provenance-grid">
-          {entries.map((pin) => (
-            <article
-              className={
-                pin.label === "default" ? "runtime-default-pin" : undefined
-              }
-              key={`${pin.label}:${pin.bindingRevision}`}
-            >
-              <strong>
-                {pin.label}
-                {pin.label === "default" ? " · always applied" : ""}
-              </strong>
-              <span>binding revision {pin.bindingRevision}</span>
-              {operator ? (
-                <Link
-                  className="runtime-pin-link"
-                  to={runtimeConfigVersionPath(pin.config)}
-                >
-                  <code>
-                    {pin.config.name}@{pin.config.version}
-                  </code>
-                </Link>
-              ) : (
+    <RunSection
+      className="run-runtime-configuration"
+      title="Runtime infrastructure configuration"
+      description="Pinned at Run creation"
+      aside={plural(run.runtimeLabels.length, "explicit Runtime label")}
+      {...disclosure}
+    >
+      <p className="runs-hint">
+        Runtime labels below are pinned for this Run and cannot be rebound
+        later.
+      </p>
+      <div className="runs-pin-grid">
+        {entries.map((pin) => (
+          <article
+            className="runs-pin"
+            data-default={pin.label === "default" ? "" : undefined}
+            key={`${pin.label}:${pin.bindingRevision}`}
+          >
+            <strong>
+              {pin.label}
+              {pin.label === "default" ? " · always applied" : ""}
+            </strong>
+            <span>binding revision {pin.bindingRevision}</span>
+            {operator ? (
+              <Link to={runtimeConfigVersionPath(pin.config)}>
                 <code>
                   {pin.config.name}@{pin.config.version}
                 </code>
-              )}
-              <code title={pin.config.digest}>
-                {compactDigest(pin.config.digest)}
+              </Link>
+            ) : (
+              <code>
+                {pin.config.name}@{pin.config.version}
               </code>
-            </article>
-          ))}
-        </div>
-        <p className="muted-copy">
-          Agent-label overrides become knowable only after Scheduler commits an
-          allocation snapshot; they are never inferred from current Operations
-          state.
-        </p>
+            )}
+            <code className="runs-digest" title={pin.config.digest}>
+              {compactDigest(pin.config.digest)}
+            </code>
+          </article>
+        ))}
       </div>
-    </details>
+      <p className="runs-hint">
+        Agent-label overrides become knowable only after Scheduler commits an
+        allocation snapshot; they are never inferred from current Operations
+        state.
+      </p>
+    </RunSection>
+  );
+}
+
+function RunCancellationRecord({
+  cancellation,
+  ...disclosure
+}: {
+  cancellation: NonNullable<RunStatus["cancellation"]>;
+} & RunDisclosureProps) {
+  return (
+    <RunSection
+      title="Cancellation record"
+      description="Who asked to stop this Run, when and why"
+      aside={formatTimestamp(cancellation.requestedAt)}
+      {...disclosure}
+    >
+      <dl className="runs-facts-list">
+        <div>
+          <dt>Code</dt>
+          <dd>
+            <code>{cancellation.code}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Requested</dt>
+          <dd>{formatTimestamp(cancellation.requestedAt)}</dd>
+        </div>
+        {cancellation.requestedBy === undefined ? null : (
+          <div>
+            <dt>Requested by</dt>
+            <dd>{cancellation.requestedBy}</dd>
+          </div>
+        )}
+        {cancellation.reason === undefined ? null : (
+          <div>
+            <dt>Reason</dt>
+            <dd>{cancellation.reason}</dd>
+          </div>
+        )}
+      </dl>
+    </RunSection>
+  );
+}
+
+type LiveStatus = Pick<
+  LiveRunProjection,
+  "connection" | "error" | "resyncReason"
+>;
+
+function sameLiveStatus(left: LiveStatus, right: LiveStatus): boolean {
+  return (
+    left.connection === right.connection &&
+    left.error === right.error &&
+    left.resyncReason === right.resyncReason
   );
 }
 
@@ -687,7 +580,7 @@ function LiveAttempts({
   focusStageExecutionId,
   attemptDisclosure,
   instructionDisclosure,
-  ...disclosure
+  onLiveStatus,
 }: {
   run: RunStatus;
   focusStageExecutionId: string | undefined;
@@ -699,75 +592,254 @@ function LiveAttempts({
     stageExecutionId: string,
     subtaskId: string,
   ) => RunDisclosureProps;
-} & RunDisclosureProps) {
+  onLiveStatus: (status: LiveStatus) => void;
+}) {
   const live = useLiveRunProjection(run);
+  useEffect(() => {
+    onLiveStatus({
+      connection: live.connection,
+      ...(live.error === undefined ? {} : { error: live.error }),
+      ...(live.resyncReason === undefined
+        ? {}
+        : { resyncReason: live.resyncReason }),
+    });
+  }, [live.connection, live.error, live.resyncReason, onLiveStatus]);
   return (
-    <>
-      <div className={`live-status live-${live.connection}`} role="status">
-        <span className="status-dot" aria-hidden="true" />
-        Live events: {live.connection}
-        {live.resyncReason === undefined
+    <section className="runs-attempts" aria-label="Ordered Stage attempts">
+      {run.attempts.length === 0 ? (
+        <p className="runs-hint">
+          No Stage attempt has been durably created yet.
+        </p>
+      ) : (
+        run.attempts.map((attempt) => (
+          <StageAttemptView
+            key={attempt.stageExecutionId}
+            runId={run.runId}
+            attempt={attempt}
+            active={run.activeStageExecutionId === attempt.stageExecutionId}
+            projection={live.planners[attempt.stageExecutionId] ?? {}}
+            transitions={run.transitions.filter(
+              (transition) =>
+                transition.sourceExecutionId === attempt.stageExecutionId,
+            )}
+            disclosure={attemptDisclosure(
+              attempt.stageExecutionId,
+              run.activeStageExecutionId === attempt.stageExecutionId ||
+                focusStageExecutionId === attempt.stageExecutionId,
+            )}
+            instructionDisclosure={(subtaskId) =>
+              instructionDisclosure(attempt.stageExecutionId, subtaskId)
+            }
+          />
+        ))
+      )}
+    </section>
+  );
+}
+
+const LIVE_TONES: Record<LiveStatus["connection"], StatusTone> = {
+  live: "success",
+  connecting: "progress",
+  reconnecting: "warning",
+  resyncing: "warning",
+  error: "blocked",
+  unavailable: "neutral",
+};
+
+function LiveStatusLine({
+  status,
+  terminal,
+}: {
+  status: LiveStatus;
+  terminal: boolean;
+}) {
+  // A finished Run without an event stream has nothing to follow.
+  if (terminal && status.connection === "unavailable") return null;
+  return (
+    <p className="runs-live" data-connection={status.connection} role="status">
+      <StatusGlyph tone={LIVE_TONES[status.connection]} size={14} />
+      <span>
+        Live events: {status.connection}
+        {status.resyncReason === undefined
           ? null
-          : ` · REST resync after ${live.resyncReason.replaceAll("_", " ")}`}
+          : ` · REST resync after ${status.resyncReason.replaceAll("_", " ")}`}
+      </span>
+    </p>
+  );
+}
+
+function BreadcrumbSeparator() {
+  return (
+    <svg
+      className="runs-breadcrumb-separator"
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9.5 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/**
+ * "Completed › run_0123…": the Runs view the Run belongs to, or the page the
+ * user opened it from (with that page's own return state). The rail already
+ * marks Runs as the destination, so the trail does not repeat it.
+ */
+function RunBreadcrumb({
+  runId,
+  terminal,
+}: {
+  runId: string;
+  terminal: boolean;
+}) {
+  const { state } = useLocation();
+  const origin = catalogReturnState(
+    state,
+    terminal
+      ? { returnTo: "/runs?view=completed", returnLabel: "Completed" }
+      : { returnTo: "/runs", returnLabel: "Queue" },
+  );
+  return (
+    <nav aria-label="Breadcrumb" className="runs-breadcrumb">
+      <ol>
+        <li>
+          <Link to={origin.returnTo} state={origin.returnState}>
+            {origin.returnLabel}
+          </Link>
+          <BreadcrumbSeparator />
+        </li>
+        <li>
+          <span aria-current="page" title={runId}>
+            {compactId(runId)}
+          </span>
+        </li>
+      </ol>
+    </nav>
+  );
+}
+
+function RunTitle({
+  workflow,
+  headingRef,
+}: {
+  workflow: string;
+  headingRef?: Ref<HTMLHeadingElement>;
+}) {
+  const identity = parseWorkflowIdentity(workflow);
+  return (
+    <h1
+      className="runs-run-title"
+      id="run-title"
+      ref={headingRef}
+      tabIndex={-1}
+    >
+      {identity === undefined ? (
+        workflow
+      ) : (
+        <>
+          {identity.name}
+          <span className="runs-run-version">@{identity.version}</span>
+        </>
+      )}
+    </h1>
+  );
+}
+
+function RunFacts({
+  run,
+  durationMs,
+}: {
+  run: RunStatus;
+  durationMs?: number;
+}) {
+  return (
+    <dl className="runs-facts run-metadata">
+      <div>
+        <dt>Run ID</dt>
+        <dd>
+          <IdChip value={run.runId} label="Run ID" />
+        </dd>
       </div>
-      {live.error === undefined ? null : (
-        <div className="notice notice-warning" role="alert">
-          <strong>{live.error}</strong>
-          <p>Use Refresh to reload the Run.</p>
+      <div>
+        <dt>Workflow</dt>
+        <dd>
+          <IdChip
+            value={run.workflow}
+            display={run.workflow}
+            label="workflow version"
+          />
+        </dd>
+      </div>
+      {run.projectId === undefined ? null : (
+        <div>
+          <dt>Project</dt>
+          <dd>
+            <Link to={`/projects/${encodeURIComponent(run.projectId)}`}>
+              <code>{run.projectId}</code>
+            </Link>
+          </dd>
         </div>
       )}
-      <details
-        className="run-disclosure run-attempts-disclosure"
-        id="run-attempts"
-        {...disclosure}
-      >
-        <RunDisclosureSummary
-          eyebrow="Scheduler history"
-          title="Ordered Stage attempts"
-          aside={`${run.attempts.length} attempt${run.attempts.length === 1 ? "" : "s"}`}
-        />
-        <section className="run-attempts" aria-label="Ordered Stage attempts">
-          {run.attempts.length === 0 ? (
-            <div className="panel compact-empty">
-              No Stage attempt has been durably created yet.
-            </div>
-          ) : (
-            run.attempts.map((attempt) => (
-              <StageAttemptView
-                key={attempt.stageExecutionId}
-                runId={run.runId}
-                attempt={attempt}
-                active={run.activeStageExecutionId === attempt.stageExecutionId}
-                projection={live.planners[attempt.stageExecutionId] ?? {}}
-                transitions={run.transitions.filter(
-                  (transition) =>
-                    transition.sourceExecutionId === attempt.stageExecutionId,
-                )}
-                disclosure={attemptDisclosure(
-                  attempt.stageExecutionId,
-                  run.activeStageExecutionId === attempt.stageExecutionId ||
-                    focusStageExecutionId === attempt.stageExecutionId,
-                )}
-                instructionDisclosure={(subtaskId) =>
-                  instructionDisclosure(attempt.stageExecutionId, subtaskId)
-                }
-              />
-            ))
-          )}
-        </section>
-      </details>
-    </>
+      {run.createdAt === undefined ? null : (
+        <div>
+          <dt>Created</dt>
+          <dd>{formatTimestamp(run.createdAt)}</dd>
+        </div>
+      )}
+      {run.startedAt === undefined ? null : (
+        <div>
+          <dt>Started</dt>
+          <dd>{formatTimestamp(run.startedAt)}</dd>
+        </div>
+      )}
+      {run.updatedAt === undefined ? null : (
+        <div>
+          <dt>Updated</dt>
+          <dd>{formatTimestamp(run.updatedAt)}</dd>
+        </div>
+      )}
+      {run.finishedAt === undefined ? null : (
+        <div>
+          <dt>Finished</dt>
+          <dd>{formatTimestamp(run.finishedAt)}</dd>
+        </div>
+      )}
+      {durationMs === undefined ? null : (
+        <div>
+          <dt>Duration</dt>
+          <dd>{formatRunDuration(durationMs)}</dd>
+        </div>
+      )}
+    </dl>
   );
 }
 
 function LoadedRunDetail({
   run,
   snapshotVersion,
+  refresh,
+  staleError,
+  onRetry,
+  retryPending,
 }: {
   run: RunStatus;
   snapshotVersion: number;
+  refresh: ReactNode;
+  staleError: Error | null;
+  onRetry: () => void;
+  retryPending: boolean;
 }) {
   const queryClient = useQueryClient();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [announcement, setAnnouncement] = useState("");
   const invalidatedPublication = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (run.projectId === undefined || run.state !== "succeeded") {
@@ -791,13 +863,28 @@ function LoadedRunDetail({
   ]);
   const liveKey = `${run.eventCursor?.generation ?? "none"}:${run.eventCursor?.sequence ?? "none"}`;
   const triage = deriveRunTriage(run);
+  const terminal = isTerminalRunState(run.state);
+  const [live, setLive] = useState<LiveStatus>(() => ({
+    connection: run.eventCursor === undefined ? "unavailable" : "connecting",
+  }));
+  const reportLive = useCallback((next: LiveStatus) => {
+    setLive((current) => (sameLiveStatus(current, next) ? current : next));
+  }, []);
   // Heavy sections stay open while a Run is active or failed (diagnostics
-  // matter) and start collapsed once it ended otherwise; the pinned Runtime
-  // configuration is reference material and always starts collapsed. Choices
-  // persist across live remounts because this component is keyed by Run ID.
+  // matter) and start collapsed once it ended otherwise; reference material
+  // always starts collapsed. Choices persist across live remounts because
+  // this component is keyed by Run ID.
   const [disclosures, setDisclosures] = useState(() => {
-    const open = !isTerminalRunState(run.state) || run.state === "failed";
-    return { attempts: open, runtime: false, artifacts: open };
+    const open = !terminal || run.state === "failed";
+    return {
+      metrics: run.state !== "succeeded",
+      attempts: open,
+      labels: false,
+      bindings: false,
+      runtime: false,
+      artifacts: open,
+      cancellation: false,
+    };
   });
   const [attemptOverrides, setAttemptOverrides] = useState<
     Record<string, boolean>
@@ -850,48 +937,130 @@ function LoadedRunDetail({
       },
     };
   }
+  // The triage shortcut opens the attempt (and its section) before the
+  // browser follows the link to it.
+  function openAttempt(stageExecutionId: string): void {
+    flushSync(() => {
+      setDisclosures((current) =>
+        current.attempts ? current : { ...current, attempts: true },
+      );
+      setAttemptOverrides((current) =>
+        current[stageExecutionId] === true
+          ? current
+          : { ...current, [stageExecutionId]: true },
+      );
+    });
+  }
+  function focusHeading(): void {
+    // The Dialog returns focus to its trigger first; the trigger is usually
+    // gone with the new state, so the page heading takes focus instead.
+    window.setTimeout(() => heading.current?.focus(), 0);
+  }
+  function actionDone(message: string): void {
+    setAnnouncement(message);
+    focusHeading();
+  }
+
   return (
     <>
-      <RunTriageSummary run={run} triage={triage} />
-      <RunResumeControl
-        key={`${run.runId}:${run.resumeStageExecutionId ?? "none"}`}
-        run={run}
-      />
-      {run.cancellation === undefined ? null : (
-        <div className="notice notice-warning cancellation-record">
-          <strong>Cancellation requested</strong>
-          <span>
-            <code>{run.cancellation.code}</code> ·{" "}
-            {formatTimestamp(run.cancellation.requestedAt)}
-          </span>
-          {run.cancellation.reason === undefined ? null : (
-            <p>{run.cancellation.reason}</p>
-          )}
-          {run.cancellation.requestedBy === undefined ? null : (
-            <small>Requested by {run.cancellation.requestedBy}</small>
-          )}
+      <header className="runs-run-header">
+        <RunBreadcrumb runId={run.runId} terminal={terminal} />
+        <div className="runs-run-titles">
+          <p className="runs-label runs-run-kind">Workflow Run</p>
+          <RunTitle workflow={run.workflow} headingRef={heading} />
+          <RunStateChip state={run.state} size="md" />
         </div>
-      )}
-      <RunOutputGallery run={run} />
-      <RunOutputPublications run={run} />
-      <RunRepeatControl run={run} />
-      <LiveAttempts
-        key={`${liveKey}:${snapshotVersion}`}
-        run={run}
-        focusStageExecutionId={triage.stageExecutionId}
-        attemptDisclosure={attemptDisclosure}
-        instructionDisclosure={instructionDisclosure}
-        {...disclosure("attempts")}
-      />
-
-      <RunMetadataLabels run={run} />
-      <RunTimestamps run={run} />
-      <RunBindings run={run} />
-
-      <RunRuntimeConfiguration run={run} {...disclosure("runtime")} />
-
-      <RunArtifactLibrary runId={run.runId} {...disclosure("artifacts")} />
-      <CancellationControl run={run} />
+        <RunActions
+          run={run}
+          refresh={refresh}
+          onDone={actionDone}
+          focusHeading={focusHeading}
+        />
+        <RunFacts
+          run={run}
+          {...(triage.durationMs === undefined
+            ? {}
+            : { durationMs: triage.durationMs })}
+        />
+        <LiveStatusLine status={live} terminal={terminal} />
+        <p className="ui-visually-hidden" role="status">
+          {announcement}
+        </p>
+      </header>
+      <div className="runs-run-body">
+        {staleError === null ? null : (
+          <StaleDataWarning
+            error={staleError}
+            onRetry={onRetry}
+            retryPending={retryPending}
+          />
+        )}
+        {live.error === undefined ? null : (
+          <div className="notice notice-warning" role="alert">
+            <strong>{live.error}</strong>
+            <p>Use Refresh to reload the Run.</p>
+          </div>
+        )}
+        <RunTriageSummary
+          run={run}
+          triage={triage}
+          onOpenAttempt={openAttempt}
+        />
+        <RunOutputGallery run={run} />
+        <RunOutputPublications run={run} />
+        <section
+          className="runs-technical runs-block-section"
+          aria-labelledby="run-technical-title"
+        >
+          <div className="runs-section-head">
+            <div>
+              <h2 className="runs-h2" id="run-technical-title">
+                Technical details
+              </h2>
+              <p className="runs-hint">
+                Stages, attempts, configuration and files, for admins and
+                debugging.
+              </p>
+            </div>
+          </div>
+          <div className="runs-sections">
+            <RunExecutionMetrics
+              run={run}
+              triage={triage}
+              {...disclosure("metrics")}
+            />
+            <RunSection
+              id="run-attempts"
+              title="Ordered Stage attempts"
+              description="Scheduler history: Planner subtasks, configuration, diagnostics and records"
+              aside={plural(run.attempts.length, "attempt")}
+              {...disclosure("attempts")}
+            >
+              <LiveAttempts
+                key={`${liveKey}:${snapshotVersion}`}
+                run={run}
+                focusStageExecutionId={triage.stageExecutionId}
+                attemptDisclosure={attemptDisclosure}
+                instructionDisclosure={instructionDisclosure}
+                onLiveStatus={reportLive}
+              />
+            </RunSection>
+            <RunMetadataLabels run={run} {...disclosure("labels")} />
+            <RunBindings run={run} {...disclosure("bindings")} />
+            <RunRuntimeConfiguration run={run} {...disclosure("runtime")} />
+            <RunArtifactLibrary
+              runId={run.runId}
+              {...disclosure("artifacts")}
+            />
+            {run.cancellation === undefined ? null : (
+              <RunCancellationRecord
+                cancellation={run.cancellation}
+                {...disclosure("cancellation")}
+              />
+            )}
+          </div>
+        </section>
+      </div>
     </>
   );
 }
@@ -910,8 +1079,6 @@ function recoveryRefreshDelay(recovery: RunStatus["recovery"]): number | false {
 export function RunDetailRoute() {
   const api = usePublicAPI();
   const { runId = "" } = useParams();
-  const [copiedId, setCopiedId] = useState<string>();
-  const [copyError, setCopyError] = useState<string>();
   const valid = RUN_ID_PATTERN.test(runId);
   const query = useQuery({
     queryKey: queryKeys.runs.detail(runId),
@@ -923,74 +1090,66 @@ export function RunDetailRoute() {
   useDocumentTitle(
     query.data === undefined ? "Run" : `${query.data.workflow} · Run`,
   );
-
-  async function copyRunId(): Promise<void> {
-    setCopyError(undefined);
-    try {
-      await navigator.clipboard.writeText(runId);
-      setCopiedId(runId);
-    } catch {
-      setCopyError("Could not copy. Select the Run ID to copy it manually.");
-    }
-  }
   if (!valid) {
     return (
-      <section className="route-page">
-        <ErrorNotice error={new Error("Run route is invalid")} />
-        <Link to="/runs">Return to Runs</Link>
-      </section>
+      <div className="runs-page">
+        <section className="runs-surface runs-run-empty">
+          <ErrorNotice error={new Error("Run route is invalid")} />
+          <Link to="/runs">Return to Runs</Link>
+        </section>
+      </div>
     );
   }
+  const refresh = (
+    <RefreshButton
+      className="runs-icon-button"
+      isFetching={query.isFetching}
+      onRefresh={() => void query.refetch()}
+    />
+  );
+  const run = query.data;
   return (
-    <section className="route-page runs-page run-detail-page">
-      <header className="route-header-row">
-        <div>
-          <ReturnLink to="/runs" label="All Runs" />
-          <p className="eyebrow">Workflow Run</p>
-          <h2>{query.data?.workflow ?? "Run details"}</h2>
-          <div className="run-identity">
-            <code title={runId}>{runId}</code>
-            <button
-              className="secondary-button"
-              type="button"
-              aria-label="Copy Run ID"
-              onClick={() => void copyRunId()}
-            >
-              {copiedId === runId ? "Copied" : "Copy ID"}
-            </button>
-            <span className="visually-hidden" role="status">
-              {copiedId === runId ? "Run ID copied" : ""}
-            </span>
-          </div>
-          {copyError === undefined ? null : (
-            <p className="field-error" role="alert">
-              {copyError}
-            </p>
-          )}
-        </div>
-        <RefreshButton
-          isFetching={query.isFetching}
-          onRefresh={() => void query.refetch()}
-        />
-      </header>
-      <QueryView
-        query={query}
-        loading={
-          <p className="loading-copy" aria-live="polite">
-            Loading Run…
-          </p>
-        }
-        errorContext="Could not load this Run"
-        onRetry={() => void query.refetch()}
-      >
-        {(run) => (
+    <div className="runs-page">
+      <article className="runs-surface runs-run" aria-labelledby="run-title">
+        {run === undefined ? (
+          <>
+            <header className="runs-run-header">
+              <RunBreadcrumb runId={runId} terminal={false} />
+              <div className="runs-run-titles">
+                <p className="runs-label runs-run-kind">Workflow Run</p>
+                <h1 className="runs-run-title" id="run-title">
+                  Run details
+                </h1>
+              </div>
+              <div className="runs-run-actions">{refresh}</div>
+            </header>
+            <div className="runs-run-body">
+              {query.error === null ? (
+                <p className="runs-loading" aria-live="polite">
+                  Loading Run…
+                </p>
+              ) : (
+                <ErrorNotice
+                  error={query.error}
+                  context="Could not load this Run"
+                  onRetry={() => void query.refetch()}
+                  retryPending={query.isFetching}
+                />
+              )}
+            </div>
+          </>
+        ) : (
           <LoadedRunDetail
             key={run.runId}
             run={run}
             snapshotVersion={query.dataUpdatedAt}
+            refresh={refresh}
+            staleError={query.error}
+            onRetry={() => void query.refetch()}
+            retryPending={query.isFetching}
           />
         )}
-      </QueryView>
-    </section>
+      </article>
+    </div>
   );
 }

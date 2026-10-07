@@ -8,9 +8,16 @@ import type {
   StageTransition,
   WorkflowRunState,
 } from "../../api/runs";
-import { compactDigest, formatTimestamp } from "../../app/format";
+import { compactDigest, compactId, formatTimestamp } from "../../app/format";
+import { IdChip, StatusChip, StatusGlyph } from "../../ui";
 import type { PlannerProjection } from "./live";
 import { artifactDetailPath } from "../artifacts/paths";
+import {
+  allocationStatusLabel,
+  runStateLabel,
+  stageStateLabel,
+  subtaskStatusLabel,
+} from "./run-state";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
@@ -29,24 +36,67 @@ export type RunDisclosureProps = {
   onToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
 };
 
-/** Heading row for a collapsible Run section; the parent `<details>` owns `open`. */
-export function RunDisclosureSummary({
-  eyebrow,
-  title,
-  aside,
-}: {
-  eyebrow: string;
-  title: string;
-  aside?: ReactNode;
-}) {
+/** The rotating chevron of the Runs disclosures. */
+export function DisclosureChevron() {
   return (
-    <summary className="run-disclosure-summary">
-      <span>
-        <span className="eyebrow">{eyebrow}</span>
-        <strong>{title}</strong>
-      </span>
-      {aside === undefined ? null : <span>{aside}</span>}
-    </summary>
+    <svg
+      className="runs-section-chevron"
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9.5 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/**
+ * One collapsible section of the Run page's Technical details: a native
+ * `<details>` whose summary row carries the title (an h3, which the summary
+ * content model allows), a quiet description and a count at the right.
+ * `open` is controlled by the page so choices survive live remounts.
+ */
+export function RunSection({
+  id,
+  className,
+  title,
+  description,
+  aside,
+  children,
+  ...disclosure
+}: {
+  id?: string | undefined;
+  className?: string | undefined;
+  title: string;
+  description?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+} & RunDisclosureProps) {
+  return (
+    <details
+      id={id}
+      className={["runs-section", className].filter(Boolean).join(" ")}
+      {...disclosure}
+    >
+      <summary className="runs-section-summary">
+        <DisclosureChevron />
+        <h3 className="runs-section-title">{title}</h3>
+        {description === undefined ? null : (
+          <span className="runs-section-description">{description}</span>
+        )}
+        {aside === undefined ? null : (
+          <span className="runs-section-aside">{aside}</span>
+        )}
+      </summary>
+      <div className="runs-section-body">{children}</div>
+    </details>
   );
 }
 
@@ -64,11 +114,31 @@ function ResultSummary({ summary }: { summary: string }) {
   );
 }
 
+/**
+ * Lifecycle badge shared by several areas (Projects, Checks, Evals,
+ * Operations). The Runs pages use RunStateChip instead.
+ */
 export function StateBadge({ state }: { state: WorkflowRunState | string }) {
   return (
     <span className={`state-badge state-${state.replaceAll("_", "-")}`}>
       {stateLabel(state)}
     </span>
+  );
+}
+
+/** WorkflowRun state as a V3B status chip: glyph and word. */
+export function RunStateChip({
+  state,
+  size = "sm",
+}: {
+  state: WorkflowRunState;
+  size?: "sm" | "md";
+}) {
+  const { label, tone } = runStateLabel(state);
+  return (
+    <StatusChip tone={tone} size={size}>
+      {label}
+    </StatusChip>
   );
 }
 
@@ -115,12 +185,33 @@ export function RunArtifactRef({
       className="artifact-ref-link"
       to={artifactDetailPath({ kind: "run", id: runId }, artifact)}
     >
-      {slot === undefined ? null : <strong>{slot}</strong>}
+      {slot === undefined ? null : (
+        <>
+          <strong>{slot}</strong>{" "}
+        </>
+      )}
       <code>
         {artifact.namespace}/{artifact.name}@{artifact.revision}
       </code>
     </Link>
   );
+}
+
+function Digest({ value }: { value: string }) {
+  return (
+    <code className="runs-digest" title={value}>
+      {compactDigest(value)}
+    </code>
+  );
+}
+
+/**
+ * A stage execution ID in full, with a copy button: Technical details are
+ * where people match attempts and search logs, so the exact value stays
+ * readable and copyable (the attempt summary shows only a compact form).
+ */
+function ExecutionId({ value, label }: { value: string; label: string }) {
+  return <IdChip value={value} display={value} label={label} />;
 }
 
 function ConsumerConfigView({
@@ -142,24 +233,25 @@ function ConsumerConfigView({
     <li>
       <strong>{label}</strong>
       <span>
-        ModelPolicy {config.modelPolicy.policyId}@{config.modelPolicy.version} ·{" "}
-        <small title={config.modelPolicy.digest}>
-          {compactDigest(config.modelPolicy.digest)}
-        </small>
+        ModelPolicy{" "}
+        <code>
+          {config.modelPolicy.policyId}@{config.modelPolicy.version}
+        </code>{" "}
+        <Digest value={config.modelPolicy.digest} />
       </span>
       {config.llmGateway === undefined ? (
         <span>LLMGatewayConfig resolved during Runtime placement</span>
       ) : (
         <span>
-          LLMGatewayConfig {config.llmGateway.gatewayId}@
-          {config.llmGateway.version} ·{" "}
-          <small title={config.llmGateway.digest}>
-            {compactDigest(config.llmGateway.digest)}
-          </small>
+          LLMGatewayConfig{" "}
+          <code>
+            {config.llmGateway.gatewayId}@{config.llmGateway.version}
+          </code>{" "}
+          <Digest value={config.llmGateway.digest} />
         </span>
       )}
       <span>Credential {config.credential?.credentialId ?? "none"}</span>
-      <span className="config-origins">
+      <span className="runs-config-origins">
         Origins: model {config.origins?.modelPolicy ?? "not reported"}; Gateway{" "}
         {config.origins?.llmGateway ?? "not reported"}; credential{" "}
         {config.origins?.credential ?? "not reported"}
@@ -171,27 +263,24 @@ function ConsumerConfigView({
 function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
   const config = attempt.executionConfig;
   return (
-    <div className="attempt-block">
-      <h4>Resolved execution configuration</h4>
-      <p className="compact-copy">
+    <div className="runs-block">
+      <h4 className="runs-block-title">Resolved execution configuration</h4>
+      <p className="runs-block-note">
         Variant <code>{config.variant}</code>
         {config.escalationOrdinal === undefined
           ? null
           : ` · escalation ${config.escalationOrdinal}`}
       </p>
       {config.ref === undefined ? null : (
-        <p className="compact-copy">
+        <p className="runs-block-note">
           Profile{" "}
           <code>
             {config.ref.configId}@{config.ref.version}
           </code>{" "}
-          ·{" "}
-          <small title={config.ref.digest}>
-            {compactDigest(config.ref.digest)}
-          </small>
+          <Digest value={config.ref.digest} />
         </p>
       )}
-      <ul className="consumer-config-list">
+      <ul className="runs-consumer-list">
         {config.planner === undefined ? null : (
           <ConsumerConfigView label="Planner" config={config.planner} />
         )}
@@ -223,83 +312,90 @@ function RuntimeConfigurationView({ attempt }: { attempt: StageAttempt }) {
     return null;
   }
   return (
-    <div className="attempt-block stage-runtime-configuration">
-      <h4>Allocation-pinned Runtime configuration</h4>
-      <p className="compact-copy">
+    <div className="runs-block runs-block-wide">
+      <h4 className="runs-block-title">
+        Allocation-pinned Runtime configuration
+      </h4>
+      <p className="runs-block-note">
         This historical projection appears only after placement commits. It
         contains safe refs and origins, never RuntimeSettings or physical Agent
         identity.
       </p>
-      <div className="stage-runtime-allocation-list">
-        {configuration.allocations.map((allocation) => (
-          <article key={allocation.logicalAgent}>
-            <div className="section-heading">
-              <strong>Logical Worker {allocation.logicalAgent}</strong>
-              <StateBadge state={allocation.status} />
-            </div>
-            <dl className="key-value-list">
-              <div>
-                <dt>Final Agent labels</dt>
-                <dd>
-                  {allocation.agentLabels.length === 0
-                    ? "none"
-                    : allocation.agentLabels.map((pin) => (
-                        <span className="runtime-agent-pin" key={pin.label}>
-                          <strong>{pin.label}</strong>
-                          <code>
-                            {pin.config.name}@{pin.config.version}
-                          </code>
-                          <small>binding revision {pin.bindingRevision}</small>
-                          <code title={pin.config.digest}>
-                            {compactDigest(pin.config.digest)}
-                          </code>
-                        </span>
-                      ))}
-                </dd>
+      <div className="runs-allocation-list">
+        {configuration.allocations.map((allocation) => {
+          const status = allocationStatusLabel(allocation.status);
+          return (
+            <article className="runs-allocation" key={allocation.logicalAgent}>
+              <div className="runs-allocation-head">
+                <strong>Logical Worker {allocation.logicalAgent}</strong>
+                <StatusChip tone={status.tone} size="sm">
+                  {status.label}
+                </StatusChip>
               </div>
-              <div>
-                <dt>Required adapters</dt>
-                <dd>
-                  {allocation.runtimeAdapters.length === 0
-                    ? "none"
-                    : allocation.runtimeAdapters.map((adapter) => (
-                        <code key={adapter}>{adapter}</code>
-                      ))}
-                </dd>
-              </div>
-              <div>
-                <dt>Final safe origins</dt>
-                <dd>
-                  {Object.entries(allocation.origins).length === 0 ? (
-                    "none"
-                  ) : (
-                    <ul className="runtime-origin-list">
-                      {Object.entries(allocation.origins).map(
-                        ([field, origin]) => (
-                          <li
-                            className={
-                              origin.layer === "agent_labels"
-                                ? "runtime-agent-override"
-                                : undefined
-                            }
-                            key={field}
-                          >
-                            <strong>{field}</strong>: {origin.layer}
-                            {origin.configs?.map((ref) => (
-                              <code key={`${ref.name}@${ref.version}`}>
-                                {ref.name}@{ref.version}
-                              </code>
-                            ))}
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </article>
-        ))}
+              <dl className="runs-facts-list">
+                <div>
+                  <dt>Final Agent labels</dt>
+                  <dd>
+                    {allocation.agentLabels.length === 0
+                      ? "none"
+                      : allocation.agentLabels.map((pin) => (
+                          <span className="runs-agent-pin" key={pin.label}>
+                            <strong>{pin.label}</strong>
+                            <code>
+                              {pin.config.name}@{pin.config.version}
+                            </code>
+                            <small>
+                              binding revision {pin.bindingRevision}
+                            </small>
+                            <Digest value={pin.config.digest} />
+                          </span>
+                        ))}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Required adapters</dt>
+                  <dd>
+                    {allocation.runtimeAdapters.length === 0
+                      ? "none"
+                      : allocation.runtimeAdapters.map((adapter) => (
+                          <code key={adapter}>{adapter}</code>
+                        ))}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Final safe origins</dt>
+                  <dd>
+                    {Object.entries(allocation.origins).length === 0 ? (
+                      "none"
+                    ) : (
+                      <ul className="runs-origin-list">
+                        {Object.entries(allocation.origins).map(
+                          ([field, origin]) => (
+                            <li
+                              className={
+                                origin.layer === "agent_labels"
+                                  ? "runtime-agent-override"
+                                  : undefined
+                              }
+                              key={field}
+                            >
+                              <strong>{field}</strong>: {origin.layer}
+                              {origin.configs?.map((ref) => (
+                                <code key={`${ref.name}@${ref.version}`}>
+                                  {ref.name}@{ref.version}
+                                </code>
+                              ))}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
@@ -315,41 +411,49 @@ function PlannerPlanView({
   const plan = projection.plan;
   if (plan === undefined) {
     return (
-      <div className="compact-empty">
-        No subtask plan is present for this attempt.
+      <div className="runs-block">
+        <h4 className="runs-block-title">Subtasks</h4>
+        <p className="runs-block-note">
+          No subtask plan is present for this attempt.
+        </p>
       </div>
     );
   }
   const dispatch = projection.dispatch ?? plan.activeDispatch;
   const dispatchPhase = projection.dispatch?.phase ?? "running";
   return (
-    <div className="planner-projection">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Nested Planner work</p>
-          <h4>Subtasks</h4>
-        </div>
-        <span>revision {plan.revision}</span>
+    <div className="runs-block runs-block-wide">
+      <div className="runs-block-head">
+        <h4 className="runs-block-title">Subtasks</h4>
+        <span className="runs-block-aside">
+          Nested Planner work · revision {plan.revision}
+        </span>
       </div>
       {dispatch === undefined ? null : (
-        <div className="dispatch-banner">
-          <strong>Logical Worker {dispatch.workerName}</strong>
+        <div className="runs-dispatch">
+          <StatusGlyph tone="progress" />
           <span>
-            subtask {dispatch.subtaskId} · {dispatchPhase}
+            <strong>Logical Worker {dispatch.workerName}</strong>
+            <span>
+              subtask {dispatch.subtaskId} · {dispatchPhase}
+            </span>
+            <code>{dispatch.callId}</code>
           </span>
-          <code>{dispatch.callId}</code>
         </div>
       )}
-      <ol className="subtask-list">
+      <ol className="runs-subtask-list">
         {plan.subtasks.map((subtask) => {
           const current = plan.currentSubtaskId === subtask.id;
+          const status = subtaskStatusLabel(subtask.status);
           return (
-            <li className={current ? "current" : undefined} key={subtask.id}>
-              <div>
+            <li data-current={current ? "" : undefined} key={subtask.id}>
+              <div className="runs-subtask-head">
                 <code>{subtask.id}</code>
-                <StateBadge state={subtask.status} />
+                <StatusChip tone={status.tone} size="sm">
+                  {status.label}
+                </StatusChip>
                 {current ? (
-                  <strong className="current-marker">current</strong>
+                  <strong className="runs-marker">current</strong>
                 ) : null}
               </div>
               <p>{subtask.objective}</p>
@@ -362,7 +466,7 @@ function PlannerPlanView({
         })}
       </ol>
       {projection.lastEventKind === undefined ? null : (
-        <small className="live-event-note">
+        <small className="runs-block-note">
           Last event: {projection.lastEventKind}
           {projection.lastOccurredAt === undefined
             ? ""
@@ -384,9 +488,9 @@ function MetricsView({ metrics }: { metrics: Metrics }) {
     ["Errors", metrics.errorCount],
   ] as const;
   return (
-    <div className="attempt-block">
-      <h4>Safe aggregate metrics</h4>
-      <dl className="metrics-grid">
+    <div className="runs-block">
+      <h4 className="runs-block-title">Safe aggregate metrics</h4>
+      <dl className="runs-metrics">
         {values.map(([label, value]) => (
           <div key={label}>
             <dt>{label}</dt>
@@ -394,7 +498,7 @@ function MetricsView({ metrics }: { metrics: Metrics }) {
           </div>
         ))}
       </dl>
-      <p className="compact-copy">
+      <p className="runs-block-note">
         Reports {metrics.reportsComplete ? "complete" : "incomplete"}
         {metrics.truncated ? " · bounded data truncated" : ""}
       </p>
@@ -407,9 +511,9 @@ function ResourceView({ attempt }: { attempt: StageAttempt }) {
     return null;
   }
   return (
-    <div className="attempt-block run-attempt-resources">
-      <h4>Allocation resource observations</h4>
-      <p className="compact-copy">
+    <div className="runs-block runs-block-wide">
+      <h4 className="runs-block-title">Allocation resource observations</h4>
+      <p className="runs-block-note">
         These terminal summaries use the allocation-pinned collection policy;
         missing measurements are not zero usage.
       </p>
@@ -418,21 +522,29 @@ function ResourceView({ attempt }: { attempt: StageAttempt }) {
   );
 }
 
+function retryability(retryable: boolean | undefined): string {
+  return retryable === undefined
+    ? "retryability unknown"
+    : retryable
+      ? "retryable"
+      : "not retryable";
+}
+
 function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
   return (
-    <div className="attempt-block">
-      <h4>Attempt diagnostics</h4>
+    <div className="runs-block">
+      <h4 className="runs-block-title">Attempt diagnostics</h4>
       {diagnostics.items.length === 0 ? (
-        <p className="compact-copy">
+        <p className="runs-block-note">
           No normalized Planner or Worker errors were reported.
         </p>
       ) : (
-        <ol className="diagnostic-list">
+        <ol className="runs-record-list">
           {diagnostics.items.map((diagnostic, index) => (
             <li
               key={`${diagnostic.participant}-${diagnostic.logicalAgent ?? "planner"}-${diagnostic.code}-${index}`}
             >
-              <div>
+              <div className="runs-record-head">
                 <strong>
                   {diagnostic.participant === "planner" ? "Planner" : "Worker"}
                 </strong>
@@ -440,13 +552,7 @@ function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
                   <code>{diagnostic.logicalAgent}</code>
                 )}
                 <code>{diagnostic.code}</code>
-                <span>
-                  {diagnostic.retryable === undefined
-                    ? "retryability unknown"
-                    : diagnostic.retryable
-                      ? "retryable"
-                      : "not retryable"}
-                </span>
+                <span>{retryability(diagnostic.retryable)}</span>
               </div>
               <p>{diagnostic.message}</p>
             </li>
@@ -454,7 +560,7 @@ function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
         </ol>
       )}
       {diagnostics.truncated ? (
-        <p className="compact-copy">
+        <p className="runs-block-note">
           Older diagnostics were omitted by a bounded report or public response.
         </p>
       ) : null}
@@ -473,10 +579,10 @@ function ResultView({
     return null;
   }
   return (
-    <div className="attempt-block">
-      <h4>Terminal record</h4>
+    <div className="runs-block runs-block-wide">
+      <h4 className="runs-block-title">Terminal record</h4>
       {attempt.result === undefined ? null : (
-        <div className="result-record">
+        <div className="runs-terminal-record">
           <p>
             <strong>Planner result: {attempt.result.outcome}</strong>
           </p>
@@ -489,18 +595,24 @@ function ResultView({
               {attempt.result.error.message}
             </p>
           )}
-          {Object.entries(attempt.result.artifacts).map(([slot, artifact]) => (
-            <RunArtifactRef
-              key={slot}
-              runId={runId}
-              slot={slot}
-              artifact={artifact}
-            />
-          ))}
+          {Object.keys(attempt.result.artifacts).length === 0 ? null : (
+            <div className="runs-ref-list">
+              {Object.entries(attempt.result.artifacts).map(
+                ([slot, artifact]) => (
+                  <RunArtifactRef
+                    key={slot}
+                    runId={runId}
+                    slot={slot}
+                    artifact={artifact}
+                  />
+                ),
+              )}
+            </div>
+          )}
         </div>
       )}
       {attempt.termination === undefined ? null : (
-        <div className="termination-record">
+        <div className="runs-terminal-record">
           <p>
             <strong>{attempt.termination.outcome}</strong> during{" "}
             {attempt.termination.phase} ·{" "}
@@ -519,7 +631,7 @@ function ResultView({
 
 function TransitionView({ transition }: { transition: StageTransition }) {
   return (
-    <li>
+    <li className="runs-transition">
       <strong>{transition.action}</strong>
       {transition.targetStage === undefined ? null : (
         <span>
@@ -528,7 +640,11 @@ function TransitionView({ transition }: { transition: StageTransition }) {
       )}
       {transition.targetExecutionId === undefined ? null : (
         <span>
-          execution <code>{transition.targetExecutionId}</code>
+          execution{" "}
+          <ExecutionId
+            value={transition.targetExecutionId}
+            label="target stage execution ID"
+          />
         </span>
       )}
       {transition.escalationOrdinal === undefined ? null : (
@@ -542,15 +658,24 @@ function TransitionView({ transition }: { transition: StageTransition }) {
   );
 }
 
-function AttemptTimestamps({ attempt }: { attempt: StageAttempt }) {
+function AttemptFacts({ attempt }: { attempt: StageAttempt }) {
   const values: Array<[string, string | undefined]> = [
-    ["created", attempt.createdAt],
-    ["updated", attempt.updatedAt],
+    ["Created", attempt.createdAt],
+    ["Updated", attempt.updatedAt],
     ["Planner started", attempt.plannerStartedAt],
-    ["terminal", attempt.terminalAt],
+    ["Terminal", attempt.terminalAt],
   ];
   return (
-    <dl className="attempt-timestamps">
+    <dl className="runs-inline-facts">
+      <div>
+        <dt>Stage execution ID</dt>
+        <dd>
+          <ExecutionId
+            value={attempt.stageExecutionId}
+            label="stage execution ID"
+          />
+        </dd>
+      </div>
       {values.map(([label, value]) =>
         value === undefined ? null : (
           <div key={label}>
@@ -580,52 +705,65 @@ export function StageAttemptView({
   disclosure: RunDisclosureProps;
   instructionDisclosure: (subtaskId: string) => RunDisclosureProps;
 }) {
+  const state = stageStateLabel(attempt.state);
   return (
     <details
-      className="run-attempt"
+      className="run-attempt runs-attempt"
       id={`attempt-${attempt.stageExecutionId}`}
       {...disclosure}
     >
-      <summary>
-        <span>
+      <summary className="runs-attempt-summary">
+        <DisclosureChevron />
+        <StatusGlyph tone={state.tone} />
+        <span className="runs-attempt-name">
           <code>{attempt.stage}</code>
-          <strong>attempt {attempt.attempt}</strong>
-          {active ? <span className="current-marker">active</span> : null}
+          <span className="runs-attempt-number">attempt {attempt.attempt}</span>
+          {active ? <strong className="runs-marker">active</strong> : null}
         </span>
-        <span>
-          <StateBadge state={attempt.state} />
-          <code>{attempt.stageExecutionId}</code>
+        <span className="runs-attempt-aside">
+          <StatusChip tone={state.tone} size="sm" glyph={false}>
+            {state.label}
+          </StatusChip>
+          <code title={attempt.stageExecutionId}>
+            {compactId(attempt.stageExecutionId)}
+          </code>
         </span>
       </summary>
-      <div className="run-attempt-body">
-        <div className="attempt-block global-task">
-          <p className="eyebrow">Stage objective</p>
-          <h4>{attempt.objective ?? "Unavailable before Stage preparation"}</h4>
+      <div className="runs-attempt-body">
+        <div className="runs-block runs-block-wide runs-objective">
+          <p className="runs-label">Stage objective</p>
+          <h3 className="runs-objective-title">
+            {attempt.objective ?? "Unavailable before Stage preparation"}
+          </h3>
           {attempt.previousExecutionId === undefined ? null : (
-            <p className="compact-copy">
-              Continues <code>{attempt.previousExecutionId}</code>
+            <p className="runs-block-note">
+              Continues{" "}
+              <ExecutionId
+                value={attempt.previousExecutionId}
+                label="previous stage execution ID"
+              />
             </p>
           )}
-          <AttemptTimestamps attempt={attempt} />
+          <AttemptFacts attempt={attempt} />
         </div>
         <PlannerPlanView
           projection={projection}
           instructionDisclosure={instructionDisclosure}
         />
         <ExecutionConfigView attempt={attempt} />
-        <RuntimeConfigurationView attempt={attempt} />
         {attempt.metrics === undefined ? null : (
           <MetricsView metrics={attempt.metrics} />
         )}
+        <RuntimeConfigurationView attempt={attempt} />
         <ResourceView attempt={attempt} />
         {attempt.diagnostics === undefined ? null : (
           <DiagnosticsView diagnostics={attempt.diagnostics} />
         )}
         <ResultView runId={runId} attempt={attempt} />
         {transitions.length === 0 ? null : (
-          <div className="attempt-block">
-            <h4>Scheduler decisions</h4>
-            <ol className="transition-list">
+          <div className="runs-block runs-block-wide">
+            <h4 className="runs-block-title">Scheduler decisions</h4>
+            <ol className="runs-transition-list">
               {transitions.map((transition) => (
                 <TransitionView
                   key={`${transition.sourceExecutionId}-${transition.decidedAt}-${transition.action}`}
@@ -648,8 +786,8 @@ export function DefinitionList({
   children: ReactNode;
 }) {
   return (
-    <div className="panel run-definition-panel">
-      <p className="eyebrow">{title}</p>
+    <div className="runs-binding">
+      <p className="runs-label">{title}</p>
       {children}
     </div>
   );

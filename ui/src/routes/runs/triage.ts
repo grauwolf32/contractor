@@ -57,6 +57,7 @@ export interface RunTriageGuidance {
     | "placement-wait"
     | "gateway-configuration"
     | "manual-repeat"
+    | "cleanup"
     | "inspect";
   title: string;
   message: string;
@@ -227,6 +228,14 @@ function guidance(
       message: hasOutputs
         ? "Open the outputs below. Execution success alone does not establish result quality."
         : "No output artifacts were recorded. Stage attempts and their diagnostics are available below.",
+    };
+  }
+  if (run.state === "cancelling") {
+    return {
+      kind: "cleanup",
+      title: "Cleanup in progress",
+      message:
+        "Scheduler is aborting and draining active work. This page does not predict when cleanup becomes terminal.",
     };
   }
   if (activeSchedulerRetry(run)) {

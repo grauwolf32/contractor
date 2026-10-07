@@ -11,6 +11,11 @@ import type { WorkflowResource } from "../../api/workflows";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { RunOutputGallery } from "./artifacts";
 
+const saved = vi.hoisted(() => [] as Array<{ blob: Blob; filename: string }>);
+vi.mock("../../app/download", () => ({
+  saveBlob: (blob: Blob, filename: string) => saved.push({ blob, filename }),
+}));
+
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
   supportedApiVersions: ["contractor.public.v1"],
@@ -158,7 +163,7 @@ describe("Run primary output preview", () => {
       2,
     );
     const headings = [
-      ...view.container.querySelectorAll(".run-result-card h4"),
+      ...view.container.querySelectorAll(".run-result-card h3"),
     ].map((heading) => heading.textContent);
     expect(headings).toEqual(["report", "missing", "trace", "legacy"]);
     expect(resultCard("missing")).toHaveTextContent(
@@ -336,5 +341,78 @@ describe("Run primary output preview", () => {
     ).toBeInTheDocument();
     expect(requests).toHaveLength(2);
     expect(screen.queryByText("stale-r0")).toBeNull();
+  });
+
+  it("downloads the exact original revision with one action", async () => {
+    saved.length = 0;
+    const requests: URL[] = [];
+    const source = '{"report":true}';
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        requests.push(url);
+        if (url.pathname === "/v1/workflows/source-review/versions/1") {
+          return jsonResponse(workflow);
+        }
+        if (
+          url.pathname ===
+          "/v1/runs/run-primary/artifacts/outputs/trace/metadata"
+        ) {
+          return jsonResponse({
+            artifact: {
+              namespace: "outputs",
+              name: "trace",
+              revision: "trace-r1",
+            },
+            mediaType: "application/json",
+            size: source.length,
+            current: true,
+            frozen: true,
+            createdAt: "2026-09-07T08:00:00Z",
+          });
+        }
+        if (url.pathname === "/v1/runs/run-primary/artifacts/outputs/trace") {
+          return apiResponse(source, {
+            headers: {
+              "content-length": String(source.length),
+              "content-type": "application/json",
+            },
+          });
+        }
+        throw new Error(`Unexpected request ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderGallery(
+      api,
+      runFixture({
+        trace: { namespace: "outputs", name: "trace", revision: "trace-r1" },
+      }),
+    );
+    await screen.findAllByText("Declared supporting result");
+
+    await userEvent.click(
+      within(resultCard("trace")).getByRole("button", {
+        name: "Download trace",
+      }),
+    );
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(await saved[0]!.blob.text()).toBe(source);
+    expect(
+      requests
+        .filter((url) => url.pathname.includes("/artifacts/"))
+        .map((url) => `${url.pathname}?${url.searchParams.toString()}`),
+    ).toEqual([
+      "/v1/runs/run-primary/artifacts/outputs/trace/metadata?revision=trace-r1",
+      "/v1/runs/run-primary/artifacts/outputs/trace?revision=trace-r1",
+    ]);
+    // Downloading does not open the inline preview.
+    expect(
+      within(resultCard("trace")).getByRole("button", {
+        name: "Preview result",
+      }),
+    ).toBeInTheDocument();
   });
 });
