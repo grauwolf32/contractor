@@ -205,31 +205,45 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             )
           }
         >
-          {(page) =>
-            groupMaterialsByKind(page.items).map((group) => (
-              <ListSection
-                key={group.kind}
-                title={group.label}
-                count={group.items.length}
-                titleAs="h3"
-              >
-                {group.items.map((item) => (
-                  <MaterialRow
-                    key={`${item.artifact.namespace}/${item.artifact.name}`}
-                    item={item}
-                    returnLabel="Materials"
-                    to={artifactDetailPath(
-                      { kind: "project", id: projectId },
-                      {
-                        namespace: item.artifact.namespace,
-                        name: item.artifact.name,
-                      },
-                    )}
-                  />
+          {(data) => {
+            // Groups come from one page: their counts are totals only when
+            // every material fits on it.
+            const onePage = cursor === undefined && !data.page.hasMore;
+            return (
+              <>
+                {onePage ? null : (
+                  <p className="materials-quiet materials-page-note">
+                    Grouped by kind within this page. Other pages can hold more
+                    materials of each kind.
+                  </p>
+                )}
+                {groupMaterialsByKind(data.items).map((group) => (
+                  <ListSection
+                    key={group.kind}
+                    title={group.label}
+                    count={group.items.length}
+                    aside={onePage ? undefined : "on this page"}
+                    titleAs="h3"
+                  >
+                    {group.items.map((item) => (
+                      <MaterialRow
+                        key={`${item.artifact.namespace}/${item.artifact.name}`}
+                        item={item}
+                        returnLabel="Materials"
+                        to={artifactDetailPath(
+                          { kind: "project", id: projectId },
+                          {
+                            namespace: item.artifact.namespace,
+                            name: item.artifact.name,
+                          },
+                        )}
+                      />
+                    ))}
+                  </ListSection>
                 ))}
-              </ListSection>
-            ))
-          }
+              </>
+            );
+          }}
         </QueryView>
         <div className="materials-pager">
           <CursorControls

@@ -96,9 +96,12 @@ export function ArtifactFacts({ metadata }: { metadata: ArtifactMetadata }) {
 export function ArtifactTechnicalDetails({
   scope,
   metadata,
+  titleAs,
 }: {
   scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
+  /** Heading level of Versions and Lineage. Default "h3". */
+  titleAs?: "h2" | "h3" | undefined;
 }) {
   const wrapper = useRef<HTMLDivElement>(null);
   const [opened, setOpened] = useState(false);
@@ -135,6 +138,7 @@ export function ArtifactTechnicalDetails({
             key={metadata.artifact.revision}
             scope={scope}
             metadata={metadata}
+            titleAs={titleAs}
           />
         ) : null}
       </TechnicalDetails>

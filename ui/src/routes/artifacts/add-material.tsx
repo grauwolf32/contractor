@@ -59,8 +59,10 @@ function isCreateConflict(error: unknown): boolean {
 
 /**
  * Upload of one material of a chosen kind. The kind only suggests the
- * namespace and media type. Closing the dialog cancels a running upload;
- * a refused or lost write is explained and never retried.
+ * namespace and media type. Closing the dialog (or "Cancel upload") aborts
+ * a running upload, which the Server may still have stored, so the dialog
+ * says to look before retrying; a refused or lost write is explained and
+ * never retried.
  */
 function MaterialUploadDialog({
   projectId,
@@ -75,6 +77,7 @@ function MaterialUploadDialog({
 }) {
   const heading = useId();
   const description = useId();
+  const cancelNote = useId();
   const closeButton = useRef<HTMLButtonElement>(null);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
@@ -92,7 +95,7 @@ function MaterialUploadDialog({
     <Dialog
       className="project-dialog panel materials-sheet"
       labelledBy={heading}
-      describedBy={description}
+      describedBy={`${description} ${cancelNote}`}
       initialFocusRef={closeButton}
       onRequestClose={close}
     >
@@ -115,6 +118,11 @@ function MaterialUploadDialog({
         {kind.description}. The kind only suggests a namespace and media type;
         change them if they do not fit. Checks and Runs read the exact version
         you add.
+      </p>
+      <p id={cancelNote} className="materials-quiet">
+        Closing this dialog cancels a running upload. If you cancel it or lose
+        the response, look for the material in the list before trying again: it
+        may already be stored.
       </p>
       <ArtifactWriteForm
         scope={{ kind: "project", id: projectId }}

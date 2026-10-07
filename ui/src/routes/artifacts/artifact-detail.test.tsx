@@ -223,7 +223,12 @@ describe("Material detail", () => {
       "href",
       "/runs/run-7",
     );
+    // Versions and Lineage sit beside Archive contents in the outline.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Lineage" }),
+    ).toBeVisible();
     const versions = screen.getByRole("heading", {
+      level: 2,
       name: "Versions",
     }).parentElement!;
     expect(

@@ -300,7 +300,11 @@ export function ArtifactDetailView({
                 unavailableCopy="Inline preview is unavailable for this format or size. Download this revision to open it."
                 loadPreview={() => artifacts.preview(shown)}
               />
-              <ArtifactTechnicalDetails scope={scope} metadata={shown} />
+              <ArtifactTechnicalDetails
+                scope={scope}
+                metadata={shown}
+                titleAs="h2"
+              />
             </>
           )}
         </QueryView>

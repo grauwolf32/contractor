@@ -121,6 +121,14 @@ describe("Project materials", () => {
       "docs/readme",
       "outputs/report",
     ]);
+    // Everything fits one page: the counts are totals.
+    expect(docs.getByText("2")).toHaveClass("ui-list-section-count");
+    expect(screen.queryByText("on this page")).toBeNull();
+    expect(screen.queryByText(/Grouped by kind within this page/)).toBeNull();
+    // Long names wrap in full instead of being cut off.
+    expect(
+      docs.getByRole("link", { name: "docs/readme" }).closest(".ui-row-title"),
+    ).toHaveAttribute("data-clamp", "none");
     expect(docs.getByRole("link", { name: "docs/readme" })).toHaveAttribute(
       "href",
       `/projects/${PROJECT}/artifacts/docs/readme`,
@@ -188,6 +196,42 @@ describe("Project materials", () => {
     expect(
       await screen.findByRole("link", { name: "docs/readme" }),
     ).toBeVisible();
+  });
+
+  it("says the kind groups cover one page when the list has more pages", async () => {
+    const { router } = renderRegion((request) => {
+      const url = new URL(request.url);
+      if (url.pathname !== LIST)
+        throw new Error(`unexpected ${request.method} ${url}`);
+      return url.searchParams.get("cursor") === "page-2"
+        ? listOf([material("openapi", "shop", "application/yaml")])
+        : json({
+            items: [
+              material("sources", "service", "application/zip"),
+              material("sources", "worker", "application/zip"),
+            ],
+            page: { hasMore: true, nextCursor: "page-2" },
+          });
+    });
+    const user = userEvent.setup();
+
+    const source = within(
+      await screen.findByRole("region", { name: "Source code" }),
+    );
+    expect(source.getByText("2")).toHaveClass("ui-list-section-count");
+    expect(source.getByText("on this page")).toBeVisible();
+    expect(screen.getByText(/Grouped by kind within this page/)).toBeVisible();
+    // A kind can live on a later page only.
+    expect(screen.queryByRole("region", { name: "API spec" })).toBeNull();
+
+    // A later page is partial as well, even when it is the last one.
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?artifactsCursor=page-2"),
+    );
+    const api = within(await screen.findByRole("region", { name: "API spec" }));
+    expect(api.getByText("on this page")).toBeVisible();
+    expect(screen.getByText(/Grouped by kind within this page/)).toBeVisible();
   });
 
   it("opens the Add material sheet from ?add=artifact and keeps other filters", async () => {
@@ -366,6 +410,95 @@ describe("Project materials", () => {
       within(upload).getByRole("button", { name: "Close upload dialog" }),
     );
     await waitFor(() => expect(docsKind).toHaveFocus());
+    expect(
+      screen.getByRole("dialog", { name: "Add material" }),
+    ).toBeInTheDocument();
+  });
+
+  /** Starts a Docs upload whose PUT stays pending until it is aborted. */
+  async function startPendingUpload() {
+    let signal: AbortSignal | undefined;
+    const { requests } = renderRegion((request) => {
+      const url = new URL(request.url);
+      if (url.pathname === LIST && request.method === "GET") return listOf([]);
+      if (url.pathname === `${LIST}/docs/readme` && request.method === "PUT") {
+        signal = request.signal;
+        return new Promise<Response>((_resolve, reject) =>
+          request.signal.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          ),
+        );
+      }
+      throw new Error(`unexpected ${request.method} ${url}`);
+    }, `/projects/${PROJECT}/artifacts?add=artifact`);
+    const user = userEvent.setup();
+    const sheet = await screen.findByRole("dialog", { name: "Add material" });
+    const kind = within(sheet).getByRole("button", { name: "Docs" });
+    await user.click(kind);
+    const upload = screen.getByRole("dialog", { name: "Docs" });
+    // Closing cancels the upload, which may still have been stored.
+    expect(upload).toHaveAccessibleDescription(
+      /Closing this dialog cancels a running upload\. .* it may already be stored\./,
+    );
+    await user.upload(
+      within(upload).getByLabelText("Drop a file here"),
+      new File(["# Readme"], "readme.md", { type: "text/markdown" }),
+    );
+    await user.click(
+      within(upload).getByRole("button", { name: "Create binding" }),
+    );
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(
+      within(upload).getByRole("button", { name: "Uploading…" }),
+    ).toBeDisabled();
+    const listReads = () =>
+      requests.filter(
+        (request) =>
+          request.method === "GET" && new URL(request.url).pathname === LIST,
+      ).length;
+    return {
+      user,
+      kind,
+      upload,
+      listReadsBefore: listReads(),
+      listReads,
+      aborted: () => signal?.aborted,
+    };
+  }
+
+  it("cancels a running upload, then refetches the list for a stored write", async () => {
+    const pending = await startPendingUpload();
+    const cancel = within(pending.upload).getByRole("button", {
+      name: "Cancel upload",
+    });
+    expect(cancel).toBeEnabled();
+    await act(async () => {
+      await pending.user.click(cancel);
+    });
+
+    expect(pending.aborted()).toBe(true);
+    expect(pending.upload).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(pending.listReads()).toBeGreaterThan(pending.listReadsBefore),
+    );
+    await waitFor(() => expect(pending.kind).toHaveFocus());
+    expect(
+      screen.getByRole("dialog", { name: "Add material" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /Material added/ })).toBeNull();
+  });
+
+  it("aborts a running upload when its dialog closes with Escape", async () => {
+    const pending = await startPendingUpload();
+    await act(async () => {
+      await pending.user.keyboard("{Escape}");
+    });
+
+    expect(pending.aborted()).toBe(true);
+    expect(pending.upload).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(pending.listReads()).toBeGreaterThan(pending.listReadsBefore),
+    );
     expect(
       screen.getByRole("dialog", { name: "Add material" }),
     ).toBeInTheDocument();

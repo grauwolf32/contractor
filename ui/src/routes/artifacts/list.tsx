@@ -82,7 +82,7 @@ export function ArtifactListRoute() {
     <div className="route-page materials-page materials-files">
       <header className="materials-library-head">
         <h1 className="materials-library-title">Library</h1>
-        <LibraryTabs />
+        <LibraryTabs className="materials-library-tabs" />
       </header>
 
       <section className="materials-panel" aria-labelledby={titleId}>

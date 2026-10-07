@@ -52,6 +52,8 @@ export function MaterialRow({
   return (
     <ListRow
       glyph={<MaterialKindIcon kind={materialKindOf(item)} />}
+      // Long names that differ only at the end must stay distinguishable.
+      clamp={false}
       title={
         <ContextLink
           className="materials-row-link"

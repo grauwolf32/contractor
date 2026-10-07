@@ -142,7 +142,11 @@ export function ArtifactWriteForm({
   /** Labels the form by an outer (dialog) heading instead of its own. */
   headingId?: string;
   onPendingChange?: (pending: boolean) => void;
-  /** Renders a Cancel button next to the submit button. */
+  /**
+   * Renders a Cancel button next to the submit button. With
+   * `startOperation` it stays enabled while an upload runs ("Cancel
+   * upload"), and the caller aborts that upload's signal.
+   */
   onCancel?: () => void;
   /**
    * Receives a failed write in place of the form's own notice, so a view
@@ -265,7 +269,7 @@ export function ArtifactWriteForm({
     }
     if (file.size > maximumBytes) {
       setValidationError(
-        `Artifact exceeds the ${maximumBytes / (1024 * 1024)} MiB upload limit.`,
+        `The file exceeds the ${maximumBytes / (1024 * 1024)} MiB upload limit.`,
       );
       return;
     }
@@ -280,6 +284,8 @@ export function ArtifactWriteForm({
   }
 
   const update = expectedRevision !== undefined;
+  // Only a caller that owns the upload's signal can cancel it mid-flight.
+  const cancelsUpload = mutation.isPending && startOperation !== undefined;
   return (
     <form
       className={`${project ? "project-artifact-form" : "artifact-form"} materials-write-form`}
@@ -378,10 +384,10 @@ export function ArtifactWriteForm({
           <button
             type="button"
             className="ui-btn"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending && !cancelsUpload}
             onClick={onCancel}
           >
-            Cancel
+            {cancelsUpload ? "Cancel upload" : "Cancel"}
           </button>
         )}
         <button

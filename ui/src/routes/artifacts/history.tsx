@@ -35,9 +35,12 @@ function ExactRef({
 export function ArtifactHistory({
   scope,
   metadata,
+  titleAs: Title = "h3",
 }: {
   scope: ArtifactArchiveScope;
   metadata: ArtifactMetadata;
+  /** Heading level of Versions and Lineage. Default "h3". */
+  titleAs?: "h2" | "h3" | undefined;
 }) {
   const location = useLocation();
   const api = usePublicAPI();
@@ -84,9 +87,9 @@ export function ArtifactHistory({
   return (
     <div className="materials-history">
       <section aria-labelledby={versionsHeading}>
-        <h3 id={versionsHeading} className="materials-subtitle">
+        <Title id={versionsHeading} className="materials-subtitle">
           Versions
-        </h3>
+        </Title>
         <QueryView
           query={versions}
           loading={
@@ -129,9 +132,9 @@ export function ArtifactHistory({
       </section>
 
       <section aria-labelledby={lineageHeading}>
-        <h3 id={lineageHeading} className="materials-subtitle">
+        <Title id={lineageHeading} className="materials-subtitle">
           Lineage
-        </h3>
+        </Title>
         <QueryView
           query={lineage}
           loading={
