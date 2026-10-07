@@ -4,6 +4,7 @@ import { useLocation } from "react-router";
 import type { Audit } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import { exactArtifactLink } from "./artifact-links";
+import "./markdown.css";
 
 const MarkdownPreview = lazy(() => import("../../artifacts/previews/markdown"));
 

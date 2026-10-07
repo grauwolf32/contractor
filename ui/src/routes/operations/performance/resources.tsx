@@ -1,3 +1,5 @@
+// Runs and project pages show resource usage without the Operations layout.
+import "../operations.css";
 import "./reading.css";
 import { useId, useState } from "react";
 import { Link } from "react-router";

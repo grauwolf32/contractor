@@ -6,6 +6,9 @@ import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
+// The check page shows these lists too, without the Library layout.
+import "./catalog.css";
+import "./library.css";
 import {
   capitalize,
   COVERAGE_STATUS_LABELS,

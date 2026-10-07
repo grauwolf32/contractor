@@ -7,8 +7,7 @@
 .audit-page > *,
 .audit-finding-list,
 .audit-finding-card,
-.audit-finding-provenance,
-.audit-markdown {
+.audit-finding-provenance {
   min-width: 0;
 }
 
@@ -219,32 +218,6 @@
   margin: 0;
   color: var(--muted-strong);
   font-size: 0.85rem;
-}
-
-.audit-markdown .markdown-artifact-preview {
-  max-height: none;
-  overflow: visible;
-  padding: 0;
-  font-size: 0.925rem;
-  overflow-wrap: anywhere;
-}
-
-.audit-markdown .markdown-artifact-preview h1 {
-  font-size: 1.3rem;
-}
-
-.audit-markdown .markdown-artifact-preview h2 {
-  font-size: 1.2rem;
-}
-
-.audit-markdown .markdown-artifact-preview h3,
-.audit-markdown .markdown-artifact-preview h4 {
-  font-size: 1.05rem;
-}
-
-.audit-markdown pre,
-.audit-markdown table {
-  max-width: 100%;
 }
 
 .audit-artifact-list {
