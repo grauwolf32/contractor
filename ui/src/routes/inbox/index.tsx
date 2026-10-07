@@ -1,14 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { useDocumentTitle } from "../../app/document-title";
 import { locationDestination } from "../../app/navigation";
+import { usePageLocationNow } from "../../app/page-location";
 import { PaneLayout, useListNavigation } from "../../ui";
 import { useAnnouncement } from "../decisions/announcement";
 import { useInboxData, type InboxData } from "./data";
@@ -151,8 +146,9 @@ export function InboxRoute() {
   const recorded = announcedAt === place ? announced : "";
 
   // A decision's answer can arrive after the user moved on or left the
-  // Inbox: these hold what the page last showed, and whether it still does.
-  const selectedKeyRef = useRef(selectedKey);
+  // Inbox: pageNow() says where they are when it comes, and these hold the
+  // Decide rows the page last showed.
+  const pageNow = usePageLocationNow();
   const decideRows = useRef(model.decide);
   // Where the selected decision sat in Decide: a refresh can remove it
   // before the Server answers, and the item after it moved into its place.
@@ -160,19 +156,10 @@ export function InboxRoute() {
     undefined,
   );
   useLayoutEffect(() => {
-    selectedKeyRef.current = selectedKey;
     decideRows.current = model.decide;
     if (selectedKey !== undefined && position >= 0)
       decisionPosition.current = { key: selectedKey, index: position };
   });
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
   const select = useCallback(
     (
       target: InboxRow | undefined,
@@ -223,9 +210,12 @@ export function InboxRoute() {
   );
   const onDecided = useCallback(
     (key: string, outcome: string, title: string) => {
-      // The user left the Inbox while the decision was on its way.
-      if (!mounted.current) return;
-      const current = selectedKeyRef.current;
+      // The user left the Inbox while the decision was on its way (the next
+      // page may still be loading, with the Inbox on screen).
+      const now = pageNow();
+      if (now === undefined) return;
+      const item = parseRefKey(new URLSearchParams(now.search).get("item"));
+      const current = item === undefined ? undefined : refKey(item);
       if (current !== key) {
         // They moved on in the Inbox: they stay where they are, and the
         // message names what was decided.
@@ -244,7 +234,7 @@ export function InboxRoute() {
       announceAt(next?.key ?? OVERVIEW, `Decision recorded: ${outcome}.`);
       select(next, { replace: true, focus: true });
     },
-    [announceAt, select],
+    [announceAt, pageNow, select],
   );
 
   const { containerProps } = useListNavigation({

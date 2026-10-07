@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, type RouteObject } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -673,7 +673,32 @@ async function answer(server: FakeServer, request: Request): Promise<Response> {
   return json(page([]));
 }
 
-function renderInbox(server: FakeServer, path = "/") {
+/** Holds a route's lazy code until `until` settles: a slow next page. */
+function delayRoute(
+  routes: RouteObject[],
+  path: string,
+  until: Promise<void>,
+): boolean {
+  for (const route of routes) {
+    const { lazy } = route;
+    if (route.path === path && typeof lazy === "function") {
+      route.lazy = async () => {
+        await until;
+        return lazy();
+      };
+      return true;
+    }
+    if (route.children !== undefined && delayRoute(route.children, path, until))
+      return true;
+  }
+  return false;
+}
+
+function renderInbox(
+  server: FakeServer,
+  path = "/",
+  slowRoute?: { path: string; until: Promise<void> },
+) {
   const requests: Request[] = [];
   const api = new PublicAPI(
     runtimeConfig,
@@ -683,7 +708,13 @@ function renderInbox(server: FakeServer, path = "/") {
       return answer(server, request);
     }),
   );
-  const router = createMemoryRouter(applicationRoutes(), {
+  const routes = applicationRoutes();
+  if (
+    slowRoute !== undefined &&
+    !delayRoute(routes, slowRoute.path, slowRoute.until)
+  )
+    throw new Error(`No lazy route ${slowRoute.path}`);
+  const router = createMemoryRouter(routes, {
     initialEntries: [path],
   });
   const view = render(
@@ -1361,6 +1392,53 @@ describe("Inbox", () => {
     await waitFor(() =>
       expect(sent("GET", "/v1/projects").length).toBeGreaterThan(refreshes),
     );
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
+    });
+    expect(router.state.location.pathname).toBe("/runs");
+    expect(router.state.location.search).not.toContain("item=");
+  });
+
+  it("lets the user leave while the next page loads when a decision is answered meanwhile", async () => {
+    const server = busyServer();
+    const answer = gate();
+    server.delay = (url, request) =>
+      request.method === "POST" && url.pathname.endsWith("/decisions")
+        ? answer.wait
+        : undefined;
+    const runsCode = gate();
+    const { router, sent } = renderInbox(
+      server,
+      "/?item=issue:audit_trace:finding_idor",
+      { path: "/runs", until: runsCode.wait },
+    );
+    const user = userEvent.setup();
+    await decideNotAnIssue(user);
+    await waitFor(() =>
+      expect(
+        sent("POST", "/reviews/review_finding_idor/decisions"),
+      ).toHaveLength(1),
+    );
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Primary navigation",
+    });
+    await user.click(within(navigation).getByRole("link", { name: "Runs" }));
+    // Runs' code is still loading: the Inbox stays on screen meanwhile.
+    await waitFor(() =>
+      expect(router.state.navigation.location?.pathname).toBe("/runs"),
+    );
+    expect(await findDetail()).toBeInTheDocument();
+    const refreshes = sent("GET", "/v1/projects").length;
+    answer.release();
+
+    // The decision's refresh runs, and the user is still on the way to Runs.
+    await waitFor(() =>
+      expect(sent("GET", "/v1/projects").length).toBeGreaterThan(refreshes),
+    );
+    expect(router.state.navigation.location?.pathname).toBe("/runs");
+    runsCode.release();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/runs"));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 200));
     });
