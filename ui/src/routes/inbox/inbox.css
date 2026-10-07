@@ -1,0 +1,429 @@
+/*
+ * Inbox (src/routes/inbox): the V3B home mockup's list and detail panes.
+ * Layout, rows and status come from src/ui; these rules cover the Inbox's
+ * own notices, detail bar, facts and overview. Colours only from theme.css.
+ */
+
+/* ---------- List pane ---------- */
+
+.inbox-notice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.75rem var(--ui-pad-end) 0 var(--ui-pad-start);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.inbox-notice[data-tone="warning"] {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+.inbox-notice > .ui-glyph {
+  margin-top: 0.125rem;
+}
+
+.inbox-notice > p {
+  min-width: 0;
+  margin: 0;
+}
+
+.inbox-notice a {
+  font-weight: 700;
+}
+
+.inbox-notice .ui-btn {
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.inbox-quiet-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78125rem;
+  line-height: 1.5;
+}
+
+.ui-list-pane-body > .inbox-quiet-note {
+  margin: 0.75rem var(--ui-pad-end) 0 var(--ui-pad-start);
+}
+
+.inbox-row-state {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.inbox-row-project {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.inbox-row-progress {
+  max-width: 15rem;
+}
+
+/* A failure cause under the meta line, at most two lines. */
+.inbox-row-note {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* Progress and notes hold no controls: a click there still opens the row. */
+.inbox-sections .ui-row-extra:has(> :is(.inbox-row-progress, .inbox-row-note)) {
+  pointer-events: none;
+}
+
+.inbox-sections .ui-row-extra:has(> .inbox-row-note) {
+  margin-top: 0.25rem;
+}
+
+.inbox-section-empty,
+.inbox-more {
+  padding: 0.375rem var(--ui-pad-end, 1rem) 0.625rem
+    var(--ui-pad-start, 1.25rem);
+  color: var(--muted);
+  font-size: 0.78125rem;
+  line-height: 1.5;
+}
+
+.inbox-more {
+  padding-top: 0.25rem;
+}
+
+.inbox-more a {
+  font-weight: 700;
+}
+
+.ui-btn.inbox-refresh {
+  width: 1.75rem;
+  padding: 0;
+}
+
+/* The title block takes the room, so Refresh stays at the top right. */
+.ui-list-pane-header:has(.inbox-refresh) > .ui-list-pane-heading {
+  flex: 1 1 0;
+}
+
+.inbox-refresh .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.inbox-refresh[data-busy] .app-icon {
+  animation: inbox-spin 0.9s linear infinite;
+}
+
+@keyframes inbox-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inbox-refresh[data-busy] .app-icon {
+    animation: none;
+  }
+}
+
+.inbox-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.inbox-keys > .ui-kbd:last-of-type {
+  margin-right: 0.125rem;
+}
+
+/* ---------- Detail pane ---------- */
+
+.inbox-detail-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-height: 3.5rem;
+  padding: 0.625rem var(--ui-pad-end) 0.625rem var(--ui-pad-start);
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-detail-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  min-width: 0;
+  margin: 0;
+  border-radius: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.inbox-detail-where > strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.inbox-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inbox-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-right: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.ui-btn.inbox-step {
+  width: 2rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.inbox-detail-where:focus-visible,
+.inbox-title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.inbox-recorded {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--success-line);
+  border-radius: 0.625rem;
+  background: var(--success-bg);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.inbox-context {
+  margin: 0 0 -0.75rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.inbox-context a,
+.inbox-head-meta a,
+.inbox-facts a {
+  font-weight: 700;
+}
+
+.inbox-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.inbox-title {
+  max-width: 34ch;
+  margin: 0;
+  border-radius: 0.25rem;
+  color: var(--text);
+  font-size: clamp(1.25rem, 0.9rem + 1.6cqi, 1.6875rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.inbox-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.inbox-block {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.inbox-block-title {
+  margin: 0 0 0.375rem;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+.inbox-block > p {
+  margin: 0;
+}
+
+.inbox-block > p + p,
+.inbox-block > p + .inbox-actions,
+.inbox-block > .inbox-actions + p {
+  margin-top: 0.5rem;
+}
+
+.inbox-cause,
+.inbox-excerpt {
+  max-width: 74ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.inbox-excerpt + .inbox-quiet-note {
+  margin-top: 0.5rem;
+}
+
+.inbox-stop {
+  max-width: 74ch;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.inbox-stop[data-tone="error"] {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+}
+
+.inbox-progress-summary {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.inbox-progress-summary + .ui-segments {
+  margin-bottom: 0.75rem;
+}
+
+.inbox-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+.inbox-facts > div {
+  min-width: 0;
+}
+
+.inbox-facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.inbox-facts dd {
+  margin: 0.125rem 0 0;
+  color: var(--text);
+  font-size: 0.84375rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.inbox-facts[data-size="sm"] dd {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.inbox-facts + .inbox-quiet-note {
+  margin-top: 0.75rem;
+}
+
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---------- Overview (nothing selected) ---------- */
+
+.inbox-overview {
+  max-width: 40rem;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.inbox-overview > li {
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-overview-item,
+.inbox-overview-item:not(:disabled):hover,
+.inbox-overview-item:not(:disabled):active {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0.75rem 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  transform: none;
+}
+
+button.inbox-overview-item:not(:disabled):hover {
+  background: var(--row-hover);
+}
+
+button.inbox-overview-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.inbox-overview-title {
+  font-weight: 800;
+}
+
+.inbox-overview-count {
+  min-width: 0;
+  margin-left: auto;
+  color: var(--muted);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
