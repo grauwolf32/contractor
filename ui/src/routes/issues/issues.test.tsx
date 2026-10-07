@@ -78,6 +78,15 @@ function rowTitles() {
   ].map((row) => row.querySelector(".ui-row-title")?.textContent);
 }
 
+/** The page's own status region: outside both panes, so never hidden with one. */
+function pageStatus(): HTMLElement {
+  const outside = screen
+    .getAllByRole("status")
+    .filter((region) => region.closest(".ui-panes") === null);
+  expect(outside).toHaveLength(1);
+  return outside[0]!;
+}
+
 describe("Issues", () => {
   it("lists possible issues across projects, newest first, with filters in the URL", async () => {
     const server = twoProjects();
@@ -338,11 +347,15 @@ describe("Issues", () => {
         "/issues/audit_shop/finding_orders",
       ),
     );
-    expect(
-      screen.getByText(
-        "Decision recorded: Confirmed · High. Showing the next possible issue: Any user can read any order.",
-      ),
-    ).toBeVisible();
+    const outcome =
+      "Decision recorded: Confirmed · High. Showing the next possible issue: Any user can read any order.";
+    expect(pageStatus()).toHaveTextContent(outcome);
+    // Shown in the detail too, without a second announcement.
+    const shown = within(
+      screen.getByRole("region", { name: "Review" }),
+    ).getByText(outcome);
+    expect(shown).toBeVisible();
+    expect(shown).toHaveAttribute("aria-hidden", "true");
     expect(sent("POST", "/decisions")).toHaveLength(1);
     // The decided issue leaves the Needs review list once it is read again.
     await waitFor(() =>
@@ -385,11 +398,24 @@ describe("Issues", () => {
     );
     await waitFor(() => expect(router.state.location.pathname).toBe("/issues"));
     expect(router.state.location.search).toBe("?project=project_shop");
+    const outcome =
+      "Decision recorded: Not an issue. That was the last possible issue in this list.";
+    expect(pageStatus()).toHaveTextContent(outcome);
+    const list = screen.getByRole("region", { name: "Possible issues" });
+    expect(within(list).getByText(outcome)).toBeVisible();
+    // The decision and its row go away, so focus moves to the list.
+    const title = within(list).getByRole("heading", {
+      level: 1,
+      name: "Possible issues",
+    });
+    await waitFor(() =>
+      expect(within(title).getByText("Possible issues")).toHaveFocus(),
+    );
+    // The decided possible issue leaves the list once its check is read again.
     expect(
-      screen.getByText(
-        "Decision recorded: Not an issue. That was the last possible issue in this list.",
-      ),
+      await within(list).findByText("That is everything that needs review."),
     ).toBeVisible();
+    expect(within(title).getByText("Possible issues")).toHaveFocus();
 
     // A possible issue outside the list (here: already decided) stays open.
     await act(async () => {
@@ -503,6 +529,89 @@ describe("Issues", () => {
         "OpenAPI · Operation trace on Shop is still running, so more may arrive.",
       ),
     ).toBeVisible();
+  });
+
+  it("does not call the review queue clear under a severity filter or after failed reads", async () => {
+    const server = twoProjects();
+    const { unmount } = renderIssues(server, "/issues?severity=high");
+    const list = await screen.findByRole("region", { name: "Possible issues" });
+    expect(
+      await within(list).findByText("No possible issues match these filters"),
+    ).toBeVisible();
+    expect(
+      within(list).getByText(
+        /possible issues that need review are usually not rated yet/,
+      ),
+    ).toBeVisible();
+    expect(
+      within(list).getByRole("link", {
+        name: "Show every project and severity",
+      }),
+    ).toHaveAttribute("href", "/issues");
+    expect(
+      screen.queryByText("That is everything that needs review."),
+    ).toBeNull();
+    unmount();
+
+    server.failing.add("audit_shop");
+    server.failing.add("audit_billing");
+    renderIssues(server, "/issues");
+    expect(
+      await screen.findByText("Some possible issues could not be loaded."),
+    ).toBeVisible();
+    expect(await screen.findByText("No possible issues listed")).toBeVisible();
+    expect(
+      screen.getByText("There may be more in what could not be loaded."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("That is everything that needs review."),
+    ).toBeNull();
+  });
+
+  it("links a check with more possible issues to its own list with the same state and severity", async () => {
+    const server = twoProjects();
+    server.more.add("audit_billing");
+    renderIssues(server, "/issues?state=confirmed&severity=high");
+    await waitFor(() =>
+      expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
+    );
+    const note = screen.getByRole("note");
+    expect(
+      within(note).getByRole("link", {
+        name: "OWASP Top 10 · Source risks on Billing",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_billing/audits/audit_billing/findings?state=confirmed&severity=high",
+    );
+  });
+
+  it("says the list is loading rather than that a linked possible issue is not in it", async () => {
+    const server = twoProjects();
+    let release: () => void = () => undefined;
+    server.gate = new Promise<void>((resolve) => {
+      release = () => resolve();
+    });
+    renderIssues(server, "/issues/audit_shop/finding_orders");
+    const review = await screen.findByRole("region", { name: "Review" });
+    // The exact read finishes before any list read.
+    expect(
+      await within(review).findByRole("heading", {
+        level: 2,
+        name: "Any user can read any order",
+      }),
+    ).toBeVisible();
+    expect(within(review).getByText("Loading the list…")).toBeVisible();
+    expect(within(review).queryByText("Not in this list")).toBeNull();
+    await act(async () => {
+      release();
+      await server.gate;
+    });
+    expect(
+      await within(review).findByText("Possible issue 2 of 2"),
+    ).toBeVisible();
+    expect(within(review).queryByText("Loading the list…")).toBeNull();
+    expect(within(review).queryByText("Not in this list")).toBeNull();
   });
 
   it("blocks deciding on a review link that no longer matches the possible issue", async () => {

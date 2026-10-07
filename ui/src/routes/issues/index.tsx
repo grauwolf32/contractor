@@ -49,7 +49,7 @@ import { useIssueList, type IssueList } from "./data";
 import { IssueDetail } from "./issue-detail";
 import { IssueRow } from "./issue-row";
 import {
-  checkIssuePath,
+  checkIssuesHref,
   issuePath,
   issueSearch,
   matchesIssueFilters,
@@ -62,6 +62,10 @@ import "./issues.css";
 
 const ANNOUNCEMENT_MS = 8_000;
 
+/**
+ * Empty-list titles that claim the state is clear: only for a complete list
+ * (every read succeeded, nothing truncated) without a severity filter.
+ */
 const EMPTY_TITLES: Readonly<Record<StateFilter, string>> = {
   proposed: "That is everything that needs review.",
   confirmed: "No confirmed issues.",
@@ -107,6 +111,40 @@ function runningNote(list: IssueList): string | undefined {
   return rest.length === 0
     ? `${checkName(first)} is still running, so more may arrive.`
     : `${list.running.length} checks are still running, so more may arrive.`;
+}
+
+/**
+ * What an empty list says. It claims a state is clear only when every read
+ * succeeded, nothing was cut off and no severity filter narrows it: possible
+ * issues that need review have no analyst rating to match yet.
+ */
+function emptyText(
+  list: IssueList,
+  filters: IssueFilters,
+  complete: boolean,
+  running: string | undefined,
+): { title: string; note?: string | undefined } {
+  if (list.errors.length > 0)
+    return {
+      title: "No possible issues listed",
+      note: "There may be more in what could not be loaded.",
+    };
+  if (filters.severity !== undefined)
+    return {
+      title: "No possible issues match these filters",
+      note:
+        filters.state === "proposed"
+          ? "Severity is the analyst's rating, given when an issue is confirmed, so possible issues that need review are usually not rated yet."
+          : undefined,
+    };
+  if (!complete) return { title: "No possible issues listed" };
+  return {
+    title: EMPTY_TITLES[filters.state],
+    note:
+      filters.state === "all"
+        ? "Possible issues arrive here as checks find them."
+        : running,
+  };
 }
 
 interface FocusRequest {
@@ -160,6 +198,11 @@ export function IssuesRoute() {
     next: CrossProjectIssue | undefined;
     previous: CrossProjectIssue | undefined;
   } | null>(null);
+  const listTitle = useRef<HTMLSpanElement>(null);
+  // Set when the last possible issue of the list was decided: the decision
+  // and the row it came from go away, so focus moves to the list's title
+  // once the list shows (the navigation renders in a later transition).
+  const focusListTitle = useRef(false);
 
   useDocumentTitle(
     selectedKey === undefined
@@ -184,6 +227,15 @@ export function IssuesRoute() {
     );
     return () => window.clearTimeout(timer);
   }, [announcement]);
+
+  // Runs after PaneLayout's own effect (children first), which on one-pane
+  // screens focuses the row of the decided possible issue: that row leaves
+  // the list once its check is read again.
+  useEffect(() => {
+    if (selectedKey !== undefined || !focusListTitle.current) return;
+    focusListTitle.current = false;
+    listTitle.current?.focus();
+  }, [selectedKey]);
 
   const open = useCallback(
     (
@@ -251,6 +303,7 @@ export function IssuesRoute() {
       announce(
         `Decision recorded: ${outcome}. That was the last possible issue in this list.`,
       );
+      focusListTitle.current = true;
       void navigate({ pathname: "/issues", search }, { replace: true });
       return;
     }
@@ -293,15 +346,22 @@ export function IssuesRoute() {
     list.truncatedChecks.length === 0 &&
     !list.checksTruncated;
   const running = runningNote(list);
+  const empty = emptyText(list, filters, complete, running);
   const liveText = announcement?.text ?? "";
 
   const listPane = (
     <ListPane
-      title="Possible issues"
+      title={
+        <span ref={listTitle} tabIndex={-1} className="issues-list-title">
+          Possible issues
+        </span>
+      }
       subtitle={
-        filters.project === undefined
-          ? "Across all projects, newest first"
-          : `In ${project?.name ?? filters.project}, newest first`
+        <span className="issues-list-subtitle">
+          {filters.project === undefined
+            ? "Across all projects, newest first"
+            : `In ${project?.name ?? filters.project}, newest first`}
+        </span>
       }
       actions={
         <span className="issues-select-field">
@@ -379,7 +439,8 @@ export function IssuesRoute() {
         </>
       }
     >
-      <p className="issues-announcement" role="status">
+      {/* Shown, not announced: the page-level status region speaks it. */}
+      <p className="issues-announcement" aria-hidden="true">
         {selectedKey === undefined ? liveText : ""}
       </p>
       {list.error !== null ? (
@@ -436,7 +497,7 @@ export function IssuesRoute() {
         {issues.length === 0 ? (
           list.pending || list.error !== null ? null : (
             <EmptyState
-              title={EMPTY_TITLES[filters.state]}
+              title={empty.title}
               action={
                 filters.project !== undefined ||
                 filters.severity !== undefined ? (
@@ -451,11 +512,7 @@ export function IssuesRoute() {
                 ) : undefined
               }
             >
-              {filters.state === "all" ? (
-                <p>Possible issues arrive here as checks find them.</p>
-              ) : running === undefined ? null : (
-                <p>{running}</p>
-              )}
+              {empty.note === undefined ? null : <p>{empty.note}</p>}
             </EmptyState>
           )
         ) : (
@@ -479,7 +536,10 @@ export function IssuesRoute() {
           </ListSection>
         )}
       </div>
-      {issues.length > 0 && complete && filters.state === "proposed" ? (
+      {issues.length > 0 &&
+      complete &&
+      filters.state === "proposed" &&
+      filters.severity === undefined ? (
         <p className="issues-end-note">
           <StatusGlyph tone="done" size={15} />
           <span>
@@ -504,7 +564,11 @@ export function IssuesRoute() {
                 {list.truncatedChecks.map((check) => (
                   <li key={check.audit.auditId}>
                     <Link
-                      to={`${checkIssuePath(check.project.projectId, check.audit.auditId)}${filters.state === "all" ? "" : `?state=${encodeURIComponent(filters.state)}`}`}
+                      to={checkIssuesHref(
+                        check.project.projectId,
+                        check.audit.auditId,
+                        filters,
+                      )}
                     >
                       {checkName(check)}
                     </Link>
@@ -537,7 +601,7 @@ export function IssuesRoute() {
       </div>
     ) : (
       <>
-        <p className="issues-announcement" role="status">
+        <p className="issues-announcement" aria-hidden="true">
           {liveText}
         </p>
         <IssueDetail
@@ -551,6 +615,7 @@ export function IssuesRoute() {
               ? undefined
               : { index: selectedIndex, count: issues.length }
           }
+          listPending={list.pending}
           onPrevious={
             previous === undefined
               ? undefined
@@ -573,16 +638,26 @@ export function IssuesRoute() {
     );
 
   return (
-    <PaneLayout
-      listLabel="Possible issues"
-      detailLabel="Review"
-      showDetail={selectedKey !== undefined}
-      backLink={{
-        to: { pathname: "/issues", search },
-        label: "Back to possible issues",
-      }}
-      list={listPane}
-      detail={detail}
-    />
+    <>
+      <PaneLayout
+        listLabel="Possible issues"
+        detailLabel="Review"
+        showDetail={selectedKey !== undefined}
+        backLink={{
+          to: { pathname: "/issues", search },
+          label: "Back to possible issues",
+        }}
+        list={listPane}
+        detail={detail}
+      />
+      {/*
+       * Decisions that move on are announced here: outside the panes, so
+       * it is never inside a pane that one-pane screens hide (display:
+       * none) and was rendered before the message arrives.
+       */}
+      <p className="ui-visually-hidden" role="status">
+        {liveText}
+      </p>
+    </>
   );
 }

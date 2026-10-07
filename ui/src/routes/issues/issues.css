@@ -89,6 +89,15 @@ p.issues-quiet {
   font-weight: 500;
 }
 
+/*
+ * The list pane's title actions do not shrink (flex: none), so a percentage
+ * cap has nothing to resolve against there: without an absolute one the
+ * project filter grows to its longest project name (up to 160 characters).
+ */
+.ui-list-pane-actions .issues-select {
+  max-width: 15rem;
+}
+
 .issues-search::placeholder {
   color: var(--faint);
   opacity: 1;
@@ -210,7 +219,26 @@ p.issues-quiet {
 
 /* ---------- List pane extras ---------- */
 
-/* Live region for decisions that move on; takes no room while empty. */
+/* A project name or ID from the link can be one long word. */
+.issues-list-subtitle {
+  overflow-wrap: anywhere;
+}
+
+/* Takes focus after the last possible issue of the list is decided. */
+.issues-list-title:focus {
+  outline: none;
+}
+
+.issues-list-title:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/*
+ * What a decision that moved on did, for sighted users; the page-level
+ * status region outside the panes announces it. Takes no room while empty.
+ */
 .issues-announcement {
   margin: 0;
   color: var(--text);

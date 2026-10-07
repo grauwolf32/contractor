@@ -1463,8 +1463,11 @@ describe("Project Audit routes", () => {
       "href",
       "/issues/audit_example/finding_example?state=all&project=project_example",
     );
+    // Checks of one type differ by their ID, as in the Check filter.
     expect(
-      screen.getByRole("link", { name: "OpenAPI · Operation trace" }),
+      screen.getByRole("link", {
+        name: "OpenAPI · Operation trace · audit_trace",
+      }),
     ).toHaveAttribute(
       "href",
       "/projects/project_example/audits/audit_trace/findings",

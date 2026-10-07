@@ -76,6 +76,11 @@ export interface IssueDetailProps {
   projects: readonly Project[];
   /** Undefined when the possible issue is not in the filtered list. */
   position?: IssuePosition | undefined;
+  /**
+   * Some list read has not settled: a possible issue without a position
+   * may still arrive (a deep link's exact read usually finishes first).
+   */
+  listPending?: boolean | undefined;
   onPrevious?: (() => void) | undefined;
   onNext?: (() => void) | undefined;
   /** A review request named by the link (`?review=`). */
@@ -107,6 +112,7 @@ export function IssueDetail({
   listed,
   projects,
   position,
+  listPending = false,
   onPrevious,
   onNext,
   reviewId,
@@ -246,7 +252,7 @@ export function IssueDetail({
         </strong>
         {state === undefined ? null : <span>{state.label}</span>}
         {position === undefined && shown !== undefined ? (
-          <span>Not in this list</span>
+          <span>{listPending ? "Loading the list…" : "Not in this list"}</span>
         ) : null}
         {context.length === 0 ? null : (
           <span className="issues-detail-context">{context.join(" · ")}</span>

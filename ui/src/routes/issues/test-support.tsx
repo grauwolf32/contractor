@@ -107,6 +107,8 @@ export interface FakeServer {
   failing: Set<string>;
   /** Checks whose possible-issue pages report more. */
   more: Set<string>;
+  /** Possible-issue list reads wait for this (exact reads do not). */
+  gate?: Promise<void> | undefined;
 }
 
 function page<T>(items: T[], hasMore = false) {
@@ -165,6 +167,7 @@ export function handler(server: FakeServer) {
     const summary = { auditRevision: audit.revision, asOf: audit.updatedAt };
     if (rest === "") return json(audit, 200, { ETag: `"${audit.revision}"` });
     if (rest === "/findings") {
+      await server.gate;
       if (server.failing.has(auditId))
         return failure(503, "unavailable", "Findings unavailable");
       const state = url.searchParams.get("state");

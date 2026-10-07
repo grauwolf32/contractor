@@ -441,7 +441,9 @@ export function ProjectFindingsRoute() {
                             to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/findings`}
                             title={`Check ${audit.auditId}`}
                           >
-                            {auditProfileLabel(audit)}
+                            {/* Checks of one type differ only by their ID. */}
+                            {auditProfileLabel(audit)} ·{" "}
+                            {shortenId(audit.auditId)}
                           </ContextLink>
                         }
                       />
