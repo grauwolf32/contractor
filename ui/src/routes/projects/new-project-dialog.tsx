@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useMemo, useRef, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
@@ -15,7 +15,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { Dialog, DialogHeader } from "../../app/dialog";
 import { ErrorNotice } from "../../app/error-notice";
-import { MutationDraftKeyring } from "../../mutations/idempotency";
+import type { NewProjectKeys } from "./new-project-keys";
 
 import "./projects.css";
 
@@ -30,16 +30,20 @@ export interface NewProjectWording {
 
 /**
  * Creates a project or an evaluation workspace: name (≤ 160) and
- * description (≤ 4096). An identical request reuses its Idempotency-Key, so
- * a retry after a lost response cannot create a second project.
+ * description (≤ 4096). An identical request reuses its Idempotency-Key,
+ * also after the dialog was closed and opened again (the opening page keeps
+ * `keys`), so a retry after a lost response cannot create a second project.
  */
 export function NewProjectDialog({
   kind,
+  keys,
   wording,
   onClose,
   onCreated,
 }: {
   kind: ProjectKind;
+  /** From useNewProjectKeys() in the page that opens the dialog. */
+  keys: NewProjectKeys;
   wording: NewProjectWording;
   onClose: () => void;
   onCreated: (project: Project) => void;
@@ -49,21 +53,24 @@ export function NewProjectDialog({
   const heading = useId();
   const nameField = useRef<HTMLInputElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const keyring = useMemo(
-    () => new MutationDraftKeyring<CreateProjectRequest>("create-project"),
-    [],
-  );
   const create = useMutation({
     mutationFn: (request: CreateProjectRequest) =>
       createProject(api, {
         request,
-        idempotencyKey: keyring.keyFor(request),
+        idempotencyKey: keys.keyFor(request),
       }),
     onSuccess: async (project) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
-        invalidateCrossProject(queryClient),
-      ]);
+      keys.created();
+      // Lists elsewhere refresh in the background; the dialog waits only for
+      // the list the new project joins.
+      void invalidateCrossProject(queryClient);
+      if (kind === "evaluation")
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.evals.projects,
+        });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.lists(kind),
+      });
       onCreated(project);
     },
   });

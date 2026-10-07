@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
-import type { Audit } from "../../api/audits";
+import type { Audit, AuditState } from "../../api/audits";
 import { CROSS_PROJECT_LIMITS } from "../../api/cross-project";
 import type { Project } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
@@ -10,6 +10,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
+import { checkStateLabel } from "../../app/vocabulary";
 import { StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
@@ -33,12 +34,26 @@ import {
   useWaitingChecks,
 } from "./overview-data";
 import { RecentResults, RecentRuns } from "./overview-runs";
-import { RUNNING_CHECK_STATES } from "./project-activity";
-import { projectPath } from "./project-sections";
+import {
+  LIVE_TARGET_ANCHOR,
+  projectPath,
+  targetSheetState,
+} from "./project-sections";
 import { ProjectTimeline } from "./timeline";
 import { parseTimelineFilter, type TimelineFilter } from "./timeline-filter";
 
 const NO_CHECKS: Audit[] = [];
+
+/**
+ * Check states besides running that the "Running checks" cell names: still
+ * live, but not running (contract §3 labels: Finishing, Stopping, Waiting for
+ * you).
+ */
+const OTHER_LIVE_STATES: readonly AuditState[] = [
+  "finalizing",
+  "cancelling",
+  "waiting_review",
+];
 
 /** Material chips shown before "All materials". */
 const CHIP_LIMIT = 4;
@@ -64,10 +79,11 @@ function MaterialChips({
   materials: MaterialsSample;
 }) {
   const projectId = project.projectId;
+  const location = useLocation();
   const shown = materials.items.slice(0, CHIP_LIMIT);
   const hidden = materials.items.length - shown.length;
   const target = project.httpTarget;
-  const settings = `${projectPath(projectId, "settings")}#live-target`;
+  const settings = `${projectPath(projectId, "settings")}#${LIVE_TARGET_ANCHOR}`;
   return (
     <div className="projects-materials">
       <ul role="list" aria-label="Materials" className="projects-chips">
@@ -129,7 +145,12 @@ function MaterialChips({
               </span>
               <span className="projects-chip-label">Live target</span>
               <span className="projects-chip-detail">not configured</span>
-              <Link to={settings} aria-label="Add a live target">
+              {/* Opens Settings at the Live target with its sheet open. */}
+              <Link
+                to={settings}
+                state={targetSheetState(location.state)}
+                aria-label="Add a live target"
+              >
                 Add
               </Link>
             </span>
@@ -239,12 +260,16 @@ function GlanceStrip({
 }) {
   const heading = useId();
   const projectId = project.projectId;
-  const running = checks.filter((audit) =>
-    RUNNING_CHECK_STATES.includes(audit.state),
-  ).length;
-  const waiting = checks.filter(
-    (audit) => audit.state === "waiting_review",
-  ).length;
+  const inState = (state: AuditState) =>
+    checks.filter((audit) => audit.state === state).length;
+  const running = inState("active");
+  // Checks between running and ended, by their state's own label.
+  const others = OTHER_LIVE_STATES.flatMap((state) => {
+    const count = inState(state);
+    return count === 0
+      ? []
+      : [`${count} ${checkStateLabel(state).label.toLowerCase()}`];
+  });
   const newest = `In the ${CROSS_PROJECT_LIMITS.auditsPerProject} newest checks`;
 
   let issuesValue: ReactNode;
@@ -291,8 +316,8 @@ function GlanceStrip({
   const runningCaption =
     checksState !== "ready"
       ? undefined
-      : waiting > 0
-        ? `${waiting} waiting for you`
+      : others.length > 0
+        ? others.join(" · ")
         : checks.length === 0
           ? "No checks yet"
           : checksTruncated

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Link,
   useLocation,
@@ -10,6 +10,8 @@ import {
 import { useDocumentTitle } from "../../app/document-title";
 import { DetailPane, EmptyState, PaneLayout } from "../../ui";
 import { NewProjectDialog } from "./new-project-dialog";
+import { useNewProjectKeys } from "./new-project-keys";
+import { ProjectDraftsContext } from "./project-drafts";
 import { ProjectListPane } from "./project-list-pane";
 import { projectPath, projectSectionOf } from "./project-sections";
 import { ProjectWorkspace } from "./project-workspace";
@@ -61,13 +63,26 @@ export function ProjectsRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
+  const createKeys = useNewProjectKeys();
+  const [drafts, setDrafts] = useState<readonly string[]>([]);
+  const reportDraft = useCallback((draft: string, unsaved: boolean) => {
+    setDrafts((current) =>
+      current.includes(draft) === unsaved
+        ? current
+        : unsaved
+          ? [...current, draft]
+          : current.filter((item) => item !== draft),
+    );
+  }, []);
   const requested = projectId === undefined && searchParams.get("new") === "1";
   const section =
     projectId === undefined ? "" : projectSectionOf(pathname, projectId);
   // J / K move through projects only where the section has no list of its
-  // own to move through.
+  // own to move through, and never away from an unsaved draft (project
+  // details being edited, an objective typed into the composer).
   const keyboard =
-    projectId === undefined || section === "" || section === "settings";
+    drafts.length === 0 &&
+    (projectId === undefined || section === "" || section === "settings");
 
   function closeCreate() {
     setCreating(false);
@@ -79,7 +94,7 @@ export function ProjectsRoute() {
   }
 
   return (
-    <>
+    <ProjectDraftsContext value={reportDraft}>
       <PaneLayout
         listLabel="Projects"
         detailLabel={projectId === undefined ? "Getting started" : "Project"}
@@ -103,6 +118,7 @@ export function ProjectsRoute() {
       {creating || requested ? (
         <NewProjectDialog
           kind="project"
+          keys={createKeys}
           wording={{
             title: "New project",
             closeLabel: "Close new project form",
@@ -118,6 +134,6 @@ export function ProjectsRoute() {
           }}
         />
       ) : null}
-    </>
+    </ProjectDraftsContext>
   );
 }

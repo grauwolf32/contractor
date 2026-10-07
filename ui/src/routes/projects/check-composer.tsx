@@ -8,6 +8,7 @@ import { artifactAccepts } from "../../run-drafts/validation";
 import { Kbd, modKeyLabel, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
 import { auditPresetLabel } from "./audits/labels";
+import { useUnsavedDraft } from "./project-drafts";
 import { startCheckPath } from "./project-sections";
 
 /** Longest objective carried in the Start URL. */
@@ -80,7 +81,7 @@ function CheckTypeSuggestions({
         <span id={heading}>
           {suggestions.length === 0
             ? "Or choose a check type"
-            : "Or pick a check type whose inputs match your materials"}
+            : "Or pick a check type whose input formats match your materials"}
         </span>
         <Link to={startCheckPath(project.projectId, objective)}>
           All check types
@@ -136,6 +137,7 @@ export function CheckComposer({
   const label = useId();
   const field = useId();
   const [objective, setObjective] = useState("");
+  useUnsavedDraft(objective.trim() !== "");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

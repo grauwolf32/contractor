@@ -20,6 +20,7 @@ import { StaleDataWarning } from "../../app/query-view";
 import { DetailHeader, DetailPane, IdChip } from "../../ui";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { ProjectNavigation } from "./navigation";
+import { useFollowProjectCheckChanges } from "./overview-data";
 import { ProjectSectionActionsContext } from "./section-actions-context";
 import { useProjectDeletion } from "./use-project-deletion";
 import type { ProjectWorkspaceContext } from "./workspace-context";
@@ -49,6 +50,8 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   });
   const { deletion, deletionObserved, deleteOpen, setDeleteOpen } =
     useProjectDeletion(project, "/projects");
+  // The overview and the project's row read the cross-project check page.
+  useFollowProjectCheckChanges(projectId);
   const activeProject =
     project.data?.kind === "project" && project.data.lifecycle === "active"
       ? project.data

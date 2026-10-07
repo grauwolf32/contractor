@@ -28,7 +28,7 @@ export function ProjectNavigation({
 }) {
   const root = projectPath(projectId);
   const location = useLocation();
-  const { pathname } = location;
+  const { pathname, hash } = location;
   const navigate = useNavigate();
   const advancedLabel = useId();
   const bar = useRef<HTMLDivElement>(null);
@@ -61,17 +61,19 @@ export function ProjectNavigation({
   }
   // A section opened from another one starts at its top: in the detail pane
   // on wide screens, in the page on phones. A page that loads directly keeps
-  // the browser's own scroll position.
+  // the browser's own scroll position, and a link to an anchor of a section
+  // (settings#live-target) leaves scrolling to the section.
   const shownPath = useRef(pathname);
   useEffect(() => {
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
+    if (hash !== "") return;
     const pane = bar.current?.closest<HTMLElement>(".ui-panes-detail");
     if (pane !== null && pane !== undefined) pane.scrollTop = 0;
     document
       .getElementById("main-content")
       ?.scrollIntoView?.({ block: "start" });
-  }, [pathname]);
+  }, [hash, pathname]);
 
   function tab([segment, label]: readonly [string, string]) {
     return (

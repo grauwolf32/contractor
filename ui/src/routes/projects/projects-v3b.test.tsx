@@ -7,9 +7,11 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import type { Audit, AuditFinding, AuditProfile } from "../../api/audits";
 import { PublicAPI } from "../../api/client";
 import type { Project } from "../../api/projects";
+import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
 import type { WorkflowSummary } from "../../api/workflows";
 import { Application } from "../../app/application";
+import * as queryClientFactory from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
@@ -159,6 +161,14 @@ interface FakeServer {
   artifacts?: ArtifactMetadata[];
   profiles?: AuditProfile[];
   capabilities?: string[];
+  /** Answers POST /v1/projects. */
+  createProject?: (request: Request) => Response | Promise<Response>;
+  /** Answers PATCH /v1/projects/:projectId. */
+  updateProject?: (request: Request) => Response | Promise<Response>;
+  /** Holds a check's possible-issue read until the promise settles. */
+  holdFindings?: (auditId: string) => Promise<void> | undefined;
+  /** Leaves every read of a project's checks unanswered while true. */
+  holdAudits?: () => boolean;
 }
 
 function serve(server: FakeServer) {
@@ -173,8 +183,18 @@ function serve(server: FakeServer) {
       const query = url.searchParams;
       if (path === "/v1/auth/session")
         return json(session(server.capabilities));
+      if (path === "/v1/projects" && request.method === "POST") {
+        if (server.createProject === undefined)
+          throw new Error("unexpected POST /v1/projects");
+        return server.createProject(request);
+      }
       if (path === "/v1/projects") return json(page(server.projects));
       let match = /^\/v1\/projects\/([^/]+)$/.exec(path);
+      if (match !== null && request.method === "PATCH") {
+        if (server.updateProject === undefined)
+          throw new Error(`unexpected PATCH ${path}`);
+        return server.updateProject(request);
+      }
       if (match !== null) {
         const found = server.projects.find(
           (candidate) => candidate.projectId === match![1],
@@ -188,6 +208,8 @@ function serve(server: FakeServer) {
       }
       match = /^\/v1\/projects\/([^/]+)\/audits$/.exec(path);
       if (match !== null) {
+        if (server.holdAudits?.() === true)
+          return new Promise<Response>(() => undefined);
         const state = query.get("state");
         const items = (server.audits?.[match[1]!] ?? []).filter(
           (audit) => state === null || audit.state === state,
@@ -196,6 +218,7 @@ function serve(server: FakeServer) {
       }
       match = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
       if (match !== null) {
+        if (match[2] === "findings") await server.holdFindings?.(match[1]!);
         const items =
           match[2] === "findings" && query.get("state") === "proposed"
             ? (server.findings?.[match[1]!] ?? [])
@@ -261,13 +284,32 @@ function serve(server: FakeServer) {
   return { api, requests };
 }
 
-function renderAt(server: FakeServer, path: string) {
+/** Renders the application at `path`, after `earlier` history entries. */
+function renderAt(server: FakeServer, path: string, earlier: string[] = []) {
   const { api, requests } = serve(server);
   const router = createMemoryRouter(applicationRoutes(), {
-    initialEntries: [path],
+    initialEntries: [...earlier, path],
+    initialIndex: earlier.length,
   });
+  const queryClient = queryClientFactory.createApplicationQueryClient();
+  const factory = vi
+    .spyOn(queryClientFactory, "createApplicationQueryClient")
+    .mockReturnValueOnce(queryClient);
   render(<Application api={api} publicAPI={api} router={router} />);
-  return { router, requests, user: userEvent.setup() };
+  factory.mockRestore();
+  return { router, requests, queryClient, user: userEvent.setup() };
+}
+
+/** GET requests to `pathname`; `unfiltered`: only those without a state. */
+function reads(requests: Request[], pathname: string, unfiltered = false) {
+  return requests.filter((request) => {
+    const url = new URL(request.url);
+    return (
+      request.method === "GET" &&
+      url.pathname === pathname &&
+      (!unfiltered || url.searchParams.get("state") === null)
+    );
+  }).length;
 }
 
 const projectA = projectFixture("project_a", {
@@ -286,9 +328,19 @@ describe("Projects list pane", () => {
       deletion: { phase: "draining", requestedAt: RECENT },
     });
     const quiet = projectFixture("project_e", { name: "Project E" });
+    const ending = projectFixture("project_f", { name: "Project F" });
+    const finished = projectFixture("project_g", { name: "Project G" });
     renderAt(
       {
-        projects: [projectA, projectB, projectC, deleting, quiet],
+        projects: [
+          projectA,
+          projectB,
+          projectC,
+          deleting,
+          quiet,
+          ending,
+          finished,
+        ],
         audits: {
           project_a: [
             check("project_a", "audit_running", "active"),
@@ -300,16 +352,25 @@ describe("Projects list pane", () => {
             }),
           ],
           project_c: [check("project_c", "audit_waiting", "waiting_review")],
+          project_f: [
+            check("project_f", "audit_stopping", "cancelling"),
+            check("project_f", "audit_finishing", "finalizing"),
+          ],
+          project_g: [
+            check("project_g", "audit_old", "completed", undefined, {
+              finishedAt: RECENT,
+            }),
+          ],
         },
         findings: {
           audit_running: [
             finding("audit_running", "finding_1", "First"),
             finding("audit_running", "finding_2", "Second"),
           ],
-          // A finished check's possible issues are counted on its project's
-          // overview, not in the list (the list shares the Inbox's reads).
+          // Finished checks' possible issues count too, as on the overview.
           audit_done: [finding("audit_done", "finding_3", "Third")],
           audit_waiting: [finding("audit_waiting", "finding_4", "Fourth")],
+          audit_old: [finding("audit_old", "finding_5", "Fifth")],
         },
       },
       "/projects",
@@ -321,7 +382,7 @@ describe("Projects list pane", () => {
     ).toBeVisible();
     await waitFor(async () =>
       expect(await row("Project A")).toHaveTextContent(
-        "Check running·2 possible issues to review",
+        "Check running·3 possible issues to review",
       ),
     );
     await waitFor(async () =>
@@ -332,9 +393,51 @@ describe("Projects list pane", () => {
         "Check waiting for you·1 possible issue to review",
       ),
     );
+    // A stopped check is not running: each state says so in its own words.
+    await waitFor(async () =>
+      expect(await row("Project F")).toHaveTextContent(
+        "Check finishing·Check stopping",
+      ),
+    );
+    expect(await row("Project F")).not.toHaveTextContent(/running/);
+    // Unreviewed possible issues of a finished check still need the user.
+    await waitFor(async () =>
+      expect(await row("Project G")).toHaveTextContent(
+        "1 possible issue to review",
+      ),
+    );
     expect(await row("Project D")).toHaveTextContent(/Deleting·requested/);
     expect(await row("Project E")).toHaveTextContent(/Updated/);
-    expect(screen.getByText("5 projects, newest first")).toBeVisible();
+    expect(screen.getByText("7 projects, newest first")).toBeVisible();
+  });
+
+  it("counts a project's possible issues as its overview does", async () => {
+    const { router } = renderAt(
+      {
+        projects: [projectA],
+        audits: {
+          project_a: [
+            check("project_a", "audit_running", "active"),
+            check("project_a", "audit_done", "completed"),
+          ],
+        },
+        findings: {
+          audit_running: [finding("audit_running", "finding_1", "First")],
+          audit_done: [
+            finding("audit_done", "finding_2", "Second"),
+            finding("audit_done", "finding_3", "Third"),
+          ],
+        },
+      },
+      "/projects/project_a",
+    );
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    await within(glance).findByRole("link", { name: "3 to review" });
+    const row = screen.getByRole("link", { name: "Project A" }).closest("li")!;
+    await waitFor(() =>
+      expect(row).toHaveTextContent("3 possible issues to review"),
+    );
+    expect(router.state.location.pathname).toBe("/projects/project_a");
   });
 
   it("keeps the selection in the path and moves it with J and K where the section has no list", async () => {
@@ -367,6 +470,43 @@ describe("Projects list pane", () => {
     await screen.findByRole("group", { name: "Run views" });
     await user.keyboard("j");
     expect(router.state.location.pathname).toBe("/projects/project_a/runs");
+  });
+
+  it("keeps J and K from leaving an unsaved draft", async () => {
+    const { router, user } = renderAt(
+      { projects: [projectA, projectB] },
+      "/projects/project_a/settings",
+    );
+    await screen.findByRole("region", { name: "Project details" });
+    await user.click(screen.getByRole("button", { name: "Edit metadata" }));
+    await user.type(screen.getByLabelText("Name"), " renamed");
+    // Focus leaves the field: the draft is still unsaved.
+    await user.click(screen.getByRole("heading", { name: "Live target" }));
+    await user.keyboard("j");
+    expect(router.state.location.pathname).toBe("/projects/project_a/settings");
+    expect(screen.getByLabelText("Name")).toHaveValue("Project A renamed");
+    expect(screen.queryByText(/move between projects/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.keyboard("j");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_b"),
+    );
+
+    // An objective typed into the composer is a draft as well.
+    await act(() => router.navigate("/projects/project_a"));
+    const objective = await screen.findByRole("textbox", {
+      name: "What do you want to check?",
+    });
+    await user.type(objective, "Can one customer read another's orders?");
+    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.keyboard("j");
+    expect(router.state.location.pathname).toBe("/projects/project_a");
+    await user.clear(objective);
+    await user.click(screen.getByRole("heading", { name: "Timeline" }));
+    await user.keyboard("j");
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_b"),
+    );
   });
 
   it("keeps the list pane mounted while a project is chosen", async () => {
@@ -424,6 +564,157 @@ describe("Projects list pane", () => {
     expect(screen.queryByRole("link", { name: "Project A" })).toBeNull();
     expect(screen.getByText("1 of 3 projects")).toBeVisible();
   });
+});
+
+describe("New project", () => {
+  const created = projectFixture("project_new", { name: "Payment service" });
+
+  function createdResponse(server: FakeServer): Response {
+    server.projects = [created, ...server.projects];
+    return json(created, { status: 201, headers: { ETag: '"1"' } });
+  }
+
+  it("replaces ?new=1 once the project exists, so Back does not reopen the dialog", async () => {
+    const server: FakeServer = {
+      projects: [projectA],
+      createProject: () => createdResponse(server),
+    };
+    const { router, user } = renderAt(server, "/projects?new=1", ["/projects"]);
+    const dialog = await screen.findByRole("dialog", { name: "New project" });
+    await user.type(within(dialog).getByLabelText("Name"), "Payment service");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create project" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Payment service",
+        level: 2,
+      }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/projects/project_new");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await act(() => router.navigate(-1));
+    expect(await screen.findByText("Choose a project")).toBeVisible();
+    expect(router.state.location.pathname).toBe("/projects");
+    expect(router.state.location.search).toBe("");
+    expect(screen.queryByRole("dialog", { name: "New project" })).toBeNull();
+  });
+
+  it("reuses the Idempotency-Key after the dialog was closed and opened again", async () => {
+    const creates: Request[] = [];
+    let unavailable = true;
+    const server: FakeServer = {
+      projects: [projectA],
+      createProject: (request) => {
+        creates.push(request.clone());
+        return unavailable
+          ? json(
+              {
+                code: "unavailable",
+                message: "Project store unavailable",
+                retryable: true,
+              },
+              { status: 503 },
+            )
+          : createdResponse(server);
+      },
+    };
+    const { router, user } = renderAt(server, "/projects");
+    async function submitNewProject() {
+      await user.click(
+        (await screen.findAllByRole("button", { name: "New project" }))[0]!,
+      );
+      const dialog = screen.getByRole("dialog", { name: "New project" });
+      await user.type(within(dialog).getByLabelText("Name"), "Payment service");
+      await user.type(within(dialog).getByLabelText("Description"), "Shop");
+      await user.click(
+        within(dialog).getByRole("button", { name: "Create project" }),
+      );
+      return dialog;
+    }
+    const dialog = await submitNewProject();
+    expect(
+      await within(dialog).findByText("Project store unavailable"),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The response was lost: the same request again carries the same key.
+    unavailable = false;
+    await submitNewProject();
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_new"),
+    );
+    expect(creates).toHaveLength(2);
+    expect(creates[1]?.headers.get("Idempotency-Key")).toBe(
+      creates[0]?.headers.get("Idempotency-Key"),
+    );
+    // Once a project exists, the same values make a new request.
+    await submitNewProject();
+    await waitFor(() => expect(creates).toHaveLength(3));
+    expect(creates[2]?.headers.get("Idempotency-Key")).not.toBe(
+      creates[1]?.headers.get("Idempotency-Key"),
+    );
+  });
+
+  it("opens the new project without waiting for every cross-project list", async () => {
+    let created = false;
+    const server: FakeServer = {
+      projects: [projectA],
+      // After the write, no project's checks answer (a slow Server).
+      holdAudits: () => created,
+      createProject: () => {
+        created = true;
+        return createdResponse(server);
+      },
+    };
+    const { router, user } = renderAt(server, "/projects?new=1");
+    const dialog = await screen.findByRole("dialog", { name: "New project" });
+    await user.type(within(dialog).getByLabelText("Name"), "Payment service");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Create project" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects/project_new"),
+    );
+  });
+});
+
+describe("Project deletion progress", () => {
+  it.each([
+    ["draining", "Waiting for Runtime release", 1],
+    ["purging_runs", "Removing Run history", 2],
+  ] as const)(
+    "lists the phases done and the current one while %s",
+    async (phase, heading, current) => {
+      const deleting = projectFixture("project_d", {
+        name: "Project D",
+        lifecycle: "deleting",
+        revision: "2",
+        deletion: { phase, requestedAt: RECENT },
+      });
+      renderAt({ projects: [deleting] }, "/projects/project_d");
+      expect(
+        await screen.findByRole("heading", { name: heading }),
+      ).toBeVisible();
+      const phases = within(
+        screen.getByRole("list", { name: "Deletion phases" }),
+      ).getAllByRole("listitem");
+      expect(phases.map((item) => item.textContent)).toEqual(
+        [
+          "Cancelling active Runs",
+          "Waiting for Runtime release",
+          "Removing Run history",
+          "Removing Project Artifacts",
+        ].map((label, index) => (index < current ? `${label}, done` : label)),
+      );
+      phases.forEach((item, index) => {
+        if (index === current)
+          expect(item).toHaveAttribute("aria-current", "step");
+        else expect(item).not.toHaveAttribute("aria-current");
+      });
+    },
+  );
 });
 
 describe("Project sections", () => {
@@ -722,6 +1013,86 @@ describe("Project overview", () => {
       within(chips).getByRole("link", { name: "Add material" }),
     ).toHaveAttribute("href", "/projects/project_a/artifacts?add=artifact");
   });
+  it("keeps the possible-issue count while a running check's revision advances", async () => {
+    const server: FakeServer = {
+      ...overviewServer,
+      audits: { project_a: [...overviewServer.audits!.project_a!] },
+      findings: { ...overviewServer.findings },
+    };
+    const { requests, user } = renderAt(server, "/projects/project_a");
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    await within(glance).findByRole("link", { name: "3 to review" });
+    // The running check moves on: a new revision with one more possible
+    // issue, whose read takes a while.
+    server.audits!.project_a![0] = {
+      ...server.audits!.project_a![0]!,
+      revision: 2,
+    };
+    server.findings!.audit_running = [
+      finding("audit_running", "finding_1", "Order IDOR"),
+      finding("audit_running", "finding_9", "Price tampering"),
+    ];
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.holdFindings = (auditId) =>
+      auditId === "audit_running" ? held : undefined;
+    const issueReads = () =>
+      reads(requests, "/v1/audits/audit_running/findings");
+    const before = issueReads();
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(issueReads()).toBe(before + 1));
+    // The previous revision stays counted while the new one loads.
+    expect(
+      within(glance).getByRole("link", { name: "3 to review" }),
+    ).toBeVisible();
+    expect(within(glance).queryByText("Counting…")).toBeNull();
+    act(() => release());
+    expect(
+      await within(glance).findByRole("link", { name: "4 to review" }),
+    ).toBeVisible();
+  });
+
+  it("counts only running checks as running and names stopping and finishing ones", async () => {
+    renderAt(
+      {
+        projects: [projectA],
+        audits: {
+          project_a: [
+            check("project_a", "audit_running", "active"),
+            check("project_a", "audit_stopping", "cancelling"),
+            check("project_a", "audit_finishing", "finalizing"),
+          ],
+        },
+      },
+      "/projects/project_a",
+    );
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    expect(
+      await within(glance).findByRole("link", { name: "1 running" }),
+    ).toBeVisible();
+    expect(within(glance).getByText("1 finishing · 1 stopping")).toBeVisible();
+  });
+
+  it("re-reads its checks when a check action refreshes the project's check lists", async () => {
+    const { requests, queryClient } = renderAt(
+      overviewServer,
+      "/projects/project_a",
+    );
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    await within(glance).findByRole("link", { name: "3 to review" });
+    const checkReads = () =>
+      reads(requests, "/v1/projects/project_a/audits", true);
+    const before = checkReads();
+    // Start, Cancel and Delete (projects/audits) refresh only these lists.
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.audits.all("project_a"),
+      }),
+    );
+    await waitFor(() => expect(checkReads()).toBeGreaterThan(before));
+  });
 });
 
 describe("Project settings", () => {
@@ -748,6 +1119,37 @@ describe("Project settings", () => {
     ).toBeDisabled();
   });
 
+  it("saves project details without waiting for every cross-project list", async () => {
+    let saved = false;
+    const server: FakeServer = {
+      projects: [projectA, projectB],
+      // After the write, no project's checks answer (a slow Server).
+      holdAudits: () => saved,
+      updateProject: async (request) => {
+        saved = true;
+        const body = (await request.json()) as {
+          name: string;
+          description: string;
+        };
+        const updated = { ...projectA, ...body, revision: "2" };
+        server.projects = [updated, projectB];
+        return json(updated, { headers: { ETag: '"2"' } });
+      },
+    };
+    const { user } = renderAt(server, "/projects/project_a/settings");
+    await screen.findByRole("region", { name: "Project details" });
+    await user.click(screen.getByRole("button", { name: "Edit metadata" }));
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Shop APIs");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(
+      await screen.findByRole("button", { name: "Edit metadata" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Shop APIs", level: 2 }),
+    ).toBeVisible();
+  });
+
   it("shows the runtime configuration link to operators only", async () => {
     const { user } = renderAt(
       { projects: [projectA], capabilities: ["user"] },
@@ -758,6 +1160,52 @@ describe("Project settings", () => {
     expect(
       screen.queryByRole("link", { name: "Runtime configuration" }),
     ).toBeNull();
+  });
+  it("opens the live target sheet from the overview's Add chip", async () => {
+    const { router, user } = renderAt(
+      { projects: [projectA] },
+      "/projects/project_a",
+    );
+    const chips = await screen.findByRole("list", { name: "Materials" });
+    await user.click(
+      within(chips).getByRole("link", { name: "Add a live target" }),
+    );
+    const sheet = await screen.findByRole("dialog", {
+      name: "Application access",
+    });
+    expect(router.state.location.pathname).toBe("/projects/project_a/settings");
+    expect(router.state.location.hash).toBe("#live-target");
+    // Back and reload show Settings without the sheet.
+    await waitFor(() =>
+      expect(
+        (router.state.location.state as Record<string, unknown> | null)
+          ?.openTargetSheet,
+      ).toBeUndefined(),
+    );
+    expect(sheet).toBeVisible();
+    await user.click(
+      within(sheet).getByRole("button", { name: "Close target dialog" }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Configure target" }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("lands on the Live target for settings#live-target", async () => {
+    renderAt(
+      {
+        projects: [
+          { ...projectA, httpTarget: { url: "https://shop.example.test" } },
+        ],
+      },
+      "/projects/project_a/settings#live-target",
+    );
+    const edit = await screen.findByRole("button", { name: "Edit target" });
+    await waitFor(() => expect(edit).toHaveFocus());
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
-import { useId } from "react";
-import { Link } from "react-router";
+import { useEffect, useId, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import type { Project } from "../../api/projects";
 import { RUNTIME_CONFIGURATION_PATH } from "../../app/navigation";
@@ -7,9 +7,17 @@ import { useSession } from "../../auth/session";
 import { TechnicalDetails } from "../../ui";
 import { ProjectArtifactRegion } from "./artifact-region";
 import { ProjectAuditWorkspace } from "./audits/list";
-import { ProjectHTTPTargetEditor } from "./http-target-editor";
+import {
+  ProjectHTTPTargetEditor,
+  type TargetReveal,
+} from "./http-target-editor";
 import { ProjectFacts, ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectOverview } from "./overview";
+import {
+  LIVE_TARGET_ANCHOR,
+  opensTargetSheet,
+  withoutTargetSheet,
+} from "./project-sections";
 import { ProjectRunsRegion } from "./runs-region";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 import { useProjectWorkspace } from "./workspace-context";
@@ -29,6 +37,37 @@ function ProjectSettings({
   const details = useId();
   const target = useId();
   const danger = useId();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const targetSection = useRef<HTMLElement>(null);
+  const atTarget = location.hash === `#${LIVE_TARGET_ANCHOR}`;
+  const openSheet = atTarget && opensTargetSheet(location.state);
+  // What Settings was opened for, from its first render: a link to
+  // #live-target lands on the Live target; "Add a live target" on the
+  // overview also opens its sheet.
+  const [reveal] = useState<TargetReveal | undefined>(() =>
+    openSheet ? "open" : atTarget ? "focus" : undefined,
+  );
+  useEffect(() => {
+    if (reveal !== undefined)
+      targetSection.current?.scrollIntoView?.({ block: "start" });
+  }, [reveal]);
+  useEffect(() => {
+    if (!openSheet) return;
+    // The sheet opens once: Back and reload show the section without it.
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: location.search,
+        hash: location.hash,
+      },
+      {
+        replace: true,
+        preventScrollReset: true,
+        state: withoutTargetSheet(location.state),
+      },
+    );
+  }, [location, navigate, openSheet]);
   return (
     <div className="projects-settings">
       <section className="projects-panel" aria-labelledby={details}>
@@ -38,8 +77,9 @@ function ProjectSettings({
         <ProjectMetadataEditor key={project.projectId} project={project} />
       </section>
       <section
+        ref={targetSection}
         className="projects-panel"
-        id="live-target"
+        id={LIVE_TARGET_ANCHOR}
         aria-labelledby={target}
       >
         <div className="projects-section-heading">
@@ -49,7 +89,11 @@ function ProjectSettings({
           The running application that active checks of this project may send
           requests to, and the authorization they use.
         </p>
-        <ProjectHTTPTargetEditor key={project.projectId} project={project} />
+        <ProjectHTTPTargetEditor
+          key={project.projectId}
+          project={project}
+          reveal={reveal}
+        />
       </section>
       <TechnicalDetails description="Identifiers, revision and where execution defaults live.">
         <ProjectFacts project={project} showId={false} />

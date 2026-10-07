@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { Audit } from "../../api/audits";
+import type { Audit, AuditState } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { invalidateCrossProject } from "../../api/cross-project";
 import { listProjects, type Project } from "../../api/projects";
@@ -14,6 +14,7 @@ import { useCursorStack } from "../../app/pagination";
 import { StaleDataWarning } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import type { StatusTone } from "../../app/status-tone";
+import { checkStateLabel } from "../../app/vocabulary";
 import {
   EmptyState,
   Kbd,
@@ -41,6 +42,23 @@ function Status({ tone, children }: { tone: StatusTone; children: ReactNode }) {
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * Check states a row reports while a check is in them, in this order, with
+ * the state's own label: "Check running", "Check stopping", …
+ */
+const IN_FLIGHT_STATES: readonly AuditState[] = [
+  "active",
+  "finalizing",
+  "cancelling",
+  "waiting_review",
+];
+
+/** "Check running", "2 checks waiting for you". */
+function checksIn(count: number, stateLabel: string): string {
+  const phrase = stateLabel.toLowerCase();
+  return count === 1 ? `Check ${phrase}` : `${count} checks ${phrase}`;
 }
 
 /** "Check finished 6 minutes ago" for a check that is not running. */
@@ -83,28 +101,19 @@ function rowStatus(
   const parts: ReactNode[] = [];
   let tone: StatusTone = "idle";
   if (activity !== undefined) {
-    if (activity.running > 0) {
-      tone = "progress";
+    for (const state of IN_FLIGHT_STATES) {
+      const count = activity.states[state] ?? 0;
+      if (count === 0) continue;
+      const label = checkStateLabel(state);
+      if (tone === "idle") tone = label.tone;
       parts.push(
-        <Status key="running" tone="progress">
-          {activity.running === 1
-            ? "Check running"
-            : `${activity.running} checks running`}
+        <Status key={state} tone={label.tone}>
+          {checksIn(count, label.label)}
         </Status>,
       );
     }
-    if (activity.waiting > 0) {
-      if (tone === "idle") tone = "review";
-      parts.push(
-        <Status key="waiting" tone="review">
-          {activity.waiting === 1
-            ? "Check waiting for you"
-            : `${activity.waiting} checks waiting for you`}
-        </Status>,
-      );
-    }
-    const { count, more } = activity.possibleIssues;
-    if (count > 0) {
+    const { count, more, settled } = activity.possibleIssues;
+    if (settled && count > 0) {
       if (tone === "idle") tone = "review";
       parts.push(
         <Status key="issues" tone="review">
@@ -114,13 +123,13 @@ function rowStatus(
         </Status>,
       );
     }
-    if (activity.paused > 0 && parts.length === 0) {
-      tone = "warning";
+    const paused = activity.states.paused ?? 0;
+    if (paused > 0 && parts.length === 0) {
+      const label = checkStateLabel("paused");
+      tone = label.tone;
       parts.push(
-        <Status key="paused" tone="warning">
-          {activity.paused === 1
-            ? "Check paused"
-            : `${activity.paused} checks paused`}
+        <Status key="paused" tone={label.tone}>
+          {checksIn(paused, label.label)}
         </Status>,
       );
     }

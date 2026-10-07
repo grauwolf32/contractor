@@ -46,6 +46,38 @@ export function startCheckPath(
   return `/checks/new?${params.toString()}`;
 }
 
+/** Settings' Live target section: `settings#live-target` lands on it. */
+export const LIVE_TARGET_ANCHOR = "live-target";
+
+/** Router state key of a link that also opens the live target sheet. */
+const TARGET_SHEET = "openTargetSheet";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * History state for a link to `settings#live-target` that opens the target
+ * sheet as well (the overview's "Add a live target"), keeping the state the
+ * section tabs carry. Settings drops it once the sheet is open.
+ */
+export function targetSheetState(state: unknown): Record<string, unknown> {
+  return { ...(isRecord(state) ? state : {}), [TARGET_SHEET]: true };
+}
+
+/** The history state asks Settings to open the live target sheet. */
+export function opensTargetSheet(state: unknown): boolean {
+  return isRecord(state) && state[TARGET_SHEET] === true;
+}
+
+/** The history state without the request to open the sheet. */
+export function withoutTargetSheet(state: unknown): unknown {
+  if (!isRecord(state) || !(TARGET_SHEET in state)) return state;
+  const rest = { ...state };
+  delete rest[TARGET_SHEET];
+  return rest;
+}
+
 /** The section a path inside /projects/:projectId shows. */
 export function projectSectionOf(
   pathname: string,

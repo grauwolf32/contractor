@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import {
@@ -32,12 +32,34 @@ const CREDENTIAL_KIND_LABELS: Record<OriginCredential["kind"], string> = {
 };
 
 /**
+ * How Settings was opened for the live target: "focus" moves focus to
+ * Configure (or Edit) target, "open" also opens the target sheet.
+ */
+export type TargetReveal = "focus" | "open";
+
+/**
  * The project's live target: the URL active checks may call and the origin
  * credential they authorize with. Secrets are write-only: they go to a new
  * Runtime credential and only its reference is stored on the project.
  */
-export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
+export function ProjectHTTPTargetEditor({
+  project,
+  reveal,
+}: {
+  project: Project;
+  /** How Settings was opened; acted on when the editor mounts. */
+  reveal?: TargetReveal | undefined;
+}) {
   const [editing, setEditing] = useState<Project | null>(null);
+  const configure = useRef<HTMLButtonElement>(null);
+  // The button takes focus before the sheet opens, so closing the sheet
+  // returns focus to it. Settings keeps `reveal` from its first render.
+  useEffect(() => {
+    const button = configure.current;
+    if (reveal === undefined || button === null) return;
+    button.focus({ preventScroll: true });
+    if (reveal === "open") button.click();
+  }, [reveal]);
   // The project as it was when removal was asked for: its revision guards
   // the removal, so a target changed meanwhile is not removed unseen.
   const [removing, setRemoving] = useState<Project | null>(null);
@@ -95,6 +117,7 @@ export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
       )}
       <div className="projects-form-actions">
         <button
+          ref={configure}
           className="ui-btn"
           data-size="sm"
           type="button"

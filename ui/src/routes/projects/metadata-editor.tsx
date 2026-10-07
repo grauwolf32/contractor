@@ -13,6 +13,7 @@ import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatTimestamp } from "../../app/format";
 import { IdChip } from "../../ui";
+import { useUnsavedDraft } from "./project-drafts";
 
 import "./projects.css";
 
@@ -67,6 +68,7 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Project | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  useUnsavedDraft(editing !== null);
   const mutation = useMutation({
     mutationFn: (request: { name: string; description: string }) =>
       updateProject(api, {
@@ -79,13 +81,12 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
         queryKeys.projects.detail(project.projectId),
         updated,
       );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.projects.lists(project.kind),
-        }),
-        // Cross-project lists show the project's name.
-        invalidateCrossProject(queryClient),
-      ]);
+      // Cross-project lists show the project's name: they refresh in the
+      // background, the save waits only for the project lists.
+      void invalidateCrossProject(queryClient);
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.lists(project.kind),
+      });
       setEditing(null);
     },
   });

@@ -14,6 +14,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { EvaluationActivity } from "./evaluation-activity";
 import { NewProjectDialog } from "./new-project-dialog";
+import { useNewProjectKeys } from "./new-project-keys";
 import { ProjectsRoute } from "./projects-route";
 
 import "./collection.css";
@@ -35,6 +36,7 @@ export function EvaluationListRoute() {
   const navigate = useNavigate();
   const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
+  const createKeys = useNewProjectKeys();
   const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.list("evaluation", cursor),
@@ -76,6 +78,7 @@ export function EvaluationListRoute() {
       {createOpen ? (
         <NewProjectDialog
           kind="evaluation"
+          keys={createKeys}
           wording={{
             title: "New Eval",
             closeLabel: "Close New Eval form",
