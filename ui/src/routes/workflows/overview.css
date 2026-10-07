@@ -172,13 +172,9 @@
   background: none;
 }
 
-/* Direction and alignment are set explicitly: src/routes/primary-actions.css
-   (still loaded by the Project page) styles the same class as a column. */
 .workflow-overview-page .workflow-technical-details > summary {
   display: inline-flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
   gap: 0.25rem;
   width: fit-content;
   max-width: 100%;
