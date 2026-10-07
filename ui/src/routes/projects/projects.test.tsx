@@ -722,9 +722,9 @@ describe("Project routes", () => {
     );
     const user = userEvent.setup();
 
-    await screen.findByRole("dialog", { name: "Add artifact" });
-    await user.click(screen.getByRole("button", { name: /Sources/ }));
-    const dialog = screen.getByRole("dialog", { name: "Sources" });
+    await screen.findByRole("dialog", { name: "Add material" });
+    await user.click(screen.getByRole("button", { name: "Source code ZIP" }));
+    const dialog = screen.getByRole("dialog", { name: "Source code ZIP" });
     const file = new File(["zip"], "payment-service.zip", {
       type: "application/zip",
     });
@@ -901,10 +901,10 @@ describe("Project routes", () => {
       .setup()
       .click(screen.getByRole("link", { name: "Add material" }));
     expect(
-      await screen.findByRole("button", { name: "Sources" }),
+      await screen.findByRole("button", { name: "Source code ZIP" }),
     ).toBeEnabled();
     const git = screen.getByRole("button", { name: "Import Git repository" });
-    expect(git).toHaveClass("project-shortcut");
+    expect(git).toHaveClass("materials-kind");
     expect(git.querySelector("svg")).not.toBeNull();
     await userEvent.setup().click(git);
     expect(

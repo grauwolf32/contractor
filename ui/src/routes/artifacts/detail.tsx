@@ -8,14 +8,22 @@ import { ReturnLink } from "../../app/context-navigation";
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
 import { ArtifactDetailView } from "./artifact-detail-view";
+import "./materials.css";
 
 const USER_SCOPE = { kind: "user" } as const;
 
+/**
+ * Library → Files → one file (`/artifacts/:namespace/:name[?revision=]`).
+ * Skill packages open here too and return to Skills.
+ */
 export function ArtifactDetailRoute() {
   const { namespace = "", name = "" } = useParams();
   const [searchParams] = useSearchParams();
   const revision = searchParams.get("revision") ?? undefined;
-  useDocumentTitle(name ? `${namespace}/${name}` : "Artifact");
+  const skill = namespace === "skills";
+  useDocumentTitle(
+    name ? `${namespace}/${name} · ${skill ? "Skills" : "Files"}` : "Files",
+  );
   const validIdentity =
     ARTIFACT_NAME_PATTERN.test(namespace) && ARTIFACT_NAME_PATTERN.test(name);
   const validRevision =
@@ -23,9 +31,9 @@ export function ArtifactDetailRoute() {
 
   if (!validIdentity || !validRevision) {
     return (
-      <section className="route-page">
-        <ErrorNotice error={new Error("Artifact route is invalid")} />
-        <Link to="/artifacts">Return to Artifacts</Link>
+      <section className="route-page materials-page materials-invalid">
+        <ErrorNotice error={new Error("This file link is not valid.")} />
+        <Link to="/artifacts">Return to Files</Link>
       </section>
     );
   }
@@ -37,10 +45,11 @@ export function ArtifactDetailRoute() {
       namespace={namespace}
       name={name}
       revision={revision}
+      variant="file"
       heading={
         <ReturnLink
-          to={namespace === "skills" ? "/catalog/skills" : "/artifacts"}
-          label={namespace === "skills" ? "Skills" : "All Artifacts"}
+          to={skill ? "/catalog/skills" : "/artifacts"}
+          label={skill ? "Skills" : "Files"}
         />
       }
     />

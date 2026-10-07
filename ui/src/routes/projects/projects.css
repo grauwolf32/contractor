@@ -651,8 +651,7 @@
   background: transparent;
 }
 
-.projects-workspace .project-region > .section-heading .eyebrow,
-.projects-workspace .project-artifact-library .section-heading .eyebrow {
+.projects-workspace .project-region > .section-heading .eyebrow {
   display: none;
 }
 

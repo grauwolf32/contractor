@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import {
   archiveQueryKey,
@@ -14,6 +14,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { LoadedArtifactPreview } from "./loaded-preview";
 import "./archive-preview.css";
+import "./materials.css";
 
 function ArchiveTree({
   childrenByPath,
@@ -61,16 +62,25 @@ function ArchiveTree({
   );
 }
 
+/**
+ * Read-only browser of a ZIP or Skill package at one exact revision. Loads on
+ * request (or on mount), opens SKILL.md first and previews text files up to
+ * 256 KiB; nothing in the archive is executed or loaded from the network.
+ */
 export function ArchivePreviewPanel({
   metadata,
   scope,
   loadOnMount = false,
+  titleAs: Title = "h3",
 }: {
   metadata: ArtifactMetadata;
   scope: ArtifactArchiveScope;
-  loadOnMount?: boolean;
+  loadOnMount?: boolean | undefined;
+  /** Heading level of the section title. Default "h3". */
+  titleAs?: "h2" | "h3" | undefined;
 }) {
   const api = usePublicAPI();
+  const headingId = useId();
   const [requested, setRequested] = useState(loadOnMount);
   const [selection, setSelection] = useState<string | null>(null);
   const key = archiveQueryKey(scope, metadata.artifact);
@@ -126,13 +136,17 @@ export function ArchivePreviewPanel({
   }, [entries]);
 
   return (
-    <div className="panel artifact-preview-panel archive-preview-panel">
-      <div className="section-heading">
-        <div>
-          <h3>Files</h3>
-        </div>
+    <section
+      className="artifact-preview-panel archive-preview-panel materials-section"
+      aria-labelledby={headingId}
+    >
+      <div className="materials-section-head">
+        <Title id={headingId} className="materials-section-title">
+          Archive contents
+        </Title>
         <button
-          className={entries === undefined ? undefined : "secondary-button"}
+          className="ui-btn"
+          data-size="sm"
           type="button"
           disabled={archive.isFetching}
           onClick={() => {
@@ -147,12 +161,13 @@ export function ArchivePreviewPanel({
               : "Reload files"}
         </button>
       </div>
-      <p className="muted-copy">
-        Choose a file to preview. Text files up to 256 KiB are supported.
+      <p className="materials-quiet">
+        Browse the files inside without extracting them. Text files up to 256
+        KiB open as a preview.
       </p>
       {archive.error === null ? null : <ErrorNotice error={archive.error} />}
       {entries?.length === 0 ? (
-        <p className="compact-empty">This archive is empty.</p>
+        <p className="materials-quiet">This archive is empty.</p>
       ) : null}
       {entries === undefined || entries.length === 0 ? null : (
         <div className="archive-browser">
@@ -165,7 +180,9 @@ export function ArchivePreviewPanel({
           </nav>
           <div className="archive-file-content" aria-live="polite">
             {entry === undefined ? (
-              <p className="compact-empty">Select a file from the archive.</p>
+              <p className="materials-quiet">
+                Choose a file in the list to preview it.
+              </p>
             ) : (
               <>
                 <div className="archive-file-heading">
@@ -175,12 +192,12 @@ export function ArchivePreviewPanel({
                   <span>{formatBytes(entry.size)}</span>
                 </div>
                 {!entry.previewable ? (
-                  <p className="compact-empty">
+                  <p className="materials-quiet">
                     This file exceeds the preview limits. Download the original
                     archive to view it.
                   </p>
                 ) : file.isPending || file.isFetching ? (
-                  <p className="loading-copy" role="status">
+                  <p className="materials-loading" role="status">
                     Loading file…
                   </p>
                 ) : file.error !== null ? (
@@ -204,6 +221,6 @@ export function ArchivePreviewPanel({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

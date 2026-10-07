@@ -4,7 +4,7 @@ import "@scalar/api-reference-react/style.css";
 import { useResolvedTheme } from "../../../app/theme";
 
 const rejectNetworkRequest: typeof fetch = async () => {
-  throw new TypeError("Network access is disabled in Artifact preview");
+  throw new TypeError("Network access is disabled in the preview");
 };
 
 export default function OpenApiArtifactPreview({

@@ -1,63 +1,50 @@
-import { Dialog, DialogHeader } from "../../app/dialog";
-import {
-  GitImportDialog,
-  GitSourceDetails,
-} from "../artifacts/git-import-dialog";
-import type { GitImportResult } from "../../api/git-artifacts";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useId } from "react";
-import { useLocation, Link, useSearchParams } from "react-router";
-import { type ArtifactWriteResponse } from "../../api/artifacts";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useSearchParams } from "react-router";
+
+import type { ArtifactWriteResponse } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
+import type { GitImportResult } from "../../api/git-artifacts";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
-import {
-  ProjectArtifactDialog,
-  ProjectArtifactShortcutGrid,
-  ProjectRegion,
-} from "./common";
-import type { ShortcutDefinition } from "./shortcuts";
-import { RefreshButton } from "../../app/refresh-button";
 import { QueryView } from "../../app/query-view";
-import {
-  ArtifactBindingsTable,
-  ArtifactStoredNotice,
-} from "../artifacts/bindings";
+import { RefreshButton } from "../../app/refresh-button";
+import { EmptyState, ListSection } from "../../ui";
+import { AddMaterialSheet } from "../artifacts/add-material";
+import { MaterialIcon } from "../artifacts/icons";
+import { groupMaterialsByKind } from "../artifacts/kinds";
+import { MaterialRow } from "../artifacts/material-row";
 import { useNamespaceFilter } from "../artifacts/namespace-filter";
+import { MaterialAddedNotice } from "../artifacts/notices";
 import { artifactDetailPath } from "../artifacts/paths";
+import "../artifacts/materials.css";
 
+/** `?add=artifact` opens the "Add material" sheet (a deep link from Overview). */
+const ADD_PARAM = "add";
+const ADD_VALUE = "artifact";
+const NAMESPACE_PARAM = "artifactsNamespace";
+const CURSOR_PARAM = "artifactsCursor";
+
+/**
+ * Project → Materials: the project's materials grouped by kind, with the
+ * namespace filter and page cursor in the URL, and the "Add material" sheet
+ * (upload or Git import).
+ */
 export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
-  const addHeading = useId();
-  const [addOpen, setAddOpen] = useState(
-    () => filters.get("add") === "artifact",
-  );
-  function closeAdd() {
-    setAddOpen(false);
-    if (filters.has("add")) {
-      const next = new URLSearchParams(filters);
-      next.delete("add");
-      setFilters(next, { replace: true, state: location.state });
-    }
-  }
-  const namespace = filters.get("artifactsNamespace") || undefined;
+  const region = useRef<HTMLElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const notice = useRef<HTMLDivElement>(null);
+  const addOpen = filters.get(ADD_PARAM) === ADD_VALUE;
+  const namespace = filters.get(NAMESPACE_PARAM) || undefined;
   const pages = useURLCursorStack({
-    param: "artifactsCursor",
+    param: CURSOR_PARAM,
     navigateOptions: { preventScrollReset: true, state: location.state },
   });
-  function setNamespaceFilter(value: string) {
-    const next = new URLSearchParams(filters);
-    next.delete("artifactsCursor");
-    if (value === "") next.delete("artifactsNamespace");
-    else next.set("artifactsNamespace", value);
-    setFilters(next, { preventScrollReset: true, state: location.state });
-  }
-  const [shortcut, setShortcut] = useState<ShortcutDefinition | null>(null);
-  const [gitOpen, setGitOpen] = useState(false);
   const [written, setWritten] = useState<
     ArtifactWriteResponse | GitImportResult | null
   >(null);
@@ -72,149 +59,207 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       }),
   });
 
-  const namespaceFilter = useNamespaceFilter({
-    value: namespace,
-    onApply: (candidate) => setNamespaceFilter(candidate ?? ""),
-  });
+  // The dialog that made a write has closed by now: move focus to its outcome.
+  useEffect(() => {
+    if (written === null) return undefined;
+    const timer = window.setTimeout(() => notice.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [written]);
 
-  function finishUpload(result: ArtifactWriteResponse): void {
-    setWritten(result);
-    setShortcut(null);
-    setAddOpen(false);
+  function changeFilters(
+    change: (next: URLSearchParams) => void,
+    replace = false,
+  ): void {
     const next = new URLSearchParams(filters);
-    next.delete("add");
-    next.delete("artifactsNamespace");
-    next.delete("artifactsCursor");
-    setFilters(next, { replace: true, state: location.state });
+    change(next);
+    setFilters(next, {
+      preventScrollReset: true,
+      state: location.state,
+      ...(replace ? { replace: true } : {}),
+    });
   }
 
+  function setNamespaceFilter(value: string | undefined): void {
+    changeFilters((next) => {
+      next.delete(CURSOR_PARAM);
+      if (value === undefined) next.delete(NAMESPACE_PARAM);
+      else next.set(NAMESPACE_PARAM, value);
+    });
+  }
+
+  function openAdd(): void {
+    changeFilters((next) => next.set(ADD_PARAM, ADD_VALUE), true);
+  }
+
+  function closeAdd(): void {
+    changeFilters((next) => next.delete(ADD_PARAM), true);
+    // A sheet opened by a link has no trigger to return focus to.
+    window.setTimeout(() => {
+      const button = addButton.current;
+      const active = document.activeElement;
+      if (
+        button !== null &&
+        button.isConnected &&
+        (active === null || !(region.current?.contains(active) ?? false))
+      )
+        button.focus();
+    }, 0);
+  }
+
+  function finishAdd(result: ArtifactWriteResponse | GitImportResult): void {
+    setWritten(result);
+    // Show the new material: back to the first page of every namespace.
+    changeFilters((next) => {
+      next.delete(ADD_PARAM);
+      next.delete(NAMESPACE_PARAM);
+      next.delete(CURSOR_PARAM);
+    }, true);
+  }
+
+  const namespaceFilter = useNamespaceFilter({
+    value: namespace,
+    onApply: setNamespaceFilter,
+  });
+
   return (
-    <ProjectRegion
-      eyebrow="Project artifacts"
-      title="Artifacts"
+    <section
+      ref={region}
+      className="materials-region"
       id="project-artifacts"
-      compact
-      action={
-        <div className="button-row project-region-actions">
-          <button type="button" onClick={() => setAddOpen(true)}>
-            Add artifact
+      aria-label="Materials"
+    >
+      <div className="materials-region-head">
+        <p className="materials-region-intro">
+          Source code, API specs, architecture models and docs for checks and
+          Runs. Each check and Run reads one exact version, so a new version
+          never changes earlier results.
+        </p>
+        <div className="materials-actions">
+          <button
+            ref={addButton}
+            type="button"
+            className="ui-btn"
+            data-variant="primary"
+            onClick={openAdd}
+          >
+            <MaterialIcon name="plus" />
+            Add material
           </button>
           <RefreshButton
+            className="ui-btn"
             isFetching={query.isFetching}
             onRefresh={() => void query.refetch()}
             label="Refresh"
           />
         </div>
-      }
-    >
-      {addOpen ? (
-        <Dialog
-          className="project-dialog project-add-artifact-dialog panel"
-          labelledBy={addHeading}
-          onRequestClose={closeAdd}
-        >
-          <DialogHeader
-            id={addHeading}
-            eyebrow="Project materials"
-            title="Add artifact"
-            close={{ label: "Close artifact choices", onClose: closeAdd }}
-          />
-          <p className="muted-copy">
-            Upload a file or import a Git repository into this project.
-          </p>
-          <ProjectArtifactShortcutGrid
-            onSelect={setShortcut}
-            onImportGit={() => setGitOpen(true)}
-          />
-        </Dialog>
-      ) : null}
+      </div>
 
       {written === null ? null : (
-        <ArtifactStoredNotice
-          title="Project Artifact revision stored."
-          artifact={written.artifact}
-          returnLabel="Project Artifacts"
-          to={artifactDetailPath(
-            { kind: "project", id: projectId },
-            written.artifact,
-          )}
-        >
-          <Link to={`/projects/${encodeURIComponent(projectId)}/workflows`}>
-            Choose a Workflow for this project →
-          </Link>
-          {"gitSource" in written ? (
-            <GitSourceDetails source={written.gitSource} />
-          ) : null}
-        </ArtifactStoredNotice>
+        <MaterialAddedNotice
+          ref={notice}
+          projectId={projectId}
+          result={written}
+          onDismiss={() => {
+            setWritten(null);
+            addButton.current?.focus();
+          }}
+        />
       )}
 
-      <div className="project-artifact-library">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Current bindings</p>
-            <h4>Artifact library</h4>
-          </div>
+      <div className="materials-panel">
+        <div className="materials-panel-head">
           {namespaceFilter.form}
+          {namespace === undefined ? null : (
+            <button
+              type="button"
+              className="ui-btn"
+              data-variant="ghost"
+              data-size="sm"
+              onClick={() => setNamespaceFilter(undefined)}
+            >
+              Show all namespaces
+            </button>
+          )}
         </div>
         {namespaceFilter.error}
         <QueryView
           query={query}
           loading={
-            <p className="loading-copy" role="status">
-              Loading Project Artifacts…
+            <p className="materials-loading" role="status">
+              Loading materials…
             </p>
           }
+          errorContext="Could not load materials"
           onRetry={() => void query.refetch()}
-          isEmpty={(queryData) => queryData.items.length === 0}
+          isEmpty={(page) => page.items.length === 0}
           empty={
-            <div className="compact-empty">
-              <strong>No Artifact bindings in this view.</strong>
-              <p>
-                Add an artifact to prepare the inputs for your next analysis.
-              </p>
-            </div>
+            namespace === undefined ? (
+              <EmptyState title="No materials yet">
+                Add source code, an API spec, an architecture model or docs so
+                checks have something to read.
+              </EmptyState>
+            ) : (
+              <EmptyState title={`Nothing in the ${namespace} namespace`}>
+                Show all namespaces to see every material of this project.
+              </EmptyState>
+            )
           }
         >
-          {(queryData) => (
-            <ArtifactBindingsTable
-              items={queryData.items}
-              returnLabel="Project Artifacts"
-              detailPath={(item) =>
-                artifactDetailPath(
-                  { kind: "project", id: projectId },
-                  {
-                    namespace: item.artifact.namespace,
-                    name: item.artifact.name,
-                  },
-                )
-              }
-            />
-          )}
+          {(data) => {
+            // Groups come from one page: their counts are totals only when
+            // every material fits on it.
+            const onePage = cursor === undefined && !data.page.hasMore;
+            return (
+              <>
+                {onePage ? null : (
+                  <p className="materials-quiet materials-page-note">
+                    Grouped by kind within this page. Other pages can hold more
+                    materials of each kind.
+                  </p>
+                )}
+                {groupMaterialsByKind(data.items).map((group) => (
+                  <ListSection
+                    key={group.kind}
+                    title={group.label}
+                    count={group.items.length}
+                    aside={onePage ? undefined : "on this page"}
+                    titleAs="h3"
+                  >
+                    {group.items.map((item) => (
+                      <MaterialRow
+                        key={`${item.artifact.namespace}/${item.artifact.name}`}
+                        item={item}
+                        returnLabel="Materials"
+                        to={artifactDetailPath(
+                          { kind: "project", id: projectId },
+                          {
+                            namespace: item.artifact.namespace,
+                            name: item.artifact.name,
+                          },
+                        )}
+                      />
+                    ))}
+                  </ListSection>
+                ))}
+              </>
+            );
+          }}
         </QueryView>
-        <CursorControls
-          label="Project Artifact pages"
-          {...pages.controls(query.data?.page)}
-        />
+        <div className="materials-pager">
+          <CursorControls
+            label="Material pages"
+            {...pages.controls(query.data?.page)}
+          />
+        </div>
       </div>
 
-      {gitOpen ? (
-        <GitImportDialog
+      {addOpen ? (
+        <AddMaterialSheet
           projectId={projectId}
-          onClose={() => setGitOpen(false)}
-          onImported={(result) => {
-            finishUpload(result);
-            setGitOpen(false);
-          }}
+          onClose={closeAdd}
+          onAdded={finishAdd}
         />
       ) : null}
-      {shortcut === null ? null : (
-        <ProjectArtifactDialog
-          projectId={projectId}
-          shortcut={shortcut}
-          onClose={() => setShortcut(null)}
-          onWritten={finishUpload}
-        />
-      )}
-    </ProjectRegion>
+    </section>
   );
 }

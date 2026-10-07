@@ -1,22 +1,33 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { canPreviewArtifact, type ArtifactMetadata } from "../../api/artifacts";
+import { useId } from "react";
+
 import {
   canBrowseArchive,
   type ArtifactArchiveScope,
 } from "../../api/artifact-archive";
-import { ArchivePreviewPanel } from "./archive-preview";
+import { canPreviewArtifact, type ArtifactMetadata } from "../../api/artifacts";
 import { ErrorNotice } from "../../app/error-notice";
+import { ArchivePreviewPanel } from "./archive-preview";
 import { LoadedArtifactPreview } from "./loaded-preview";
+import "./materials.css";
 
+/**
+ * Bounded preview of one exact revision: a ZIP or Skill package opens the
+ * archive browser (with a scope), any other previewable format loads up to
+ * 256 KiB of text and picks its renderer by media type.
+ */
 export function ArtifactPreviewPanel({
   archiveScope,
+  titleAs = "h3",
   ...props
 }: {
-  archiveScope?: ArtifactArchiveScope;
+  archiveScope?: ArtifactArchiveScope | undefined;
   metadata: ArtifactMetadata;
   loadPreview: () => Promise<string>;
-  loadOnMountKey?: readonly unknown[];
+  loadOnMountKey?: readonly unknown[] | undefined;
   unavailableCopy: string;
+  /** Heading level of the section title. Default "h3". */
+  titleAs?: "h2" | "h3" | undefined;
 }) {
   if (archiveScope !== undefined && canBrowseArchive(props.metadata)) {
     return (
@@ -25,10 +36,11 @@ export function ArtifactPreviewPanel({
         metadata={props.metadata}
         scope={archiveScope}
         loadOnMount={props.loadOnMountKey !== undefined}
+        titleAs={titleAs}
       />
     );
   }
-  return <TextArtifactPreviewPanel {...props} />;
+  return <TextArtifactPreviewPanel {...props} titleAs={titleAs} />;
 }
 
 function TextArtifactPreviewPanel({
@@ -36,12 +48,15 @@ function TextArtifactPreviewPanel({
   loadPreview,
   loadOnMountKey,
   unavailableCopy,
+  titleAs: Title,
 }: {
   metadata: ArtifactMetadata;
   loadPreview: () => Promise<string>;
-  loadOnMountKey?: readonly unknown[];
+  loadOnMountKey?: readonly unknown[] | undefined;
   unavailableCopy: string;
+  titleAs: "h2" | "h3";
 }) {
+  const headingId = useId();
   const manualPreview = useMutation({ mutationFn: loadPreview });
   const canPreview = canPreviewArtifact(metadata);
   const automaticPreview = useQuery({
@@ -65,14 +80,18 @@ function TextArtifactPreviewPanel({
   }
 
   return (
-    <div className="panel artifact-preview-panel">
-      <div className="section-heading">
-        <div>
-          <h3>Preview</h3>
-        </div>
+    <section
+      className="artifact-preview-panel materials-section"
+      aria-labelledby={headingId}
+    >
+      <div className="materials-section-head">
+        <Title id={headingId} className="materials-section-title">
+          Preview
+        </Title>
         {!canPreview && automatic ? null : (
           <button
-            className={data === undefined ? undefined : "secondary-button"}
+            className="ui-btn"
+            data-size="sm"
             type="button"
             disabled={!canPreview || pending}
             onClick={requestPreview}
@@ -88,9 +107,15 @@ function TextArtifactPreviewPanel({
         )}
       </div>
       {canPreview ? (
-        <p className="muted-copy">Documents up to 256 KiB can be previewed.</p>
+        <p className="materials-quiet">
+          {automatic
+            ? "Text files up to 256 KiB are shown here."
+            : "Text files up to 256 KiB. The preview loads only when you ask for it."}
+        </p>
       ) : (
-        <div className="compact-empty">{unavailableCopy}</div>
+        <p className="materials-quiet materials-unavailable">
+          {unavailableCopy}
+        </p>
       )}
       {error === null ? null : <ErrorNotice error={error} />}
       {data === undefined ? null : (
@@ -100,6 +125,6 @@ function TextArtifactPreviewPanel({
           source={data}
         />
       )}
-    </div>
+    </section>
   );
 }

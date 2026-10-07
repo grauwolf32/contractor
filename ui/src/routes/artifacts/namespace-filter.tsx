@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 
 import { ARTIFACT_NAME_PATTERN } from "../../api/artifacts";
+import "./materials.css";
 
 /**
  * Namespace filter form and its validation message. The form applies a
@@ -20,7 +21,9 @@ export function useNamespaceFilter({
       new FormData(event.currentTarget).get("namespaceFilter") ?? "",
     ).trim();
     if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
-      setError("Namespace filter is not a valid Artifact name.");
+      setError(
+        "A namespace uses 1–128 letters, digits, dots, dashes or underscores and starts with a letter or digit.",
+      );
       return;
     }
     setError(null);
@@ -28,17 +31,19 @@ export function useNamespaceFilter({
   }
   return {
     form: (
-      <form className="inline-form" onSubmit={apply}>
-        <label>
+      <form className="inline-form materials-filter" onSubmit={apply}>
+        <label className="materials-filter-label">
           Namespace
           <input
             name="namespaceFilter"
             placeholder="all namespaces"
+            autoComplete="off"
+            spellCheck={false}
             key={value ?? ""}
             defaultValue={value ?? ""}
           />
         </label>
-        <button className="secondary-button" type="submit">
+        <button className="ui-btn" data-size="sm" type="submit">
           Apply
         </button>
       </form>
