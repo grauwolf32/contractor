@@ -14,8 +14,7 @@
 	test-agent-skill-contract test-agent-skills-matrix \
 	test-agent-skills-runtime-hardening test-agent-skills-races \
 	test-agent-skills-mvp test-agent-skills-hardening \
-	test-migrated-agent-skills test-migrated-agent-skills-analysis \
-	test-migrated-agent-skills-live test-shared-memory-matrix \
+	test-agent-skills-packaging test-shared-memory-matrix \
 	test-shared-memory-faults test-shared-memory-hardening \
 	test-http-caido-matrix test-http-caido-runtime \
 	test-http-caido-architecture test-http-caido-hardening \
@@ -100,18 +99,13 @@ test-agent-skills-races: require-database
 test-agent-skills-mvp: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestAgentSkillsMVPProcesses$$')
 
-test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract test-migrated-agent-skills test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp
+test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract test-agent-skills-packaging test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp
 
-test-migrated-agent-skills: test-migrated-agent-skills-analysis test-migrated-agent-skills-live
-	go test -count=1 ./internal/agentskills/... -run '^(TestRepositoryLikeC4SkillMigrationIsCompleteAndDeterministic|TestMigratedAgentSkillsAreDeterministicAndWorkerFacing)$$'
-	go test -count=1 ./internal/config/... -run '^(TestRepositoryCurrentLikeC4TemplatesSelectSkill|TestRepositoryLiveSkillCompatibilityBoundary)$$'
-
-test-migrated-agent-skills-analysis:
-	go test -count=1 ./internal/agentskills/... -run '^TestMigratedAnalysisSkill'
-
-test-migrated-agent-skills-live:
-	go test -count=1 ./internal/agentskills/... -run '^TestMigratedLiveSkill'
-	go test -count=1 ./internal/config/... -run 'SkillCompatibility'
+# Packaging fixtures are independent of the mutable shipped catalog. The
+# former migration-only test names were removed when those fixtures moved.
+test-agent-skills-packaging:
+	go test -count=1 ./internal/agentskills/... -run '^(TestPseudoSkill|TestBundledDiscoveryPackagesEveryPseudoSkill)'
+	go test -count=1 ./internal/config/... -run '^(TestLoadValidatesBundledSkills|TestAgentTemplateSkill|TestWorkflowSkillUnion)'
 
 test-shared-memory-matrix: test-hardening-matrices
 

@@ -246,6 +246,13 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 		"--shutdown-grace-seconds", "5",
 	)
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("Server logs:\n%s\nRuntime logs:\n%s\nGateway failures: %v",
+				server.logs.redacted(publicToken, llmGatewayToken),
+				runtimeProcess.logs.redacted(publicToken, llmGatewayToken), gateway.Failures())
+		}
+	})
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
 
@@ -360,12 +367,12 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 func auditProgramGatewayStages() []domainGatewayStage {
 	tools := []string{
 		"list_skills", "list_source_files", "load_skill", "load_skill_resource",
-		"open_source_archive", "read_artifact", "read_source", "search_source",
+		"open_source_archive", "read_source", "search_source",
 		"read_audit_task", "submit_check_result",
 	}
 	graphTools := append([]string{
 		"list_skills", "load_skill", "load_skill_resource",
-		"read_artifact", "read_audit_task", "submit_check_result",
+		"read_audit_task", "submit_check_result",
 		"ls", "glob", "grep", "read_file",
 	}, completeCodeAnalysisTools...)
 	tools = withMemoryTools(tools)
@@ -425,7 +432,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 			"kind": "source-trace", "summary": "GET operation maps to source/app.py.",
 		}}),
 	}
-	riskTools := append(append([]string{}, tools...), "finding", "write_artifact")
+	riskTools := append(append([]string{}, tools...), "finding")
 	top10Results := []struct {
 		key        string
 		assessment string

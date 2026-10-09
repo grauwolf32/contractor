@@ -36,3 +36,14 @@ reassessment:
     - Current CI runs selected PR stages and full tag/manual stages; ordinary main pushes do not trigger the full gate.
     - No GitHub API write token is available; local verification cannot establish A4.
   next_step: Reproduce the three original process cases and current release stages on disposable infrastructure; record actual failures without relaxing assertions.
+
+local_verification:
+  date: "2026-10-09"
+  passed:
+    - Agent Skills process fixture, 167.04 seconds.
+    - Audit Programs process fixture, 358.56 seconds after exact tool-surface correction.
+    - Heterogeneous Code Analysis process fixture, 77.17 seconds.
+    - New fast Audit Programs configuration closure check.
+    - make lint, including nonempty release test selections.
+  remaining:
+    - Full release stages and the GitHub Actions success criterion A4.

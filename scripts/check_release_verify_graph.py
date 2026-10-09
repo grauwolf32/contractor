@@ -53,6 +53,7 @@ EXPECTED_BROWSER_STACK_TESTS = {
 
 EXPECTED_CONFIG_TESTS = {
     "TestCodeAnalysisE2EConfigurationLoads",
+    "TestAuditProgramsE2EConfigurationLoads",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
     "TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure",
     "TestProductionMemoryConfigurationStaging",
