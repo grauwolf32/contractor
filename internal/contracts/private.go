@@ -65,7 +65,7 @@ func (r RuntimeAdapterRef) Validate() error {
 	case RuntimeAdapterOTLPHTTP, RuntimeAdapterHTTPProxy, RuntimeAdapterCaidoGraphQL:
 		return nil
 	default:
-		return invalidf("unknown RuntimeAdapter ref")
+		return Invalidf("unknown RuntimeAdapter ref")
 	}
 }
 
@@ -77,31 +77,33 @@ func (k RuntimeCredentialKind) Validate() error {
 		RuntimeCredentialCaidoBearer, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
 		return nil
 	default:
-		return invalidf("unknown Runtime credential kind")
+		return Invalidf("unknown Runtime credential kind")
 	}
 }
 
 func validateSortedLabels(field string, values []string, maximum int, allowDefault bool) error {
 	if values == nil || len(values) > maximum {
-		return invalidf("%s must be a non-null bounded array", field)
+		return Invalidf("%s must be a non-null bounded array", field)
 	}
 	previous := ""
 	for _, value := range values {
-		if len(value) == 0 || len(value) > 63 || !idPattern.MatchString(value) ||
+		if len(value) == 0 || len(value) > 63 || !ValidIdentifier(value) ||
 			(!allowDefault && value == "default") {
-			return invalidf("%s contains an invalid label", field)
+			return Invalidf("%s contains an invalid label", field)
 		}
 		if value <= previous {
-			return invalidf("%s must be sorted and unique", field)
+			return Invalidf("%s must be sorted and unique", field)
 		}
 		previous = value
 	}
 	return nil
 }
 
-func validateSortedRuntimeAdapters(values []RuntimeAdapterRef) error {
+// ValidateRuntimeAdapterRefs requires a non-null, bounded, sorted and unique
+// list of known RuntimeAdapter refs.
+func ValidateRuntimeAdapterRefs(values []RuntimeAdapterRef) error {
 	if values == nil || len(values) > 64 {
-		return invalidf("RuntimeAdapter refs must be a non-null bounded array")
+		return Invalidf("RuntimeAdapter refs must be a non-null bounded array")
 	}
 	previous := ""
 	for _, value := range values {
@@ -109,7 +111,7 @@ func validateSortedRuntimeAdapters(values []RuntimeAdapterRef) error {
 			return err
 		}
 		if string(value) <= previous {
-			return invalidf("RuntimeAdapter refs must be sorted and unique")
+			return Invalidf("RuntimeAdapter refs must be sorted and unique")
 		}
 		previous = string(value)
 	}
@@ -118,33 +120,33 @@ func validateSortedRuntimeAdapters(values []RuntimeAdapterRef) error {
 
 func validateRuntimeEndpoint(field, value string) error {
 	if len(value) == 0 || len([]byte(value)) > 2048 || value != strings.TrimSpace(value) {
-		return invalidf("%s is invalid", field)
+		return Invalidf("%s is invalid", field)
 	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil ||
 		strings.Contains(value, "#") || parsed.RawQuery != "" || parsed.ForceQuery ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return invalidf("%s must be an absolute HTTP(S) URL without userinfo, query, or fragment", field)
+		return Invalidf("%s must be an absolute HTTP(S) URL without userinfo, query, or fragment", field)
 	}
 	host := parsed.Hostname()
 	if strings.Contains(host, "%") || strings.ContainsAny(host, "<>\\^|`{}") ||
 		strings.IndexFunc(host, unicode.IsSpace) >= 0 || strings.HasSuffix(parsed.Host, ":") {
-		return invalidf("%s host is invalid", field)
+		return Invalidf("%s host is invalid", field)
 	}
 	if port := parsed.Port(); port != "" {
 		portNumber, err := strconv.ParseUint(port, 10, 16)
 		if err != nil || portNumber == 0 {
-			return invalidf("%s port is invalid", field)
+			return Invalidf("%s port is invalid", field)
 		}
 	}
 	if net.ParseIP(host) == nil {
 		if strings.Contains(host, ":") {
-			return invalidf("%s host is invalid", field)
+			return Invalidf("%s host is invalid", field)
 		}
 		labels := strings.Split(strings.TrimSuffix(host, "."), ".")
 		last := labels[len(labels)-1]
 		if last == "" || allDecimalDigits(last) {
-			return invalidf("%s host is invalid", field)
+			return Invalidf("%s host is invalid", field)
 		}
 	}
 	return nil
@@ -164,20 +166,20 @@ func allDecimalDigits(value string) bool {
 
 func validateCABundle(owner, value string) error {
 	if err := cabundle.Validate(value); err != nil {
-		return invalidf("%s CA bundle is invalid", owner)
+		return Invalidf("%s CA bundle is invalid", owner)
 	}
 	return nil
 }
 
 func validateProvenanceBindings(field string, values []RuntimeLabelBindingProvenance) error {
 	if values == nil || len(values) > 32 {
-		return invalidf("provenance %s must be a non-null bounded array", field)
+		return Invalidf("provenance %s must be a non-null bounded array", field)
 	}
 	previous := ""
 	for _, value := range values {
 		if len(value.Label) == 0 || len(value.Label) > 63 || value.Label == "default" ||
-			!idPattern.MatchString(value.Label) || value.Label <= previous || value.BindingRevision == 0 {
-			return invalidf("provenance %s contains invalid or unsorted bindings", field)
+			!ValidIdentifier(value.Label) || value.Label <= previous || value.BindingRevision == 0 {
+			return Invalidf("provenance %s contains invalid or unsorted bindings", field)
 		}
 		if err := value.Config.Validate(); err != nil {
 			return err

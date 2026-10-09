@@ -24,7 +24,7 @@ func (p PerformanceCollectionPolicy) ValidatePinned() error {
 	case PerformanceCollectionRequested, PerformanceCollectionDisabled, PerformanceCollectionUnsupported:
 		return nil
 	default:
-		return invalidf("invalid performance collection policy")
+		return Invalidf("invalid performance collection policy")
 	}
 }
 
@@ -42,7 +42,7 @@ type PerformanceMetricsVersions []int
 func (v *PerformanceMetricsVersions) UnmarshalJSON(data []byte) error {
 	var versions []int
 	if err := json.Unmarshal(data, &versions); err != nil || versions == nil {
-		return invalidf("invalid performance metrics capability")
+		return Invalidf("invalid performance metrics capability")
 	}
 	*v = versions
 	return nil
@@ -55,7 +55,7 @@ type PerformanceMetricsRequest struct {
 
 func (r PerformanceMetricsRequest) Validate() error {
 	if r.Version != PerformanceMetricsVersion || r.IntervalSeconds != PerformanceMetricsIntervalSeconds {
-		return invalidf("unsupported performance metrics request")
+		return Invalidf("unsupported performance metrics request")
 	}
 	return nil
 }
@@ -94,14 +94,14 @@ type RuntimeResources struct {
 func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {
-		return invalidf("invalid resources")
+		return Invalidf("invalid resources")
 	}
 	if fields == nil {
-		return invalidf("resources must be an object")
+		return Invalidf("resources must be an object")
 	}
 	for _, raw := range fields {
 		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-			return invalidf("unknown resource fields must be omitted, not null")
+			return Invalidf("unknown resource fields must be omitted, not null")
 		}
 	}
 	type wireResources RuntimeResources
@@ -109,7 +109,7 @@ func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&value); err != nil {
-		return invalidf("invalid resource fields")
+		return Invalidf("invalid resource fields")
 	}
 	*r = RuntimeResources(value)
 	return nil
@@ -117,51 +117,51 @@ func (r *RuntimeResources) UnmarshalJSON(data []byte) error {
 
 func (r RuntimeResources) Validate() error {
 	if r.Version != 1 || r.Scope != "runtime_process" {
-		return invalidf("invalid resource version or scope")
+		return Invalidf("invalid resource version or scope")
 	}
 	switch r.Status {
 	case ResourceComplete, ResourcePartial, ResourceUnavailable:
 	default:
-		return invalidf("invalid resource status")
+		return Invalidf("invalid resource status")
 	}
 	if r.Reason != nil {
 		switch *r.Reason {
 		case ResourceUnsupportedPlatform, ResourceReadFailed, ResourceSamplingGap, ResourceCounterReset, ResourceInvalidReport:
 		default:
-			return invalidf("invalid resource reason")
+			return Invalidf("invalid resource reason")
 		}
 	}
 	for _, value := range []*float64{r.DurationSeconds, r.CPUUserSeconds, r.CPUSystemSeconds, r.MaxSampleGapSeconds} {
 		if value != nil && (*value < 0 || math.IsNaN(*value) || math.IsInf(*value, 0)) {
-			return invalidf("invalid resource measurement")
+			return Invalidf("invalid resource measurement")
 		}
 	}
 	for _, value := range []*uint64{r.RSSStartBytes, r.RSSEndBytes, r.RSSPeakObservedBytes, r.RSSSampleCount} {
 		if value != nil && *value > MaxResourceInteger {
-			return invalidf("resource integer exceeds exact JSON range")
+			return Invalidf("resource integer exceeds exact JSON range")
 		}
 	}
 	if r.MaxSampleGapSeconds != nil && r.DurationSeconds != nil && *r.MaxSampleGapSeconds > *r.DurationSeconds {
-		return invalidf("resource sampling gap exceeds duration")
+		return Invalidf("resource sampling gap exceeds duration")
 	}
 	hasSamples := r.RSSSampleCount != nil && *r.RSSSampleCount > 0
 	if hasSamples != (r.RSSPeakObservedBytes != nil) {
-		return invalidf("resource peak and sample count are inconsistent")
+		return Invalidf("resource peak and sample count are inconsistent")
 	}
 	boundaries := uint64(0)
 	for _, value := range []*uint64{r.RSSStartBytes, r.RSSEndBytes} {
 		if value != nil {
 			boundaries++
 			if !hasSamples || *value > *r.RSSPeakObservedBytes {
-				return invalidf("resource boundary exceeds observed peak")
+				return Invalidf("resource boundary exceeds observed peak")
 			}
 		}
 	}
 	if hasSamples && *r.RSSSampleCount < boundaries {
-		return invalidf("resource sample count omits boundaries")
+		return Invalidf("resource sample count omits boundaries")
 	}
 	if r.Status == ResourceComplete && (r.Reason != nil || r.DurationSeconds == nil || r.CPUUserSeconds == nil || r.CPUSystemSeconds == nil || boundaries != 2 || r.MaxSampleGapSeconds == nil || *r.MaxSampleGapSeconds > 30) {
-		return invalidf("complete resources require successful boundaries and bounded coverage")
+		return Invalidf("complete resources require successful boundaries and bounded coverage")
 	}
 	return nil
 }

@@ -6,19 +6,11 @@ package contracts
 // in agent.go.
 
 import (
-	"regexp"
 	"sort"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
-
-// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID: the
-// lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
-var runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
-// ValidRuntimeAgentID reports whether value is a Runtime Agent ID.
-func ValidRuntimeAgentID(value string) bool { return runtimeAgentIDPattern.MatchString(value) }
 
 type AgentRegistration struct {
 	Capabilities *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
@@ -47,30 +39,30 @@ func (r AgentRegistration) Validate() error {
 		}
 	}
 	if len(r.SupportedPerformanceMetricsVersions) > 1 || (len(r.SupportedPerformanceMetricsVersions) == 1 && r.SupportedPerformanceMetricsVersions[0] != 1) {
-		return invalidf("unsupported performance metrics capability")
+		return Invalidf("unsupported performance metrics capability")
 	}
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("instanceId", r.InstanceID); err != nil {
+	if err := ValidateOpaqueID("instanceId", r.InstanceID); err != nil {
 		return err
 	}
 	if len(r.SoftwareVersion) == 0 || len(r.SoftwareVersion) > 128 ||
-		!versionPattern.MatchString(r.SoftwareVersion) {
-		return invalidf("softwareVersion must be a bounded version string")
+		!ValidVersion(r.SoftwareVersion) {
+		return Invalidf("softwareVersion must be a bounded version string")
 	}
 	if r.StartedAt.IsZero() {
-		return invalidf("startedAt must not be zero")
+		return Invalidf("startedAt must not be zero")
 	}
-	if err := validateURL("controlUrl", r.ControlURL); err != nil {
+	if err := ValidateURL("controlUrl", r.ControlURL); err != nil {
 		return err
 	}
-	if err := validateURL("a2aUrl", r.A2AURL); err != nil {
+	if err := ValidateURL("a2aUrl", r.A2AURL); err != nil {
 		return err
 	}
 	if len(r.SupportedRuntimes) > 128 || len(r.SupportedToolsets) > 128 ||
 		len(r.SupportedSandboxProfiles) > 128 {
-		return invalidf("Runtime capability collection exceeds its bound")
+		return Invalidf("Runtime capability collection exceeds its bound")
 	}
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
 		return err
@@ -78,7 +70,7 @@ func (r AgentRegistration) Validate() error {
 	if err := validateSortedLabels("initialLabels", r.InitialLabels, 32, false); err != nil {
 		return err
 	}
-	if err := validateSortedRuntimeAdapters(r.SupportedRuntimeAdapters); err != nil {
+	if err := ValidateRuntimeAdapterRefs(r.SupportedRuntimeAdapters); err != nil {
 		return err
 	}
 	if r.WorkspaceCapabilities != nil {
@@ -100,20 +92,20 @@ type AgentRegistrationResponse struct {
 }
 
 func (r AgentRegistrationResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	if !ValidRuntimeAgentID(r.RuntimeAgentID) {
-		return invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
+		return Invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
 	}
 	if err := validateSortedLabels("labels", r.Labels, 32, false); err != nil {
 		return err
 	}
 	if r.LabelRevision == 0 {
-		return invalidf("labelRevision must be positive")
+		return Invalidf("labelRevision must be positive")
 	}
 	if r.HeartbeatIntervalSeconds <= 0 || r.ConfirmedLeaseSeconds <= r.HeartbeatIntervalSeconds {
-		return invalidf("confirmed lease must exceed a positive heartbeat interval")
+		return Invalidf("confirmed lease must exceed a positive heartbeat interval")
 	}
 	return nil
 }

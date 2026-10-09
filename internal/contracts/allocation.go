@@ -13,11 +13,20 @@ type AgentTemplateRef struct {
 	Digest     string `json:"digest"`
 }
 
-func (r AgentTemplateRef) ValidateRef() error { return validateTemplateRef(r) }
+func (r AgentTemplateRef) ValidateRef() error {
+	if err := ValidateSelector("agentTemplateRef", r.TemplateID+"@"+r.Version); err != nil {
+		return err
+	}
+	return ValidateDigest("agentTemplateRef.digest", r.Digest)
+}
 
 type WorkerRuntimeRef struct {
 	RuntimeID string `json:"runtimeId"`
 	Version   string `json:"version"`
+}
+
+func (r WorkerRuntimeRef) ValidateRef() error {
+	return ValidateSelector("workerRuntimeRef", r.RuntimeID+"@"+r.Version)
 }
 
 type ModelPolicyRef struct {
@@ -27,10 +36,10 @@ type ModelPolicyRef struct {
 }
 
 func (r ModelPolicyRef) ValidateRef() error {
-	if err := validateSelector("modelPolicyRef", r.PolicyID+"@"+r.Version); err != nil {
+	if err := ValidateSelector("modelPolicyRef", r.PolicyID+"@"+r.Version); err != nil {
 		return err
 	}
-	return validateDigest("modelPolicyRef.digest", r.Digest)
+	return ValidateDigest("modelPolicyRef.digest", r.Digest)
 }
 
 type ToolsetRef struct {
@@ -85,19 +94,19 @@ func (p ResolvedModelPolicy) ValidateForPlanner() error {
 		return err
 	}
 	if p.MaxOutputTokens <= 0 {
-		return invalidf("Planner modelPolicy requires maxOutputTokens")
+		return Invalidf("Planner modelPolicy requires maxOutputTokens")
 	}
 	if p.MaxModelCalls <= 0 {
-		return invalidf("Planner modelPolicy requires maxModelCalls")
+		return Invalidf("Planner modelPolicy requires maxModelCalls")
 	}
 	if p.MaxWorkerCalls <= 0 {
-		return invalidf("Planner modelPolicy requires maxWorkerCalls")
+		return Invalidf("Planner modelPolicy requires maxWorkerCalls")
 	}
 	if p.MaxTotalTokens <= 0 {
-		return invalidf("Planner modelPolicy requires maxTotalTokens")
+		return Invalidf("Planner modelPolicy requires maxTotalTokens")
 	}
 	if p.MaxToolCalls != 0 {
-		return invalidf("Planner modelPolicy must omit maxToolCalls")
+		return Invalidf("Planner modelPolicy must omit maxToolCalls")
 	}
 	return nil
 }
@@ -203,20 +212,20 @@ type PrepareAllocationResponse struct {
 }
 
 func (r PrepareAllocationResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("workerHandle.allocationId", r.WorkerHandle.AllocationID); err != nil {
+	if err := ValidateOpaqueID("workerHandle.allocationId", r.WorkerHandle.AllocationID); err != nil {
 		return err
 	}
-	if err := validateTemplateRef(r.WorkerHandle.AgentTemplateRef); err != nil {
+	if err := r.WorkerHandle.AgentTemplateRef.ValidateRef(); err != nil {
 		return err
 	}
-	if err := validateRuntimeRef(r.WorkerHandle.WorkerRuntimeRef); err != nil {
+	if err := r.WorkerHandle.WorkerRuntimeRef.ValidateRef(); err != nil {
 		return err
 	}
 	if len(r.WorkerHandle.AgentCard) == 0 || r.WorkerHandle.LeaseExpiresAt.IsZero() {
-		return invalidf("workerHandle Agent Card and leaseExpiresAt are required")
+		return Invalidf("workerHandle Agent Card and leaseExpiresAt are required")
 	}
 	return nil
 }
@@ -250,7 +259,7 @@ func (r AbortAllocationRequest) Validate() error {
 	if err := validateLifecycleRequest(r.APIVersion, r.AllocationID, "abortId", r.AbortID, r.Deadline); err != nil {
 		return err
 	}
-	return validateTerminationError(r.Reason)
+	return r.Reason.Validate()
 }
 
 type ReleaseAllocationRequest struct {
@@ -259,10 +268,10 @@ type ReleaseAllocationRequest struct {
 }
 
 func (r ReleaseAllocationRequest) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	return validateOpaqueID("allocationId", r.AllocationID)
+	return ValidateOpaqueID("allocationId", r.AllocationID)
 }
 
 type AllocationFinalResponse struct {
@@ -271,20 +280,20 @@ type AllocationFinalResponse struct {
 }
 
 func (r AllocationFinalResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	return r.Report.Validate()
 }
 
 func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
-	if err := validateTemplateRef(template.Ref); err != nil {
+	if err := template.Ref.ValidateRef(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(template.Description) == "" {
-		return invalidf("agentTemplate.description must not be empty")
+		return Invalidf("agentTemplate.description must not be empty")
 	}
-	if err := validateRuntimeRef(template.Runtime); err != nil {
+	if err := template.Runtime.ValidateRef(); err != nil {
 		return err
 	}
 	if err := template.ValidateToolExecution(); err != nil {
@@ -292,9 +301,9 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	}
 	if !template.IsToolWorker() {
 		if strings.TrimSpace(template.Instructions.Ref) == "" || strings.TrimSpace(template.Instructions.Text) == "" {
-			return invalidf("agentTemplate instructions ref/text must not be empty")
+			return Invalidf("agentTemplate instructions ref/text must not be empty")
 		}
-		if err := validateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
+		if err := ValidateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
 			return err
 		}
 		if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
@@ -310,31 +319,31 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	seenTools := make(map[string]struct{})
 	for _, selection := range template.Toolsets {
 		selector := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-		if err := validateSelector("agentTemplate.toolsets.ref", selector); err != nil {
+		if err := ValidateSelector("agentTemplate.toolsets.ref", selector); err != nil {
 			return err
 		}
 		if _, exists := seenToolsets[selector]; exists {
-			return invalidf("duplicate AgentTemplate toolset %q", selector)
+			return Invalidf("duplicate AgentTemplate toolset %q", selector)
 		}
 		seenToolsets[selector] = struct{}{}
 		if len(selection.Tools) == 0 {
-			return invalidf("AgentTemplate toolset %q has no selected tools", selector)
+			return Invalidf("AgentTemplate toolset %q has no selected tools", selector)
 		}
 		for _, tool := range selection.Tools {
-			if err := validateOpaqueID("selected tool", tool); err != nil {
+			if err := ValidateOpaqueID("selected tool", tool); err != nil {
 				return err
 			}
 			if _, exists := seenTools[tool]; exists {
-				return invalidf("duplicate model-visible tool name %q", tool)
+				return Invalidf("duplicate model-visible tool name %q", tool)
 			}
 			if len(template.Skills) > 0 && IsNativeSkillToolName(tool) {
-				return invalidf("model-visible tool name %q is reserved by Agent Skills", tool)
+				return Invalidf("model-visible tool name %q is reserved by Agent Skills", tool)
 			}
 			seenTools[tool] = struct{}{}
 		}
 	}
 	if len(template.Skills) > MaxAgentTemplateSkills {
-		return invalidf("AgentTemplate may select at most %d skills", MaxAgentTemplateSkills)
+		return Invalidf("AgentTemplate may select at most %d skills", MaxAgentTemplateSkills)
 	}
 	previousSkill := ""
 	for _, skill := range template.Skills {
@@ -342,62 +351,51 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 			return err
 		}
 		if previousSkill != "" && skill.Name <= previousSkill {
-			return invalidf("AgentTemplate skills must be sorted and unique")
+			return Invalidf("AgentTemplate skills must be sorted and unique")
 		}
 		previousSkill = skill.Name
 	}
-	return validateSelector(
+	return ValidateSelector(
 		"agentTemplate.sandboxProfile",
 		template.SandboxProfile.SandboxProfileID+"@"+template.SandboxProfile.Version,
 	)
 }
 
-func validateTemplateRef(ref AgentTemplateRef) error {
-	if err := validateSelector("agentTemplateRef", ref.TemplateID+"@"+ref.Version); err != nil {
-		return err
-	}
-	return validateDigest("agentTemplateRef.digest", ref.Digest)
-}
-
-func validateRuntimeRef(ref WorkerRuntimeRef) error {
-	return validateSelector("workerRuntimeRef", ref.RuntimeID+"@"+ref.Version)
-}
-
 func validateModelPolicy(policy ResolvedModelPolicy) error {
-	if err := validateSelector("modelPolicyRef", policy.Ref.PolicyID+"@"+policy.Ref.Version); err != nil {
+	if err := ValidateSelector("modelPolicyRef", policy.Ref.PolicyID+"@"+policy.Ref.Version); err != nil {
 		return err
 	}
-	if err := validateDigest("modelPolicyRef.digest", policy.Ref.Digest); err != nil {
+	if err := ValidateDigest("modelPolicyRef.digest", policy.Ref.Digest); err != nil {
 		return err
 	}
 	if strings.TrimSpace(policy.Model) == "" {
-		return invalidf("modelPolicy model is required")
+		return Invalidf("modelPolicy model is required")
 	}
 	if policy.ContextWindowTokens < 0 || policy.ContextWindowTokens > MaxModelContextTokens {
-		return invalidf("modelPolicy contextWindowTokens must be between 1 and %d when present", MaxModelContextTokens)
+		return Invalidf("modelPolicy contextWindowTokens must be between 1 and %d when present", MaxModelContextTokens)
 	}
 	if policy.MaxOutputTokens < 0 {
-		return invalidf("modelPolicy maxOutputTokens must be positive when present")
+		return Invalidf("modelPolicy maxOutputTokens must be positive when present")
 	}
 	if policy.MaxModelCalls < 0 || policy.MaxModelCalls > MaxWorkerModelCalls {
-		return invalidf("modelPolicy maxModelCalls must be between 1 and %d when present", MaxWorkerModelCalls)
+		return Invalidf("modelPolicy maxModelCalls must be between 1 and %d when present", MaxWorkerModelCalls)
 	}
 	if policy.MaxToolCalls < 0 || policy.MaxToolCalls > MaxWorkerToolCalls {
-		return invalidf("modelPolicy maxToolCalls must be between 1 and %d when present", MaxWorkerToolCalls)
+		return Invalidf("modelPolicy maxToolCalls must be between 1 and %d when present", MaxWorkerToolCalls)
 	}
 	if policy.MaxWorkerCalls < 0 || policy.MaxWorkerCalls > MaxPlannerWorkerCalls {
-		return invalidf("modelPolicy maxWorkerCalls must be between 1 and %d when present", MaxPlannerWorkerCalls)
+		return Invalidf("modelPolicy maxWorkerCalls must be between 1 and %d when present", MaxPlannerWorkerCalls)
 	}
 	if policy.MaxTotalTokens < 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
-		return invalidf("modelPolicy maxTotalTokens must be between 1 and %d when present", MaxWorkerTotalTokens)
+		return Invalidf("modelPolicy maxTotalTokens must be between 1 and %d when present", MaxWorkerTotalTokens)
 	}
 	if policy.ContextWindowTokens > 0 && policy.MaxOutputTokens >= policy.ContextWindowTokens {
-		return invalidf("modelPolicy maxOutputTokens must be below contextWindowTokens")
+		return Invalidf("modelPolicy maxOutputTokens must be below contextWindowTokens")
 	}
 	if policy.Temperature != nil {
 		temperature := *policy.Temperature
 		if temperature < 0 || math.IsNaN(temperature) || math.IsInf(temperature, 0) {
-			return invalidf("modelPolicy temperature must be finite and non-negative")
+			return Invalidf("modelPolicy temperature must be finite and non-negative")
 		}
 	}
 	return nil
@@ -408,19 +406,19 @@ func validateWorkerModelPolicy(policy ResolvedModelPolicy, hasTools bool) error 
 		return err
 	}
 	if policy.MaxOutputTokens <= 0 {
-		return invalidf("Worker modelPolicy requires maxOutputTokens")
+		return Invalidf("Worker modelPolicy requires maxOutputTokens")
 	}
 	if policy.MaxModelCalls <= 0 {
-		return invalidf("Worker modelPolicy requires maxModelCalls")
+		return Invalidf("Worker modelPolicy requires maxModelCalls")
 	}
 	if policy.MaxTotalTokens <= 0 {
-		return invalidf("Worker modelPolicy requires maxTotalTokens")
+		return Invalidf("Worker modelPolicy requires maxTotalTokens")
 	}
 	if hasTools && policy.MaxToolCalls <= 0 {
-		return invalidf("tool-using Worker modelPolicy requires maxToolCalls")
+		return Invalidf("tool-using Worker modelPolicy requires maxToolCalls")
 	}
 	if policy.MaxWorkerCalls != 0 {
-		return invalidf("Worker modelPolicy must omit maxWorkerCalls")
+		return Invalidf("Worker modelPolicy must omit maxWorkerCalls")
 	}
 	return nil
 }
@@ -430,19 +428,19 @@ func validateWorkerSummarizerModelPolicy(policy ResolvedModelPolicy) error {
 		return err
 	}
 	if policy.MaxOutputTokens <= 0 {
-		return invalidf("Worker summarizer modelPolicy requires maxOutputTokens")
+		return Invalidf("Worker summarizer modelPolicy requires maxOutputTokens")
 	}
 	if policy.ContextWindowTokens <= 0 {
-		return invalidf("Worker summarizer modelPolicy requires contextWindowTokens")
+		return Invalidf("Worker summarizer modelPolicy requires contextWindowTokens")
 	}
 	if policy.MaxModelCalls != 1 {
-		return invalidf("Worker summarizer modelPolicy requires maxModelCalls=1")
+		return Invalidf("Worker summarizer modelPolicy requires maxModelCalls=1")
 	}
 	if policy.MaxToolCalls != 0 {
-		return invalidf("Worker summarizer modelPolicy must omit maxToolCalls")
+		return Invalidf("Worker summarizer modelPolicy must omit maxToolCalls")
 	}
 	if policy.MaxWorkerCalls != 0 {
-		return invalidf("Worker summarizer modelPolicy must omit maxWorkerCalls")
+		return Invalidf("Worker summarizer modelPolicy must omit maxWorkerCalls")
 	}
 	return nil
 }
@@ -453,12 +451,12 @@ func validateWorkerSummarizerConfig(
 ) error {
 	if instructions := config.Instructions; instructions != nil {
 		if strings.TrimSpace(instructions.Ref) == "" || strings.TrimSpace(instructions.Text) == "" {
-			return invalidf("Worker summarizer instructions ref and text must not be empty")
+			return Invalidf("Worker summarizer instructions ref and text must not be empty")
 		}
 		if !utf8.ValidString(instructions.Text) || utf8.RuneCountInString(instructions.Text) > 8000 {
-			return invalidf("Worker summarizer instructions must contain at most 8000 Unicode characters")
+			return Invalidf("Worker summarizer instructions must contain at most 8000 Unicode characters")
 		}
-		if err := validateDigest("summarizer.instructions.digest", instructions.Digest); err != nil {
+		if err := ValidateDigest("summarizer.instructions.digest", instructions.Digest); err != nil {
 			return err
 		}
 	}
@@ -466,42 +464,42 @@ func validateWorkerSummarizerConfig(
 		return err
 	}
 	if workerPolicy.ContextWindowTokens <= 0 {
-		return invalidf("summarized Worker modelPolicy requires contextWindowTokens")
+		return Invalidf("summarized Worker modelPolicy requires contextWindowTokens")
 	}
 	if config.ContextWindowRatio <= 0 || config.ContextWindowRatio >= 1 ||
 		math.IsNaN(config.ContextWindowRatio) || math.IsInf(config.ContextWindowRatio, 0) {
-		return invalidf("Worker summarizer contextWindowRatio must be finite and between 0 and 1")
+		return Invalidf("Worker summarizer contextWindowRatio must be finite and between 0 and 1")
 	}
 	if config.CumulativeBudget != nil {
 		if *config.CumulativeBudget <= 0 || *config.CumulativeBudget > MaxWorkerTotalTokens {
-			return invalidf("Worker summarizer cumulativeBudget must be between 1 and %d", MaxWorkerTotalTokens)
+			return Invalidf("Worker summarizer cumulativeBudget must be between 1 and %d", MaxWorkerTotalTokens)
 		}
 		if workerPolicy.MaxTotalTokens <= 0 || *config.CumulativeBudget >= workerPolicy.MaxTotalTokens {
-			return invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
+			return Invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
 		}
 	}
 	return nil
 }
 
 func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string, deadline time.Time) error {
-	if err := validateAPIVersion(apiVersion); err != nil {
+	if err := ValidateAPIVersion(apiVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("allocationId", allocationID); err != nil {
+	if err := ValidateOpaqueID("allocationId", allocationID); err != nil {
 		return err
 	}
-	if err := validateOpaqueID(idField, idValue); err != nil {
+	if err := ValidateOpaqueID(idField, idValue); err != nil {
 		return err
 	}
 	if deadline.IsZero() {
-		return invalidf("deadline must not be zero")
+		return Invalidf("deadline must not be zero")
 	}
 	return nil
 }
 
-func validateTerminationError(value TerminationError) error {
-	if strings.TrimSpace(value.Code) == "" || strings.TrimSpace(value.Message) == "" {
-		return invalidf("termination error code/message must not be empty")
+func (e TerminationError) Validate() error {
+	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
+		return Invalidf("termination error code/message must not be empty")
 	}
 	return nil
 }
@@ -537,7 +535,7 @@ func (s AllocationSpec) Validate() error {
 			return err
 		}
 	}
-	if err := validateAPIVersion(s.APIVersion); err != nil {
+	if err := ValidateAPIVersion(s.APIVersion); err != nil {
 		return err
 	}
 	for field, value := range map[string]string{
@@ -545,12 +543,12 @@ func (s AllocationSpec) Validate() error {
 		"stageExecutionId": s.StageExecutionID, "logicalAgentName": s.LogicalAgentName,
 		"namespace": s.Namespace,
 	} {
-		if err := validateOpaqueID(field, value); err != nil {
+		if err := ValidateOpaqueID(field, value); err != nil {
 			return err
 		}
 	}
 	if ValidateArtifactName(s.Namespace) != nil || s.LeaseExpiresAt.IsZero() {
-		return invalidf("allocation namespace or lease is invalid")
+		return Invalidf("allocation namespace or lease is invalid")
 	}
 	if err := s.WorkerSessionMode.Validate(); err != nil {
 		return err
@@ -567,11 +565,11 @@ func (s AllocationSpec) Validate() error {
 	if s.AgentTemplate.IsToolWorker() {
 		if !s.ModelPolicy.IsZero() || s.RuntimeSettings.LLMGatewayURL != "" || s.RuntimeSettings.LLMGatewayToken != nil ||
 			s.ResolvedRuntimeConfigProvenance.LLMGatewayConfig != nil || s.ResolvedRuntimeConfigProvenance.LLMCredential != nil || s.Workspace != nil || s.CompletionContract != nil {
-			return invalidf("tool@1 allocation forbids model access, project workspace and completion contracts")
+			return Invalidf("tool@1 allocation forbids model access, project workspace and completion contracts")
 		}
 	} else {
 		if s.RuntimeSettings.LLMGatewayURL == "" {
-			return invalidf("modeled allocation requires llmGatewayUrl")
+			return Invalidf("modeled allocation requires llmGatewayUrl")
 		}
 		if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
 			return err
@@ -599,7 +597,7 @@ type PrepareAllocationRequest struct {
 }
 
 func (r PrepareAllocationRequest) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	return r.Spec.Validate()

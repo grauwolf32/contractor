@@ -33,14 +33,14 @@ type AgentHeartbeat struct {
 }
 
 func (h AgentHeartbeat) Validate() error {
-	if err := validateAPIVersion(h.APIVersion); err != nil {
+	if err := ValidateAPIVersion(h.APIVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("instanceId", h.InstanceID); err != nil {
+	if err := ValidateOpaqueID("instanceId", h.InstanceID); err != nil {
 		return err
 	}
 	if h.HeartbeatSeq == 0 {
-		return invalidf("heartbeatSeq must be positive")
+		return Invalidf("heartbeatSeq must be positive")
 	}
 	return validateObservedAllocation(h.ObservedState, h.AllocationID)
 }
@@ -53,71 +53,71 @@ type HeartbeatResponse struct {
 }
 
 func (r HeartbeatResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	if r.AckSeq == 0 {
-		return invalidf("ackSeq must be positive")
+		return Invalidf("ackSeq must be positive")
 	}
 	switch r.Action {
 	case ActionContinue, ActionReregister:
 	case ActionDrain:
 		if r.AllocationID == nil {
-			return invalidf("allocationId is required for action %s", r.Action)
+			return Invalidf("allocationId is required for action %s", r.Action)
 		}
 	case ActionRelease:
 	default:
-		return invalidf("unknown heartbeat action %q", r.Action)
+		return Invalidf("unknown heartbeat action %q", r.Action)
 	}
 	if r.AllocationID != nil {
-		return validateOpaqueID("allocationId", *r.AllocationID)
+		return ValidateOpaqueID("allocationId", *r.AllocationID)
 	}
 	return nil
 }
 
 func validateCapabilities(runtimes []string, toolsets []ToolsetCapability, sandboxes []string) error {
 	if len(runtimes) == 0 || len(sandboxes) == 0 {
-		return invalidf("supportedRuntimes and supportedSandboxProfiles must not be empty")
+		return Invalidf("supportedRuntimes and supportedSandboxProfiles must not be empty")
 	}
 	seen := make(map[string]struct{})
 	for _, value := range runtimes {
-		if err := validateSelector("supportedRuntimes", value); err != nil {
+		if err := ValidateSelector("supportedRuntimes", value); err != nil {
 			return err
 		}
 		if _, exists := seen[value]; exists {
-			return invalidf("duplicate runtime capability %q", value)
+			return Invalidf("duplicate runtime capability %q", value)
 		}
 		seen[value] = struct{}{}
 	}
 	seen = make(map[string]struct{})
 	for _, value := range sandboxes {
-		if err := validateSelector("supportedSandboxProfiles", value); err != nil {
+		if err := ValidateSelector("supportedSandboxProfiles", value); err != nil {
 			return err
 		}
 		if _, exists := seen[value]; exists {
-			return invalidf("duplicate sandbox capability %q", value)
+			return Invalidf("duplicate sandbox capability %q", value)
 		}
 		seen[value] = struct{}{}
 	}
 	seen = make(map[string]struct{})
 	for _, capability := range toolsets {
-		if err := validateSelector("supportedToolsets.ref", capability.Ref); err != nil {
+		if err := ValidateSelector("supportedToolsets.ref", capability.Ref); err != nil {
 			return err
 		}
 		if _, exists := seen[capability.Ref]; exists {
-			return invalidf("duplicate toolset capability %q", capability.Ref)
+			return Invalidf("duplicate toolset capability %q", capability.Ref)
 		}
 		seen[capability.Ref] = struct{}{}
 		if len(capability.Tools) == 0 {
-			return invalidf("toolset capability %q has no tools", capability.Ref)
+			return Invalidf("toolset capability %q has no tools", capability.Ref)
 		}
 		toolNames := make(map[string]struct{})
 		for _, tool := range capability.Tools {
-			if err := validateOpaqueID("tool name", tool); err != nil {
+			if err := ValidateOpaqueID("tool name", tool); err != nil {
 				return err
 			}
 			if _, exists := toolNames[tool]; exists {
-				return invalidf("duplicate tool %q in capability %q", tool, capability.Ref)
+				return Invalidf("duplicate tool %q in capability %q", tool, capability.Ref)
 			}
 			toolNames[tool] = struct{}{}
 		}
@@ -129,20 +129,20 @@ func validateObservedAllocation(state AgentObservedState, allocationID *string) 
 	switch state {
 	case AgentIdle:
 		if allocationID != nil {
-			return invalidf("idle agent must not report allocationId")
+			return Invalidf("idle agent must not report allocationId")
 		}
 		return nil
 	case AgentFenced:
 		if allocationID == nil {
 			return nil
 		}
-		return validateOpaqueID("allocationId", *allocationID)
+		return ValidateOpaqueID("allocationId", *allocationID)
 	case AgentAllocated, AgentDraining:
 		if allocationID == nil {
-			return invalidf("%s agent must report allocationId", state)
+			return Invalidf("%s agent must report allocationId", state)
 		}
-		return validateOpaqueID("allocationId", *allocationID)
+		return ValidateOpaqueID("allocationId", *allocationID)
 	default:
-		return invalidf("unknown observedState %q", state)
+		return Invalidf("unknown observedState %q", state)
 	}
 }

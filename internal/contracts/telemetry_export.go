@@ -23,16 +23,16 @@ func (s TelemetryExportSettings) Validate() error {
 		}
 	}
 	if s.BatchSizeBytes < 1024*1024 || s.BatchSizeBytes > 64*1024*1024 {
-		return invalidf("telemetry export batchSizeBytes must be from 1 through 64 MiB")
+		return Invalidf("telemetry export batchSizeBytes must be from 1 through 64 MiB")
 	}
 	if s.MaxAttempts < 1 || s.MaxAttempts > 10 {
-		return invalidf("telemetry export maxAttempts must be from 1 through 10")
+		return Invalidf("telemetry export maxAttempts must be from 1 through 10")
 	}
 	if s.MaxPendingSpans < 1 || s.MaxPendingSpans > 2048 {
-		return invalidf("telemetry export maxPendingSpans must be from 1 through 2048")
+		return Invalidf("telemetry export maxPendingSpans must be from 1 through 2048")
 	}
 	if s.MaxPendingBytes < s.BatchSizeBytes || s.MaxPendingBytes > 64*1024*1024 {
-		return invalidf("telemetry export maxPendingBytes must cover batchSizeBytes and be at most 64 MiB")
+		return Invalidf("telemetry export maxPendingBytes must cover batchSizeBytes and be at most 64 MiB")
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func DefaultTelemetryRetrySettings() TelemetryRetrySettings {
 
 func (s TelemetryRetrySettings) Validate() error {
 	if s.InitialBackoffMilliseconds < 1 || s.MaxBackoffMilliseconds > 60000 || s.InitialBackoffMilliseconds > s.MaxBackoffMilliseconds {
-		return invalidf("telemetry retry backoff must satisfy 1 <= initialBackoffMilliseconds <= maxBackoffMilliseconds <= 60000")
+		return Invalidf("telemetry retry backoff must satisfy 1 <= initialBackoffMilliseconds <= maxBackoffMilliseconds <= 60000")
 	}
 	return nil
 }

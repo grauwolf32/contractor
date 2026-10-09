@@ -35,35 +35,35 @@ type TelemetrySettings struct {
 
 func (s TelemetrySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterOTLPHTTP {
-		return invalidf("telemetry adapter must be otlp-http@1")
+		return Invalidf("telemetry adapter must be otlp-http@1")
 	}
 	if err := validateRuntimeEndpoint("telemetry.endpoint", s.Endpoint); err != nil {
 		return err
 	}
 	if s.Headers == nil || len(s.Headers) > 32 {
-		return invalidf("telemetry headers must be a non-null map with at most 32 entries")
+		return Invalidf("telemetry headers must be a non-null map with at most 32 entries")
 	}
 	total := 0
 	for name, value := range s.Headers {
 		lower := strings.ToLower(name)
 		if len(name) == 0 || len(name) > 64 || !headerNamePattern.MatchString(name) ||
 			strings.ContainsAny(name, "\r\n") {
-			return invalidf("telemetry header name is invalid")
+			return Invalidf("telemetry header name is invalid")
 		}
 		if _, forbidden := forbiddenRuntimeHeaderNames[lower]; forbidden {
-			return invalidf("telemetry header is forbidden")
+			return Invalidf("telemetry header is forbidden")
 		}
 		secret := value.Reveal()
 		if len(secret) == 0 || len(secret) > 4096 || strings.ContainsAny(secret, "\r\n") {
-			return invalidf("telemetry header value is invalid")
+			return Invalidf("telemetry header value is invalid")
 		}
 		total += len(secret)
 	}
 	if total > 16*1024 {
-		return invalidf("telemetry header values exceed 16 KiB")
+		return Invalidf("telemetry header values exceed 16 KiB")
 	}
 	if s.FlushTimeoutSeconds < 1 || s.FlushTimeoutSeconds > 10 {
-		return invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
+		return Invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
 	}
 	if s.Export != nil {
 		return s.Export.Validate()
@@ -100,7 +100,7 @@ type CaidoSettings struct {
 
 func (s CaidoSettings) Validate() error {
 	if s.Adapter != RuntimeAdapterCaidoGraphQL {
-		return invalidf("Caido adapter must be caido-graphql@1")
+		return Invalidf("Caido adapter must be caido-graphql@1")
 	}
 	if err := validateRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
 		return err
@@ -108,7 +108,7 @@ func (s CaidoSettings) Validate() error {
 	if s.BearerToken != nil {
 		value := s.BearerToken.Reveal()
 		if len(value) < 1 || len([]byte(value)) > 8192 {
-			return invalidf("Caido bearerToken is outside its size bound")
+			return Invalidf("Caido bearerToken is outside its size bound")
 		}
 	}
 	if s.CABundlePEM != nil {
@@ -117,31 +117,31 @@ func (s CaidoSettings) Validate() error {
 		}
 	}
 	if s.RequestTimeoutSeconds < 1 || s.RequestTimeoutSeconds > MaxCaidoRequestTimeoutSeconds {
-		return invalidf("Caido requestTimeoutSeconds must be from 1 through 120")
+		return Invalidf("Caido requestTimeoutSeconds must be from 1 through 120")
 	}
 	return nil
 }
 
 func (s HTTPProxySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterHTTPProxy {
-		return invalidf("HTTP proxy adapter must be http-proxy@1")
+		return Invalidf("HTTP proxy adapter must be http-proxy@1")
 	}
 	if err := validateRuntimeEndpoint("httpProxy.proxyUrl", s.ProxyURL); err != nil {
 		return err
 	}
 	if s.BasicAuth != nil && s.BearerToken != nil {
-		return invalidf("HTTP proxy basicAuth and bearerToken are mutually exclusive")
+		return Invalidf("HTTP proxy basicAuth and bearerToken are mutually exclusive")
 	}
 	if s.BasicAuth != nil {
 		username, password := s.BasicAuth.Username.Reveal(), s.BasicAuth.Password.Reveal()
 		if len(username) < 1 || len(username) > 256 || len(password) < 1 || len(password) > 8192 {
-			return invalidf("HTTP proxy basicAuth is outside its size bound")
+			return Invalidf("HTTP proxy basicAuth is outside its size bound")
 		}
 	}
 	if s.BearerToken != nil {
 		value := s.BearerToken.Reveal()
 		if len(value) < 1 || len(value) > 8192 {
-			return invalidf("HTTP proxy bearerToken is outside its size bound")
+			return Invalidf("HTTP proxy bearerToken is outside its size bound")
 		}
 	}
 	if s.CABundlePEM != nil {
@@ -150,17 +150,17 @@ func (s HTTPProxySettings) Validate() error {
 		}
 	}
 	if len(s.Targets) == 0 || len(s.Targets) > 3 {
-		return invalidf("HTTP proxy targets must be a non-empty subset")
+		return Invalidf("HTTP proxy targets must be a non-empty subset")
 	}
 	previous := ""
 	for _, target := range s.Targets {
 		switch target {
 		case ProxyTargetLLMGateway, ProxyTargetToolHTTP, ProxyTargetToolSubprocess:
 		default:
-			return invalidf("HTTP proxy target is invalid")
+			return Invalidf("HTTP proxy target is invalid")
 		}
 		if string(target) <= previous {
-			return invalidf("HTTP proxy targets must be sorted and unique")
+			return Invalidf("HTTP proxy targets must be sorted and unique")
 		}
 		previous = string(target)
 	}
@@ -228,18 +228,18 @@ func (s RuntimeSettings) Validate() error {
 			return err
 		}
 	} else if s.LLMGatewayToken != nil || s.LLMGatewayFailureSignatures != nil {
-		return invalidf("LLM token and failure signatures require a Gateway URL")
+		return Invalidf("LLM token and failure signatures require a Gateway URL")
 	}
 	if s.LLMGatewayFailureSignatures != nil {
 		if err := s.LLMGatewayFailureSignatures.Validate(); err != nil {
 			return err
 		}
 	}
-	if err := validateURL("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
-		return invalidf("runtimeSettings.artifactApiUrl is invalid")
+	if err := ValidateURL("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
+		return Invalidf("runtimeSettings.artifactApiUrl is invalid")
 	}
 	if s.RequestTimeoutSeconds <= 0 {
-		return invalidf("runtimeSettings.requestTimeoutSeconds must be positive")
+		return Invalidf("runtimeSettings.requestTimeoutSeconds must be positive")
 	}
 	if s.Telemetry != nil {
 		if err := s.Telemetry.Validate(); err != nil {
@@ -294,11 +294,11 @@ func (t HTTPOriginTargetRef) Validate() error {
 		return nil
 	}
 	if len(t.Credential.CredentialID) == 0 || len(t.Credential.CredentialID) > 128 ||
-		!idPattern.MatchString(t.Credential.CredentialID) {
-		return invalidf("HTTP origin target credential ID is invalid")
+		!ValidIdentifier(t.Credential.CredentialID) {
+		return Invalidf("HTTP origin target credential ID is invalid")
 	}
 	if t.Credential.Kind != RuntimeCredentialOriginBasic && t.Credential.Kind != RuntimeCredentialOriginBearer {
-		return invalidf("HTTP origin target credential kind is invalid")
+		return Invalidf("HTTP origin target credential kind is invalid")
 	}
 	return nil
 }
@@ -316,19 +316,19 @@ func (s HTTPOriginTargetSettings) Validate() error {
 		return err
 	}
 	if s.BasicAuth != nil && s.BearerToken != nil {
-		return invalidf("HTTP origin target basicAuth and bearerToken are mutually exclusive")
+		return Invalidf("HTTP origin target basicAuth and bearerToken are mutually exclusive")
 	}
 	if s.BasicAuth != nil {
 		username, password := s.BasicAuth.Username.Reveal(), s.BasicAuth.Password.Reveal()
 		if len(username) < 1 || len(username) > 256 || strings.Contains(username, ":") ||
 			len(password) < 1 || len(password) > 8192 {
-			return invalidf("HTTP origin target basicAuth is outside its size bound")
+			return Invalidf("HTTP origin target basicAuth is outside its size bound")
 		}
 	}
 	if s.BearerToken != nil {
 		value := s.BearerToken.Reveal()
 		if len(value) < 1 || len(value) > 8192 {
-			return invalidf("HTTP origin target bearerToken is outside its size bound")
+			return Invalidf("HTTP origin target bearerToken is outside its size bound")
 		}
 	}
 	return nil
@@ -349,16 +349,16 @@ type RuntimeConfigRef struct {
 }
 
 func (r RuntimeConfigRef) Validate() error {
-	if len(r.Name) == 0 || len(r.Name) > 63 || !idPattern.MatchString(r.Name) {
-		return invalidf("RuntimeConfig ref name is invalid")
+	if len(r.Name) == 0 || len(r.Name) > 63 || !ValidIdentifier(r.Name) {
+		return Invalidf("RuntimeConfig ref name is invalid")
 	}
 	if len(r.Version) == 0 || len(r.Version) > 128 {
-		return invalidf("RuntimeConfig ref version is invalid")
+		return Invalidf("RuntimeConfig ref version is invalid")
 	}
-	if err := validateSelector("RuntimeConfig ref", r.Name+"@"+r.Version); err != nil {
+	if err := ValidateSelector("RuntimeConfig ref", r.Name+"@"+r.Version); err != nil {
 		return err
 	}
-	return validateDigest("RuntimeConfig ref digest", r.Digest)
+	return ValidateDigest("RuntimeConfig ref digest", r.Digest)
 }
 
 type RuntimeLabelBindingProvenance struct {
@@ -384,7 +384,7 @@ type ResolvedRuntimeConfigProvenance struct {
 
 func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	if p.Default.Label != "default" || p.Default.BindingRevision == 0 {
-		return invalidf("provenance default binding is invalid")
+		return Invalidf("provenance default binding is invalid")
 	}
 	if err := p.Default.Config.Validate(); err != nil {
 		return err
@@ -395,7 +395,7 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	if err := validateProvenanceBindings("agentLabels", p.AgentLabels); err != nil {
 		return err
 	}
-	if err := validateSortedRuntimeAdapters(p.RuntimeAdapters); err != nil {
+	if err := ValidateRuntimeAdapterRefs(p.RuntimeAdapters); err != nil {
 		return err
 	}
 	if p.LLMGatewayConfig != nil {
@@ -405,26 +405,26 @@ func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	}
 	if p.LLMCredential != nil {
 		if p.LLMGatewayConfig == nil {
-			return invalidf("LLM credential provenance requires a Gateway config ref")
+			return Invalidf("LLM credential provenance requires a Gateway config ref")
 		}
 		if err := p.LLMCredential.Validate(); err != nil {
 			return err
 		}
 	}
 	if p.RuntimeCredentialRefs == nil || len(p.RuntimeCredentialRefs) > 64 {
-		return invalidf("Runtime credential provenance refs must be a non-null bounded array")
+		return Invalidf("Runtime credential provenance refs must be a non-null bounded array")
 	}
 	previous := ""
 	for _, ref := range p.RuntimeCredentialRefs {
-		if len(ref.CredentialID) == 0 || len(ref.CredentialID) > 128 || !idPattern.MatchString(ref.CredentialID) {
-			return invalidf("Runtime credential provenance ID is invalid")
+		if len(ref.CredentialID) == 0 || len(ref.CredentialID) > 128 || !ValidIdentifier(ref.CredentialID) {
+			return Invalidf("Runtime credential provenance ID is invalid")
 		}
 		if err := ref.Kind.Validate(); err != nil {
 			return err
 		}
 		key := string(ref.Kind) + "\x00" + ref.CredentialID
 		if key <= previous {
-			return invalidf("Runtime credential provenance refs must be sorted and unique")
+			return Invalidf("Runtime credential provenance refs must be sorted and unique")
 		}
 		previous = key
 	}

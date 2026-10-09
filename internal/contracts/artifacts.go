@@ -15,7 +15,7 @@ var artifactNamePattern = regexp.MustCompile(ArtifactNamePattern)
 
 func ValidateArtifactName(value string) error {
 	if !artifactNamePattern.MatchString(value) {
-		return invalidf("artifact name must be 1 through 128 ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit")
+		return Invalidf("artifact name must be 1 through 128 ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit")
 	}
 	return nil
 }
@@ -45,7 +45,7 @@ func (r ArtifactRef) Validate() error {
 		return err
 	}
 	if r.Revision != nil {
-		return validateOpaqueID("artifact revision", *r.Revision)
+		return ValidateOpaqueID("artifact revision", *r.Revision)
 	}
 	return nil
 }
@@ -55,7 +55,7 @@ func (r ArtifactRef) ValidateExact() error {
 		return err
 	}
 	if r.Revision == nil {
-		return invalidf("artifact revision is required")
+		return Invalidf("artifact revision is required")
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (r ArtifactRef) Key() string {
 // AgentTemplate. Exact revisions belong to the Run snapshot instead.
 func (r ArtifactRef) ValidateAgentSkillRef() error {
 	if r.Namespace != AgentSkillNamespace || r.Revision != nil || !validAgentSkillName(r.Name) {
-		return invalidf("AgentTemplate skill ref must be versionless skills/<portable-name>")
+		return Invalidf("AgentTemplate skill ref must be versionless skills/<portable-name>")
 	}
 	return nil
 }
@@ -143,7 +143,7 @@ type ArtifactReadResult struct {
 }
 
 func (r ArtifactReadResult) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	if err := r.Artifact.ValidateExact(); err != nil {
@@ -165,7 +165,7 @@ type ArtifactListResult struct {
 }
 
 func (r ArtifactListResult) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	for _, artifact := range r.Artifacts {
@@ -173,14 +173,14 @@ func (r ArtifactListResult) Validate() error {
 			return err
 		}
 		if artifact.Revision != nil {
-			return invalidf("listed artifact refs must be versionless")
+			return Invalidf("listed artifact refs must be versionless")
 		}
 	}
 	return nil
 }
 
 func (r ArtifactWriteResult) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	if err := r.Artifact.ValidateExact(); err != nil {
@@ -191,10 +191,10 @@ func (r ArtifactWriteResult) Validate() error {
 
 func validateArtifactMetadata(mediaType string, size int64) error {
 	if !ValidMediaType(mediaType) {
-		return invalidf("mediaType must be lowercase type/subtype without parameters")
+		return Invalidf("mediaType must be lowercase type/subtype without parameters")
 	}
 	if size < 0 {
-		return invalidf("artifact size must be non-negative")
+		return Invalidf("artifact size must be non-negative")
 	}
 	return nil
 }

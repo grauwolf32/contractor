@@ -30,7 +30,7 @@ func DecodePrivateStrict[T Validatable](data []byte) (T, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return value, &PrivateProtocolError{Class: PrivateProtocolErrorSchema}
 	}
-	if err := ensureJSONEOF(decoder); err != nil {
+	if err := EnsureJSONEOF(decoder); err != nil {
 		return value, &PrivateProtocolError{Class: PrivateProtocolErrorSchema}
 	}
 	if err := value.Validate(); err != nil {

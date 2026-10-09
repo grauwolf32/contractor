@@ -24,7 +24,7 @@ type RunMetadataLabels map[string]string
 // map; wire DTO validation rejects nil so JSON always carries an object.
 func NormalizeRunMetadataLabels(source map[string]string) (RunMetadataLabels, error) {
 	if len(source) > MaxRunMetadataLabels {
-		return nil, invalidf("Run metadata labels exceed %d entries", MaxRunMetadataLabels)
+		return nil, Invalidf("Run metadata labels exceed %d entries", MaxRunMetadataLabels)
 	}
 	result := make(RunMetadataLabels, len(source))
 	for key, value := range source {
@@ -41,14 +41,14 @@ func NormalizeRunMetadataLabels(source map[string]string) (RunMetadataLabels, er
 func ValidateRunMetadataLabel(key, value string) error {
 	if !utf8.ValidString(key) || len(key) == 0 || len(key) > MaxRunMetadataLabelKey ||
 		!runMetadataLabelKeyPattern.MatchString(key) {
-		return invalidf("Run metadata label key %q is invalid", key)
+		return Invalidf("Run metadata label key %q is invalid", key)
 	}
 	if strings.HasPrefix(key, "contractor.") {
-		return invalidf("Run metadata label key %q uses the reserved contractor. namespace", key)
+		return Invalidf("Run metadata label key %q uses the reserved contractor. namespace", key)
 	}
 	if !utf8.ValidString(value) || len(value) > MaxRunMetadataLabelValue ||
 		strings.ContainsRune(value, '\x00') {
-		return invalidf(
+		return Invalidf(
 			"Run metadata label %q value must contain 0 to %d database-safe UTF-8 bytes",
 			key, MaxRunMetadataLabelValue,
 		)
@@ -58,7 +58,7 @@ func ValidateRunMetadataLabel(key, value string) error {
 
 func (labels RunMetadataLabels) Validate() error {
 	if labels == nil {
-		return invalidf("runMetadataLabels must be an object")
+		return Invalidf("runMetadataLabels must be an object")
 	}
 	_, err := NormalizeRunMetadataLabels(labels)
 	return err
