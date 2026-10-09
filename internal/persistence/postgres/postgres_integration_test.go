@@ -67,7 +67,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_artifact_links", "audit_controller_claims",
 		"audit_events", "audit_execution_items", "audit_executions",
 		"audit_finding_assessments", "audit_finding_contributions", "audit_findings",
-		"audit_idempotency", "audit_items", "audit_review_decisions", "audit_review_requests",
+		"audit_idempotency", "audit_items", "audit_live_item_reviews", "audit_review_decisions", "audit_review_requests",
 		"audit_rounds", "audits",
 		"contractor_schema_migrations", "credential_operations",
 		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_evidence_refs", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_member_projections", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_projection_queue", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_charts", "eval_view_pairs", "finding_proposal_audit_holds", "finding_proposal_receipts",
