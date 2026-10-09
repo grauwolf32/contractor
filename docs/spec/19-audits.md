@@ -1,6 +1,6 @@
 # 19 — Audits: checks, findings, and iterative assessment
 
-Status: **Working agreement; baseline implemented. Prepare-role execution (section 4.4) is specified but not yet delivered, so prepare profiles return `preparation_unsupported` until [V62-002–004](../../tasks/v62-002-audit-preparation-store.yml) complete.**
+Status: **Working agreement; baseline and [V62-002 preparation storage](../../tasks/v62-002-audit-preparation-store.yml) implemented. Controller dispatch and generated inventory (section 4.4) remain pending, so prepare profiles return `preparation_unsupported` until [V62-003](../../tasks/v62-003-audit-preparation-controller.yml) and [V62-004](../../tasks/v62-004-audit-prepared-inventory.yml) complete.**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 

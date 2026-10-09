@@ -1,0 +1,65 @@
+{
+  "task": "V62-002",
+  "verified_on": "2026-10-09",
+  "result": "passed",
+  "implementation_commit": "c13dfbb9b93589716e194aa9a9fe8065a7380d7f",
+  "database": {
+    "engine": "PostgreSQL",
+    "version": "17.11",
+    "disposable": true,
+    "mandatory_skipped_test_cases": 0,
+    "new_preparation_database_cases": 7
+  },
+  "acceptance": {
+    "A1": "Preparation has no Round or item; strict role scope, exact inputs/parameters, bounded contiguous attempts, live claims, immutable receipts and all mapped outputs are enforced by store transactions and migration 98.",
+    "A2": "Accepted outputs use frozen Audit-managed Project bindings with exact import lineage; they survive actual DeleteReleasedTerminalRun and invalidate the Audit revision. Existing public Project route tests verify hidden lists and rejected reads/writes.",
+    "A3": "Schema 97\u219298 preserves current-schema profile closure, baseline, identities, receipt bytes, links, timestamps and holds; obsolete admission is rejected. Preparation-only pause/resume/cancel/delete and undelivered-intent deletion preserve/release holds and purge protected data."
+  },
+  "concurrency": {
+    "identical_intent_requests": 8,
+    "created_intents": 1,
+    "identical_collection_requests": 8,
+    "committed_receipts": 1,
+    "accounting": "one reservation, one submitted Run, zero outstanding, retained bytes charged once"
+  },
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/auditstore ./internal/artifacts ./internal/runstore ./internal/persistence/...",
+      "result": "passed",
+      "test_cases": 361,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/artifacts": 102,
+        "github.com/grauwolf32/contractor/internal/persistence": 2,
+        "github.com/grauwolf32/contractor/internal/persistence/postgres": 162,
+        "github.com/grauwolf32/contractor/internal/runstore": 66,
+        "github.com/grauwolf32/contractor/internal/auditstore": 29
+      },
+      "log_sha256": "4ee4a8ddcf9e7db06ff7c9f3223900ad9e192c09156385f836416feb15513fce"
+    },
+    {
+      "command": "go test -count=1 ./internal/runservice ./internal/config ./internal/auditdomain ./internal/auditservice ./internal/auditcontroller ./internal/httpapi/public",
+      "result": "passed",
+      "test_cases": 1357,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/config": 435,
+        "github.com/grauwolf32/contractor/internal/auditdomain": 200,
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 45,
+        "github.com/grauwolf32/contractor/internal/auditservice": 142,
+        "github.com/grauwolf32/contractor/internal/runservice": 11,
+        "github.com/grauwolf32/contractor/internal/httpapi/public": 524
+      },
+      "log_sha256": "47170d8870018074f94775b3e53537b9e097d8f7edb35bb92d2f380fcc4fdcd1"
+    },
+    {
+      "command": "go vet ./internal/auditstore ./internal/runservice",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "scope_limit": "Durable storage and trusted Run association only. Public preparation stays gated; V62-003 controller dispatch and V62-004 generated inventory remain pending. Deferred V62-005/006/007/008 remain deferred."
+}

@@ -3,8 +3,8 @@ id: V62-002
 title: Persist Audit preparation executions and retained outputs
 milestone: audit-workflow-composition
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: c13dfbb9b93589716e194aa9a9fe8065a7380d7f
 depends_on: [V62-001, V60-012]
 languages: [go, sql]
 goal: Persist preparation and its accepted outputs without inventing a Round or AuditItem before inventory exists.
@@ -47,3 +47,15 @@ test_prerequisites:
 verification_requirements:
   - Record database case counts, concurrent claim/receipt results and source-deletion regression evidence with zero mandatory skips.
   - Coordinate the migration number at implementation time; do not rename another series' applied migration.
+
+acceptance_verification:
+  verified_on: "2026-10-09"
+  evidence: tasks/evidence/v62-002.json
+  result: A1–A3 passed against disposable PostgreSQL 17.11 with zero skipped test cases.
+  mandatory_cases: 361
+  consumer_cases: 1357
+  database_preparation_cases: 7
+  migration_version: 98
+  concurrency: Eight identical intent requests and eight receipt requests each commit exactly once.
+  retention: Exact outputs remain readable after DeleteReleasedTerminalRun; pause, resume, cancellation, deletion and purge preserve or release the required holds.
+  capability_limit: Storage is complete; public preparation remains gated until V62-003 controller dispatch and V62-004 generated inventory are delivered.

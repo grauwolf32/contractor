@@ -1,13 +1,18 @@
 # Audit preparation and Workflow composition
 
-Date: 2026-09-20. Series: **V62**. Status: **supplied-OpenAPI scans and preparation contracts accepted on 2026-09-21; preparation implementation pending**.
+Date: 2026-09-20. Series: **V62**. Status: **supplied-OpenAPI scans and preparation contracts accepted on 2026-09-21; preparation storage accepted on 2026-10-09; controller and generated inventory pending**.
 
 After review, the user requested explicit deferral of disputed work and accepted
 the order supplied OpenAPI → useful scan results → source preparation. Nuclei
 checks of pinned concrete OpenAPI URLs are included alongside SQLMap request
 checks. V62-009 has passed its scanner/process and cross-Run recovery gates;
-V62-001 has passed its current-schema and public contract gates. V62-002 is next:
-persist preparation without creating a Round or items before inventory exists.
+V62-001 has passed its current-schema and public contract gates. V62-002 now
+persists preparation without creating a Round or items before inventory exists.
+Migration 98 pins attempts, submission snapshots, atomic output acceptance and
+source-deletion-safe retention. Its database and consumer checks passed with no
+skipped cases; see [V62-002 evidence](../../tasks/evidence/v62-002.json). V62-003
+is next: controller dispatch, restart recovery and controls before a Round exists.
+Public preparation remains `preparation_unsupported` until V62-003–004 complete.
 
 V62-009 owns the [scan contract](../spec/openapi-audit-scans.md), including
 scan-specific coverage and repeat prevention across Audit attempts. V62-001 then
@@ -182,7 +187,7 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | --- | --- | --- |
 | [009](../../tasks/v62-009-audit-openapi-scan-profile.yml) | **Accepted:** supplied OpenAPI, SQLMap requests, Nuclei fixed URLs, coverage and retry contract | — |
 | [001](../../tasks/v62-001-audit-composition-contracts.yml) | **Accepted:** preparation contracts, current schema and shared fixtures | 009 |
-| [002](../../tasks/v62-002-audit-preparation-store.yml) | Durable preparation state, executions, retention and migration | 001 |
+| [002](../../tasks/v62-002-audit-preparation-store.yml) | **Accepted:** durable preparation state, executions, retention and migration 98 | 001 |
 | [003](../../tasks/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
 | [004](../../tasks/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
 | [005](../../tasks/v62-005-audit-round-result-snapshots.yml) | **Deferred:** settled round snapshots | 004 |
