@@ -33,6 +33,8 @@ export class OperationsLiveRefresh {
   #resyncDelay = 0;
   /** Resyncs and failed baselines since the stream last delivered an event. */
   #resyncAttempts = 0;
+  #snapshotFailures = 0;
+  #snapshotRetryDelay = 0;
   #disposed = false;
 
   constructor(options: LiveRefreshOptions) {
@@ -108,10 +110,13 @@ export class OperationsLiveRefresh {
       this.#snapshotRunning
     )
       return;
-    this.#snapshotTimer = setTimeout(() => {
-      this.#snapshotTimer = undefined;
-      void this.#runSnapshot();
-    }, delay);
+    this.#snapshotTimer = setTimeout(
+      () => {
+        this.#snapshotTimer = undefined;
+        void this.#runSnapshot();
+      },
+      Math.max(delay, this.#snapshotRetryDelay),
+    );
   }
 
   /** Returns the delay of the next baseline read and counts the attempt. */
@@ -133,11 +138,21 @@ export class OperationsLiveRefresh {
     try {
       const cursor = await this.#refreshSnapshot();
       if (this.#disposed) return;
+      this.#snapshotFailures = 0;
+      this.#snapshotRetryDelay = 0;
       this.snapshot(cursor);
       if (resumeAfterFetch && cursor.generation === this.#generation) {
         this.#resume(cursor);
       }
     } catch {
+      const maximum = Math.min(
+        MAXIMUM_RESYNC_DELAY_MS,
+        REFRESH_INTERVAL_MS * 2 ** Math.min(this.#snapshotFailures, 5),
+      );
+      this.#snapshotFailures += 1;
+      this.#snapshotRetryDelay = Math.floor(
+        maximum * (0.5 + Math.max(0, Math.min(1, this.#random())) / 2),
+      );
       // The cached cursor predates the resync, and resuming from it would only
       // make the Server request another one. Keep the resync pending.
       if (resumeAfterFetch) {

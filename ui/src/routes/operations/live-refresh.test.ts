@@ -138,6 +138,41 @@ describe("Operations live REST refreshes", () => {
     updates.dispose();
   });
 
+  it("backs off failed REST reads even while live events keep arriving", async () => {
+    vi.useFakeTimers();
+    const refreshSnapshot = vi
+      .fn<() => Promise<OperationsSnapshotCursor>>()
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockResolvedValue(cursor(20));
+    const resume = vi.fn();
+    const updates = new OperationsLiveRefresh({
+      initial: cursor(7),
+      refreshSnapshot,
+      refreshPrincipals: vi.fn(async () => undefined),
+      resume,
+      random: () => 1,
+    });
+    updates.event(cursor(8), "allocation");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(1);
+    for (const [attempt, delay] of [1_000, 2_000, 4_000].entries()) {
+      updates.event(cursor(9 + attempt), "allocation");
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(refreshSnapshot).toHaveBeenCalledTimes(attempt + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(refreshSnapshot).toHaveBeenCalledTimes(attempt + 2);
+    }
+    expect(resume).not.toHaveBeenCalled();
+    updates.event(cursor(21), "allocation");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(4);
+    updates.dispose();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(refreshSnapshot).toHaveBeenCalledTimes(4);
+  });
+
   it("keeps a resync pending across failed baseline reads and backs off", async () => {
     vi.useFakeTimers();
     const refreshSnapshot = vi

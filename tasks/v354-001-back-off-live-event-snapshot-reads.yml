@@ -3,7 +3,7 @@ id: V354-001
 title: Back off failed Operations snapshot reads triggered by live events
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V305-001]
 languages: [typescript]
 goal: Apply V305's backoff to snapshot reads triggered by live events, not only resyncs.
