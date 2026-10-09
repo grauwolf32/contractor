@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -402,7 +403,7 @@ func (r *InMemoryRegistry) reserveAll(
 	if err != nil {
 		return nil, err
 	}
-	runMetadataLabels, err := contracts.NormalizeRunMetadataLabels(request.RunMetadataLabels)
+	runMetadataLabels, err := runlabels.NormalizeRunMetadataLabels(request.RunMetadataLabels)
 	if err != nil {
 		return nil, fmt.Errorf("%w: Run metadata labels are invalid", ErrInvalidRequest)
 	}
@@ -1145,7 +1146,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			return "", nil, fmt.Errorf("%w: Run RuntimeConfig snapshot is invalid", ErrInvalidRequest)
 		}
 	}
-	metadataLabels, err := contracts.NormalizeRunMetadataLabels(request.RunMetadataLabels)
+	metadataLabels, err := runlabels.NormalizeRunMetadataLabels(request.RunMetadataLabels)
 	if err != nil {
 		return "", nil, fmt.Errorf("%w: Run metadata labels are invalid", ErrInvalidRequest)
 	}
@@ -1212,7 +1213,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	encoded, err := json.Marshal(struct {
 		RunID             string
 		StageExecutionID  string
-		RunMetadataLabels contracts.RunMetadataLabels
+		RunMetadataLabels runlabels.RunMetadataLabels
 		Bindings          []BindingRequirement
 		RuntimeConfig     *runtimeconfig.RunSnapshot
 	}{

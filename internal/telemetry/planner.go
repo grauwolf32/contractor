@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
 const PlannerAdapterOTLPHTTP = "otlp-http@1"
@@ -89,7 +90,7 @@ type PlannerAdapterSettings struct {
 	Headers           map[string]contracts.SecretString
 	FlushTimeout      time.Duration
 	Resource          PlannerResource
-	RunMetadataLabels contracts.RunMetadataLabels
+	RunMetadataLabels runlabels.RunMetadataLabels
 }
 
 func (s PlannerAdapterSettings) clone() PlannerAdapterSettings {

@@ -13,6 +13,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -268,7 +269,7 @@ func passthroughTestTelemetry(
 	}
 	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
-		FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{},
+		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
 			PlannerRef: PassthroughRef,

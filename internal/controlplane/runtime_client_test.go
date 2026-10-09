@@ -23,6 +23,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
@@ -159,7 +160,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 	reservation.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
-	reservation.RunMetadataLabels = contracts.RunMetadataLabels{
+	reservation.RunMetadataLabels = runlabels.RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
 	}
 	skillRevision := "run-review-1"

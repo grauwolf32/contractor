@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
 type PrepareAllocationResponse struct {
@@ -99,7 +100,7 @@ type AllocationSpec struct {
 	LogicalAgentName                string                                    `json:"logicalAgentName"`
 	Namespace                       string                                    `json:"namespace"`
 	WorkerSessionMode               contracts.WorkerSessionMode               `json:"workerSessionMode"`
-	RunMetadataLabels               contracts.RunMetadataLabels               `json:"runMetadataLabels"`
+	RunMetadataLabels               runlabels.RunMetadataLabels               `json:"runMetadataLabels"`
 	LeaseExpiresAt                  time.Time                                 `json:"leaseExpiresAt"`
 	AgentTemplate                   contracts.ResolvedAgentTemplate           `json:"agentTemplate"`
 	ResolvedSkills                  []contracts.ResolvedSkill                 `json:"resolvedSkills"`

@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -101,7 +102,7 @@ type otlpHTTPPlannerTelemetry struct {
 	headers           map[string]contracts.SecretString
 	flushTimeout      time.Duration
 	resource          PlannerResource
-	runMetadataLabels contracts.RunMetadataLabels
+	runMetadataLabels runlabels.RunMetadataLabels
 	client            *http.Client
 	ownedTransport    bool
 	traceID           []byte
@@ -471,12 +472,12 @@ func safePlannerString(value string, secrets []string) string {
 }
 
 func plannerRunMetadataLabelAttributes(
-	labels contracts.RunMetadataLabels,
+	labels runlabels.RunMetadataLabels,
 	secrets []string,
 ) map[string]any {
 	result := make(map[string]any, len(labels))
 	for key, value := range labels {
-		if contracts.ValidateRunMetadataLabel(key, value) != nil {
+		if runlabels.ValidateRunMetadataLabel(key, value) != nil {
 			continue
 		}
 		secret := false

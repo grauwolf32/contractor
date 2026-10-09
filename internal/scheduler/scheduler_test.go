@@ -21,6 +21,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -2939,7 +2940,7 @@ type recordingPlannerTelemetryRegistry struct {
 	inner          *telemetry.PlannerAdapterRegistry
 	creates        int
 	resources      []telemetry.PlannerResource
-	metadataLabels []contracts.RunMetadataLabels
+	metadataLabels []runlabels.RunMetadataLabels
 }
 
 func (r *recordingPlannerTelemetryRegistry) Create(

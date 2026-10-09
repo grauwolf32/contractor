@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
+func TestAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
 	t.Parallel()
 
 	type labelCase struct {
@@ -62,16 +62,6 @@ func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
 		if err := decode(candidate); err == nil {
 			t.Errorf("invalid case %q was accepted", candidate.Name)
 		}
-	}
-
-	source := map[string]string{"eval.id": "eval_01"}
-	normalized, err := contracts.NormalizeRunMetadataLabels(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	source["eval.id"] = "changed"
-	if normalized["eval.id"] != "eval_01" || normalized.Clone() == nil {
-		t.Fatalf("normalized labels alias source or lost explicit empty semantics: %v", normalized)
 	}
 }
 

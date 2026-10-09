@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
 func TestConfirmedLeaseRequiresEchoOfIssuedAck(t *testing.T) {
@@ -495,7 +496,7 @@ func TestReservationFingerprintPinsExactResolvedSkillsManifest(t *testing.T) {
 	}}
 	request := ReservationRequest{
 		RunID: "run-skill", StageExecutionID: "stage-skill",
-		RunMetadataLabels: contracts.RunMetadataLabels{"purpose": "eval", "eval.id": "eval_01"},
+		RunMetadataLabels: runlabels.RunMetadataLabels{"purpose": "eval", "eval.id": "eval_01"},
 		Bindings:          []BindingRequirement{binding},
 	}
 	first, err := registry.ReserveAll(request)

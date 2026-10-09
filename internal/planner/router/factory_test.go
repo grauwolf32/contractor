@@ -17,6 +17,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -174,7 +175,7 @@ func routerTestTelemetry(
 	}
 	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
-		FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{},
+		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
 			PlannerRef: planner.RouterRef,
