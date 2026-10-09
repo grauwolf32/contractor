@@ -156,7 +156,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -275,7 +275,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -379,7 +379,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -524,7 +524,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -630,7 +630,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -815,7 +815,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -918,7 +918,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1025,7 +1025,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1142,7 +1142,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1261,7 +1261,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1406,7 +1406,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1601,7 +1601,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1712,7 +1712,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1833,7 +1833,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -1954,7 +1954,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2083,7 +2083,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2210,7 +2210,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2319,7 +2319,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2507,7 +2507,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2624,7 +2624,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2813,7 +2813,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -2942,7 +2942,7 @@ paths:
           }
         },
         "503": {
-          "description": "Evaluation service is unavailable",
+          "description": "Evaluation service is unavailable or a database transaction conflict requires retry",
           "content": {
             "application/json": {
               "schema": {
@@ -6714,8 +6714,8 @@ components:
     EvalSelector: {
       "type": "string",
       "minLength": 3,
-      "maxLength": 128,
-      "pattern": "^[a-z0-9][a-z0-9._-]*@[a-z0-9][a-z0-9._-]*$"
+      "maxLength": 193,
+      "pattern": "^[a-z][a-z0-9_-]{0,127}@[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
     }
     EvalDigest: {
       "type": "string",
@@ -6735,8 +6735,8 @@ components:
     EvalMedia: {
       "type": "string",
       "minLength": 3,
-      "maxLength": 256,
-      "pattern": "^[^\\s/]+/[^\\s/]+$"
+      "maxLength": 255,
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
     }
     EvalArtifactName: {
       "type": "string",
@@ -6870,7 +6870,7 @@ components:
         "mediaTypes": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/EvalMedia"
+            "$ref": "#/components/schemas/EvalMediaRange"
           },
           "minItems": 1,
           "maxItems": 128,
@@ -6908,7 +6908,7 @@ components:
         "requires": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/EvalSelector"
+            "$ref": "#/components/schemas/EvalVersionedId"
           },
           "minItems": 0,
           "maxItems": 128,
@@ -7218,7 +7218,7 @@ components:
           "$ref": "#/components/schemas/EvalId"
         },
         "evaluator": {
-          "$ref": "#/components/schemas/EvalSelector"
+          "$ref": "#/components/schemas/EvalVersionedId"
         },
         "required": {
           "type": "boolean"
@@ -8242,7 +8242,7 @@ components:
           "$ref": "#/components/schemas/EvalId"
         },
         "evaluator": {
-          "$ref": "#/components/schemas/EvalSelector"
+          "$ref": "#/components/schemas/EvalVersionedId"
         },
         "implementationSha256": {
           "$ref": "#/components/schemas/EvalDigest"
@@ -9177,7 +9177,7 @@ components:
             "type": "object",
             "properties": {
               "evaluator": {
-                "$ref": "#/components/schemas/EvalSelector"
+                "$ref": "#/components/schemas/EvalVersionedId"
               },
               "implementationSha256": {
                 "$ref": "#/components/schemas/EvalDigest"
@@ -9212,7 +9212,7 @@ components:
         "importVersions": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/EvalSelector"
+            "$ref": "#/components/schemas/EvalVersionedId"
           },
           "minItems": 0,
           "maxItems": 16,
@@ -10842,6 +10842,24 @@ components:
         "arms"
       ],
       "additionalProperties": false
+    }
+    EvalVersionedId: {
+      "description": "Portable capability, evaluator or import-version identity; distinct from a published configuration selector.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*@[a-z0-9][a-z0-9._-]*$"
+    }
+    EvalMediaRange: {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "*/*"
+        },
+        {
+          "$ref": "#/components/schemas/EvalMedia"
+        }
+      ]
     }
     EvalErrorDetails: {
       "type": "object",

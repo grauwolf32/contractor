@@ -33,6 +33,9 @@ func TestPublicConfigIdentitySchemasMatchSharedCases(t *testing.T) {
 		if err := name.VisitJSON(value); (err == nil) != valid {
 			t.Errorf("ConfigurationName %q: valid=%v, error=%v", value, valid, err)
 		}
+		if err := schemas["EvalSelector"].Value.VisitJSON(value + "@1"); (err == nil) != valid {
+			t.Errorf("EvalSelector %q@1: valid=%v, error=%v", value, valid, err)
+		}
 		if err := selector.VisitJSON(value + "@1"); (err == nil) != valid {
 			t.Errorf("Selector %q@1: valid=%v, error=%v", value, valid, err)
 		}
@@ -41,6 +44,9 @@ func TestPublicConfigIdentitySchemasMatchSharedCases(t *testing.T) {
 		t.Helper()
 		if err := version.VisitJSON(value); (err == nil) != valid {
 			t.Errorf("ConfigVersion %q: valid=%v, error=%v", value, valid, err)
+		}
+		if err := schemas["EvalSelector"].Value.VisitJSON("a@" + value); (err == nil) != valid {
+			t.Errorf("EvalSelector a@%q: valid=%v, error=%v", value, valid, err)
 		}
 		if err := selector.VisitJSON("a@" + value); (err == nil) != valid {
 			t.Errorf("Selector a@%q: valid=%v, error=%v", value, valid, err)

@@ -24,8 +24,8 @@
     "Selector": {
       "type": "string",
       "minLength": 3,
-      "maxLength": 128,
-      "pattern": "^[a-z0-9][a-z0-9._-]*@[a-z0-9][a-z0-9._-]*$"
+      "maxLength": 193,
+      "pattern": "^[a-z][a-z0-9_-]{0,127}@[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
     },
     "Digest": {
       "type": "string",
@@ -45,8 +45,8 @@
     "Media": {
       "type": "string",
       "minLength": 3,
-      "maxLength": 256,
-      "pattern": "^[^\\s/]+/[^\\s/]+$"
+      "maxLength": 255,
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
     },
     "ArtifactName": {
       "type": "string",
@@ -174,7 +174,7 @@
         "mediaTypes": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Media"
+            "$ref": "#/$defs/MediaRange"
           },
           "minItems": 1,
           "maxItems": 128,
@@ -212,7 +212,7 @@
         "requires": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Selector"
+            "$ref": "#/$defs/VersionedId"
           },
           "minItems": 0,
           "maxItems": 128,
@@ -517,7 +517,7 @@
           "$ref": "#/$defs/Id"
         },
         "evaluator": {
-          "$ref": "#/$defs/Selector"
+          "$ref": "#/$defs/VersionedId"
         },
         "required": {
           "type": "boolean"
@@ -1463,7 +1463,7 @@
           "$ref": "#/$defs/Id"
         },
         "evaluator": {
-          "$ref": "#/$defs/Selector"
+          "$ref": "#/$defs/VersionedId"
         },
         "implementationSha256": {
           "$ref": "#/$defs/Digest"
@@ -2291,7 +2291,7 @@
             "type": "object",
             "properties": {
               "evaluator": {
-                "$ref": "#/$defs/Selector"
+                "$ref": "#/$defs/VersionedId"
               },
               "implementationSha256": {
                 "$ref": "#/$defs/Digest"
@@ -2326,7 +2326,7 @@
         "importVersions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Selector"
+            "$ref": "#/$defs/VersionedId"
           },
           "minItems": 0,
           "maxItems": 16,
@@ -3800,6 +3800,24 @@
         "arms"
       ],
       "additionalProperties": false
+    },
+    "VersionedId": {
+      "description": "Portable capability, evaluator or import-version identity; distinct from a published configuration selector.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*@[a-z0-9][a-z0-9._-]*$"
+    },
+    "MediaRange": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "*/*"
+        },
+        {
+          "$ref": "#/$defs/Media"
+        }
+      ]
     }
   }
 }

@@ -2289,7 +2289,7 @@ export interface components {
             };
         };
         EvalOutput: {
-            mediaTypes: components["schemas"]["EvalMedia"][];
+            mediaTypes: components["schemas"]["EvalMediaRange"][];
             required: boolean;
         };
         EvalCase: {
@@ -2298,7 +2298,7 @@ export interface components {
             inputs: {
                 [key: string]: components["schemas"]["EvalArtifact"];
             };
-            requires: components["schemas"]["EvalSelector"][];
+            requires: components["schemas"]["EvalVersionedId"][];
             outputs: {
                 [key: string]: components["schemas"]["EvalOutput"];
             };
@@ -2370,7 +2370,7 @@ export interface components {
         };
         EvalCheck: {
             id: components["schemas"]["EvalId"];
-            evaluator: components["schemas"]["EvalSelector"];
+            evaluator: components["schemas"]["EvalVersionedId"];
             required: boolean;
             rubricRevision?: components["schemas"]["EvalOpaque"];
             implementationSha256?: components["schemas"]["EvalDigest"];
@@ -2555,7 +2555,7 @@ export interface components {
         };
         EvalCheckResult: {
             id: components["schemas"]["EvalId"];
-            evaluator: components["schemas"]["EvalSelector"];
+            evaluator: components["schemas"]["EvalVersionedId"];
             implementationSha256: components["schemas"]["EvalDigest"];
             /** @enum {string} */
             status: "pass" | "fail" | "error" | "incomplete" | "not_applicable";
@@ -2695,12 +2695,12 @@ export interface components {
             controlModes: ("server" | "external")[];
             executionKinds: ("workflow" | "audit")[];
             checks: {
-                evaluator: components["schemas"]["EvalSelector"];
+                evaluator: components["schemas"]["EvalVersionedId"];
                 implementationSha256: components["schemas"]["EvalDigest"];
                 available: boolean;
                 reason: string | null;
             }[];
-            importVersions: components["schemas"]["EvalSelector"][];
+            importVersions: components["schemas"]["EvalVersionedId"][];
             bindings?: components["schemas"]["EvalBindingCapability"][];
             page?: components["schemas"]["EvalPage"];
             schemas?: string[];
@@ -2981,6 +2981,9 @@ export interface components {
             pins: components["schemas"]["EvalReadinessPin"][];
             arms: components["schemas"]["EvalReadinessArm"][];
         };
+        /** @description Portable capability, evaluator or import-version identity; distinct from a published configuration selector. */
+        EvalVersionedId: string;
+        EvalMediaRange: "*/*" | components["schemas"]["EvalMedia"];
         EvalErrorDetails: {
             /** @constant */
             kind: "eval";
@@ -6235,7 +6238,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6299,7 +6302,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6367,7 +6370,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6433,7 +6436,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6501,7 +6504,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6567,7 +6570,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6629,7 +6632,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6698,7 +6701,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6767,7 +6770,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6850,7 +6853,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6912,7 +6915,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6982,7 +6985,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7050,7 +7053,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7118,7 +7121,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7186,7 +7189,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7251,7 +7254,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7316,7 +7319,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7385,7 +7388,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7454,7 +7457,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7518,7 +7521,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7588,7 +7591,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -7653,7 +7656,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["Error500"];
-            /** @description Evaluation service is unavailable */
+            /** @description Evaluation service is unavailable or a database transaction conflict requires retry */
             503: {
                 headers: {
                     [name: string]: unknown;

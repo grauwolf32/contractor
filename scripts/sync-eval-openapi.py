@@ -404,7 +404,7 @@ for method, path, operation, body, result, status, cas in routes:
     for code, description in [
         (405, "Method is not allowed"),
         (428, "Evaluation revision precondition is required"),
-        (503, "Evaluation service is unavailable"),
+        (503, "Evaluation service is unavailable or a database transaction conflict requires retry"),
     ]:
         responses[str(code)] = {
             "description": description,

@@ -9,7 +9,8 @@ import (
 
 func TestPublicMediaTypeSchemaMatchesSharedCases(t *testing.T) {
 	t.Parallel()
-	schema := loadPublicOpenAPI(t).Components.Schemas["MediaType"].Value
+	schemas := loadPublicOpenAPI(t).Components.Schemas
+	schema := schemas["MediaType"].Value
 	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "testdata", "v1alpha1", "media-type-cases.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -22,11 +23,17 @@ func TestPublicMediaTypeSchemaMatchesSharedCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, value := range cases.Valid {
+		if err := schemas["EvalMedia"].Value.VisitJSON(value); err != nil {
+			t.Errorf("EvalMedia %q rejected: %v", value, err)
+		}
 		if err := schema.VisitJSON(value); err != nil {
 			t.Errorf("valid media type %q rejected: %v", value, err)
 		}
 	}
 	for _, value := range cases.Invalid {
+		if err := schemas["EvalMedia"].Value.VisitJSON(value); err == nil {
+			t.Errorf("EvalMedia %q accepted", value)
+		}
 		// Slot declarations may use the explicit */* wildcard.
 		if err := schema.VisitJSON(value); (err == nil) != (value == "*/*") {
 			t.Errorf("media type %q: error=%v", value, err)

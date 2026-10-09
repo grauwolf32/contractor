@@ -3,7 +3,7 @@ id: V362-001
 title: Align Eval selector, media and 503 contracts with the shared rules
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V323-001, V324-001, V328-001]
 languages: [go, typescript, yaml]
 goal: Remove the remaining Eval-specific contract drift left after V323-001 and V324-001.
