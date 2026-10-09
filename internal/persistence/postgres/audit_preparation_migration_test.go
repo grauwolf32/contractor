@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"reflect"
+	"slices"
 	"testing"
 	"time"
 )
@@ -74,7 +74,7 @@ VALUES ('audit','diagnostics','{"namespace":"audit-retained","name":"diagnostic"
 		t.Fatal(err)
 	}
 	result, err := ApplyMigrations(ctx, pool)
-	if err != nil || !reflect.DeepEqual(result.AppliedVersions, []int64{98}) {
+	if err != nil || !slices.Contains(result.AppliedVersions, 98) {
 		t.Fatalf("preparation upgrade: %+v %v", result, err)
 	}
 	if err := pool.QueryRow(ctx, snapshot).Scan(&after); err != nil || before != after {

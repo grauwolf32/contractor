@@ -3,7 +3,7 @@ id: V355-001
 title: Index the RESTRICT keys of Audit finding assessments
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V278-001]
 languages: [sql]
 goal: Keep Audit purge from scanning audit_finding_assessments for every RESTRICT check.
