@@ -96,7 +96,7 @@ cases:
     acceptance: [A2, A4]
     faults: [F15]
     expected: Allocation validation rejects missing bounds, invalid thresholds, tool budgets and non-one-shot summary policies.
-    test: {source: internal/contracts/allocation_test.go, symbol: TestAllocationSpecRequiresValidWorkerSummarizer}
+    test: {source: internal/contracts/control/allocation_test.go, symbol: TestAllocationSpecRequiresValidWorkerSummarizer}
   - id: bounded_gateway_retry
     category: isolation
     acceptance: [A1, A3]

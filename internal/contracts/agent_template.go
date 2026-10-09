@@ -1,9 +1,11 @@
 package contracts
 
+// Resolved AgentTemplate and model-policy values pinned into Runs and
+// allocations, with the Worker budget bounds they are validated against.
+
 import (
 	"math"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
@@ -193,97 +195,6 @@ func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
 		result.Skills[index] = skill.Clone()
 	}
 	return result
-}
-
-type WorkerHandle struct {
-	AllocationID string `json:"allocationId"`
-	// RuntimeAgentID is Server-owned routing/authentication metadata. It is
-	// never accepted from or emitted to the Runtime private wire response.
-	RuntimeAgentID   string           `json:"-"`
-	AgentTemplateRef AgentTemplateRef `json:"agentTemplateRef"`
-	WorkerRuntimeRef WorkerRuntimeRef `json:"workerRuntimeRef"`
-	AgentCard        map[string]any   `json:"agentCard"`
-	LeaseExpiresAt   time.Time        `json:"leaseExpiresAt"`
-}
-
-type PrepareAllocationResponse struct {
-	APIVersion   string       `json:"apiVersion"`
-	WorkerHandle WorkerHandle `json:"workerHandle"`
-}
-
-func (r PrepareAllocationResponse) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	if err := ValidateOpaqueID("workerHandle.allocationId", r.WorkerHandle.AllocationID); err != nil {
-		return err
-	}
-	if err := r.WorkerHandle.AgentTemplateRef.ValidateRef(); err != nil {
-		return err
-	}
-	if err := r.WorkerHandle.WorkerRuntimeRef.ValidateRef(); err != nil {
-		return err
-	}
-	if len(r.WorkerHandle.AgentCard) == 0 || r.WorkerHandle.LeaseExpiresAt.IsZero() {
-		return Invalidf("workerHandle Agent Card and leaseExpiresAt are required")
-	}
-	return nil
-}
-
-type FinalizeAllocationRequest struct {
-	APIVersion     string    `json:"apiVersion"`
-	AllocationID   string    `json:"allocationId"`
-	FinalizationID string    `json:"finalizationId"`
-	Deadline       time.Time `json:"deadline"`
-}
-
-func (r FinalizeAllocationRequest) Validate() error {
-	return validateLifecycleRequest(r.APIVersion, r.AllocationID, "finalizationId", r.FinalizationID, r.Deadline)
-}
-
-type TerminationError struct {
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	Retryable bool   `json:"retryable"`
-}
-
-type AbortAllocationRequest struct {
-	APIVersion   string           `json:"apiVersion"`
-	AllocationID string           `json:"allocationId"`
-	AbortID      string           `json:"abortId"`
-	Reason       TerminationError `json:"reason"`
-	Deadline     time.Time        `json:"deadline"`
-}
-
-func (r AbortAllocationRequest) Validate() error {
-	if err := validateLifecycleRequest(r.APIVersion, r.AllocationID, "abortId", r.AbortID, r.Deadline); err != nil {
-		return err
-	}
-	return r.Reason.Validate()
-}
-
-type ReleaseAllocationRequest struct {
-	APIVersion   string `json:"apiVersion"`
-	AllocationID string `json:"allocationId"`
-}
-
-func (r ReleaseAllocationRequest) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	return ValidateOpaqueID("allocationId", r.AllocationID)
-}
-
-type AllocationFinalResponse struct {
-	APIVersion string                `json:"apiVersion"`
-	Report     AllocationFinalReport `json:"report"`
-}
-
-func (r AllocationFinalResponse) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	return r.Report.Validate()
 }
 
 func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
@@ -479,126 +390,4 @@ func validateWorkerSummarizerConfig(
 		}
 	}
 	return nil
-}
-
-func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string, deadline time.Time) error {
-	if err := ValidateAPIVersion(apiVersion); err != nil {
-		return err
-	}
-	if err := ValidateOpaqueID("allocationId", allocationID); err != nil {
-		return err
-	}
-	if err := ValidateOpaqueID(idField, idValue); err != nil {
-		return err
-	}
-	if deadline.IsZero() {
-		return Invalidf("deadline must not be zero")
-	}
-	return nil
-}
-
-func (e TerminationError) Validate() error {
-	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
-		return Invalidf("termination error code/message must not be empty")
-	}
-	return nil
-}
-
-type AllocationSpec struct {
-	CompletionContract              *WorkerCompletionContract       `json:"completionContract,omitempty"`
-	APIVersion                      string                          `json:"apiVersion"`
-	AllocationID                    string                          `json:"allocationId"`
-	RunID                           string                          `json:"runId"`
-	StageExecutionID                string                          `json:"stageExecutionId"`
-	LogicalAgentName                string                          `json:"logicalAgentName"`
-	Namespace                       string                          `json:"namespace"`
-	WorkerSessionMode               WorkerSessionMode               `json:"workerSessionMode"`
-	RunMetadataLabels               RunMetadataLabels               `json:"runMetadataLabels"`
-	LeaseExpiresAt                  time.Time                       `json:"leaseExpiresAt"`
-	AgentTemplate                   ResolvedAgentTemplate           `json:"agentTemplate"`
-	ResolvedSkills                  []ResolvedSkill                 `json:"resolvedSkills"`
-	ModelPolicy                     ResolvedModelPolicy             `json:"modelPolicy,omitzero"`
-	RuntimeSettings                 RuntimeSettings                 `json:"runtimeSettings"`
-	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
-	Workspace                       *AllocationWorkspaceSpec        `json:"workspace,omitempty"`
-	PerformanceMetrics              *PerformanceMetricsRequest      `json:"performanceMetrics,omitempty"`
-}
-
-func (s AllocationSpec) Validate() error {
-	if s.CompletionContract != nil {
-		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
-			return err
-		}
-	}
-	if s.PerformanceMetrics != nil {
-		if err := s.PerformanceMetrics.Validate(); err != nil {
-			return err
-		}
-	}
-	if err := ValidateAPIVersion(s.APIVersion); err != nil {
-		return err
-	}
-	for field, value := range map[string]string{
-		"allocationId": s.AllocationID, "runId": s.RunID,
-		"stageExecutionId": s.StageExecutionID, "logicalAgentName": s.LogicalAgentName,
-		"namespace": s.Namespace,
-	} {
-		if err := ValidateOpaqueID(field, value); err != nil {
-			return err
-		}
-	}
-	if ValidateArtifactName(s.Namespace) != nil || s.LeaseExpiresAt.IsZero() {
-		return Invalidf("allocation namespace or lease is invalid")
-	}
-	if err := s.WorkerSessionMode.Validate(); err != nil {
-		return err
-	}
-	if err := s.RunMetadataLabels.Validate(); err != nil {
-		return err
-	}
-	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
-		return err
-	}
-	if err := ValidateResolvedSkills(s.AgentTemplate, s.ResolvedSkills); err != nil {
-		return err
-	}
-	if s.AgentTemplate.IsToolWorker() {
-		if !s.ModelPolicy.IsZero() || s.RuntimeSettings.LLMGatewayURL != "" || s.RuntimeSettings.LLMGatewayToken != nil ||
-			s.ResolvedRuntimeConfigProvenance.LLMGatewayConfig != nil || s.ResolvedRuntimeConfigProvenance.LLMCredential != nil || s.Workspace != nil || s.CompletionContract != nil {
-			return Invalidf("tool@1 allocation forbids model access, project workspace and completion contracts")
-		}
-	} else {
-		if s.RuntimeSettings.LLMGatewayURL == "" {
-			return Invalidf("modeled allocation requires llmGatewayUrl")
-		}
-		if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
-			return err
-		}
-	}
-	if s.AgentTemplate.Summarizer != nil {
-		if err := validateWorkerSummarizerConfig(*s.AgentTemplate.Summarizer, s.ModelPolicy); err != nil {
-			return err
-		}
-	}
-	if err := s.RuntimeSettings.Validate(); err != nil {
-		return err
-	}
-	if s.Workspace != nil {
-		if err := s.Workspace.Validate(); err != nil {
-			return err
-		}
-	}
-	return s.ResolvedRuntimeConfigProvenance.Validate()
-}
-
-type PrepareAllocationRequest struct {
-	APIVersion string         `json:"apiVersion"`
-	Spec       AllocationSpec `json:"spec"`
-}
-
-func (r PrepareAllocationRequest) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	return r.Spec.Validate()
 }

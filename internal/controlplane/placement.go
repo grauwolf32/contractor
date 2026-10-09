@@ -11,6 +11,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -388,7 +389,7 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 	return nil
 }
 
-func (a *PlacementAllocator) collectionPolicy(registration contracts.AgentRegistration) contracts.PerformanceCollectionPolicy {
+func (a *PlacementAllocator) collectionPolicy(registration control.AgentRegistration) contracts.PerformanceCollectionPolicy {
 	if !a.performanceMetrics {
 		return contracts.PerformanceCollectionDisabled
 	}

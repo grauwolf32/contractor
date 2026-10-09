@@ -33,6 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
@@ -454,14 +455,14 @@ func (f *completionFixture) bridge(t *testing.T) *completionBridge {
 	mustCompletion(t, err)
 	stage := f.profile.Workflows["check"].Workflow.Stages["check"]
 	template := stage.Agents["checker"].Template
-	toolsets := make([]contracts.ToolsetCapability, 0, len(template.Toolsets))
+	toolsets := make([]control.ToolsetCapability, 0, len(template.Toolsets))
 	for _, set := range template.Toolsets {
-		toolsets = append(toolsets, contracts.ToolsetCapability{Ref: set.Ref.ToolsetID + "@" + set.Ref.Version, Tools: set.Tools})
+		toolsets = append(toolsets, control.ToolsetCapability{Ref: set.Ref.ToolsetID + "@" + set.Ref.Version, Tools: set.Tools})
 	}
-	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, contracts.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: contracts.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
+	_, err = registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{RuntimeAgentID: principal, Labels: []string{}, LabelRevision: 1}, control.AgentRegistration{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", SoftwareVersion: "fixture", StartedAt: time.Now().UTC(), ControlURL: "https://localhost:9443", A2AURL: "https://localhost:9444", InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{}, SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: toolsets, SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}})
 	mustCompletion(t, err)
 	for seq := uint64(1); seq <= 2; seq++ {
-		_, err = registry.HeartbeatAuthenticated(principal, contracts.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: contracts.AgentIdle})
+		_, err = registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle})
 		mustCompletion(t, err)
 	}
 	reservation, err := registry.ReserveAll(controlplane.ReservationRequest{RunID: f.run.RunID, StageExecutionID: f.run.RunID + "-stage", Bindings: []controlplane.BindingRequirement{{LogicalAgentName: "checker", Namespace: f.run.AuditCompletion.Contract.ResultArtifact.Namespace, WorkerSessionMode: contracts.WorkerSessionShared, AgentTemplate: template, CompletionContract: &f.run.AuditCompletion.Contract, ExecutionConfig: controlplane.AllocationExecutionConfig{ModelPolicy: template.ModelPolicy.Ref, LLMGateway: stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref}}}})

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -50,23 +51,23 @@ func TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	registration := contracts.AgentRegistration{
+	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "unreachable-runtime", SoftwareVersion: "0.1.0",
 		StartedAt: now, ControlURL: "https://unreachable.example:9443", A2AURL: "https://unreachable.example:9444",
 		InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
 		SupportedRuntimes: []string{"adk@1"},
-		SupportedToolsets: []contracts.ToolsetCapability{{
+		SupportedToolsets: []control.ToolsetCapability{{
 			Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 		}},
-		SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: contracts.AgentIdle,
+		SupportedSandboxProfiles: []string{"local-workdir@1"}, ObservedState: control.AgentIdle,
 	}
 	if _, err := registry.Register(registration); err != nil {
 		t.Fatal(err)
 	}
 	for sequence := uint64(1); sequence <= 2; sequence++ {
-		if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+		if _, err := registry.Heartbeat(control.AgentHeartbeat{
 			APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
-			HeartbeatSeq: sequence, EchoedAckSeq: sequence - 1, ObservedState: contracts.AgentIdle,
+			HeartbeatSeq: sequence, EchoedAckSeq: sequence - 1, ObservedState: control.AgentIdle,
 		}); err != nil {
 			t.Fatal(err)
 		}

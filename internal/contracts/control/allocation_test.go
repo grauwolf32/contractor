@@ -1,14 +1,14 @@
-package contracts
+package control
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -24,7 +24,7 @@ func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
 		Valid   []labelCase `json:"valid"`
 		Invalid []labelCase `json:"invalid"`
 	}
-	path := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "run-metadata-label-cases.json")
+	path := contractstest.Path(t, "api", "testdata", "v1alpha1", "run-metadata-label-cases.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
 		if marshalErr != nil {
 			return marshalErr
 		}
-		_, decodeErr := DecodeStrict[AllocationSpec](encoded)
+		_, decodeErr := contracts.DecodeStrict[AllocationSpec](encoded)
 		return decodeErr
 	}
 	for _, candidate := range cases.Valid {
@@ -65,7 +65,7 @@ func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
 	}
 
 	source := map[string]string{"eval.id": "eval_01"}
-	normalized, err := NormalizeRunMetadataLabels(source)
+	normalized, err := contracts.NormalizeRunMetadataLabels(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
 		Valid   []modeCase `json:"valid"`
 		Invalid []modeCase `json:"invalid"`
 	}
-	path := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "worker-session-mode-cases.json")
+	path := contractstest.Path(t, "api", "testdata", "v1alpha1", "worker-session-mode-cases.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
 		if marshalErr != nil {
 			return marshalErr
 		}
-		_, decodeErr := DecodeStrict[AllocationSpec](encoded)
+		_, decodeErr := contracts.DecodeStrict[AllocationSpec](encoded)
 		return decodeErr
 	}
 	for _, candidate := range cases.Valid {
@@ -175,7 +175,7 @@ func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
 			_ = json.Unmarshal(encoded, &candidate)
 			mutate(candidate)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
 				t.Fatal("invalid resolvedSkills manifest was accepted")
 			}
 		})
@@ -198,11 +198,11 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 		{"zero output tokens", "maxOutputTokens", float64(0), false},
 		{"missing model calls", "maxModelCalls", nil, true},
 		{"zero model calls", "maxModelCalls", float64(0), false},
-		{"too many model calls", "maxModelCalls", float64(MaxWorkerModelCalls + 1), false},
+		{"too many model calls", "maxModelCalls", float64(contracts.MaxWorkerModelCalls + 1), false},
 		{"negative tool calls", "maxToolCalls", float64(-1), false},
-		{"too many tool calls", "maxToolCalls", float64(MaxWorkerToolCalls + 1), false},
+		{"too many tool calls", "maxToolCalls", float64(contracts.MaxWorkerToolCalls + 1), false},
 		{"missing total tokens", "maxTotalTokens", nil, true},
-		{"too many total tokens", "maxTotalTokens", float64(MaxWorkerTotalTokens + 1), false},
+		{"too many total tokens", "maxTotalTokens", float64(contracts.MaxWorkerTotalTokens + 1), false},
 		{"Planner-only Worker calls", "maxWorkerCalls", float64(1), false},
 	} {
 		for _, target := range []string{"AgentTemplate default", "effective allocation"} {
@@ -222,7 +222,7 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 					policy[test.field] = test.value
 				}
 				encoded, _ = json.Marshal(candidate)
-				if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+				if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
 					t.Fatal("invalid Worker budget was accepted")
 				}
 			})
@@ -279,7 +279,7 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 			summarizer := candidate["agentTemplate"].(map[string]any)["summarizer"].(map[string]any)
 			mutate(summarizer)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
 				t.Fatal("invalid Worker summarizer was accepted")
 			}
 		})
@@ -289,7 +289,7 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	_ = json.Unmarshal(encoded, &effectiveBound)
 	effectiveBound["modelPolicy"].(map[string]any)["maxTotalTokens"] = float64(20000)
 	encoded, _ = json.Marshal(effectiveBound)
-	if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+	if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
 		t.Fatal("summarizer cumulative budget at effective Worker hard bound was accepted")
 	}
 
@@ -298,7 +298,7 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	_ = json.Unmarshal(encoded, &missingWorkerContext)
 	delete(missingWorkerContext["modelPolicy"].(map[string]any), "contextWindowTokens")
 	encoded, _ = json.Marshal(missingWorkerContext)
-	if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+	if _, err := contracts.DecodeStrict[AllocationSpec](encoded); err == nil {
 		t.Fatal("summarized effective Worker without context window was accepted")
 	}
 }
@@ -306,17 +306,17 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.T) {
 	t.Parallel()
 
-	active, err := DecodeStrict[AllocationSpec](contractstest.ReadFixture(t, "valid", "allocation-spec.json"))
+	active, err := contracts.DecodeStrict[AllocationSpec](contractstest.ReadFixture(t, "valid", "allocation-spec.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings, err := DecodePrivateStrict[RuntimeSettings](
+	settings, err := contracts.DecodePrivateStrict[contracts.RuntimeSettings](
 		contractstest.ReadFixture(t, "valid", "runtime-settings-combined.json"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	provenance, err := DecodePrivateStrict[ResolvedRuntimeConfigProvenance](
+	provenance, err := contracts.DecodePrivateStrict[contracts.ResolvedRuntimeConfigProvenance](
 		contractstest.ReadFixture(t, "valid", "runtime-provenance.json"),
 	)
 	if err != nil {
@@ -332,20 +332,20 @@ func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.
 		ModelPolicy:     active.ModelPolicy,
 		RuntimeSettings: settings, ResolvedRuntimeConfigProvenance: provenance,
 	}
-	canonical, err := MarshalPrivateCanonical(value)
+	canonical, err := contracts.MarshalPrivateCanonical(value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodePrivateStrict[AllocationSpec](canonical); err != nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationSpec](canonical); err != nil {
 		t.Fatalf("round-trip AllocationSpec: %v", err)
 	}
 	missingLabels := value
 	missingLabels.RunMetadataLabels = nil
-	missingCanonical, err := MarshalPrivateCanonical(missingLabels)
+	missingCanonical, err := contracts.MarshalPrivateCanonical(missingLabels)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodePrivateStrict[AllocationSpec](missingCanonical); err == nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationSpec](missingCanonical); err == nil {
 		t.Fatal("AllocationSpec accepted missing runMetadataLabels")
 	}
 	if !bytes.Contains(canonical, []byte(`"resolvedSkills":[]`)) {
@@ -385,7 +385,7 @@ func TestToolWorkerRejectsNullModelFields(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := DecodePrivateStrict[AllocationSpec](data); err == nil {
+			if _, err := contracts.DecodePrivateStrict[AllocationSpec](data); err == nil {
 				t.Fatal("explicit null accepted as model absence")
 			}
 		})
@@ -400,25 +400,25 @@ func TestPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
 	spec["runtimeSettings"] = contractstest.ReadFixture(t, "valid", "runtime-settings-empty.json")
 	spec["resolvedRuntimeConfigProvenance"] = contractstest.ReadFixture(t, "valid", "runtime-provenance.json")
 	raw, _ := json.Marshal(spec)
-	withoutMetrics, err := DecodePrivateStrict[AllocationSpec](raw)
+	withoutMetrics, err := contracts.DecodePrivateStrict[AllocationSpec](raw)
 	if err != nil || withoutMetrics.PerformanceMetrics != nil {
 		t.Fatalf("allocation without metrics: %v", err)
 	}
-	canonical, err := MarshalPrivateCanonical(withoutMetrics)
+	canonical, err := contracts.MarshalPrivateCanonical(withoutMetrics)
 	if err != nil || bytes.Contains(canonical, []byte("performanceMetrics")) {
 		t.Fatalf("omitted request must remain disabled: %v", err)
 	}
 	spec["performanceMetrics"] = json.RawMessage(`{"version":1,"intervalSeconds":15}`)
 	raw, _ = json.Marshal(spec)
-	current, err := DecodePrivateStrict[AllocationSpec](raw)
+	current, err := contracts.DecodePrivateStrict[AllocationSpec](raw)
 	if err != nil || current.PerformanceMetrics == nil {
 		t.Fatalf("new allocation: %v", err)
 	}
-	canonical, err = MarshalPrivateCanonical(current)
+	canonical, err = contracts.MarshalPrivateCanonical(current)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodePrivateStrict[AllocationSpec](canonical); err != nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationSpec](canonical); err != nil {
 		t.Fatal(err)
 	}
 }

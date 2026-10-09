@@ -81,24 +81,6 @@ func (k RuntimeCredentialKind) Validate() error {
 	}
 }
 
-func validateSortedLabels(field string, values []string, maximum int, allowDefault bool) error {
-	if values == nil || len(values) > maximum {
-		return Invalidf("%s must be a non-null bounded array", field)
-	}
-	previous := ""
-	for _, value := range values {
-		if len(value) == 0 || len(value) > 63 || !ValidIdentifier(value) ||
-			(!allowDefault && value == "default") {
-			return Invalidf("%s contains an invalid label", field)
-		}
-		if value <= previous {
-			return Invalidf("%s must be sorted and unique", field)
-		}
-		previous = value
-	}
-	return nil
-}
-
 // ValidateRuntimeAdapterRefs requires a non-null, bounded, sorted and unique
 // list of known RuntimeAdapter refs.
 func ValidateRuntimeAdapterRefs(values []RuntimeAdapterRef) error {

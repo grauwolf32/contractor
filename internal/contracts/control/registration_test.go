@@ -1,17 +1,18 @@
-package contracts
+package control
 
 import (
 	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) {
 	t.Parallel()
 
-	registration, err := DecodePrivateStrict[AgentRegistration](
+	registration, err := contracts.DecodePrivateStrict[AgentRegistration](
 		contractstest.ReadFixture(t, "valid", "agent-registration.json"),
 	)
 	if err != nil {
@@ -32,7 +33,7 @@ func TestPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) 
 		t.Fatal("startup label seed or observation changed the immutable registration fingerprint")
 	}
 	changedCapability := registration
-	changedCapability.SupportedRuntimeAdapters = []RuntimeAdapterRef{RuntimeAdapterOTLPHTTP}
+	changedCapability.SupportedRuntimeAdapters = []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}
 	third, err := AgentRegistrationFingerprint(changedCapability)
 	if err != nil {
 		t.Fatal(err)
@@ -45,11 +46,11 @@ func TestPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) 
 		t.Fatalf("unexpected Operations projection: %v", projection)
 	}
 	projection[0] = "mutated@1"
-	if registration.SupportedRuntimeAdapters[0] != RuntimeAdapterCaidoGraphQL {
+	if registration.SupportedRuntimeAdapters[0] != contracts.RuntimeAdapterCaidoGraphQL {
 		t.Fatal("Operations projection aliases private registration memory")
 	}
 
-	capabilities, err := DecodePrivateStrict[WorkspaceCapabilities](
+	capabilities, err := contracts.DecodePrivateStrict[contracts.WorkspaceCapabilities](
 		contractstest.ReadFixture(t, "valid", "workspace-capabilities.json"),
 	)
 	if err != nil {
@@ -64,8 +65,8 @@ func TestPrivateRegistrationNormalizationFingerprintAndProjection(t *testing.T) 
 		t.Fatal("workspace capability did not change the immutable registration fingerprint")
 	}
 	normalized := NormalizeAgentRegistration(registration)
-	normalized.WorkspaceCapabilities.Modes[0] = WorkspaceModeOverlay
-	if registration.WorkspaceCapabilities.Modes[0] != WorkspaceModeDirect {
+	normalized.WorkspaceCapabilities.Modes[0] = contracts.WorkspaceModeOverlay
+	if registration.WorkspaceCapabilities.Modes[0] != contracts.WorkspaceModeDirect {
 		t.Fatal("normalized workspace capability aliases registration memory")
 	}
 }
@@ -75,10 +76,10 @@ func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
 	if empty.Capabilities != nil {
 		t.Fatal("omission invented completion capability")
 	}
-	original := AgentRegistration{Capabilities: &RuntimeCompletionCapabilities{CompletionContracts: []string{AuditCheckResultsV1}}}
+	original := AgentRegistration{Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}}
 	cloned := NormalizeAgentRegistration(original)
 	cloned.Capabilities.CompletionContracts[0] = "changed"
-	if original.Capabilities.CompletionContracts[0] != AuditCheckResultsV1 {
+	if original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 {
 		t.Fatal("capability clone aliases mutable source")
 	}
 }
@@ -103,7 +104,7 @@ func TestPerformanceGoldenCapabilities(t *testing.T) {
 			}
 			registration["supportedPerformanceMetricsVersions"] = raw
 			encoded, _ := json.Marshal(registration)
-			value, err := DecodePrivateStrict[AgentRegistration](encoded)
+			value, err := contracts.DecodePrivateStrict[AgentRegistration](encoded)
 			if (err == nil) != valid {
 				t.Fatalf("capability %s validity %v: %v", raw, valid, err)
 			}

@@ -15,6 +15,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -25,9 +26,9 @@ const (
 )
 
 type Registry interface {
-	RegistrationResponse(AuthenticatedPrincipal) contracts.AgentRegistrationResponse
-	RegisterAuthenticated(AuthenticatedPrincipal, contracts.AgentRegistration) (AgentSnapshot, error)
-	HeartbeatAuthenticated(string, contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error)
+	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
+	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
+	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
 	ReserveAll(ReservationRequest) ([]Reservation, error)
 	GetGrant(string) (AllocationGrant, error)
 	GetReservation(string) (Reservation, error)
@@ -54,12 +55,12 @@ type RegistryOptions struct {
 	Now               func() time.Time
 	MonotonicNow      func() time.Duration
 	NewID             func(string) (string, error)
-	AgentOrderKey     func(contracts.AgentRegistration) string
+	AgentOrderKey     func(control.AgentRegistration) string
 }
 
 type AgentSnapshot struct {
 	Principal                 AuthenticatedPrincipal
-	Registration              contracts.AgentRegistration
+	Registration              control.AgentRegistration
 	LastSeenAt                time.Time
 	LastHeartbeatSeq          uint64
 	LastIssuedAckSeq          uint64
@@ -82,7 +83,7 @@ type InMemoryRegistry struct {
 	now                        func() time.Time
 	monotonicNow               func() time.Duration
 	newID                      func(string) (string, error)
-	agentOrderKey              func(contracts.AgentRegistration) string
+	agentOrderKey              func(control.AgentRegistration) string
 	principalDeletions         map[string]struct{}
 	pendingLosses              []AllocationLoss
 	operationsGeneration       string
@@ -95,7 +96,7 @@ type InMemoryRegistry struct {
 type agentEntry struct {
 	principal                 AuthenticatedPrincipal
 	principalMissing          bool
-	registration              contracts.AgentRegistration
+	registration              control.AgentRegistration
 	identity                  string
 	orderKey                  string
 	lastSeenAt                time.Time
@@ -114,7 +115,7 @@ type agentEntry struct {
 	superseded                bool
 	blockedByInstanceID       *string
 	issuedAcks                map[uint64]struct{}
-	heartbeatResponses        map[uint64]contracts.HeartbeatResponse
+	heartbeatResponses        map[uint64]control.HeartbeatResponse
 	heartbeatOrder            []uint64
 }
 
@@ -152,7 +153,7 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		options.NewID = randomid.New
 	}
 	if options.AgentOrderKey == nil {
-		options.AgentOrderKey = func(registration contracts.AgentRegistration) string {
+		options.AgentOrderKey = func(registration control.AgentRegistration) string {
 			return registration.InstanceID
 		}
 	}
@@ -172,8 +173,8 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	}, nil
 }
 
-func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) contracts.AgentRegistrationResponse {
-	return contracts.AgentRegistrationResponse{
+func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) control.AgentRegistrationResponse {
+	return control.AgentRegistrationResponse{
 		APIVersion:               contracts.APIVersion,
 		RuntimeAgentID:           principal.RuntimeAgentID,
 		Labels:                   append([]string{}, principal.Labels...),
@@ -185,7 +186,7 @@ func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal
 
 func (r *InMemoryRegistry) RegisterAuthenticated(
 	principal AuthenticatedPrincipal,
-	registration contracts.AgentRegistration,
+	registration control.AgentRegistration,
 ) (AgentSnapshot, error) {
 	if err := registration.Validate(); err != nil {
 		return AgentSnapshot{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -194,7 +195,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		return AgentSnapshot{}, err
 	}
 	normalized := normalizeRegistration(registration)
-	identity, err := contracts.AgentRegistrationFingerprint(normalized)
+	identity, err := control.AgentRegistrationFingerprint(normalized)
 	if err != nil {
 		return AgentSnapshot{}, fmt.Errorf("encode registration identity: %w", err)
 	}
@@ -247,7 +248,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		principal: clonePrincipal(principal), registration: normalized,
 		identity: identity, orderKey: orderKey, lastSeenAt: now,
 		principalClaimDeadline: monotonicNow + r.confirmedLease,
-		issuedAcks:             make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]contracts.HeartbeatResponse),
+		issuedAcks:             make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]control.HeartbeatResponse),
 	}
 	for instanceID, existing := range r.agents {
 		// Only a restart under the same certificate principal replaces an
@@ -274,22 +275,22 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 
 func (r *InMemoryRegistry) HeartbeatAuthenticated(
 	runtimeAgentID string,
-	heartbeat contracts.AgentHeartbeat,
-) (contracts.HeartbeatResponse, error) {
+	heartbeat control.AgentHeartbeat,
+) (control.HeartbeatResponse, error) {
 	if err := heartbeat.Validate(); err != nil {
-		return contracts.HeartbeatResponse{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		return control.HeartbeatResponse{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
 	now := r.now()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	entry, ok := r.agents[heartbeat.InstanceID]
 	if !ok {
-		return contracts.HeartbeatResponse{
-			APIVersion: contracts.APIVersion, AckSeq: heartbeat.HeartbeatSeq, Action: contracts.ActionReregister,
+		return control.HeartbeatResponse{
+			APIVersion: contracts.APIVersion, AckSeq: heartbeat.HeartbeatSeq, Action: control.ActionReregister,
 		}, nil
 	}
 	if entry.principal.RuntimeAgentID != runtimeAgentID {
-		return contracts.HeartbeatResponse{}, ErrRegistrationConflict
+		return control.HeartbeatResponse{}, ErrRegistrationConflict
 	}
 	r.expireEntry(entry, r.monotonicNow())
 	if heartbeat.HeartbeatSeq <= entry.lastHeartbeatSeq {
@@ -299,7 +300,7 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 			r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 			return cloneHeartbeatResponse(response), nil
 		}
-		return contracts.HeartbeatResponse{}, ErrHeartbeatOutOfOrder
+		return control.HeartbeatResponse{}, ErrHeartbeatOutOfOrder
 	}
 	if !entry.leaseExpired && heartbeat.EchoedAckSeq > entry.lastConfirmedAckSeq {
 		if _, issued := entry.issuedAcks[heartbeat.EchoedAckSeq]; issued {
@@ -327,11 +328,11 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 // callers that do not terminate TLS. The private HTTP API never uses these
 // methods: production always supplies its certificate-derived principal to
 // RegisterAuthenticated/HeartbeatAuthenticated and validates the current private contract.
-func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (AgentSnapshot, error) {
+func (r *InMemoryRegistry) Register(registration control.AgentRegistration) (AgentSnapshot, error) {
 	return r.RegisterAuthenticated(inProcessPrincipal(registration.InstanceID), registration)
 }
 
-func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error) {
+func (r *InMemoryRegistry) Heartbeat(heartbeat control.AgentHeartbeat) (control.HeartbeatResponse, error) {
 	return r.HeartbeatAuthenticated(inProcessPrincipal(heartbeat.InstanceID).RuntimeAgentID, heartbeat)
 }
 
@@ -480,7 +481,7 @@ func (r *InMemoryRegistry) reserveAll(
 		}
 		reservation := Reservation{
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
-			CompletionCapabilities: contracts.NormalizeAgentRegistration(entry.registration).Capabilities,
+			CompletionCapabilities: control.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             binding.AgentTemplate.Clone(),
 			WorkerSessionMode:         binding.WorkerSessionMode,
@@ -933,7 +934,7 @@ func (r *InMemoryRegistry) existingReservations(existing stageReservation) ([]Re
 	return result, nil
 }
 
-func (r *InMemoryRegistry) recordHeartbeat(entry *agentEntry, sequence uint64, response contracts.HeartbeatResponse) {
+func (r *InMemoryRegistry) recordHeartbeat(entry *agentEntry, sequence uint64, response control.HeartbeatResponse) {
 	entry.issuedAcks[sequence] = struct{}{}
 	entry.heartbeatResponses[sequence] = cloneHeartbeatResponse(response)
 	entry.heartbeatOrder = append(entry.heartbeatOrder, sequence)
@@ -946,51 +947,51 @@ func (r *InMemoryRegistry) recordHeartbeat(entry *agentEntry, sequence uint64, r
 	delete(entry.heartbeatResponses, oldest)
 }
 
-func heartbeatAction(entry *agentEntry, sequence uint64) (contracts.HeartbeatResponse, bool) {
-	response := contracts.HeartbeatResponse{APIVersion: contracts.APIVersion, AckSeq: sequence}
+func heartbeatAction(entry *agentEntry, sequence uint64) (control.HeartbeatResponse, bool) {
+	response := control.HeartbeatResponse{APIVersion: contracts.APIVersion, AckSeq: sequence}
 	if entry.leaseExpired && entry.authoritativeAllocationID == nil {
-		response.Action = contracts.ActionReregister
+		response.Action = control.ActionReregister
 		return response, true
 	}
 	if entry.authoritativeAllocationID == nil {
-		if entry.registration.ObservedState == contracts.AgentIdle {
-			response.Action = contracts.ActionContinue
+		if entry.registration.ObservedState == control.AgentIdle {
+			response.Action = control.ActionContinue
 			return response, entry.blockedByInstanceID != nil || entry.superseded
 		}
 		response.AllocationID = clone.Pointer(entry.registration.AllocationID)
-		if entry.registration.ObservedState == contracts.AgentFenced {
-			response.Action = contracts.ActionRelease
+		if entry.registration.ObservedState == control.AgentFenced {
+			response.Action = control.ActionRelease
 		} else {
-			response.Action = contracts.ActionDrain
+			response.Action = control.ActionDrain
 		}
 		return response, true
 	}
 	response.AllocationID = clone.Pointer(entry.authoritativeAllocationID)
 	if entry.leaseExpired || entry.superseded {
-		response.Action = contracts.ActionDrain
+		response.Action = control.ActionDrain
 		return response, true
 	}
-	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+	if !entry.allocationActivated && entry.registration.ObservedState == control.AgentIdle &&
 		entry.registration.AllocationID == nil {
 		// Reservation authority precedes the private prepare call. The Runtime
 		// may legitimately report idle during that bounded transition.
-		response.Action = contracts.ActionContinue
+		response.Action = control.ActionContinue
 		return response, false
 	}
-	if entry.registration.ObservedState == contracts.AgentAllocated && entry.registration.AllocationID != nil &&
+	if entry.registration.ObservedState == control.AgentAllocated && entry.registration.AllocationID != nil &&
 		*entry.registration.AllocationID == *entry.authoritativeAllocationID {
 		// A grant marked lost never becomes live again, even if a delayed
 		// heartbeat happens to match its old identity.
 		// heartbeatAction has no Registry pointer, so WriteFenced/lost paths are
 		// represented by reconciliationRequired set by detectObservedLoss.
 		if entry.reconciliationRequired {
-			response.Action = contracts.ActionDrain
+			response.Action = control.ActionDrain
 			return response, true
 		}
-		response.Action = contracts.ActionContinue
+		response.Action = control.ActionContinue
 		return response, false
 	}
-	response.Action = contracts.ActionDrain
+	response.Action = control.ActionDrain
 	return response, true
 }
 
@@ -999,13 +1000,13 @@ func registrationNeedsReconciliation(entry *agentEntry) bool {
 		return true
 	}
 	if entry.authoritativeAllocationID == nil {
-		return entry.registration.ObservedState != contracts.AgentIdle
+		return entry.registration.ObservedState != control.AgentIdle
 	}
-	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+	if !entry.allocationActivated && entry.registration.ObservedState == control.AgentIdle &&
 		entry.registration.AllocationID == nil {
 		return false
 	}
-	return entry.registration.ObservedState != contracts.AgentAllocated || entry.registration.AllocationID == nil ||
+	return entry.registration.ObservedState != control.AgentAllocated || entry.registration.AllocationID == nil ||
 		*entry.registration.AllocationID != *entry.authoritativeAllocationID
 }
 
@@ -1068,18 +1069,18 @@ func (r *InMemoryRegistry) retireInactiveAgentLocked(instanceID string) bool {
 func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 	return entry.authoritativeAllocationID == nil && !entry.reconciliationRequired &&
 		!entry.leaseExpired && !entry.superseded && !entry.principalMissing && entry.blockedByInstanceID == nil &&
-		entry.registration.ObservedState == contracts.AgentIdle &&
+		entry.registration.ObservedState == control.AgentIdle &&
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
-func isBindingCompatible(registration contracts.AgentRegistration, binding BindingRequirement) bool {
+func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
 	return contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
 		isCompatible(registration, binding.AgentTemplate, binding.Workspace)
 }
 
 func isCompatible(
-	registration contracts.AgentRegistration,
+	registration control.AgentRegistration,
 	template contracts.ResolvedAgentTemplate,
 	workspace *contracts.AllocationWorkspaceSpec,
 ) bool {
@@ -1227,8 +1228,8 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	return contentdigest.Bytes(encoded), bindings, nil
 }
 
-func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
-	return contracts.NormalizeAgentRegistration(source)
+func normalizeRegistration(source control.AgentRegistration) control.AgentRegistration {
+	return control.NormalizeAgentRegistration(source)
 }
 
 func snapshotAgent(entry *agentEntry) AgentSnapshot {
@@ -1294,18 +1295,18 @@ func (r *InMemoryRegistry) detectObservedLoss(entry *agentEntry, reason Allocati
 	}
 	matching := entry.registration.AllocationID != nil &&
 		*entry.registration.AllocationID == allocationID
-	if matching && entry.registration.ObservedState == contracts.AgentAllocated {
+	if matching && entry.registration.ObservedState == control.AgentAllocated {
 		entry.allocationActivated = true
 		return
 	}
-	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle &&
+	if !entry.allocationActivated && entry.registration.ObservedState == control.AgentIdle &&
 		entry.registration.AllocationID == nil {
 		return
 	}
-	valid := matching && entry.registration.ObservedState == contracts.AgentAllocated
+	valid := matching && entry.registration.ObservedState == control.AgentAllocated
 	if matching && stored.reservation.Grant.WriteFenced &&
-		(entry.registration.ObservedState == contracts.AgentDraining ||
-			entry.registration.ObservedState == contracts.AgentFenced) {
+		(entry.registration.ObservedState == control.AgentDraining ||
+			entry.registration.ObservedState == control.AgentFenced) {
 		valid = true
 	}
 	if !valid {
@@ -1319,7 +1320,7 @@ func (r *InMemoryRegistry) resetExpiredLease(entry *agentEntry) {
 	entry.confirmedLeaseExpiresAt = time.Time{}
 	entry.lastConfirmedAckSeq = 0
 	entry.issuedAcks = make(map[uint64]struct{})
-	entry.heartbeatResponses = make(map[uint64]contracts.HeartbeatResponse)
+	entry.heartbeatResponses = make(map[uint64]control.HeartbeatResponse)
 	entry.heartbeatOrder = nil
 }
 
@@ -1447,7 +1448,7 @@ func (r *InMemoryRegistry) PrincipalRuntimeObservation(
 	return &result, true
 }
 
-func sameRuntimeEndpoint(left, right contracts.AgentRegistration) bool {
+func sameRuntimeEndpoint(left, right control.AgentRegistration) bool {
 	return left.ControlURL == right.ControlURL || left.A2AURL == right.A2AURL
 }
 
@@ -1459,7 +1460,7 @@ func inProcessPrincipal(instanceID string) AuthenticatedPrincipal {
 }
 
 func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
-	probe := contracts.AgentRegistrationResponse{
+	probe := control.AgentRegistrationResponse{
 		APIVersion: contracts.APIVersion, RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels,
 		LabelRevision: principal.LabelRevision, HeartbeatIntervalSeconds: 1, ConfirmedLeaseSeconds: 2,
 	}

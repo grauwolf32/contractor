@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(t *testing.T) {
@@ -29,7 +30,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	reserved := registry.SnapshotOperations()
 	if len(reserved.RuntimeAgents) != 1 || len(reserved.Allocations) != 1 ||
 		reserved.RuntimeAgents[0].SlotState != SlotReserved ||
-		reserved.RuntimeAgents[0].ObservedState != contracts.AgentIdle ||
+		reserved.RuntimeAgents[0].ObservedState != control.AgentIdle ||
 		reserved.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
 		*reserved.RuntimeAgents[0].AuthoritativeAllocationID != allocationID ||
 		reserved.RuntimeAgents[0].CurrentAllocationID != nil ||
@@ -46,9 +47,9 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationActive, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
-		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: contracts.AgentAllocated,
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentAllocated,
 		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
@@ -67,9 +68,9 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationAborting, &reason); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
-		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: contracts.AgentFenced,
+		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: control.AgentFenced,
 		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
@@ -77,7 +78,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	fenced := registry.SnapshotOperations()
 	agent := fenced.RuntimeAgents[0]
 	allocation := fenced.Allocations[0]
-	if agent.ObservedState != contracts.AgentFenced || agent.SlotState != SlotFenced ||
+	if agent.ObservedState != control.AgentFenced || agent.SlotState != SlotFenced ||
 		agent.CurrentAllocationID == nil || *agent.CurrentAllocationID != allocationID ||
 		agent.AuthoritativeAllocationID == nil || *agent.AuthoritativeAllocationID != allocationID ||
 		agent.ReconciliationReason == nil ||
@@ -95,7 +96,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 func TestOperationsSnapshotReflectsCompleteHeterogeneousAssignment(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	specialist := testRegistration("agent-a-specialist-operations")
-	specialist.SupportedToolsets = append(specialist.SupportedToolsets, contracts.ToolsetCapability{
+	specialist.SupportedToolsets = append(specialist.SupportedToolsets, control.ToolsetCapability{
 		Ref: "likec4@1", Tools: []string{"validate_likec4"},
 	})
 	registerReadyWith(t, registry, specialist)
@@ -249,7 +250,7 @@ func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
 	capable.SupportedToolsets[0].Tools = []string{"write_artifact", "read_artifact"}
 	registerReadyWith(t, registry, capable)
 	minimal := testRegistration("agent-a")
-	minimal.SupportedToolsets = []contracts.ToolsetCapability{}
+	minimal.SupportedToolsets = []control.ToolsetCapability{}
 	registerReadyWith(t, registry, minimal)
 	first := registry.SnapshotOperations()
 	second := registry.SnapshotOperations()
@@ -291,7 +292,7 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 				},
 			},
-			ObservedState: contracts.AgentIdle, SlotState: SlotIdle,
+			ObservedState: control.AgentIdle, SlotState: SlotIdle,
 		}
 	}
 	tests := []struct {

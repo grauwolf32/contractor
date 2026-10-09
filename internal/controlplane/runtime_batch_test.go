@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
@@ -210,18 +211,18 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	}
 	releaseDeletion()
 
-	registration.ObservedState = contracts.AgentFenced
+	registration.ObservedState = control.AgentFenced
 	registration.AllocationID = &allocationID
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatalf("returning fenced Runtime registration = %v", err)
 	}
-	fenced := contracts.AgentHeartbeat{
+	fenced := control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
-		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: contracts.AgentFenced,
+		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: control.AgentFenced,
 		AllocationID: &allocationID,
 	}
 	response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, fenced)
-	if err != nil || response.Action != contracts.ActionRelease {
+	if err != nil || response.Action != control.ActionRelease {
 		t.Fatalf("returning fenced Runtime heartbeat = (%+v, %v)", response, err)
 	}
 	request := ReservationRequest{
@@ -233,7 +234,7 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	}
 	idle := heartbeat(registration.InstanceID, 2, 1)
 	if response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, idle); err != nil ||
-		response.Action != contracts.ActionContinue {
+		response.Action != control.ActionContinue {
 		t.Fatalf("idle lease confirmation = (%+v, %v)", response, err)
 	}
 	if next, err := registry.ReserveAll(request); err != nil || len(next) != 1 {

@@ -32,29 +32,6 @@ func (t *ResolvedAgentTemplate) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *AllocationSpec) UnmarshalJSON(data []byte) error {
-	type wire AllocationSpec
-	var value wire
-	fields, err := DecodeStrictObject(data, &value)
-	if err != nil {
-		return err
-	}
-	if value.AgentTemplate.IsToolWorker() {
-		if fields["modelPolicy"] != nil || fields["completionContract"] != nil {
-			return Invalidf("tool@1 forbids modelPolicy and completionContract")
-		}
-		var settings map[string]json.RawMessage
-		if err := json.Unmarshal(fields["runtimeSettings"], &settings); err != nil {
-			return err
-		}
-		if settings["llmGatewayUrl"] != nil {
-			return Invalidf("tool@1 forbids llmGatewayUrl")
-		}
-	}
-	*s = AllocationSpec(value)
-	return nil
-}
-
 type ToolArgumentBinding struct {
 	Source string `json:"source" yaml:"source"`
 	Name   string `json:"name,omitempty" yaml:"name,omitempty"`

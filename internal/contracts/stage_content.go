@@ -112,3 +112,16 @@ func (r StageContentResult) Validate() error {
 	}
 	return nil
 }
+
+type TerminationError struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+}
+
+func (e TerminationError) Validate() error {
+	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
+		return Invalidf("termination error code/message must not be empty")
+	}
+	return nil
+}

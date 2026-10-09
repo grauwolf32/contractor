@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
@@ -95,7 +96,7 @@ func (c *RuntimeControlClient) Prepare(
 	if resolvedSkills == nil && len(reservation.AgentTemplate.Skills) == 0 {
 		resolvedSkills = []contracts.ResolvedSkill{}
 	}
-	spec := contracts.AllocationSpec{
+	spec := control.AllocationSpec{
 		CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
 		APIVersion:         contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
@@ -109,11 +110,11 @@ func (c *RuntimeControlClient) Prepare(
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
-	request := contracts.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
+	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
-	var response contracts.PrepareAllocationResponse
+	var response control.PrepareAllocationResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "prepare", request, &response, true,
@@ -133,7 +134,7 @@ func (c *RuntimeControlClient) Finalize(
 	finalizationID string,
 	deadline time.Time,
 ) (contracts.AllocationFinalReport, error) {
-	request := contracts.FinalizeAllocationRequest{
+	request := control.FinalizeAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		FinalizationID: finalizationID, Deadline: deadline,
 	}
@@ -165,7 +166,7 @@ func (c *RuntimeControlClient) Abort(
 	reason contracts.TerminationError,
 	deadline time.Time,
 ) (contracts.AllocationFinalReport, error) {
-	request := contracts.AbortAllocationRequest{
+	request := control.AbortAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		AbortID: abortID, Reason: reason, Deadline: deadline,
 	}
@@ -191,7 +192,7 @@ func (c *RuntimeControlClient) Abort(
 }
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
-	request := contracts.ReleaseAllocationRequest{
+	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 	}
 	if err := request.Validate(); err != nil {

@@ -475,3 +475,15 @@ func (r RuntimeReport) Validate() error {
 	}
 	return nil
 }
+
+type AllocationFinalResponse struct {
+	APIVersion string                `json:"apiVersion"`
+	Report     AllocationFinalReport `json:"report"`
+}
+
+func (r AllocationFinalResponse) Validate() error {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	return r.Report.Validate()
+}

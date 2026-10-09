@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 // fixtureIndexEntry mirrors api/testdata/v1alpha1/index.json, which Go and
@@ -42,19 +43,19 @@ func codecFor[T contracts.Validatable]() fixtureCodec {
 }
 
 var fixtureCodecs = map[string]fixtureCodec{
-	"AbortAllocationRequest":          codecFor[contracts.AbortAllocationRequest](),
-	"AgentHeartbeat":                  codecFor[contracts.AgentHeartbeat](),
-	"AgentRegistration":               codecFor[contracts.AgentRegistration](),
-	"AgentRegistrationResponse":       codecFor[contracts.AgentRegistrationResponse](),
+	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
+	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
+	"AgentRegistration":               codecFor[control.AgentRegistration](),
+	"AgentRegistrationResponse":       codecFor[control.AgentRegistrationResponse](),
 	"AgentStateSnapshot":              codecFor[contracts.AgentStateSnapshot](),
 	"AllocationFinalResponse":         codecFor[contracts.AllocationFinalResponse](),
-	"AllocationSpec":                  codecFor[contracts.AllocationSpec](),
+	"AllocationSpec":                  codecFor[control.AllocationSpec](),
 	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
 	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
 	"ArtifactReadResult":              codecFor[contracts.ArtifactReadResult](),
-	"FinalizeAllocationRequest":       codecFor[contracts.FinalizeAllocationRequest](),
-	"HeartbeatResponse":               codecFor[contracts.HeartbeatResponse](),
-	"ReleaseAllocationRequest":        codecFor[contracts.ReleaseAllocationRequest](),
+	"FinalizeAllocationRequest":       codecFor[control.FinalizeAllocationRequest](),
+	"HeartbeatResponse":               codecFor[control.HeartbeatResponse](),
+	"ReleaseAllocationRequest":        codecFor[control.ReleaseAllocationRequest](),
 	"ResolvedLLMGatewayConfig":        codecFor[contracts.ResolvedLLMGatewayConfig](),
 	"ResolvedRuntimeConfigProvenance": codecFor[contracts.ResolvedRuntimeConfigProvenance](),
 	"RuntimeReport":                   codecFor[contracts.RuntimeReport](),

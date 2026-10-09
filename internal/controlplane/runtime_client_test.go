@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
@@ -127,7 +128,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	effectivePolicy.MaxModelCalls++
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
-	var received contracts.PrepareAllocationRequest
+	var received control.PrepareAllocationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
@@ -140,7 +141,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		if err := decoder.Decode(&received); err != nil {
 			t.Errorf("decode prepare request: %v", err)
 		}
-		response := contracts.PrepareAllocationResponse{
+		response := control.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
@@ -228,7 +229,7 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	settings := testRuntimeSettings()
 	lease := wireTime(time.Now().Add(time.Minute).UTC())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		response := contracts.PrepareAllocationResponse{
+		response := control.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,

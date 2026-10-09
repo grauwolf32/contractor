@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
@@ -34,9 +35,9 @@ func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
 			case "capabilities":
 				err = privateReject[contracts.RuntimeCompletionCapabilities](c.Value)
 			case "allocation":
-				err = privateReject[contracts.AllocationSpec](c.Value)
+				err = privateReject[control.AllocationSpec](c.Value)
 			case "registration":
-				err = privateReject[contracts.AgentRegistration](c.Value)
+				err = privateReject[control.AgentRegistration](c.Value)
 			default:
 				t.Fatalf("unknown fixture model %q", c.Model)
 			}
