@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 func extractionJSON(t *testing.T, input string) any {
@@ -169,16 +170,16 @@ func TestConcreteValueAmplificationIsBoundedBeforeEncoding(t *testing.T) {
 	}
 	p = &preparer{}
 	object := map[string]any{"examples": map[string]any{
-		"a": map[string]any{"value": strings.Repeat("a", contracts.MaxHTTPRequestBodyBytes+1)},
+		"a": map[string]any{"value": strings.Repeat("a", scan.MaxHTTPRequestBodyBytes+1)},
 		"b": map[string]any{"value": "small"},
 	}}
 	if value, found, code := p.example(object, nil); !found || code != "" || value != "small" {
 		t.Fatalf("oversized named example did not fall through: value=%v found=%v code=%q", value, found, code)
 	}
-	if !concreteValueFits(strings.Repeat("a", contracts.MaxHTTPRequestBodyBytes)) {
+	if !concreteValueFits(strings.Repeat("a", scan.MaxHTTPRequestBodyBytes)) {
 		t.Fatal("exact plain-text byte bound rejected")
 	}
-	if concreteValueFits(map[string]any{"x": strings.Repeat("\x00", contracts.MaxHTTPRequestBodyBytes/6)}) {
+	if concreteValueFits(map[string]any{"x": strings.Repeat("\x00", scan.MaxHTTPRequestBodyBytes/6)}) {
 		t.Fatal("escaped JSON bytes were not bounded")
 	}
 	cyclic := map[string]any{}

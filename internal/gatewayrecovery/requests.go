@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -59,12 +59,12 @@ WHERE allocation_id=$1 AND model=$2`, allocationID, request.Model).Scan(&runID, 
 type Participant struct {
 	service                          *Service
 	runID, participantID, key, model string
-	signatures                       contracts.GatewayFailureSignatures
+	signatures                       llmgateway.GatewayFailureSignatures
 }
 
 // Planner binds a planner invocation to its route; signatures are the selected
 // Gateway's effective failure signatures, applied to every response it reads.
-func (s *Service) Planner(runID, stageID string, route Route, signatures contracts.GatewayFailureSignatures) *Participant {
+func (s *Service) Planner(runID, stageID string, route Route, signatures llmgateway.GatewayFailureSignatures) *Participant {
 	return &Participant{s, runID, "planner:" + stageID, route.Key(), route.Model, signatures}
 }
 func (p *Participant) Update(ctx context.Context, request Request) (Decision, error) {

@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -44,7 +47,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		staticSecret     = "static-report-secret"
 	)
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		return contracts.NewSecretString(llmSecret), nil
 	})
@@ -91,16 +94,16 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	}
 	resolved.HTTPProxy = &runtimeconfig.HTTPProxyConfig{
 		Adapter: string(contracts.RuntimeAdapterHTTPProxy), ProxyURL: "https://proxy.example",
-		Credential: "proxy", Targets: []string{string(contracts.ProxyTargetToolHTTP)},
+		Credential: "proxy", Targets: []string{string(runtimesettings.ProxyTargetToolHTTP)},
 	}
 	resolved.Caido = &runtimeconfig.CaidoConfig{
 		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/api",
 		Credential: "caido", RequestTimeoutSeconds: 5,
 	}
 	run := harness.store.run
-	run.ProjectHTTPTarget = &contracts.HTTPOriginTargetRef{
+	run.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://target.example/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "origin", Kind: contracts.RuntimeCredentialOriginBasic,
 		},
 	}
@@ -108,7 +111,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := map[string]contracts.WorkerExecutionSettings{
+	settings := map[string]runtimesettings.WorkerExecutionSettings{
 		"builder": {RuntimeSettings: prepared},
 	}
 	clearWorkerExecutionSettings(settings)
@@ -128,12 +131,12 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		llmSecret, otlpSecret, proxySecret, caidoSecret, originUserSecret, originPassSecret, staticSecret,
 	}
 	for index, secret := range secretValues {
-		report.Worker.ToolCalls = append(report.Worker.ToolCalls, contracts.ToolCallRecord{
+		report.Worker.ToolCalls = append(report.Worker.ToolCalls, reporting.ToolCallRecord{
 			CallID: "secret-call-" + strconv.Itoa(index), Tool: "probe",
 			Arguments: map[string]any{"detail": "before " + secret + " after"},
-			Outcome:   contracts.ToolCallSucceeded,
+			Outcome:   reporting.ToolCallSucceeded,
 		})
-		report.Worker.Errors = append(report.Worker.Errors, contracts.ExecutionError{
+		report.Worker.Errors = append(report.Worker.Errors, reporting.ExecutionError{
 			Code: "provider_error", Message: "before " + secret + " after",
 		})
 	}
@@ -147,7 +150,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		t.Fatal(err)
 	}
 	other.persistReports(t.Context(), run, executableWorkflow{stage: stage}, execution, reservations,
-		map[string]contracts.AllocationFinalReport{"builder": report})
+		map[string]reporting.AllocationFinalReport{"builder": report})
 	if len(harness.store.reports) != 1 {
 		t.Fatalf("persisted report count = %d", len(harness.store.reports))
 	}
@@ -179,7 +182,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 		StageExecutionID: "stage-unresolved-report", LogicalAgentName: "builder",
 	}}
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		ctx context.Context, _ contracts.LLMCredentialRef, _ contracts.LLMGatewayConfigRef,
+		ctx context.Context, _ llmgateway.LLMCredentialRef, _ llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		<-ctx.Done()
 		return contracts.SecretString{}, ctx.Err()
@@ -195,7 +198,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 	}
 	other.persistReports(t.Context(), harness.store.run,
 		executableWorkflow{stage: harness.workflow.Stages[harness.workflow.EntryStage]},
-		execution, reservations, map[string]contracts.AllocationFinalReport{
+		execution, reservations, map[string]reporting.AllocationFinalReport{
 			"builder": schedulerTestAllocationReport(reservations[0].Grant.AllocationID, harness.clock.now),
 		})
 	if len(harness.store.reports) != 1 {

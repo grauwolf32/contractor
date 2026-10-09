@@ -3,19 +3,19 @@ package runstore
 import (
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
 const (
-	MaxRunMetadataLabels     = contracts.MaxRunMetadataLabels
-	MaxRunMetadataLabelKey   = contracts.MaxRunMetadataLabelKey
-	MaxRunMetadataLabelValue = contracts.MaxRunMetadataLabelValue
+	MaxRunMetadataLabels     = runlabels.MaxRunMetadataLabels
+	MaxRunMetadataLabelKey   = runlabels.MaxRunMetadataLabelKey
+	MaxRunMetadataLabelValue = runlabels.MaxRunMetadataLabelValue
 )
 
 // RunMetadataLabels is immutable descriptive metadata attached to one
 // WorkflowRun. Callers must clone it at repository boundaries because Go maps
 // themselves are mutable reference values.
-type RunMetadataLabels = contracts.RunMetadataLabels
+type RunMetadataLabels = runlabels.RunMetadataLabels
 
 type RunMetadataLabelSelector struct {
 	Key   string
@@ -25,7 +25,7 @@ type RunMetadataLabelSelector struct {
 // NormalizeRunMetadataLabels validates and clones a caller-owned map. Nil and
 // an empty map have the same canonical non-nil representation.
 func NormalizeRunMetadataLabels(source map[string]string) (RunMetadataLabels, error) {
-	result, err := contracts.NormalizeRunMetadataLabels(source)
+	result, err := runlabels.NormalizeRunMetadataLabels(source)
 	if err != nil {
 		return nil, invalidf("Run metadata labels are invalid: %v", err)
 	}
@@ -63,7 +63,7 @@ func NormalizeRunMetadataLabelSelectors(
 }
 
 func validateRunMetadataLabel(key, value string) error {
-	if err := contracts.ValidateRunMetadataLabel(key, value); err != nil {
+	if err := runlabels.ValidateRunMetadataLabel(key, value); err != nil {
 		return invalidf("Run metadata label is invalid: %v", err)
 	}
 	return nil

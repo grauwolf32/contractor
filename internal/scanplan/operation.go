@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 var variablePattern = regexp.MustCompile(`\{([^{}]+)\}`)
 
-func (p *preparer) prepareOperation(path, method string, item, op map[string]any, pointer string, urlOnly bool) (contracts.PreparedHTTPRequest, string) {
-	empty := contracts.PreparedHTTPRequest{}
+func (p *preparer) prepareOperation(path, method string, item, op map[string]any, pointer string, urlOnly bool) (scan.PreparedHTTPRequest, string) {
+	empty := scan.PreparedHTTPRequest{}
 	server, code := p.server(item, op)
 	if code != "" {
 		return empty, code
@@ -138,16 +139,16 @@ func (p *preparer) prepareOperation(path, method string, item, op map[string]any
 	return preparedRequestURL(server, path, query, method, headers, body)
 }
 
-func preparedRequestURL(server, path string, query url.Values, method string, headers map[string]string, body string) (contracts.PreparedHTTPRequest, string) {
-	request := contracts.PreparedHTTPRequest{Method: method, URL: strings.TrimSuffix(server, "/") + path, Headers: []contracts.HTTPRequestHeader{}, Body: body}
+func preparedRequestURL(server, path string, query url.Values, method string, headers map[string]string, body string) (scan.PreparedHTTPRequest, string) {
+	request := scan.PreparedHTTPRequest{Method: method, URL: strings.TrimSuffix(server, "/") + path, Headers: []scan.HTTPRequestHeader{}, Body: body}
 	if len(query) > 0 {
 		request.URL += "?" + strings.ReplaceAll(query.Encode(), "+", "%20")
 	}
 	for _, name := range slices.Sorted(maps.Keys(headers)) {
-		request.Headers = append(request.Headers, contracts.HTTPRequestHeader{Name: name, Value: headers[name]})
+		request.Headers = append(request.Headers, scan.HTTPRequestHeader{Name: name, Value: headers[name]})
 	}
 	if request.Validate() != nil {
-		return contracts.PreparedHTTPRequest{}, "invalid_prepared_request"
+		return scan.PreparedHTTPRequest{}, "invalid_prepared_request"
 	}
 	return request, ""
 }
@@ -199,7 +200,7 @@ func (p *preparer) server(item, op map[string]any) (string, string) {
 	if strings.ContainsAny(server, "{}?#") {
 		return "", "invalid_server"
 	}
-	check := contracts.PreparedHTTPRequest{Method: "GET", URL: server, Headers: []contracts.HTTPRequestHeader{}, Body: ""}
+	check := scan.PreparedHTTPRequest{Method: "GET", URL: server, Headers: []scan.HTTPRequestHeader{}, Body: ""}
 	if check.Validate() != nil {
 		return "", "invalid_server"
 	}
@@ -294,7 +295,7 @@ func (p *preparer) parameterValue(param map[string]any, value any, supplied bool
 		return "", false, "invalid_cookie_parameter"
 	}
 	if param["in"] == "header" {
-		check := contracts.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []contracts.HTTPRequestHeader{{Name: strings.ToLower(name), Value: text}}}
+		check := scan.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []scan.HTTPRequestHeader{{Name: strings.ToLower(name), Value: text}}}
 		if check.Validate() != nil {
 			return "", false, "invalid_header_parameter"
 		}
@@ -376,7 +377,7 @@ func (p *preparer) body(op map[string]any, input *BodyInput, pointer string) (st
 func serializeBody(value any, mediaType string) (string, string, string) {
 	if mediaType == "text/plain" {
 		text, ok := value.(string)
-		if !ok || len(text) > contracts.MaxHTTPRequestBodyBytes {
+		if !ok || len(text) > scan.MaxHTTPRequestBodyBytes {
 			return "", "", "invalid_body_value"
 		}
 		return text, mediaType, ""
@@ -385,7 +386,7 @@ func serializeBody(value any, mediaType string) (string, string, string) {
 		return "", "", "unsupported_body_media_type"
 	}
 	encoded, err := contracts.MarshalPrivateCanonical(value)
-	if err != nil || len(encoded) > contracts.MaxHTTPRequestBodyBytes {
+	if err != nil || len(encoded) > scan.MaxHTTPRequestBodyBytes {
 		return "", "", "invalid_body_value"
 	}
 	return string(encoded), mediaType, ""

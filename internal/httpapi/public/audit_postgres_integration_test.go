@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -32,7 +33,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	}
 	managedCredentials := newFakeManagedCredentials()
 	managedCredentials.lookups["development-worker"] = config.CredentialMetadata{
-		Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
+		Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 		LLMGateway: gateway.Ref, Unrestricted: true,
 	}
 	audits, err := auditservice.New(auditservice.Options{

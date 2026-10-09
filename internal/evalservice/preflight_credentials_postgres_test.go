@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -151,7 +151,7 @@ func TestPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T) {
 					if test.mismatch {
 						id = "wrong-identity"
 					}
-					return config.CredentialMetadata{Ref: contracts.LLMCredentialRef{CredentialID: id}}, failure
+					return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}}, failure
 				}), nil
 			})
 			e := h.create(t, "audit")

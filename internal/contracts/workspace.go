@@ -22,7 +22,7 @@ func (m WorkspaceMode) Validate() error {
 	case WorkspaceModeDirect, WorkspaceModeOverlay:
 		return nil
 	default:
-		return invalidf("workspace mode is invalid")
+		return Invalidf("workspace mode is invalid")
 	}
 }
 
@@ -38,7 +38,7 @@ func (s WorkspaceStorage) Validate() error {
 	case WorkspaceStorageLocal, WorkspaceStorageMemory:
 		return nil
 	default:
-		return invalidf("workspace storage is invalid")
+		return Invalidf("workspace storage is invalid")
 	}
 }
 
@@ -52,7 +52,7 @@ type WorkspaceLimits struct {
 func (l WorkspaceLimits) Validate() error {
 	if l.MaxFiles <= 0 || l.MaxExpandedBytes <= 0 || l.MaxManagedTextBytes <= 0 || l.MaxFileBytes <= 0 ||
 		l.MaxFileBytes > l.MaxExpandedBytes || l.MaxManagedTextBytes > l.MaxExpandedBytes {
-		return invalidf("workspace limits are invalid")
+		return Invalidf("workspace limits are invalid")
 	}
 	return nil
 }
@@ -68,7 +68,7 @@ func (c WorkspaceCapabilities) Validate() error {
 		return err
 	}
 	if len(c.Modes) == 0 || len(c.Modes) > 2 {
-		return invalidf("workspace capability modes must be a non-empty bounded array")
+		return Invalidf("workspace capability modes must be a non-empty bounded array")
 	}
 	previous := ""
 	for _, mode := range c.Modes {
@@ -76,7 +76,7 @@ func (c WorkspaceCapabilities) Validate() error {
 			return err
 		}
 		if string(mode) <= previous {
-			return invalidf("workspace capability modes must be sorted and unique")
+			return Invalidf("workspace capability modes must be sorted and unique")
 		}
 		previous = string(mode)
 	}
@@ -133,7 +133,7 @@ func (s AllocationWorkspaceSpec) Validate() error {
 		return err
 	}
 	if len(s.Sources) == 0 || len(s.Sources) > 32 {
-		return invalidf("workspace sources must be a non-empty bounded array")
+		return Invalidf("workspace sources must be a non-empty bounded array")
 	}
 	targets := make([]string, 0, len(s.Sources))
 	for _, source := range s.Sources {
@@ -151,7 +151,7 @@ func (s AllocationWorkspaceSpec) Validate() error {
 				continue
 			}
 			if target == other || target == "" || strings.HasPrefix(other, target+"/") {
-				return invalidf("workspace source targets must be unique and non-overlapping")
+				return Invalidf("workspace source targets must be unique and non-overlapping")
 			}
 		}
 	}
@@ -162,8 +162,8 @@ func (s AllocationWorkspaceSpec) Validate() error {
 	}
 	if s.Export != nil {
 		if s.Mode != WorkspaceModeOverlay || s.Export.State == s.Export.Diff ||
-			!idPattern.MatchString(s.Export.State) || !idPattern.MatchString(s.Export.Diff) {
-			return invalidf("workspace export slots are invalid")
+			!ValidIdentifier(s.Export.State) || !ValidIdentifier(s.Export.Diff) {
+			return Invalidf("workspace export slots are invalid")
 		}
 	}
 	return nil
@@ -175,25 +175,25 @@ func validateWorkspaceTarget(value string) error {
 	}
 	if value != norm.NFC.String(value) || len([]byte(value)) > 1024 || strings.HasPrefix(value, "/") ||
 		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return invalidf("workspace target is invalid")
+		return Invalidf("workspace target is invalid")
 	}
 	parts := strings.Split(value, "/")
 	if len(parts) > 32 {
-		return invalidf("workspace target is invalid")
+		return Invalidf("workspace target is invalid")
 	}
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." || strings.ContainsAny(part, "\r\n\t") {
-			return invalidf("workspace target is invalid")
+			return Invalidf("workspace target is invalid")
 		}
 		for _, character := range part {
 			if character < 0x20 || character == 0x7f {
-				return invalidf("workspace target is invalid")
+				return Invalidf("workspace target is invalid")
 			}
 		}
 	}
 	first := parts[0]
 	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') || (first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
-		return invalidf("workspace target is invalid")
+		return Invalidf("workspace target is invalid")
 	}
 	return nil
 }

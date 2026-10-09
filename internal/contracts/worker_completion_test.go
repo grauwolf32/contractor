@@ -10,12 +10,12 @@ func TestWorkerSubtaskIDContract(t *testing.T) {
 	t.Parallel()
 
 	for _, value := range []string{"0", "1.1", "review:2_retry-1", strings.Repeat("a", 128)} {
-		if err := validateWorkerSubtaskID(value); err != nil {
+		if err := ValidateWorkerSubtaskID(value); err != nil {
 			t.Errorf("valid subtask ID %q rejected: %v", value, err)
 		}
 	}
 	for _, value := range []string{"", ".1", "with space", "сложная", strings.Repeat("a", 129)} {
-		if err := validateWorkerSubtaskID(value); err == nil {
+		if err := ValidateWorkerSubtaskID(value); err == nil {
 			t.Errorf("invalid subtask ID %q accepted", value)
 		}
 	}

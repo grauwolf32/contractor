@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -89,13 +91,13 @@ func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
 }
 
 type createRunResponse struct {
-	RunID                string                         `json:"runId"`
-	ProjectID            *string                        `json:"projectId,omitempty"`
-	State                runstore.WorkflowRunState      `json:"state"`
-	RuntimeLabels        []string                       `json:"runtimeLabels"`
-	Labels               runstore.RunMetadataLabels     `json:"labels"`
-	RuntimeConfiguration runRuntimeConfigResponse       `json:"runtimeConfiguration"`
-	ProjectHTTPTarget    *contracts.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	RunID                string                               `json:"runId"`
+	ProjectID            *string                              `json:"projectId,omitempty"`
+	State                runstore.WorkflowRunState            `json:"state"`
+	RuntimeLabels        []string                             `json:"runtimeLabels"`
+	Labels               runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
 }
 
 type createProjectRequest struct {
@@ -131,8 +133,8 @@ type updateProjectRequest struct {
 }
 
 type projectHTTPTargetRequest struct {
-	URL        string                          `json:"url"`
-	Credential *contracts.RuntimeCredentialRef `json:"credential,omitempty"`
+	URL        string                                `json:"url"`
+	Credential *runtimesettings.RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
 func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
@@ -161,7 +163,7 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 			if targetFields.missingOrNull("url") {
 				return errors.New("httpTarget.url is required")
 			}
-			candidate := contracts.HTTPOriginTargetRef{URL: target.URL, Credential: target.Credential}
+			candidate := runtimesettings.HTTPOriginTargetRef{URL: target.URL, Credential: target.Credential}
 			if err := candidate.Validate(); err != nil {
 				return err
 			}
@@ -173,16 +175,16 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 }
 
 type projectResponse struct {
-	ProjectID   string                         `json:"projectId"`
-	Kind        projectstore.Kind              `json:"kind"`
-	Name        string                         `json:"name"`
-	Description string                         `json:"description"`
-	HTTPTarget  *contracts.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
-	Lifecycle   projectstore.Lifecycle         `json:"lifecycle"`
-	Deletion    *projectDeletionResponse       `json:"deletion,omitempty"`
-	Revision    string                         `json:"revision"`
-	CreatedAt   time.Time                      `json:"createdAt"`
-	UpdatedAt   time.Time                      `json:"updatedAt"`
+	ProjectID   string                               `json:"projectId"`
+	Kind        projectstore.Kind                    `json:"kind"`
+	Name        string                               `json:"name"`
+	Description string                               `json:"description"`
+	HTTPTarget  *runtimesettings.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
+	Lifecycle   projectstore.Lifecycle               `json:"lifecycle"`
+	Deletion    *projectDeletionResponse             `json:"deletion,omitempty"`
+	Revision    string                               `json:"revision"`
+	CreatedAt   time.Time                            `json:"createdAt"`
+	UpdatedAt   time.Time                            `json:"updatedAt"`
 }
 
 type projectDeletionResponse struct {
@@ -222,30 +224,30 @@ type artifactLineagePageResponse struct {
 }
 
 type runStatusResponse struct {
-	Recovery               *gatewayrecovery.Status           `json:"recovery,omitempty"`
-	RunID                  string                            `json:"runId"`
-	ProjectID              *string                           `json:"projectId,omitempty"`
-	Workflow               string                            `json:"workflow"`
-	State                  runstore.WorkflowRunState         `json:"state"`
-	Deletable              bool                              `json:"deletable"`
-	ResumeStageExecutionID *string                           `json:"resumeStageExecutionId,omitempty"`
-	RuntimeLabels          []string                          `json:"runtimeLabels"`
-	Labels                 runstore.RunMetadataLabels        `json:"labels"`
-	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
-	ProjectHTTPTarget      *contracts.HTTPOriginTargetRef    `json:"projectHttpTarget,omitempty"`
-	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
-	Parameters             map[string]string                 `json:"parameters,omitempty"`
-	Inputs                 map[string]contracts.ArtifactRef  `json:"inputs,omitempty"`
-	Attempts               []stageAttemptResponse            `json:"attempts"`
-	Transitions            []stageTransitionResponse         `json:"transitions"`
-	Outputs                map[string]contracts.ArtifactRef  `json:"outputs"`
-	OutputPublications     []outputPublicationResponse       `json:"outputPublications"`
-	EventCursor            *eventCursorResponse              `json:"eventCursor,omitempty"`
-	ActiveStageExecutionID *string                           `json:"activeStageExecutionId,omitempty"`
-	CreatedAt              time.Time                         `json:"createdAt,omitempty"`
-	UpdatedAt              time.Time                         `json:"updatedAt,omitempty"`
-	StartedAt              *time.Time                        `json:"startedAt,omitempty"`
-	FinishedAt             *time.Time                        `json:"finishedAt,omitempty"`
+	Recovery               *gatewayrecovery.Status              `json:"recovery,omitempty"`
+	RunID                  string                               `json:"runId"`
+	ProjectID              *string                              `json:"projectId,omitempty"`
+	Workflow               string                               `json:"workflow"`
+	State                  runstore.WorkflowRunState            `json:"state"`
+	Deletable              bool                                 `json:"deletable"`
+	ResumeStageExecutionID *string                              `json:"resumeStageExecutionId,omitempty"`
+	RuntimeLabels          []string                             `json:"runtimeLabels"`
+	Labels                 runstore.RunMetadataLabels           `json:"labels"`
+	RuntimeConfiguration   runRuntimeConfigResponse             `json:"runtimeConfiguration"`
+	ProjectHTTPTarget      *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Cancellation           *runstore.WorkflowRunCancellation    `json:"cancellation,omitempty"`
+	Parameters             map[string]string                    `json:"parameters,omitempty"`
+	Inputs                 map[string]contracts.ArtifactRef     `json:"inputs,omitempty"`
+	Attempts               []stageAttemptResponse               `json:"attempts"`
+	Transitions            []stageTransitionResponse            `json:"transitions"`
+	Outputs                map[string]contracts.ArtifactRef     `json:"outputs"`
+	OutputPublications     []outputPublicationResponse          `json:"outputPublications"`
+	EventCursor            *eventCursorResponse                 `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID *string                              `json:"activeStageExecutionId,omitempty"`
+	CreatedAt              time.Time                            `json:"createdAt,omitempty"`
+	UpdatedAt              time.Time                            `json:"updatedAt,omitempty"`
+	StartedAt              *time.Time                           `json:"startedAt,omitempty"`
+	FinishedAt             *time.Time                           `json:"finishedAt,omitempty"`
 }
 
 type runRepeatDraftResponse struct {
@@ -409,8 +411,8 @@ type stageExecutionConfigResponse struct {
 }
 
 type consumerExecutionConfigRefsResponse struct {
-	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy,omitzero"`
-	LLMGateway  *contracts.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
-	Credential  *contracts.LLMCredentialRef    `json:"credential,omitempty"`
-	Origins     config.ExecutionConfigOrigins  `json:"origins"`
+	ModelPolicy contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
+	LLMGateway  *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Credential  *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
+	Origins     config.ExecutionConfigOrigins   `json:"origins"`
 }

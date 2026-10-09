@@ -2,6 +2,8 @@ package config
 
 import (
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -120,10 +122,10 @@ type ExecutionConfigOrigins struct {
 // selection. Credential is a non-secret identity; token bytes never enter a
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
-	ModelPolicy contracts.ResolvedModelPolicy       `json:"modelPolicy,omitzero"`
-	LLMGateway  *contracts.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
-	Credential  *contracts.LLMCredentialRef         `json:"credential,omitempty"`
-	Origins     ExecutionConfigOrigins              `json:"origins"`
+	ModelPolicy contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
+	LLMGateway  *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential  *llmgateway.LLMCredentialRef         `json:"credential,omitempty"`
+	Origins     ExecutionConfigOrigins               `json:"origins"`
 }
 
 type ResolvedStageExecutionConfig struct {
@@ -142,16 +144,16 @@ type ExecutionConfigRef struct {
 // distinction. A nil *ResolvedCredentialOverride means inherit the lower
 // layer; Clear and Ref are mutually exclusive.
 type ResolvedCredentialOverride struct {
-	Clear bool                        `json:"clear"`
-	Ref   *contracts.LLMCredentialRef `json:"ref,omitempty"`
+	Clear bool                         `json:"clear"`
+	Ref   *llmgateway.LLMCredentialRef `json:"ref,omitempty"`
 }
 
 // ResolvedExecutionSelectionOverride is a partial, dependency-resolved
 // selection. Nil fields inherit the Run's base Stage configuration.
 type ResolvedExecutionSelectionOverride struct {
-	ModelPolicy *contracts.ResolvedModelPolicy      `json:"modelPolicy,omitempty"`
-	LLMGateway  *contracts.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
-	Credential  *ResolvedCredentialOverride         `json:"credential,omitempty"`
+	ModelPolicy *contracts.ResolvedModelPolicy       `json:"modelPolicy,omitempty"`
+	LLMGateway  *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential  *ResolvedCredentialOverride          `json:"credential,omitempty"`
 }
 
 type ResolvedStageExecutionConfigOverride struct {
@@ -215,7 +217,7 @@ type ResolvedStage struct {
 	Objective       string                          `json:"objective"`
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
-	ScanPlan        *contracts.ScanPlanPolicy       `json:"scanPlan,omitempty"`
+	ScanPlan        *scan.ScanPlanPolicy            `json:"scanPlan,omitempty"`
 	AuditScan       *AuditScanConfig                `json:"auditScan,omitempty"`
 	Session         contracts.WorkerSessionMode     `json:"session"`
 	Agents          map[string]ResolvedAgentBinding `json:"agents"`
@@ -419,7 +421,7 @@ type stageSource struct {
 	Objective       string                        `yaml:"objective"`
 	Instructions    *instructionsRefSource        `yaml:"instructions"`
 	Planner         string                        `yaml:"planner"`
-	ScanPlan        *contracts.ScanPlanPolicy     `yaml:"scanPlan,omitempty"`
+	ScanPlan        *scan.ScanPlanPolicy          `yaml:"scanPlan,omitempty"`
 	AuditScan       *AuditScanConfig              `yaml:"auditScan,omitempty"`
 	Session         yaml.Node                     `yaml:"session,omitempty"`
 	Agents          map[string]agentBindingSource `yaml:"agents"`

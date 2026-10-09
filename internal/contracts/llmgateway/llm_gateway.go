@@ -1,4 +1,8 @@
-package contracts
+// Package llmgateway holds the LLM Gateway contracts: the immutable,
+// non-secret Gateway configuration and its ref, the non-secret credential
+// ref, the credential manager declaration, and the provider failure
+// signatures that classify model unavailability.
+package llmgateway
 
 import (
 	"net"
@@ -7,6 +11,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
@@ -21,10 +27,10 @@ type LLMGatewayConfigRef struct {
 }
 
 func (r LLMGatewayConfigRef) ValidateRef() error {
-	if err := validateSelector("llmGatewayConfigRef", r.GatewayID+"@"+r.Version); err != nil {
+	if err := contracts.ValidateSelector("llmGatewayConfigRef", r.GatewayID+"@"+r.Version); err != nil {
 		return err
 	}
-	return validateDigest("llmGatewayConfigRef.digest", r.Digest)
+	return contracts.ValidateDigest("llmGatewayConfigRef.digest", r.Digest)
 }
 
 // LLMCredentialRef is deliberately non-secret. The token is resolved only at
@@ -34,7 +40,7 @@ type LLMCredentialRef struct {
 }
 
 func (r LLMCredentialRef) Validate() error {
-	return validateSelector("llmCredentialRef", r.CredentialID+"@1")
+	return contracts.ValidateSelector("llmCredentialRef", r.CredentialID+"@1")
 }
 
 type LLMGatewayCredentialManager struct {
@@ -97,7 +103,7 @@ func DefaultGatewayFailureSignatures() GatewayFailureSignatures {
 
 func (s GatewayFailureSignatures) Validate() error {
 	if len(s.ModelUnavailable) > MaximumGatewayFailureSignatures || len(s.PermanentCodes) > MaximumGatewayFailureSignatures {
-		return invalidf("llmGatewayConfig.failureSignatures lists at most %d entries per kind", MaximumGatewayFailureSignatures)
+		return contracts.Invalidf("llmGatewayConfig.failureSignatures lists at most %d entries per kind", MaximumGatewayFailureSignatures)
 	}
 	seen := make(map[GatewayFailureSignature]struct{}, len(s.ModelUnavailable))
 	for _, signature := range s.ModelUnavailable {
@@ -105,17 +111,17 @@ func (s GatewayFailureSignatures) Validate() error {
 			return err
 		}
 		if _, duplicate := seen[signature]; duplicate {
-			return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable repeats a signature")
+			return contracts.Invalidf("llmGatewayConfig.failureSignatures.modelUnavailable repeats a signature")
 		}
 		seen[signature] = struct{}{}
 	}
 	codes := make(map[string]struct{}, len(s.PermanentCodes))
 	for _, code := range s.PermanentCodes {
 		if !gatewayFailureCodePattern.MatchString(code) {
-			return invalidf("llmGatewayConfig.failureSignatures.permanentCodes must be snake_case provider codes")
+			return contracts.Invalidf("llmGatewayConfig.failureSignatures.permanentCodes must be snake_case provider codes")
 		}
 		if _, duplicate := codes[code]; duplicate {
-			return invalidf("llmGatewayConfig.failureSignatures.permanentCodes repeats %q", code)
+			return contracts.Invalidf("llmGatewayConfig.failureSignatures.permanentCodes repeats %q", code)
 		}
 		codes[code] = struct{}{}
 	}
@@ -124,17 +130,17 @@ func (s GatewayFailureSignatures) Validate() error {
 
 func (s GatewayFailureSignature) validate() error {
 	if _, ok := gatewayFailureSignatureStatuses[s.Status]; !ok {
-		return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable status must be 400, 404, 409, or 422")
+		return contracts.Invalidf("llmGatewayConfig.failureSignatures.modelUnavailable status must be 400, 404, 409, or 422")
 	}
 	if (s.MessageEquals == "") == (s.LiteLLMWrapped == "") {
-		return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable needs exactly one of messageEquals or litellmWrapped")
+		return contracts.Invalidf("llmGatewayConfig.failureSignatures.modelUnavailable needs exactly one of messageEquals or litellmWrapped")
 	}
 	text := s.MessageEquals + s.LiteLLMWrapped
 	if len(text) > MaximumGatewayFailureSignatureText || strings.TrimSpace(text) != text ||
 		!utf8.ValidString(text) || strings.ContainsFunc(text, func(char rune) bool {
 		return unicode.In(char, unicode.Cc, unicode.Cf, unicode.Co, unicode.Cs)
 	}) {
-		return invalidf("llmGatewayConfig.failureSignatures.modelUnavailable text must be trimmed UTF-8 of at most %d bytes without control, format, private-use, or surrogate characters", MaximumGatewayFailureSignatureText)
+		return contracts.Invalidf("llmGatewayConfig.failureSignatures.modelUnavailable text must be trimmed UTF-8 of at most %d bytes without control, format, private-use, or surrogate characters", MaximumGatewayFailureSignatureText)
 	}
 	return nil
 }
@@ -172,7 +178,7 @@ func (c ResolvedLLMGatewayConfig) Validate() error {
 		return err
 	}
 	if c.Protocol != OpenAICompatibleProtocol {
-		return invalidf("llmGatewayConfig.protocol must be %q", OpenAICompatibleProtocol)
+		return contracts.Invalidf("llmGatewayConfig.protocol must be %q", OpenAICompatibleProtocol)
 	}
 	if err := validateInferenceGatewayURL(c.URL); err != nil {
 		return err
@@ -186,7 +192,7 @@ func (c ResolvedLLMGatewayConfig) Validate() error {
 		return nil
 	}
 	if c.CredentialManager.Implementation != LiteLLMVirtualKeysManager {
-		return invalidf(
+		return contracts.Invalidf(
 			"llmGatewayConfig.credentialManager.implementation must be %q",
 			LiteLLMVirtualKeysManager,
 		)
@@ -197,10 +203,10 @@ func (c ResolvedLLMGatewayConfig) Validate() error {
 func validateInferenceGatewayURL(raw string) error {
 	parsed, err := parseGatewayURL(raw)
 	if err != nil {
-		return invalidf("llmGatewayConfig.url must be an absolute HTTP(S) URL without userinfo, query, or fragment")
+		return contracts.Invalidf("llmGatewayConfig.url must be an absolute HTTP(S) URL without userinfo, query, or fragment")
 	}
 	if parsed.Path == "" || !strings.HasPrefix(parsed.Path, "/") {
-		return invalidf("llmGatewayConfig.url must include an explicit absolute path")
+		return contracts.Invalidf("llmGatewayConfig.url must include an explicit absolute path")
 	}
 	return nil
 }
@@ -208,27 +214,27 @@ func validateInferenceGatewayURL(raw string) error {
 func validateCanonicalManagementURL(raw string) error {
 	parsed, err := parseGatewayURL(raw)
 	if err != nil || parsed.Path != "" {
-		return invalidf("llmGatewayConfig credential management URL must be a canonical HTTP(S) origin")
+		return contracts.Invalidf("llmGatewayConfig credential management URL must be a canonical HTTP(S) origin")
 	}
 	if parsed.Scheme == "https" {
 		return nil
 	}
 	ip := net.ParseIP(parsed.Hostname())
 	if ip == nil || !ip.IsLoopback() {
-		return invalidf("HTTP credential management URL is allowed only for a loopback IP origin")
+		return contracts.Invalidf("HTTP credential management URL is allowed only for a loopback IP origin")
 	}
 	return nil
 }
 
 func parseGatewayURL(raw string) (*url.URL, error) {
 	if raw == "" || raw != strings.TrimSpace(raw) || strings.Contains(raw, "#") {
-		return nil, invalidf("Gateway URL is invalid")
+		return nil, contracts.Invalidf("Gateway URL is invalid")
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.IsAbs() == false || parsed.Opaque != "" || parsed.Host == "" ||
 		parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery ||
 		(parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, invalidf("Gateway URL is invalid")
+		return nil, contracts.Invalidf("Gateway URL is invalid")
 	}
 	return parsed, nil
 }

@@ -6,6 +6,8 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -52,8 +54,8 @@ func InvocationInstrumentation(invocation Invocation) telemetry.PlannerInstrumen
 type ModelAccess struct {
 	Recovery    *gatewayrecovery.Participant
 	ModelPolicy contracts.ResolvedModelPolicy
-	LLMGateway  contracts.ResolvedLLMGatewayConfig
-	Credential  *contracts.LLMCredentialRef
+	LLMGateway  llmgateway.ResolvedLLMGatewayConfig
+	Credential  *llmgateway.LLMCredentialRef
 	Token       contracts.SecretString
 }
 
@@ -86,7 +88,7 @@ type WorkerStateReader interface {
 }
 
 type WorkerStateReadResult struct {
-	Snapshot    *contracts.AgentStateSnapshot
+	Snapshot    *reporting.AgentStateSnapshot
 	ETag        string
 	NotModified bool
 }
@@ -194,7 +196,7 @@ type Planner interface {
 // ReportProvider exposes telemetry collected by a Planner implementation after
 // Run returns. Scheduler treats it as best-effort and never as semantic input.
 type ReportProvider interface {
-	ExecutionReport() (contracts.ExecutionReport, bool)
+	ExecutionReport() (reporting.ExecutionReport, bool)
 }
 
 type Factory interface {

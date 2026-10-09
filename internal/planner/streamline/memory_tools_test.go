@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/model"
@@ -149,7 +150,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 		t.Fatal("Planner report is unavailable")
 	}
 	retained, _ := json.Marshal(struct {
-		Report      contracts.ExecutionReport
+		Report      reporting.ExecutionReport
 		Request     planner.RequestFacts
 		Plan        *planner.PlannerPlanProjection
 		Transitions []planner.PlannerPlanTransition

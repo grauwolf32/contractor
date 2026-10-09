@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestLoadLLMGatewayConfig(t *testing.T) {
@@ -15,9 +16,9 @@ func TestLoadLLMGatewayConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gateway.Protocol != contracts.OpenAICompatibleProtocol ||
+	if gateway.Protocol != llmgateway.OpenAICompatibleProtocol ||
 		gateway.URL != "http://127.0.0.1:4000/v1" || gateway.CredentialManager == nil ||
-		gateway.CredentialManager.Implementation != contracts.LiteLLMVirtualKeysManager ||
+		gateway.CredentialManager.Implementation != llmgateway.LiteLLMVirtualKeysManager ||
 		gateway.CredentialManager.ManagementURL != "http://127.0.0.1:4000" {
 		t.Fatalf("resolved LLMGatewayConfig = %+v", gateway)
 	}
@@ -186,8 +187,8 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 		t.Fatal(err)
 	}
 	if gateway.FailureSignatures == nil || len(gateway.FailureSignatures.ModelUnavailable) != 2 ||
-		gateway.FailureSignatures.ModelUnavailable[0] != (contracts.GatewayFailureSignature{Status: 404, MessageEquals: "model 'worker' not found"}) ||
-		gateway.FailureSignatures.ModelUnavailable[1] != (contracts.GatewayFailureSignature{Status: 400, LiteLLMWrapped: "Model is unloaded."}) ||
+		gateway.FailureSignatures.ModelUnavailable[0] != (llmgateway.GatewayFailureSignature{Status: 404, MessageEquals: "model 'worker' not found"}) ||
+		gateway.FailureSignatures.ModelUnavailable[1] != (llmgateway.GatewayFailureSignature{Status: 400, LiteLLMWrapped: "Model is unloaded."}) ||
 		strings.Join(gateway.FailureSignatures.PermanentCodes, ",") != "insufficient_quota,context_length_exceeded" {
 		t.Fatalf("declared signatures = %+v", gateway.FailureSignatures)
 	}
@@ -199,7 +200,7 @@ func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	pinned, err := contracts.DecodeStrict[contracts.ResolvedLLMGatewayConfig](fixture)
+	pinned, err := contracts.DecodeStrict[llmgateway.ResolvedLLMGatewayConfig](fixture)
 	if err != nil {
 		t.Fatal(err)
 	}

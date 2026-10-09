@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -235,7 +235,7 @@ func TestBestEffortHintPreparationIsDeterministicAndBounded(t *testing.T) {
 		}
 	}
 	doc["paths"].(map[string]any)["/x"].(map[string]any)["post"].(map[string]any)["requestBody"] = map[string]any{
-		"required": true, "content": map[string]any{"text/plain": map[string]any{"schema": map[string]any{"default": strings.Repeat("x", contracts.MaxHTTPRequestBodyBytes+1)}}},
+		"required": true, "content": map[string]any{"text/plain": map[string]any{"schema": map[string]any{"default": strings.Repeat("x", scan.MaxHTTPRequestBodyBytes+1)}}},
 	}
 	view = mustDocument(t, doc, scanplan.Options{})
 	requireSkipped(t, view)
@@ -274,7 +274,7 @@ func TestBestEffortBodySelectionTriesLaterConcreteMedia(t *testing.T) {
 		"no data":              map[string]any{"schema": map[string]any{"type": "object"}},
 		"invalid media object": false,
 		"unresolved hint":      map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/Missing"}},
-		"oversized data":       map[string]any{"example": strings.Repeat("x", contracts.MaxHTTPRequestBodyBytes+1)},
+		"oversized data":       map[string]any{"example": strings.Repeat("x", scan.MaxHTTPRequestBodyBytes+1)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			doc := bestEffortDocument(map[string]any{"/x": map[string]any{"post": map[string]any{

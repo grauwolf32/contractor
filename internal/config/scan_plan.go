@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 // IsModelFreePlanner classifies exact implementations, independently of any
@@ -16,12 +17,12 @@ func IsModelFreePlanner(ref PlannerRef) bool {
 		ref == (PlannerRef{PlannerID: "scan-plan", Version: "1"})
 }
 
-func cloneScanPlanPolicy(source *contracts.ScanPlanPolicy) *contracts.ScanPlanPolicy {
+func cloneScanPlanPolicy(source *scan.ScanPlanPolicy) *scan.ScanPlanPolicy {
 	if source == nil {
 		return nil
 	}
 	result := *source
-	result.Tools = append([]contracts.ScanToolPolicy(nil), source.Tools...)
+	result.Tools = append([]scan.ScanToolPolicy(nil), source.Tools...)
 	for i := range result.Tools {
 		result.Tools[i].TestParameters = append([]string(nil), source.Tools[i].TestParameters...)
 	}
@@ -199,7 +200,7 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 		}
 		return nil
 	}
-	inputMedia := []string{contracts.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
+	inputMedia := []string{scan.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
 	if stage.AuditScan != nil {
 		inputMedia = []string{"application/json", "application/yaml"}
 		for name, media := range map[string][]string{

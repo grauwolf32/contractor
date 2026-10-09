@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
@@ -51,7 +52,7 @@ func TestAgentTemplateSkillDigestMatchesSharedPythonFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var allocation contracts.AllocationSpec
+	var allocation control.AllocationSpec
 	if err := json.Unmarshal(encoded, &allocation); err != nil {
 		t.Fatal(err)
 	}

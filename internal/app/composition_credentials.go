@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -106,7 +107,7 @@ func configureCredentials(
 		return credentialServices{}, fmt.Errorf("configure LiteLLM credential manager: %w", err)
 	}
 	credentialManagers, err := credentials.NewManagerRegistry(credentials.ManagerRegistration{
-		Implementation: contracts.LiteLLMVirtualKeysManager,
+		Implementation: llmgateway.LiteLLMVirtualKeysManager,
 		Manager:        liteLLMManager,
 	})
 	if err != nil {
@@ -167,7 +168,7 @@ func developmentCredentials(
 		}
 		entries = append(entries, credentials.StaticEntry{
 			Metadata: workflowconfig.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 				Unrestricted: true,
 			},
 			Token: token,

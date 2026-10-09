@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // MergeSameLayer merges independent leaves, rejects ambiguity between atomic
@@ -22,7 +22,7 @@ func MergeSameLayer(entries []LayerEntry) (Spec, error) {
 	var result Spec
 	conflicts := []*MergeConflictError{
 		mergeField(ordered, "worker.llmGateway.gateway", &result.Worker.LLMGateway.Gateway,
-			func(s Spec) (Field[contracts.LLMGatewayConfigRef], bool) {
+			func(s Spec) (Field[llmgateway.LLMGatewayConfigRef], bool) {
 				return s.Worker.LLMGateway.Gateway, s.Worker.LLMGateway.Gateway.Present
 			}),
 		mergeField(ordered, "worker.llmGateway.credential", &result.Worker.LLMGateway.Credential,

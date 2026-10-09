@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
@@ -83,7 +86,7 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,
-	settings contracts.WorkerExecutionSettings,
+	settings runtimesettings.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
@@ -95,7 +98,7 @@ func (c *RuntimeControlClient) Prepare(
 	if resolvedSkills == nil && len(reservation.AgentTemplate.Skills) == 0 {
 		resolvedSkills = []contracts.ResolvedSkill{}
 	}
-	spec := contracts.AllocationSpec{
+	spec := control.AllocationSpec{
 		CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
 		APIVersion:         contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
@@ -109,11 +112,11 @@ func (c *RuntimeControlClient) Prepare(
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
-	request := contracts.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
+	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
-	var response contracts.PrepareAllocationResponse
+	var response control.PrepareAllocationResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "prepare", request, &response, true,
@@ -132,28 +135,28 @@ func (c *RuntimeControlClient) Finalize(
 	reservation Reservation,
 	finalizationID string,
 	deadline time.Time,
-) (contracts.AllocationFinalReport, error) {
-	request := contracts.FinalizeAllocationRequest{
+) (reporting.AllocationFinalReport, error) {
+	request := control.FinalizeAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		FinalizationID: finalizationID, Deadline: deadline,
 	}
 	if err := request.Validate(); err != nil {
-		return contracts.AllocationFinalReport{}, fmt.Errorf("build finalize request: %w", err)
+		return reporting.AllocationFinalReport{}, fmt.Errorf("build finalize request: %w", err)
 	}
-	var response contracts.AllocationFinalResponse
+	var response reporting.AllocationFinalResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "finalize", request, &response, false,
 	); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
 	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
 	if err := response.Validate(); err != nil {
-		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
+		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
-		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent final report identifies another allocation")
+		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent final report identifies another allocation")
 	}
 	return response.Report, nil
 }
@@ -164,34 +167,34 @@ func (c *RuntimeControlClient) Abort(
 	abortID string,
 	reason contracts.TerminationError,
 	deadline time.Time,
-) (contracts.AllocationFinalReport, error) {
-	request := contracts.AbortAllocationRequest{
+) (reporting.AllocationFinalReport, error) {
+	request := control.AbortAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		AbortID: abortID, Reason: reason, Deadline: deadline,
 	}
 	if err := request.Validate(); err != nil {
-		return contracts.AllocationFinalReport{}, fmt.Errorf("build abort request: %w", err)
+		return reporting.AllocationFinalReport{}, fmt.Errorf("build abort request: %w", err)
 	}
-	var response contracts.AllocationFinalResponse
+	var response reporting.AllocationFinalResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "abort", request, &response, false,
 	); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
 	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
 	if err := response.Validate(); err != nil {
-		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
+		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
-		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent abort report identifies another allocation")
+		return reporting.AllocationFinalReport{}, errors.New("Runtime Agent abort report identifies another allocation")
 	}
 	return response.Report, nil
 }
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
-	request := contracts.ReleaseAllocationRequest{
+	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 	}
 	if err := request.Validate(); err != nil {
@@ -298,13 +301,13 @@ func (c *RuntimeControlClient) ReadWorkerState(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
-	data, err := readBoundedBody(response.Body, contracts.MaxAgentStateSnapshotBytes)
+	data, err := readBoundedBody(response.Body, reporting.MaxAgentStateSnapshotBytes)
 	if err != nil {
 		return WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
 		)
 	}
-	snapshot, err := contracts.DecodeStrict[contracts.AgentStateSnapshot](data)
+	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
 		return WorkerStateReadResult{}, workerStateReadError(
 			response.StatusCode, "worker_state_response_invalid", false,
@@ -368,7 +371,7 @@ func (c *RuntimeControlClient) postJSON(
 	return nil
 }
 
-func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation Reservation) {
+func sanitizeRuntimeAdapterMetrics(report *reporting.RuntimeReport, reservation Reservation) {
 	expected := map[contracts.RuntimeAdapterRef]struct{}{}
 	if reservation.ResolvedRuntimeConfig != nil {
 		for _, ref := range reservation.ResolvedRuntimeConfig.RequiredRuntimeAdapters {
@@ -376,7 +379,7 @@ func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation 
 		}
 	}
 	if report.Adapters == nil {
-		report.Adapters = map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetrics{}
+		report.Adapters = map[contracts.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{}
 	}
 	for ref, metrics := range report.Adapters {
 		_, selected := expected[ref]
@@ -392,7 +395,7 @@ func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation 
 	}
 }
 
-func clonePerformanceMetricsRequest(source *contracts.PerformanceMetricsRequest) *contracts.PerformanceMetricsRequest {
+func clonePerformanceMetricsRequest(source *reporting.PerformanceMetricsRequest) *reporting.PerformanceMetricsRequest {
 	if source == nil {
 		return nil
 	}
@@ -403,18 +406,18 @@ func clonePerformanceMetricsRequest(source *contracts.PerformanceMetricsRequest)
 // Resource telemetry is optional and must never poison Worker truth. Only a
 // Server-pinned request may contribute measurements. A malformed requested
 // block is retained as one bounded diagnostic sentinel, not raw input.
-func sanitizeRuntimeResources(report *contracts.RuntimeReport, reservation Reservation) {
-	if reservation.PerformanceCollectionPolicy != contracts.PerformanceCollectionRequested {
+func sanitizeRuntimeResources(report *reporting.RuntimeReport, reservation Reservation) {
+	if reservation.PerformanceCollectionPolicy != reporting.PerformanceCollectionRequested {
 		report.Resources = nil
 		report.ResourcesError = nil
 		return
 	}
 	if report.ResourcesError != nil ||
 		(report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := contracts.ResourceInvalidReport
-		report.Resources = &contracts.RuntimeResources{
-			Version: contracts.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: contracts.ResourceUnavailable, Reason: &reason,
+		reason := reporting.ResourceInvalidReport
+		report.Resources = &reporting.RuntimeResources{
+			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
+			Status: reporting.ResourceUnavailable, Reason: &reason,
 		}
 		report.ResourcesError = nil
 	}
@@ -535,7 +538,7 @@ func (c *RuntimeControlClient) endpoint(baseURL, allocationID, operation string)
 func validateWorkerHandle(
 	handle contracts.WorkerHandle,
 	reservation Reservation,
-	settings contracts.RuntimeSettings,
+	settings runtimesettings.RuntimeSettings,
 ) error {
 	minimumLease := reservation.initialLeaseExpiresAt
 	if minimumLease.IsZero() {

@@ -7,6 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestToolWorkerPlacementRequiresSelectedScannerWithoutModel(t *testing.T) {
@@ -21,7 +22,7 @@ func TestToolWorkerPlacementRequiresSelectedScannerWithoutModel(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	registration := testRegistration("tool-runtime")
 	registration.SupportedRuntimes = []string{"tool@1"}
-	registration.SupportedToolsets = []contracts.ToolsetCapability{{Ref: "scan@1", Tools: []string{"scan_naabu"}}}
+	registration.SupportedToolsets = []control.ToolsetCapability{{Ref: "scan@1", Tools: []string{"scan_naabu"}}}
 	registerReadyWith(t, registry, registration)
 	request := ReservationRequest{RunID: "tool-run", StageExecutionID: "tool-stage", Bindings: []BindingRequirement{{
 		LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: template, WorkerSessionMode: contracts.WorkerSessionIsolated,

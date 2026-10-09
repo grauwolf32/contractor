@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 import (
 	"bytes"
@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type telemetrySizeCase struct {
@@ -20,7 +23,7 @@ type telemetrySizeCase struct {
 
 func telemetrySizeCases(t *testing.T) []telemetrySizeCase {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/testdata/v1alpha1/telemetry-json-size-cases.json")
+	raw, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "v1alpha1", "telemetry-json-size-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +53,7 @@ func TestTelemetryArgumentSizeMatchesRuntimeCases(t *testing.T) {
 	for _, test := range telemetrySizeCases(t) {
 		t.Run(test.Name, func(t *testing.T) {
 			arguments := map[string]any{"path": strings.Repeat(test.Unit, test.Repeat)}
-			size, err := ResultJSONSize(arguments)
+			size, err := contracts.ResultJSONSize(arguments)
 			if err != nil || size != test.CompactBytes {
 				t.Fatalf("compact argument size = %d, %v; want %d", size, err, test.CompactBytes)
 			}
@@ -66,7 +69,7 @@ func TestTelemetryAggregatesUseCompactUTF8Size(t *testing.T) {
 	test := telemetrySizeCases(t)[0]
 	arguments := map[string]any{"path": strings.Repeat(test.Unit, test.Repeat)}
 	worker := telemetrySizeReport(arguments, 150)
-	compact, err := ResultJSONSize(worker)
+	compact, err := contracts.ResultJSONSize(worker)
 	if err != nil || compact > 1024*1024 {
 		t.Fatalf("compact worker report size = %d, %v", compact, err)
 	}
@@ -83,7 +86,7 @@ func TestTelemetryAggregatesUseCompactUTF8Size(t *testing.T) {
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
 		Worker: worker, Runtime: RuntimeReport{Complete: true},
 	}
-	compact, err = ResultJSONSize(final)
+	compact, err = contracts.ResultJSONSize(final)
 	if err != nil || compact > 1024*1024 {
 		t.Fatalf("compact allocation report size = %d, %v", compact, err)
 	}
@@ -111,7 +114,7 @@ func TestTelemetryAggregatesUseCompactUTF8Size(t *testing.T) {
 		t.Fatalf("decoded Runtime report rejected: %v", err)
 	}
 	oversized := telemetrySizeReport(arguments, 400)
-	if size, err := ResultJSONSize(oversized); err != nil || size <= 1024*1024 {
+	if size, err := contracts.ResultJSONSize(oversized); err != nil || size <= 1024*1024 {
 		t.Fatalf("oversized compact worker report size = %d, %v", size, err)
 	}
 	if err := oversized.Validate(); err == nil {

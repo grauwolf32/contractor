@@ -14,6 +14,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -282,7 +285,7 @@ func childFindingGrant(
 	}
 	binding := stage.Agents["worker"]
 	runtimeAgentID := strings.Repeat("a", 64)
-	gateway := contracts.LLMGatewayConfigRef{
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
 	if err := harness.runs.RecordStageAllocation(ctx, runstore.StageAllocation{
@@ -299,21 +302,21 @@ func childFindingGrant(
 			Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 				LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 			},
-			Provenance: contracts.ResolvedRuntimeConfigProvenance{
-				Default: contracts.RuntimeLabelBindingProvenance{
+			Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+				Default: runtimesettings.RuntimeLabelBindingProvenance{
 					Label: "default", BindingRevision: 1,
-					Config: contracts.RuntimeConfigRef{
+					Config: runtimesettings.RuntimeConfigRef{
 						Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 						Digest: runtimeconfig.BuiltInDigest,
 					},
 				},
-				RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
-				AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
+				RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+				AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
 				RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-				RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+				RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 			},
 		},
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

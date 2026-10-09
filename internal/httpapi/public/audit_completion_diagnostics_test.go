@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -33,12 +34,12 @@ func TestRunStatusExposesCompletionAsPublicationNotAuditAcceptance(t *testing.T)
 	fixture.runs.executions["run-completion"] = []runstore.StageExecution{{StageExecutionID: "stage-completion", RunID: "run-completion", StageName: "copy", Attempt: 1, ExecutionConfigVariant: runstore.StageExecutionConfigBase, StageSpecSnapshot: stage, State: runstore.StageSucceeded}}
 	for _, phase := range []string{"published", "failed"} {
 		t.Run(phase, func(t *testing.T) {
-			completion := &contracts.WorkerCompletionDiagnostics{Kind: contracts.AuditCheckResultsV1, Phase: phase, AcceptedCount: 2, TotalCount: 2, ReminderCount: 0}
+			completion := &reporting.WorkerCompletionDiagnostics{Kind: contracts.AuditCheckResultsV1, Phase: phase, AcceptedCount: 2, TotalCount: 2, ReminderCount: 0}
 			if phase == "failed" {
 				completion.FailureCode = "audit_result_publication_conflict"
 			}
-			report := contracts.ExecutionReport{ReportID: "private-report-id", Complete: true, Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}}, ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{}, Completion: completion}
-			fixture.metrics.records["stage-completion"] = telemetry.StageMetricsRecord{StageExecutionID: "stage-completion", Metrics: contracts.StageMetrics{Workers: map[string]contracts.ExecutionReport{"checker": report}, Runtime: map[string]contracts.RuntimeReport{}}}
+			report := reporting.ExecutionReport{ReportID: "private-report-id", Complete: true, Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}}, ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{}, Completion: completion}
+			fixture.metrics.records["stage-completion"] = telemetry.StageMetricsRecord{StageExecutionID: "stage-completion", Metrics: reporting.StageMetrics{Workers: map[string]reporting.ExecutionReport{"checker": report}, Runtime: map[string]reporting.RuntimeReport{}}}
 			response := httptest.NewRecorder()
 			fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, "/v1/runs/run-completion", bytes.NewReader(nil)))
 			if response.Code != http.StatusOK {

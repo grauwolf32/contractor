@@ -1,13 +1,16 @@
-package contracts
+package reporting
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 	var baseline map[string]any
-	if err := json.Unmarshal(readFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)
 	}
 	tests := map[string]func(map[string]any){
@@ -62,7 +65,7 @@ func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 			_ = json.Unmarshal(encoded, &candidate)
 			mutate(candidate)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with a missing nested field was accepted")
 			}
 		})
@@ -71,7 +74,7 @@ func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 
 func TestAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 	var baseline map[string]any
-	if err := json.Unmarshal(readFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)
 	}
 	tests := map[string]func(map[string]any){
@@ -107,7 +110,7 @@ func TestAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 			current := state["currentInvocation"].(map[string]any)
 			mutate(current["summarizer"].(map[string]any))
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with inconsistent summarizer state was accepted")
 			}
 		})

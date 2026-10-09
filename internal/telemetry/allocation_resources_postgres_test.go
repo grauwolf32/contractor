@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +23,7 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 
 	for _, test := range []struct {
 		name         string
-		policy       contracts.PerformanceCollectionPolicy
+		policy       reporting.PerformanceCollectionPolicy
 		report       bool
 		released     bool
 		expired      bool
@@ -42,8 +42,8 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 		{name: "unknown-field", report: true, resources: `{"version":1,"scope":"runtime_process","status":"partial","extra":1}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
 		{name: "future-version", report: true, resources: `{"version":2,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
 		{name: "wrong-type", report: true, resources: `[]`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
-		{name: "disabled", policy: contracts.PerformanceCollectionDisabled, wantStatus: telemetry.AllocationResourceDisabled},
-		{name: "unsupported", policy: contracts.PerformanceCollectionUnsupported, wantStatus: telemetry.AllocationResourceUnsupported},
+		{name: "disabled", policy: reporting.PerformanceCollectionDisabled, wantStatus: telemetry.AllocationResourceDisabled},
+		{name: "unsupported", policy: reporting.PerformanceCollectionUnsupported, wantStatus: telemetry.AllocationResourceUnsupported},
 		{name: "pending", wantStatus: telemetry.AllocationResourcePending},
 		{name: "missing", released: true, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
 		{name: "expired", report: true, expired: true, released: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
@@ -51,7 +51,7 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 		t.Run(test.name, func(t *testing.T) {
 			policy := test.policy
 			if policy == "" {
-				policy = contracts.PerformanceCollectionRequested
+				policy = reporting.PerformanceCollectionRequested
 			}
 			allocation := "allocation-" + test.name
 			stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-"+test.name, allocation, "session-"+test.name, policy)
@@ -110,7 +110,7 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 				t.Fatalf("resource reason = %v, want %q", item.Reason, test.wantReason)
 			}
 			if test.wantResource {
-				var want contracts.RuntimeResources
+				var want reporting.RuntimeResources
 				if err := json.Unmarshal([]byte(test.resources), &want); err != nil {
 					t.Fatal(err)
 				}
@@ -146,7 +146,7 @@ func TestAllocationResourceProjectionSelectsEffectiveReportAndPreservesPaginatio
 	now := time.Now().UTC()
 	for _, name := range []string{"selected", "expired"} {
 		allocation := "allocation-" + name
-		stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-"+name, allocation, "session-"+name, contracts.PerformanceCollectionRequested)
+		stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-"+name, allocation, "session-"+name, reporting.PerformanceCollectionRequested)
 		finishTelemetryStage(t, ctx, runs, stage)
 		// An older complete report wins over a newer partial report, but
 		// only while the complete report is still within retention.
@@ -161,8 +161,8 @@ func TestAllocationResourceProjectionSelectsEffectiveReportAndPreservesPaginatio
 		} {
 			envelope := allocationEnvelope(stage, allocation, value.received, value.complete)
 			envelope.Report.ReportID += "-" + value.name
-			envelope.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
-			envelope.Report.Runtime.Resources = &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial, DurationSeconds: &value.duration}
+			envelope.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+			envelope.Report.Runtime.Resources = &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial, DurationSeconds: &value.duration}
 			insertAllocationResourceFixture(t, ctx, pool, envelope, nil, name == "expired" && value.complete)
 		}
 	}

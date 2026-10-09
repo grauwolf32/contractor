@@ -21,6 +21,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -538,7 +539,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
 			SupportedRuntimeAdapters: []string{},
-			ObservedState:            contracts.AgentIdle, SlotState: controlplane.SlotReserved,
+			ObservedState:            control.AgentIdle, SlotState: controlplane.SlotReserved,
 			LastAcceptedHeartbeat:     &operationsNow,
 			AuthoritativeAllocationID: stringPointer("allocation-contract"),
 		}},
@@ -710,7 +711,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			InstanceID: "runtime-principal-contract", SoftwareVersion: "0.1.0",
 			SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: []controlplane.RuntimeToolsetCapability{},
 			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []string{},
-			ObservedState: contracts.AgentIdle, SlotState: controlplane.SlotIdle,
+			ObservedState: control.AgentIdle, SlotState: controlplane.SlotIdle,
 		},
 	}
 	for name, path := range map[string]string{

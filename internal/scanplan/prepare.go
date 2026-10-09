@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 type preparer struct {
@@ -18,13 +19,13 @@ type preparer struct {
 	exhausted       bool
 	schemaNodes     int
 	schemaExhausted bool
-	gaps            []contracts.PreparationGap
-	gapKeys         map[contracts.PreparationGap]bool
+	gaps            []scan.PreparationGap
+	gapKeys         map[scan.PreparationGap]bool
 	gapExhausted    bool
 }
 
-func prepare(data []byte, mediaType string, source contracts.ArtifactRef, options Options, selection operationSelection) (contracts.HTTPRequestSet, error) {
-	empty := contracts.HTTPRequestSet{}
+func prepare(data []byte, mediaType string, source contracts.ArtifactRef, options Options, selection operationSelection) (scan.HTTPRequestSet, error) {
+	empty := scan.HTTPRequestSet{}
 	if source.ValidateExact() != nil {
 		return empty, failure("invalid_source_ref")
 	}
@@ -55,20 +56,20 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			return empty, failure("unassigned_operation_binding")
 		}
 	}
-	p := &preparer{root: root, options: options, gaps: []contracts.PreparationGap{}, gapKeys: map[contracts.PreparationGap]bool{}}
+	p := &preparer{root: root, options: options, gaps: []scan.PreparationGap{}, gapKeys: map[scan.PreparationGap]bool{}}
 	if selection.mode == "url-target" {
 		p.gap(selection.pointer, "url_template_scan_only")
 	}
-	set := contracts.HTTPRequestSet{
+	set := scan.HTTPRequestSet{
 		SchemaVersion: 1,
-		Source:        contracts.RequestSetSource{Artifact: source, ContentDigest: contentdigest.Bytes(data)},
-		Requests:      []contracts.RequestSetEntry{},
+		Source:        scan.RequestSetSource{Artifact: source, ContentDigest: contentdigest.Bytes(data)},
+		Requests:      []scan.RequestSetEntry{},
 	}
 	basis, err := contracts.MarshalPrivateCanonical(struct {
-		PolicyVersion int                        `json:"policyVersion"`
-		Source        contracts.RequestSetSource `json:"source"`
-		MediaType     string                     `json:"mediaType"`
-		Options       Options                    `json:"options"`
+		PolicyVersion int                   `json:"policyVersion"`
+		Source        scan.RequestSetSource `json:"source"`
+		MediaType     string                `json:"mediaType"`
+		Options       Options               `json:"options"`
 	}{2, set.Source, mediaType, options})
 	if err != nil {
 		return empty, failure("invalid_options")
@@ -154,12 +155,12 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 				p.gap(opPointer, code)
 				continue
 			}
-			contentDigest, err := contracts.RequestContentDigest(request)
+			contentDigest, err := scan.RequestContentDigest(request)
 			if err != nil {
 				p.gap(opPointer, "invalid_prepared_request")
 				continue
 			}
-			set.Requests = append(set.Requests, contracts.RequestSetEntry{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []contracts.RequestOrigin{{Pointer: opPointer}}})
+			set.Requests = append(set.Requests, scan.RequestSetEntry{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []scan.RequestOrigin{{Pointer: opPointer}}})
 			set.Coverage.Prepared = 1
 		}
 	}
@@ -181,7 +182,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		}
 		return p.gaps[i].Pointer < p.gaps[j].Pointer
 	})
-	set.Gaps = []contracts.PreparationGap{}
+	set.Gaps = []scan.PreparationGap{}
 	for _, gap := range p.gaps {
 		if len(set.Gaps) == 0 || set.Gaps[len(set.Gaps)-1] != gap {
 			set.Gaps = append(set.Gaps, gap)
@@ -189,7 +190,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	}
 	set.Coverage.Skipped = set.Coverage.Operations - set.Coverage.Prepared
 	set.Coverage.Complete = set.Coverage.Skipped == 0 && len(set.Gaps) == 0
-	if _, err := contracts.MarshalHTTPRequestSet(set); err != nil {
+	if _, err := scan.MarshalHTTPRequestSet(set); err != nil {
 		return empty, failure("request_set_limit_or_contract_error")
 	}
 	return set, nil
@@ -259,11 +260,11 @@ func normalizeOptions(options Options) (Options, error) {
 }
 
 func (p *preparer) gap(pointer, code string) {
-	gap := contracts.PreparationGap{Pointer: pointer, Code: code}
+	gap := scan.PreparationGap{Pointer: pointer, Code: code}
 	if p.gapKeys[gap] {
 		return
 	}
-	if len(p.gaps) >= contracts.MaxHTTPRequestSetGaps {
+	if len(p.gaps) >= scan.MaxHTTPRequestSetGaps {
 		p.gapExhausted = true
 		return
 	}

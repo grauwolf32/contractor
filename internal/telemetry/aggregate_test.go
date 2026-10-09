@@ -5,19 +5,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestAttemptDiagnosticsAreDeterministicBoundedAndNewest(t *testing.T) {
 	planner := diagnosticReport("planner", 30)
 	planner.Truncated = true
-	metrics := contracts.StageMetrics{
+	metrics := reporting.StageMetrics{
 		Planner: &planner,
-		Workers: map[string]contracts.ExecutionReport{
+		Workers: map[string]reporting.ExecutionReport{
 			"zeta":  diagnosticReport("zeta", 100),
 			"alpha": diagnosticReport("alpha", 100),
 		},
-		Runtime: map[string]contracts.RuntimeReport{},
+		Runtime: map[string]reporting.RuntimeReport{},
 	}
 
 	diagnostics := ProjectAttemptDiagnostics(metrics)
@@ -46,15 +46,15 @@ func TestAttemptDiagnosticsAreDeterministicBoundedAndNewest(t *testing.T) {
 func TestAttemptDiagnosticsExposeOnlyNormalizedSafeFields(t *testing.T) {
 	const secret = "diagnostic-secret-canary"
 	retryable := true
-	source := contracts.ExecutionReport{
+	source := reporting.ExecutionReport{
 		ReportID: "worker-private-report-id", Complete: true,
-		Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-		ToolCalls: []contracts.ToolCallRecord{{
+		Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{{
 			CallID: "private-call-id", Tool: "probe",
 			Arguments: map[string]any{"token": secret},
-			Outcome:   contracts.ToolCallSucceeded,
+			Outcome:   reporting.ToolCallSucceeded,
 		}},
-		Errors: []contracts.ExecutionError{
+		Errors: []reporting.ExecutionError{
 			{
 				Code:      "worker_result_schema_json_invalid",
 				Message:   "Worker result did not match StageContentResult",
@@ -70,9 +70,9 @@ func TestAttemptDiagnosticsExposeOnlyNormalizedSafeFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	diagnostics := ProjectAttemptDiagnostics(contracts.StageMetrics{
-		Workers: map[string]contracts.ExecutionReport{"builder": normalized},
-		Runtime: map[string]contracts.RuntimeReport{},
+	diagnostics := ProjectAttemptDiagnostics(reporting.StageMetrics{
+		Workers: map[string]reporting.ExecutionReport{"builder": normalized},
+		Runtime: map[string]reporting.RuntimeReport{},
 	})
 	encoded := fmt.Sprintf("%+v", diagnostics)
 	for _, forbidden := range []string{
@@ -92,16 +92,16 @@ func TestAttemptDiagnosticsExposeOnlyNormalizedSafeFields(t *testing.T) {
 	}
 }
 
-func diagnosticReport(prefix string, count int) contracts.ExecutionReport {
-	errors := make([]contracts.ExecutionError, 0, count)
+func diagnosticReport(prefix string, count int) reporting.ExecutionReport {
+	errors := make([]reporting.ExecutionError, 0, count)
 	for index := range count {
-		errors = append(errors, contracts.ExecutionError{
+		errors = append(errors, reporting.ExecutionError{
 			Code: fmt.Sprintf("%s_%03d", prefix, index), Message: "safe normalized failure",
 		})
 	}
-	return contracts.ExecutionReport{
+	return reporting.ExecutionReport{
 		ReportID: prefix + "-report", Complete: true,
-		Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-		ToolCalls: []contracts.ToolCallRecord{}, Errors: errors,
+		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{}, Errors: errors,
 	}
 }

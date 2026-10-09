@@ -10,12 +10,13 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-func planFixture(tools ...string) (contracts.ScanPlanPolicy, map[string]scanplan.ToolBinding) {
-	policy := contracts.ScanPlanPolicy{InputArtifact: "input", MaxInputs: 1000, MaxJobs: 100, MaxTotalSeconds: 3600}
+func planFixture(tools ...string) (scan.ScanPlanPolicy, map[string]scanplan.ToolBinding) {
+	policy := scan.ScanPlanPolicy{InputArtifact: "input", MaxInputs: 1000, MaxJobs: 100, MaxTotalSeconds: 3600}
 	bindings := map[string]scanplan.ToolBinding{}
 	for _, tool := range tools {
 		worker := strings.TrimPrefix(tool, "scan_")
@@ -28,7 +29,7 @@ func planFixture(tools ...string) (contracts.ScanPlanPolicy, map[string]scanplan
 		default:
 			arguments["url"] = contracts.ToolArgumentBinding{Source: "parameter", Name: "target"}
 		}
-		toolPolicy := contracts.ScanToolPolicy{Worker: worker, MaxJobs: 100, MaxTotalSeconds: 3600}
+		toolPolicy := scan.ScanToolPolicy{Worker: worker, MaxJobs: 100, MaxTotalSeconds: 3600}
 		if tool == "scan_sqlmap" {
 			toolPolicy.TestParameters = []string{"id"}
 		}
@@ -53,7 +54,7 @@ func planInput(targets string) scanplan.PlanInput {
 	return scanplan.PlanInput{Artifact: contracts.ArtifactRef{Namespace: "inputs", Name: "targets", Revision: &revision}, MediaType: scanplan.TargetListMediaType, Data: []byte(targets)}
 }
 
-func buildPlan(t *testing.T, input scanplan.PlanInput, policy contracts.ScanPlanPolicy, bindings map[string]scanplan.ToolBinding, wordlists map[string]contracts.ArtifactRef) scanplan.ScanPlan {
+func buildPlan(t *testing.T, input scanplan.PlanInput, policy scan.ScanPlanPolicy, bindings map[string]scanplan.ToolBinding, wordlists map[string]contracts.ArtifactRef) scanplan.ScanPlan {
 	t.Helper()
 	plan, err := scanplan.BuildPlan(input, policy, bindings, wordlists)
 	if err != nil {
@@ -146,16 +147,16 @@ func TestBuildPlanRejectsInvalidBindingsEvenWhenAllInputsAreSkipped(t *testing.T
 func TestBuildPlanBudgetsAccountForAllCandidates(t *testing.T) {
 	cases := []struct {
 		name     string
-		change   func(*contracts.ScanPlanPolicy)
+		change   func(*scan.ScanPlanPolicy)
 		selected int
 		code     string
 	}{
-		{"inputs", func(p *contracts.ScanPlanPolicy) { p.MaxInputs = 1 }, 1, "input_budget_exceeded"},
-		{"global jobs", func(p *contracts.ScanPlanPolicy) { p.MaxJobs = 2 }, 2, "job_budget_exceeded"},
-		{"tool jobs", func(p *contracts.ScanPlanPolicy) { p.Tools[0].MaxJobs = 1 }, 1, "tool_job_budget_exceeded"},
-		{"global seconds", func(p *contracts.ScanPlanPolicy) { p.MaxTotalSeconds = 15 }, 1, "time_budget_exceeded"},
-		{"tool seconds", func(p *contracts.ScanPlanPolicy) { p.Tools[0].MaxTotalSeconds = 15 }, 1, "tool_time_budget_exceeded"},
-		{"timeout does not fit", func(p *contracts.ScanPlanPolicy) { p.MaxTotalSeconds = 9 }, 0, "time_budget_exceeded"},
+		{"inputs", func(p *scan.ScanPlanPolicy) { p.MaxInputs = 1 }, 1, "input_budget_exceeded"},
+		{"global jobs", func(p *scan.ScanPlanPolicy) { p.MaxJobs = 2 }, 2, "job_budget_exceeded"},
+		{"tool jobs", func(p *scan.ScanPlanPolicy) { p.Tools[0].MaxJobs = 1 }, 1, "tool_job_budget_exceeded"},
+		{"global seconds", func(p *scan.ScanPlanPolicy) { p.MaxTotalSeconds = 15 }, 1, "time_budget_exceeded"},
+		{"tool seconds", func(p *scan.ScanPlanPolicy) { p.Tools[0].MaxTotalSeconds = 15 }, 1, "tool_time_budget_exceeded"},
+		{"timeout does not fit", func(p *scan.ScanPlanPolicy) { p.MaxTotalSeconds = 9 }, 0, "time_budget_exceeded"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -181,32 +182,32 @@ func TestBuildPlanBudgetsAccountForAllCandidates(t *testing.T) {
 	}
 }
 
-func requestSetPlanInput(t *testing.T, request contracts.PreparedHTTPRequest) scanplan.PlanInput {
+func requestSetPlanInput(t *testing.T, request scan.PreparedHTTPRequest) scanplan.PlanInput {
 	t.Helper()
-	contentDigest, err := contracts.RequestContentDigest(request)
+	contentDigest, err := scan.RequestContentDigest(request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	set := contracts.HTTPRequestSet{
+	set := scan.HTTPRequestSet{
 		SchemaVersion:     1,
-		Source:            contracts.RequestSetSource{Artifact: sourceRef(), ContentDigest: "sha256:" + strings.Repeat("b", 64)},
+		Source:            scan.RequestSetSource{Artifact: sourceRef(), ContentDigest: "sha256:" + strings.Repeat("b", 64)},
 		PreparationDigest: "sha256:" + strings.Repeat("c", 64),
-		Requests:          []contracts.RequestSetEntry{{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []contracts.RequestOrigin{{Pointer: "#/paths/~1items/post"}, {Pointer: "#/paths/~1other/post"}}}},
-		Gaps:              []contracts.PreparationGap{{Pointer: "#/paths/~1missing/get", Code: "missing_parameter_value"}},
-		Coverage:          contracts.RequestSetCoverage{Operations: 3, Prepared: 2, Skipped: 1, Complete: false},
+		Requests:          []scan.RequestSetEntry{{ID: "request-" + strings.TrimPrefix(contentDigest, "sha256:"), ContentDigest: contentDigest, Request: request, Origins: []scan.RequestOrigin{{Pointer: "#/paths/~1items/post"}, {Pointer: "#/paths/~1other/post"}}}},
+		Gaps:              []scan.PreparationGap{{Pointer: "#/paths/~1missing/get", Code: "missing_parameter_value"}},
+		Coverage:          scan.RequestSetCoverage{Operations: 3, Prepared: 2, Skipped: 1, Complete: false},
 	}
-	data, err := contracts.MarshalHTTPRequestSet(set)
+	data, err := scan.MarshalHTTPRequestSet(set)
 	if err != nil {
 		t.Fatal(err)
 	}
 	input := planInput("")
-	input.MediaType, input.Data = contracts.HTTPRequestSetMediaType, data
+	input.MediaType, input.Data = scan.HTTPRequestSetMediaType, data
 	return input
 }
 
 func TestBuildPlanRequestSetUsesExplicitSQLMapParametersAndRetainsPreparationGaps(t *testing.T) {
 	policy, bindings := planFixture("scan_sqlmap", "scan_nuclei", "scan_naabu")
-	request := contracts.PreparedHTTPRequest{Method: "POST", URL: "https://api.example.test/items", Headers: []contracts.HTTPRequestHeader{{Name: "content-type", Value: "application/json"}}, Body: `{"id":7}`}
+	request := scan.PreparedHTTPRequest{Method: "POST", URL: "https://api.example.test/items", Headers: []scan.HTTPRequestHeader{{Name: "content-type", Value: "application/json"}}, Body: `{"id":7}`}
 	input := requestSetPlanInput(t, request)
 	plan := buildPlan(t, input, policy, bindings, nil)
 	if len(plan.Jobs) != 2 || len(plan.Candidates) != 3 || plan.PreparationCoverage == nil || plan.PreparationCoverage.Operations != 3 || len(plan.PreparationGaps) != 1 {
@@ -301,44 +302,44 @@ func TestBuildPlanDetachesInputsAndIdentityTracksSemanticChanges(t *testing.T) {
 }
 
 func TestBuildPlanRejectsMalformedOrUnboundedWholeInput(t *testing.T) {
-	for name, change := range map[string]func(*scanplan.PlanInput, *contracts.ScanPlanPolicy, map[string]scanplan.ToolBinding){
-		"non-exact source": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+	for name, change := range map[string]func(*scanplan.PlanInput, *scan.ScanPlanPolicy, map[string]scanplan.ToolBinding){
+		"non-exact source": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Artifact.Revision = nil
 		},
-		"unknown media type": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"unknown media type": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.MediaType = "text/plain"
 		},
-		"invalid UTF8": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"invalid UTF8": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = []byte{0xff}
 		},
-		"BOM": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"BOM": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = append([]byte{0xef, 0xbb, 0xbf}, in.Data...)
 		},
-		"bare CR": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"bare CR": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = []byte("https://example.test/\r")
 		},
-		"empty list": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"empty list": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = []byte("\n\n")
 		},
-		"excess source bytes": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"excess source bytes": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = bytes.Repeat([]byte("x"), scanplan.MaxSourceBytes+1)
 		},
-		"excess source lines": func(in *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"excess source lines": func(in *scanplan.PlanInput, _ *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			in.Data = bytes.Repeat([]byte("https://example.test/\n"), 1001)
 		},
-		"zero input budget": func(_ *scanplan.PlanInput, p *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"zero input budget": func(_ *scanplan.PlanInput, p *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			p.MaxInputs = 0
 		},
-		"unbounded jobs": func(_ *scanplan.PlanInput, p *contracts.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
+		"unbounded jobs": func(_ *scanplan.PlanInput, p *scan.ScanPlanPolicy, _ map[string]scanplan.ToolBinding) {
 			p.MaxJobs = 101
 		},
-		"missing fixed Worker": func(_ *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
+		"missing fixed Worker": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
 			delete(b, "nuclei")
 		},
-		"literal target": func(_ *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
+		"literal target": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
 			b["nuclei"].Template.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "literal", Value: "https://unplanned.test/"}
 		},
-		"extra dynamic argument": func(_ *scanplan.PlanInput, _ *contracts.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
+		"extra dynamic argument": func(_ *scanplan.PlanInput, _ *scan.ScanPlanPolicy, b map[string]scanplan.ToolBinding) {
 			b["nuclei"].Template.Execution.Arguments["templates"] = contracts.ToolArgumentBinding{Source: "parameter", Name: "unplanned"}
 		},
 	} {
@@ -460,10 +461,10 @@ func reidentifyPlan(t *testing.T, plan scanplan.ScanPlan) []byte {
 func TestScanPlanCodecValidatesSemanticsBeyondHashes(t *testing.T) {
 	for name, change := range map[string]func(*scanplan.ScanPlan){
 		"target list has preparation coverage": func(p *scanplan.ScanPlan) {
-			p.PreparationCoverage = &contracts.RequestSetCoverage{Operations: 1, Prepared: 1, Complete: true}
+			p.PreparationCoverage = &scan.RequestSetCoverage{Operations: 1, Prepared: 1, Complete: true}
 		},
 		"target list has preparation gaps": func(p *scanplan.ScanPlan) {
-			p.PreparationGaps = []contracts.PreparationGap{{Pointer: "#", Code: "warning"}}
+			p.PreparationGaps = []scan.PreparationGap{{Pointer: "#", Code: "warning"}}
 		},
 		"invalid source ID":                   func(p *scanplan.ScanPlan) { p.Candidates[0].SourceIDs[0] = "untracked-source" },
 		"zero source line":                    func(p *scanplan.ScanPlan) { p.Candidates[0].SourceIDs[0] = "line-0000" },
@@ -501,7 +502,7 @@ func TestScanPlanCodecValidatesSemanticsBeyondHashes(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			policy, bindings := planFixture("scan_sqlmap")
-			plan := buildPlan(t, requestSetPlanInput(t, contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7", Headers: []contracts.HTTPRequestHeader{}}), policy, bindings, nil)
+			plan := buildPlan(t, requestSetPlanInput(t, scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7", Headers: []scan.HTTPRequestHeader{}}), policy, bindings, nil)
 			change(&plan)
 			if _, err := scanplan.DecodePlan(reidentifyPlan(t, plan)); err == nil {
 				t.Fatal("codec accepted invalid preparation provenance despite matching hashes")
@@ -527,24 +528,24 @@ func TestScanPlanCodecValidatesSemanticsBeyondHashes(t *testing.T) {
 func TestBuildPlanSQLMapParameterLocationsAndRepresentation(t *testing.T) {
 	cases := []struct {
 		name      string
-		request   contracts.PreparedHTTPRequest
+		request   scan.PreparedHTTPRequest
 		parameter string
 		code      string
 	}{
-		{"query", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7"}, "id", ""},
-		{"form", contracts.PreparedHTTPRequest{Method: "POST", URL: "https://example.test/", Headers: []contracts.HTTPRequestHeader{{Name: "content-type", Value: "application/x-www-form-urlencoded"}}, Body: "id=7"}, "id", ""},
-		{"JSON", contracts.PreparedHTTPRequest{Method: "PATCH", URL: "https://example.test/", Headers: []contracts.HTTPRequestHeader{{Name: "content-type", Value: "application/json"}}, Body: `{"id":7}`}, "id", ""},
-		{"cookie", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/", Headers: []contracts.HTTPRequestHeader{{Name: "cookie", Value: "id=7"}}}, "id", ""},
-		{"header", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/", Headers: []contracts.HTTPRequestHeader{{Name: "x-item-id", Value: "7"}}}, "X-Item-ID", ""},
-		{"parameter absent", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?other=7"}, "id", "test_parameter_unavailable"},
-		{"request-file marker", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=*"}, "id", "unsupported_request_representation"},
-		{"unsupported framing", contracts.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7", Headers: []contracts.HTTPRequestHeader{{Name: "connection", Value: "keep-alive"}}}, "id", "unsupported_request_representation"},
-		{"body trailing newline", contracts.PreparedHTTPRequest{Method: "POST", URL: "https://example.test/?id=7", Body: "body\n"}, "id", "unsupported_request_representation"},
+		{"query", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7"}, "id", ""},
+		{"form", scan.PreparedHTTPRequest{Method: "POST", URL: "https://example.test/", Headers: []scan.HTTPRequestHeader{{Name: "content-type", Value: "application/x-www-form-urlencoded"}}, Body: "id=7"}, "id", ""},
+		{"JSON", scan.PreparedHTTPRequest{Method: "PATCH", URL: "https://example.test/", Headers: []scan.HTTPRequestHeader{{Name: "content-type", Value: "application/json"}}, Body: `{"id":7}`}, "id", ""},
+		{"cookie", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/", Headers: []scan.HTTPRequestHeader{{Name: "cookie", Value: "id=7"}}}, "id", ""},
+		{"header", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/", Headers: []scan.HTTPRequestHeader{{Name: "x-item-id", Value: "7"}}}, "X-Item-ID", ""},
+		{"parameter absent", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?other=7"}, "id", "test_parameter_unavailable"},
+		{"request-file marker", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=*"}, "id", "unsupported_request_representation"},
+		{"unsupported framing", scan.PreparedHTTPRequest{Method: "GET", URL: "https://example.test/?id=7", Headers: []scan.HTTPRequestHeader{{Name: "connection", Value: "keep-alive"}}}, "id", "unsupported_request_representation"},
+		{"body trailing newline", scan.PreparedHTTPRequest{Method: "POST", URL: "https://example.test/?id=7", Body: "body\n"}, "id", "unsupported_request_representation"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.request.Headers == nil {
-				tc.request.Headers = []contracts.HTTPRequestHeader{}
+				tc.request.Headers = []scan.HTTPRequestHeader{}
 			}
 			policy, bindings := planFixture("scan_sqlmap")
 			policy.Tools[0].TestParameters = []string{tc.parameter}
@@ -582,7 +583,7 @@ func TestScanPlanSchemaAcceptsEverySupportedToolAndMethod(t *testing.T) {
 					wordlists = map[string]contracts.ArtifactRef{"words": sourceRef()}
 				}
 				if tool == "scan_sqlmap" {
-					input = requestSetPlanInput(t, contracts.PreparedHTTPRequest{Method: method, URL: "https://example.test/?id=7", Headers: []contracts.HTTPRequestHeader{}})
+					input = requestSetPlanInput(t, scan.PreparedHTTPRequest{Method: method, URL: "https://example.test/?id=7", Headers: []scan.HTTPRequestHeader{}})
 				}
 				plan := buildPlan(t, input, policy, bindings, wordlists)
 				if len(plan.Jobs) != 1 {

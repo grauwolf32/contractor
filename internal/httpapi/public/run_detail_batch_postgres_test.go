@@ -16,6 +16,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -56,19 +59,19 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := contracts.LLMGatewayConfigRef{GatewayID: "test-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}
+	gateway := llmgateway.LLMGatewayConfigRef{GatewayID: "test-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}
 	configuration := &runstore.AllocationRuntimeConfiguration{
 		ModelPolicy: contracts.ModelPolicyRef{PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			Default: contracts.RuntimeLabelBindingProvenance{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
+				Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
 			},
-			RunLabels: []contracts.RuntimeLabelBindingProvenance{}, AgentLabels: []contracts.RuntimeLabelBindingProvenance{},
-			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+			RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{},
+			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 			LLMGatewayConfig: &gateway,
 		},
 	}
@@ -156,7 +159,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 						WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
 						RuntimeAgentID:   strings.Repeat("1", 64), RuntimeAgentInstanceID: "private-physical-instance", RuntimeAgentLabelRevision: 1,
 						RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
-						RuntimeConfiguration:              configuration, PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+						RuntimeConfiguration:              configuration, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 					}); err != nil {
 						t.Fatal(err)
 					}

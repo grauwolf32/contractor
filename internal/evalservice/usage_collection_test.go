@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestEvalLegacyPassthroughCountersPreserveWorkerCompleteness(t *testing.T) {
@@ -28,9 +28,9 @@ func TestEvalLegacyPassthroughCountersPreserveWorkerCompleteness(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls, input, output, total := int64(3), int64(100), int64(20), int64(120)
-			worker := contracts.ExecutionMetrics{
+			worker := reporting.ExecutionMetrics{
 				ModelCalls: &calls, InputTokens: &input, OutputTokens: &output, TotalTokens: &total,
-				Tools: map[string]contracts.ToolMetrics{},
+				Tools: map[string]reporting.ToolMetrics{},
 			}
 			if tc.missingWorker {
 				worker.TotalTokens = nil

@@ -17,6 +17,8 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -174,7 +176,7 @@ func routerTestTelemetry(
 	}
 	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
-		FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{},
+		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
 			PlannerRef: planner.RouterRef,
@@ -677,9 +679,9 @@ func testInvocation() planner.Invocation {
 				Model: "fake-router-model", MaxOutputTokens: 1024,
 				MaxModelCalls: 32, MaxTotalTokens: 200_000, MaxWorkerCalls: 64,
 			},
-			LLMGateway: contracts.ResolvedLLMGatewayConfig{
-				Ref:      contracts.LLMGatewayConfigRef{GatewayID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
-				Protocol: contracts.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
+			LLMGateway: llmgateway.ResolvedLLMGatewayConfig{
+				Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+				Protocol: llmgateway.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
 			},
 		},
 		Stage: workflowconfig.ResolvedStage{

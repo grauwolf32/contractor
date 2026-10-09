@@ -11,6 +11,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -79,7 +81,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 	credentialID string,
 	limit int,
 ) ([]string, error) {
-	if err := (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
+	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
 		return nil, invalidf("credential ID is invalid")
 	}
 	if limit < 1 || limit > 128 {
@@ -628,7 +630,7 @@ func validateCreateRun(params CreateRunParams) error {
 	return nil
 }
 
-func encodeProjectHTTPTarget(target *contracts.HTTPOriginTargetRef) ([]byte, error) {
+func encodeProjectHTTPTarget(target *runtimesettings.HTTPOriginTargetRef) ([]byte, error) {
 	if target == nil {
 		return nil, nil
 	}

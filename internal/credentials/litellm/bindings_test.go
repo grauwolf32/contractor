@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
@@ -32,8 +32,8 @@ func TestLoadAdminBindingsResolvesExactGatewayAndRedactsKey(t *testing.T) {
 		t.Fatalf("admin key formatting is unsafe: %q", formatted)
 	}
 	forged := gateway
-	forged.CredentialManager = &contracts.LLMGatewayCredentialManager{
-		Implementation: contracts.LiteLLMVirtualKeysManager,
+	forged.CredentialManager = &llmgateway.LLMGatewayCredentialManager{
+		Implementation: llmgateway.LiteLLMVirtualKeysManager,
 		ManagementURL:  "http://127.0.0.1:4012",
 	}
 	if _, err := bindings.bindingFor(forged); !errors.Is(err, credentials.ErrManagerUnavailable) {
@@ -127,26 +127,26 @@ func TestLoadAdminBindingsAllowsExplicitlyEmptyConfigurationOnly(t *testing.T) {
 }
 
 type staticGateways struct {
-	gateway contracts.ResolvedLLMGatewayConfig
+	gateway llmgateway.ResolvedLLMGatewayConfig
 }
 
-func (s staticGateways) LLMGateway(selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (s staticGateways) LLMGateway(selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	if selector != s.gateway.Ref.GatewayID+"@"+s.gateway.Ref.Version {
-		return contracts.ResolvedLLMGatewayConfig{}, errors.New("not found")
+		return llmgateway.ResolvedLLMGatewayConfig{}, errors.New("not found")
 	}
 	return s.gateway, nil
 }
 
-func testGateway(origin, digestCharacter string) contracts.ResolvedLLMGatewayConfig {
-	return contracts.ResolvedLLMGatewayConfig{
-		Ref: contracts.LLMGatewayConfigRef{
+func testGateway(origin, digestCharacter string) llmgateway.ResolvedLLMGatewayConfig {
+	return llmgateway.ResolvedLLMGatewayConfig{
+		Ref: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "local-litellm", Version: "1",
 			Digest: "sha256:" + strings.Repeat(digestCharacter, 64),
 		},
-		Protocol: contracts.OpenAICompatibleProtocol,
+		Protocol: llmgateway.OpenAICompatibleProtocol,
 		URL:      origin + "/v1",
-		CredentialManager: &contracts.LLMGatewayCredentialManager{
-			Implementation: contracts.LiteLLMVirtualKeysManager,
+		CredentialManager: &llmgateway.LLMGatewayCredentialManager{
+			Implementation: llmgateway.LiteLLMVirtualKeysManager,
 			ManagementURL:  origin,
 		},
 	}
@@ -154,14 +154,14 @@ func testGateway(origin, digestCharacter string) contracts.ResolvedLLMGatewayCon
 
 func writeBindingsDocument(
 	t *testing.T,
-	ref contracts.LLMGatewayConfigRef,
+	ref llmgateway.LLMGatewayConfigRef,
 	keyPath, suffix string,
 ) string {
 	t.Helper()
 	return writeTestFile(t, "admin-bindings.yaml", bindingYAML(ref, keyPath)+suffix, 0o600)
 }
 
-func bindingYAML(ref contracts.LLMGatewayConfigRef, keyPath string) string {
+func bindingYAML(ref llmgateway.LLMGatewayConfigRef, keyPath string) string {
 	return fmt.Sprintf(`bindings:
   - llmGateway:
       gatewayId: %s

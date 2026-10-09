@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -26,8 +27,8 @@ type executionState struct {
 	failure      *planner.Error
 
 	toolMetrics map[string]toolCounters
-	toolCalls   []contracts.ToolCallRecord
-	errors      []contracts.ExecutionError
+	toolCalls   []reporting.ToolCallRecord
+	errors      []reporting.ExecutionError
 	nextCall    int64
 }
 
@@ -186,19 +187,19 @@ func (s *executionState) recordTool(
 	s.nextCall++
 	durationMS := max(0, duration.Milliseconds())
 	resultBytes := int64(max(0, resultSize))
-	record := contracts.ToolCallRecord{
+	record := reporting.ToolCallRecord{
 		CallID: fmt.Sprintf("planner_tool_%04d", s.nextCall), Tool: toolName,
-		Arguments: arguments, Outcome: contracts.ToolCallSucceeded,
+		Arguments: arguments, Outcome: reporting.ToolCallSucceeded,
 		DurationMS: &durationMS, ResultSizeBytes: &resultBytes,
 	}
 	if !succeeded {
-		record.Outcome = contracts.ToolCallFailed
+		record.Outcome = reporting.ToolCallFailed
 		retryable := false
 		code, message := "planner_tool_rejected", "Planner tool call was rejected"
 		if failure != nil {
 			code, message, retryable = failure.Code, failure.Message, failure.Retryable
 		}
-		record.Error = &contracts.ExecutionError{
+		record.Error = &reporting.ExecutionError{
 			Code: code, Message: message, Retryable: &retryable,
 		}
 	}
@@ -265,33 +266,33 @@ func (s *executionState) appendErrorLocked(code, message string, retryable bool)
 		return
 	}
 	retryableCopy := retryable
-	s.errors = append(s.errors, contracts.ExecutionError{
+	s.errors = append(s.errors, reporting.ExecutionError{
 		Code: code, Message: message, Retryable: &retryableCopy,
 	})
 }
 
-func (s *executionState) report(reportID string, duration time.Duration) contracts.ExecutionReport {
+func (s *executionState) report(reportID string, duration time.Duration) reporting.ExecutionReport {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	modelCalls, inputTokens, outputTokens := s.modelCalls, s.inputTokens, s.outputTokens
 	totalTokens := inputTokens + outputTokens
 	durationMS := max(0, duration.Milliseconds())
-	tools := make(map[string]contracts.ToolMetrics, len(s.toolMetrics))
+	tools := make(map[string]reporting.ToolMetrics, len(s.toolMetrics))
 	for name, counters := range s.toolMetrics {
 		calls, succeeded, failed := counters.calls, counters.succeeded, counters.failed
-		tools[name] = contracts.ToolMetrics{
+		tools[name] = reporting.ToolMetrics{
 			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 		}
 	}
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: reportID, Complete: true,
-		Metrics: contracts.ExecutionMetrics{
+		Metrics: reporting.ExecutionMetrics{
 			DurationMS: &durationMS, ModelCalls: &modelCalls,
 			InputTokens: &inputTokens, OutputTokens: &outputTokens,
 			TotalTokens: &totalTokens, Tools: tools,
 		},
-		ToolCalls: append([]contracts.ToolCallRecord(nil), s.toolCalls...),
-		Errors:    append([]contracts.ExecutionError(nil), s.errors...),
+		ToolCalls: append([]reporting.ToolCallRecord(nil), s.toolCalls...),
+		Errors:    append([]reporting.ExecutionError(nil), s.errors...),
 	}
 	return report
 }

@@ -11,6 +11,9 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -22,7 +25,7 @@ import (
 var errPlacementRevisionChanged = errors.New("placement revisions changed")
 
 type PlacementGatewayLookup interface {
-	LLMGateway(string) (contracts.ResolvedLLMGatewayConfig, error)
+	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
 type PlacementCredentialGuard interface {
@@ -237,7 +240,7 @@ func (a *PlacementAllocator) reserveAllContext(
 		selectedCandidates[candidate.Registration.InstanceID] = candidate
 	}
 	resolvedByAllocation := make(map[string]runtimeconfig.ResolvedRuntimeConfig, len(reservations))
-	policyByAllocation := make(map[string]contracts.PerformanceCollectionPolicy, len(reservations))
+	policyByAllocation := make(map[string]reporting.PerformanceCollectionPolicy, len(reservations))
 	err = a.credentialGuard.WithAllocationReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, a.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return a.pinReservations(
@@ -281,7 +284,7 @@ func (a *PlacementAllocator) pinReservations(
 	candidates map[string]AgentSnapshot,
 	optimistic map[string]runtimeconfig.ResolvedRuntimeConfig,
 	result map[string]runtimeconfig.ResolvedRuntimeConfig,
-	policies map[string]contracts.PerformanceCollectionPolicy,
+	policies map[string]reporting.PerformanceCollectionPolicy,
 ) error {
 	labels := make(map[string]struct{})
 	principalIDs := make([]string, 0, len(reservations))
@@ -388,16 +391,16 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 	return nil
 }
 
-func (a *PlacementAllocator) collectionPolicy(registration contracts.AgentRegistration) contracts.PerformanceCollectionPolicy {
+func (a *PlacementAllocator) collectionPolicy(registration control.AgentRegistration) reporting.PerformanceCollectionPolicy {
 	if !a.performanceMetrics {
-		return contracts.PerformanceCollectionDisabled
+		return reporting.PerformanceCollectionDisabled
 	}
 	for _, version := range registration.SupportedPerformanceMetricsVersions {
-		if version == contracts.PerformanceMetricsVersion {
-			return contracts.PerformanceCollectionRequested
+		if version == reporting.PerformanceMetricsVersion {
+			return reporting.PerformanceCollectionRequested
 		}
 	}
-	return contracts.PerformanceCollectionUnsupported
+	return reporting.PerformanceCollectionUnsupported
 }
 
 func (a *PlacementAllocator) resolveCandidate(
@@ -568,8 +571,8 @@ func loadPinnedRuntimeConfig(
 func (a *PlacementAllocator) gatewayCatalog(
 	selection workflowconfig.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
-) (map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig, error) {
-	refs := make(map[contracts.LLMGatewayConfigRef]struct{})
+) (map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, error) {
+	refs := make(map[llmgateway.LLMGatewayConfigRef]struct{})
 	if selection.LLMGateway != nil {
 		refs[selection.LLMGateway.Ref] = struct{}{}
 	}
@@ -578,7 +581,7 @@ func (a *PlacementAllocator) gatewayCatalog(
 			refs[field.Value] = struct{}{}
 		}
 	}
-	result := make(map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig, len(refs))
+	result := make(map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, len(refs))
 	for ref := range refs {
 		gateway, err := a.gateways.LLMGateway(ref.GatewayID + "@" + ref.Version)
 		if err != nil || gateway.Ref != ref {
@@ -717,7 +720,7 @@ func runtimeRoutePatches(
 		if err != nil {
 			return workflow, run, escalation, err
 		}
-		patch.Gateway = runtimeconfig.Field[contracts.LLMGatewayConfigRef]{
+		patch.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{
 			Present: true, Value: selection.LLMGateway.Ref,
 		}
 	}

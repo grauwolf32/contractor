@@ -1,0 +1,393 @@
+package contracts
+
+// Resolved AgentTemplate and model-policy values pinned into Runs and
+// allocations, with the Worker budget bounds they are validated against.
+
+import (
+	"math"
+	"strings"
+	"unicode/utf8"
+)
+
+type AgentTemplateRef struct {
+	TemplateID string `json:"templateId"`
+	Version    string `json:"version"`
+	Digest     string `json:"digest"`
+}
+
+func (r AgentTemplateRef) ValidateRef() error {
+	if err := ValidateSelector("agentTemplateRef", r.TemplateID+"@"+r.Version); err != nil {
+		return err
+	}
+	return ValidateDigest("agentTemplateRef.digest", r.Digest)
+}
+
+type WorkerRuntimeRef struct {
+	RuntimeID string `json:"runtimeId"`
+	Version   string `json:"version"`
+}
+
+func (r WorkerRuntimeRef) ValidateRef() error {
+	return ValidateSelector("workerRuntimeRef", r.RuntimeID+"@"+r.Version)
+}
+
+type ModelPolicyRef struct {
+	PolicyID string `json:"policyId"`
+	Version  string `json:"version"`
+	Digest   string `json:"digest"`
+}
+
+func (r ModelPolicyRef) ValidateRef() error {
+	if err := ValidateSelector("modelPolicyRef", r.PolicyID+"@"+r.Version); err != nil {
+		return err
+	}
+	return ValidateDigest("modelPolicyRef.digest", r.Digest)
+}
+
+type ToolsetRef struct {
+	ToolsetID string `json:"toolsetId"`
+	Version   string `json:"version"`
+}
+
+type SandboxProfileRef struct {
+	SandboxProfileID string `json:"sandboxProfileId"`
+	Version          string `json:"version"`
+}
+
+type ResolvedInstructions struct {
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+	Text   string `json:"text"`
+}
+
+type ResolvedModelPolicy struct {
+	Ref                 ModelPolicyRef `json:"ref"`
+	Model               string         `json:"model"`
+	ContextWindowTokens int            `json:"contextWindowTokens,omitempty"`
+	MaxOutputTokens     int            `json:"maxOutputTokens,omitempty"`
+	MaxModelCalls       int            `json:"maxModelCalls,omitempty"`
+	MaxToolCalls        int            `json:"maxToolCalls,omitempty"`
+	MaxWorkerCalls      int            `json:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens      int            `json:"maxTotalTokens,omitempty"`
+	Temperature         *float64       `json:"temperature,omitempty"`
+}
+
+func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
+
+// Clone returns a copy that does not share the Temperature pointer.
+func (p ResolvedModelPolicy) Clone() ResolvedModelPolicy {
+	if p.Temperature != nil {
+		temperature := *p.Temperature
+		p.Temperature = &temperature
+	}
+	return p
+}
+
+func (p ResolvedModelPolicy) ValidateForWorker(hasTools bool) error {
+	return validateWorkerModelPolicy(p, hasTools)
+}
+
+func (p ResolvedModelPolicy) ValidateForWorkerSummarizer() error {
+	return validateWorkerSummarizerModelPolicy(p)
+}
+
+func (p ResolvedModelPolicy) ValidateForPlanner() error {
+	if err := validateModelPolicy(p); err != nil {
+		return err
+	}
+	if p.MaxOutputTokens <= 0 {
+		return Invalidf("Planner modelPolicy requires maxOutputTokens")
+	}
+	if p.MaxModelCalls <= 0 {
+		return Invalidf("Planner modelPolicy requires maxModelCalls")
+	}
+	if p.MaxWorkerCalls <= 0 {
+		return Invalidf("Planner modelPolicy requires maxWorkerCalls")
+	}
+	if p.MaxTotalTokens <= 0 {
+		return Invalidf("Planner modelPolicy requires maxTotalTokens")
+	}
+	if p.MaxToolCalls != 0 {
+		return Invalidf("Planner modelPolicy must omit maxToolCalls")
+	}
+	return nil
+}
+
+const (
+	MaxWorkerModelCalls                       = 1_000
+	MaxWorkerToolCalls                        = 10_000
+	MaxPlannerWorkerCalls                     = 10_000
+	MaxWorkerTotalTokens                      = 100_000_000
+	MaxModelContextTokens                     = 100_000_000
+	DefaultWorkerSummarizerContextWindowRatio = 0.9
+)
+
+var nativeSkillToolNames = map[string]struct{}{
+	"list_skills": {}, "load_skill": {}, "load_skill_resource": {},
+}
+
+func IsNativeSkillToolName(name string) bool {
+	_, exists := nativeSkillToolNames[name]
+	return exists
+}
+
+type ToolsetSelection struct {
+	Ref   ToolsetRef `json:"ref"`
+	Tools []string   `json:"tools"`
+}
+
+// WorkerSummarizerConfig is an immutable, template-owned terminal
+// summarization policy. Its ModelPolicy is resolved before a Run is accepted;
+// the normalized context ratio is always present while the optional cumulative
+// budget remains a pointer so strict decoding distinguishes omission from zero.
+type WorkerSummarizerConfig struct {
+	Instructions       *ResolvedInstructions `json:"instructions,omitempty"`
+	ModelPolicy        ResolvedModelPolicy   `json:"modelPolicy"`
+	ContextWindowRatio float64               `json:"contextWindowRatio"`
+	CumulativeBudget   *int                  `json:"cumulativeBudget,omitempty"`
+}
+
+func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error {
+	return validateWorkerSummarizerConfig(c, workerPolicy)
+}
+
+type ResolvedAgentTemplate struct {
+	Ref            AgentTemplateRef        `json:"ref"`
+	Description    string                  `json:"description"`
+	Runtime        WorkerRuntimeRef        `json:"runtime"`
+	Instructions   ResolvedInstructions    `json:"instructions,omitzero"`
+	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy,omitzero"`
+	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
+	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
+	Toolsets       []ToolsetSelection      `json:"toolsets"`
+	Skills         []ArtifactRef           `json:"skills,omitempty"`
+	SandboxProfile SandboxProfileRef       `json:"sandboxProfile"`
+}
+
+func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
+
+// Clone returns a copy that shares no pointers, slices or Skill revisions
+// with t.
+func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
+	result := t
+	result.Execution = t.Execution.Clone()
+	result.ModelPolicy = t.ModelPolicy.Clone()
+	if t.Summarizer != nil {
+		summarizer := *t.Summarizer
+		if t.Summarizer.Instructions != nil {
+			instructions := *t.Summarizer.Instructions
+			summarizer.Instructions = &instructions
+		}
+		summarizer.ModelPolicy = t.Summarizer.ModelPolicy.Clone()
+		if t.Summarizer.CumulativeBudget != nil {
+			budget := *t.Summarizer.CumulativeBudget
+			summarizer.CumulativeBudget = &budget
+		}
+		result.Summarizer = &summarizer
+	}
+	result.Toolsets = make([]ToolsetSelection, len(t.Toolsets))
+	for index, toolset := range t.Toolsets {
+		result.Toolsets[index] = toolset
+		result.Toolsets[index].Tools = append([]string(nil), toolset.Tools...)
+	}
+	result.Skills = append([]ArtifactRef(nil), t.Skills...)
+	for index, skill := range result.Skills {
+		result.Skills[index] = skill.Clone()
+	}
+	return result
+}
+
+func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
+	if err := template.Ref.ValidateRef(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(template.Description) == "" {
+		return Invalidf("agentTemplate.description must not be empty")
+	}
+	if err := template.Runtime.ValidateRef(); err != nil {
+		return err
+	}
+	if err := template.ValidateToolExecution(); err != nil {
+		return err
+	}
+	if !template.IsToolWorker() {
+		if strings.TrimSpace(template.Instructions.Ref) == "" || strings.TrimSpace(template.Instructions.Text) == "" {
+			return Invalidf("agentTemplate instructions ref/text must not be empty")
+		}
+		if err := ValidateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
+			return err
+		}
+		if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
+			return err
+		}
+	}
+	if template.Summarizer != nil {
+		if err := validateWorkerSummarizerConfig(*template.Summarizer, template.ModelPolicy); err != nil {
+			return err
+		}
+	}
+	seenToolsets := make(map[string]struct{})
+	seenTools := make(map[string]struct{})
+	for _, selection := range template.Toolsets {
+		selector := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		if err := ValidateSelector("agentTemplate.toolsets.ref", selector); err != nil {
+			return err
+		}
+		if _, exists := seenToolsets[selector]; exists {
+			return Invalidf("duplicate AgentTemplate toolset %q", selector)
+		}
+		seenToolsets[selector] = struct{}{}
+		if len(selection.Tools) == 0 {
+			return Invalidf("AgentTemplate toolset %q has no selected tools", selector)
+		}
+		for _, tool := range selection.Tools {
+			if err := ValidateOpaqueID("selected tool", tool); err != nil {
+				return err
+			}
+			if _, exists := seenTools[tool]; exists {
+				return Invalidf("duplicate model-visible tool name %q", tool)
+			}
+			if len(template.Skills) > 0 && IsNativeSkillToolName(tool) {
+				return Invalidf("model-visible tool name %q is reserved by Agent Skills", tool)
+			}
+			seenTools[tool] = struct{}{}
+		}
+	}
+	if len(template.Skills) > MaxAgentTemplateSkills {
+		return Invalidf("AgentTemplate may select at most %d skills", MaxAgentTemplateSkills)
+	}
+	previousSkill := ""
+	for _, skill := range template.Skills {
+		if err := skill.ValidateAgentSkillRef(); err != nil {
+			return err
+		}
+		if previousSkill != "" && skill.Name <= previousSkill {
+			return Invalidf("AgentTemplate skills must be sorted and unique")
+		}
+		previousSkill = skill.Name
+	}
+	return ValidateSelector(
+		"agentTemplate.sandboxProfile",
+		template.SandboxProfile.SandboxProfileID+"@"+template.SandboxProfile.Version,
+	)
+}
+
+func validateModelPolicy(policy ResolvedModelPolicy) error {
+	if err := ValidateSelector("modelPolicyRef", policy.Ref.PolicyID+"@"+policy.Ref.Version); err != nil {
+		return err
+	}
+	if err := ValidateDigest("modelPolicyRef.digest", policy.Ref.Digest); err != nil {
+		return err
+	}
+	if strings.TrimSpace(policy.Model) == "" {
+		return Invalidf("modelPolicy model is required")
+	}
+	if policy.ContextWindowTokens < 0 || policy.ContextWindowTokens > MaxModelContextTokens {
+		return Invalidf("modelPolicy contextWindowTokens must be between 1 and %d when present", MaxModelContextTokens)
+	}
+	if policy.MaxOutputTokens < 0 {
+		return Invalidf("modelPolicy maxOutputTokens must be positive when present")
+	}
+	if policy.MaxModelCalls < 0 || policy.MaxModelCalls > MaxWorkerModelCalls {
+		return Invalidf("modelPolicy maxModelCalls must be between 1 and %d when present", MaxWorkerModelCalls)
+	}
+	if policy.MaxToolCalls < 0 || policy.MaxToolCalls > MaxWorkerToolCalls {
+		return Invalidf("modelPolicy maxToolCalls must be between 1 and %d when present", MaxWorkerToolCalls)
+	}
+	if policy.MaxWorkerCalls < 0 || policy.MaxWorkerCalls > MaxPlannerWorkerCalls {
+		return Invalidf("modelPolicy maxWorkerCalls must be between 1 and %d when present", MaxPlannerWorkerCalls)
+	}
+	if policy.MaxTotalTokens < 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
+		return Invalidf("modelPolicy maxTotalTokens must be between 1 and %d when present", MaxWorkerTotalTokens)
+	}
+	if policy.ContextWindowTokens > 0 && policy.MaxOutputTokens >= policy.ContextWindowTokens {
+		return Invalidf("modelPolicy maxOutputTokens must be below contextWindowTokens")
+	}
+	if policy.Temperature != nil {
+		temperature := *policy.Temperature
+		if temperature < 0 || math.IsNaN(temperature) || math.IsInf(temperature, 0) {
+			return Invalidf("modelPolicy temperature must be finite and non-negative")
+		}
+	}
+	return nil
+}
+
+func validateWorkerModelPolicy(policy ResolvedModelPolicy, hasTools bool) error {
+	if err := validateModelPolicy(policy); err != nil {
+		return err
+	}
+	if policy.MaxOutputTokens <= 0 {
+		return Invalidf("Worker modelPolicy requires maxOutputTokens")
+	}
+	if policy.MaxModelCalls <= 0 {
+		return Invalidf("Worker modelPolicy requires maxModelCalls")
+	}
+	if policy.MaxTotalTokens <= 0 {
+		return Invalidf("Worker modelPolicy requires maxTotalTokens")
+	}
+	if hasTools && policy.MaxToolCalls <= 0 {
+		return Invalidf("tool-using Worker modelPolicy requires maxToolCalls")
+	}
+	if policy.MaxWorkerCalls != 0 {
+		return Invalidf("Worker modelPolicy must omit maxWorkerCalls")
+	}
+	return nil
+}
+
+func validateWorkerSummarizerModelPolicy(policy ResolvedModelPolicy) error {
+	if err := validateModelPolicy(policy); err != nil {
+		return err
+	}
+	if policy.MaxOutputTokens <= 0 {
+		return Invalidf("Worker summarizer modelPolicy requires maxOutputTokens")
+	}
+	if policy.ContextWindowTokens <= 0 {
+		return Invalidf("Worker summarizer modelPolicy requires contextWindowTokens")
+	}
+	if policy.MaxModelCalls != 1 {
+		return Invalidf("Worker summarizer modelPolicy requires maxModelCalls=1")
+	}
+	if policy.MaxToolCalls != 0 {
+		return Invalidf("Worker summarizer modelPolicy must omit maxToolCalls")
+	}
+	if policy.MaxWorkerCalls != 0 {
+		return Invalidf("Worker summarizer modelPolicy must omit maxWorkerCalls")
+	}
+	return nil
+}
+
+func validateWorkerSummarizerConfig(
+	config WorkerSummarizerConfig,
+	workerPolicy ResolvedModelPolicy,
+) error {
+	if instructions := config.Instructions; instructions != nil {
+		if strings.TrimSpace(instructions.Ref) == "" || strings.TrimSpace(instructions.Text) == "" {
+			return Invalidf("Worker summarizer instructions ref and text must not be empty")
+		}
+		if !utf8.ValidString(instructions.Text) || utf8.RuneCountInString(instructions.Text) > 8000 {
+			return Invalidf("Worker summarizer instructions must contain at most 8000 Unicode characters")
+		}
+		if err := ValidateDigest("summarizer.instructions.digest", instructions.Digest); err != nil {
+			return err
+		}
+	}
+	if err := validateWorkerSummarizerModelPolicy(config.ModelPolicy); err != nil {
+		return err
+	}
+	if workerPolicy.ContextWindowTokens <= 0 {
+		return Invalidf("summarized Worker modelPolicy requires contextWindowTokens")
+	}
+	if config.ContextWindowRatio <= 0 || config.ContextWindowRatio >= 1 ||
+		math.IsNaN(config.ContextWindowRatio) || math.IsInf(config.ContextWindowRatio, 0) {
+		return Invalidf("Worker summarizer contextWindowRatio must be finite and between 0 and 1")
+	}
+	if config.CumulativeBudget != nil {
+		if *config.CumulativeBudget <= 0 || *config.CumulativeBudget > MaxWorkerTotalTokens {
+			return Invalidf("Worker summarizer cumulativeBudget must be between 1 and %d", MaxWorkerTotalTokens)
+		}
+		if workerPolicy.MaxTotalTokens <= 0 || *config.CumulativeBudget >= workerPolicy.MaxTotalTokens {
+			return Invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
+		}
+	}
+	return nil
+}

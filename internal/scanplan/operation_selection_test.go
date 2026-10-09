@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -25,7 +26,7 @@ func TestPrepareAssignedOperationDoesNotScanOrSpendBudgetOnNeighbors(t *testing.
 		t.Fatal(err)
 	}
 	if len(set.Requests) != 1 || set.Requests[0].Request.URL != "https://api.example.test/base/z?id=7" ||
-		!reflect.DeepEqual(set.Requests[0].Origins, []contracts.RequestOrigin{{Pointer: "#/paths/~1z/get"}}) ||
+		!reflect.DeepEqual(set.Requests[0].Origins, []scan.RequestOrigin{{Pointer: "#/paths/~1z/get"}}) ||
 		set.Coverage.Operations != 1 || set.Coverage.Prepared != 1 || !set.Coverage.Complete || len(set.Gaps) != 0 {
 		t.Fatalf("assigned operation was broadened or affected by neighbors: %+v", set)
 	}
@@ -37,12 +38,12 @@ func TestPrepareAssignedOperationDoesNotScanOrSpendBudgetOnNeighbors(t *testing.
 		t.Fatal("source revision aliases caller state")
 	}
 	policy, bindings := planFixture("scan_sqlmap")
-	wire, err := contracts.MarshalHTTPRequestSet(set)
+	wire, err := scan.MarshalHTTPRequestSet(set)
 	if err != nil {
 		t.Fatal(err)
 	}
 	input := planInput("")
-	input.MediaType, input.Data = contracts.HTTPRequestSetMediaType, wire
+	input.MediaType, input.Data = scan.HTTPRequestSetMediaType, wire
 	plan := buildPlan(t, input, policy, bindings, nil)
 	if len(plan.Jobs) != 1 || plan.Jobs[0].Request == nil || plan.Jobs[0].Request.URL != set.Requests[0].Request.URL ||
 		!reflect.DeepEqual(plan.Jobs[0].Request.TestParameters, []string{"id"}) {
@@ -87,12 +88,12 @@ func TestAssignedSQLMapRequestKeepsPostBodyAndAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wire, err := contracts.MarshalHTTPRequestSet(set)
+	wire, err := scan.MarshalHTTPRequestSet(set)
 	if err != nil {
 		t.Fatal(err)
 	}
 	input := planInput("")
-	input.MediaType, input.Data = contracts.HTTPRequestSetMediaType, wire
+	input.MediaType, input.Data = scan.HTTPRequestSetMediaType, wire
 	policy, bindings := planFixture("scan_sqlmap")
 	plan := buildPlan(t, input, policy, bindings, nil)
 	if len(plan.Jobs) != 1 || plan.Jobs[0].Request == nil {
@@ -100,7 +101,7 @@ func TestAssignedSQLMapRequestKeepsPostBodyAndAuthentication(t *testing.T) {
 	}
 	request := plan.Jobs[0].Request
 	if request.Method != "POST" || request.URL != "http://target.test/api/pets" || request.Body != `{"id":7}` ||
-		!reflect.DeepEqual(request.Headers, []contracts.HTTPRequestHeader{
+		!reflect.DeepEqual(request.Headers, []scan.HTTPRequestHeader{
 			{Name: "authorization", Value: "Bearer fixture-token"}, {Name: "content-type", Value: "application/json"},
 		}) || !set.Coverage.Complete {
 		t.Fatal("SQLMap request changed its method, body, headers or target")

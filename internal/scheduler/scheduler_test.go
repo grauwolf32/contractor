@@ -22,6 +22,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -385,15 +389,15 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	plannerPolicy, _ := snapshot.ModelPolicy("test-planner@1")
 	workerPolicy, _ := snapshot.ModelPolicy("test-domain-worker@1")
 	workerGateway, _ := snapshot.LLMGateway("local-litellm@1")
-	plannerGateway := contracts.ResolvedLLMGatewayConfig{
-		Ref: contracts.LLMGatewayConfigRef{
+	plannerGateway := llmgateway.ResolvedLLMGatewayConfig{
+		Ref: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "planner-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 		},
-		Protocol: contracts.OpenAICompatibleProtocol,
+		Protocol: llmgateway.OpenAICompatibleProtocol,
 		URL:      "https://planner.example/v1",
 	}
-	plannerCredential := contracts.LLMCredentialRef{CredentialID: "planner-credential"}
-	workerCredential := contracts.LLMCredentialRef{CredentialID: "worker-credential"}
+	plannerCredential := llmgateway.LLMCredentialRef{CredentialID: "planner-credential"}
+	workerCredential := llmgateway.LLMCredentialRef{CredentialID: "worker-credential"}
 	provider, err := credentials.NewStaticProvider([]credentials.StaticEntry{
 		{
 			Metadata: workflowconfig.CredentialMetadata{
@@ -446,7 +450,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 		t.Fatalf("Planner model access = %+v", plannerAccess)
 	}
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		return contracts.SecretString{}, errors.New("provider leaked worker-secret")
 	})
@@ -494,7 +498,7 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
 		t.Fatal("formatted Runtime settings exposed Caido bearer")
 	}
-	workerSettings := map[string]contracts.WorkerExecutionSettings{
+	workerSettings := map[string]runtimesettings.WorkerExecutionSettings{
 		"builder": {RuntimeSettings: settings},
 	}
 	clearWorkerExecutionSettings(workerSettings)
@@ -526,9 +530,9 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 		Tools: []string{"http_request"},
 	})
 	stage.Agents["builder"] = binding
-	run := runstore.WorkflowRun{ProjectHTTPTarget: &contracts.HTTPOriginTargetRef{
+	run := runstore.WorkflowRun{ProjectHTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}}
@@ -563,10 +567,10 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 	for _, test := range []struct {
 		name       string
 		statusCode int
-		wantExport contracts.ToolCallOutcome
+		wantExport reporting.ToolCallOutcome
 	}{
-		{name: "accepted", statusCode: http.StatusOK, wantExport: contracts.ToolCallSucceeded},
-		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: contracts.ToolCallFailed},
+		{name: "accepted", statusCode: http.StatusOK, wantExport: reporting.ToolCallSucceeded},
+		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: reporting.ToolCallFailed},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var collectorMu sync.Mutex
@@ -633,16 +637,16 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
-			resolved.PlannerRuntimeCredential = &contracts.RuntimeCredentialRef{
+			resolved.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "planner-otel", Kind: contracts.RuntimeCredentialOTLPHeaders,
 			}
 			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
 			}
-			resolved.Provenance.RunLabels = []contracts.RuntimeLabelBindingProvenance{{
+			resolved.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
 			}}
-			resolved.Provenance.AgentLabels = []contracts.RuntimeLabelBindingProvenance{{
+			resolved.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
 			}}
 			harness.allocator.resolvedRuntimeConfig = &resolved
@@ -1903,8 +1907,8 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		},
 		Credentials: credentialResolverFunc(func(
 			_ context.Context,
-			credential contracts.LLMCredentialRef,
-			_ contracts.LLMGatewayConfigRef,
+			credential llmgateway.LLMCredentialRef,
+			_ llmgateway.LLMGatewayConfigRef,
 		) (contracts.SecretString, error) {
 			if credential.CredentialID != "development-worker" &&
 				credential.CredentialID != "development-planner" {
@@ -2561,8 +2565,8 @@ func schedulerTestResolvedWorkerConfig(selection workflowconfig.ResolvedConsumer
 	}
 	if selection.LLMGateway != nil {
 		gateway := *selection.LLMGateway
-		input.Workflow.Gateway = runtimeconfig.Field[contracts.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
-		input.Gateways = map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
+		input.Workflow.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
+		input.Gateways = map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
 		if selection.Credential != nil {
 			input.Workflow.Credential = runtimeconfig.Field[string]{Present: true, Value: selection.Credential.CredentialID}
 			input.LLMCredentials = map[string]runtimeconfig.LLMCredentialAuthorization{
@@ -2664,7 +2668,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 		ResolvedRuntimeConfig:       &resolved,
 	}
 	if a.resolvedRuntimeConfig != nil {
@@ -2749,7 +2753,7 @@ type memoryWorkers struct {
 	finalizeCalls        int
 	abortCalls           int
 	releaseCalls         int
-	preparedSettings     []map[string]contracts.WorkerExecutionSettings
+	preparedSettings     []map[string]runtimesettings.WorkerExecutionSettings
 	preparedReservations [][]controlplane.Reservation
 	prepareError         error
 	abortError           error
@@ -2760,7 +2764,7 @@ type memoryWorkers struct {
 
 func (w *memoryWorkers) PrepareAll(
 	_ context.Context, reservations []controlplane.Reservation,
-	settings map[string]contracts.WorkerExecutionSettings,
+	settings map[string]runtimesettings.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.preparedSettings = append(w.preparedSettings, settings)
@@ -2788,7 +2792,7 @@ func (w *memoryWorkers) PrepareAll(
 
 func (w *memoryWorkers) FinalizeAll(
 	_ context.Context, reservations []controlplane.Reservation, _ string, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	w.finalizeCalls++
 	for _, reservation := range reservations {
 		if !w.allocator.fenced[reservation.Grant.AllocationID] {
@@ -2796,7 +2800,7 @@ func (w *memoryWorkers) FinalizeAll(
 		}
 	}
 	w.events.add("finalize")
-	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
+	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(
 			reservation.Grant.AllocationID, w.clock.now,
@@ -2807,27 +2811,27 @@ func (w *memoryWorkers) FinalizeAll(
 
 func (w *memoryWorkers) AbortAll(
 	_ context.Context, _ []controlplane.Reservation, _ string, _ contracts.TerminationError, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	w.abortCalls++
 	w.events.add("abort")
-	return map[string]contracts.AllocationFinalReport{}, w.abortError
+	return map[string]reporting.AllocationFinalReport{}, w.abortError
 }
 
 func schedulerTestAllocationReport(
 	allocationID string, finishedAt time.Time,
-) contracts.AllocationFinalReport {
+) reporting.AllocationFinalReport {
 	modelCalls := int64(1)
-	return contracts.AllocationFinalReport{
+	return reporting.AllocationFinalReport{
 		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
 		StartedAt: finishedAt.Add(-time.Second), FinishedAt: finishedAt,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-" + allocationID, Complete: true,
-			Metrics: contracts.ExecutionMetrics{
-				ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
 			},
-			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true},
+		Runtime: reporting.RuntimeReport{Complete: true},
 	}
 }
 
@@ -2908,14 +2912,14 @@ func (f plannerFunc) Run(ctx context.Context) (contracts.StageContentResult, err
 
 type credentialResolverFunc func(
 	context.Context,
-	contracts.LLMCredentialRef,
-	contracts.LLMGatewayConfigRef,
+	llmgateway.LLMCredentialRef,
+	llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error)
 
 func (f credentialResolverFunc) ResolveLLMCredential(
 	ctx context.Context,
-	credential contracts.LLMCredentialRef,
-	gateway contracts.LLMGatewayConfigRef,
+	credential llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	return f(ctx, credential, gateway)
 }
@@ -2940,7 +2944,7 @@ type recordingPlannerTelemetryRegistry struct {
 	inner          *telemetry.PlannerAdapterRegistry
 	creates        int
 	resources      []telemetry.PlannerResource
-	metadataLabels []contracts.RunMetadataLabels
+	metadataLabels []runlabels.RunMetadataLabels
 }
 
 func (r *recordingPlannerTelemetryRegistry) Create(
@@ -2953,8 +2957,8 @@ func (r *recordingPlannerTelemetryRegistry) Create(
 	return r.inner.Create(ref, settings)
 }
 
-func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) contracts.RuntimeConfigRef {
-	return contracts.RuntimeConfigRef{
+func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) runtimesettings.RuntimeConfigRef {
+	return runtimesettings.RuntimeConfigRef{
 		Name: value.Name, Version: value.Version, Digest: value.Digest,
 	}
 }

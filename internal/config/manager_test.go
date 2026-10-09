@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
@@ -64,10 +64,10 @@ func TestManagerPublishesNormalizedGateway(t *testing.T) {
 		Kind: ConfigurationLLMGateways, Name: "remote", Version: "1",
 		IdempotencyKey: "publish-gateway", ActorID: "user-1",
 		LLMGateway: &LLMGatewayPublication{
-			Protocol: contracts.OpenAICompatibleProtocol,
+			Protocol: llmgateway.OpenAICompatibleProtocol,
 			URL:      "https://gateway.example.test/v1/",
 			CredentialManager: &CredentialManagerPublication{
-				Implementation: contracts.LiteLLMVirtualKeysManager,
+				Implementation: llmgateway.LiteLLMVirtualKeysManager,
 				ManagementURL:  "https://gateway.example.test/",
 			},
 		},

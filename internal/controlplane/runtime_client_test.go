@@ -22,6 +22,11 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
@@ -127,7 +132,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	effectivePolicy.MaxModelCalls++
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
-	var received contracts.PrepareAllocationRequest
+	var received control.PrepareAllocationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
@@ -140,7 +145,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		if err := decoder.Decode(&received); err != nil {
 			t.Errorf("decode prepare request: %v", err)
 		}
-		response := contracts.PrepareAllocationResponse{
+		response := control.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
@@ -156,9 +161,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}))
 	defer server.Close()
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
-	reservation.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
-	reservation.RunMetadataLabels = contracts.RunMetadataLabels{
+	reservation.RunMetadataLabels = runlabels.RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
 	}
 	skillRevision := "run-review-1"
@@ -186,7 +191,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 
 	handle, err := client.Prepare(
 		requestid.With(context.Background(), "scheduler-request-1"), reservation,
-		contracts.WorkerExecutionSettings{
+		runtimesettings.WorkerExecutionSettings{
 			ModelPolicy: effectivePolicy, RuntimeSettings: settings,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		},
@@ -216,8 +221,8 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		received.Spec.Workspace.Sources[0].Artifact.Revision == nil ||
 		*received.Spec.Workspace.Sources[0].Artifact.Revision != workspaceRevision ||
 		received.Spec.PerformanceMetrics == nil ||
-		received.Spec.PerformanceMetrics.Version != contracts.PerformanceMetricsVersion ||
-		received.Spec.PerformanceMetrics.IntervalSeconds != contracts.PerformanceMetricsIntervalSeconds ||
+		received.Spec.PerformanceMetrics.Version != reporting.PerformanceMetricsVersion ||
+		received.Spec.PerformanceMetrics.IntervalSeconds != reporting.PerformanceMetricsIntervalSeconds ||
 		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {
 		t.Fatalf("prepare request lost resolved inputs: %+v", received.Spec)
 	}
@@ -228,7 +233,7 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	settings := testRuntimeSettings()
 	lease := wireTime(time.Now().Add(time.Minute).UTC())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		response := contracts.PrepareAllocationResponse{
+		response := control.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
@@ -245,7 +250,7 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	client, _ := NewRuntimeControlClient(server.Client())
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 
-	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{
+	_, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: settings,
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	})
@@ -305,22 +310,22 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 	for _, value := range []string{"1", "1.0", "JSONRPC", "contractor", "stage", "adk"} {
 		t.Run(value, func(t *testing.T) {
 			settings := testRuntimeSettings()
-			settings.Telemetry = &contracts.TelemetrySettings{
+			settings.Telemetry = &runtimesettings.TelemetrySettings{
 				Adapter:             contracts.RuntimeAdapterOTLPHTTP,
 				Endpoint:            "https://telemetry.example/v1/traces",
 				Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString(value)},
 				FlushTimeoutSeconds: 1,
 			}
-			settings.HTTPProxy = &contracts.HTTPProxySettings{
+			settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
 				Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
-				BasicAuth: &contracts.HTTPProxyBasicAuth{
+				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
 				},
-				Targets: []contracts.HTTPProxyTarget{contracts.ProxyTargetLLMGateway},
+				Targets: []runtimesettings.HTTPProxyTarget{runtimesettings.ProxyTargetLLMGateway},
 			}
-			settings.HTTPOriginTarget = &contracts.HTTPOriginTargetSettings{
+			settings.HTTPOriginTarget = &runtimesettings.HTTPOriginTargetSettings{
 				URL: "https://origin.example",
-				BasicAuth: &contracts.HTTPProxyBasicAuth{
+				BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 					Username: contracts.NewSecretString(value), Password: contracts.NewSecretString("safe-password"),
 				},
 			}
@@ -330,7 +335,7 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 		})
 	}
 	settings := testRuntimeSettings()
-	settings.Telemetry = &contracts.TelemetrySettings{
+	settings.Telemetry = &runtimesettings.TelemetrySettings{
 		Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 		Headers:             map[string]contracts.SecretString{"X-Scope-OrgID": contracts.NewSecretString("stage")},
 		FlushTimeoutSeconds: 1,
@@ -368,13 +373,13 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 		template, lease,
 	)
 	settings := testRuntimeSettings()
-	settings.HTTPProxy = &contracts.HTTPProxySettings{
+	settings.HTTPProxy = &runtimesettings.HTTPProxySettings{
 		Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
-		BasicAuth: &contracts.HTTPProxyBasicAuth{
+		BasicAuth: &runtimesettings.HTTPProxyBasicAuth{
 			Username: contracts.NewSecretString("worker"),
 			Password: contracts.NewSecretString("short"),
 		},
-		Targets: []contracts.HTTPProxyTarget{contracts.ProxyTargetLLMGateway},
+		Targets: []runtimesettings.HTTPProxyTarget{runtimesettings.ProxyTargetLLMGateway},
 	}
 	handle := contracts.WorkerHandle{
 		AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
@@ -463,7 +468,7 @@ func TestWorkerHandleSecretScanSharedCases(t *testing.T) {
 				setAgentCardValue(t, card, path, renderAgentCardValue(operation.Value, render))
 			}
 			settings := testRuntimeSettings()
-			settings.Telemetry = &contracts.TelemetrySettings{
+			settings.Telemetry = &runtimesettings.TelemetrySettings{
 				Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: "https://telemetry.example/v1/traces",
 				Headers: map[string]contracts.SecretString{
 					"X-Scope-OrgID": contracts.NewSecretString(render.Replace(test.Secret)),
@@ -605,7 +610,7 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 		conditional string
 		wantCode    string
 	}{
-		{name: "oversized", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, cache: "private, no-cache", body: bytes.Repeat([]byte("x"), contracts.MaxAgentStateSnapshotBytes+1), wantCode: "worker_state_response_invalid"},
+		{name: "oversized", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, cache: "private, no-cache", body: bytes.Repeat([]byte("x"), reporting.MaxAgentStateSnapshotBytes+1), wantCode: "worker_state_response_invalid"},
 		{name: "wrong etag", status: http.StatusOK, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", body: valid, wantCode: "worker_state_response_invalid"},
 		{name: "missing cache policy", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, body: valid, wantCode: "worker_state_response_invalid"},
 		{name: "false not modified", status: http.StatusNotModified, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", conditional: `"contractor-agent-state-v1-7"`, wantCode: "worker_state_response_invalid"},
@@ -702,7 +707,7 @@ func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		response := contracts.AllocationFinalResponse{
+		response := reporting.AllocationFinalResponse{
 			APIVersion: contracts.APIVersion,
 			Report:     testExecutionReport("allocation_1"),
 		}
@@ -726,9 +731,9 @@ func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
 func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
 	path := strings.Repeat("<>&\u2028\u2029", 300)
 	report := testExecutionReport("allocation_1")
-	report.Worker.ToolCalls = []contracts.ToolCallRecord{{
+	report.Worker.ToolCalls = []reporting.ToolCallRecord{{
 		CallID: "call-1", Tool: "read_source_file",
-		Arguments: map[string]any{"path": path}, Outcome: contracts.ToolCallSucceeded,
+		Arguments: map[string]any{"path": path}, Outcome: reporting.ToolCallSucceeded,
 	}}
 	escaped, err := json.Marshal(report.Worker.ToolCalls[0].Arguments)
 	if err != nil || len(escaped) <= 4096 {
@@ -736,7 +741,7 @@ func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(contracts.AllocationFinalResponse{
+		_ = json.NewEncoder(w).Encode(reporting.AllocationFinalResponse{
 			APIVersion: contracts.APIVersion, Report: report,
 		})
 	}))
@@ -758,7 +763,7 @@ func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid Runtime abort report was rejected: %v", err)
 	}
-	for _, received := range []contracts.AllocationFinalReport{finalized, aborted} {
+	for _, received := range []reporting.AllocationFinalReport{finalized, aborted} {
 		if len(received.Worker.ToolCalls) != 1 ||
 			received.Worker.ToolCalls[0].Arguments["path"] != path {
 			t.Fatalf("Runtime report detail was lost: %+v", received.Worker.ToolCalls)
@@ -780,26 +785,26 @@ func testReservation(
 		},
 		ControlURL: controlURL, A2AURL: a2aURL, WorkerSessionMode: contracts.WorkerSessionIsolated,
 		AgentTemplate: template, LeaseExpiresAt: lease,
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 	}
 }
 
 func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
-	reason := contracts.ResourceInvalidReport
+	reason := reporting.ResourceInvalidReport
 	for _, test := range []struct {
 		name        string
-		policy      contracts.PerformanceCollectionPolicy
-		resources   *contracts.RuntimeResources
-		resourceErr *contracts.ResourceReason
+		policy      reporting.PerformanceCollectionPolicy
+		resources   *reporting.RuntimeResources
+		resourceErr *reporting.ResourceReason
 		want        bool
-		wantReason  *contracts.ResourceReason
+		wantReason  *reporting.ResourceReason
 	}{
-		{name: "unrequested", policy: contracts.PerformanceCollectionDisabled, resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}},
-		{name: "malformed", policy: contracts.PerformanceCollectionRequested, resourceErr: &reason, want: true, wantReason: &reason},
-		{name: "valid", policy: contracts.PerformanceCollectionRequested, resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}, want: true},
+		{name: "unrequested", policy: reporting.PerformanceCollectionDisabled, resources: &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial}},
+		{name: "malformed", policy: reporting.PerformanceCollectionRequested, resourceErr: &reason, want: true, wantReason: &reason},
+		{name: "valid", policy: reporting.PerformanceCollectionRequested, resources: &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial}, want: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			report := contracts.RuntimeReport{Complete: true, Resources: test.resources, ResourcesError: test.resourceErr}
+			report := reporting.RuntimeReport{Complete: true, Resources: test.resources, ResourcesError: test.resourceErr}
 			sanitizeRuntimeResources(&report, Reservation{PerformanceCollectionPolicy: test.policy})
 			if (report.Resources != nil) != test.want || report.ResourcesError != nil {
 				t.Fatalf("sanitized resources = %+v, error=%v", report.Resources, report.ResourcesError)
@@ -811,9 +816,9 @@ func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
 	}
 }
 
-func testRuntimeSettings() contracts.RuntimeSettings {
+func testRuntimeSettings() runtimesettings.RuntimeSettings {
 	token := contracts.NewSecretString("recognizable-runtime-secret")
-	return contracts.RuntimeSettings{
+	return runtimesettings.RuntimeSettings{
 		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: &token,
 		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
 	}
@@ -821,12 +826,12 @@ func testRuntimeSettings() contracts.RuntimeSettings {
 
 func testWorkerExecutionSettings(
 	template contracts.ResolvedAgentTemplate,
-	runtime contracts.RuntimeSettings,
+	runtime runtimesettings.RuntimeSettings,
 	logicalNames ...string,
-) map[string]contracts.WorkerExecutionSettings {
-	result := make(map[string]contracts.WorkerExecutionSettings, len(logicalNames))
+) map[string]runtimesettings.WorkerExecutionSettings {
+	result := make(map[string]runtimesettings.WorkerExecutionSettings, len(logicalNames))
 	for _, name := range logicalNames {
-		result[name] = contracts.WorkerExecutionSettings{
+		result[name] = runtimesettings.WorkerExecutionSettings{
 			ModelPolicy: template.ModelPolicy, RuntimeSettings: runtime,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		}
@@ -834,35 +839,35 @@ func testWorkerExecutionSettings(
 	return result
 }
 
-func testRuntimeProvenance() contracts.ResolvedRuntimeConfigProvenance {
-	gateway := contracts.LLMGatewayConfigRef{
+func testRuntimeProvenance() runtimesettings.ResolvedRuntimeConfigProvenance {
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
-	return contracts.ResolvedRuntimeConfigProvenance{
-		Default: contracts.RuntimeLabelBindingProvenance{
+	return runtimesettings.ResolvedRuntimeConfigProvenance{
+		Default: runtimesettings.RuntimeLabelBindingProvenance{
 			Label: "default", BindingRevision: 1,
-			Config: contracts.RuntimeConfigRef{
+			Config: runtimesettings.RuntimeConfigRef{
 				Name: "contractor-empty", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 			},
 		},
-		RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
-		AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
+		RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+		AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
 		RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-		RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+		RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 	}
 }
 
-func testExecutionReport(allocationID string) contracts.AllocationFinalReport {
+func testExecutionReport(allocationID string) reporting.AllocationFinalReport {
 	now := time.Now().UTC()
-	return contracts.AllocationFinalReport{
+	return reporting.AllocationFinalReport{
 		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-" + allocationID, Complete: true,
-			Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+			Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true},
+		Runtime: reporting.RuntimeReport{Complete: true},
 	}
 }
 
@@ -872,9 +877,9 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 	reservation := Reservation{ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
 		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
 	}}
-	report := contracts.RuntimeReport{
+	report := reporting.RuntimeReport{
 		Complete: true,
-		Adapters: map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetrics{
+		Adapters: map[contracts.RuntimeAdapterRef]reporting.RuntimeAdapterMetrics{
 			contracts.RuntimeAdapterOTLPHTTP:  {Operations: 2},
 			contracts.RuntimeAdapterHTTPProxy: {Operations: 1},
 		},
@@ -887,7 +892,7 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 		t.Fatalf("trusted adapter metrics were not retained: %+v", report.Adapters)
 	}
 
-	report = contracts.RuntimeReport{Complete: true}
+	report = reporting.RuntimeReport{Complete: true}
 	sanitizeRuntimeAdapterMetrics(&report, reservation)
 	if report.Complete || len(report.Adapters) != 0 {
 		t.Fatalf("missing expected adapter metrics remained complete: %+v", report)
@@ -901,8 +906,8 @@ func serverURL(request *http.Request) string {
 func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
 	t.Parallel()
 	token := contracts.NewSecretString("project-origin-secret")
-	settings := contracts.RuntimeSettings{
-		HTTPOriginTarget: &contracts.HTTPOriginTargetSettings{
+	settings := runtimesettings.RuntimeSettings{
+		HTTPOriginTarget: &runtimesettings.HTTPOriginTargetSettings{
 			URL: "https://app.example.test", BearerToken: &token,
 		},
 	}

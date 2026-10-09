@@ -15,6 +15,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -201,7 +202,7 @@ func quotaSubmissionGrant(
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              findingRuntimeConfiguration(),
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

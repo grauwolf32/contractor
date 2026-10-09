@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -154,7 +155,7 @@ func TestMappedWorkflowOutputRejectsIncompatibleResultBeforeFinalizing(t *testin
 
 type reportingPlannerRegistry struct {
 	PlannerRegistry
-	report contracts.ExecutionReport
+	report reporting.ExecutionReport
 }
 
 func (r reportingPlannerRegistry) Create(ref string, invocation planner.Invocation) (planner.Planner, error) {
@@ -167,10 +168,10 @@ func (r reportingPlannerRegistry) Create(ref string, invocation planner.Invocati
 
 type reportingPlanner struct {
 	planner.Planner
-	report contracts.ExecutionReport
+	report reporting.ExecutionReport
 }
 
-func (p reportingPlanner) ExecutionReport() (contracts.ExecutionReport, bool) { return p.report, true }
+func (p reportingPlanner) ExecutionReport() (reporting.ExecutionReport, bool) { return p.report, true }
 
 type cancellationAwareStageStore struct {
 	Store
@@ -203,14 +204,14 @@ func TestInterruptedPlannerKeepsCompleteUsageUnlessClaimIsLost(t *testing.T) {
 			modelCalls, inputTokens, outputTokens, totalTokens := int64(1), int64(12345), int64(55), int64(12400)
 			h.scheduler.planners = reportingPlannerRegistry{
 				PlannerRegistry: h.planners,
-				report: contracts.ExecutionReport{
+				report: reporting.ExecutionReport{
 					ReportID: "planner-real", Complete: true,
-					Metrics: contracts.ExecutionMetrics{
+					Metrics: reporting.ExecutionMetrics{
 						ModelCalls: &modelCalls, InputTokens: &inputTokens,
 						OutputTokens: &outputTokens, TotalTokens: &totalTokens,
-						Tools: map[string]contracts.ToolMetrics{},
+						Tools: map[string]reporting.ToolMetrics{},
 					},
-					ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+					ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 				},
 			}
 			ctx, cancel := context.WithCancelCause(t.Context())

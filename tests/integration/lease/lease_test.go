@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
@@ -33,7 +34,7 @@ func TestAsymmetricPartitionsFenceBothAuthorities(t *testing.T) {
 		losses := registry.PollAllocationLosses()
 
 		assertSingleLoss(t, losses, allocationID)
-		if runtime.workerLive || runtime.state != contracts.AgentFenced {
+		if runtime.workerLive || runtime.state != control.AgentFenced {
 			t.Fatalf("Runtime did not self-fence: %+v", runtime)
 		}
 	})
@@ -54,7 +55,7 @@ func TestAsymmetricPartitionsFenceBothAuthorities(t *testing.T) {
 		losses := registry.PollAllocationLosses()
 
 		assertSingleLoss(t, losses, allocationID)
-		if runtime.workerLive || runtime.state != contracts.AgentFenced {
+		if runtime.workerLive || runtime.state != control.AgentFenced {
 			t.Fatalf("drain action did not fence Runtime: %+v", runtime)
 		}
 		// A delayed once-valid echo cannot renew an expired Control Plane lease.
@@ -69,7 +70,7 @@ func TestAsymmetricPartitionsFenceBothAuthorities(t *testing.T) {
 		clock.Advance(confirmedLease)
 		runtime.expire(clock.MonotonicNow())
 		assertSingleLoss(t, registry.PollAllocationLosses(), allocationID)
-		if runtime.workerLive || runtime.state != contracts.AgentFenced {
+		if runtime.workerLive || runtime.state != control.AgentFenced {
 			t.Fatalf("Runtime did not self-fence: %+v", runtime)
 		}
 	})
@@ -135,7 +136,7 @@ type runtimeHarness struct {
 	echoedAck  uint64
 	deadline   time.Duration
 	expired    bool
-	state      contracts.AgentObservedState
+	state      control.AgentObservedState
 	allocation *string
 	workerLive bool
 	clock      *faultClock
@@ -149,7 +150,7 @@ func newRuntime(
 		instanceID: instanceID,
 		controlURL: controlURL,
 		a2aURL:     a2aURL,
-		state:      contracts.AgentIdle,
+		state:      control.AgentIdle,
 		clock:      clock,
 		principal:  runtimePrincipal(instanceID),
 	}
@@ -164,30 +165,30 @@ func runtimePrincipal(instanceID string) controlplane.AuthenticatedPrincipal {
 	}
 }
 
-func (r *runtimeHarness) heartbeat(echoed uint64) contracts.AgentHeartbeat {
+func (r *runtimeHarness) heartbeat(echoed uint64) control.AgentHeartbeat {
 	r.sequence++
-	return contracts.AgentHeartbeat{
+	return control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: r.instanceID,
 		HeartbeatSeq: r.sequence, EchoedAckSeq: echoed,
 		ObservedState: r.state, AllocationID: cloneString(r.allocation),
 	}
 }
 
-func (r *runtimeHarness) receive(response contracts.HeartbeatResponse, now time.Duration) {
+func (r *runtimeHarness) receive(response control.HeartbeatResponse, now time.Duration) {
 	if !r.expired && now < r.deadline && response.AckSeq > r.echoedAck {
 		r.echoedAck = response.AckSeq
 		r.deadline = now + confirmedLease
 	}
 	switch response.Action {
-	case contracts.ActionDrain:
+	case control.ActionDrain:
 		if r.allocation != nil && response.AllocationID != nil && *r.allocation == *response.AllocationID {
 			r.workerLive = false
-			r.state = contracts.AgentFenced
+			r.state = control.AgentFenced
 		}
-	case contracts.ActionRelease:
+	case control.ActionRelease:
 		if sameOptionalString(r.allocation, response.AllocationID) {
 			r.workerLive = false
-			r.state = contracts.AgentIdle
+			r.state = control.AgentIdle
 			r.allocation = nil
 		}
 	}
@@ -199,7 +200,7 @@ func (r *runtimeHarness) expire(now time.Duration) {
 	}
 	r.expired = true
 	r.workerLive = false
-	r.state = contracts.AgentFenced
+	r.state = control.AgentFenced
 }
 
 func readyAllocation(
@@ -233,7 +234,7 @@ func readyAllocation(
 	}
 	allocationID := reservations[0].Grant.AllocationID
 	runtime.allocation = &allocationID
-	runtime.state = contracts.AgentAllocated
+	runtime.state = control.AgentAllocated
 	runtime.workerLive = true
 	sendHeartbeat(t, registry, runtime, runtime.echoedAck, true)
 	return registry, runtime, clock, allocationID
@@ -246,13 +247,13 @@ func registerRuntime(
 	clock *faultClock,
 ) {
 	t.Helper()
-	_, err := registry.RegisterAuthenticated(runtime.principal, contracts.AgentRegistration{
+	_, err := registry.RegisterAuthenticated(runtime.principal, control.AgentRegistration{
 		InitialLabels:            []string{},
 		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
 		StartedAt: clock.Now(), ControlURL: runtime.controlURL, A2AURL: runtime.a2aURL,
 		SupportedRuntimes: []string{"adk@1"},
-		SupportedToolsets: []contracts.ToolsetCapability{{
+		SupportedToolsets: []control.ToolsetCapability{{
 			Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 		}},
 		SupportedSandboxProfiles: []string{"local-workdir@1"},

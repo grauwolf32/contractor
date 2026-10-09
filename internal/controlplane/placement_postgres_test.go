@@ -16,6 +16,9 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -226,19 +229,19 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 }
 
 func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
-	unsupported := contracts.AgentRegistration{}
-	supported := contracts.AgentRegistration{
-		SupportedPerformanceMetricsVersions: contracts.PerformanceMetricsVersions{1},
+	unsupported := control.AgentRegistration{}
+	supported := control.AgentRegistration{
+		SupportedPerformanceMetricsVersions: reporting.PerformanceMetricsVersions{1},
 	}
 	for _, test := range []struct {
 		enabled      bool
-		registration contracts.AgentRegistration
-		want         contracts.PerformanceCollectionPolicy
+		registration control.AgentRegistration
+		want         reporting.PerformanceCollectionPolicy
 	}{
-		{false, unsupported, contracts.PerformanceCollectionDisabled},
-		{false, supported, contracts.PerformanceCollectionDisabled},
-		{true, unsupported, contracts.PerformanceCollectionUnsupported},
-		{true, supported, contracts.PerformanceCollectionRequested},
+		{false, unsupported, reporting.PerformanceCollectionDisabled},
+		{false, supported, reporting.PerformanceCollectionDisabled},
+		{true, unsupported, reporting.PerformanceCollectionUnsupported},
+		{true, supported, reporting.PerformanceCollectionRequested},
 	} {
 		allocator := &PlacementAllocator{performanceMetrics: test.enabled}
 		if got := allocator.collectionPolicy(test.registration); got != test.want {
@@ -598,12 +601,12 @@ func (f *placementFixture) registerCandidateWithLabels(
 	if _, err := runtimeconfig.NewPrincipalRepository(f.pool).Insert(ctx, principal); err != nil {
 		t.Fatal(err)
 	}
-	registration := contracts.AgentRegistration{
+	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "1.0.0", StartedAt: now,
 		ControlURL: "https://" + instanceID + ".test", A2AURL: "https://" + instanceID + ".test",
 		InitialLabels:     append([]string{}, labels...),
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
-		SupportedToolsets: []contracts.ToolsetCapability{{
+		SupportedToolsets: []control.ToolsetCapability{{
 			Ref:   f.template.Toolsets[0].Ref.ToolsetID + "@" + f.template.Toolsets[0].Ref.Version,
 			Tools: append([]string{}, f.template.Toolsets[0].Tools...),
 		}},
@@ -611,7 +614,7 @@ func (f *placementFixture) registerCandidateWithLabels(
 			f.template.SandboxProfile.SandboxProfileID + "@" + f.template.SandboxProfile.Version,
 		},
 		SupportedRuntimeAdapters: append([]contracts.RuntimeAdapterRef{}, adapters...),
-		ObservedState:            contracts.AgentIdle,
+		ObservedState:            control.AgentIdle,
 	}
 	authenticated := AuthenticatedPrincipal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
@@ -619,15 +622,15 @@ func (f *placementFixture) registerCandidateWithLabels(
 	if _, err := f.registry.RegisterAuthenticated(authenticated, registration); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, contracts.AgentHeartbeat{
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
-		HeartbeatSeq: 1, ObservedState: contracts.AgentIdle,
+		HeartbeatSeq: 1, ObservedState: control.AgentIdle,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, contracts.AgentHeartbeat{
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
-		HeartbeatSeq: 2, EchoedAckSeq: 1, ObservedState: contracts.AgentIdle,
+		HeartbeatSeq: 2, EchoedAckSeq: 1, ObservedState: control.AgentIdle,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -660,12 +663,12 @@ func (placementRuntimeCatalog) WithCredentialReferences(_ context.Context, fn fu
 }
 
 type placementGatewayLookup struct {
-	gateway contracts.ResolvedLLMGatewayConfig
+	gateway llmgateway.ResolvedLLMGatewayConfig
 }
 
-func (l placementGatewayLookup) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (l placementGatewayLookup) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	if raw != l.gateway.Ref.GatewayID+"@"+l.gateway.Ref.Version {
-		return contracts.ResolvedLLMGatewayConfig{}, workflowconfig.ErrConfigurationNotFound
+		return llmgateway.ResolvedLLMGatewayConfig{}, workflowconfig.ErrConfigurationNotFound
 	}
 	return l.gateway, nil
 }

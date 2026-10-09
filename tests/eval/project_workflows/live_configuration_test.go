@@ -12,18 +12,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
 // These are configuration observations, not proof of upstream weights or inference.
 type liveModelSelection struct {
-	Workflow         string                        `json:"workflow"`
-	Stage            string                        `json:"stage"`
-	Agent            string                        `json:"agent"`
-	Variant          string                        `json:"variant"`
-	ModelPolicy      contracts.ModelPolicyRef      `json:"modelPolicy"`
-	Gateway          contracts.LLMGatewayConfigRef `json:"gateway"`
-	ModelAliasSHA256 string                        `json:"modelAliasSha256"`
+	Workflow         string                         `json:"workflow"`
+	Stage            string                         `json:"stage"`
+	Agent            string                         `json:"agent"`
+	Variant          string                         `json:"variant"`
+	ModelPolicy      contracts.ModelPolicyRef       `json:"modelPolicy"`
+	Gateway          llmgateway.LLMGatewayConfigRef `json:"gateway"`
+	ModelAliasSHA256 string                         `json:"modelAliasSha256"`
 }
 
 type liveResolvedWorker struct {

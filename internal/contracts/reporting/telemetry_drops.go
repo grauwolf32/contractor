@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 // DroppedSpanCounts counts local discard decisions, not confirmed remote loss.
 type DroppedSpanCounts struct {

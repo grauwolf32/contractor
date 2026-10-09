@@ -9,10 +9,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
-func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
+func cloneRegistration(source control.AgentRegistration) control.AgentRegistration {
 	result := source
 	result.AllocationID = clone.Pointer(source.AllocationID)
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
@@ -20,14 +22,14 @@ func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegist
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedPerformanceMetricsVersions = append(
-		contracts.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
+		reporting.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
 	)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
 		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
 		result.WorkspaceCapabilities = &capabilities
 	}
-	result.SupportedToolsets = make([]contracts.ToolsetCapability, len(source.SupportedToolsets))
+	result.SupportedToolsets = make([]control.ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
 		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
@@ -41,7 +43,7 @@ func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 	return result
 }
 
-func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.HeartbeatResponse {
+func cloneHeartbeatResponse(source control.HeartbeatResponse) control.HeartbeatResponse {
 	result := source
 	result.AllocationID = clone.Pointer(source.AllocationID)
 	return result

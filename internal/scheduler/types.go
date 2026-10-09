@@ -8,6 +8,9 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -164,29 +167,29 @@ type WorkerController interface {
 	PrepareAll(
 		context.Context,
 		[]controlplane.Reservation,
-		map[string]contracts.WorkerExecutionSettings,
+		map[string]runtimesettings.WorkerExecutionSettings,
 	) (map[string]contracts.WorkerHandle, error)
 	FinalizeAll(
 		context.Context,
 		[]controlplane.Reservation,
 		string,
 		time.Time,
-	) (map[string]contracts.AllocationFinalReport, error)
+	) (map[string]reporting.AllocationFinalReport, error)
 	AbortAll(
 		context.Context,
 		[]controlplane.Reservation,
 		string,
 		contracts.TerminationError,
 		time.Time,
-	) (map[string]contracts.AllocationFinalReport, error)
+	) (map[string]reporting.AllocationFinalReport, error)
 	ReleaseAll(context.Context, []controlplane.Reservation) error
 }
 
 type CredentialResolver interface {
 	ResolveLLMCredential(
 		context.Context,
-		contracts.LLMCredentialRef,
-		contracts.LLMGatewayConfigRef,
+		llmgateway.LLMCredentialRef,
+		llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error)
 }
 

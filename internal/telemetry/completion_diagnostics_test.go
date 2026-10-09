@@ -5,15 +5,16 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestCompletionDiagnosticsRetainFactsWithoutInventingUsageOrAcceptance(t *testing.T) {
 	for _, phase := range []string{"collecting", "sealed", "publishing", "published", "failed"} {
 		t.Run(phase, func(t *testing.T) {
-			source := contracts.ExecutionReport{ReportID: "report", Complete: true,
-				Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-				ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
-				Completion: &contracts.WorkerCompletionDiagnostics{Kind: contracts.AuditCheckResultsV1,
+			source := reporting.ExecutionReport{ReportID: "report", Complete: true,
+				Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+				ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
+				Completion: &reporting.WorkerCompletionDiagnostics{Kind: contracts.AuditCheckResultsV1,
 					Phase: phase, AcceptedCount: 2, TotalCount: 2, ReminderCount: 1}}
 			if phase == "failed" {
 				source.Completion.FailureCode = "audit_result_publication_conflict"
@@ -26,7 +27,7 @@ func TestCompletionDiagnosticsRetainFactsWithoutInventingUsageOrAcceptance(t *te
 			if normalized.Completion.AcceptedCount != 2 {
 				t.Fatal("report retained a mutable pointer")
 			}
-			metrics := contracts.StageMetrics{Workers: map[string]contracts.ExecutionReport{"checker": normalized}, Runtime: map[string]contracts.RuntimeReport{}}
+			metrics := reporting.StageMetrics{Workers: map[string]reporting.ExecutionReport{"checker": normalized}, Runtime: map[string]reporting.RuntimeReport{}}
 			diagnostics := ProjectAttemptDiagnostics(metrics)
 			if len(diagnostics.Items) != 1 || diagnostics.Items[0].Completion == nil {
 				t.Fatal("completion facts were lost")

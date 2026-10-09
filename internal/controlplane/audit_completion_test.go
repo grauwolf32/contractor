@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func completionBinding(t *testing.T) BindingRequirement {
@@ -30,7 +32,7 @@ func TestAuditCompletionMixedFleetAndReservationReplay(t *testing.T) {
 	for _, id := range []string{"a-old", "b-tools-only", "c-capable"} {
 		registration := testRegistration(id)
 		if id != "a-old" {
-			registration.SupportedToolsets = append(registration.SupportedToolsets, contracts.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result"}})
+			registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result"}})
 		}
 		if id == "c-capable" {
 			registration.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
@@ -39,7 +41,7 @@ func TestAuditCompletionMixedFleetAndReservationReplay(t *testing.T) {
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 			t.Fatal(err)
 		}
-		for _, beat := range []contracts.AgentHeartbeat{heartbeat(id, 1, 0), heartbeat(id, 2, 1)} {
+		for _, beat := range []control.AgentHeartbeat{heartbeat(id, 1, 0), heartbeat(id, 2, 1)} {
 			if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, beat); err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +83,7 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 	}
 	binding := completionBinding(t)
 	reservation := Reservation{Grant: AllocationGrant{Namespace: binding.Namespace}, AgentTemplate: binding.AgentTemplate, CompletionContract: binding.CompletionContract}
-	if _, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
+	if _, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("direct prepare: %v", err)
 	}
 }
@@ -89,13 +91,13 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	binding := completionBinding(t)
 	lease := time.Now().Add(time.Minute).UTC().Truncate(time.Microsecond)
-	var received contracts.PrepareAllocationRequest
+	var received control.PrepareAllocationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 			t.Error(err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(contracts.PrepareAllocationResponse{APIVersion: contracts.APIVersion, WorkerHandle: contracts.WorkerHandle{
+		_ = json.NewEncoder(w).Encode(control.PrepareAllocationResponse{APIVersion: contracts.APIVersion, WorkerHandle: contracts.WorkerHandle{
 			AllocationID: "allocation", AgentTemplateRef: binding.AgentTemplate.Ref, WorkerRuntimeRef: binding.AgentTemplate.Runtime, LeaseExpiresAt: lease,
 			AgentCard: testAgentCard("checker", "allocation", serverURL(r)+"/private/v1/allocations/allocation/a2a")}})
 	}))
@@ -108,7 +110,7 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+	_, err = client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 	if err != nil {
 		t.Fatal(err)
 	}

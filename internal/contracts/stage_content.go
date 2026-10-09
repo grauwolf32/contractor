@@ -17,22 +17,22 @@ type StageContentRequest struct {
 }
 
 func (r StageContentRequest) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := validateWorkerSubtaskID(r.SubtaskID); err != nil {
+	if err := ValidateWorkerSubtaskID(r.SubtaskID); err != nil {
 		return err
 	}
 	if strings.TrimSpace(r.Objective) == "" || strings.TrimSpace(r.Instructions) == "" {
-		return invalidf("objective and instructions must not be empty")
+		return Invalidf("objective and instructions must not be empty")
 	}
 	for key := range r.Parameters {
-		if err := validateOpaqueID("parameter name", key); err != nil {
+		if err := ValidateOpaqueID("parameter name", key); err != nil {
 			return err
 		}
 	}
 	for key, ref := range r.Artifacts {
-		if err := validateOpaqueID("artifact context name", key); err != nil {
+		if err := ValidateOpaqueID("artifact context name", key); err != nil {
 			return err
 		}
 		if err := ref.ValidateExact(); err != nil {
@@ -40,14 +40,14 @@ func (r StageContentRequest) Validate() error {
 		}
 	}
 	for key, ref := range r.ResultArtifacts {
-		if err := validateOpaqueID("result artifact slot", key); err != nil {
+		if err := ValidateOpaqueID("result artifact slot", key); err != nil {
 			return err
 		}
 		if err := ref.Validate(); err != nil {
 			return err
 		}
 		if ref.Revision != nil {
-			return invalidf("result artifact binding must be versionless")
+			return Invalidf("result artifact binding must be versionless")
 		}
 	}
 	return nil
@@ -81,34 +81,47 @@ func (r StageContentResult) Clone() StageContentResult {
 }
 
 func (r StageContentResult) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	if strings.TrimSpace(r.Summary) == "" {
-		return invalidf("summary must not be empty")
+		return Invalidf("summary must not be empty")
 	}
 	switch r.Outcome {
 	case StageSucceeded:
 		if r.Error != nil {
-			return invalidf("successful StageContentResult must not contain error")
+			return Invalidf("successful StageContentResult must not contain error")
 		}
 	case StageFailed:
 		if r.Error == nil {
-			return invalidf("failed StageContentResult requires error")
+			return Invalidf("failed StageContentResult requires error")
 		}
-		if err := validateTerminationError(*r.Error); err != nil {
+		if err := r.Error.Validate(); err != nil {
 			return err
 		}
 	default:
-		return invalidf("unknown StageContentResult outcome %q", r.Outcome)
+		return Invalidf("unknown StageContentResult outcome %q", r.Outcome)
 	}
 	for key, ref := range r.Artifacts {
-		if err := validateOpaqueID("result artifact slot", key); err != nil {
+		if err := ValidateOpaqueID("result artifact slot", key); err != nil {
 			return err
 		}
 		if err := ref.ValidateExact(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+type TerminationError struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+}
+
+func (e TerminationError) Validate() error {
+	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
+		return Invalidf("termination error code/message must not be empty")
 	}
 	return nil
 }

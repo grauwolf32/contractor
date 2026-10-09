@@ -12,6 +12,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -47,7 +48,7 @@ type streamlinePlanner struct {
 	deadline       time.Time
 
 	reportMu  sync.RWMutex
-	report    contracts.ExecutionReport
+	report    reporting.ExecutionReport
 	hasReport bool
 }
 
@@ -218,7 +219,7 @@ func (p *streamlinePlanner) Run(
 	}
 }
 
-func (p *streamlinePlanner) ExecutionReport() (contracts.ExecutionReport, bool) {
+func (p *streamlinePlanner) ExecutionReport() (reporting.ExecutionReport, bool) {
 	p.reportMu.RLock()
 	defer p.reportMu.RUnlock()
 	return p.report, p.hasReport

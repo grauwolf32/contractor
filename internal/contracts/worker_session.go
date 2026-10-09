@@ -14,6 +14,6 @@ func (m WorkerSessionMode) Validate() error {
 	case WorkerSessionIsolated, WorkerSessionShared:
 		return nil
 	default:
-		return invalidf("workerSessionMode must be isolated or shared")
+		return Invalidf("workerSessionMode must be isolated or shared")
 	}
 }

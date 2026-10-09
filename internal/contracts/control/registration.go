@@ -1,4 +1,4 @@
-package contracts
+package control
 
 // Runtime Agent registration: the registration DTO, its response, and the
 // normalization/fingerprint projection used by registration retries.
@@ -6,38 +6,32 @@ package contracts
 // in agent.go.
 
 import (
-	"regexp"
 	"sort"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
-// runtimeAgentIDPattern is the only Go definition of a Runtime Agent ID: the
-// lowercase hexadecimal SHA-256 fingerprint of the agent's SPKI.
-var runtimeAgentIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
-// ValidRuntimeAgentID reports whether value is a Runtime Agent ID.
-func ValidRuntimeAgentID(value string) bool { return runtimeAgentIDPattern.MatchString(value) }
-
 type AgentRegistration struct {
-	Capabilities *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
-	APIVersion   string                         `json:"apiVersion"`
+	Capabilities *contracts.RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
+	APIVersion   string                                   `json:"apiVersion"`
 
-	InstanceID                          string                     `json:"instanceId"`
-	SoftwareVersion                     string                     `json:"softwareVersion"`
-	StartedAt                           time.Time                  `json:"startedAt"`
-	ControlURL                          string                     `json:"controlUrl"`
-	A2AURL                              string                     `json:"a2aUrl"`
-	InitialLabels                       []string                   `json:"initialLabels"`
-	SupportedRuntimes                   []string                   `json:"supportedRuntimes"`
-	SupportedToolsets                   []ToolsetCapability        `json:"supportedToolsets"`
-	SupportedSandboxProfiles            []string                   `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters            []RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
-	SupportedPerformanceMetricsVersions PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
-	WorkspaceCapabilities               *WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
-	ObservedState                       AgentObservedState         `json:"observedState"`
-	AllocationID                        *string                    `json:"allocationId,omitempty"`
+	InstanceID                          string                               `json:"instanceId"`
+	SoftwareVersion                     string                               `json:"softwareVersion"`
+	StartedAt                           time.Time                            `json:"startedAt"`
+	ControlURL                          string                               `json:"controlUrl"`
+	A2AURL                              string                               `json:"a2aUrl"`
+	InitialLabels                       []string                             `json:"initialLabels"`
+	SupportedRuntimes                   []string                             `json:"supportedRuntimes"`
+	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets"`
+	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters            []contracts.RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
+	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
+	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
+	ObservedState                       AgentObservedState                   `json:"observedState"`
+	AllocationID                        *string                              `json:"allocationId,omitempty"`
 }
 
 func (r AgentRegistration) Validate() error {
@@ -47,30 +41,30 @@ func (r AgentRegistration) Validate() error {
 		}
 	}
 	if len(r.SupportedPerformanceMetricsVersions) > 1 || (len(r.SupportedPerformanceMetricsVersions) == 1 && r.SupportedPerformanceMetricsVersions[0] != 1) {
-		return invalidf("unsupported performance metrics capability")
+		return contracts.Invalidf("unsupported performance metrics capability")
 	}
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := validateOpaqueID("instanceId", r.InstanceID); err != nil {
+	if err := contracts.ValidateOpaqueID("instanceId", r.InstanceID); err != nil {
 		return err
 	}
 	if len(r.SoftwareVersion) == 0 || len(r.SoftwareVersion) > 128 ||
-		!versionPattern.MatchString(r.SoftwareVersion) {
-		return invalidf("softwareVersion must be a bounded version string")
+		!contracts.ValidVersion(r.SoftwareVersion) {
+		return contracts.Invalidf("softwareVersion must be a bounded version string")
 	}
 	if r.StartedAt.IsZero() {
-		return invalidf("startedAt must not be zero")
+		return contracts.Invalidf("startedAt must not be zero")
 	}
-	if err := validateURL("controlUrl", r.ControlURL); err != nil {
+	if err := contracts.ValidateURL("controlUrl", r.ControlURL); err != nil {
 		return err
 	}
-	if err := validateURL("a2aUrl", r.A2AURL); err != nil {
+	if err := contracts.ValidateURL("a2aUrl", r.A2AURL); err != nil {
 		return err
 	}
 	if len(r.SupportedRuntimes) > 128 || len(r.SupportedToolsets) > 128 ||
 		len(r.SupportedSandboxProfiles) > 128 {
-		return invalidf("Runtime capability collection exceeds its bound")
+		return contracts.Invalidf("Runtime capability collection exceeds its bound")
 	}
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
 		return err
@@ -78,7 +72,7 @@ func (r AgentRegistration) Validate() error {
 	if err := validateSortedLabels("initialLabels", r.InitialLabels, 32, false); err != nil {
 		return err
 	}
-	if err := validateSortedRuntimeAdapters(r.SupportedRuntimeAdapters); err != nil {
+	if err := contracts.ValidateRuntimeAdapterRefs(r.SupportedRuntimeAdapters); err != nil {
 		return err
 	}
 	if r.WorkspaceCapabilities != nil {
@@ -100,20 +94,20 @@ type AgentRegistrationResponse struct {
 }
 
 func (r AgentRegistrationResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
+	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if !ValidRuntimeAgentID(r.RuntimeAgentID) {
-		return invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
+	if !contracts.ValidRuntimeAgentID(r.RuntimeAgentID) {
+		return contracts.Invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
 	}
 	if err := validateSortedLabels("labels", r.Labels, 32, false); err != nil {
 		return err
 	}
 	if r.LabelRevision == 0 {
-		return invalidf("labelRevision must be positive")
+		return contracts.Invalidf("labelRevision must be positive")
 	}
 	if r.HeartbeatIntervalSeconds <= 0 || r.ConfirmedLeaseSeconds <= r.HeartbeatIntervalSeconds {
-		return invalidf("confirmed lease must exceed a positive heartbeat interval")
+		return contracts.Invalidf("confirmed lease must exceed a positive heartbeat interval")
 	}
 	return nil
 }
@@ -131,11 +125,11 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
-	result.SupportedRuntimeAdapters = append([]RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedPerformanceMetricsVersions = append([]int(nil), source.SupportedPerformanceMetricsVersions...)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
+		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
 		result.WorkspaceCapabilities = &capabilities
 	}
 	result.SupportedToolsets = make([]ToolsetCapability, len(source.SupportedToolsets))
@@ -163,7 +157,7 @@ func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	normalized.InitialLabels = nil
 	normalized.ObservedState = ""
 	normalized.AllocationID = nil
-	canonical, err := MarshalPrivateCanonical(normalized)
+	canonical, err := contracts.MarshalPrivateCanonical(normalized)
 	if err != nil {
 		return "", err
 	}
@@ -179,4 +173,22 @@ func RuntimeAdapterCapabilityProjection(source AgentRegistration) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func validateSortedLabels(field string, values []string, maximum int, allowDefault bool) error {
+	if values == nil || len(values) > maximum {
+		return contracts.Invalidf("%s must be a non-null bounded array", field)
+	}
+	previous := ""
+	for _, value := range values {
+		if len(value) == 0 || len(value) > 63 || !contracts.ValidIdentifier(value) ||
+			(!allowDefault && value == "default") {
+			return contracts.Invalidf("%s contains an invalid label", field)
+		}
+		if value <= previous {
+			return contracts.Invalidf("%s must be sorted and unique", field)
+		}
+		previous = value
+	}
+	return nil
 }

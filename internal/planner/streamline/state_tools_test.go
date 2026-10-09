@@ -15,6 +15,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"google.golang.org/adk/model"
@@ -83,7 +84,7 @@ func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testi
 		unreadPath = "docs/unread.md"
 	)
 	revision := "report-r1"
-	reader := &plannerStateTestReader{states: map[string]contracts.AgentStateSnapshot{
+	reader := &plannerStateTestReader{states: map[string]reporting.AgentStateSnapshot{
 		"allocation-builder": plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
 	}}
 	var opaqueCursor string
@@ -176,7 +177,7 @@ func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testi
 	}
 	report, _ := instance.(planner.ReportProvider).ExecutionReport()
 	retained, marshalErr := json.Marshal(struct {
-		Report contracts.ExecutionReport
+		Report reporting.ExecutionReport
 		Plan   *planner.PlannerPlanProjection
 		Facts  []planner.PlannerFact
 	}{report, sessions.plan, sessions.facts})
@@ -270,7 +271,7 @@ func TestStateProjectionFailureUsesClosedCodes(t *testing.T) {
 }
 
 func TestRouterStateToolReadsOnlySelectedLogicalWorker(t *testing.T) {
-	reader := &plannerStateTestReader{states: map[string]contracts.AgentStateSnapshot{
+	reader := &plannerStateTestReader{states: map[string]reporting.AgentStateSnapshot{
 		"allocation-builder":  plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
 		"allocation-reviewer": plannerStateSnapshot(t, "worker-invocation-1", "0", 2),
 	}}
@@ -439,7 +440,7 @@ func plannerStateSnapshot(
 	invocationID string,
 	subtaskID string,
 	revision uint64,
-) contracts.AgentStateSnapshot {
+) reporting.AgentStateSnapshot {
 	t.Helper()
 	payload, err := os.ReadFile(filepath.Join(
 		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
@@ -447,7 +448,7 @@ func plannerStateSnapshot(
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := contracts.DecodeStrict[contracts.AgentStateSnapshot](payload)
+	snapshot, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,12 +459,12 @@ func plannerStateSnapshot(
 	completed.SubtaskID = subtaskID
 	completed.Metrics.ToolCalls = 3
 	completed.Metrics.ToolErrors = 1
-	completed.Metrics.Tools = map[string]contracts.WorkerStateInvocationToolMetric{
+	completed.Metrics.Tools = map[string]reporting.WorkerStateInvocationToolMetric{
 		"grep":      {Calls: 1, Failures: 1},
 		"read_file": {Calls: 2},
 	}
 	completed.Workspace.ScopePaths = []string{"README.md", "docs/unread.md", "src/main.py"}
-	completed.Workspace.Interactions = []contracts.WorkerStateWorkspaceInteraction{
+	completed.Workspace.Interactions = []reporting.WorkerStateWorkspaceInteraction{
 		{Path: "src/main.py", FirstOrdinal: 1, LastOrdinal: 1, ReadCalls: 1},
 		{Path: "README.md", FirstOrdinal: 2, LastOrdinal: 2, ReadCalls: 1},
 	}
@@ -480,7 +481,7 @@ type plannerStateReadCall struct {
 
 type plannerStateTestReader struct {
 	mu     sync.Mutex
-	states map[string]contracts.AgentStateSnapshot
+	states map[string]reporting.AgentStateSnapshot
 	err    error
 	calls  []plannerStateReadCall
 }

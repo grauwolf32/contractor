@@ -23,6 +23,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -580,25 +581,25 @@ func newProductionGrantHandler(
 		principal := controlplane.AuthenticatedPrincipal{
 			RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 		}
-		registration := contracts.AgentRegistration{
+		registration := control.AgentRegistration{
 			APIVersion: contracts.APIVersion, InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
 			StartedAt:     time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
 			ControlURL:    "https://" + identity.instanceID + ".example:9443",
 			A2AURL:        "https://" + identity.instanceID + ".example:9444",
 			InitialLabels: []string{}, SupportedRuntimes: []string{"adk@1"},
-			SupportedToolsets: []contracts.ToolsetCapability{{
+			SupportedToolsets: []control.ToolsetCapability{{
 				Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
-			ObservedState: contracts.AgentIdle,
+			ObservedState: control.AgentIdle,
 		}
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 			t.Fatal(err)
 		}
 		for heartbeatIndex, echoed := range []uint64{0, 1} {
-			if _, err := registry.HeartbeatAuthenticated(principalID, contracts.AgentHeartbeat{
+			if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{
 				APIVersion: contracts.APIVersion, InstanceID: identity.instanceID,
-				HeartbeatSeq: uint64(heartbeatIndex + 1), EchoedAckSeq: echoed, ObservedState: contracts.AgentIdle,
+				HeartbeatSeq: uint64(heartbeatIndex + 1), EchoedAckSeq: echoed, ObservedState: control.AgentIdle,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -654,9 +655,9 @@ func assertProductionFaultSlotsReusable(
 	if _, err := registry.GetGrant(allocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
 		t.Fatalf("released fault allocation lookup = %v", err)
 	}
-	if _, err := registry.HeartbeatAuthenticated(principalID, contracts.AgentHeartbeat{
+	if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: "runtime-1",
-		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: contracts.AgentIdle,
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentIdle,
 	}); err != nil {
 		t.Fatal(err)
 	}

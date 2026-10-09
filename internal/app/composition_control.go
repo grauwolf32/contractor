@@ -8,7 +8,7 @@ import (
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -37,7 +37,7 @@ func configureControlPlane(
 ) (controlServices, error) {
 	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool,
-		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			return configurationManager.LLMGateway(selector)
 		}),
 		RuntimeCredentials:        credentialSet.runtime,

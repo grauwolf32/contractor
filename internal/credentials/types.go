@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 const (
@@ -100,13 +101,13 @@ type EncryptedEnvelope struct {
 }
 
 type Record struct {
-	CredentialID    string                        `json:"credentialId"`
-	LLMGateway      contracts.LLMGatewayConfigRef `json:"llmGateway"`
-	RemoteKeyID     string                        `json:"-"`
-	Label           string                        `json:"label,omitempty"`
-	EffectivePolicy EffectiveGatewayPolicy        `json:"effectivePolicy"`
-	Envelope        EncryptedEnvelope             `json:"-"`
-	CreatedAt       time.Time                     `json:"createdAt"`
+	CredentialID    string                         `json:"credentialId"`
+	LLMGateway      llmgateway.LLMGatewayConfigRef `json:"llmGateway"`
+	RemoteKeyID     string                         `json:"-"`
+	Label           string                         `json:"label,omitempty"`
+	EffectivePolicy EffectiveGatewayPolicy         `json:"effectivePolicy"`
+	Envelope        EncryptedEnvelope              `json:"-"`
+	CreatedAt       time.Time                      `json:"createdAt"`
 }
 
 type OperationKind string
@@ -141,7 +142,7 @@ type Operation struct {
 type ManagerCreateRequest struct {
 	OperationID  string
 	CredentialID string
-	LLMGateway   contracts.ResolvedLLMGatewayConfig
+	LLMGateway   llmgateway.ResolvedLLMGatewayConfig
 	Label        string
 	Policy       GatewayPolicy
 }
@@ -149,7 +150,7 @@ type ManagerCreateRequest struct {
 type ManagerDeleteRequest struct {
 	OperationID  string
 	CredentialID string
-	LLMGateway   contracts.ResolvedLLMGatewayConfig
+	LLMGateway   llmgateway.ResolvedLLMGatewayConfig
 	RemoteKeyID  string
 }
 

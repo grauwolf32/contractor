@@ -81,12 +81,13 @@ does not become an empty successful result. `coverage.complete` describes the
 bounded extraction of the selected operation. It does not certify schema
 validity, scan coverage or absence of vulnerabilities. Ignored schema validation
 keywords do not create gaps. `BuildPlan` accepts a `PlanInput`, explicit
-`contracts.ScanPlanPolicy`, fixed Worker bindings and exact wordlist refs. It
-selects scanner inputs and budgets, deduplicates jobs while retaining provenance,
-and emits canonical `ScanPlan` v1 through `MarshalPlan`. `DecodePlan` validates
-persisted plan bytes. See [scan planning](../../docs/spec/32-scan-planning.md)
-and its [schema](../../api/scan/v1/scan-plan.schema.json) for selection, identity
-and conservative recovery semantics.
+`scan.ScanPlanPolicy` from `internal/contracts/scan`, fixed Worker bindings and
+exact wordlist refs. It selects scanner inputs and budgets, deduplicates jobs
+while retaining provenance, and emits canonical `ScanPlan` v1 through
+`MarshalPlan`. `DecodePlan` validates persisted plan bytes. See
+[scan planning](../../docs/spec/32-scan-planning.md) and its
+[schema](../../api/scan/v1/scan-plan.schema.json) for selection, identity and
+conservative recovery semantics.
 
 Run `go test ./internal/scanplan/... ./internal/contracts/...` for codec, parser,
 determinism, preparation, reference, authentication, plan selection, provenance,

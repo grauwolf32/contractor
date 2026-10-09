@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -628,13 +630,13 @@ func (laneNoopAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
 
 type laneNoopWorkers struct{}
 
-func (laneNoopWorkers) PrepareAll(context.Context, []controlplane.Reservation, map[string]contracts.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
+func (laneNoopWorkers) PrepareAll(context.Context, []controlplane.Reservation, map[string]runtimesettings.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
 	return nil, errors.New("unexpected Worker preparation")
 }
-func (laneNoopWorkers) FinalizeAll(context.Context, []controlplane.Reservation, string, time.Time) (map[string]contracts.AllocationFinalReport, error) {
+func (laneNoopWorkers) FinalizeAll(context.Context, []controlplane.Reservation, string, time.Time) (map[string]reporting.AllocationFinalReport, error) {
 	return nil, errors.New("unexpected Worker finalization")
 }
-func (laneNoopWorkers) AbortAll(context.Context, []controlplane.Reservation, string, contracts.TerminationError, time.Time) (map[string]contracts.AllocationFinalReport, error) {
+func (laneNoopWorkers) AbortAll(context.Context, []controlplane.Reservation, string, contracts.TerminationError, time.Time) (map[string]reporting.AllocationFinalReport, error) {
 	return nil, errors.New("unexpected Worker abort")
 }
 func (laneNoopWorkers) ReleaseAll(context.Context, []controlplane.Reservation) error {

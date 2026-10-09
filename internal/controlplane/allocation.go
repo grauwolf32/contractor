@@ -6,6 +6,8 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -34,7 +36,7 @@ type BindingRequirement struct {
 type ReservationRequest struct {
 	RunID             string
 	StageExecutionID  string
-	RunMetadataLabels contracts.RunMetadataLabels
+	RunMetadataLabels runlabels.RunMetadataLabels
 	Bindings          []BindingRequirement
 	// RuntimeConfig is nil only for the in-process Registry surface used
 	// by focused capacity tests. Production placement always supplies the
@@ -62,8 +64,8 @@ type CandidateEdge struct {
 type PinnedReservationConfig struct {
 	RuntimeAgentLabelRevision   uint64
 	Resolved                    runtimeconfig.ResolvedRuntimeConfig
-	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
-	PerformanceMetrics          *contracts.PerformanceMetricsRequest
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
+	PerformanceMetrics          *reporting.PerformanceMetricsRequest
 }
 
 type AllocationGrant struct {
@@ -115,11 +117,11 @@ type Reservation struct {
 	ResolvedSkills              []contracts.ResolvedSkill
 	ExecutionConfig             AllocationExecutionConfig
 	Workspace                   *contracts.AllocationWorkspaceSpec
-	RunMetadataLabels           contracts.RunMetadataLabels
+	RunMetadataLabels           runlabels.RunMetadataLabels
 	RuntimeAgentLabelRevision   uint64
 	ResolvedRuntimeConfig       *runtimeconfig.ResolvedRuntimeConfig
-	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
-	PerformanceMetrics          *contracts.PerformanceMetricsRequest
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
+	PerformanceMetrics          *reporting.PerformanceMetricsRequest
 	LeaseExpiresAt              time.Time
 	// initialLeaseExpiresAt bounds the lease on a WorkerHandle returned by an
 	// idempotent prepare that succeeded before a later replay refreshed the lease.
