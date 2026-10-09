@@ -88,3 +88,45 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		t.Fatalf("expired finding review = (%+v, %v)", expired, err)
 	}
 }
+
+func TestReplacingExpiredFindingReviewRecordsExpiryAndRequest(t *testing.T) {
+	ctx, pool, service, started, _ := newTimeControlAudit(t, 7200)
+	audit := started.Audit
+	findingID := seedAuditFinding(t, ctx, pool, audit.ProjectID, audit.OwnerID, audit.AuditID, "replacement")
+	params := CreateFindingReviewParams{
+		OwnerID: audit.OwnerID, AuditID: audit.AuditID, FindingID: findingID, ExpectedRevision: 1,
+		RequestID: "review-old", IdempotencyKey: "review-old", RequestDigest: serviceTestDigest("review-old"),
+	}
+	old, err := service.CreateFindingReview(ctx, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the monotonic timestamp guard even when the stored timestamp
+	// is ahead of the database clock. Authority still expires by expires_at.
+	var oldUpdated time.Time
+	if err := pool.QueryRow(ctx, `
+UPDATE audit_review_requests
+   SET expires_at=clock_timestamp()-interval '1 second', updated_at='2100-01-01'::timestamptz
+ WHERE request_id=$1 RETURNING updated_at`, old.Request.RequestID).Scan(&oldUpdated); err != nil {
+		t.Fatal(err)
+	}
+	store := auditstore.NewPostgresStore(pool)
+	before, err := store.Get(ctx, audit.OwnerID, audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params.RequestID, params.IdempotencyKey, params.RequestDigest = "review-new", "review-new", serviceTestDigest("review-new")
+	fresh, err := service.CreateFindingReview(ctx, params)
+	if err != nil || fresh.Replayed || fresh.Request.State != ReviewPending {
+		t.Fatalf("replacement = (%+v, %v)", fresh, err)
+	}
+	expired, err := service.GetReview(ctx, audit.OwnerID, audit.AuditID, old.Request.RequestID)
+	if err != nil || expired.State != ReviewExpired || expired.Revision != old.Request.Revision+1 || !expired.UpdatedAt.After(oldUpdated) {
+		t.Fatalf("expired request = (%+v, %v)", expired, err)
+	}
+	events, err := store.ListEvents(ctx, audit.AuditID, before.EventSequence, 3)
+	if err != nil || len(events) != 2 || events[0].Kind != "review.expired" || events[0].EntityID != old.Request.RequestID ||
+		events[1].Kind != "review.requested" || events[1].EntityID != fresh.Request.RequestID || events[1].Sequence != events[0].Sequence+1 {
+		t.Fatalf("replacement events = (%+v, %v)", events, err)
+	}
+}

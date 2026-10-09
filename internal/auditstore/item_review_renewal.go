@@ -180,45 +180,20 @@ UPDATE audit_items
 		return 0, fmt.Errorf("reset Audit items for renewed reviews: %w", err)
 	}
 
-	eventCount := int64(len(candidates) + len(expiredRevisions))
-	var sequence int64
-	err = tx.QueryRow(ctx, `
-UPDATE audits
-   SET revision=revision+$2, next_event_sequence=next_event_sequence+$2,
-       updated_at=GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id=$1
-RETURNING next_event_sequence-$2`, auditID, eventCount).Scan(&sequence)
-	if err != nil {
-		return 0, fmt.Errorf("advance Audit review events: %w", err)
-	}
-	sequences := make([]int64, 0, eventCount)
-	eventKinds := make([]string, 0, eventCount)
-	entities := make([]string, 0, eventCount)
-	entityRevisions := make([]int64, 0, eventCount)
-	subjects := make([]string, 0, eventCount)
-	reviewKinds := make([]string, 0, eventCount)
-	appendEvent := func(kind, entityID string, entityRevision int64, candidate expiredItemReview) {
-		sequences = append(sequences, sequence)
-		sequence++
-		eventKinds = append(eventKinds, kind)
-		entities = append(entities, entityID)
-		entityRevisions = append(entityRevisions, entityRevision)
-		subjects = append(subjects, candidate.itemID)
-		reviewKinds = append(reviewKinds, candidate.kind)
+	events := make([]ReviewEventParams, 0, len(candidates)+len(expiredRevisions))
+	appendEvent := func(kind, entityID string, revision uint64, candidate expiredItemReview) {
+		events = append(events, ReviewEventParams{
+			AuditID: auditID, Kind: kind, EntityID: entityID, EntityRevision: &revision,
+			Summary: map[string]any{"subjectKind": "audit-item-action", "subjectId": candidate.itemID, "kind": candidate.kind},
+		})
 	}
 	for index, candidate := range candidates {
 		if revision, expired := expiredRevisions[candidate.requestID]; expired {
-			appendEvent("review.expired", candidate.requestID, revision, candidate)
+			appendEvent("review.expired", candidate.requestID, uint64(revision), candidate)
 		}
 		appendEvent("review.requested", requestIDs[index], 1, candidate)
 	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_events (audit_id,sequence_number,kind,entity_id,entity_revision,summary)
-SELECT $1,event.sequence_number,event.kind,event.entity_id,event.entity_revision,
-       jsonb_build_object('subjectKind','audit-item-action','subjectId',event.subject_id,'kind',event.review_kind)
-  FROM unnest($2::bigint[],$3::text[],$4::text[],$5::bigint[],$6::text[],$7::text[])
-       AS event(sequence_number,kind,entity_id,entity_revision,subject_id,review_kind)`,
-		auditID, sequences, eventKinds, entities, entityRevisions, subjects, reviewKinds); err != nil {
+	if err := NewPostgresStore(tx).AppendReviewEvents(ctx, events); err != nil {
 		return 0, fmt.Errorf("record renewed Audit item reviews: %w", err)
 	}
 	return len(candidates), nil

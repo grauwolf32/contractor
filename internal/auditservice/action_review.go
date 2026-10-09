@@ -96,7 +96,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 			return auditstore.ErrPrecondition
 		}
 		if expiresAt != nil {
-			if expired, err = expireReviewAtDatabaseTime(ctx, tx, params.RequestID); err != nil {
+			if expired, err = auditstore.NewPostgresStore(tx).ExpireReviewAtDatabaseTime(ctx, params.RequestID); err != nil {
 				return err
 			}
 		}
@@ -115,9 +115,9 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 				auditState != auditstore.AuditPaused {
 				return auditstore.ErrPrecondition
 			}
-			if err := validateAndApplyItemDecision(
-				ctx, tx, params.AuditID, subjectID, kind, subjectDigest,
-				params.Action, params.Rationale,
+			if err := auditstore.NewPostgresStore(tx).ApplyItemReviewDecision(
+				ctx, params.AuditID, subjectID, kind, subjectDigest,
+				string(params.Action), params.Rationale,
 			); err != nil {
 				return err
 			}
@@ -136,25 +136,11 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		}
 
 		decisionID, requestID = params.DecisionID, params.RequestID
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict,
-    severity, rationale, duplicate_target_id, subject_revision,
-    subject_digest, idempotency_key, request_digest
-) VALUES ($1, $2, $3, NULL, $4, $5, NULL, NULL, $6, NULL, $7, $8, $9, $10)`,
-			decisionID, requestID, params.AuditID, params.OwnerID, params.Action,
-			params.Rationale, subjectRevision, subjectDigest,
-			params.IdempotencyKey, params.RequestDigest); err != nil {
-			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-				return auditstore.ErrConflict
-			}
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-UPDATE audit_review_requests
-   SET state = 'decided', revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE request_id = $1 AND state = 'pending'`, requestID); err != nil {
+		if err := auditstore.NewPostgresStore(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, ActorID: params.OwnerID,
+			Action: string(params.Action), Rationale: params.Rationale, SubjectRevision: uint64(subjectRevision),
+			SubjectDigest: subjectDigest, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
+		}); err != nil {
 			return err
 		}
 		if subjectKind == ReviewSubjectItemAction && auditState == auditstore.AuditWaitingReview {
@@ -186,75 +172,6 @@ UPDATE audit_review_requests
 	return ActionReviewDecisionResult{
 		Request: request, Decision: *request.Decision, Replayed: replayed,
 	}, nil
-}
-
-func validateAndApplyItemDecision(
-	ctx context.Context, tx pgx.Tx, auditID, itemID, kind, digest string,
-	action ReviewAction, rationale string,
-) error {
-	var state auditstore.ItemState
-	var approvalKind auditstore.ItemApprovalKind
-	var approvalDigest *string
-	err := tx.QueryRow(ctx, `
-SELECT state, approval_kind, approval_subject_digest
-  FROM audit_items
- WHERE audit_id = $1 AND item_id = $2
- FOR UPDATE`, auditID, itemID).Scan(&state, &approvalKind, &approvalDigest)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	if state != auditstore.ItemAwaitingReview || approvalDigest == nil ||
-		string(approvalKind) != kind || *approvalDigest != digest {
-		return auditstore.ErrPrecondition
-	}
-	if action == ReviewApprove {
-		tag, err := tx.Exec(ctx, `
-UPDATE audit_items
-   SET state = 'ready',
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() != 1 {
-			return auditstore.ErrPrecondition
-		}
-		return nil
-	}
-	if action == ReviewNotApplicable {
-		if approvalKind != auditstore.ItemApprovalApplicability {
-			return auditstore.ErrPrecondition
-		}
-		tag, err := tx.Exec(ctx, `
-UPDATE audit_items
-   SET state = 'settled', final_disposition = 'not-applicable',
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
-       coverage_status = 'not-applicable', coverage_completed = '[]'::jsonb,
-       coverage_gaps = '[]'::jsonb, coverage_rationale = $3,
-       coverage_updated_at = GREATEST(clock_timestamp(), coverage_updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID, rationale)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() != 1 {
-			return auditstore.ErrPrecondition
-		}
-		return nil
-	}
-	if action != ReviewReject {
-		return auditstore.ErrInvalid
-	}
-	tag, err := tx.Exec(ctx, rejectAwaitingItemSQL, auditID, itemID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() != 1 {
-		return auditstore.ErrPrecondition
-	}
-	return nil
 }
 
 // validateAndApplyReportDecision applies the owner's decision on the exact

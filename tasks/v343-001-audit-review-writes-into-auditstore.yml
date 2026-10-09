@@ -3,7 +3,7 @@ id: V343-001
 title: Move remaining raw Audit review writes into auditstore
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V278-001, V279-001, V285-001]
 languages: [go, sql]
 goal: Finish issue 87 and share one live item authority predicate.

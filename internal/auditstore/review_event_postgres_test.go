@@ -69,6 +69,30 @@ func TestPostgresReviewEventKeepsAuditRevisionAndSequenceAtomic(t *testing.T) {
 		events[1].Sequence != events[0].Sequence+1 {
 		t.Fatalf("contiguous review events = (%+v, %v)", events, err)
 	}
+	beforeBatch := current
+	batch := []ReviewEventParams{params, invalid}
+	if err := store.AppendReviewEvents(ctx, batch); err == nil {
+		t.Fatal("batch with an invalid second event was recorded")
+	}
+	current, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || current.Revision != beforeBatch.Revision || current.EventSequence != beforeBatch.EventSequence {
+		t.Fatalf("failed batch partially allocated events: (%+v, %v)", current, err)
+	}
+	revision := uint64(7)
+	batch[1] = ReviewEventParams{AuditID: audit.AuditID, Kind: "review.expired",
+		EntityID: "review-batch-two", EntityRevision: &revision, Summary: map[string]any{"subjectKind": "finding"}}
+	if err := store.AppendReviewEvents(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	current, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || current.Revision != beforeBatch.Revision+2 || current.EventSequence != beforeBatch.EventSequence+2 {
+		t.Fatalf("batch did not advance once per event: (%+v, %v)", current, err)
+	}
+	events, err = store.ListEvents(ctx, audit.AuditID, beforeBatch.EventSequence, 2)
+	if err != nil || len(events) != 2 || events[0].Kind != batch[0].Kind || events[1].Kind != batch[1].Kind ||
+		events[1].Sequence != events[0].Sequence+1 || events[1].EntityRevision == nil || *events[1].EntityRevision != revision {
+		t.Fatalf("batch order or entity revision changed: (%+v, %v)", events, err)
+	}
 	params.AuditID = "missing-audit"
 	if err := store.AppendReviewEvent(ctx, params); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("missing Audit event error = %v", err)

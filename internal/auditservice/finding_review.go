@@ -82,12 +82,7 @@ SELECT request_id, request_digest
 			row.revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
-		if _, err := tx.Exec(ctx, `
-UPDATE audit_review_requests
-   SET state = 'expired', revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE audit_id = $1 AND finding_id = $2 AND state = 'pending'
-   AND expires_at IS NOT NULL AND expires_at <= clock_timestamp()`, params.AuditID, params.FindingID); err != nil {
+		if err := auditstore.NewPostgresStore(tx).ExpireFindingReviews(ctx, params.AuditID, params.FindingID); err != nil {
 			return err
 		}
 		subjectDigest := findingSubjectDigest(row)
@@ -116,20 +111,12 @@ SELECT request_id
 		requestID = params.RequestID
 		// The default window starts at the PostgreSQL clock that later decides
 		// whether the request has expired.
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, subject_kind, subject_id,
-    kind, subject_revision, subject_digest,
-    requested_actions, expires_at, idempotency_key, request_digest
-) VALUES ($1, $2, $3, 'finding', $3, 'finding-triage', $4, $5, $6,
-          COALESCE($7::timestamptz, clock_timestamp() + $10::bigint * interval '1 second'),
-          $8, $9)`,
-			requestID, params.AuditID, params.FindingID, row.revision, subjectDigest,
-			actions, expiresAt, params.IdempotencyKey, params.RequestDigest,
-			int64(defaultReviewTTL/time.Second)); err != nil {
-			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-				return auditstore.ErrConflict
-			}
+		if err := auditstore.NewPostgresStore(tx).InsertFindingReviewRequest(ctx, auditstore.FindingReviewRequestParams{
+			RequestID: requestID, AuditID: params.AuditID, FindingID: params.FindingID, SubjectRevision: row.revision,
+			SubjectDigest: subjectDigest, RequestedActions: actions, ExpiresAt: expiresAt,
+			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
+			DefaultTTLSeconds: int64(defaultReviewTTL / time.Second),
+		}); err != nil {
 			return err
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.requested", requestID,
@@ -224,7 +211,7 @@ SELECT audit.state,
 			return auditstore.ErrPrecondition
 		}
 		if request.ExpiresAt != nil {
-			if expired, err = expireReviewAtDatabaseTime(ctx, tx, request.RequestID); err != nil {
+			if expired, err = auditstore.NewPostgresStore(tx).ExpireReviewAtDatabaseTime(ctx, request.RequestID); err != nil {
 				return err
 			}
 		}
@@ -256,35 +243,17 @@ SELECT audit.state,
 		if params.DuplicateTargetID != nil {
 			target = params.DuplicateTargetID
 		}
-		if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict, severity,
-    rationale, duplicate_target_id, subject_revision, subject_digest,
-    idempotency_key, request_digest
-) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13)`,
-			decisionID, requestID, params.AuditID, findingID, params.OwnerID,
-			string(params.Verdict), severity, params.Rationale, target,
-			request.SubjectRevision, request.SubjectDigest, params.IdempotencyKey,
-			params.RequestDigest); err != nil {
-			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
-				return auditstore.ErrConflict
-			}
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-UPDATE audit_review_requests
-   SET state = 'decided', revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE request_id = $1 AND state = 'pending'`, requestID); err != nil {
+		verdict := string(params.Verdict)
+		if err := auditstore.NewPostgresStore(tx).RecordReviewDecision(ctx, auditstore.ReviewDecisionWriteParams{
+			DecisionID: decisionID, RequestID: requestID, AuditID: params.AuditID, FindingID: &findingID,
+			ActorID: params.OwnerID, Action: verdict, Verdict: &verdict, Severity: severity, Rationale: params.Rationale,
+			DuplicateTargetID: target, SubjectRevision: request.SubjectRevision, SubjectDigest: request.SubjectDigest,
+			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
+		}); err != nil {
 			return err
 		}
 		state, rejection, duplicate, effectiveDecision := decisionProjection(params.Verdict, decisionID, target)
-		if _, err := tx.Exec(ctx, `
-UPDATE audit_findings
-   SET state = $2, rejection_reason = $3, duplicate_target_id = $4,
-       current_decision_id = $5, revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE finding_id = $1`, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
+		if err := auditstore.NewPostgresStore(tx).ProjectFindingDecision(ctx, findingID, state, rejection, duplicate, effectiveDecision); err != nil {
 			return err
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.decided", decisionID,
@@ -821,23 +790,6 @@ func validateDuplicateTarget(
 		return auditstore.ErrConflict
 	}
 	return nil
-}
-
-// expireReviewAtDatabaseTime expires a pending request whose expiry has passed
-// by the PostgreSQL clock, which also decides expiry for the Controller and
-// execution authorization, so process clock skew cannot end or extend human
-// authority. The caller holds the request row lock.
-func expireReviewAtDatabaseTime(ctx context.Context, tx pgx.Tx, requestID string) (bool, error) {
-	tag, err := tx.Exec(ctx, `
-UPDATE audit_review_requests
-   SET state = 'expired', revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE request_id = $1 AND state = 'pending'
-   AND expires_at IS NOT NULL AND expires_at <= clock_timestamp()`, requestID)
-	if err != nil {
-		return false, err
-	}
-	return tag.RowsAffected() == 1, nil
 }
 
 func appendAuditReviewEvent(

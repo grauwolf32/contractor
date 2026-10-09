@@ -29,18 +29,8 @@ SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
         WHERE decision.request_id=review.request_id AND decision.action='approve'
    ))
    AND NOT EXISTS (
-       SELECT 1 FROM audit_review_requests AS live
-        WHERE live.audit_id=item.audit_id
-          AND live.subject_kind='audit-item-action'
-          AND live.subject_id=item.item_id
-          AND live.kind=item.approval_kind
-          AND live.subject_revision=1
-          AND live.subject_digest=item.approval_subject_digest
-          AND (live.expires_at IS NULL OR live.expires_at > clock_timestamp())
-          AND (live.state='pending' OR (live.state='decided' AND EXISTS (
-              SELECT 1 FROM audit_review_decisions AS decision
-               WHERE decision.request_id=live.request_id AND decision.action='approve'
-          )))
+       SELECT 1 FROM audit_live_item_reviews AS live
+        WHERE live.audit_id=item.audit_id AND live.item_id=item.item_id
    )
  ORDER BY item.ordinal, item.item_id,
           CASE review.state WHEN 'pending' THEN 0 WHEN 'decided' THEN 1 ELSE 2 END,

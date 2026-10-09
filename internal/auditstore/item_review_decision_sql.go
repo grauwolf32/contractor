@@ -1,12 +1,12 @@
-package auditservice
+package auditstore
 
-// SQL statements for action_review.go.
+// SQL statements for item_review_decision.go.
 
 // rejectAwaitingItemSQL settles Audit $1's item $2 as excluded when it is still
 // awaiting review, and records the owner's rejection on its coverage: status
 // excluded, the human-approval-rejected gap (added once) and a fixed
 // rationale. The caller requires one affected row.
-// Used by validateAndApplyItemDecision.
+// Used by PostgresStore.ApplyItemReviewDecision.
 var rejectAwaitingItemSQL = `
 UPDATE audit_items
    SET state = 'settled', final_disposition = 'excluded',

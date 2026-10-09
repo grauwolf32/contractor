@@ -53,22 +53,9 @@ WITH member_input AS MATERIALIZED (
 	   AND (
 	       item.approval_kind = 'none'
 	       OR EXISTS (
-	           SELECT 1
-	             FROM audit_review_requests AS approval
-	             JOIN audit_review_decisions AS decision
-	               ON decision.request_id = approval.request_id
-	              AND decision.audit_id = approval.audit_id
-	            WHERE approval.audit_id = item.audit_id
-	              AND approval.subject_kind = 'audit-item-action'
-	              AND approval.subject_id = item.item_id
-	              AND approval.kind = item.approval_kind
-	              AND approval.subject_revision = 1
-	              AND approval.subject_digest = item.approval_subject_digest
-	              AND approval.state = 'decided'
-	              AND (approval.expires_at IS NULL OR approval.expires_at > clock_timestamp())
-	              AND decision.action = 'approve'
-	              AND decision.subject_revision = approval.subject_revision
-	              AND decision.subject_digest = approval.subject_digest
+               SELECT 1 FROM audit_live_item_reviews AS approval
+                WHERE approval.audit_id=item.audit_id AND approval.item_id=item.item_id
+                  AND approval.approved
 	       )
 	   )
 	   AND member.item_attempt = COALESCE((
