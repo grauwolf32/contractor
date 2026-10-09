@@ -76,6 +76,8 @@ var layers = []layerSpec{
 			"internal/agentskills",
 			"internal/auditstandards",
 			"internal/config",
+			// Loads catalogs together with the bundled skill and Audit standard checks.
+			"internal/configload",
 		},
 	},
 	{
@@ -157,12 +159,6 @@ var layers = []layerSpec{
 // why the import exists and how it should be removed. Do not add an entry to
 // silence a new violation without both.
 var knownViolations = []knownViolation{
-	{
-		from:   "internal/config",
-		to:     "internal/auditdomain",
-		reason: "findings.go validates the security-findings reader input against auditdomain.FindingCollectionMediaType",
-		fix:    "move FindingCollectionMediaType into internal/contracts beside the other wire media types",
-	},
 	{
 		from:   "internal/runstore",
 		to:     "internal/auditstore",
