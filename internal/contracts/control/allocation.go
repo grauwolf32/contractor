@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 )
 
@@ -108,7 +109,7 @@ type AllocationSpec struct {
 	RuntimeSettings                 contracts.RuntimeSettings                 `json:"runtimeSettings"`
 	ResolvedRuntimeConfigProvenance contracts.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
 	Workspace                       *contracts.AllocationWorkspaceSpec        `json:"workspace,omitempty"`
-	PerformanceMetrics              *contracts.PerformanceMetricsRequest      `json:"performanceMetrics,omitempty"`
+	PerformanceMetrics              *reporting.PerformanceMetricsRequest      `json:"performanceMetrics,omitempty"`
 }
 
 func (s AllocationSpec) Validate() error {

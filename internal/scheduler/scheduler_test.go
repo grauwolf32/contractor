@@ -21,6 +21,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -563,10 +564,10 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 	for _, test := range []struct {
 		name       string
 		statusCode int
-		wantExport contracts.ToolCallOutcome
+		wantExport reporting.ToolCallOutcome
 	}{
-		{name: "accepted", statusCode: http.StatusOK, wantExport: contracts.ToolCallSucceeded},
-		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: contracts.ToolCallFailed},
+		{name: "accepted", statusCode: http.StatusOK, wantExport: reporting.ToolCallSucceeded},
+		{name: "rejected", statusCode: http.StatusServiceUnavailable, wantExport: reporting.ToolCallFailed},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var collectorMu sync.Mutex
@@ -2664,7 +2665,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 		ResolvedRuntimeConfig:       &resolved,
 	}
 	if a.resolvedRuntimeConfig != nil {
@@ -2788,7 +2789,7 @@ func (w *memoryWorkers) PrepareAll(
 
 func (w *memoryWorkers) FinalizeAll(
 	_ context.Context, reservations []controlplane.Reservation, _ string, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	w.finalizeCalls++
 	for _, reservation := range reservations {
 		if !w.allocator.fenced[reservation.Grant.AllocationID] {
@@ -2796,7 +2797,7 @@ func (w *memoryWorkers) FinalizeAll(
 		}
 	}
 	w.events.add("finalize")
-	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
+	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(
 			reservation.Grant.AllocationID, w.clock.now,
@@ -2807,27 +2808,27 @@ func (w *memoryWorkers) FinalizeAll(
 
 func (w *memoryWorkers) AbortAll(
 	_ context.Context, _ []controlplane.Reservation, _ string, _ contracts.TerminationError, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	w.abortCalls++
 	w.events.add("abort")
-	return map[string]contracts.AllocationFinalReport{}, w.abortError
+	return map[string]reporting.AllocationFinalReport{}, w.abortError
 }
 
 func schedulerTestAllocationReport(
 	allocationID string, finishedAt time.Time,
-) contracts.AllocationFinalReport {
+) reporting.AllocationFinalReport {
 	modelCalls := int64(1)
-	return contracts.AllocationFinalReport{
+	return reporting.AllocationFinalReport{
 		ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
 		StartedAt: finishedAt.Add(-time.Second), FinishedAt: finishedAt,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-" + allocationID, Complete: true,
-			Metrics: contracts.ExecutionMetrics{
-				ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
 			},
-			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true},
+		Runtime: reporting.RuntimeReport{Complete: true},
 	}
 }
 

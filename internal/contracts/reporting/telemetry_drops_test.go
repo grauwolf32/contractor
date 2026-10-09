@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 import (
 	"encoding/json"

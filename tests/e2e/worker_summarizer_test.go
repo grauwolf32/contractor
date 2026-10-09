@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -315,7 +316,7 @@ func loadSummarizerProcessReport(
 
 func assertSummarizerReport(
 	t *testing.T,
-	report contracts.ExecutionReport,
+	report reporting.ExecutionReport,
 	expectation summarizerProcessExpectation,
 ) {
 	t.Helper()
@@ -418,7 +419,7 @@ func assertRequestedSummarizerState(
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("read active summarizer State = HTTP %d", response.StatusCode)
 	}
-	var snapshot contracts.AgentStateSnapshot
+	var snapshot reporting.AgentStateSnapshot
 	body := copyBounded(response.Body)
 	if err := json.Unmarshal([]byte(body), &snapshot); err != nil || snapshot.Validate() != nil {
 		t.Fatalf("decode active summarizer State = (%v, %s)", err, body)

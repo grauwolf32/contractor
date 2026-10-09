@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -31,7 +32,7 @@ func (*deferredLeaseRegistry) SetWriteFence(string) error { return nil }
 func (*deferredLeaseRegistry) SetAllocationPhase(string, controlplane.AllocationAuthoritativePhase, *controlplane.SafeReason) error {
 	return nil
 }
-func (*deferredLeaseRegistry) RecordAllocationReport(string, contracts.AllocationFinalReport) error {
+func (*deferredLeaseRegistry) RecordAllocationReport(string, reporting.AllocationFinalReport) error {
 	return nil
 }
 func (*deferredLeaseRegistry) Release(string) error             { return nil }
@@ -51,11 +52,11 @@ func (r *deferredLeaseRuntime) Prepare(ctx context.Context, reservation controlp
 	})
 	return handles[reservation.Grant.LogicalAgentName], err
 }
-func (*deferredLeaseRuntime) Finalize(context.Context, controlplane.Reservation, string, time.Time) (contracts.AllocationFinalReport, error) {
-	return contracts.AllocationFinalReport{}, errors.New("unexpected Runtime finalize")
+func (*deferredLeaseRuntime) Finalize(context.Context, controlplane.Reservation, string, time.Time) (reporting.AllocationFinalReport, error) {
+	return reporting.AllocationFinalReport{}, errors.New("unexpected Runtime finalize")
 }
-func (*deferredLeaseRuntime) Abort(context.Context, controlplane.Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error) {
-	return contracts.AllocationFinalReport{}, errors.New("unexpected Runtime abort")
+func (*deferredLeaseRuntime) Abort(context.Context, controlplane.Reservation, string, contracts.TerminationError, time.Time) (reporting.AllocationFinalReport, error) {
+	return reporting.AllocationFinalReport{}, errors.New("unexpected Runtime abort")
 }
 func (*deferredLeaseRuntime) Release(context.Context, controlplane.Reservation) error {
 	return errors.New("unexpected Runtime release")

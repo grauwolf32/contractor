@@ -16,6 +16,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -228,17 +229,17 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
 	unsupported := control.AgentRegistration{}
 	supported := control.AgentRegistration{
-		SupportedPerformanceMetricsVersions: contracts.PerformanceMetricsVersions{1},
+		SupportedPerformanceMetricsVersions: reporting.PerformanceMetricsVersions{1},
 	}
 	for _, test := range []struct {
 		enabled      bool
 		registration control.AgentRegistration
-		want         contracts.PerformanceCollectionPolicy
+		want         reporting.PerformanceCollectionPolicy
 	}{
-		{false, unsupported, contracts.PerformanceCollectionDisabled},
-		{false, supported, contracts.PerformanceCollectionDisabled},
-		{true, unsupported, contracts.PerformanceCollectionUnsupported},
-		{true, supported, contracts.PerformanceCollectionRequested},
+		{false, unsupported, reporting.PerformanceCollectionDisabled},
+		{false, supported, reporting.PerformanceCollectionDisabled},
+		{true, unsupported, reporting.PerformanceCollectionUnsupported},
+		{true, supported, reporting.PerformanceCollectionRequested},
 	} {
 		allocator := &PlacementAllocator{performanceMetrics: test.enabled}
 		if got := allocator.collectionPolicy(test.registration); got != test.want {

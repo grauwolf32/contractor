@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -32,10 +33,10 @@ type AllocationResourceSummary struct {
 	LogicalAgent     string                                `json:"logicalAgent"`
 	Outcome          string                                `json:"outcome"`
 	FinishedAt       time.Time                             `json:"finishedAt"`
-	CollectionPolicy contracts.PerformanceCollectionPolicy `json:"collectionPolicy"`
+	CollectionPolicy reporting.PerformanceCollectionPolicy `json:"collectionPolicy"`
 	Status           AllocationResourceStatus              `json:"status"`
 	Reason           *AllocationResourceReason             `json:"reason,omitempty"`
-	Resources        *contracts.RuntimeResources           `json:"resources,omitempty"`
+	Resources        *reporting.RuntimeResources           `json:"resources,omitempty"`
 }
 
 type AllocationResourceHistoryParams struct {
@@ -148,11 +149,11 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 			return nil, fmt.Errorf("scan allocation resource summary: %w", err)
 		}
 		item.FinishedAt = item.FinishedAt.UTC()
-		item.CollectionPolicy = contracts.PerformanceCollectionPolicy(persistedPolicy)
+		item.CollectionPolicy = reporting.PerformanceCollectionPolicy(persistedPolicy)
 		if item.CollectionPolicy.ValidatePinned() != nil {
 			return nil, errors.New("decode persisted allocation performance collection policy")
 		}
-		var resources *contracts.RuntimeResources
+		var resources *reporting.RuntimeResources
 		if hasReport {
 			if reportedAllocationID == nil || *reportedAllocationID != item.AllocationID {
 				return nil, errors.New("decode persisted allocation resource report")
@@ -161,7 +162,7 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 			// resource block here, preserving RuntimeReport's omission of malformed
 			// resources without allocating unrelated Worker detail on every read.
 			if len(encodedResources) != 0 {
-				if decoded, err := contracts.DecodePrivateStrict[contracts.RuntimeResources](encodedResources); err == nil {
+				if decoded, err := contracts.DecodePrivateStrict[reporting.RuntimeResources](encodedResources); err == nil {
 					resources = &decoded
 				}
 			}
@@ -179,13 +180,13 @@ func projectAllocationResources(
 	item *AllocationResourceSummary,
 	releaseCompletedAt *time.Time,
 	hasReport bool,
-	resources *contracts.RuntimeResources,
+	resources *reporting.RuntimeResources,
 ) {
 	switch item.CollectionPolicy {
-	case contracts.PerformanceCollectionDisabled:
+	case reporting.PerformanceCollectionDisabled:
 		item.Status = AllocationResourceDisabled
 		return
-	case contracts.PerformanceCollectionUnsupported:
+	case reporting.PerformanceCollectionUnsupported:
 		item.Status = AllocationResourceUnsupported
 		return
 	}
@@ -207,16 +208,16 @@ func projectAllocationResources(
 		item.Reason = allocationResourceReason(AllocationResourceReason(*resources.Reason))
 	}
 	switch resources.Status {
-	case contracts.ResourceComplete:
+	case reporting.ResourceComplete:
 		item.Status = AllocationResourceAvailable
-	case contracts.ResourcePartial:
+	case reporting.ResourcePartial:
 		item.Status = AllocationResourcePartial
 	default:
 		item.Status = AllocationResourceUnavailable
 	}
 	// invalid_report is a diagnostic sentinel. Do not publish it as a measured
 	// resource block because it deliberately contains no observations.
-	if resources.Reason == nil || *resources.Reason != contracts.ResourceInvalidReport {
+	if resources.Reason == nil || *resources.Reason != reporting.ResourceInvalidReport {
 		copy := *resources
 		item.Resources = &copy
 	}

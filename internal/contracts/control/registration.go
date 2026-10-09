@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 type AgentRegistration struct {
@@ -27,7 +28,7 @@ type AgentRegistration struct {
 	SupportedToolsets                   []ToolsetCapability                  `json:"supportedToolsets"`
 	SupportedSandboxProfiles            []string                             `json:"supportedSandboxProfiles"`
 	SupportedRuntimeAdapters            []contracts.RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
-	SupportedPerformanceMetricsVersions contracts.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
+	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
 	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
 	ObservedState                       AgentObservedState                   `json:"observedState"`
 	AllocationID                        *string                              `json:"allocationId,omitempty"`

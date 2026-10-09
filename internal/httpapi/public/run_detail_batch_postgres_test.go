@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -155,7 +156,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 						WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
 						RuntimeAgentID:   strings.Repeat("1", 64), RuntimeAgentInstanceID: "private-physical-instance", RuntimeAgentLabelRevision: 1,
 						RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
-						RuntimeConfiguration:              configuration, PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+						RuntimeConfiguration:              configuration, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 					}); err != nil {
 						t.Fatal(err)
 					}

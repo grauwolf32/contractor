@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -19,7 +19,7 @@ import (
 type metricReport struct {
 	Complete  bool                       `json:"complete"`
 	Truncated bool                       `json:"truncated"`
-	Metrics   contracts.ExecutionMetrics `json:"metrics"`
+	Metrics   reporting.ExecutionMetrics `json:"metrics"`
 }
 type metricSnapshot struct {
 	Planner *metricReport           `json:"planner"`

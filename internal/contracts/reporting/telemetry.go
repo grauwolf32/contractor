@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -85,26 +86,26 @@ type ExecutionReport struct {
 }
 
 type RuntimeReport struct {
-	Complete       bool                                        `json:"complete"`
-	DurationMS     *int64                                      `json:"durationMs,omitempty"`
-	StopReason     *string                                     `json:"stopReason,omitempty"`
-	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters"`
-	Resources      *RuntimeResources                           `json:"resources,omitempty"`
-	ResourcesError *ResourceReason                             `json:"-"`
+	Complete       bool                                                  `json:"complete"`
+	DurationMS     *int64                                                `json:"durationMs,omitempty"`
+	StopReason     *string                                               `json:"stopReason,omitempty"`
+	Adapters       map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters"`
+	Resources      *RuntimeResources                                     `json:"resources,omitempty"`
+	ResourcesError *ResourceReason                                       `json:"-"`
 }
 
 func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 	type wireRuntimeReport RuntimeReport
 	copy := wireRuntimeReport(r)
 	if copy.Adapters == nil {
-		copy.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{}
+		copy.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{}
 	}
 	return json.Marshal(copy)
 }
 
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return Invalidf("invalid runtime report JSON")
+		return contracts.Invalidf("invalid runtime report JSON")
 	}
 	type wireRuntimeReport struct {
 		Complete   bool                       `json:"complete"`
@@ -124,7 +125,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	}
 	*r = RuntimeReport{
 		Complete: wire.Complete, DurationMS: wire.DurationMS, StopReason: wire.StopReason,
-		Adapters: map[RuntimeAdapterRef]RuntimeAdapterMetrics{},
+		Adapters: map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{},
 	}
 	r.Resources, r.ResourcesError = decodeOptionalResources(wire.Resources)
 	if wire.Adapters == nil {
@@ -132,7 +133,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	for rawRef, rawMetrics := range wire.Adapters {
-		ref := RuntimeAdapterRef(rawRef)
+		ref := contracts.RuntimeAdapterRef(rawRef)
 		metrics, err := decodeRuntimeAdapterMetrics(rawMetrics)
 		if err != nil || ref.Validate() != nil {
 			r.Complete = false
@@ -177,10 +178,10 @@ type AllocationFinalReport struct {
 func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	// Check the original report before optional invalid resources are removed.
 	if len(data) > 1024*1024 {
-		return Invalidf("allocation final report exceeds 1 MiB")
+		return contracts.Invalidf("allocation final report exceeds 1 MiB")
 	}
 	if err := strictjson.RejectDuplicateKeys(data); err != nil {
-		return Invalidf("invalid allocation report JSON")
+		return contracts.Invalidf("invalid allocation report JSON")
 	}
 	type wireReport AllocationFinalReport
 	var value wireReport
@@ -199,19 +200,19 @@ func (r ExecutionReport) Validate() error {
 			return err
 		}
 	}
-	if err := ValidateOpaqueID("reportId", r.ReportID); err != nil {
+	if err := contracts.ValidateOpaqueID("reportId", r.ReportID); err != nil {
 		return err
 	}
 	if r.Metrics.Tools == nil || r.ToolCalls == nil || r.Errors == nil {
-		return Invalidf("execution report maps and lists must not be null")
+		return contracts.Invalidf("execution report maps and lists must not be null")
 	}
 	for name, metrics := range r.Metrics.Tools {
-		if err := ValidateOpaqueID("metrics tool name", name); err != nil {
+		if err := contracts.ValidateOpaqueID("metrics tool name", name); err != nil {
 			return err
 		}
 		for _, value := range []*int64{metrics.Calls, metrics.Succeeded, metrics.Failed} {
 			if value != nil && *value < 0 {
-				return Invalidf("tool metrics must be non-negative")
+				return contracts.Invalidf("tool metrics must be non-negative")
 			}
 		}
 	}
@@ -220,36 +221,36 @@ func (r ExecutionReport) Validate() error {
 		r.Metrics.OutputTokens, r.Metrics.TotalTokens,
 	} {
 		if value != nil && *value < 0 {
-			return Invalidf("execution metrics must be non-negative")
+			return contracts.Invalidf("execution metrics must be non-negative")
 		}
 	}
 	if budget := r.Metrics.WorkerBudget; budget != nil {
-		if budget.MaxModelCalls <= 0 || budget.MaxModelCalls > MaxWorkerModelCalls ||
-			budget.MaxToolCalls <= 0 || budget.MaxToolCalls > MaxWorkerToolCalls ||
-			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > MaxWorkerTotalTokens {
-			return Invalidf("worker budget limits are invalid")
+		if budget.MaxModelCalls <= 0 || budget.MaxModelCalls > contracts.MaxWorkerModelCalls ||
+			budget.MaxToolCalls <= 0 || budget.MaxToolCalls > contracts.MaxWorkerToolCalls ||
+			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
+			return contracts.Invalidf("worker budget limits are invalid")
 		}
 		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
 			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
 			budget.ObservedTotalTokens < 0 || budget.TokenUsageUnavailable < 0 {
-			return Invalidf("worker budget observations are invalid")
+			return contracts.Invalidf("worker budget observations are invalid")
 		}
 		if budget.Exhausted != nil {
 			switch *budget.Exhausted {
 			case "model_calls":
 				if budget.ObservedModelCalls != budget.MaxModelCalls {
-					return Invalidf("worker model-call exhaustion is inconsistent")
+					return contracts.Invalidf("worker model-call exhaustion is inconsistent")
 				}
 			case "tool_calls":
 				if budget.ObservedToolCalls != budget.MaxToolCalls {
-					return Invalidf("worker tool-call exhaustion is inconsistent")
+					return contracts.Invalidf("worker tool-call exhaustion is inconsistent")
 				}
 			case "total_tokens":
 				if budget.ObservedTotalTokens < budget.MaxTotalTokens {
-					return Invalidf("worker token exhaustion is inconsistent")
+					return contracts.Invalidf("worker token exhaustion is inconsistent")
 				}
 			default:
-				return Invalidf("worker budget exhausted dimension is invalid")
+				return contracts.Invalidf("worker budget exhausted dimension is invalid")
 			}
 		}
 	}
@@ -261,45 +262,45 @@ func (r ExecutionReport) Validate() error {
 			summarizer.ModelCalls > summarizer.Attempts ||
 			summarizer.TokenUsageUnavailable > summarizer.ModelCalls ||
 			summarizer.FailureCodes == nil || len(summarizer.FailureCodes) > 64 {
-			return Invalidf("worker summarizer metrics are inconsistent")
+			return contracts.Invalidf("worker summarizer metrics are inconsistent")
 		}
 		var failures uint64
 		for code, count := range summarizer.FailureCodes {
-			if !ValidWorkerFailureCode(code) || count == 0 || ^uint64(0)-failures < count {
-				return Invalidf("worker summarizer failure metrics are invalid")
+			if !contracts.ValidWorkerFailureCode(code) || count == 0 || ^uint64(0)-failures < count {
+				return contracts.Invalidf("worker summarizer failure metrics are invalid")
 			}
 			failures += count
 		}
 		if failures != summarizer.Failed {
-			return Invalidf("worker summarizer failure metrics are inconsistent")
+			return contracts.Invalidf("worker summarizer failure metrics are inconsistent")
 		}
 	}
 	for index, call := range r.ToolCalls {
-		if err := ValidateOpaqueID("tool call ID", call.CallID); err != nil {
+		if err := contracts.ValidateOpaqueID("tool call ID", call.CallID); err != nil {
 			return err
 		}
-		if err := ValidateOpaqueID("tool call name", call.Tool); err != nil {
+		if err := contracts.ValidateOpaqueID("tool call name", call.Tool); err != nil {
 			return err
 		}
 		if call.Arguments == nil && call.ArgumentsTruncated {
-			return Invalidf("tool call %d marks absent arguments truncated", index)
+			return contracts.Invalidf("tool call %d marks absent arguments truncated", index)
 		}
 		if call.Arguments != nil {
-			size, err := ResultJSONSize(call.Arguments)
+			size, err := contracts.ResultJSONSize(call.Arguments)
 			if err != nil || size > 4096 {
-				return Invalidf("tool call %d arguments exceed 4096 bytes", index)
+				return contracts.Invalidf("tool call %d arguments exceed 4096 bytes", index)
 			}
 		}
 		if call.Outcome != ToolCallSucceeded && call.Outcome != ToolCallFailed {
-			return Invalidf("unknown tool call outcome %q", call.Outcome)
+			return contracts.Invalidf("unknown tool call outcome %q", call.Outcome)
 		}
 		if (call.DurationMS != nil && *call.DurationMS < 0) ||
 			(call.ResultSizeBytes != nil && *call.ResultSizeBytes < 0) {
-			return Invalidf("tool call measurements must be non-negative")
+			return contracts.Invalidf("tool call measurements must be non-negative")
 		}
 		if (call.Outcome == ToolCallSucceeded && call.Error != nil) ||
 			(call.Outcome == ToolCallFailed && call.Error == nil) {
-			return Invalidf("tool call outcome and error are inconsistent")
+			return contracts.Invalidf("tool call outcome and error are inconsistent")
 		}
 		if call.Error != nil {
 			if err := call.Error.Validate(); err != nil {
@@ -313,31 +314,31 @@ func (r ExecutionReport) Validate() error {
 		}
 	}
 	if len(r.ToolCalls) > 1000 || len(r.Errors) > 100 {
-		return Invalidf("execution report detail exceeds bounded record limits")
+		return contracts.Invalidf("execution report detail exceeds bounded record limits")
 	}
-	size, err := ResultJSONSize(r)
+	size, err := contracts.ResultJSONSize(r)
 	if err != nil {
-		return Invalidf("execution report cannot be encoded")
+		return contracts.Invalidf("execution report cannot be encoded")
 	}
 	if size > 1024*1024 {
-		return Invalidf("execution report exceeds 1 MiB")
+		return contracts.Invalidf("execution report exceeds 1 MiB")
 	}
 	return nil
 }
 
 func (e ExecutionError) Validate() error {
 	if strings.TrimSpace(e.Code) == "" || strings.TrimSpace(e.Message) == "" {
-		return Invalidf("execution error code and message are required")
+		return contracts.Invalidf("execution error code and message are required")
 	}
 	if len([]byte(e.Message)) > 4096 {
-		return Invalidf("execution error message exceeds 4096 bytes")
+		return contracts.Invalidf("execution error message exceeds 4096 bytes")
 	}
 	return nil
 }
 
 func (m StageMetrics) Validate() error {
 	if m.Workers == nil || m.Runtime == nil {
-		return Invalidf("StageMetrics maps must not be null")
+		return contracts.Invalidf("StageMetrics maps must not be null")
 	}
 	if m.Planner != nil {
 		if err := m.Planner.Validate(); err != nil {
@@ -345,7 +346,7 @@ func (m StageMetrics) Validate() error {
 		}
 	}
 	for name, report := range m.Workers {
-		if err := ValidateOpaqueID("worker logical Agent name", name); err != nil {
+		if err := contracts.ValidateOpaqueID("worker logical Agent name", name); err != nil {
 			return err
 		}
 		if err := report.Validate(); err != nil {
@@ -353,11 +354,11 @@ func (m StageMetrics) Validate() error {
 		}
 	}
 	for name, report := range m.Runtime {
-		if err := ValidateOpaqueID("runtime logical Agent name", name); err != nil {
+		if err := contracts.ValidateOpaqueID("runtime logical Agent name", name); err != nil {
 			return err
 		}
 		if report.DurationMS != nil && *report.DurationMS < 0 {
-			return Invalidf("runtime duration must be non-negative")
+			return contracts.Invalidf("runtime duration must be non-negative")
 		}
 		if err := report.validateAdapters(); err != nil {
 			return err
@@ -367,33 +368,33 @@ func (m StageMetrics) Validate() error {
 }
 
 func (r AllocationFinalReport) Validate() error {
-	if err := ValidateOpaqueID("allocation final report ID", r.ReportID); err != nil {
+	if err := contracts.ValidateOpaqueID("allocation final report ID", r.ReportID); err != nil {
 		return err
 	}
-	if err := ValidateOpaqueID("allocationId", r.AllocationID); err != nil {
+	if err := contracts.ValidateOpaqueID("allocationId", r.AllocationID); err != nil {
 		return err
 	}
 	if r.StartedAt.IsZero() || r.FinishedAt.IsZero() || r.FinishedAt.Before(r.StartedAt) {
-		return Invalidf("allocation final report timestamps are invalid")
+		return contracts.Invalidf("allocation final report timestamps are invalid")
 	}
 	if err := r.Worker.Validate(); err != nil {
 		return fmt.Errorf("worker report: %w", err)
 	}
 	if r.Runtime.DurationMS != nil && *r.Runtime.DurationMS < 0 {
-		return Invalidf("runtime duration must be non-negative")
+		return contracts.Invalidf("runtime duration must be non-negative")
 	}
 	if r.Runtime.StopReason != nil && strings.TrimSpace(*r.Runtime.StopReason) == "" {
-		return Invalidf("runtime stopReason must not be empty")
+		return contracts.Invalidf("runtime stopReason must not be empty")
 	}
 	if err := r.Runtime.validateAdapters(); err != nil {
 		return err
 	}
-	size, err := ResultJSONSize(r)
+	size, err := contracts.ResultJSONSize(r)
 	if err != nil {
-		return Invalidf("allocation final report cannot be encoded")
+		return contracts.Invalidf("allocation final report cannot be encoded")
 	}
 	if size > 1024*1024 {
-		return Invalidf("allocation final report exceeds 1 MiB")
+		return contracts.Invalidf("allocation final report exceeds 1 MiB")
 	}
 	return nil
 }
@@ -405,7 +406,7 @@ func (r RuntimeReport) validateAdapters() error {
 		}
 	}
 	if len(r.Adapters) > 64 {
-		return Invalidf("runtime adapter metrics exceed 64 entries")
+		return contracts.Invalidf("runtime adapter metrics exceed 64 entries")
 	}
 	for ref, metrics := range r.Adapters {
 		if err := ref.Validate(); err != nil {
@@ -434,17 +435,17 @@ type RuntimeAdapterMetrics struct {
 
 func (m RuntimeAdapterMetrics) Validate() error {
 	if m.FailedOperations > m.Operations {
-		return Invalidf("Runtime adapter failures exceed operations")
+		return contracts.Invalidf("Runtime adapter failures exceed operations")
 	}
 	if (m.FlushAttempted == nil) != (m.FlushSucceeded == nil) {
-		return Invalidf("Runtime adapter flush fields must be present together")
+		return contracts.Invalidf("Runtime adapter flush fields must be present together")
 	}
 	if m.FlushAttempted != nil && !*m.FlushAttempted && *m.FlushSucceeded {
-		return Invalidf("Runtime adapter flush cannot succeed when not attempted")
+		return contracts.Invalidf("Runtime adapter flush cannot succeed when not attempted")
 	}
 	if m.LastErrorCode != nil {
 		if _, allowed := runtimeAdapterErrorCodes[*m.LastErrorCode]; !allowed {
-			return Invalidf("Runtime adapter lastErrorCode is invalid")
+			return contracts.Invalidf("Runtime adapter lastErrorCode is invalid")
 		}
 	}
 	return nil
@@ -457,13 +458,13 @@ func (r RuntimeReport) Validate() error {
 		}
 	}
 	if r.DurationMS != nil && *r.DurationMS < 0 {
-		return Invalidf("runtime duration must be non-negative")
+		return contracts.Invalidf("runtime duration must be non-negative")
 	}
 	if r.StopReason != nil && strings.TrimSpace(*r.StopReason) == "" {
-		return Invalidf("runtime stopReason must not be empty")
+		return contracts.Invalidf("runtime stopReason must not be empty")
 	}
 	if r.Adapters == nil || len(r.Adapters) > 64 {
-		return Invalidf("runtime adapter metrics map is invalid")
+		return contracts.Invalidf("runtime adapter metrics map is invalid")
 	}
 	for ref, metrics := range r.Adapters {
 		if err := ref.Validate(); err != nil {
@@ -482,7 +483,7 @@ type AllocationFinalResponse struct {
 }
 
 func (r AllocationFinalResponse) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
+	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	return r.Report.Validate()

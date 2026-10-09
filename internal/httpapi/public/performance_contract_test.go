@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -98,8 +98,8 @@ func TestPerformancePublicContracts(t *testing.T) {
 		},
 	}
 	validate("PerformanceAggregateHistoryPoint", aggregate, true)
-	validate("RuntimeResourceSummary", contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourceUnavailable}, true)
-	validate("RuntimeResourceSummary", contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourceComplete}, false)
+	validate("RuntimeResourceSummary", reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourceUnavailable}, true)
+	validate("RuntimeResourceSummary", reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourceComplete}, false)
 	validate("RuntimeResourceSummary", map[string]any{"version": 1, "scope": "runtime_process", "status": "partial", "cpuUserSeconds": nil}, false)
 	validate("RuntimeResourceSummary", map[string]any{"version": 1, "scope": "runtime_process", "status": "partial", "rssSampleCount": -1}, false)
 }
@@ -112,8 +112,8 @@ func TestPerformanceReadHandlersAndAllocationHistoryCursor(t *testing.T) {
 			dependencies.AllocationResources = &fakeAllocationResourceReader{
 				byStage: map[string][]telemetry.AllocationResourceSummary{},
 				items: []telemetry.AllocationResourceSummary{
-					{AllocationID: "allocation-2", RunID: "run-1", StageExecutionID: "stage-1", Stage: "analyze", LogicalAgent: "worker", Outcome: "succeeded", FinishedAt: finished, CollectionPolicy: contracts.PerformanceCollectionDisabled, Status: telemetry.AllocationResourceDisabled},
-					{AllocationID: "allocation-1", RunID: "run-1", StageExecutionID: "stage-1", Stage: "analyze", LogicalAgent: "worker", Outcome: "succeeded", FinishedAt: finished.Add(-time.Second), CollectionPolicy: contracts.PerformanceCollectionUnsupported, Status: telemetry.AllocationResourceUnsupported},
+					{AllocationID: "allocation-2", RunID: "run-1", StageExecutionID: "stage-1", Stage: "analyze", LogicalAgent: "worker", Outcome: "succeeded", FinishedAt: finished, CollectionPolicy: reporting.PerformanceCollectionDisabled, Status: telemetry.AllocationResourceDisabled},
+					{AllocationID: "allocation-1", RunID: "run-1", StageExecutionID: "stage-1", Stage: "analyze", LogicalAgent: "worker", Outcome: "succeeded", FinishedAt: finished.Add(-time.Second), CollectionPolicy: reporting.PerformanceCollectionUnsupported, Status: telemetry.AllocationResourceUnsupported},
 				},
 			}
 		},

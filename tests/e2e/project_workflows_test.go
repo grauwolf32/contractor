@@ -23,7 +23,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -1444,7 +1444,7 @@ func assertValidatorInvocations(t *testing.T, path string, vacuum, likeC4 int) {
 // Reports retain the limits pinned for the allocated logical Worker, independently
 // of later edits to the authoring catalog. Observed counters remain script-owned.
 func validateProjectWorkerBudget(stageSnapshot json.RawMessage, logicalAgent string,
-	budget *contracts.WorkerBudgetMetrics, modelCalls, toolCalls int64) error {
+	budget *reporting.WorkerBudgetMetrics, modelCalls, toolCalls int64) error {
 	stage, err := config.DecodeResolvedStageSnapshot(stageSnapshot)
 	if err != nil {
 		return fmt.Errorf("decode pinned Stage: %w", err)

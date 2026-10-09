@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
@@ -407,9 +408,9 @@ func (r *recordingRuntime) Prepare(
 
 func (r *recordingRuntime) Finalize(
 	ctx context.Context, reservation Reservation, _ string, _ time.Time,
-) (contracts.AllocationFinalReport, error) {
+) (reporting.AllocationFinalReport, error) {
 	if err := ctx.Err(); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	r.mu.Lock()
 	allocationID := reservation.Grant.AllocationID
@@ -418,7 +419,7 @@ func (r *recordingRuntime) Finalize(
 	r.mu.Unlock()
 	if blocked {
 		<-ctx.Done()
-		return contracts.AllocationFinalReport{}, ctx.Err()
+		return reporting.AllocationFinalReport{}, ctx.Err()
 	}
 	return testExecutionReport(reservation.Grant.AllocationID), nil
 }
@@ -429,9 +430,9 @@ func (r *recordingRuntime) Abort(
 	_ string,
 	_ contracts.TerminationError,
 	_ time.Time,
-) (contracts.AllocationFinalReport, error) {
+) (reporting.AllocationFinalReport, error) {
 	if err := ctx.Err(); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	r.mu.Lock()
 	allocationID := reservation.Grant.AllocationID
@@ -440,7 +441,7 @@ func (r *recordingRuntime) Abort(
 	r.mu.Unlock()
 	if blocked {
 		<-ctx.Done()
-		return contracts.AllocationFinalReport{}, ctx.Err()
+		return reporting.AllocationFinalReport{}, ctx.Err()
 	}
 	return testExecutionReport(reservation.Grant.AllocationID), nil
 }
@@ -499,7 +500,7 @@ func (r *recordingAllocationRegistry) SetAllocationPhase(
 
 func (r *recordingAllocationRegistry) RecordAllocationReport(
 	allocationID string,
-	_ contracts.AllocationFinalReport,
+	_ reporting.AllocationFinalReport,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

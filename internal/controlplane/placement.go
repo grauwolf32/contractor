@@ -12,6 +12,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -238,7 +239,7 @@ func (a *PlacementAllocator) reserveAllContext(
 		selectedCandidates[candidate.Registration.InstanceID] = candidate
 	}
 	resolvedByAllocation := make(map[string]runtimeconfig.ResolvedRuntimeConfig, len(reservations))
-	policyByAllocation := make(map[string]contracts.PerformanceCollectionPolicy, len(reservations))
+	policyByAllocation := make(map[string]reporting.PerformanceCollectionPolicy, len(reservations))
 	err = a.credentialGuard.WithAllocationReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, a.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return a.pinReservations(
@@ -282,7 +283,7 @@ func (a *PlacementAllocator) pinReservations(
 	candidates map[string]AgentSnapshot,
 	optimistic map[string]runtimeconfig.ResolvedRuntimeConfig,
 	result map[string]runtimeconfig.ResolvedRuntimeConfig,
-	policies map[string]contracts.PerformanceCollectionPolicy,
+	policies map[string]reporting.PerformanceCollectionPolicy,
 ) error {
 	labels := make(map[string]struct{})
 	principalIDs := make([]string, 0, len(reservations))
@@ -389,16 +390,16 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 	return nil
 }
 
-func (a *PlacementAllocator) collectionPolicy(registration control.AgentRegistration) contracts.PerformanceCollectionPolicy {
+func (a *PlacementAllocator) collectionPolicy(registration control.AgentRegistration) reporting.PerformanceCollectionPolicy {
 	if !a.performanceMetrics {
-		return contracts.PerformanceCollectionDisabled
+		return reporting.PerformanceCollectionDisabled
 	}
 	for _, version := range registration.SupportedPerformanceMetricsVersions {
-		if version == contracts.PerformanceMetricsVersion {
-			return contracts.PerformanceCollectionRequested
+		if version == reporting.PerformanceMetricsVersion {
+			return reporting.PerformanceCollectionRequested
 		}
 	}
-	return contracts.PerformanceCollectionUnsupported
+	return reporting.PerformanceCollectionUnsupported
 }
 
 func (a *PlacementAllocator) resolveCandidate(

@@ -13,6 +13,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -91,7 +92,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	}
 	report, ok := first.(ReportProvider).ExecutionReport()
 	if !ok || !report.Complete || len(report.ToolCalls) != 1 ||
-		report.ToolCalls[0].Outcome != contracts.ToolCallSucceeded ||
+		report.ToolCalls[0].Outcome != reporting.ToolCallSucceeded ||
 		report.Metrics.Tools["a2a.invoke"].Calls == nil ||
 		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
 		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
@@ -383,7 +384,7 @@ func TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation(t *testi
 	}
 	report, ok := instance.(ReportProvider).ExecutionReport()
 	if !ok || len(report.ToolCalls) != 1 ||
-		report.ToolCalls[0].Outcome != contracts.ToolCallFailed ||
+		report.ToolCalls[0].Outcome != reporting.ToolCallFailed ||
 		len(report.Errors) != 1 || report.Errors[0].Code != "worker_input_required" {
 		t.Fatalf("failed Planner report = (%+v, %t)", report, ok)
 	}
@@ -417,7 +418,7 @@ func TestPassthroughPlannerMapsWorkerFailureToFailedCandidate(t *testing.T) {
 		t.Fatalf("Planner completion = %+v", sessions.completion)
 	}
 	report, ok := instance.(ReportProvider).ExecutionReport()
-	if !ok || report.ToolCalls[0].Outcome != contracts.ToolCallFailed ||
+	if !ok || report.ToolCalls[0].Outcome != reporting.ToolCallFailed ||
 		report.ToolCalls[0].Error == nil || report.ToolCalls[0].Error.Code != "worker_budget_exhausted" {
 		t.Fatalf("Planner report = (%+v, %t)", report, ok)
 	}

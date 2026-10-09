@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
@@ -26,7 +26,7 @@ func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	policy := stage.ExecutionConfig.Agents["analyst"].ModelPolicy
-	expected := contracts.WorkerBudgetMetrics{
+	expected := reporting.WorkerBudgetMetrics{
 		MaxModelCalls: int64(policy.MaxModelCalls), MaxToolCalls: int64(policy.MaxToolCalls),
 		MaxTotalTokens: int64(policy.MaxTotalTokens), ObservedModelCalls: 5,
 		ObservedToolCalls: 3, ObservedTotalTokens: 80,
@@ -57,16 +57,16 @@ func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
 	})
 	for _, test := range []struct {
 		name   string
-		mutate func(*contracts.WorkerBudgetMetrics)
+		mutate func(*reporting.WorkerBudgetMetrics)
 	}{
-		{"model limit", func(b *contracts.WorkerBudgetMetrics) { b.MaxModelCalls++ }},
-		{"tool limit", func(b *contracts.WorkerBudgetMetrics) { b.MaxToolCalls++ }},
-		{"token limit", func(b *contracts.WorkerBudgetMetrics) { b.MaxTotalTokens++ }},
-		{"model count", func(b *contracts.WorkerBudgetMetrics) { b.ObservedModelCalls++ }},
-		{"tool count", func(b *contracts.WorkerBudgetMetrics) { b.ObservedToolCalls++ }},
-		{"token count", func(b *contracts.WorkerBudgetMetrics) { b.ObservedTotalTokens++ }},
-		{"unavailable usage", func(b *contracts.WorkerBudgetMetrics) { b.TokenUsageUnavailable++ }},
-		{"exhausted", func(b *contracts.WorkerBudgetMetrics) { v := "model_calls"; b.Exhausted = &v }},
+		{"model limit", func(b *reporting.WorkerBudgetMetrics) { b.MaxModelCalls++ }},
+		{"tool limit", func(b *reporting.WorkerBudgetMetrics) { b.MaxToolCalls++ }},
+		{"token limit", func(b *reporting.WorkerBudgetMetrics) { b.MaxTotalTokens++ }},
+		{"model count", func(b *reporting.WorkerBudgetMetrics) { b.ObservedModelCalls++ }},
+		{"tool count", func(b *reporting.WorkerBudgetMetrics) { b.ObservedToolCalls++ }},
+		{"token count", func(b *reporting.WorkerBudgetMetrics) { b.ObservedTotalTokens++ }},
+		{"unavailable usage", func(b *reporting.WorkerBudgetMetrics) { b.TokenUsageUnavailable++ }},
+		{"exhausted", func(b *reporting.WorkerBudgetMetrics) { v := "model_calls"; b.Exhausted = &v }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			altered := expected

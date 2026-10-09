@@ -1,9 +1,10 @@
-package contracts
+package reporting
 
 import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -64,7 +65,7 @@ func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 			_ = json.Unmarshal(encoded, &candidate)
 			mutate(candidate)
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with a missing nested field was accepted")
 			}
 		})
@@ -109,7 +110,7 @@ func TestAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 			current := state["currentInvocation"].(map[string]any)
 			mutate(current["summarizer"].(map[string]any))
 			encoded, _ = json.Marshal(candidate)
-			if _, err := DecodeStrict[AgentStateSnapshot](encoded); err == nil {
+			if _, err := contracts.DecodeStrict[AgentStateSnapshot](encoded); err == nil {
 				t.Fatal("Agent State with inconsistent summarizer state was accepted")
 			}
 		})

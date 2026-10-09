@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -1791,15 +1792,15 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	}}
 	retryable := true
 	normalizedWorker, err := telemetry.NewPolicy("must-not-be-public").NormalizeExecutionReport(
-		contracts.ExecutionReport{
+		reporting.ExecutionReport{
 			ReportID: "worker-secret", Complete: true,
-			Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-			ToolCalls: []contracts.ToolCallRecord{{
+			Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+			ToolCalls: []reporting.ToolCallRecord{{
 				CallID: "call-secret", Tool: "probe",
 				Arguments: map[string]any{"token": "must-not-be-public"},
-				Outcome:   contracts.ToolCallSucceeded,
+				Outcome:   reporting.ToolCallSucceeded,
 			}},
-			Errors: []contracts.ExecutionError{
+			Errors: []reporting.ExecutionError{
 				{
 					Code:      "worker_result_schema_json_invalid",
 					Message:   "Worker result did not match StageContentResult",
@@ -1818,11 +1819,11 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	}
 	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
 		StageExecutionID: "stage-metrics",
-		Metrics: contracts.StageMetrics{
-			Workers: map[string]contracts.ExecutionReport{
+		Metrics: reporting.StageMetrics{
+			Workers: map[string]reporting.ExecutionReport{
 				"builder": normalizedWorker,
 			},
-			Runtime: map[string]contracts.RuntimeReport{"builder": {Complete: true}},
+			Runtime: map[string]reporting.RuntimeReport{"builder": {Complete: true}},
 		},
 		Summary: telemetry.Summary{
 			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1, ErrorCount: 2,
@@ -1832,7 +1833,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 		AllocationID: "allocation-metrics", RunID: "run-metrics", StageExecutionID: "stage-metrics",
 		Stage: "copy", LogicalAgent: "builder", Outcome: "succeeded",
 		FinishedAt:       time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
-		CollectionPolicy: contracts.PerformanceCollectionUnsupported,
+		CollectionPolicy: reporting.PerformanceCollectionUnsupported,
 		Status:           telemetry.AllocationResourceUnsupported,
 	}}
 

@@ -7,21 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 const recognizableSecret = "telemetry-secret-that-must-not-survive"
 
 func TestNormalizeAllocationResourcesHonorsPinnedPolicy(t *testing.T) {
-	invalid := contracts.ResourceInvalidReport
+	invalid := reporting.ResourceInvalidReport
 	for _, test := range []struct {
 		name   string
-		policy contracts.PerformanceCollectionPolicy
-		report contracts.RuntimeReport
-		want   *contracts.ResourceReason
+		policy reporting.PerformanceCollectionPolicy
+		report reporting.RuntimeReport
+		want   *reporting.ResourceReason
 	}{
-		{name: "unrequested", policy: contracts.PerformanceCollectionUnsupported, report: contracts.RuntimeReport{Resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}}},
-		{name: "malformed", policy: contracts.PerformanceCollectionRequested, report: contracts.RuntimeReport{ResourcesError: &invalid}, want: &invalid},
+		{name: "unrequested", policy: reporting.PerformanceCollectionUnsupported, report: reporting.RuntimeReport{Resources: &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial}}},
+		{name: "malformed", policy: reporting.PerformanceCollectionRequested, report: reporting.RuntimeReport{ResourcesError: &invalid}, want: &invalid},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			normalizeAllocationResources(&test.report, test.policy)
@@ -44,22 +44,22 @@ func TestMetricsPolicyKeepsCompactUTF8ArgumentsAndReports(t *testing.T) {
 	if size := encodedSize(arguments); size != 2711 {
 		t.Fatalf("compact argument size = %d, want 2711", size)
 	}
-	worker := contracts.ExecutionReport{
+	worker := reporting.ExecutionReport{
 		ReportID: "worker-size", Complete: true,
-		Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-		ToolCalls: make([]contracts.ToolCallRecord, 0, 150), Errors: []contracts.ExecutionError{},
+		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: make([]reporting.ToolCallRecord, 0, 150), Errors: []reporting.ExecutionError{},
 	}
 	for index := range 150 {
-		worker.ToolCalls = append(worker.ToolCalls, contracts.ToolCallRecord{
+		worker.ToolCalls = append(worker.ToolCalls, reporting.ToolCallRecord{
 			CallID: fmt.Sprintf("call-%d", index), Tool: "read_source_file",
-			Arguments: arguments, Outcome: contracts.ToolCallSucceeded,
+			Arguments: arguments, Outcome: reporting.ToolCallSucceeded,
 		})
 	}
 	now := time.Now().UTC()
-	source := contracts.AllocationFinalReport{
+	source := reporting.AllocationFinalReport{
 		ReportID: "allocation-size", AllocationID: "allocation-size",
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Worker: worker, Runtime: contracts.RuntimeReport{Complete: true},
+		Worker: worker, Runtime: reporting.RuntimeReport{Complete: true},
 	}
 	normalized, err := NewPolicy().NormalizeAllocationReport(source)
 	if err != nil {
@@ -77,20 +77,20 @@ func TestMetricsPolicyKeepsCompactUTF8ArgumentsAndReports(t *testing.T) {
 
 func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testing.T) {
 	calls, succeeded, failed := int64(1005), int64(804), int64(201)
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: "worker-allocation-1", Complete: true,
-		Metrics: contracts.ExecutionMetrics{
+		Metrics: reporting.ExecutionMetrics{
 			ModelCalls: int64Ptr(2), InputTokens: int64Ptr(11), OutputTokens: int64Ptr(7),
 			TotalTokens: int64Ptr(18),
-			Tools: map[string]contracts.ToolMetrics{
+			Tools: map[string]reporting.ToolMetrics{
 				"probe": {Calls: &calls, Succeeded: &succeeded, Failed: &failed},
 			},
 		},
-		ToolCalls: make([]contracts.ToolCallRecord, 0, MaxToolRecords+5),
-		Errors:    make([]contracts.ExecutionError, 0, MaxErrorRecords+5),
+		ToolCalls: make([]reporting.ToolCallRecord, 0, MaxToolRecords+5),
+		Errors:    make([]reporting.ExecutionError, 0, MaxErrorRecords+5),
 	}
 	for index := 0; index < MaxToolRecords+5; index++ {
-		report.ToolCalls = append(report.ToolCalls, contracts.ToolCallRecord{
+		report.ToolCalls = append(report.ToolCalls, reporting.ToolCallRecord{
 			CallID: fmt.Sprintf("call-%04d", index), Tool: "probe",
 			Arguments: map[string]any{
 				"authorization":             "Bearer " + recognizableSecret,
@@ -100,11 +100,11 @@ func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testin
 				"value":                     strings.Repeat("x", 5000),
 				"key-" + recognizableSecret: "secret-bearing key",
 			},
-			Outcome: contracts.ToolCallSucceeded,
+			Outcome: reporting.ToolCallSucceeded,
 		})
 	}
 	for index := 0; index < MaxErrorRecords+5; index++ {
-		report.Errors = append(report.Errors, contracts.ExecutionError{
+		report.Errors = append(report.Errors, reporting.ExecutionError{
 			Code: "provider_error", Message: fmt.Sprintf("error %d: %s", index, recognizableSecret),
 		})
 	}
@@ -137,18 +137,18 @@ func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testin
 }
 
 func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: "worker-derived-keys", Complete: true,
-		Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-		ToolCalls: []contracts.ToolCallRecord{{
+		Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{{
 			CallID: "call-derived-keys", Tool: "probe",
 			Arguments: map[string]any{
 				"accessToken":   "opaque credential",
 				"contentBase64": "encoded artifact bytes",
 			},
-			Outcome: contracts.ToolCallSucceeded,
+			Outcome: reporting.ToolCallSucceeded,
 		}},
-		Errors: []contracts.ExecutionError{},
+		Errors: []reporting.ExecutionError{},
 	}
 	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
 	if err != nil {
@@ -164,17 +164,17 @@ func TestMetricsPolicyRedactsDerivedSensitiveKeys(t *testing.T) {
 
 func TestMetricsPolicyPreservesAndClonesWorkerBudget(t *testing.T) {
 	exhausted := "tool_calls"
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: "worker-budget", Complete: true,
-		Metrics: contracts.ExecutionMetrics{
-			Tools: map[string]contracts.ToolMetrics{},
-			WorkerBudget: &contracts.WorkerBudgetMetrics{
+		Metrics: reporting.ExecutionMetrics{
+			Tools: map[string]reporting.ToolMetrics{},
+			WorkerBudget: &reporting.WorkerBudgetMetrics{
 				MaxModelCalls: 8, MaxToolCalls: 2, MaxTotalTokens: 32768,
 				ObservedModelCalls: 3, ObservedToolCalls: 2, ObservedTotalTokens: 30,
 				Exhausted: &exhausted,
 			},
 		},
-		ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+		ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 	}
 	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
 	if err != nil {
@@ -191,16 +191,16 @@ func TestMetricsPolicyPreservesAndClonesWorkerBudget(t *testing.T) {
 }
 
 func TestMetricsPolicyPreservesAndClonesWorkerSummarizer(t *testing.T) {
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: "worker-summary", Complete: true,
-		Metrics: contracts.ExecutionMetrics{
-			Tools: map[string]contracts.ToolMetrics{},
-			Summarizer: &contracts.WorkerSummarizerMetrics{
+		Metrics: reporting.ExecutionMetrics{
+			Tools: map[string]reporting.ToolMetrics{},
+			Summarizer: &reporting.WorkerSummarizerMetrics{
 				Attempts: 1, Failed: 1, ModelCalls: 1, TokenUsageUnavailable: 1,
 				FailureCodes: map[string]uint64{"gateway_unavailable": 1},
 			},
 		},
-		ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+		ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 	}
 	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
 	if err != nil {
@@ -219,29 +219,29 @@ func TestAllocationPolicyRedactsRuntimeAndSummaryExposesOnlyAggregates(t *testin
 	modelCalls, toolCalls, toolFailures := int64(3), int64(4), int64(1)
 	stopReason := "gateway returned " + recognizableSecret
 	now := time.Now().UTC()
-	source := contracts.AllocationFinalReport{
+	source := reporting.AllocationFinalReport{
 		ReportID: "allocation-final-1", AllocationID: "allocation-1",
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-1", Complete: true,
-			Metrics: contracts.ExecutionMetrics{
+			Metrics: reporting.ExecutionMetrics{
 				ModelCalls: &modelCalls,
-				Tools: map[string]contracts.ToolMetrics{
+				Tools: map[string]reporting.ToolMetrics{
 					"write": {Calls: &toolCalls, Failed: &toolFailures},
 				},
 			},
-			ToolCalls: []contracts.ToolCallRecord{},
-			Errors: []contracts.ExecutionError{{
+			ToolCalls: []reporting.ToolCallRecord{},
+			Errors: []reporting.ExecutionError{{
 				Code: "gateway_error", Message: "provider " + recognizableSecret,
 			}},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true, StopReason: &stopReason},
+		Runtime: reporting.RuntimeReport{Complete: true, StopReason: &stopReason},
 	}
 	normalized, err := NewPolicy(recognizableSecret).NormalizeAllocationReport(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	metrics := BuildStageMetrics(nil, map[string]contracts.AllocationFinalReport{"builder": normalized})
+	metrics := BuildStageMetrics(nil, map[string]reporting.AllocationFinalReport{"builder": normalized})
 	summary := Summarize(metrics)
 	encoded, _ := json.Marshal(summary)
 	if strings.Contains(string(encoded), recognizableSecret) || strings.Contains(string(encoded), "gateway_error") {

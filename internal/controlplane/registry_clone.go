@@ -10,6 +10,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -21,7 +22,7 @@ func cloneRegistration(source control.AgentRegistration) control.AgentRegistrati
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedPerformanceMetricsVersions = append(
-		contracts.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
+		reporting.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
 	)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities

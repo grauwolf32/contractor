@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -77,7 +78,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              testAllocationRuntimeConfiguration(),
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}
 	err = store.RecordStageAllocation(ctx, allocation)
 	if err != nil {
@@ -93,11 +94,11 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" ||
-		allocations[0].PerformanceCollectionPolicy != contracts.PerformanceCollectionDisabled {
+		allocations[0].PerformanceCollectionPolicy != reporting.PerformanceCollectionDisabled {
 		t.Fatalf("allocations = (%+v, %v)", allocations, err)
 	}
 	differentPolicy := allocation
-	differentPolicy.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	differentPolicy.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	if err := store.RecordStageAllocation(ctx, differentPolicy); !errors.Is(err, ErrConflict) {
 		t.Fatalf("mismatched allocation policy error = %v, want conflict", err)
 	}
@@ -121,17 +122,17 @@ WHERE allocation_id = 'allocation-1'`)
 		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 		PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
-		Report: contracts.AllocationFinalReport{
+		Report: reporting.AllocationFinalReport{
 			ReportID: "allocation-report-1", AllocationID: allocation.AllocationID,
 			StartedAt: reportFinished.Add(-time.Second), FinishedAt: reportFinished,
-			Worker: contracts.ExecutionReport{
+			Worker: reporting.ExecutionReport{
 				ReportID: "worker-report-1", Complete: true,
-				Metrics: contracts.ExecutionMetrics{
-					ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+				Metrics: reporting.ExecutionMetrics{
+					ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
 				},
-				ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+				ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 			},
-			Runtime: contracts.RuntimeReport{Complete: true},
+			Runtime: reporting.RuntimeReport{Complete: true},
 		},
 	}
 	if err := store.RecordStageExecutionReport(ctx, reportParams); err != nil {
@@ -1611,7 +1612,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              configuration,
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

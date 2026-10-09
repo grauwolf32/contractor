@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 )
@@ -123,7 +124,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reservation.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
 	settings := contracts.WorkerExecutionSettings{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
@@ -159,7 +160,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 		unchanged.ETag != stateRead.ETag {
 		t.Fatalf("cross-language Worker State revalidation = (%+v, %v)", unchanged, err)
 	}
-	var report contracts.AllocationFinalReport
+	var report reporting.AllocationFinalReport
 	if terminal == "abort" {
 		report, err = client.Abort(
 			ctx,
@@ -172,7 +173,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 		report, err = client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
 	}
 	if err != nil || !report.Worker.Complete || !report.Runtime.Complete ||
-		report.Runtime.Resources == nil || report.Runtime.Resources.Status != contracts.ResourceComplete {
+		report.Runtime.Resources == nil || report.Runtime.Resources.Status != reporting.ResourceComplete {
 		t.Fatalf("cross-language %s = (%+v, %v)", terminal, report, err)
 	}
 	if _, err := client.ReadWorkerState(ctx, handle, ""); err == nil {

@@ -1,9 +1,10 @@
-package contracts
+package reporting
 
 import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -27,16 +28,16 @@ func knownCompletionPhase(phase string) bool {
 }
 
 func (d WorkerCompletionDiagnostics) Validate() error {
-	if d.Kind != AuditCheckResultsV1 || !knownCompletionPhase(d.Phase) ||
+	if d.Kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(d.Phase) ||
 		d.TotalCount < 1 || d.TotalCount > 64 || d.AcceptedCount < 0 || d.AcceptedCount > d.TotalCount ||
 		d.ReminderCount < 0 || d.ReminderCount > 2 {
-		return Invalidf("invalid Worker completion diagnostics")
+		return contracts.Invalidf("invalid Worker completion diagnostics")
 	}
 	if (d.Phase == "sealed" || d.Phase == "publishing" || d.Phase == "published") && d.AcceptedCount != d.TotalCount {
-		return Invalidf("inconsistent Worker completion counts")
+		return contracts.Invalidf("inconsistent Worker completion counts")
 	}
-	if (d.Phase == "failed") != (d.FailureCode != "") || d.FailureCode != "" && !ValidWorkerFailureCode(d.FailureCode) {
-		return Invalidf("inconsistent Worker completion failure")
+	if (d.Phase == "failed") != (d.FailureCode != "") || d.FailureCode != "" && !contracts.ValidWorkerFailureCode(d.FailureCode) {
+		return contracts.Invalidf("inconsistent Worker completion failure")
 	}
 	return nil
 }
@@ -48,7 +49,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 		return nil, nil
 	}
 	if len(data) > 4096 || strictjson.RejectDuplicateKeys(data) != nil {
-		return nil, Invalidf("invalid Worker completion diagnostics JSON")
+		return nil, contracts.Invalidf("invalid Worker completion diagnostics JSON")
 	}
 	var header struct {
 		Kind  string `json:"kind"`
@@ -57,7 +58,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 	if err := json.Unmarshal(data, &header); err != nil {
 		return nil, err
 	}
-	if header.Kind != "" && header.Phase != "" && (header.Kind != AuditCheckResultsV1 || !knownCompletionPhase(header.Phase)) {
+	if header.Kind != "" && header.Phase != "" && (header.Kind != contracts.AuditCheckResultsV1 || !knownCompletionPhase(header.Phase)) {
 		return nil, nil
 	}
 	var value WorkerCompletionDiagnostics
@@ -67,7 +68,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 	}
 	for _, key := range []string{"kind", "phase", "acceptedCount", "totalCount", "reminderCount"} {
 		if raw, ok := fields[key]; !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-			return nil, Invalidf("missing Worker completion field")
+			return nil, contracts.Invalidf("missing Worker completion field")
 		}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -76,7 +77,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 		return nil, err
 	}
 	if raw, ok := fields["failureCode"]; ok && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) && value.FailureCode == "" {
-		return nil, Invalidf("empty Worker completion failure code")
+		return nil, contracts.Invalidf("empty Worker completion failure code")
 	}
 	if err := value.Validate(); err != nil {
 		return nil, err

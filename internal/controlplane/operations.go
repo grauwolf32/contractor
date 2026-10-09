@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 const (
@@ -497,7 +498,7 @@ func (r *InMemoryRegistry) SetAllocationPhase(
 
 func (r *InMemoryRegistry) RecordAllocationReport(
 	allocationID string,
-	report contracts.AllocationFinalReport,
+	report reporting.AllocationFinalReport,
 ) error {
 	if report.AllocationID != allocationID || report.Validate() != nil {
 		return ErrInvalidRequest
@@ -705,7 +706,7 @@ func validSafeReason(reason SafeReason) bool {
 	return true
 }
 
-func summarizeAllocationReport(report contracts.AllocationFinalReport) (MetricsSummary, bool) {
+func summarizeAllocationReport(report reporting.AllocationFinalReport) (MetricsSummary, bool) {
 	result := MetricsSummary{
 		ReportsComplete: report.Worker.Complete && report.Runtime.Complete,
 		ErrorCount:      int64(len(report.Worker.Errors)),

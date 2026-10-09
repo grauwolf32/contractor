@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -132,7 +133,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              findingRuntimeConfiguration(),
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

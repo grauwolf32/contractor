@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -76,7 +77,7 @@ func TestPostgresGatewayRecoveryEndsPermanentFailuresNonRetryable(t *testing.T) 
 			report, _ := instance.(planner.ReportProvider).ExecutionReport()
 			encoded, marshalErr := json.Marshal(struct {
 				Error  string                    `json:"error"`
-				Report contracts.ExecutionReport `json:"report"`
+				Report reporting.ExecutionReport `json:"report"`
 			}{Error: err.Error(), Report: report})
 			if marshalErr != nil || strings.Contains(string(encoded), secret) {
 				t.Fatalf("provider content leaked: %s (%v)", encoded, marshalErr)

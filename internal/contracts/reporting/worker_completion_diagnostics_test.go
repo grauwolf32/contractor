@@ -1,15 +1,16 @@
-package contracts
+package reporting
 
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestSharedWorkerCompletionDiagnostics(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "audit-completion", "diagnostics.json"))
+	data, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "audit-completion", "diagnostics.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

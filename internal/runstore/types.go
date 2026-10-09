@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -542,7 +543,7 @@ type StageAllocation struct {
 	RuntimeAgentLabelRevision         uint64
 	RuntimeConfigurationSchemaVersion string
 	RuntimeConfiguration              *AllocationRuntimeConfiguration
-	PerformanceCollectionPolicy       contracts.PerformanceCollectionPolicy
+	PerformanceCollectionPolicy       reporting.PerformanceCollectionPolicy
 	CreatedAt                         time.Time
 	ReleaseAttemptedAt                *time.Time
 	ReleaseCompletedAt                *time.Time
@@ -568,7 +569,7 @@ type StageExecutionReport struct {
 	AllocationID        string
 	LogicalAgentName    string
 	ReportSchemaVersion string
-	Report              contracts.AllocationFinalReport
+	Report              reporting.AllocationFinalReport
 	ReceivedAt          time.Time
 	ExpiresAt           time.Time
 }
@@ -578,8 +579,8 @@ type RecordStageExecutionReportParams struct {
 	AllocationID                string
 	LogicalAgentName            string
 	ReportSchemaVersion         string
-	Report                      contracts.AllocationFinalReport
-	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	Report                      reporting.AllocationFinalReport
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
 	Secrets                     []string
 }
 
@@ -590,7 +591,7 @@ type RecordPlannerExecutionReportParams struct {
 	StartedAt           time.Time
 	FinishedAt          time.Time
 	ReportSchemaVersion string
-	Report              contracts.ExecutionReport
+	Report              reporting.ExecutionReport
 	Secrets             []string
 }
 

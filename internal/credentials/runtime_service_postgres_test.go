@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -501,7 +502,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              allocationConfig,
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

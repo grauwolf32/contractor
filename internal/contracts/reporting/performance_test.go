@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -46,18 +47,18 @@ func TestPerformanceGoldenResources(t *testing.T) {
 		}
 		for _, entry := range entries {
 			t.Run(entry.Name, func(t *testing.T) {
-				value, err := DecodePrivateStrict[RuntimeResources](entry.Value)
+				value, err := contracts.DecodePrivateStrict[RuntimeResources](entry.Value)
 				if (err == nil) != valid {
 					t.Fatalf("valid=%v, err=%v", valid, err)
 				}
 				if valid {
-					encoded, err := MarshalPrivateCanonical(value)
+					encoded, err := contracts.MarshalPrivateCanonical(value)
 					if err != nil {
 						t.Fatal(err)
 					}
 					contractstest.AssertSemanticJSONEqual(t, entry.Value, encoded)
 					wire, _ := json.Marshal(map[string]any{"complete": true, "adapters": map[string]any{}, "resources": value})
-					report, err := DecodePrivateStrict[RuntimeReport](wire)
+					report, err := contracts.DecodePrivateStrict[RuntimeReport](wire)
 					if err != nil || report.Resources == nil || report.ResourcesError != nil {
 						t.Fatalf("valid resources lost on report: %v", err)
 					}
@@ -87,7 +88,7 @@ func TestPerformanceGoldenRequests(t *testing.T) {
 			requests = cases.ValidRequests
 		}
 		for _, raw := range requests {
-			_, err := DecodePrivateStrict[PerformanceMetricsRequest](raw)
+			_, err := contracts.DecodePrivateStrict[PerformanceMetricsRequest](raw)
 			if (err == nil) != valid {
 				t.Fatalf("request validity %v: %v", valid, err)
 			}
@@ -120,7 +121,7 @@ func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
 }
 
 func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) {
-	base, err := DecodePrivateStrict[AllocationFinalResponse](contractstest.ReadFixture(t, "valid", "allocation-final-response.json"))
+	base, err := contracts.DecodePrivateStrict[AllocationFinalResponse](contractstest.ReadFixture(t, "valid", "allocation-final-response.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) 
 			}
 			envelope["report"].(map[string]any)["runtime"].(map[string]any)["resources"] = entry.Value
 			raw, _ := json.Marshal(envelope)
-			value, err := DecodePrivateStrict[AllocationFinalResponse](raw)
+			value, err := contracts.DecodePrivateStrict[AllocationFinalResponse](raw)
 			if err != nil {
 				t.Fatalf("resource error poisoned final report: %v", err)
 			}
@@ -147,7 +148,7 @@ func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) 
 				t.Fatal("invalid resource content escaped")
 			}
 			runtimeRaw, _ := json.Marshal(envelope["report"].(map[string]any)["runtime"])
-			runtime, err := DecodePrivateStrict[RuntimeReport](runtimeRaw)
+			runtime, err := contracts.DecodePrivateStrict[RuntimeReport](runtimeRaw)
 			if err != nil || runtime.Resources != nil || runtime.ResourcesError == nil || !runtime.Complete {
 				t.Fatalf("runtime resource isolation: %v", err)
 			}
@@ -162,7 +163,7 @@ func TestPerformanceResourceIsolationKeepsEnvelopeStrict(t *testing.T) {
 		`{"complete":true,"adapters":{},"resources":{},"unknown":"secret-canary"}`,
 		`{"complete":true,"adapters":{},"resources":{}} {}`,
 	} {
-		if _, err := DecodePrivateStrict[RuntimeReport]([]byte(raw)); err == nil {
+		if _, err := contracts.DecodePrivateStrict[RuntimeReport]([]byte(raw)); err == nil {
 			t.Fatal("malformed envelope accepted")
 		}
 		var value RuntimeReport
@@ -176,7 +177,7 @@ func TestPerformanceResourceIsolationKeepsEnvelopeStrict(t *testing.T) {
 	}
 	report["report"].(map[string]any)["runtime"].(map[string]any)["resources"] = map[string]string{"unknown": strings.Repeat("x", 1024*1024)}
 	raw, _ := json.Marshal(report)
-	if _, err := DecodePrivateStrict[AllocationFinalResponse](raw); err == nil {
+	if _, err := contracts.DecodePrivateStrict[AllocationFinalResponse](raw); err == nil {
 		t.Fatal("resource isolation bypassed original report byte limit")
 	}
 }

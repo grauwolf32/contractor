@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(t *testing.T) {
@@ -146,28 +147,28 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	modelCalls, toolCalls, toolFailures := int64(2), int64(3), int64(1)
 	exhausted := "tool_calls"
 	now := time.Now().UTC()
-	report := contracts.AllocationFinalReport{
+	report := reporting.AllocationFinalReport{
 		ReportID: "allocation-final-report", AllocationID: allocationID,
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-report", Complete: true,
-			Metrics: contracts.ExecutionMetrics{
+			Metrics: reporting.ExecutionMetrics{
 				ModelCalls: &modelCalls,
-				Tools: map[string]contracts.ToolMetrics{
+				Tools: map[string]reporting.ToolMetrics{
 					"write_artifact": {Calls: &toolCalls, Failed: &toolFailures},
 				},
-				WorkerBudget: &contracts.WorkerBudgetMetrics{
+				WorkerBudget: &reporting.WorkerBudgetMetrics{
 					MaxModelCalls: 4, MaxToolCalls: 3, MaxTotalTokens: 100,
 					ObservedModelCalls: 2, ObservedToolCalls: 3, ObservedTotalTokens: 50,
 					Exhausted: &exhausted,
 				},
 			},
-			ToolCalls: []contracts.ToolCallRecord{},
-			Errors: []contracts.ExecutionError{{
+			ToolCalls: []reporting.ToolCallRecord{},
+			Errors: []reporting.ExecutionError{{
 				Code: "provider_error", Message: "must-not-appear-provider-body",
 			}},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true},
+		Runtime: reporting.RuntimeReport{Complete: true},
 	}
 	if err := registry.RecordAllocationReport(allocationID, report); err != nil {
 		t.Fatal(err)
@@ -193,7 +194,7 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	overflow := report
 	overflow.ReportID = "allocation-final-overflow"
 	overflow.Worker.ReportID = "worker-overflow"
-	overflow.Worker.Metrics = contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{
+	overflow.Worker.Metrics = reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{
 		"first": {Calls: &maximum}, "second": {Calls: &maximum},
 	}}
 	if err := registry.RecordAllocationReport(allocationID, overflow); !errors.Is(err, ErrInvalidRequest) {

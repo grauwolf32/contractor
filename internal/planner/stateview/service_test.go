@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
@@ -20,19 +21,19 @@ func TestServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
 	workspace := snapshot.State.LastCompletedInvocation.Workspace
 	workspace.ScopePaths = []string{"README.md", "docs/unread.md", "src/main.py"}
 	workspace.Interactions = append(workspace.Interactions,
-		contracts.WorkerStateWorkspaceInteraction{
+		reporting.WorkerStateWorkspaceInteraction{
 			Path: "README.md", FirstOrdinal: 2, LastOrdinal: 3,
 			DiscoveryCalls: 1, ReadCalls: 1,
 		},
-		contracts.WorkerStateWorkspaceInteraction{
+		reporting.WorkerStateWorkspaceInteraction{
 			Path: "generated.txt", FirstOrdinal: 4, LastOrdinal: 4, MutationCalls: 1,
 		},
 	)
 	metrics := &snapshot.State.LastCompletedInvocation.Metrics
 	metrics.ToolCalls = 3
-	metrics.Tools["grep"] = contracts.WorkerStateInvocationToolMetric{Calls: 2, Failures: 1}
+	metrics.Tools["grep"] = reporting.WorkerStateInvocationToolMetric{Calls: 2, Failures: 1}
 	metrics.ToolErrors = 1
-	reader := &recordingReader{states: map[string]contracts.AgentStateSnapshot{"allocation-builder": snapshot}}
+	reader := &recordingReader{states: map[string]reporting.AgentStateSnapshot{"allocation-builder": snapshot}}
 	service := testService(t, reader, Binding{
 		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: true,
 	})
@@ -88,7 +89,7 @@ func TestServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
 
 func TestServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse(t *testing.T) {
 	snapshot := stateFixture(t)
-	reader := &recordingReader{states: map[string]contracts.AgentStateSnapshot{"allocation-builder": snapshot}}
+	reader := &recordingReader{states: map[string]reporting.AgentStateSnapshot{"allocation-builder": snapshot}}
 	service := testService(t, reader, Binding{
 		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: true,
 	})
@@ -137,13 +138,13 @@ func TestServiceCursorIsBoundToProjectionWorkerAndRevision(t *testing.T) {
 	builder := stateFixture(t)
 	builder.State.LastCompletedInvocation.Workspace.Interactions = append(
 		builder.State.LastCompletedInvocation.Workspace.Interactions,
-		contracts.WorkerStateWorkspaceInteraction{
+		reporting.WorkerStateWorkspaceInteraction{
 			Path: "README.md", FirstOrdinal: 2, LastOrdinal: 2, ReadCalls: 1,
 		},
 	)
 	reviewer := stateFixture(t)
 	reviewer.State.LastCompletedInvocation.InvocationID = "reviewer-completed"
-	reader := &recordingReader{states: map[string]contracts.AgentStateSnapshot{
+	reader := &recordingReader{states: map[string]reporting.AgentStateSnapshot{
 		"allocation-builder": builder, "allocation-reviewer": reviewer,
 	}}
 	service := testService(t, reader,
@@ -202,7 +203,7 @@ func TestServiceNormalizesReaderFailureWithoutRetainingCause(t *testing.T) {
 
 type recordingReader struct {
 	mu           sync.Mutex
-	states       map[string]contracts.AgentStateSnapshot
+	states       map[string]reporting.AgentStateSnapshot
 	err          error
 	conditionals []string
 }
@@ -231,7 +232,7 @@ func (r *recordingReader) ReadWorkerState(
 	return planner.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
 }
 
-func (r *recordingReader) set(allocationID string, snapshot contracts.AgentStateSnapshot) {
+func (r *recordingReader) set(allocationID string, snapshot reporting.AgentStateSnapshot) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.states[allocationID] = snapshot
@@ -253,7 +254,7 @@ func testService(t *testing.T, reader planner.WorkerStateReader, bindings ...Bin
 	return service
 }
 
-func stateFixture(t *testing.T) contracts.AgentStateSnapshot {
+func stateFixture(t *testing.T) reporting.AgentStateSnapshot {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(
 		"..", "..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
@@ -261,7 +262,7 @@ func stateFixture(t *testing.T) contracts.AgentStateSnapshot {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := contracts.DecodeStrict[contracts.AgentStateSnapshot](data)
+	result, err := contracts.DecodeStrict[reporting.AgentStateSnapshot](data)
 	if err != nil {
 		t.Fatal(err)
 	}

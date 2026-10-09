@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -17,7 +18,7 @@ func (s *Scheduler) persistReports(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 	reservations []controlplane.Reservation,
-	reports map[string]contracts.AllocationFinalReport,
+	reports map[string]reporting.AllocationFinalReport,
 ) {
 	// A crash can resume directly in finalizing/aborting without recreating the
 	// Planner instance. Ensure its durable session still has a report record;
@@ -52,23 +53,23 @@ func (s *Scheduler) persistReports(
 			(!live || reservation.Grant.AllocationID == allocation.AllocationID)
 		if !validReport {
 			retryable := true
-			report = contracts.AllocationFinalReport{
+			report = reporting.AllocationFinalReport{
 				ReportID:     "allocation-final-missing-" + allocation.AllocationID,
 				AllocationID: allocation.AllocationID,
 				StartedAt:    startedAt,
 				FinishedAt:   finishedAt,
-				Worker: contracts.ExecutionReport{
+				Worker: reporting.ExecutionReport{
 					ReportID:  "worker-missing-" + allocation.AllocationID,
 					Complete:  false,
-					Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-					ToolCalls: []contracts.ToolCallRecord{},
-					Errors: []contracts.ExecutionError{{
+					Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+					ToolCalls: []reporting.ToolCallRecord{},
+					Errors: []reporting.ExecutionError{{
 						Code:      "allocation_report_unavailable",
 						Message:   "Runtime Agent did not return an execution report before lifecycle completion",
 						Retryable: &retryable,
 					}},
 				},
-				Runtime: contracts.RuntimeReport{Complete: false},
+				Runtime: reporting.RuntimeReport{Complete: false},
 			}
 		}
 		secrets := s.telemetrySecrets()
@@ -105,12 +106,12 @@ func (s *Scheduler) persistPlannerReport(
 	if execution.PlannerSessionID == nil || execution.PlannerInvocationID == nil {
 		return
 	}
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID:  "planner-missing-" + *execution.PlannerSessionID,
 		Complete:  false,
-		Metrics:   contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-		ToolCalls: []contracts.ToolCallRecord{},
-		Errors:    []contracts.ExecutionError{},
+		Metrics:   reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{},
+		Errors:    []reporting.ExecutionError{},
 	}
 	if provider, ok := instance.(planner.ReportProvider); ok {
 		if provided, available := provider.ExecutionReport(); available {
@@ -149,35 +150,35 @@ func (s *Scheduler) persistPlannerReport(
 }
 
 func applyPlannerTelemetryResult(
-	report *contracts.ExecutionReport,
+	report *reporting.ExecutionReport,
 	result *telemetry.PlannerExportResult,
 ) {
 	if report == nil || result == nil || !result.Attempted {
 		return
 	}
 	if report.Metrics.Tools == nil {
-		report.Metrics.Tools = make(map[string]contracts.ToolMetrics)
+		report.Metrics.Tools = make(map[string]reporting.ToolMetrics)
 	}
 	calls, succeeded, failed := int64(1), int64(0), int64(1)
-	outcome := contracts.ToolCallFailed
-	var executionError *contracts.ExecutionError
+	outcome := reporting.ToolCallFailed
+	var executionError *reporting.ExecutionError
 	if result.Succeeded {
 		succeeded, failed = 1, 0
-		outcome = contracts.ToolCallSucceeded
+		outcome = reporting.ToolCallSucceeded
 	} else {
 		retryable := false
-		executionError = &contracts.ExecutionError{
+		executionError = &reporting.ExecutionError{
 			Code: result.ErrorCode, Message: "Planner telemetry export failed", Retryable: &retryable,
 		}
 	}
-	report.Metrics.Tools["telemetry.export"] = contracts.ToolMetrics{
+	report.Metrics.Tools["telemetry.export"] = reporting.ToolMetrics{
 		Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 	}
 	if len(report.ToolCalls) >= 1000 {
 		report.Truncated = true
 		return
 	}
-	report.ToolCalls = append(report.ToolCalls, contracts.ToolCallRecord{
+	report.ToolCalls = append(report.ToolCalls, reporting.ToolCallRecord{
 		CallID: "planner-telemetry-export", Tool: "telemetry.export",
 		Arguments: map[string]any{}, Outcome: outcome, Error: executionError,
 	})

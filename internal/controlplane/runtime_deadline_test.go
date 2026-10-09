@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 type deadlineRuntime struct {
@@ -23,12 +24,12 @@ func (r *deadlineRuntime) check(ctx context.Context, terminal time.Time) {
 	}
 }
 
-func (r *deadlineRuntime) Finalize(ctx context.Context, reservation Reservation, id string, deadline time.Time) (contracts.AllocationFinalReport, error) {
+func (r *deadlineRuntime) Finalize(ctx context.Context, reservation Reservation, id string, deadline time.Time) (reporting.AllocationFinalReport, error) {
 	r.check(ctx, deadline)
 	return r.recordingRuntime.Finalize(ctx, reservation, id, deadline)
 }
 
-func (r *deadlineRuntime) Abort(ctx context.Context, reservation Reservation, id string, reason contracts.TerminationError, deadline time.Time) (contracts.AllocationFinalReport, error) {
+func (r *deadlineRuntime) Abort(ctx context.Context, reservation Reservation, id string, reason contracts.TerminationError, deadline time.Time) (reporting.AllocationFinalReport, error) {
 	r.check(ctx, deadline)
 	return r.recordingRuntime.Abort(ctx, reservation, id, reason, deadline)
 }

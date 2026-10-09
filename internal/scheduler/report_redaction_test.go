@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -128,12 +129,12 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		llmSecret, otlpSecret, proxySecret, caidoSecret, originUserSecret, originPassSecret, staticSecret,
 	}
 	for index, secret := range secretValues {
-		report.Worker.ToolCalls = append(report.Worker.ToolCalls, contracts.ToolCallRecord{
+		report.Worker.ToolCalls = append(report.Worker.ToolCalls, reporting.ToolCallRecord{
 			CallID: "secret-call-" + strconv.Itoa(index), Tool: "probe",
 			Arguments: map[string]any{"detail": "before " + secret + " after"},
-			Outcome:   contracts.ToolCallSucceeded,
+			Outcome:   reporting.ToolCallSucceeded,
 		})
-		report.Worker.Errors = append(report.Worker.Errors, contracts.ExecutionError{
+		report.Worker.Errors = append(report.Worker.Errors, reporting.ExecutionError{
 			Code: "provider_error", Message: "before " + secret + " after",
 		})
 	}
@@ -147,7 +148,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		t.Fatal(err)
 	}
 	other.persistReports(t.Context(), run, executableWorkflow{stage: stage}, execution, reservations,
-		map[string]contracts.AllocationFinalReport{"builder": report})
+		map[string]reporting.AllocationFinalReport{"builder": report})
 	if len(harness.store.reports) != 1 {
 		t.Fatalf("persisted report count = %d", len(harness.store.reports))
 	}
@@ -195,7 +196,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 	}
 	other.persistReports(t.Context(), harness.store.run,
 		executableWorkflow{stage: harness.workflow.Stages[harness.workflow.EntryStage]},
-		execution, reservations, map[string]contracts.AllocationFinalReport{
+		execution, reservations, map[string]reporting.AllocationFinalReport{
 			"builder": schedulerTestAllocationReport(reservations[0].Grant.AllocationID, harness.clock.now),
 		})
 	if len(harness.store.reports) != 1 {

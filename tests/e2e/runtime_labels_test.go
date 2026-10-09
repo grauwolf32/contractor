@@ -22,6 +22,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -890,7 +891,7 @@ func onlyRuntimeAdapterMetrics(
 	ctx context.Context,
 	store runstore.Repository,
 	runID, adapter string,
-) contracts.RuntimeAdapterMetrics {
+) reporting.RuntimeAdapterMetrics {
 	t.Helper()
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -223,20 +224,20 @@ type waitingTerminalWorkers struct {
 
 func (w *waitingTerminalWorkers) FinalizeAll(
 	ctx context.Context, reservations []controlplane.Reservation, _ string, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	return w.complete(ctx, reservations)
 }
 
 func (w *waitingTerminalWorkers) AbortAll(
 	ctx context.Context, reservations []controlplane.Reservation, _ string,
 	_ contracts.TerminationError, _ time.Time,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	return w.complete(ctx, reservations)
 }
 
 func (w *waitingTerminalWorkers) complete(
 	ctx context.Context, reservations []controlplane.Reservation,
-) (map[string]contracts.AllocationFinalReport, error) {
+) (map[string]reporting.AllocationFinalReport, error) {
 	w.started <- ctx
 	select {
 	case <-w.release:
@@ -246,7 +247,7 @@ func (w *waitingTerminalWorkers) complete(
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
+	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(
 			reservation.Grant.AllocationID, time.Now().UTC(),

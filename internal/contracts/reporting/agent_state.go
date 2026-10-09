@@ -1,4 +1,4 @@
-package contracts
+package reporting
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
@@ -133,7 +135,7 @@ type WorkerStateWorkspaceInteraction struct {
 }
 
 func (s AgentStateSnapshot) Validate() error {
-	if err := ValidateAPIVersion(s.APIVersion); err != nil {
+	if err := contracts.ValidateAPIVersion(s.APIVersion); err != nil {
 		return err
 	}
 	if err := s.State.validate(); err != nil {
@@ -141,17 +143,17 @@ func (s AgentStateSnapshot) Validate() error {
 	}
 	encoded, err := marshalAgentStateJSON(s)
 	if err != nil || len(encoded) > MaxAgentStateSnapshotBytes {
-		return Invalidf("AgentStateSnapshot exceeds its bounded contract")
+		return contracts.Invalidf("AgentStateSnapshot exceeds its bounded contract")
 	}
 	return nil
 }
 
 func (s ContractorWorkerState) validate() error {
 	if s.SchemaVersion != WorkerStateSchemaVersion || s.StateRevision == 0 {
-		return Invalidf("Worker State schema version or revision is invalid")
+		return contracts.Invalidf("Worker State schema version or revision is invalid")
 	}
 	if !s.currentPresent || !s.completedPresent {
-		return Invalidf("Worker State invocation slots are required")
+		return contracts.Invalidf("Worker State invocation slots are required")
 	}
 	if err := s.Metrics.validate(); err != nil {
 		return err
@@ -161,7 +163,7 @@ func (s ContractorWorkerState) validate() error {
 			return err
 		}
 		if s.CurrentInvocation.Phase != "running" {
-			return Invalidf("current Worker invocation must be running")
+			return contracts.Invalidf("current Worker invocation must be running")
 		}
 	}
 	if s.LastCompletedInvocation != nil {
@@ -169,7 +171,7 @@ func (s ContractorWorkerState) validate() error {
 			return err
 		}
 		if s.LastCompletedInvocation.Phase == "running" {
-			return Invalidf("last completed Worker invocation must be terminal")
+			return contracts.Invalidf("last completed Worker invocation must be terminal")
 		}
 	}
 	return nil
@@ -178,26 +180,26 @@ func (s ContractorWorkerState) validate() error {
 func (s WorkerStateSummarizer) validate() error {
 	requested := s.Phase == "requested" || s.Phase == "succeeded" || s.Phase == "failed"
 	if s.Phase != "disabled" && s.Phase != "not_requested" && !requested {
-		return Invalidf("Worker State summarizer phase is invalid")
+		return contracts.Invalidf("Worker State summarizer phase is invalid")
 	}
 	if requested != (s.RequestStateRevision != nil) ||
 		(s.RequestStateRevision != nil && *s.RequestStateRevision == 0) ||
 		s.ModelCalls > 1 || s.TokenUsageUnavailable > s.ModelCalls {
-		return Invalidf("Worker State summarizer request or usage is inconsistent")
+		return contracts.Invalidf("Worker State summarizer request or usage is inconsistent")
 	}
 	if (s.Phase == "disabled" || s.Phase == "not_requested" || s.Phase == "requested") &&
 		(s.ModelCalls != 0 || s.InputTokens != 0 || s.OutputTokens != 0 ||
 			s.TotalTokens != 0 || s.TokenUsageUnavailable != 0) {
-		return Invalidf("inactive Worker State summarizer has usage")
+		return contracts.Invalidf("inactive Worker State summarizer has usage")
 	}
 	if s.Phase == "succeeded" && s.ModelCalls != 1 {
-		return Invalidf("successful Worker State summarizer requires one model call")
+		return contracts.Invalidf("successful Worker State summarizer requires one model call")
 	}
 	if (s.Phase == "failed") != (s.FailureCode != nil) {
-		return Invalidf("Worker State summarizer failure code is inconsistent")
+		return contracts.Invalidf("Worker State summarizer failure code is inconsistent")
 	}
-	if s.FailureCode != nil && !ValidWorkerFailureCode(*s.FailureCode) {
-		return Invalidf("Worker State summarizer failure code is invalid")
+	if s.FailureCode != nil && !contracts.ValidWorkerFailureCode(*s.FailureCode) {
+		return contracts.Invalidf("Worker State summarizer failure code is invalid")
 	}
 	return nil
 }
@@ -209,18 +211,18 @@ func (s WorkerAllocationState) validate() error {
 		}
 	}
 	if s.Counters == nil || s.ToolCalls == nil || s.Errors == nil || !s.finalPresent {
-		return Invalidf("Worker allocation State collections and finalOutcome are required")
+		return contracts.Invalidf("Worker allocation State collections and finalOutcome are required")
 	}
 	if len(s.Counters) > maxStateAllocationCounters || len(s.ToolCalls) > 1000 || len(s.Errors) > 100 {
-		return Invalidf("Worker allocation State exceeds its collection bounds")
+		return contracts.Invalidf("Worker allocation State exceeds its collection bounds")
 	}
 	for name := range s.Counters {
 		if len(name) < 1 || len(name) > 128 || !stateMetricNamePattern.MatchString(name) {
-			return Invalidf("Worker allocation State counter name is invalid")
+			return contracts.Invalidf("Worker allocation State counter name is invalid")
 		}
 	}
-	if s.FinalOutcome != nil && (len(*s.FinalOutcome) > 64 || !ValidIdentifier(*s.FinalOutcome)) {
-		return Invalidf("Worker State final outcome is invalid")
+	if s.FinalOutcome != nil && (len(*s.FinalOutcome) > 64 || !contracts.ValidIdentifier(*s.FinalOutcome)) {
+		return contracts.Invalidf("Worker State final outcome is invalid")
 	}
 	for index := range s.ToolCalls {
 		if err := validateStateToolCall(s.ToolCalls[index]); err != nil {
@@ -241,11 +243,11 @@ func (s WorkerAllocationState) validate() error {
 }
 
 func (b WorkerStateBudget) validate() error {
-	if b.MaxModelCalls == 0 || b.MaxModelCalls > MaxWorkerModelCalls ||
-		b.MaxToolCalls == 0 || b.MaxToolCalls > MaxWorkerToolCalls ||
-		b.MaxTotalTokens == 0 || b.MaxTotalTokens > MaxWorkerTotalTokens ||
+	if b.MaxModelCalls == 0 || b.MaxModelCalls > contracts.MaxWorkerModelCalls ||
+		b.MaxToolCalls == 0 || b.MaxToolCalls > contracts.MaxWorkerToolCalls ||
+		b.MaxTotalTokens == 0 || b.MaxTotalTokens > contracts.MaxWorkerTotalTokens ||
 		b.ObservedModelCalls > b.MaxModelCalls || b.ObservedToolCalls > b.MaxToolCalls {
-		return Invalidf("Worker State budget is invalid")
+		return contracts.Invalidf("Worker State budget is invalid")
 	}
 	if b.Exhausted == nil {
 		return nil
@@ -253,43 +255,43 @@ func (b WorkerStateBudget) validate() error {
 	switch *b.Exhausted {
 	case "model_calls":
 		if b.ObservedModelCalls != b.MaxModelCalls {
-			return Invalidf("Worker State model-call exhaustion is inconsistent")
+			return contracts.Invalidf("Worker State model-call exhaustion is inconsistent")
 		}
 	case "tool_calls":
 		if b.ObservedToolCalls != b.MaxToolCalls {
-			return Invalidf("Worker State tool-call exhaustion is inconsistent")
+			return contracts.Invalidf("Worker State tool-call exhaustion is inconsistent")
 		}
 	case "total_tokens":
 		if b.ObservedTotalTokens < b.MaxTotalTokens {
-			return Invalidf("Worker State token exhaustion is inconsistent")
+			return contracts.Invalidf("Worker State token exhaustion is inconsistent")
 		}
 	default:
-		return Invalidf("Worker State budget exhaustion dimension is invalid")
+		return contracts.Invalidf("Worker State budget exhaustion dimension is invalid")
 	}
 	return nil
 }
 
 func validateStateToolCall(call WorkerStateToolCall) error {
-	if err := ValidateOpaqueID("Worker State tool call ID", call.CallID); err != nil {
+	if err := contracts.ValidateOpaqueID("Worker State tool call ID", call.CallID); err != nil {
 		return err
 	}
-	if err := ValidateOpaqueID("Worker State tool name", call.Tool); err != nil {
+	if err := contracts.ValidateOpaqueID("Worker State tool name", call.Tool); err != nil {
 		return err
 	}
 	if call.Arguments == nil && call.ArgumentsTruncated {
-		return Invalidf("absent Worker State arguments cannot be marked truncated")
+		return contracts.Invalidf("absent Worker State arguments cannot be marked truncated")
 	}
 	if call.Arguments != nil {
 		encoded, err := marshalAgentStateJSON(call.Arguments)
 		if err != nil || len(encoded) > 4096 {
-			return Invalidf("Worker State tool arguments exceed their bound")
+			return contracts.Invalidf("Worker State tool arguments exceed their bound")
 		}
 	}
 	if call.Outcome != ToolCallSucceeded && call.Outcome != ToolCallFailed {
-		return Invalidf("Worker State tool outcome is invalid")
+		return contracts.Invalidf("Worker State tool outcome is invalid")
 	}
 	if (call.Outcome == ToolCallSucceeded) == (call.Error != nil) {
-		return Invalidf("Worker State tool outcome and error are inconsistent")
+		return contracts.Invalidf("Worker State tool outcome and error are inconsistent")
 	}
 	if call.Error != nil {
 		return call.Error.Validate()
@@ -298,17 +300,17 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 }
 
 func (s WorkerInvocationState) validate() error {
-	if !ValidBoundedOpaqueWorkerID(s.InvocationID) {
-		return Invalidf("Worker State invocationId is invalid")
+	if !contracts.ValidBoundedOpaqueWorkerID(s.InvocationID) {
+		return contracts.Invalidf("Worker State invocationId is invalid")
 	}
-	if err := ValidateWorkerSubtaskID(s.SubtaskID); err != nil {
+	if err := contracts.ValidateWorkerSubtaskID(s.SubtaskID); err != nil {
 		return err
 	}
 	if s.Phase != "running" && s.Phase != "succeeded" && s.Phase != "failed" && s.Phase != "cancelled" {
-		return Invalidf("Worker State invocation phase is invalid")
+		return contracts.Invalidf("Worker State invocation phase is invalid")
 	}
 	if !s.workspaceSet {
-		return Invalidf("Worker State invocation workspace is required")
+		return contracts.Invalidf("Worker State invocation workspace is required")
 	}
 	if err := s.Metrics.validate(); err != nil {
 		return err
@@ -317,7 +319,7 @@ func (s WorkerInvocationState) validate() error {
 		return err
 	}
 	if s.Phase != "running" && s.Summarizer.Phase == "requested" {
-		return Invalidf("terminal Worker State invocation has pending summarization")
+		return contracts.Invalidf("terminal Worker State invocation has pending summarization")
 	}
 	if s.Workspace != nil {
 		return s.Workspace.validate()
@@ -328,45 +330,45 @@ func (s WorkerInvocationState) validate() error {
 func (m WorkerStateInvocationMetric) validate() error {
 	if m.Tools == nil || len(m.Tools) > maxStateInvocationToolNames ||
 		m.ModelErrors > m.ModelCalls || m.ToolErrors > m.ToolCalls {
-		return Invalidf("Worker State invocation metrics are invalid")
+		return contracts.Invalidf("Worker State invocation metrics are invalid")
 	}
 	var detailedCalls uint64
 	var detailedFailures uint64
 	for name, item := range m.Tools {
-		if len(name) < 1 || len(name) > 64 || !ValidIdentifier(name) || item.Failures > item.Calls {
-			return Invalidf("Worker State invocation tool metrics are invalid")
+		if len(name) < 1 || len(name) > 64 || !contracts.ValidIdentifier(name) || item.Failures > item.Calls {
+			return contracts.Invalidf("Worker State invocation tool metrics are invalid")
 		}
 		if ^uint64(0)-detailedCalls < item.Calls || ^uint64(0)-detailedFailures < item.Failures {
-			return Invalidf("Worker State invocation tool metrics overflow")
+			return contracts.Invalidf("Worker State invocation tool metrics overflow")
 		}
 		detailedCalls += item.Calls
 		detailedFailures += item.Failures
 	}
 	if detailedCalls > m.ToolCalls || detailedFailures > m.ToolErrors ||
 		(!m.Truncated && (detailedCalls != m.ToolCalls || detailedFailures != m.ToolErrors)) {
-		return Invalidf("Worker State invocation tool detail is inconsistent")
+		return contracts.Invalidf("Worker State invocation tool detail is inconsistent")
 	}
 	return nil
 }
 
 func (s WorkerStateWorkspace) validate() error {
-	if err := ValidateDigest("Worker State workspaceDigest", s.WorkspaceDigest); err != nil {
+	if err := contracts.ValidateDigest("Worker State workspaceDigest", s.WorkspaceDigest); err != nil {
 		return err
 	}
 	if s.ScopePaths == nil || s.Interactions == nil || len(s.ScopePaths) > maxStateWorkspacePaths ||
 		len(s.Interactions) > maxStateWorkspacePaths || !sort.StringsAreSorted(s.ScopePaths) {
-		return Invalidf("Worker State workspace collections are invalid")
+		return contracts.Invalidf("Worker State workspace collections are invalid")
 	}
 	for index, path := range s.ScopePaths {
 		if err := validateStateWorkspacePath(path); err != nil {
 			return err
 		}
 		if index > 0 && path == s.ScopePaths[index-1] {
-			return Invalidf("Worker State workspace scope paths must be unique")
+			return contracts.Invalidf("Worker State workspace scope paths must be unique")
 		}
 	}
 	if encoded, err := marshalAgentStateJSON(s.ScopePaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
-		return Invalidf("Worker State workspace scope paths exceed their bound")
+		return contracts.Invalidf("Worker State workspace scope paths exceed their bound")
 	}
 	interactionPaths := make([]string, 0, len(s.Interactions))
 	seen := make(map[string]struct{}, len(s.Interactions))
@@ -377,18 +379,18 @@ func (s WorkerStateWorkspace) validate() error {
 			return err
 		}
 		if _, exists := seen[item.Path]; exists {
-			return Invalidf("Worker State workspace interaction paths must be unique")
+			return contracts.Invalidf("Worker State workspace interaction paths must be unique")
 		}
 		seen[item.Path] = struct{}{}
 		if previous != nil && (item.FirstOrdinal < previous.FirstOrdinal ||
 			(item.FirstOrdinal == previous.FirstOrdinal && item.Path < previous.Path)) {
-			return Invalidf("Worker State workspace interactions are not ordered")
+			return contracts.Invalidf("Worker State workspace interactions are not ordered")
 		}
 		previous = item
 		interactionPaths = append(interactionPaths, item.Path)
 	}
 	if encoded, err := marshalAgentStateJSON(interactionPaths); err != nil || len(encoded) > maxStateWorkspacePathBytes {
-		return Invalidf("Worker State workspace interaction paths exceed their bound")
+		return contracts.Invalidf("Worker State workspace interaction paths exceed their bound")
 	}
 	return nil
 }
@@ -399,7 +401,7 @@ func (i WorkerStateWorkspaceInteraction) validate() error {
 	}
 	if i.FirstOrdinal == 0 || i.LastOrdinal < i.FirstOrdinal ||
 		(i.DiscoveryCalls == 0 && i.ReadCalls == 0 && i.MatchCalls == 0 && i.MutationCalls == 0) {
-		return Invalidf("Worker State workspace interaction is inconsistent")
+		return contracts.Invalidf("Worker State workspace interaction is inconsistent")
 	}
 	return nil
 }
@@ -408,26 +410,26 @@ func validateStateWorkspacePath(value string) error {
 	if value == "" || !utf8.ValidString(value) || value != norm.NFC.String(value) ||
 		len([]byte(value)) > 4096 || strings.HasPrefix(value, "/") ||
 		strings.ContainsAny(value, "\\\x00") || strings.Contains(value, "://") {
-		return Invalidf("Worker State workspace path is invalid")
+		return contracts.Invalidf("Worker State workspace path is invalid")
 	}
 	parts := strings.Split(value, "/")
 	if len(parts) > 128 {
-		return Invalidf("Worker State workspace path is invalid")
+		return contracts.Invalidf("Worker State workspace path is invalid")
 	}
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." {
-			return Invalidf("Worker State workspace path is invalid")
+			return contracts.Invalidf("Worker State workspace path is invalid")
 		}
 		for _, character := range part {
 			if character < 0x20 || character == 0x7f {
-				return Invalidf("Worker State workspace path is invalid")
+				return contracts.Invalidf("Worker State workspace path is invalid")
 			}
 		}
 	}
 	first := parts[0]
 	if len(first) >= 2 && ((first[0] >= 'A' && first[0] <= 'Z') ||
 		(first[0] >= 'a' && first[0] <= 'z')) && first[1] == ':' {
-		return Invalidf("Worker State workspace path is invalid")
+		return contracts.Invalidf("Worker State workspace path is invalid")
 	}
 	return nil
 }
@@ -446,7 +448,7 @@ func (s *ContractorWorkerState) UnmarshalJSON(data []byte) error {
 	}
 	if wire.SchemaVersion == nil || wire.StateRevision == nil || wire.Metrics == nil ||
 		wire.CurrentInvocation == nil || wire.LastCompletedInvocation == nil {
-		return Invalidf("Worker State required fields are missing")
+		return contracts.Invalidf("Worker State required fields are missing")
 	}
 	s.SchemaVersion = *wire.SchemaVersion
 	s.StateRevision = *wire.StateRevision
@@ -486,7 +488,7 @@ func (s *WorkerAllocationState) UnmarshalJSON(data []byte) error {
 	}
 	if wire.Counters == nil || wire.ToolCalls == nil || wire.Errors == nil ||
 		wire.FinalOutcome == nil || wire.Truncated == nil {
-		return Invalidf("Worker allocation State required fields are missing")
+		return contracts.Invalidf("Worker allocation State required fields are missing")
 	}
 	s.Counters = wire.Counters
 	s.ToolCalls = wire.ToolCalls
@@ -555,7 +557,7 @@ func (s *WorkerInvocationState) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if wire.Workspace == nil || wire.Summarizer == nil {
-		return Invalidf("Worker State invocation summarizer or workspace is missing")
+		return contracts.Invalidf("Worker State invocation summarizer or workspace is missing")
 	}
 	s.InvocationID = wire.InvocationID
 	s.SubtaskID = wire.SubtaskID
@@ -658,7 +660,7 @@ func decodeStrictAgentStateJSON(data []byte, target any) error {
 	if err := decoder.Decode(target); err != nil {
 		return fmt.Errorf("decode Agent State JSON: %w", err)
 	}
-	return EnsureJSONEOF(decoder)
+	return contracts.EnsureJSONEOF(decoder)
 }
 
 func requireAgentStateFields(data []byte, required ...string) error {
@@ -667,11 +669,11 @@ func requireAgentStateFields(data []byte, required ...string) error {
 		return fmt.Errorf("decode Agent State object: %w", err)
 	}
 	if object == nil {
-		return Invalidf("Agent State value must be an object")
+		return contracts.Invalidf("Agent State value must be an object")
 	}
 	for _, field := range required {
 		if _, present := object[field]; !present {
-			return Invalidf("Agent State field %s is required", field)
+			return contracts.Invalidf("Agent State field %s is required", field)
 		}
 	}
 	return nil

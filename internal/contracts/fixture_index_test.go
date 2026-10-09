@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 // fixtureIndexEntry mirrors api/testdata/v1alpha1/index.json, which Go and
@@ -47,8 +48,8 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
 	"AgentRegistration":               codecFor[control.AgentRegistration](),
 	"AgentRegistrationResponse":       codecFor[control.AgentRegistrationResponse](),
-	"AgentStateSnapshot":              codecFor[contracts.AgentStateSnapshot](),
-	"AllocationFinalResponse":         codecFor[contracts.AllocationFinalResponse](),
+	"AgentStateSnapshot":              codecFor[reporting.AgentStateSnapshot](),
+	"AllocationFinalResponse":         codecFor[reporting.AllocationFinalResponse](),
 	"AllocationSpec":                  codecFor[control.AllocationSpec](),
 	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
 	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
@@ -58,7 +59,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"ReleaseAllocationRequest":        codecFor[control.ReleaseAllocationRequest](),
 	"ResolvedLLMGatewayConfig":        codecFor[contracts.ResolvedLLMGatewayConfig](),
 	"ResolvedRuntimeConfigProvenance": codecFor[contracts.ResolvedRuntimeConfigProvenance](),
-	"RuntimeReport":                   codecFor[contracts.RuntimeReport](),
+	"RuntimeReport":                   codecFor[reporting.RuntimeReport](),
 	"RuntimeSettings":                 codecFor[contracts.RuntimeSettings](),
 	"StageContentRequest":             codecFor[contracts.StageContentRequest](),
 	"StageContentResult":              codecFor[contracts.StageContentResult](),

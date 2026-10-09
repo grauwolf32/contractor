@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -983,7 +984,7 @@ func TestStreamlineProviderErrorIsSafe(t *testing.T) {
 	encoded, marshalErr := json.Marshal(struct {
 		Error      string                    `json:"error"`
 		Completion *planner.Completion       `json:"completion"`
-		Report     contracts.ExecutionReport `json:"report"`
+		Report     reporting.ExecutionReport `json:"report"`
 	}{Error: err.Error(), Completion: sessions.completion, Report: report})
 	if marshalErr != nil || strings.Contains(string(encoded), secret) {
 		t.Fatalf("provider secret leaked: %s (%v)", encoded, marshalErr)

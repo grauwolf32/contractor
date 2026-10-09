@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -168,15 +169,15 @@ func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing
 
 	requestedStage := createTelemetryStageWithPolicy(
 		t, ctx, runs, "stage-requested", "allocation-requested", "session-requested",
-		contracts.PerformanceCollectionRequested,
+		reporting.PerformanceCollectionRequested,
 	)
 	finishTelemetryStage(t, ctx, runs, requestedStage)
 	duration, cpuUser, cpuSystem, gap := 31.0, 2.0, 1.0, 15.0
 	rssStart, rssEnd, rssPeak, samples := uint64(100), uint64(125), uint64(150), uint64(4)
 	envelope := allocationEnvelope(requestedStage, "allocation-requested", time.Now().UTC(), true)
-	envelope.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
-	envelope.Report.Runtime.Resources = &contracts.RuntimeResources{
-		Version: 1, Scope: "runtime_process", Status: contracts.ResourceComplete,
+	envelope.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
+	envelope.Report.Runtime.Resources = &reporting.RuntimeResources{
+		Version: 1, Scope: "runtime_process", Status: reporting.ResourceComplete,
 		DurationSeconds: &duration, CPUUserSeconds: &cpuUser, CPUSystemSeconds: &cpuSystem,
 		RSSStartBytes: &rssStart, RSSEndBytes: &rssEnd, RSSPeakObservedBytes: &rssPeak,
 		RSSSampleCount: &samples, MaxSampleGapSeconds: &gap,
@@ -190,7 +191,7 @@ func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing
 
 	unsupportedStage := createTelemetryStageWithPolicy(
 		t, ctx, runs, "stage-unsupported", "allocation-unsupported", "session-unsupported",
-		contracts.PerformanceCollectionUnsupported,
+		reporting.PerformanceCollectionUnsupported,
 	)
 	finishTelemetryStage(t, ctx, runs, unsupportedStage)
 	if err := runs.MarkStageAllocationReleased(ctx, "allocation-unsupported"); err != nil {
@@ -239,33 +240,33 @@ func allocationEnvelope(
 	startedAt := receivedAt.Add(-time.Second)
 	stopReason := "provider returned " + postgresSecret
 	return telemetry.AllocationReportEnvelope{
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 		StageExecutionID:            stageExecutionID, AllocationID: allocationID,
 		LogicalAgentName: "builder", ReportSchemaVersion: contracts.APIVersion,
 		Secrets: []string{postgresSecret}, ReceivedAt: receivedAt,
-		Report: contracts.AllocationFinalReport{
+		Report: reporting.AllocationFinalReport{
 			ReportID: "allocation-final-" + allocationID, AllocationID: allocationID,
 			StartedAt: startedAt, FinishedAt: receivedAt,
-			Worker: contracts.ExecutionReport{
+			Worker: reporting.ExecutionReport{
 				ReportID: "worker-" + allocationID, Complete: complete,
-				Metrics: contracts.ExecutionMetrics{
+				Metrics: reporting.ExecutionMetrics{
 					ModelCalls: &modelCalls,
-					Tools: map[string]contracts.ToolMetrics{
+					Tools: map[string]reporting.ToolMetrics{
 						"probe": {Calls: &toolCalls, Succeeded: &succeeded},
 					},
 				},
-				ToolCalls: []contracts.ToolCallRecord{{
+				ToolCalls: []reporting.ToolCallRecord{{
 					CallID: "call-" + allocationID, Tool: "probe",
 					Arguments: map[string]any{
 						"authorization": "Bearer " + postgresSecret,
 					},
-					Outcome: contracts.ToolCallSucceeded,
+					Outcome: reporting.ToolCallSucceeded,
 				}},
-				Errors: []contracts.ExecutionError{{
+				Errors: []reporting.ExecutionError{{
 					Code: "provider_error", Message: "provider returned " + postgresSecret,
 				}},
 			},
-			Runtime: contracts.RuntimeReport{
+			Runtime: reporting.RuntimeReport{
 				Complete: complete, StopReason: &stopReason,
 			},
 		},
@@ -285,12 +286,12 @@ func plannerEnvelope(
 		FinishedAt:          receivedAt,
 		ReportSchemaVersion: contracts.APIVersion,
 		ReceivedAt:          receivedAt, Secrets: []string{postgresSecret},
-		Report: contracts.ExecutionReport{
+		Report: reporting.ExecutionReport{
 			ReportID: "planner-" + sessionID, Complete: true,
-			Metrics: contracts.ExecutionMetrics{
-				ModelCalls: &modelCalls, Tools: map[string]contracts.ToolMetrics{},
+			Metrics: reporting.ExecutionMetrics{
+				ModelCalls: &modelCalls, Tools: map[string]reporting.ToolMetrics{},
 			},
-			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+			ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{},
 		},
 	}
 }
@@ -325,7 +326,7 @@ func createTelemetryStage(
 ) string {
 	return createTelemetryStageWithPolicy(
 		t, ctx, store, stageExecutionID, allocationID, sessionID,
-		contracts.PerformanceCollectionDisabled,
+		reporting.PerformanceCollectionDisabled,
 	)
 }
 
@@ -336,7 +337,7 @@ func createTelemetryStageWithPolicy(
 	stageExecutionID string,
 	allocationID string,
 	sessionID string,
-	collectionPolicy contracts.PerformanceCollectionPolicy,
+	collectionPolicy reporting.PerformanceCollectionPolicy,
 ) string {
 	t.Helper()
 	_, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{

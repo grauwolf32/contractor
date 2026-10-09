@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -41,7 +42,7 @@ type Registry interface {
 	PollAllocationLosses() []AllocationLoss
 	SnapshotOperations() OperationsSnapshot
 	SetAllocationPhase(string, AllocationAuthoritativePhase, *SafeReason) error
-	RecordAllocationReport(string, contracts.AllocationFinalReport) error
+	RecordAllocationReport(string, reporting.AllocationFinalReport) error
 }
 
 type AuthenticatedPrincipal struct {
@@ -578,7 +579,7 @@ func validatePinnedPerformanceCollection(configuration PinnedReservationConfig) 
 	if err := configuration.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
 		return err
 	}
-	if configuration.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested {
+	if configuration.PerformanceCollectionPolicy == reporting.PerformanceCollectionRequested {
 		if configuration.PerformanceMetrics == nil {
 			return ErrInvalidRequest
 		}

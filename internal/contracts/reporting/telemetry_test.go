@@ -1,34 +1,35 @@
-package contracts
+package reporting
 
 import (
 	"encoding/json"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	t.Parallel()
 
-	value, err := DecodeStrict[AllocationFinalResponse](
+	value, err := contracts.DecodeStrict[AllocationFinalResponse](
 		contractstest.ReadFixture(t, "valid", "allocation-final-response.json"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{
-		RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
+	value.Report.Runtime.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{
+		contracts.RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
 	}
 	if err := value.Validate(); err != nil {
 		t.Fatalf("valid adapter metrics were rejected: %v", err)
 	}
-	value.Report.Runtime.Adapters[RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetrics{
+	value.Report.Runtime.Adapters[contracts.RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetrics{
 		Operations: 1, FailedOperations: 2,
 	}
 	if err := value.Validate(); err == nil {
 		t.Fatal("adapter metrics with failures above operations were accepted")
 	}
-	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{
+	value.Report.Runtime.Adapters = map[contracts.RuntimeAdapterRef]RuntimeAdapterMetrics{
 		"unknown@1": {Operations: 1},
 	}
 	if err := value.Validate(); err == nil {
@@ -98,7 +99,7 @@ func TestMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := DecodeStrict[AllocationFinalResponse](encoded)
+	value, err := contracts.DecodeStrict[AllocationFinalResponse](encoded)
 	if err != nil {
 		t.Fatalf("semantic final report was blocked by optional adapter metrics: %v", err)
 	}
