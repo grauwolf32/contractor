@@ -21,7 +21,7 @@ func ExamplePrepareOperation() {
 	if err != nil {
 		panic(err)
 	}
-	// Persist artifact using contracts.HTTPRequestSetMediaType. The strict reader
+	// Persist artifact using scan.HTTPRequestSetMediaType. The strict reader
 	// verifies identities, ordering and coverage before a later planner uses it.
 	decoded, err := scan.DecodeHTTPRequestSet(artifact)
 	if err != nil {

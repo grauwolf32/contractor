@@ -82,7 +82,7 @@ resolve them. The listed fixes do not require rewriting the entire API.
    `batchSizeBytes`, `maxAttempts`, `maxPendingSpans`, `maxPendingBytes`.
    The Server supports nested `retry` backoff settings
    ([normalize.go](../../internal/runtimeconfig/normalize.go), lines 481–507;
-   [telemetry_export.go](../../internal/contracts/telemetry_export.go), line 9).
+   [telemetry_export.go](../../internal/contracts/runtimesettings/telemetry_export.go), line 9).
    The stored canonical document is included in the public response.
 
    Reproduction: `PreparePublication` and `Resolve` accepted

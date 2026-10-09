@@ -1,6 +1,16 @@
-// Package contracts contains strict, versioned transport DTOs shared with the
-// Python Runtime Agent. It deliberately imports no HTTP, persistence, scheduler,
-// or agent-framework package.
+// Package contracts is the shared core of the strict, versioned transport
+// DTOs exchanged with the Python Runtime Agent: the API version, identifier,
+// selector and digest grammars, strict decoding and canonical encoding,
+// artifact refs and media types, Runtime adapter and credential kinds,
+// resolved AgentTemplate and model-policy values, Skills, workspaces, Stage
+// content and Worker completion.
+//
+// Concern-specific contracts live in subpackages that import this one and
+// are never imported by it: control (registration, heartbeats and the
+// allocation lifecycle), reporting (execution reports, resources and Worker
+// State), runtimesettings, llmgateway, runlabels and scan (api/scan/v1).
+// None of them imports an HTTP, persistence, scheduler or agent-framework
+// package.
 package contracts
 
 import (

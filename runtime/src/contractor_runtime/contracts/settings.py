@@ -197,7 +197,7 @@ def default_gateway_failure_signatures() -> GatewayFailureSignatures:
     """The openai-compatible@1 baseline: LM Studio unloads and engine process
     loss observed through LiteLLM.
 
-    Mirrors contracts.DefaultGatewayFailureSignatures on the Go side.
+    Mirrors llmgateway.DefaultGatewayFailureSignatures on the Go side.
     """
     return GatewayFailureSignatures(
         model_unavailable=[
