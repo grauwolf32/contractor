@@ -24,8 +24,9 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 		"top10":        "audit_risk_source_checker@1",
 		"asvs":         "audit_asvs_source_verifier@1",
 		"ordinary-run": "fixture-ordinary-asvs@1",
+		"findings":     "audit_openapi_operation_tracer@1",
 	}
-	for _, stage := range auditProgramGatewayStages() {
+	for _, stage := range append(auditProgramGatewayStages(), findingsProducerStage("trace")) {
 		t.Run(stage.name, func(t *testing.T) {
 			prefix, _, _ := strings.Cut(stage.name, "/")
 			template, err := snapshot.AgentTemplate(templates[prefix])

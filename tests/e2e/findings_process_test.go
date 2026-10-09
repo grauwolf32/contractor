@@ -248,7 +248,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 }
 
 func findingsProducerStage(name string) domainGatewayStage {
-	tools := append([]string{"list_skills", "load_skill", "load_skill_resource", "read_artifact",
+	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
 		"read_audit_task", "submit_check_result", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding"}, completeCodeAnalysisTools...)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
