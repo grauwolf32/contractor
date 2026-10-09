@@ -521,7 +521,8 @@ async def _run_likec4(
     try:
         try:
             await to_thread_until_done(prepare, name="likec4-filesystem")
-            assert temporary is not None
+            if not (temporary is not None):
+                raise RuntimeError("Expected temporary is not None")
             project = Path(temporary.name)
             source = project / VALIDATOR_FILENAME
             command = [

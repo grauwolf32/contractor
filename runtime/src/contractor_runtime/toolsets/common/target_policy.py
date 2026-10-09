@@ -131,7 +131,8 @@ def canonical_address(address: IPAddress) -> IPAddress:
     """Return the IPv4 address an IPv6 translation form reaches, without a zone."""
 
     if address.version == 6:
-        assert isinstance(address, ipaddress.IPv6Address)
+        if not (isinstance(address, ipaddress.IPv6Address)):
+            raise RuntimeError("Expected isinstance(address, ipaddress.IPv6Address)")
         if address.scope_id is not None:
             address = ipaddress.IPv6Address(address.compressed.split("%", 1)[0])
         if address.ipv4_mapped is not None:
@@ -212,7 +213,8 @@ def parse_allowed_networks(values: Iterable[str]) -> tuple[IPNetwork, ...]:
         except ValueError:
             raise ValueError("allowed target networks must be CIDR networks") from None
         if network.version == 6:
-            assert isinstance(network, ipaddress.IPv6Network)
+            if not (isinstance(network, ipaddress.IPv6Network)):
+                raise RuntimeError("Expected isinstance(network, ipaddress.IPv6Network)")
             first = canonical_address(network.network_address)
             if first.version == 4 and network.prefixlen >= 96:
                 # Classification uses the IPv4 form of mapped/NAT64 addresses.

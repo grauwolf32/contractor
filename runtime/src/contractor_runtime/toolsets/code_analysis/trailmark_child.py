@@ -244,8 +244,10 @@ class _TrailmarkAdapter:
 
     def summary(self) -> dict[str, Any]:
         graph = self._require_graph()
-        assert self._snapshot_digest is not None
-        assert self._coverage is not None
+        if not (self._snapshot_digest is not None):
+            raise RuntimeError("Expected self._snapshot_digest is not None")
+        if not (self._coverage is not None):
+            raise RuntimeError("Expected self._coverage is not None")
         call_edges = sum(1 for edge in graph.edges if _enum_value(edge.kind) == "calls")
         return {
             "snapshotDigest": self._snapshot_digest,
@@ -269,7 +271,8 @@ class _TrailmarkAdapter:
             or not 1 <= limit <= MAX_SYMBOLS_RESPONSE
         ):
             raise _RequestError("invalid_request")
-        assert self._snapshot_digest is not None
+        if not (self._snapshot_digest is not None):
+            raise RuntimeError("Expected self._snapshot_digest is not None")
         return {
             "snapshotDigest": self._snapshot_digest,
             "items": list(self._symbols[:limit]),
@@ -335,9 +338,11 @@ class _TrailmarkAdapter:
             reverse_adjacency=self._reverse_call_adjacency,
         )
         rows = [[self._nodes[raw_id] for raw_id in path] for path in paths]
-        assert self._coverage is not None
+        if not (self._coverage is not None):
+            raise RuntimeError("Expected self._coverage is not None")
         rows, truncated = _fit_path_rows(rows, truncated, self._coverage)
-        assert self._snapshot_digest is not None
+        if not (self._snapshot_digest is not None):
+            raise RuntimeError("Expected self._snapshot_digest is not None")
         return {
             "snapshotDigest": self._snapshot_digest,
             "items": rows,
@@ -373,8 +378,10 @@ class _TrailmarkAdapter:
         return self._collection(list(self._exception_index.get(exception, ())), offset, limit)
 
     def _resolve_symbol_id(self, symbol_id: str) -> str:
-        assert self._symbol_key is not None
-        assert self._snapshot_digest is not None
+        if not (self._symbol_key is not None):
+            raise RuntimeError("Expected self._symbol_key is not None")
+        if not (self._snapshot_digest is not None):
+            raise RuntimeError("Expected self._snapshot_digest is not None")
         from contractor_runtime.toolsets.code_analysis.ids import (
             decode_symbol_id,
             symbol_id_matches_upstream,
@@ -397,7 +404,8 @@ class _TrailmarkAdapter:
     def _collection(self, rows: list[dict[str, Any]], offset: int, limit: int) -> dict[str, Any]:
         if offset > len(rows):
             raise _RequestError("code_analysis_input_invalid")
-        assert self._snapshot_digest is not None
+        if not (self._snapshot_digest is not None):
+            raise RuntimeError("Expected self._snapshot_digest is not None")
         page = rows[offset : offset + limit]
         return {
             "snapshotDigest": self._snapshot_digest,

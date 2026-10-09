@@ -194,7 +194,8 @@ class PodmanLifecycle:
                 raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
             self._probe_storage_root = root.parent.parent
             if self._probe_result is None:
-                assert self._client is not None
+                if not (self._client is not None):
+                    raise RuntimeError("Expected self._client is not None")
                 result = await self._client.request("probe", root=str(root), deadline=deadline)
                 if (
                     not isinstance(result, dict)
@@ -219,7 +220,8 @@ class PodmanLifecycle:
         self._failure = failure
 
     def _pulse(self) -> None:
-        assert self._client is not None
+        if not (self._client is not None):
+            raise RuntimeError("Expected self._client is not None")
         self._client.signal({"lease": self._lease_source()})
 
     async def _keep_alive(self) -> None:
@@ -326,7 +328,8 @@ class PodmanAllocation:
     async def prepare(self, *, deadline: datetime) -> None:
         if self.rejected or self.removed:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
-        assert self.owner._client is not None
+        if not (self.owner._client is not None):
+            raise RuntimeError("Expected self.owner._client is not None")
         bounded = min(
             _monotonic(deadline), time.monotonic() + self.owner.settings.prepare_max_seconds
         )
@@ -353,7 +356,8 @@ class PodmanAllocation:
     async def stop(self, *, deadline: datetime) -> None:
         self.reject()
         if not self.removed:
-            assert self.owner._client is not None
+            if not (self.owner._client is not None):
+                raise RuntimeError("Expected self.owner._client is not None")
             await self.owner._client.request(
                 "stop", allocation=self.allocation_id, deadline=_monotonic(deadline)
             )
@@ -362,7 +366,8 @@ class PodmanAllocation:
     async def remove(self, *, deadline: datetime) -> None:
         self.reject()
         if not self.removed:
-            assert self.owner._client is not None
+            if not (self.owner._client is not None):
+                raise RuntimeError("Expected self.owner._client is not None")
             await self.owner._client.request(
                 "remove", allocation=self.allocation_id, deadline=_monotonic(deadline)
             )

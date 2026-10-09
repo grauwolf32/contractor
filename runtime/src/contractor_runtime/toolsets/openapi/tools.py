@@ -554,7 +554,8 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
                 if normalized not in project_evidence_paths:
                     raise ToolInputError(f"source evidence file does not exist: {normalized}")
             else:
-                assert root is not None
+                if not (root is not None):
+                    raise RuntimeError("Expected root is not None")
                 candidate = self._source_root.joinpath(*PurePosixPath(normalized).parts)
                 resolved = candidate.resolve()
                 if (
@@ -1452,7 +1453,8 @@ def _validate_servers(value: Any) -> list[dict[str, Any]]:
             raise ToolInputError("OpenAPI server entries must be objects")
         url = server.get("url")
         _require_nonempty("server.url", url)
-        assert isinstance(url, str)
+        if not (isinstance(url, str)):
+            raise RuntimeError("Expected isinstance(url, str)")
         if url in seen:
             raise ToolInputError("OpenAPI server URLs must be unique")
         seen.add(url)
@@ -1481,7 +1483,8 @@ def _validate_tags(value: Any) -> list[dict[str, Any]]:
             raise ToolInputError("OpenAPI tag contains unsupported fields")
         name = tag.get("name")
         _require_nonempty("tag.name", name)
-        assert isinstance(name, str)
+        if not (isinstance(name, str)):
+            raise RuntimeError("Expected isinstance(name, str)")
         if len(name) > 256 or name in seen:
             raise ToolInputError("OpenAPI tag names must be unique and at most 256 characters")
         seen.add(name)

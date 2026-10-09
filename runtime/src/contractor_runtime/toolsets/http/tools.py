@@ -439,7 +439,8 @@ class _HTTPSession:
                         expected_revision=None,
                     )
                     artifact = written.artifact.require_exact()
-                    assert body_kind in {"text", "binary"}
+                    if body_kind not in {"text", "binary"}:
+                        raise RuntimeError("Expected body_kind in {'text', 'binary'}")
                     self._bodies[request_id] = _StoredBody(artifact=artifact, kind=body_kind)
                 safe_headers, headers_truncated = _response_headers(response.headers)
                 self._cookies = candidate_cookies
@@ -607,7 +608,8 @@ class _HTTPSession:
             and _origin(url) == self._target_origin
         )
         if target_credential:
-            assert self._target_authorization is not None
+            if not (self._target_authorization is not None):
+                raise RuntimeError("Expected self._target_authorization is not None")
             headers = {
                 name: value for name, value in headers.items() if name.lower() != "authorization"
             }
@@ -656,7 +658,8 @@ class _HTTPSession:
                 request = client.build_request(method, url, **kwargs)
                 observe(request)
                 response = await client.send(request, stream=True, follow_redirects=False)
-            assert attempt is not None
+            if not (attempt is not None):
+                raise RuntimeError("Expected attempt is not None")
             attempt.receive(response)
             try:
                 HTTPAttempt.model_validate(attempt.snapshot())
@@ -736,7 +739,8 @@ class _HTTPSession:
                 if sys.getsizeof(content) <= MAX_DECODED_BODY_CACHE_BYTES:
                     self._cached_body = _CachedBody(request_id, stored.artifact, kind, content)
             if kind == "text":
-                assert isinstance(content, str)
+                if not (isinstance(content, str)):
+                    raise RuntimeError("Expected isinstance(content, str)")
                 selected = content[offset : offset + limit]
                 return {
                     "request_id": request_id,
@@ -748,7 +752,8 @@ class _HTTPSession:
                     "eof": offset + len(selected) >= len(content),
                     "data": selected,
                 }
-            assert isinstance(content, bytes)
+            if not (isinstance(content, bytes)):
+                raise RuntimeError("Expected isinstance(content, bytes)")
             selected_bytes = content[offset : offset + limit]
             return {
                 "request_id": request_id,

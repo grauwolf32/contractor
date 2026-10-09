@@ -49,7 +49,8 @@ def build_submission(
                 "evidence_refs contains an invalid exact ArtifactRef; provide namespace, name "
                 "and a non-empty revision"
             ) from error
-        assert ref.revision is not None
+        if not (ref.revision is not None):
+            raise RuntimeError("Expected ref.revision is not None")
         key = (ref.namespace, ref.name, ref.revision)
         if key in seen_refs:
             raise ToolInputError("evidence_refs contains a duplicate; include each reference once")

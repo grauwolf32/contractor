@@ -151,7 +151,8 @@ class ArtifactClient:
             except ArtifactTransportError:
                 if attempt != 0:
                     raise
-        assert response is not None
+        if not (response is not None):
+            raise RuntimeError("Expected response is not None")
         self._raise_for_status(response)
         if response.status_code not in {200, 201}:
             raise ArtifactTransportError("finding proposal API returned an invalid status")
@@ -378,7 +379,8 @@ class ArtifactClient:
 
     def _remember(self, ref: ArtifactRef) -> None:
         revision = ref.require_exact().revision
-        assert revision is not None
+        if not (revision is not None):
+            raise RuntimeError("Expected revision is not None")
         self._known_exact_refs[(ref.namespace, ref.name)] = ref
         self._observed_exact_refs.append(ref)
 

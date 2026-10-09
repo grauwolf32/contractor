@@ -57,7 +57,8 @@ class OverlayOperation:
     def document(self) -> dict[str, str]:
         result = {"op": self.op, "path": self.path}
         if self.op == "write_file":
-            assert self.text is not None
+            if not (self.text is not None):
+                raise RuntimeError("Expected self.text is not None")
             result["text"] = self.text
         return result
 
@@ -659,7 +660,8 @@ def _apply_operation(tree: ManagedWorkspaceTree, operation: OverlayOperation) ->
         return
     if tree.kind(operation.path) not in {None, "text"}:
         raise WorkspaceStateError("workspace_state_invalid")
-    assert operation.text is not None
+    if not (operation.text is not None):
+        raise RuntimeError("Expected operation.text is not None")
     tree.text_files[operation.path] = operation.text
 
 

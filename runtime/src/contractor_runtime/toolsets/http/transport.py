@@ -60,7 +60,8 @@ class PolicyNetworkBackend(httpcore.AsyncNetworkBackend):
                 await stream.aclose()
                 raise
             return stream
-        assert failure is not None
+        if not (failure is not None):
+            raise RuntimeError("Expected failure is not None")
         raise failure
 
     async def connect_unix_socket(

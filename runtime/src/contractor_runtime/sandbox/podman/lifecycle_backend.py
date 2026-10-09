@@ -141,7 +141,8 @@ class LifecycleBackend:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         self._live(entry)
         if entry.prepared:
-            assert entry.identity is not None
+            if not (entry.identity is not None):
+                raise RuntimeError("Expected entry.identity is not None")
             state = await self.engine.inspect(entry.identity, deadline=deadline)
             if state is None or not state.running or state.status != "running":
                 self.reject(allocation_id)
@@ -197,7 +198,10 @@ class LifecycleBackend:
 
         await asyncio.to_thread(validate_cwd)
         try:
-            assert entry.identity is not None and entry.guardian is not None
+            if not (entry.identity is not None and entry.guardian is not None):
+                raise RuntimeError(
+                    "Expected entry.identity is not None and entry.guardian is not None"
+                )
             await entry.guardian.request("check", deadline=min(deadline, self.lease))
             self._live(entry)
             reserve = min(

@@ -480,7 +480,8 @@ class PodmanEngine:
 
     def _create_arguments(self, record: _Creation) -> tuple[str, ...]:
         settings = self._settings
-        assert settings.image is not None
+        if not (settings.image is not None):
+            raise RuntimeError("Expected settings.image is not None")
         labels = {
             "managed": "1",
             "owner": self._owner,

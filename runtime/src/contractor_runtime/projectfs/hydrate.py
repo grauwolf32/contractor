@@ -206,7 +206,8 @@ async def hydrate_workspace(
             # Validate/pin the physical initialized tree before exposing the
             # session; neither hydration texts nor imported state survive here.
             try:
-                assert session._local is not None
+                if not (session._local is not None):
+                    raise RuntimeError("Expected session._local is not None")
                 await session._local.initialize(deadline=deadline)
             except WorkspaceStorageError:
                 raise _capacity() from None
@@ -467,7 +468,8 @@ def _materialize_state(
         elif operation.op == "create_directory":
             filesystem.makedirs(target, exist_ok=False)
         else:
-            assert operation.text is not None
+            if not (operation.text is not None):
+                raise RuntimeError("Expected operation.text is not None")
             with filesystem.open(target, mode="wb") as destination:
                 destination.write(operation.text.encode("utf-8"))
 

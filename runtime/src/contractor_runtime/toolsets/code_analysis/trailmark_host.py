@@ -308,7 +308,8 @@ class TrailmarkChildHost:
     async def summary(self) -> GraphBuildResult:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             result = await self._request_locked(
                 "summary",
                 {},
@@ -333,7 +334,8 @@ class TrailmarkChildHost:
                 timeout_code="code_analysis_query_timeout",
             )
             try:
-                assert self._mirror is not None
+                if not (self._mirror is not None):
+                    raise RuntimeError("Expected self._mirror is not None")
                 return _symbol_page(
                     result,
                     self._mirror.snapshot_digest,
@@ -348,7 +350,8 @@ class TrailmarkChildHost:
     async def find_symbols(self, query: str, *, offset: int, limit: int) -> GraphSymbolPage:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             result = await self._request_locked(
                 "find_symbol",
                 {"query": query, "offset": offset, "limit": limit},
@@ -379,7 +382,8 @@ class TrailmarkChildHost:
             raise TrailmarkHostError("code_analysis_input_invalid")
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             self.validate_symbol_id(symbol_id, self._mirror.snapshot_digest)
             result = await self._request_locked(
                 operation,
@@ -449,7 +453,8 @@ class TrailmarkChildHost:
     ) -> GraphPathPage:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             self.validate_symbol_id(target_id, self._mirror.snapshot_digest)
             if source_id is not None:
                 self.validate_symbol_id(source_id, self._mirror.snapshot_digest)
@@ -476,7 +481,8 @@ class TrailmarkChildHost:
     async def attack_surface(self, *, offset: int, limit: int) -> GraphEntrypointPage:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             result = await self._request_locked(
                 "attack_surface",
                 {"offset": offset, "limit": limit},
@@ -504,7 +510,8 @@ class TrailmarkChildHost:
     ) -> GraphComplexityPage:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             result = await self._request_locked(
                 "complexity_hotspots",
                 {"threshold": threshold, "offset": offset, "limit": limit},
@@ -533,7 +540,8 @@ class TrailmarkChildHost:
     ) -> GraphSymbolPage:
         async with self._lock:
             self._require_running()
-            assert self._mirror is not None
+            if not (self._mirror is not None):
+                raise RuntimeError("Expected self._mirror is not None")
             result = await self._request_locked(
                 "functions_that_raise",
                 {"exception": exception, "offset": offset, "limit": limit},
@@ -603,7 +611,8 @@ class TrailmarkChildHost:
         except Exception:
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
         self._process = process
-        assert process.stderr is not None
+        if not (process.stderr is not None):
+            raise RuntimeError("Expected process.stderr is not None")
         self._stderr_task = asyncio.create_task(
             self._drain_stderr(process.stderr),
             name="trailmark-child-stderr",

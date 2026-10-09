@@ -243,8 +243,14 @@ class AllocationService:
                 )
                 workspace = await sandbox.prepare()
                 if spec.workspace is not None:
-                    assert self._factories.workspace_provider is not None
-                    assert self._factories.artifact_client_factory is not None
+                    if not (self._factories.workspace_provider is not None):
+                        raise RuntimeError(
+                            "Expected self._factories.workspace_provider is not None"
+                        )
+                    if not (self._factories.artifact_client_factory is not None):
+                        raise RuntimeError(
+                            "Expected self._factories.artifact_client_factory is not None"
+                        )
                     artifact_reader = self._factories.artifact_client_factory(
                         spec.allocation_id, spec.runtime_settings
                     )
@@ -260,7 +266,10 @@ class AllocationService:
                         timeout_seconds=remaining,
                     )
                 if sandbox.ref == "podman@1":
-                    assert lifecycle is not None and project_workspace is not None
+                    if not (lifecycle is not None and project_workspace is not None):
+                        raise RuntimeError(
+                            "Expected lifecycle is not None and project_workspace is not None"
+                        )
                     execution = lifecycle.allocate(spec.allocation_id, project_workspace)
                     await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
@@ -1072,7 +1081,8 @@ class AllocationService:
         if execution is not None:
             # Keep a full owner even when readiness was never committed. A
             # release confirmation must not bypass an uncertain prepare.
-            assert workspace is not None and adapter_host is not None
+            if not (workspace is not None and adapter_host is not None):
+                raise RuntimeError("Expected workspace is not None and adapter_host is not None")
             context = _AllocationContext(
                 allocation_id=spec.allocation_id,
                 run_id=spec.run_id,

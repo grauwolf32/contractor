@@ -115,7 +115,8 @@ async def run_command(
         raise
 
     async def write() -> None:
-        assert process.stdin is not None and input is not None
+        if not (process.stdin is not None and input is not None):
+            raise RuntimeError("Expected process.stdin is not None and input is not None")
         try:
             process.stdin.write(input)
             await process.stdin.drain()
@@ -124,7 +125,8 @@ async def run_command(
         finally:
             process.stdin.close()
 
-    assert process.stdout is not None and process.stderr is not None
+    if not (process.stdout is not None and process.stderr is not None):
+        raise RuntimeError("Expected process.stdout is not None and process.stderr is not None")
     pipes = [
         asyncio.create_task(read(process.stdout, stdout)),
         asyncio.create_task(read(process.stderr, stderr)),

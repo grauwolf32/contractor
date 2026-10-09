@@ -75,7 +75,8 @@ class PodmanExecutor:
             try:
                 if allocation.rejected or allocation.removed or owner._failed:
                     raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
-                assert owner._client is not None
+                if not (owner._client is not None):
+                    raise RuntimeError("Expected owner._client is not None")
                 raw = await owner._client.request(
                     "execute",
                     allocation=allocation.allocation_id,

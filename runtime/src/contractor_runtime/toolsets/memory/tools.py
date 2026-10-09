@@ -486,7 +486,8 @@ def _decode_value(namespace: str, binding_name: str, value: ArtifactValue) -> _L
     except MemoryCodecError:
         raise MemoryToolError("memory_unavailable") from None
     revision = value.artifact.revision
-    assert revision is not None
+    if not (revision is not None):
+        raise RuntimeError("Expected revision is not None")
     return _LoadedNote(
         note=note,
         binding_created_at=value.binding_created_at,
@@ -669,7 +670,8 @@ def _full_from_metadata(
     ):
         raise MemoryToolError("memory_unavailable")
     revision = metadata.artifact.require_exact().revision
-    assert revision is not None
+    if not (revision is not None):
+        raise RuntimeError("Expected revision is not None")
     return _full(
         _LoadedNote(
             note=note,

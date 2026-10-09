@@ -137,7 +137,8 @@ class _Capture(asyncio.SubprocessProtocol):
 
     def abort(self, code: SandboxErrorCode) -> None:
         self.error = self.error or code
-        assert self.transport is not None
+        if not (self.transport is not None):
+            raise RuntimeError("Expected self.transport is not None")
         # Signal only our CLI child through its owning subprocess transport;
         # never send killpg to a remembered PID after its leader has exited.
         # This is NOT proof that helpers or the container have stopped.
@@ -192,7 +193,8 @@ class LocalPodmanCLI:
             if protocol.error is not None:
                 raise SandboxContractError(protocol.error)
             code = transport.get_returncode()
-            assert code is not None
+            if not (code is not None):
+                raise RuntimeError("Expected code is not None")
             return CLIResult(code, bytes(protocol.stdout))
         finally:
             transport.close()

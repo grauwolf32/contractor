@@ -194,7 +194,8 @@ class ResourceCollector:
                 self._mark("read_failed")
             else:
                 previous = self._last_rss_at if self._last_rss_at is not None else self._started
-                assert previous is not None
+                if not (previous is not None):
+                    raise RuntimeError("Expected previous is not None")
                 self._gap = max(self._gap, at - previous)
                 self._last_rss_at = at
                 self._count += 1

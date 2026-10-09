@@ -467,7 +467,8 @@ class SQLMapTool(ScanTool):
             return command
 
         async def prepare_request(directory: Path) -> list[str]:
-            assert exact_ref is not None
+            if not (exact_ref is not None):
+                raise RuntimeError("Expected exact_ref is not None")
             try:
                 value = await self._session.artifact_client.read_artifact(
                     exact_ref, max_bytes=MAX_REQUEST_ARTIFACT_BYTES
@@ -503,7 +504,8 @@ class SQLMapTool(ScanTool):
             ]
 
         def request_observation(result: ProcessResult) -> dict:
-            assert exact_ref is not None
+            if not (exact_ref is not None):
+                raise RuntimeError("Expected exact_ref is not None")
             response = self.observation(result)
             # Scanner diagnostics can echo or transform credentials and payloads.
             # A finite vocabulary preserves evidence without substring-redaction
@@ -678,7 +680,8 @@ class FFUFTool(ScanTool):
 
         async def prepare_wordlist(directory: Path) -> list[str]:
             nonlocal entries
-            assert exact_ref is not None
+            if not (exact_ref is not None):
+                raise RuntimeError("Expected exact_ref is not None")
             try:
                 value = await self._session.artifact_client.read_artifact(
                     exact_ref, max_bytes=MAX_WORDLIST_ARTIFACT_BYTES
@@ -699,7 +702,8 @@ class FFUFTool(ScanTool):
             return ["-w", f"{path}:FUZZ"]
 
         def observation(result: ProcessResult) -> dict:
-            assert exact_ref is not None
+            if not (exact_ref is not None):
+                raise RuntimeError("Expected exact_ref is not None")
             return {
                 **ffuf_observation(result, entries),
                 "wordlistArtifact": exact_ref.model_dump(by_alias=True),

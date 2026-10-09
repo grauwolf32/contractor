@@ -268,12 +268,14 @@ class ControlClient:
             self._reconciliation_task.add_done_callback(_consume_background_task)
 
     async def _run_reconciliation(self) -> None:
-        assert self._reconciliation is not None
+        if not (self._reconciliation is not None):
+            raise RuntimeError("Expected self._reconciliation is not None")
         while self._pending_reconciliation:
             action, allocation_id = self._pending_reconciliation.popleft()
             try:
                 if action is ReconciliationAction.DRAIN:
-                    assert allocation_id is not None
+                    if not (allocation_id is not None):
+                        raise RuntimeError("Expected allocation_id is not None")
                     await self._reconciliation.reconcile_drain(
                         allocation_id, self._settings.shutdown_grace_seconds
                     )

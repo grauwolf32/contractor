@@ -480,7 +480,8 @@ class AdkWorkerRuntime:
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
-                    assert isinstance(outcome, WorkerResult)
+                    if not (isinstance(outcome, WorkerResult)):
+                        raise RuntimeError("Expected isinstance(outcome, WorkerResult)")
                     exported = await exporter.export(outcome)
                 except WorkspaceExportError as error:
                     self._metrics.record_workspace_export(error=error)

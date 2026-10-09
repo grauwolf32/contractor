@@ -3,7 +3,7 @@ id: V342-001
 title: Replace production asserts in the Runtime
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V309-001, V313-001, V317-001, V320-001]
 languages: [python]
 goal: Follow the no-assert convention in production Python.

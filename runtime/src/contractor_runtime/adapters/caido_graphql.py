@@ -530,7 +530,8 @@ def _decode_response(raw: bytes) -> dict[str, Any]:
         # Nesting beyond the parser's recursion limit is malformed, not transient.
         raise CaidoClientError("caido_response_invalid", retryable=False) from None
     _validate_response_shape(decoded)
-    assert isinstance(decoded, dict)
+    if not (isinstance(decoded, dict)):
+        raise RuntimeError("Expected isinstance(decoded, dict)")
     errors = decoded.get("errors")
     if errors:
         raise CaidoClientError("caido_request_failed", retryable=False)
