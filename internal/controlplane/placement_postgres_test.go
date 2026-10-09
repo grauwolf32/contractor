@@ -16,6 +16,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -661,12 +662,12 @@ func (placementRuntimeCatalog) WithCredentialReferences(_ context.Context, fn fu
 }
 
 type placementGatewayLookup struct {
-	gateway contracts.ResolvedLLMGatewayConfig
+	gateway llmgateway.ResolvedLLMGatewayConfig
 }
 
-func (l placementGatewayLookup) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (l placementGatewayLookup) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	if raw != l.gateway.Ref.GatewayID+"@"+l.gateway.Ref.Version {
-		return contracts.ResolvedLLMGatewayConfig{}, workflowconfig.ErrConfigurationNotFound
+		return llmgateway.ResolvedLLMGatewayConfig{}, workflowconfig.ErrConfigurationNotFound
 	}
 	return l.gateway, nil
 }

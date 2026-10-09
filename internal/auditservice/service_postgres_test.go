@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -478,7 +479,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	}
 	development, err := managedcredentials.NewStaticProvider([]managedcredentials.StaticEntry{{
 		Metadata: config.CredentialMetadata{
-			Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
+			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway.Ref, Unrestricted: true,
 		},
 		Token: contracts.NewSecretString("development-test-token"),
@@ -1438,7 +1439,7 @@ func (c *switchableProfileCatalog) setAvailable(value bool) {
 type switchableCredentialLookup struct {
 	mu        sync.Mutex
 	available bool
-	gateway   contracts.LLMGatewayConfigRef
+	gateway   llmgateway.LLMGatewayConfigRef
 }
 
 func (l *switchableCredentialLookup) LookupLLMCredential(
@@ -1450,7 +1451,7 @@ func (l *switchableCredentialLookup) LookupLLMCredential(
 		return config.CredentialMetadata{}, errors.New("credential unavailable")
 	}
 	return config.CredentialMetadata{
-		Ref:          contracts.LLMCredentialRef{CredentialID: id},
+		Ref:          llmgateway.LLMCredentialRef{CredentialID: id},
 		LLMGateway:   l.gateway,
 		Unrestricted: true,
 	}, nil

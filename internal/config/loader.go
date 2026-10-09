@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -24,7 +25,7 @@ type loader struct {
 	descriptors                 Descriptors
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
-	gateways                    map[string]contracts.ResolvedLLMGatewayConfig
+	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
 	executionConfigs            map[string]ResolvedExecutionConfigProfile
 	templates                   map[string]contracts.ResolvedAgentTemplate
 	workflows                   map[string]ResolvedWorkflow
@@ -113,7 +114,7 @@ func loadConfigurationRoots(
 		descriptors:                 normalizedDescriptors,
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
-		gateways:                    make(map[string]contracts.ResolvedLLMGatewayConfig),
+		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
 		executionConfigs:            make(map[string]ResolvedExecutionConfigProfile),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:                   make(map[string]ResolvedWorkflow),

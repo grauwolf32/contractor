@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -32,13 +33,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type testCredentials struct{ gateway contracts.LLMGatewayConfigRef }
+type testCredentials struct {
+	gateway llmgateway.LLMGatewayConfigRef
+}
 
 func (c testCredentials) LookupLLMCredential(_ context.Context, id string) (config.CredentialMetadata, error) {
 	if id != "development-worker" {
 		return config.CredentialMetadata{}, errors.New("unexpected fixture credential")
 	}
-	return config.CredentialMetadata{Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
+	return config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: c.gateway, Unrestricted: true}, nil
 }
 
 type testBarrier struct{}

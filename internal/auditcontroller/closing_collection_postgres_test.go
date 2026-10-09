@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -284,7 +285,7 @@ func childFindingGrant(
 	}
 	binding := stage.Agents["worker"]
 	runtimeAgentID := strings.Repeat("a", 64)
-	gateway := contracts.LLMGatewayConfigRef{
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
 	if err := harness.runs.RecordStageAllocation(ctx, runstore.StageAllocation{

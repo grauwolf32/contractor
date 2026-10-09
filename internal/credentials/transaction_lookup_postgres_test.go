@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -44,9 +45,9 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 
 	resolver := runtimeconfig.GatewayResolverFunc(func(
 		context.Context, string,
-	) (contracts.ResolvedLLMGatewayConfig, error) {
-		return contracts.ResolvedLLMGatewayConfig{
-			Ref: record.LLMGateway, Protocol: contracts.OpenAICompatibleProtocol,
+	) (llmgateway.ResolvedLLMGatewayConfig, error) {
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref: record.LLMGateway, Protocol: llmgateway.OpenAICompatibleProtocol,
 			URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
@@ -232,6 +233,6 @@ func (c transactionTestRuntimeCredentialCatalog) ForRuntimeTransaction(pgx.Tx) (
 	return c, nil
 }
 
-func recordCredentialRef(record Record) contracts.LLMCredentialRef {
-	return contracts.LLMCredentialRef{CredentialID: record.CredentialID}
+func recordCredentialRef(record Record) llmgateway.LLMCredentialRef {
+	return llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}
 }

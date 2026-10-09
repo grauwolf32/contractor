@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
@@ -126,7 +127,7 @@ type PinnedRuntimeConfig struct {
 // Worker route leaves. Gateway null is not a valid operation; Credential clear
 // is the one supported tri-state.
 type WorkerRoutePatch struct {
-	Gateway    Field[contracts.LLMGatewayConfigRef]
+	Gateway    Field[llmgateway.LLMGatewayConfigRef]
 	Credential Field[string]
 }
 
@@ -134,8 +135,8 @@ type WorkerRoutePatch struct {
 // to prove that a candidate route still permits the already selected policy
 // and model alias. It contains no token or remote key identifier.
 type LLMCredentialAuthorization struct {
-	Ref           contracts.LLMCredentialRef
-	LLMGateway    contracts.LLMGatewayConfigRef
+	Ref           llmgateway.LLMCredentialRef
+	LLMGateway    llmgateway.LLMGatewayConfigRef
 	ModelPolicies []contracts.ModelPolicyRef
 	Models        []string
 	Unrestricted  bool
@@ -151,7 +152,7 @@ type ResolveRuntimeConfigInput struct {
 	RunOverride           WorkerRoutePatch
 	Escalation            WorkerRoutePatch
 	AgentLabels           []PinnedRuntimeConfig
-	Gateways              map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig
+	Gateways              map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig
 	LLMCredentials        map[string]LLMCredentialAuthorization
 	RuntimeCredentials    map[string]contracts.RuntimeCredentialKind
 }
@@ -161,8 +162,8 @@ type ResolveRuntimeConfigInput struct {
 type ResolvedRuntimeConfig struct {
 	ModelFree                bool                                            `json:"modelFree,omitempty"`
 	ModelPolicy              contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
-	LLMGateway               contracts.ResolvedLLMGatewayConfig              `json:"llmGateway,omitzero"`
-	LLMCredential            *contracts.LLMCredentialRef                     `json:"llmCredential,omitempty"`
+	LLMGateway               llmgateway.ResolvedLLMGatewayConfig             `json:"llmGateway,omitzero"`
+	LLMCredential            *llmgateway.LLMCredentialRef                    `json:"llmCredential,omitempty"`
 	WorkerTelemetry          *TelemetryConfig                                `json:"workerTelemetry,omitempty"`
 	HTTPProxy                *HTTPProxyConfig                                `json:"httpProxy,omitempty"`
 	Caido                    *CaidoConfig                                    `json:"caido,omitempty"`
@@ -175,14 +176,14 @@ type ResolvedRuntimeConfig struct {
 
 func (r ResolvedRuntimeConfig) Validate() error {
 	if r.ModelFree {
-		if !r.ModelPolicy.IsZero() || r.LLMGateway != (contracts.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
+		if !r.ModelPolicy.IsZero() || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
 			return resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
 		}
 	} else {
 		if err := r.ModelPolicy.Validate(); err != nil {
 			return resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
 		}
-		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != contracts.OpenAICompatibleProtocol {
+		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != llmgateway.OpenAICompatibleProtocol {
 			return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
 		}
 	}
@@ -201,8 +202,8 @@ func (r ResolvedRuntimeConfig) Validate() error {
 }
 
 type effectiveRuntimeConfig struct {
-	gateway          *contracts.LLMGatewayConfigRef
-	credential       *contracts.LLMCredentialRef
+	gateway          *llmgateway.LLMGatewayConfigRef
+	credential       *llmgateway.LLMCredentialRef
 	workerTelemetry  *TelemetryConfig
 	httpProxy        *HTTPProxyConfig
 	caido            *CaidoConfig
@@ -269,8 +270,8 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	applyRoutePatch(&effective, input.Escalation, RuntimeFieldOrigin{Layer: LayerEscalation})
 	applyWorkerSpec(&effective, agentSpec.Worker, agentOrigins)
 
-	var gateway contracts.ResolvedLLMGatewayConfig
-	var gatewayRef *contracts.LLMGatewayConfigRef
+	var gateway llmgateway.ResolvedLLMGatewayConfig
+	var gatewayRef *llmgateway.LLMGatewayConfigRef
 	if !input.ModelFree {
 		if effective.gateway == nil {
 			return ResolvedRuntimeConfig{}, resolutionError(
@@ -284,7 +285,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 				ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
 			)
 		}
-		if err := gateway.Validate(); err != nil || gateway.Protocol != contracts.OpenAICompatibleProtocol {
+		if err := gateway.Validate(); err != nil || gateway.Protocol != llmgateway.OpenAICompatibleProtocol {
 			return ResolvedRuntimeConfig{}, resolutionError(
 				ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid,
 			)
@@ -407,7 +408,7 @@ func validatePinned(value PinnedRuntimeConfig, expectedLabel string) error {
 }
 
 func validateRoutePatch(value WorkerRoutePatch, path string) error {
-	if value.Gateway.Clear || !value.Gateway.Present && value.Gateway.Value != (contracts.LLMGatewayConfigRef{}) {
+	if value.Gateway.Clear || !value.Gateway.Present && value.Gateway.Value != (llmgateway.LLMGatewayConfigRef{}) {
 		return resolutionError(ResolutionInvalid, path+".llmGateway.gateway", ErrInvalid)
 	}
 	if value.Gateway.Present && value.Gateway.Value.ValidateRef() != nil {
@@ -418,7 +419,7 @@ func validateRoutePatch(value WorkerRoutePatch, path string) error {
 		return resolutionError(ResolutionInvalid, path+".llmGateway.credential", ErrInvalid)
 	}
 	if value.Credential.Present && !value.Credential.Clear {
-		if err := (&contracts.LLMCredentialRef{CredentialID: value.Credential.Value}).Validate(); err != nil {
+		if err := (&llmgateway.LLMCredentialRef{CredentialID: value.Credential.Value}).Validate(); err != nil {
 			return resolutionError(ResolutionInvalid, path+".llmGateway.credential", ErrInvalid)
 		}
 	}
@@ -435,7 +436,7 @@ func applyRoutePatch(target *effectiveRuntimeConfig, patch WorkerRoutePatch, ori
 		if patch.Credential.Clear {
 			target.credential = nil
 		} else {
-			target.credential = &contracts.LLMCredentialRef{CredentialID: patch.Credential.Value}
+			target.credential = &llmgateway.LLMCredentialRef{CredentialID: patch.Credential.Value}
 		}
 		target.origins.LLMCredential = cloneOrigin(&origin)
 	}
@@ -451,7 +452,7 @@ func applyWorkerSpec(target *effectiveRuntimeConfig, patch WorkerPatch, origins 
 		if patch.LLMGateway.Credential.Clear {
 			target.credential = nil
 		} else {
-			target.credential = &contracts.LLMCredentialRef{CredentialID: patch.LLMGateway.Credential.Value}
+			target.credential = &llmgateway.LLMCredentialRef{CredentialID: patch.LLMGateway.Credential.Value}
 		}
 		target.origins.LLMCredential = cloneOrigin(origins.credential)
 	}
@@ -500,8 +501,8 @@ func applyPlannerSpec(target *effectiveRuntimeConfig, patch PlannerPatch, origin
 
 func validateLLMRoute(
 	input ResolveRuntimeConfigInput,
-	gateway contracts.LLMGatewayConfigRef,
-	credential *contracts.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
+	credential *llmgateway.LLMCredentialRef,
 ) error {
 	if credential == nil {
 		return nil
@@ -772,7 +773,7 @@ func cloneResolvedModelPolicy(value contracts.ResolvedModelPolicy) contracts.Res
 	return result
 }
 
-func cloneResolvedGateway(value contracts.ResolvedLLMGatewayConfig) contracts.ResolvedLLMGatewayConfig {
+func cloneResolvedGateway(value llmgateway.ResolvedLLMGatewayConfig) llmgateway.ResolvedLLMGatewayConfig {
 	result := value
 	if value.CredentialManager != nil {
 		manager := *value.CredentialManager
@@ -781,7 +782,7 @@ func cloneResolvedGateway(value contracts.ResolvedLLMGatewayConfig) contracts.Re
 	return result
 }
 
-func cloneGatewayRef(value *contracts.LLMGatewayConfigRef) *contracts.LLMGatewayConfigRef {
+func cloneGatewayRef(value *llmgateway.LLMGatewayConfigRef) *llmgateway.LLMGatewayConfigRef {
 	if value == nil {
 		return nil
 	}
@@ -789,7 +790,7 @@ func cloneGatewayRef(value *contracts.LLMGatewayConfigRef) *contracts.LLMGateway
 	return &result
 }
 
-func sameCredentialRef(left, right *contracts.LLMCredentialRef) bool {
+func sameCredentialRef(left, right *llmgateway.LLMCredentialRef) bool {
 	return left == nil && right == nil ||
 		left != nil && right != nil && *left == *right
 }

@@ -3,7 +3,7 @@ package credentials
 import (
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // ManagerRegistration binds one immutable implementation identifier to its
@@ -33,7 +33,7 @@ func NewManagerRegistry(registrations ...ManagerRegistration) (*ManagerRegistry,
 }
 
 func (r *ManagerRegistry) ForGateway(
-	gateway contracts.ResolvedLLMGatewayConfig,
+	gateway llmgateway.ResolvedLLMGatewayConfig,
 ) (GatewayCredentialManager, error) {
 	if r == nil || gateway.Validate() != nil || gateway.CredentialManager == nil {
 		return nil, ErrManagerUnavailable

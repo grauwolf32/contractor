@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -66,7 +67,7 @@ func TestCredentialLifecycleCreatesAndReplaysWithoutExposingToken(t *testing.T) 
 
 	provider, _ := NewEncryptedProvider(NewRepository(pool), fixture.cipher)
 	resolved, err := provider.ResolveLLMCredential(
-		ctx, contracts.LLMCredentialRef{CredentialID: request.CredentialID}, fixture.gateway.Ref,
+		ctx, llmgateway.LLMCredentialRef{CredentialID: request.CredentialID}, fixture.gateway.Ref,
 	)
 	if err != nil || resolved.Reveal() != manager.secretFor(request.CredentialID) {
 		t.Fatalf("resolved created token = (%s, %v)", resolved, err)
@@ -539,7 +540,7 @@ func TestCredentialManagerValidationRunsBeforeDurableIntent(t *testing.T) {
 type lifecycleFixture struct {
 	service *Service
 	cipher  *TokenCipher
-	gateway contracts.ResolvedLLMGatewayConfig
+	gateway llmgateway.ResolvedLLMGatewayConfig
 }
 
 func newLifecycleFixture(
@@ -561,16 +562,16 @@ func newLifecycleFixtureWithCipher(
 	overrides ServiceOptions,
 ) lifecycleFixture {
 	t.Helper()
-	gateway := contracts.ResolvedLLMGatewayConfig{
+	gateway := llmgateway.ResolvedLLMGatewayConfig{
 		Ref:      testPinnedGatewayRef("1", strings.Repeat("1", 64)),
-		Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
-		CredentialManager: &contracts.LLMGatewayCredentialManager{
-			Implementation: contracts.LiteLLMVirtualKeysManager,
+		Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		CredentialManager: &llmgateway.LLMGatewayCredentialManager{
+			Implementation: llmgateway.LiteLLMVirtualKeysManager,
 			ManagementURL:  "http://127.0.0.1:4000",
 		},
 	}
 	registry, err := NewManagerRegistry(ManagerRegistration{
-		Implementation: contracts.LiteLLMVirtualKeysManager, Manager: manager,
+		Implementation: llmgateway.LiteLLMVirtualKeysManager, Manager: manager,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -613,12 +614,12 @@ func (f lifecycleFixture) createRequest(credentialID, key string) CreateRequest 
 }
 
 type staticGatewayLookup struct {
-	gateway contracts.ResolvedLLMGatewayConfig
+	gateway llmgateway.ResolvedLLMGatewayConfig
 }
 
-func (l staticGatewayLookup) LLMGateway(selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (l staticGatewayLookup) LLMGateway(selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	if selector != l.gateway.Ref.GatewayID+"@"+l.gateway.Ref.Version {
-		return contracts.ResolvedLLMGatewayConfig{}, errors.New("not found")
+		return llmgateway.ResolvedLLMGatewayConfig{}, errors.New("not found")
 	}
 	return l.gateway, nil
 }

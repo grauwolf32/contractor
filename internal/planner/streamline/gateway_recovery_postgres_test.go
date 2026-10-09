@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -224,7 +225,7 @@ func admittedPlannerParticipant(
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
 		t.Fatal(err)
 	}
-	return service.Planner(runID, "stage-1", route, contracts.DefaultGatewayFailureSignatures())
+	return service.Planner(runID, "stage-1", route, llmgateway.DefaultGatewayFailureSignatures())
 }
 
 func recoveryBackedPlanner(

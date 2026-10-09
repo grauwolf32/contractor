@@ -21,6 +21,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -387,15 +388,15 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	plannerPolicy, _ := snapshot.ModelPolicy("test-planner@1")
 	workerPolicy, _ := snapshot.ModelPolicy("test-domain-worker@1")
 	workerGateway, _ := snapshot.LLMGateway("local-litellm@1")
-	plannerGateway := contracts.ResolvedLLMGatewayConfig{
-		Ref: contracts.LLMGatewayConfigRef{
+	plannerGateway := llmgateway.ResolvedLLMGatewayConfig{
+		Ref: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "planner-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 		},
-		Protocol: contracts.OpenAICompatibleProtocol,
+		Protocol: llmgateway.OpenAICompatibleProtocol,
 		URL:      "https://planner.example/v1",
 	}
-	plannerCredential := contracts.LLMCredentialRef{CredentialID: "planner-credential"}
-	workerCredential := contracts.LLMCredentialRef{CredentialID: "worker-credential"}
+	plannerCredential := llmgateway.LLMCredentialRef{CredentialID: "planner-credential"}
+	workerCredential := llmgateway.LLMCredentialRef{CredentialID: "worker-credential"}
 	provider, err := credentials.NewStaticProvider([]credentials.StaticEntry{
 		{
 			Metadata: workflowconfig.CredentialMetadata{
@@ -448,7 +449,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 		t.Fatalf("Planner model access = %+v", plannerAccess)
 	}
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		return contracts.SecretString{}, errors.New("provider leaked worker-secret")
 	})
@@ -1905,8 +1906,8 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		},
 		Credentials: credentialResolverFunc(func(
 			_ context.Context,
-			credential contracts.LLMCredentialRef,
-			_ contracts.LLMGatewayConfigRef,
+			credential llmgateway.LLMCredentialRef,
+			_ llmgateway.LLMGatewayConfigRef,
 		) (contracts.SecretString, error) {
 			if credential.CredentialID != "development-worker" &&
 				credential.CredentialID != "development-planner" {
@@ -2563,8 +2564,8 @@ func schedulerTestResolvedWorkerConfig(selection workflowconfig.ResolvedConsumer
 	}
 	if selection.LLMGateway != nil {
 		gateway := *selection.LLMGateway
-		input.Workflow.Gateway = runtimeconfig.Field[contracts.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
-		input.Gateways = map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
+		input.Workflow.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
+		input.Gateways = map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
 		if selection.Credential != nil {
 			input.Workflow.Credential = runtimeconfig.Field[string]{Present: true, Value: selection.Credential.CredentialID}
 			input.LLMCredentials = map[string]runtimeconfig.LLMCredentialAuthorization{
@@ -2910,14 +2911,14 @@ func (f plannerFunc) Run(ctx context.Context) (contracts.StageContentResult, err
 
 type credentialResolverFunc func(
 	context.Context,
-	contracts.LLMCredentialRef,
-	contracts.LLMGatewayConfigRef,
+	llmgateway.LLMCredentialRef,
+	llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error)
 
 func (f credentialResolverFunc) ResolveLLMCredential(
 	ctx context.Context,
-	credential contracts.LLMCredentialRef,
-	gateway contracts.LLMGatewayConfigRef,
+	credential llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	return f(ctx, credential, gateway)
 }

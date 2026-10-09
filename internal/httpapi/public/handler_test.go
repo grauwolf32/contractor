@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -719,12 +720,12 @@ func newHandlerFixtureWithAuth(
 	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
 		for _, id := range []string{"development-worker", "development-planner"} {
 			managedCredentials.lookups[id] = config.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 			}
 		}
 	}
 	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
-		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			return manager.LLMGateway(selector)
 		},
 	))
@@ -975,7 +976,7 @@ func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) 
 	fixture := newHandlerFixture(t)
 	fixture.credentials.records["managed-worker"] = credentials.Record{
 		CredentialID: "managed-worker",
-		LLMGateway: contracts.LLMGatewayConfigRef{
+		LLMGateway: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("1", 64),
 		},
 		EffectivePolicy: credentials.EffectiveGatewayPolicy{

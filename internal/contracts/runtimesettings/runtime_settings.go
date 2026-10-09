@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 var headerNamePattern = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]+$`)
@@ -175,13 +176,13 @@ type RuntimeSettings struct {
 	LLMGatewayToken *contracts.SecretString `json:"llmGatewayToken,omitempty"`
 	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
 	// absent means the protocol default, exactly as on the Gateway body.
-	LLMGatewayFailureSignatures *contracts.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
-	ArtifactAPIURL              string                              `json:"artifactApiUrl"`
-	Telemetry                   *TelemetrySettings                  `json:"telemetry,omitempty"`
-	HTTPProxy                   *HTTPProxySettings                  `json:"httpProxy,omitempty"`
-	Caido                       *CaidoSettings                      `json:"caido,omitempty"`
-	HTTPOriginTarget            *HTTPOriginTargetSettings           `json:"httpOriginTarget,omitempty"`
-	RequestTimeoutSeconds       int                                 `json:"requestTimeoutSeconds"`
+	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
+	ArtifactAPIURL              string                               `json:"artifactApiUrl"`
+	Telemetry                   *TelemetrySettings                   `json:"telemetry,omitempty"`
+	HTTPProxy                   *HTTPProxySettings                   `json:"httpProxy,omitempty"`
+	Caido                       *CaidoSettings                       `json:"caido,omitempty"`
+	HTTPOriginTarget            *HTTPOriginTargetSettings            `json:"httpOriginTarget,omitempty"`
+	RequestTimeoutSeconds       int                                  `json:"requestTimeoutSeconds"`
 }
 
 // SecretValues returns the credential values materialized for one allocation.
@@ -379,8 +380,8 @@ type ResolvedRuntimeConfigProvenance struct {
 	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels"`
 	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels"`
 	RuntimeAdapters       []contracts.RuntimeAdapterRef   `json:"runtimeAdapters"`
-	LLMGatewayConfig      *contracts.LLMGatewayConfigRef  `json:"llmGatewayConfig,omitempty"`
-	LLMCredential         *contracts.LLMCredentialRef     `json:"llmCredential,omitempty"`
+	LLMGatewayConfig      *llmgateway.LLMGatewayConfigRef `json:"llmGatewayConfig,omitempty"`
+	LLMCredential         *llmgateway.LLMCredentialRef    `json:"llmCredential,omitempty"`
 	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs"`
 }
 

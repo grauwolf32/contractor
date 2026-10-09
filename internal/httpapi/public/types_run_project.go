@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -410,8 +411,8 @@ type stageExecutionConfigResponse struct {
 }
 
 type consumerExecutionConfigRefsResponse struct {
-	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy,omitzero"`
-	LLMGateway  *contracts.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
-	Credential  *contracts.LLMCredentialRef    `json:"credential,omitempty"`
-	Origins     config.ExecutionConfigOrigins  `json:"origins"`
+	ModelPolicy contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
+	LLMGateway  *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Credential  *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
+	Origins     config.ExecutionConfigOrigins   `json:"origins"`
 }

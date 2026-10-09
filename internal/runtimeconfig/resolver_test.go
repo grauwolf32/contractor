@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
@@ -271,7 +272,7 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 		input := resolverInput()
 		input.Default.Spec.Worker.LLMGateway.Credential = credentialField("agent-key")
 		input.LLMCredentials["agent-key"] = LLMCredentialAuthorization{
-			Ref:        contracts.LLMCredentialRef{CredentialID: "agent-key"},
+			Ref:        llmgateway.LLMCredentialRef{CredentialID: "agent-key"},
 			LLMGateway: testGatewayRef("primary", "1"),
 			ModelPolicies: []contracts.ModelPolicyRef{{
 				PolicyID: "other", Version: "1", Digest: testDigest("9"),
@@ -342,7 +343,7 @@ func TestResolverAllowsExplicitUnrestrictedDevelopmentCredentialOnlyOnExactGatew
 	input := resolverInput()
 	input.Default.Spec.Worker.LLMGateway.Credential = credentialField("development-key")
 	input.LLMCredentials["development-key"] = LLMCredentialAuthorization{
-		Ref:        contracts.LLMCredentialRef{CredentialID: "development-key"},
+		Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-key"},
 		LLMGateway: testGatewayRef("primary", "1"), Unrestricted: true,
 	}
 	result, err := ResolveRuntimeConfig(input)
@@ -352,7 +353,7 @@ func TestResolverAllowsExplicitUnrestrictedDevelopmentCredentialOnlyOnExactGatew
 	}
 
 	input.LLMCredentials["development-key"] = LLMCredentialAuthorization{
-		Ref:        contracts.LLMCredentialRef{CredentialID: "development-key"},
+		Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-key"},
 		LLMGateway: testGatewayRef("secondary", "2"), Unrestricted: true,
 	}
 	_, err = ResolveRuntimeConfig(input)
@@ -440,13 +441,13 @@ func resolverInput() ResolveRuntimeConfigInput {
 				Present: true, Gateway: gatewayField(primaryRef),
 			}}},
 		},
-		Gateways: map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig{
+		Gateways: map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig{
 			primaryRef: {
-				Ref: primaryRef, Protocol: contracts.OpenAICompatibleProtocol,
+				Ref: primaryRef, Protocol: llmgateway.OpenAICompatibleProtocol,
 				URL: "http://127.0.0.1:4000/v1",
 			},
 			secondaryRef: {
-				Ref: secondaryRef, Protocol: contracts.OpenAICompatibleProtocol,
+				Ref: secondaryRef, Protocol: llmgateway.OpenAICompatibleProtocol,
 				URL: "https://gateway.example/v1",
 			},
 		},
@@ -456,10 +457,10 @@ func resolverInput() ResolveRuntimeConfigInput {
 }
 
 func authorization(
-	input ResolveRuntimeConfigInput, credentialID string, gateway contracts.LLMGatewayConfigRef,
+	input ResolveRuntimeConfigInput, credentialID string, gateway llmgateway.LLMGatewayConfigRef,
 ) LLMCredentialAuthorization {
 	return LLMCredentialAuthorization{
-		Ref: contracts.LLMCredentialRef{CredentialID: credentialID}, LLMGateway: gateway,
+		Ref: llmgateway.LLMCredentialRef{CredentialID: credentialID}, LLMGateway: gateway,
 		ModelPolicies: []contracts.ModelPolicyRef{input.ModelPolicy.Ref}, Models: []string{input.ModelPolicy.Model},
 	}
 }
@@ -473,8 +474,8 @@ func testPin(label, digit string, spec Spec) PinnedRuntimeConfig {
 
 func pointerPin(value PinnedRuntimeConfig) *PinnedRuntimeConfig { return &value }
 
-func gatewayField(ref contracts.LLMGatewayConfigRef) Field[contracts.LLMGatewayConfigRef] {
-	return Field[contracts.LLMGatewayConfigRef]{Present: true, Value: ref}
+func gatewayField(ref llmgateway.LLMGatewayConfigRef) Field[llmgateway.LLMGatewayConfigRef] {
+	return Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: ref}
 }
 
 func credentialField(credentialID string) Field[string] {
@@ -502,8 +503,8 @@ func caidoPatch(endpoint, credentialID string) AtomicPatch[CaidoConfig] {
 	}}
 }
 
-func testGatewayRef(name, digit string) contracts.LLMGatewayConfigRef {
-	return contracts.LLMGatewayConfigRef{GatewayID: name, Version: "1", Digest: testDigest(digit)}
+func testGatewayRef(name, digit string) llmgateway.LLMGatewayConfigRef {
+	return llmgateway.LLMGatewayConfigRef{GatewayID: name, Version: "1", Digest: testDigest(digit)}
 }
 
 func testDigest(digit string) string { return "sha256:" + strings.Repeat(digit, 64) }

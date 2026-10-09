@@ -11,7 +11,7 @@ import (
 	"io"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 type TokenCipher struct {
@@ -166,7 +166,7 @@ func (c *TokenCipher) GoString() string { return c.String() }
 
 func (c *TokenCipher) Seal(
 	credentialID string,
-	gateway contracts.LLMGatewayConfigRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 	token Token,
 ) (EncryptedEnvelope, error) {
 	if c == nil || c.aead == nil {
@@ -201,7 +201,7 @@ func (c *TokenCipher) Seal(
 
 func (c *TokenCipher) Open(
 	credentialID string,
-	gateway contracts.LLMGatewayConfigRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 	envelope EncryptedEnvelope,
 ) (Token, error) {
 	if c == nil || c.aead == nil {
@@ -233,8 +233,8 @@ func (c *TokenCipher) Open(
 	return token, nil
 }
 
-func validateCipherIdentity(credentialID string, gateway contracts.LLMGatewayConfigRef) error {
-	if err := (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
+func validateCipherIdentity(credentialID string, gateway llmgateway.LLMGatewayConfigRef) error {
+	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
 		return fmt.Errorf("%w: credential identity is invalid", ErrInvalid)
 	}
 	if err := gateway.ValidateRef(); err != nil {
@@ -243,11 +243,11 @@ func validateCipherIdentity(credentialID string, gateway contracts.LLMGatewayCon
 	return nil
 }
 
-func credentialAAD(credentialID string, gateway contracts.LLMGatewayConfigRef) ([]byte, error) {
+func credentialAAD(credentialID string, gateway llmgateway.LLMGatewayConfigRef) ([]byte, error) {
 	return json.Marshal(struct {
-		SchemaVersion string                        `json:"schemaVersion"`
-		CredentialID  string                        `json:"credentialId"`
-		LLMGateway    contracts.LLMGatewayConfigRef `json:"llmGateway"`
+		SchemaVersion string                         `json:"schemaVersion"`
+		CredentialID  string                         `json:"credentialId"`
+		LLMGateway    llmgateway.LLMGatewayConfigRef `json:"llmGateway"`
 	}{
 		SchemaVersion: CredentialSchemaVersion,
 		CredentialID:  credentialID,

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -569,7 +570,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 }
 
 func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
-	gateway := contracts.LLMGatewayConfigRef{
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
 	return &runstore.AllocationRuntimeConfiguration{

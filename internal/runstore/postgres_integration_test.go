@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -765,7 +766,7 @@ func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *tes
 }
 
 func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
-	gateway := contracts.LLMGatewayConfigRef{
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
 	return &AllocationRuntimeConfiguration{
@@ -1600,7 +1601,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	configuration := testAllocationRuntimeConfiguration()
-	credential := contracts.LLMCredentialRef{CredentialID: "allocation-only-key"}
+	credential := llmgateway.LLMCredentialRef{CredentialID: "allocation-only-key"}
 	configuration.Provenance.LLMCredential = &credential
 	if err := store.RecordStageAllocation(ctx, StageAllocation{
 		AllocationID: "allocation-live-credential", StageExecutionID: execution.StageExecutionID,

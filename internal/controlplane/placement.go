@@ -12,6 +12,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -24,7 +25,7 @@ import (
 var errPlacementRevisionChanged = errors.New("placement revisions changed")
 
 type PlacementGatewayLookup interface {
-	LLMGateway(string) (contracts.ResolvedLLMGatewayConfig, error)
+	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
 type PlacementCredentialGuard interface {
@@ -570,8 +571,8 @@ func loadPinnedRuntimeConfig(
 func (a *PlacementAllocator) gatewayCatalog(
 	selection workflowconfig.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
-) (map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig, error) {
-	refs := make(map[contracts.LLMGatewayConfigRef]struct{})
+) (map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, error) {
+	refs := make(map[llmgateway.LLMGatewayConfigRef]struct{})
 	if selection.LLMGateway != nil {
 		refs[selection.LLMGateway.Ref] = struct{}{}
 	}
@@ -580,7 +581,7 @@ func (a *PlacementAllocator) gatewayCatalog(
 			refs[field.Value] = struct{}{}
 		}
 	}
-	result := make(map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig, len(refs))
+	result := make(map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig, len(refs))
 	for ref := range refs {
 		gateway, err := a.gateways.LLMGateway(ref.GatewayID + "@" + ref.Version)
 		if err != nil || gateway.Ref != ref {
@@ -719,7 +720,7 @@ func runtimeRoutePatches(
 		if err != nil {
 			return workflow, run, escalation, err
 		}
-		patch.Gateway = runtimeconfig.Field[contracts.LLMGatewayConfigRef]{
+		patch.Gateway = runtimeconfig.Field[llmgateway.LLMGatewayConfigRef]{
 			Present: true, Value: selection.LLMGateway.Ref,
 		}
 	}

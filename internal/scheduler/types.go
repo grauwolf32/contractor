@@ -8,6 +8,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -187,8 +188,8 @@ type WorkerController interface {
 type CredentialResolver interface {
 	ResolveLLMCredential(
 		context.Context,
-		contracts.LLMCredentialRef,
-		contracts.LLMGatewayConfigRef,
+		llmgateway.LLMCredentialRef,
+		llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error)
 }
 

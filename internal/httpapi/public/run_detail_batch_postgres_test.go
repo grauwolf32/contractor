@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -57,7 +58,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := contracts.LLMGatewayConfigRef{GatewayID: "test-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}
+	gateway := llmgateway.LLMGatewayConfigRef{GatewayID: "test-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}
 	configuration := &runstore.AllocationRuntimeConfiguration{
 		ModelPolicy: contracts.ModelPolicyRef{PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{

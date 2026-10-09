@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestTokenCipherRoundTripUsesFreshNonceAndBoundAAD(t *testing.T) {
@@ -48,24 +49,24 @@ func TestTokenCipherRoundTripUsesFreshNonceAndBoundAAD(t *testing.T) {
 		t.Fatalf("opened token differs from exact input")
 	}
 
-	tests := map[string]func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher){
-		"credential identity": func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
+	tests := map[string]func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher){
+		"credential identity": func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
 			return "worker-secondary", gateway, cloneEnvelope(first), cipher
 		},
-		"Gateway identity": func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
+		"Gateway identity": func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
 			return "worker-primary", testPinnedGatewayRef("2", strings.Repeat("2", 64)), cloneEnvelope(first), cipher
 		},
-		"nonce": func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
+		"nonce": func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
 			envelope := cloneEnvelope(first)
 			envelope.Nonce[0] ^= 0xff
 			return "worker-primary", gateway, envelope, cipher
 		},
-		"ciphertext": func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
+		"ciphertext": func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
 			envelope := cloneEnvelope(first)
 			envelope.Ciphertext[len(envelope.Ciphertext)-1] ^= 0xff
 			return "worker-primary", gateway, envelope, cipher
 		},
-		"key": func() (string, contracts.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
+		"key": func() (string, llmgateway.LLMGatewayConfigRef, EncryptedEnvelope, *TokenCipher) {
 			other, otherErr := NewTokenCipher(bytes.Repeat([]byte{0x17}, 32))
 			if otherErr != nil {
 				t.Fatal(otherErr)
@@ -210,8 +211,8 @@ func clonePolicy(value EffectiveGatewayPolicy) EffectiveGatewayPolicy {
 	return value
 }
 
-func testPinnedGatewayRef(version, digest string) contracts.LLMGatewayConfigRef {
-	return contracts.LLMGatewayConfigRef{
+func testPinnedGatewayRef(version, digest string) llmgateway.LLMGatewayConfigRef {
+	return llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: version, Digest: "sha256:" + digest,
 	}
 }

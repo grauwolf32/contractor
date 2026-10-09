@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
@@ -48,7 +49,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
 	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
-		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			return configurationManager.LLMGateway(selector)
 		},
 	))

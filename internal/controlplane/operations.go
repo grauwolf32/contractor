@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
@@ -82,9 +83,9 @@ type MetricsSummary struct {
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {
-	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy,omitzero"`
-	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway,omitzero"`
-	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
+	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy,omitzero"`
+	LLMGateway  llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitzero"`
+	Credential  *llmgateway.LLMCredentialRef   `json:"credential,omitempty"`
 }
 
 func (c AllocationExecutionConfig) Validate() error {

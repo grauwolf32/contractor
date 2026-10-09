@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -95,7 +96,7 @@ func TestWorkerSettingsRequireCompleteReservationSet(t *testing.T) {
 			stage.Agents["reviewer"] = stage.Agents["builder"]
 			stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
 			credentialCalls := 0
-			h.scheduler.options.Credentials = credentialResolverFunc(func(context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef) (contracts.SecretString, error) {
+			h.scheduler.options.Credentials = credentialResolverFunc(func(context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
 				credentialCalls++
 				return contracts.SecretString{}, errors.New("unexpected credential access")
 			})

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -49,7 +50,7 @@ func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.
 			t.Fatal(err)
 		}
 	}
-	return f.service.Planner(id, id, routes[0], contracts.DefaultGatewayFailureSignatures())
+	return f.service.Planner(id, id, routes[0], llmgateway.DefaultGatewayFailureSignatures())
 }
 func (f recoveryFixture) due(t *testing.T) {
 	t.Helper()
@@ -143,7 +144,7 @@ func TestGatewayRecoveryDropsPreviousStageRoutesOnProgression(t *testing.T) {
 		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{oldRoute}); err != nil || !allowed {
 			t.Fatalf("admit first Stage route = %v, %v", allowed, err)
 		}
-		participant := service.Planner("run-1", "invocation-finalizing", oldRoute, contracts.DefaultGatewayFailureSignatures())
+		participant := service.Planner("run-1", "invocation-finalizing", oldRoute, llmgateway.DefaultGatewayFailureSignatures())
 		recoveryUpdate(t, participant, "old-outage", "failed")
 	})
 	var beforeAutomatic, beforeNext time.Time
@@ -434,7 +435,7 @@ func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
 		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{route}); err != nil || !allowed {
 			t.Fatalf("admit route = %v, %v", allowed, err)
 		}
-		participant := service.Planner("run-1", "invocation-finalizing", route, contracts.DefaultGatewayFailureSignatures())
+		participant := service.Planner("run-1", "invocation-finalizing", route, llmgateway.DefaultGatewayFailureSignatures())
 		recoveryUpdate(t, participant, "outage", "failed")
 		run, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-1")
 		if err != nil || run.State != runstore.RunWaiting {

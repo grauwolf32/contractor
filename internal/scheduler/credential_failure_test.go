@@ -11,6 +11,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -39,7 +40,7 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 			var logs bytes.Buffer
 			s := &Scheduler{options: Options{
 				Logger: slog.New(slog.NewTextHandler(&logs, nil)),
-				Credentials: credentialResolverFunc(func(context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef) (contracts.SecretString, error) {
+				Credentials: credentialResolverFunc(func(context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
 					return contracts.SecretString{}, test.err
 				}),
 				RuntimeCredentials: runtimeCredentialResolverFunc(func(context.Context, string, []contracts.RuntimeCredentialKind, func(contracts.RuntimeCredentialKind, []byte) error) error {
@@ -50,8 +51,8 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 			execution := runstore.StageExecution{StageExecutionID: "stage-1"}
 
 			_, plannerErr := s.resolveCredential(t.Context(), workflowconfig.ResolvedConsumerExecutionConfig{
-				LLMGateway: &contracts.ResolvedLLMGatewayConfig{},
-				Credential: &contracts.LLMCredentialRef{CredentialID: "planner-credential"},
+				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
+				Credential: &llmgateway.LLMCredentialRef{CredentialID: "planner-credential"},
 			})
 			_, workerErr := s.materializeRuntimeSettings(t.Context(), runtimeconfig.ResolvedRuntimeConfig{
 				Caido: &runtimeconfig.CaidoConfig{Credential: "caido-lab"},
@@ -110,8 +111,8 @@ func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
 				Logger: slog.New(slog.NewTextHandler(&logs, nil)), Credentials: composite,
 			}}
 			_, resolveErr := s.resolveCredential(t.Context(), workflowconfig.ResolvedConsumerExecutionConfig{
-				LLMGateway: &contracts.ResolvedLLMGatewayConfig{},
-				Credential: &contracts.LLMCredentialRef{CredentialID: "managed-credential"},
+				LLMGateway: &llmgateway.ResolvedLLMGatewayConfig{},
+				Credential: &llmgateway.LLMCredentialRef{CredentialID: "managed-credential"},
 			})
 			if resolveErr == nil || strings.Contains(resolveErr.Error(), secret) {
 				t.Fatalf("credential error = %v", resolveErr)

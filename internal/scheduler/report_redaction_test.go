@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -46,7 +47,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 		staticSecret     = "static-report-secret"
 	)
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+		context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		return contracts.NewSecretString(llmSecret), nil
 	})
@@ -181,7 +182,7 @@ func TestReportPersistenceContinuesWhenCredentialResolutionFails(t *testing.T) {
 		StageExecutionID: "stage-unresolved-report", LogicalAgentName: "builder",
 	}}
 	harness.scheduler.options.Credentials = credentialResolverFunc(func(
-		ctx context.Context, _ contracts.LLMCredentialRef, _ contracts.LLMGatewayConfigRef,
+		ctx context.Context, _ llmgateway.LLMCredentialRef, _ llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error) {
 		<-ctx.Done()
 		return contracts.SecretString{}, ctx.Err()

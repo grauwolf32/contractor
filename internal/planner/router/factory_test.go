@@ -17,6 +17,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -678,9 +679,9 @@ func testInvocation() planner.Invocation {
 				Model: "fake-router-model", MaxOutputTokens: 1024,
 				MaxModelCalls: 32, MaxTotalTokens: 200_000, MaxWorkerCalls: 64,
 			},
-			LLMGateway: contracts.ResolvedLLMGatewayConfig{
-				Ref:      contracts.LLMGatewayConfigRef{GatewayID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
-				Protocol: contracts.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
+			LLMGateway: llmgateway.ResolvedLLMGatewayConfig{
+				Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+				Protocol: llmgateway.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
 			},
 		},
 		Stage: workflowconfig.ResolvedStage{

@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
@@ -58,7 +59,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"FinalizeAllocationRequest":       codecFor[control.FinalizeAllocationRequest](),
 	"HeartbeatResponse":               codecFor[control.HeartbeatResponse](),
 	"ReleaseAllocationRequest":        codecFor[control.ReleaseAllocationRequest](),
-	"ResolvedLLMGatewayConfig":        codecFor[contracts.ResolvedLLMGatewayConfig](),
+	"ResolvedLLMGatewayConfig":        codecFor[llmgateway.ResolvedLLMGatewayConfig](),
 	"ResolvedRuntimeConfigProvenance": codecFor[runtimesettings.ResolvedRuntimeConfigProvenance](),
 	"RuntimeReport":                   codecFor[reporting.RuntimeReport](),
 	"RuntimeSettings":                 codecFor[runtimesettings.RuntimeSettings](),

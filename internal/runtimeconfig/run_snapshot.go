@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -269,7 +269,7 @@ func validateCredentialIDSet(values []string, llm bool) error {
 	for _, value := range values {
 		valid := validateID("Runtime credential ID", value, 128) == nil
 		if llm {
-			valid = (&contracts.LLMCredentialRef{CredentialID: value}).Validate() == nil
+			valid = (&llmgateway.LLMCredentialRef{CredentialID: value}).Validate() == nil
 		}
 		if !valid || value <= previous {
 			return invalid("Run RuntimeConfig credential snapshot is invalid")

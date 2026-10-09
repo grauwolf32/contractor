@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
@@ -56,10 +57,10 @@ type CredentialManagerPublication struct {
 }
 
 type LLMGatewayPublication struct {
-	Protocol          string                              `json:"protocol"`
-	URL               string                              `json:"url"`
-	CredentialManager *CredentialManagerPublication       `json:"credentialManager,omitempty"`
-	FailureSignatures *contracts.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
+	Protocol          string                               `json:"protocol"`
+	URL               string                               `json:"url"`
+	CredentialManager *CredentialManagerPublication        `json:"credentialManager,omitempty"`
+	FailureSignatures *llmgateway.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
 }
 
 type PublicationRequest struct {
@@ -258,7 +259,7 @@ func (m *Manager) AuditProfiles() []ResolvedAuditProfile {
 	return m.Snapshot().AuditProfiles()
 }
 
-func (m *Manager) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (m *Manager) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	return m.Snapshot().LLMGateway(raw)
 }
 
@@ -352,7 +353,7 @@ type publicationCandidate struct {
 	selector      Selector
 	resource      ConfigurationResource
 	policy        *contracts.ResolvedModelPolicy
-	gateway       *contracts.ResolvedLLMGatewayConfig
+	gateway       *llmgateway.ResolvedLLMGatewayConfig
 	canonicalYAML []byte
 	requestDigest string
 	subtree       string

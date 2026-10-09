@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
@@ -139,7 +140,7 @@ func (f *fakeManagedCredentials) LookupLLMCredential(
 	record, err := f.GetCredential(ctx, id)
 	if err == nil {
 		return config.CredentialMetadata{
-			Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: record.LLMGateway,
+			Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: record.LLMGateway,
 		}, nil
 	}
 	f.mu.Lock()

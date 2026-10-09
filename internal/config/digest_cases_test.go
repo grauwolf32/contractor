@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // The Runtime recomputes these digests from the same cases in
@@ -19,9 +20,9 @@ func TestSharedDigestCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cases struct {
-		ModelPolicies     []contracts.ResolvedModelPolicy      `json:"modelPolicies"`
-		LLMGatewayConfigs []contracts.ResolvedLLMGatewayConfig `json:"llmGatewayConfigs"`
-		AgentTemplates    []contracts.ResolvedAgentTemplate    `json:"agentTemplates"`
+		ModelPolicies     []contracts.ResolvedModelPolicy       `json:"modelPolicies"`
+		LLMGatewayConfigs []llmgateway.ResolvedLLMGatewayConfig `json:"llmGatewayConfigs"`
+		AgentTemplates    []contracts.ResolvedAgentTemplate     `json:"agentTemplates"`
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)

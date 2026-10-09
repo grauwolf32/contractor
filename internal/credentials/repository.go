@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
@@ -421,7 +421,7 @@ func validateCredentialID(value string) error {
 		return fmt.Errorf("%w: credential ID is invalid", ErrInvalid)
 	}
 	// Reuse the wire contract's exact shared configuration-ID grammar.
-	if err := (contracts.LLMCredentialRef{CredentialID: value}).Validate(); err != nil {
+	if err := (llmgateway.LLMCredentialRef{CredentialID: value}).Validate(); err != nil {
 		return fmt.Errorf("%w: credential ID is invalid", ErrInvalid)
 	}
 	return nil

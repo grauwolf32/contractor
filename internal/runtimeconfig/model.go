@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
@@ -58,7 +58,7 @@ type AtomicPatch[T any] struct {
 
 type LLMGatewayPatch struct {
 	Present    bool
-	Gateway    Field[contracts.LLMGatewayConfigRef]
+	Gateway    Field[llmgateway.LLMGatewayConfigRef]
 	Credential Field[string]
 }
 

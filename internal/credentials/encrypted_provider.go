@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -56,7 +57,7 @@ func (p *EncryptedProvider) LookupLLMCredential(
 		}
 	}
 	return config.CredentialMetadata{
-		Ref:           contracts.LLMCredentialRef{CredentialID: record.CredentialID},
+		Ref:           llmgateway.LLMCredentialRef{CredentialID: record.CredentialID},
 		LLMGateway:    record.LLMGateway,
 		ModelPolicies: append([]contracts.ModelPolicyRef(nil), record.EffectivePolicy.ModelPolicies...),
 		Models:        append([]string(nil), record.EffectivePolicy.Models...),
@@ -65,8 +66,8 @@ func (p *EncryptedProvider) LookupLLMCredential(
 
 func (p *EncryptedProvider) ResolveLLMCredential(
 	ctx context.Context,
-	ref contracts.LLMCredentialRef,
-	gateway contracts.LLMGatewayConfigRef,
+	ref llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	if p == nil || p.records == nil {
 		return contracts.SecretString{}, ErrNotFound
