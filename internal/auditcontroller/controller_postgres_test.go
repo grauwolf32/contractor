@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -1762,7 +1763,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatalf("load Audit Controller test configuration: %v", err)
 	}

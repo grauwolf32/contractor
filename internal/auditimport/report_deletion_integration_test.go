@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -315,7 +316,7 @@ func newReportDeletionFixture(t *testing.T, pool *pgxpool.Pool, acceptance strin
 
 func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservice.Service {
 	t.Helper()
-	manager, err := config.NewManager(config.ManagerOptions{
+	manager, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"),
 		Descriptors: config.MVPDescriptors(),
 	})

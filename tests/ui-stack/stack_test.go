@@ -33,6 +33,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -151,7 +152,7 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	if err := os.MkdirAll(managedConfigRoot, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := workflowconfig.Load(configRoot, workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configRoot, workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatalf("load staged UI configuration: %v", err)
 	}

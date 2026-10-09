@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -1121,7 +1122,7 @@ func createBoundProjectRunOutput(
 
 func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

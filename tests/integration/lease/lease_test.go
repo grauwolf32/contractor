@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 )
@@ -283,7 +284,7 @@ func sendHeartbeat(
 
 func reservationRequest(t *testing.T, runID, stageID string) controlplane.ReservationRequest {
 	t.Helper()
-	snapshot, err := config.Load(
+	snapshot, err := configload.Load(
 		filepath.Join("..", "..", "..", "internal", "config", "testdata", "valid"),
 		config.MVPDescriptors(),
 	)

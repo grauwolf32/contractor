@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -124,7 +125,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		t.Fatal(err)
 	}
 
-	manager, err := config.NewManager(config.ManagerOptions{
+	manager, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: filepath.Join("..", "config", "testdata", "valid"),
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors(),
 	})

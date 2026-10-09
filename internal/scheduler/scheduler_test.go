@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -31,7 +32,7 @@ import (
 )
 
 func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 }
 
 func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 }
 
 func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +147,7 @@ func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing
 func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +205,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +378,7 @@ func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
 
 func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1738,7 +1739,7 @@ func configureEscalationWorkflow(
 	maxAttempts int,
 ) contracts.ResolvedModelPolicy {
 	t.Helper()
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1853,7 +1854,7 @@ type schedulerHarness struct {
 
 func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	t.Helper()
-	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

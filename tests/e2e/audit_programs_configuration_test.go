@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 	installOrdinaryFindingFixture(t, root, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

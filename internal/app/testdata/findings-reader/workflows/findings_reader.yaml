@@ -1,0 +1,56 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: findings-reader
+  version: "1"
+
+spec:
+  parameters: {}
+
+  inputs:
+    findings:
+      required: true
+      mediaTypes: [application/vnd.contractor.findings-collection+zip]
+
+  outputs:
+    report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: read
+  stages:
+    read:
+      objective: Summarize the supplied finding collection
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        reader:
+          template: findings_reader@1
+      context:
+        artifacts:
+          findings:
+            namespace: inputs
+            name: findings
+            required: true
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: reader, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

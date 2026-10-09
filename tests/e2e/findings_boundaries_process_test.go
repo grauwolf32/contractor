@@ -42,9 +42,9 @@ func TestFindingsReaderBoundariesAcrossProcesses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		emptyInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-empty", auditdomain.FindingCollectionMediaType, emptyPayload)
-		fullInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-full", auditdomain.FindingCollectionMediaType, payload)
-		badInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-invalid", auditdomain.FindingCollectionMediaType, []byte("incomplete ZIP"))
+		emptyInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-empty", contracts.FindingCollectionMediaType, emptyPayload)
+		fullInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-full", contracts.FindingCollectionMediaType, payload)
+		badInput := uploadProjectArtifact(t, h.client, h.baseURL, "findings-invalid", contracts.FindingCollectionMediaType, []byte("incomplete ZIP"))
 		emptyRun = createFindingsReader(t, h, "empty-reader", emptyInput)
 		partialRun = createFindingsReader(t, h, "partial-reader", fullInput)
 		conflictRun = createFindingsReader(t, h, "conflict-reader", fullInput)

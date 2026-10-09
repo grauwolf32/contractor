@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -92,7 +93,7 @@ func TestWSTGUsesActiveVersionQualifiedScenariosWithoutRetiredAliases(t *testing
 
 func TestExpandedSourcePresetsBuildExactRunnableInventories(t *testing.T) {
 	t.Parallel()
-	snapshot, err := config.Load(configRoot(), config.MVPDescriptors())
+	snapshot, err := configload.Load(configRoot(), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestWSTGHTTPPresetHasSameScenariosAndDistinctExecutionEvidence(t *testing.T
 			t.Fatalf("active WSTG changed its scenario or lost the HTTP method: %s", entry.ID)
 		}
 	}
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

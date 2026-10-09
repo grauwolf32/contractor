@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -603,7 +604,7 @@ func newProductionGrantHandler(
 			}
 		}
 	}
-	snapshot, err := workflowconfig.Load("../../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

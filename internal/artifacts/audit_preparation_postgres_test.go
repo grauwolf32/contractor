@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -69,7 +70,7 @@ func newPreparationFixture(t *testing.T, dependency bool) preparationFixture {
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := config.Load(root, config.MVPDescriptors())
+	catalog, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

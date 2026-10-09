@@ -15,7 +15,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -173,12 +172,7 @@ func runCLI(
 		return err
 	}
 	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
-	configurationManager, err := workflowconfig.NewManager(workflowconfig.ManagerOptions{
-		OperatorRoot: cfg.OperatorConfigRoot,
-		ManagedRoot:  cfg.ManagedConfigRoot,
-		Descriptors:  workflowconfig.MVPDescriptors(),
-		Logger:       logger,
-	})
+	configurationManager, err := loadServerConfiguration(cfg.OperatorConfigRoot, cfg.ManagedConfigRoot, logger)
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -199,7 +200,7 @@ func appSkillWorkflowWithNames(t *testing.T, names ...string) config.ResolvedWor
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

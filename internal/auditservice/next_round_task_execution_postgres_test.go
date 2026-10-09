@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -44,7 +45,7 @@ func TestPostgresNextRoundStopsBeforeWritingUnsupportedScanTasks(t *testing.T) {
 	if err := os.WriteFile(profilePath, []byte(modified), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
