@@ -7,7 +7,10 @@ package evalstore
 // an unpublished projection revision) to holder $1 for $2 milliseconds. Only
 // free or expired eval_controller_claims rows qualify; they are locked FOR
 // UPDATE SKIP LOCKED and their epoch is bumped as the fencing token. Returns
-// the new claims. Used by Store.Claim.
+// the new claims. Parameterized lookups avoid scanning retained terminal
+// populations. A materialized ordered stream feeds the locking lookup, so
+// LIMIT stops locking after the requested batch (including SKIP LOCKED rows).
+// Used by Store.Claim.
 const claimStatement = `
 WITH actionable AS (
     SELECT experiment_id FROM eval_experiments
@@ -21,20 +24,34 @@ WITH actionable AS (
     UNION
     SELECT experiment_id FROM eval_projection_queue
     WHERE revision <> published_revision
-), candidates AS (
-    SELECT c.experiment_id
+), ordered AS MATERIALIZED (
+    SELECT a.experiment_id
     FROM actionable a
-    JOIN eval_controller_claims c USING (experiment_id)
-    JOIN eval_experiments e USING (experiment_id)
-    WHERE c.holder_id IS NULL OR c.expires_at <= clock_timestamp()
-    ORDER BY c.epoch, e.updated_at, e.experiment_id
-    FOR UPDATE OF c SKIP LOCKED
+    JOIN LATERAL (
+        SELECT claim.epoch, experiment.updated_at
+        FROM eval_controller_claims claim
+        JOIN eval_experiments experiment USING (experiment_id)
+        WHERE claim.experiment_id = a.experiment_id
+          AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
+        OFFSET 0
+    ) eligible ON true
+    ORDER BY eligible.epoch, eligible.updated_at, a.experiment_id
+), candidates AS (
+    SELECT locked.claim_tid
+    FROM ordered
+    JOIN LATERAL (
+        SELECT claim.ctid AS claim_tid
+        FROM eval_controller_claims claim
+        WHERE claim.experiment_id = ordered.experiment_id
+          AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
+        FOR UPDATE SKIP LOCKED
+    ) locked ON true
     LIMIT $3
 )
 UPDATE eval_controller_claims c
 SET epoch = epoch + 1, holder_id = $1,
     expires_at = clock_timestamp() + $2::bigint * interval '1 millisecond'
 FROM candidates x
-WHERE c.experiment_id = x.experiment_id
+WHERE c.ctid = x.claim_tid
 RETURNING c.experiment_id, c.holder_id, c.epoch, c.expires_at
 `

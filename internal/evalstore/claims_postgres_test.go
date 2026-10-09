@@ -1,6 +1,7 @@
 package evalstore
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -124,8 +125,8 @@ SELECT experiment_id FROM eval_experiments`)
 	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
 		t.Fatal(err)
 	}
-	if planScansExperimentTable(plan) {
-		t.Fatalf("claim plan scans retained terminal experiments: %s", raw)
+	if planScansExperimentTable(plan) || planScansTable(plan, "eval_controller_claims") {
+		t.Fatalf("claim plan scans retained terminal experiments or claims: %s", raw)
 	}
 	claims, err := NewPostgresStore(pool).Claim(ctx, "plan-controller", time.Minute, 4)
 	if err != nil || len(claims) != 1 || claims[0].ExperimentID != "running-one" {
@@ -211,22 +212,63 @@ func planIndexConditions(value any, index string) []string {
 }
 
 func planScansExperimentTable(value any) bool {
+	return planScansTable(value, "eval_experiments")
+}
+
+func planScansTable(value any, table string) bool {
 	switch node := value.(type) {
 	case map[string]any:
-		if node["Node Type"] == "Seq Scan" && node["Relation Name"] == "eval_experiments" {
+		if node["Node Type"] == "Seq Scan" && node["Relation Name"] == table {
 			return true
 		}
 		for _, child := range node {
-			if planScansExperimentTable(child) {
+			if planScansTable(child, table) {
 				return true
 			}
 		}
 	case []any:
 		for _, child := range node {
-			if planScansExperimentTable(child) {
+			if planScansTable(child, table) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func TestPostgresClaimLocksOnlyItsBoundedBatch(t *testing.T) {
+	pool := testPool(t)
+	scope := setupProject(t, pool, "bounded-owner", "bounded-project")
+	ctx := t.Context()
+	if _, err := pool.Exec(ctx, `INSERT INTO eval_experiments
+(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms)
+SELECT 'running-'||n, $1, $2, 'running-'||n, 'external', 'running', 'running', 1, 1000
+FROM generate_series(1,3) n`, scope.OwnerID, scope.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) SELECT experiment_id FROM eval_experiments`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	first, err := NewTxStore(tx).Claim(ctx, "first", time.Minute, 1)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("first bounded claim: %+v %v", first, err)
+	}
+	// A second holder skips the first locked tuple and claims both remaining
+	// rows immediately. Ordering must not lock rows beyond the first limit.
+	bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	second, err := NewPostgresStore(pool).Claim(bounded, "second", time.Minute, 2)
+	if err != nil || len(second) != 2 {
+		t.Fatalf("second holder blocked or lost candidates: %+v %v", second, err)
+	}
+	for _, claim := range second {
+		if claim.ExperimentID == first[0].ExperimentID {
+			t.Fatal("holders shared a locked claim")
+		}
+	}
 }

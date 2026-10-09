@@ -37,7 +37,7 @@ WHERE owner_id = $1
 		}
 		return owner, project
 	}
-	const experiments = 1000
+	const experiments = 20000
 	_, err = tx.Exec(ctx, `
 INSERT INTO eval_experiments
   (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms)
@@ -52,17 +52,38 @@ FROM generate_series(1,$3::int) AS n`, scope.OwnerID, scope.ProjectID, experimen
 	if owner, project := revisions(); owner != 1 || project != 1 {
 		t.Fatalf("collection revisions after insert = %d/%d", owner, project)
 	}
+	if _, err = tx.Exec(ctx, `UPDATE eval_experiments
+SET name = 'renamed', revision = revision + 1, updated_at = clock_timestamp()
+WHERE project_id = $1`, scope.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, updated := writes(); inserted != 2 || updated != 2 {
+		t.Fatalf("updating %d experiments wrote collections %d+%d times, want 2 updates", experiments, inserted, updated)
+	}
+	if owner, project := revisions(); owner != 2 || project != 2 {
+		t.Fatalf("collection revisions after update = %d/%d", owner, project)
+	}
+	// Neither usage-only updates nor no-op assignments invalidate a list.
+	if _, err = tx.Exec(ctx, `UPDATE eval_experiments
+SET observed_tokens = observed_tokens + 1, name = name,
+    revision = revision + 1, updated_at = clock_timestamp()
+WHERE project_id = $1`, scope.ProjectID); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, updated := writes(); inserted != 2 || updated != 2 {
+		t.Fatalf("usage or no-op summary update invalidated collections: %d+%d writes", inserted, updated)
+	}
 	if _, err = tx.Exec(ctx, `SELECT set_config('contractor.eval_purge','on',true)`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM eval_experiments WHERE project_id = $1`, scope.ProjectID); err != nil {
 		t.Fatal(err)
 	}
-	if inserted, updated := writes(); inserted != 2 || updated != 2 {
+	if inserted, updated := writes(); inserted != 2 || updated != 4 {
 		t.Fatalf("deleting %d experiments wrote collections %d+%d times, want 2 more updates", experiments, inserted, updated)
 	}
 	// Deleting moves both cursors: a list read before it must reload.
-	if owner, project := revisions(); owner != 2 || project != 2 {
+	if owner, project := revisions(); owner != 3 || project != 3 {
 		t.Fatalf("collection revisions after delete = %d/%d", owner, project)
 	}
 }

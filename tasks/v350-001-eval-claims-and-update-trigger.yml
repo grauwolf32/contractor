@@ -3,7 +3,7 @@ id: V350-001
 title: Index Eval claim candidates and batch collection updates
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V300-001, V304-001]
 languages: [go, sql]
 goal: Keep Eval coordinator claims and bulk experiment updates cheap at scale.
