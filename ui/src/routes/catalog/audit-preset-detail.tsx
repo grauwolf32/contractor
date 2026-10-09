@@ -6,7 +6,7 @@ import { auditPresetPath } from "../../api/audit-presets";
 import { getAuditProfile, type AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
+import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes } from "../../app/format";
@@ -398,7 +398,7 @@ export function AuditPresetDetailRoute() {
   const api = usePublicAPI();
   const titleId = useId();
   const valid =
-    CONFIG_ID_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
+    CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
     queryKey: queryKeys.auditProfiles.detail(name, version),
     queryFn: ({ signal }) => getAuditProfile(api, name, version, signal),

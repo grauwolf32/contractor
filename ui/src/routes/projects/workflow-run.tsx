@@ -5,7 +5,7 @@ import { usePublicAPI } from "../../api/context";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import {
-  CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
   getWorkflow,
 } from "../../api/workflows";
@@ -26,7 +26,7 @@ export function ProjectWorkflowRunRoute() {
   const { projectId = "", name = "", version = "" } = useParams();
   const valid =
     PROJECT_ID_PATTERN.test(projectId) &&
-    CONFIG_ID_PATTERN.test(name) &&
+    CONFIG_NAME_PATTERN.test(name) &&
     CONFIG_VERSION_PATTERN.test(version);
   const project = useQuery({
     queryKey: queryKeys.projects.detail(projectId),

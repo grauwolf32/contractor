@@ -3,6 +3,7 @@ import { isTerminalRunState } from "../../api/runs";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import {
   CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
   type WorkflowResource,
 } from "../../api/workflows";
@@ -30,7 +31,7 @@ export function parseWorkflowIdentity(
   }
   const name = selector.slice(0, separator);
   const version = selector.slice(separator + 1);
-  return CONFIG_ID_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version)
+  return CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version)
     ? { name, version }
     : undefined;
 }

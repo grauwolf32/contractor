@@ -15,7 +15,10 @@ import {
   type ConfigurationResource,
 } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
-import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
+import {
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+} from "../../api/workflows";
 import { CursorControls } from "../../app/cursor-controls";
 import { ErrorNotice } from "../../app/error-notice";
 import { LoadMoreButton } from "../../app/load-more";
@@ -318,7 +321,7 @@ export function AgentDetailRoute() {
   const titleId = useId();
   const { name = "", version = "" } = useParams();
   const valid =
-    CONFIG_ID_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
+    CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
     queryKey: queryKeys.configurations.detail("agent-templates", name, version),
     queryFn: ({ signal }) =>

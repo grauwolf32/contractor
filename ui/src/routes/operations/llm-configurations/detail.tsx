@@ -10,7 +10,7 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import {
-  CONFIG_ID_PATTERN,
+  CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
 } from "../../../api/workflows";
 import { compactDigest } from "../../../app/format";
@@ -133,7 +133,7 @@ export function ConfigurationDetailRoute() {
   const configurationKind = isConfigurationKind(kind) ? kind : undefined;
   const valid =
     configurationKind !== undefined &&
-    CONFIG_ID_PATTERN.test(name) &&
+    CONFIG_NAME_PATTERN.test(name) &&
     CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
     queryKey: queryKeys.configurations.detail(kind, name, version),

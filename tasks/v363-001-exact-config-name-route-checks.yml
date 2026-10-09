@@ -3,7 +3,7 @@ id: V363-001
 title: Use exact configuration-name patterns in UI route pre-checks
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V323-001]
 languages: [typescript]
 goal: Make UI routes reject configuration names exactly like the API modules.
