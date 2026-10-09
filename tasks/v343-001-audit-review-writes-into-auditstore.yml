@@ -3,7 +3,7 @@ id: V343-001
 title: Move remaining raw Audit review writes into auditstore
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V278-001, V279-001, V285-001]
 languages: [go, sql]
 goal: Finish issue 87 and share one live item authority predicate.
@@ -30,3 +30,14 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Audit service still contains direct review writes; store authority consolidation is unfinished.
+
+implementation_commit: 5eb6154228e392bc56b5f87f071ede15dd5dd8b5
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full auditstore, auditservice and auditcontroller PostgreSQL suites passed.
+    - make lint passed, including staticcheck and the release coverage graph.
+    - Audit service contains no raw writes to reviews, findings, items or coverage.
+    - Claiming, review renewal and execution admission use the shared exact-subject authority view.
+    - Batch review events preserve order and revisions and roll back together on an invalid event.
+    - Replacing an expired finding review records expiry and replacement with monotonic timestamps.

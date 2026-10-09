@@ -3,7 +3,7 @@ id: V353-001
 title: Bound overlay diff CPU under the session lock
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V320-001]
 languages: [python]
 goal: Keep a pathological diff from holding the workspace session lock for minutes.
@@ -26,3 +26,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Overlay diff still uses unbounded difflib work while holding the session lock.
+
+implementation_commit: 5d959abedc1ddfeda164b893516e1a58ac0a4a8a
+verification:
+  date: "2026-10-09"
+  checks:
+    - 292 workspace and projectfs cases passed; Ruff checks and formatting passed.
+    - Repetitive files above 4 MiB render within five seconds and the resulting patch applies exactly.
+    - Both ordinary and fallback hunks preserve CRLF and missing final newline behavior.

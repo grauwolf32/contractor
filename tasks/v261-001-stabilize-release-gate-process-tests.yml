@@ -4,7 +4,7 @@ title: Restore the deterministic release process gate
 milestone: release-gate-2026-10
 priority: P1
 status: in_progress
-implementation_commit: null
+implementation_commit: 23ec377019865d70d26cd2ca0a1fbeafd53d4872
 depends_on: []
 languages: [go, python]
 goal: Make the failing release process tests pass on main under the CI runner.
@@ -41,9 +41,10 @@ local_verification:
   date: "2026-10-09"
   passed:
     - Agent Skills process fixture, 167.04 seconds.
-    - Audit Programs process fixture, 358.56 seconds after exact tool-surface correction.
-    - Heterogeneous Code Analysis process fixture, 77.17 seconds.
+    - Audit Programs process fixture, 357.29 seconds with exact Worker attempt assertions after tool-surface correction.
+    - Heterogeneous Code Analysis process fixture, 78.24 seconds with confirmed leases at idle/reuse boundaries.
     - New fast Audit Programs configuration closure check.
     - make lint, including nonempty release test selections.
+    - All hardening matrices and configuration closure cases after replacing deleted test references.
   remaining:
     - Full release stages and the GitHub Actions success criterion A4.

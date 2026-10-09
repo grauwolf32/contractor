@@ -3,7 +3,8 @@ id: V342-001
 title: Replace production asserts in the Runtime
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1681d9cf535f8437097a56798c397121dcf460da
 depends_on: [V309-001, V313-001, V317-001, V320-001]
 languages: [python]
 goal: Follow the no-assert convention in production Python.
@@ -27,3 +28,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Production Runtime still contains 76 assert statements; the lint selection does not prohibit them.
+
+verification:
+  date: "2026-10-09"
+  checks: Ruff passed with S101 enforced on production files. Full Runtime suite passed, 3619 cases and 39 optional skips. All 64 production assert nodes were replaced with explicit invariant exceptions.

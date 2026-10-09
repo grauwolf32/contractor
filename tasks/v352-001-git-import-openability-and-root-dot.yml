@@ -3,7 +3,8 @@ id: V352-001
 title: Reject Runtime-unopenable Git snapshots and normalize dot config roots
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 95d132e4eba9c38f69f6b44741543234e5c520d9
 depends_on: [V332-001, V333-001]
 languages: [go]
 goal: Apply the source-bundle openability rules to Git import and make --root . create no nested managed root.
@@ -28,3 +29,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Git import does not apply source-bundle openability validation; dot config-root behavior needs correction.
+
+verification:
+  date: "2026-10-09"
+  checks: Gitimport and sourcebundle suites passed; the full app suite passed on its own disposable database.

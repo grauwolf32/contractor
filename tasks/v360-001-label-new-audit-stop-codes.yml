@@ -3,7 +3,8 @@ id: V360-001
 title: Label the new Audit stop codes in the UI
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: cdbcfea4aa2bbbf8af0dfd62dace815a9fc6956b
 depends_on: [V283-001, V284-001]
 languages: [typescript]
 goal: Show readable labels for the stop codes V283-001 and V284-001 introduced.
@@ -26,3 +27,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: The UI stop-reason dictionaries still omit both newer inventory/next-round codes.
+
+verification:
+  date: "2026-10-09"
+  checks: All Project route suites passed, 199 cases in 17 files.

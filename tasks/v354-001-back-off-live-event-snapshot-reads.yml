@@ -3,7 +3,8 @@ id: V354-001
 title: Back off failed Operations snapshot reads triggered by live events
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 941373e286b86fcf26cbfc163a6b6c683d8cf1ed
 depends_on: [V305-001]
 languages: [typescript]
 goal: Apply V305's backoff to snapshot reads triggered by live events, not only resyncs.
@@ -26,3 +27,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Failed event-triggered snapshot reads still retry after the fixed one-second interval.
+
+verification:
+  date: "2026-10-09"
+  checks: Full UI Vitest suite passed, 1757 cases in 163 files, including Operations live-event failure recovery.

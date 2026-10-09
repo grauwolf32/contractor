@@ -3,7 +3,7 @@ id: V345-001
 title: Remove fsspec and test-only overlay APIs from projectfs
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V320-001, V321-001]
 languages: [python]
 goal: Shrink projectfs to the paths production uses.
@@ -28,3 +28,12 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: fsspec remains a direct dependency and the three test-only overlay methods remain.
+
+implementation_commit: 4824b62f5f1629c132c9649e81a5cc7335e75ac6
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full Runtime pytest suite passed, 3621 tests with 39 optional skips.
+    - Full Ruff checks and format checks passed.
+    - The dependency lock no longer includes fsspec; hydration uses descriptor-relative local I/O.
+    - Workspace tests use prepare_export, commit_export and change_entries instead of the removed test-only APIs.

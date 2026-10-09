@@ -3,7 +3,7 @@ id: V362-001
 title: Align Eval selector, media and 503 contracts with the shared rules
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V323-001, V324-001, V328-001]
 languages: [go, typescript, yaml]
 goal: Remove the remaining Eval-specific contract drift left after V323-001 and V324-001.
@@ -31,3 +31,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Eval selector/media contracts still need alignment with the shared configuration rules and database media limit.
+
+implementation_commit: 8d385042b9365a44c7cef36d2cee0b11551902ef
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full evaldomain, evalstore, evalservice, public API, artifacts and projectlifecycle PostgreSQL suites passed.
+    - Shared selector and media fixture tests and the artifact media length database constraint passed.
+    - UI generation, generated contract comparison, typecheck and lint passed.

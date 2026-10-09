@@ -3,7 +3,7 @@ id: V351-001
 title: Read Eval plan digests without fetching whole documents
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V302-001]
 languages: [go]
 goal: Avoid reading full plan documents where only the digest and setup are needed.
@@ -27,3 +27,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Admission and collection still read the frozen plan rather than a separate lightweight projection.
+
+implementation_commit: 589eb47f7e94bdd4481abcd363c5889f7fd2fae3
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full evalstore and evalservice PostgreSQL suites passed.
+    - At the 1,000-member ceiling a tick transfers at most one full matrix document, for comparison publication.
+    - Per-member admission and collection use immutable metadata; owner isolation and exact digest are preserved.

@@ -26,3 +26,12 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: GitHub main is still unprotected. No GitHub API write credential is available in this environment; prepare a reviewable required-check configuration and keep acceptance open.
+
+prepared_change:
+  request: docs/research/2026-10-09-main-protection.json
+  required_check: pr-verify
+  enforcement: Up-to-date branch, including administrators; force pushes and deletion disabled.
+  last_readback:
+    date: "2026-10-09"
+    protected: false
+  remaining: Apply through a repository administrator and read back the required check settings.

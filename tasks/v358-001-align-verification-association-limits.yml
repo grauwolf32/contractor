@@ -3,7 +3,8 @@ id: V358-001
 title: Align finding-verification association limits
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: fcc1252e8ae2a937641922578e80fe4e191954d8
 depends_on: [V280-001]
 languages: [go]
 goal: Let a finding-verification item carry every association it can legitimately produce.
@@ -26,3 +27,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Selected-proposal and finding-association limits remain independently defined and must cover the maximum legitimate item.
+
+verification:
+  date: "2026-10-09"
+  checks: Full Audit store and importer suites passed, including a PostgreSQL transaction collecting all 129 legitimate associations and rejecting overflow.

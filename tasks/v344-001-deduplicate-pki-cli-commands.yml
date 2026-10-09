@@ -3,7 +3,7 @@ id: V344-001
 title: Deduplicate PKI CLI command tables
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V292-001]
 languages: [go]
 goal: Keep one PKI command implementation.
@@ -27,3 +27,10 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Both PKI entry points still own command implementations and have different certificate-name defaults.
+
+implementation_commit: 490e949cd5020845d634251ac0a91f8b03278275
+verification:
+  date: "2026-10-09"
+  checks:
+    - go test -count=1 ./cmd/contractor-pki ./internal/cli passed.
+    - make lint passed, including release graph validation.

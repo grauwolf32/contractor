@@ -3,7 +3,7 @@ id: V349-001
 title: Bound OpenAPI mutation nesting before deep copies
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V319-001]
 languages: [python]
 goal: Reject over-deep model-supplied OpenAPI fragments with the depth input error instead of an internal RecursionError.
@@ -27,3 +27,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Path and component mutation fragments are copied before the nesting guard.
+
+implementation_commit: 9d8ccc36282822766e6de5b783b52b781185e444
+verification:
+  date: "2026-10-09"
+  checks:
+    - OpenAPI toolset suite passed, 52 cases including four deeply nested mutation regressions.
+    - Focused ruff check and git diff --check passed.
+  behavior: Path, component, server and tag inputs are depth-checked before copying; rejection is non-retryable and preserves the published revision.

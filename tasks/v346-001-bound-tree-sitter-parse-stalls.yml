@@ -3,7 +3,7 @@ id: V346-001
 title: Bound tree-sitter parse stalls for large files
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V316-001]
 languages: [python]
 goal: Keep large-file parses from stalling the Runtime event loop.
@@ -26,3 +26,10 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Tree-sitter still parses in-process; moving it to a thread does not bound GIL stalls.
+
+implementation_commit: e9ec34f04af6c5f57fd653f1091f3f86614e61f2
+verification:
+  date: "2026-10-09"
+  checks:
+    - 89 shallow analysis and concurrency cases passed, including real 4 MiB parsing with event-loop gaps below 100 ms.
+    - Focused Ruff checks and formatting passed.

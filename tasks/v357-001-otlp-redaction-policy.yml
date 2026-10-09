@@ -3,7 +3,8 @@ id: V357-001
 title: Apply the shared redaction policy to OTLP span attributes
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 7d4243fe22d182e1e185774deea3d42606133c90
 depends_on: [V311-001]
 languages: [python]
 goal: Stop dropping span attributes that merely contain a short secret.
@@ -26,3 +27,7 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: OTLP attribute and Run-label filtering still matches every secret as a substring.
+
+verification:
+  date: "2026-10-09"
+  checks: OTLP/telemetry selection passed, 105 cases. Focused ruff check passed.

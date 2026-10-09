@@ -3,7 +3,8 @@ id: V356-001
 title: Accept underscore hosts in Go scan planning
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5a54d0b355bd4ab596c7727aaeb273181512b7dd
 depends_on: [V310-001]
 languages: [go]
 goal: Keep scan planning consistent with the Runtime host-syntax rule from V310-001.
@@ -27,3 +28,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Go scanHost still rejects underscores accepted by the Runtime host rule.
+
+verification:
+  date: "2026-10-09"
+  checks:
+    - Go scanplan suite passed, including 26 shared host syntax subcases.
+    - Runtime host syntax suite passed, 210 cases, including HTTP, Caido and every scanner entry point.
+    - Focused ruff check and git diff --check passed.
+  behavior: Underscores, trailing label hyphens, IDNA names, optional final dots and name limits now follow Runtime admission; escaped and invalid punycode hosts remain rejected.

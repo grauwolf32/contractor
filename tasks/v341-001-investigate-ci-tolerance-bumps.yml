@@ -31,6 +31,7 @@ reassessment:
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: The 12-second factory timeout and permissive Audit retry assertions are still present; measurements and exact attempt checks remain necessary.
 
+partial_implementation_commit: c28f8cb12352de60d6d55364ae769f7d16fd9f72
 local_verification:
   date: "2026-10-09"
   passed:

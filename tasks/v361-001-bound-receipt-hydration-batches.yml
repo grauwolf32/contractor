@@ -3,7 +3,7 @@ id: V361-001
 title: Bound receipt hydration batches by bytes
 milestone: review-followups-2026-10-04
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V283-001]
 languages: [go]
 goal: Keep next-Round preparation from retrying forever on a batch of large proposals.
@@ -27,3 +27,11 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: Audit hydration still groups by count alone against the exact-read byte ceiling.
+
+implementation_commit: 0eb9cb38c1946168ace90d6c8a722b5d6113a167
+verification:
+  date: "2026-10-09"
+  checks:
+    - Full findingintake integration and auditservice PostgreSQL suites passed.
+    - Nine exact 8 MiB proposals hydrate and list successfully.
+    - Nine canonical proposals near 8 MiB prepare and accept the next Round.
