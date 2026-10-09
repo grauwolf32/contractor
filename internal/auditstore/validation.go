@@ -657,6 +657,16 @@ func validateExecutionIntent(params CreateExecutionIntentParams) error {
 	if !params.Role.Valid() {
 		return invalidf("execution role is invalid")
 	}
+	if params.Role == ExecutionPrepare {
+		if params.RoundID != nil {
+			return invalidf("prepare execution cannot belong to a Round")
+		}
+		if err := validatePreparationSnapshot(params.Preparation); err != nil {
+			return err
+		}
+	} else if params.Preparation != nil {
+		return invalidf("preparation snapshot requires a prepare role")
+	}
 	if err := validateText("execution Workflow role", params.WorkflowRole, 128, true); err != nil {
 		return err
 	}

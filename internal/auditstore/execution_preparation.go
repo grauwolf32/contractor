@@ -15,9 +15,9 @@ type executionMemberJSON struct {
 }
 
 type executionIntentWrite struct {
-	manifestRef, members json.RawMessage
-	roundID              *string
-	roleAttempt          *int
+	manifestRef, members, preparation json.RawMessage
+	roundID                           *string
+	roleAttempt                       *int
 }
 
 // prepareExecutionIntentWrite detaches optional values and serializes validated
@@ -45,5 +45,9 @@ func prepareExecutionIntentWrite(params CreateExecutionIntentParams) executionIn
 		value := *params.RoleAttempt
 		roleAttempt = &value
 	}
-	return executionIntentWrite{manifestRef: manifestRef, members: encodedMembers, roundID: roundID, roleAttempt: roleAttempt}
+	var preparation json.RawMessage
+	if params.Preparation != nil {
+		preparation, _ = json.Marshal(params.Preparation)
+	}
+	return executionIntentWrite{preparation: preparation, manifestRef: manifestRef, members: encodedMembers, roundID: roundID, roleAttempt: roleAttempt}
 }

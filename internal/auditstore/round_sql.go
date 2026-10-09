@@ -16,7 +16,7 @@ WITH project_gate AS MATERIALIZED (
 ), started AS (
     UPDATE audits AS audit
 	       SET baseline_snapshot = $7::jsonb,
-	           state = 'active', current_round_id = $4,
+	           state = 'active', phase = 'rounds', current_round_id = $4,
 	           hold_state = 'held', deadline_at = $8,
 	           retained_evidence_bytes = $15,
 	           started_at = clock_timestamp(),

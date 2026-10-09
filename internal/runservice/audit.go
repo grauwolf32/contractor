@@ -1,9 +1,11 @@
 package runservice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -221,6 +223,26 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 		execution.RequestDigest != params.RequestDigest ||
 		!sameExactIdentity(execution.Manifest, params.ExecutionManifest) {
 		return fmt.Errorf("%w: Audit execution intent does not match pinned submission", auditstore.ErrConflict)
+	}
+	if execution.Role == auditstore.ExecutionPrepare {
+		var binding config.ResolvedAuditWorkflowBinding
+		if execution.Preparation == nil || execution.RoundID != nil || len(intent.Items) != 0 ||
+			json.Unmarshal(intent.WorkflowBinding, &binding) != nil || binding.Kind != config.AuditWorkflowPrepare ||
+			!maps.Equal(execution.Preparation.Parameters, params.Parameters) || len(execution.Preparation.Inputs) != len(params.Inputs) {
+			return fmt.Errorf("%w: preparation submission differs from its immutable intent", auditstore.ErrConflict)
+		}
+		pinned, _ := json.Marshal(binding.Workflow)
+		submitted, _ := json.Marshal(params.Workflow)
+		if !bytes.Equal(pinned, submitted) {
+			return fmt.Errorf("%w: preparation Workflow differs from its pinned binding", auditstore.ErrConflict)
+		}
+		for slot, pinned := range execution.Preparation.Inputs {
+			input, exists := params.Inputs[slot]
+			if !exists || !sameExactIdentity(pinned, input) || pinned.MediaType != input.MediaType || pinned.SizeBytes != input.SizeBytes {
+				return fmt.Errorf("%w: preparation input %q differs from its immutable intent", auditstore.ErrConflict, slot)
+			}
+		}
+		return nil
 	}
 	allowed := make(map[string]string, 1+len(intent.Items)*2)
 	addAllowedArtifact(allowed, execution.Manifest)

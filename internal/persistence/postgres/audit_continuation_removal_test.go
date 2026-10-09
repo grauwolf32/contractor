@@ -35,7 +35,7 @@ VALUES ('audit-completed','report/machine','{"namespace":"audit-completed","name
 		t.Fatal(err)
 	}
 	const snapshot = `SELECT jsonb_build_object(
-'audits', (SELECT jsonb_agg(to_jsonb(a)-'continuation_count' ORDER BY audit_id) FROM audits a),
+'audits', (SELECT jsonb_agg(to_jsonb(a)-ARRAY['continuation_count','phase'] ORDER BY audit_id) FROM audits a),
 'reports', (SELECT jsonb_agg(to_jsonb(l) ORDER BY audit_id,logical_key) FROM audit_artifact_links l)
 )::text`
 	var before, after string

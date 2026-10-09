@@ -28,13 +28,16 @@ func (s *PostgresStore) CreateExecutionIntent(
 		params.ExecutionID, string(params.Role), prepared.roundID, prepared.roleAttempt,
 		prepared.manifestRef, params.Manifest.Digest, params.SubmissionKey,
 		params.RequestDigest, prepared.members,
-		params.WorkflowRole,
+		params.WorkflowRole, prepared.preparation,
 	))
 	if err == nil {
 		return execution, true, nil
 	}
 	if persistencepostgres.SQLState(err) == "55000" {
 		return Execution{}, false, ErrProjectDeleting
+	}
+	if params.Role == ExecutionPrepare && persistencepostgres.SQLState(err) == "23514" {
+		return Execution{}, false, ErrPrecondition
 	}
 	sqlState := persistencepostgres.SQLState(err)
 	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
@@ -63,7 +66,7 @@ func prefixedExecutionColumns(prefix string) string {
 		prefix + ".run_id, " + prefix + ".state, " + prefix + ".terminal_outcome, " +
 		prefix + ".terminal_run_generation, " + prefix + ".terminal_run_sequence, " +
 		prefix + ".terminal_observed_at, " + prefix + ".run_provenance, " + prefix + ".run_deleted_at, " +
-		prefix + ".created_at, " + prefix + ".updated_at"
+		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".preparation_snapshot, " + prefix + ".preparation_outputs"
 }
 
 func (s *PostgresStore) lookupExecutionReplay(
@@ -188,6 +191,7 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string, binding *js
 	var outcome *string
 	var terminalSequence *int64
 	var encodedProvenance []byte
+	var preparation, outputs []byte
 	if err := row.Scan(
 		ownerID, projectID, binding,
 		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
@@ -196,7 +200,7 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string, binding *js
 		&execution.RunID, &state, &outcome,
 		&execution.TerminalRunGeneration, &terminalSequence,
 		&execution.TerminalObservedAt, &encodedProvenance, &execution.RunDeletedAt,
-		&execution.CreatedAt, &execution.UpdatedAt,
+		&execution.CreatedAt, &execution.UpdatedAt, &preparation, &outputs,
 	); err != nil {
 		return Execution{}, err
 	}
@@ -227,6 +231,9 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string, binding *js
 		execution.TerminalRunSequence = &value
 	}
 	if err := decodeRunProvenance(encodedProvenance, execution.RunID, &execution.RunProvenance); err != nil {
+		return Execution{}, err
+	}
+	if err := decodePreparation(&execution, preparation, outputs); err != nil {
 		return Execution{}, err
 	}
 	return execution, nil

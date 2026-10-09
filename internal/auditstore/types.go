@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -107,13 +108,14 @@ func (s ItemState) Valid() bool {
 type ExecutionRole string
 
 const (
+	ExecutionPrepare    ExecutionRole = "prepare"
 	ExecutionDiscovery  ExecutionRole = "discovery"
 	ExecutionCheck      ExecutionRole = "check"
 	ExecutionAssessment ExecutionRole = "assessment"
 )
 
 func (r ExecutionRole) Valid() bool {
-	return r == ExecutionDiscovery || r == ExecutionCheck || r == ExecutionAssessment
+	return r == ExecutionPrepare || r == ExecutionDiscovery || r == ExecutionCheck || r == ExecutionAssessment
 }
 
 type ExecutionState string
@@ -240,6 +242,7 @@ type Audit struct {
 	InputSelection        json.RawMessage
 	BaselineSnapshot      json.RawMessage
 	State                 AuditState
+	Phase                 auditdomain.AuditPhase
 	Revision              uint64
 	CurrentRoundID        *string
 	Dispatch              DispatchState
@@ -541,6 +544,7 @@ type CreateExecutionIntentParams struct {
 	SubmissionKey string
 	RequestDigest string
 	Members       []ExecutionMemberIntent
+	Preparation   *PreparationSnapshot
 }
 
 type Execution struct {
@@ -563,6 +567,8 @@ type Execution struct {
 	RunDeletedAt          *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	Preparation           *PreparationSnapshot
+	PreparationOutputs    []PreparationOutput
 }
 
 // RunProvenance is a bounded, non-secret tombstone captured when a child Run
@@ -661,15 +667,16 @@ type ArtifactLink struct {
 }
 
 type CollectParams struct {
-	Claim         ControllerClaim
-	ReceiptID     string
-	ExecutionID   string
-	Disposition   CollectionDisposition
-	SourceOutput  *ExactArtifact
-	Retained      []ArtifactLink
-	ErrorCode     *string
-	RequestDigest string
-	Items         []CollectionItem
+	Claim              ControllerClaim
+	ReceiptID          string
+	ExecutionID        string
+	Disposition        CollectionDisposition
+	SourceOutput       *ExactArtifact
+	Retained           []ArtifactLink
+	ErrorCode          *string
+	RequestDigest      string
+	Items              []CollectionItem
+	PreparationOutputs []PreparationOutput
 }
 
 type CollectionReceipt struct {

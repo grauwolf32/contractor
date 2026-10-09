@@ -1,0 +1,284 @@
+{
+  "ref": {
+    "name": "openapi-sqlmap-scan",
+    "version": "1",
+    "digest": "sha256:a011789cffbe65cee70e2c8f4965e693a3c6593ac05e6a1cff65cf5a8b6da390"
+  },
+  "mode": "risk-assessment",
+  "standards": [],
+  "inputs": {
+    "openapi": {
+      "required": true,
+      "mediaTypes": [
+        "application/json",
+        "application/yaml"
+      ]
+    },
+    "settings": {
+      "required": true,
+      "mediaTypes": [
+        "application/json"
+      ]
+    }
+  },
+  "inventory": {
+    "implementation": "openapi-scans@1",
+    "source": {
+      "source": "audit-input",
+      "name": "openapi"
+    },
+    "settings": {
+      "source": "audit-input",
+      "name": "settings"
+    },
+    "itemWorkflowRole": "scan"
+  },
+  "workflows": {
+    "scan": {
+      "kind": "check",
+      "workflow": {
+        "ref": {
+          "name": "audit-openapi-sqlmap-scan",
+          "version": "1"
+        },
+        "auditTask": {
+          "contract": "openapi-scan@1",
+          "stage": "scan"
+        },
+        "parameters": {},
+        "inputs": {
+          "execution_manifest": {
+            "required": true,
+            "mediaTypes": [
+              "application/json"
+            ]
+          },
+          "openapi": {
+            "required": true,
+            "mediaTypes": [
+              "application/json",
+              "application/yaml"
+            ]
+          },
+          "settings": {
+            "required": true,
+            "mediaTypes": [
+              "application/json"
+            ]
+          },
+          "task": {
+            "required": true,
+            "mediaTypes": [
+              "application/zip"
+            ]
+          }
+        },
+        "outputs": {
+          "result": {
+            "required": true,
+            "mediaTypes": [
+              "application/zip"
+            ],
+            "primary": true
+          }
+        },
+        "entryStage": "scan",
+        "stages": {
+          "scan": {
+            "objective": "Check the assigned OpenAPI request with SQLMap",
+            "instructions": {
+              "ref": "instructions/audit-openapi-scan.md",
+              "digest": "sha256:9a22c7ebf243096a55a7cabbd22af2e61d5b2ee3587d8ad8c5f42d22d74c0425",
+              "text": "Execute only the assigned scan using the exact OpenAPI and retained settings.\nThe trusted planner verifies the task and execution manifest, prepares the\nconcrete request or URL, and assembles the canonical Audit result package.\nRetain scanner reports and preparation limitations. A completed scanner process\ndoes not establish a verified security conclusion. Recover completed or unknown\nattempts from the durable journal without invoking their scanner again.\n"
+            },
+            "planner": {
+              "plannerId": "scan-plan",
+              "version": "1"
+            },
+            "scanPlan": {
+              "inputArtifact": "openapi",
+              "maxInputs": 1,
+              "maxJobs": 1,
+              "maxTotalSeconds": 300,
+              "tools": [
+                {
+                  "worker": "scanner",
+                  "maxJobs": 1,
+                  "maxTotalSeconds": 300
+                }
+              ]
+            },
+            "auditScan": {
+              "scanner": "sqlmap",
+              "settingsArtifact": "settings",
+              "taskArtifact": "task",
+              "manifestArtifact": "execution_manifest",
+              "unknownOutcome": "retain-gap"
+            },
+            "session": "isolated",
+            "agents": {
+              "scanner": {
+                "template": {
+                  "ref": {
+                    "templateId": "audit-sqlmap-scan",
+                    "version": "1",
+                    "digest": "sha256:08a5677a620e20f8230a4ddf4bc1546ec2d9ad38c9d2097827abff1cbbd45f0d"
+                  },
+                  "description": "Scan one assigned OpenAPI request with explicit SQLMap test parameters.",
+                  "runtime": {
+                    "runtimeId": "tool",
+                    "version": "1"
+                  },
+                  "execution": {
+                    "tool": "scan_sqlmap",
+                    "arguments": {
+                      "level": {
+                        "source": "literal",
+                        "value": 1
+                      },
+                      "request_ref": {
+                        "source": "artifact",
+                        "name": "request"
+                      },
+                      "risk": {
+                        "source": "literal",
+                        "value": 1
+                      }
+                    },
+                    "resultArtifact": "report",
+                    "timeoutSeconds": 300
+                  },
+                  "toolsets": [
+                    {
+                      "ref": {
+                        "toolsetId": "scan",
+                        "version": "1"
+                      },
+                      "tools": [
+                        "scan_sqlmap"
+                      ]
+                    }
+                  ],
+                  "sandboxProfile": {
+                    "sandboxProfileId": "local-workdir",
+                    "version": "1"
+                  }
+                },
+                "namespace": "scanner"
+              }
+            },
+            "executionConfig": {
+              "agents": {
+                "scanner": {
+                  "origins": {}
+                }
+              }
+            },
+            "context": {
+              "artifacts": {
+                "execution_manifest": {
+                  "namespace": "inputs",
+                  "name": "execution_manifest",
+                  "required": true
+                },
+                "openapi": {
+                  "namespace": "inputs",
+                  "name": "openapi",
+                  "required": true
+                },
+                "settings": {
+                  "namespace": "inputs",
+                  "name": "settings",
+                  "required": true
+                },
+                "task": {
+                  "namespace": "inputs",
+                  "name": "task",
+                  "required": true
+                }
+              }
+            },
+            "result": {
+              "artifacts": {
+                "report": {
+                  "required": true,
+                  "mediaTypes": [
+                    "application/zip"
+                  ],
+                  "from": {
+                    "namespace": "scan-results",
+                    "name": "audit-result"
+                  }
+                }
+              }
+            },
+            "workflowOutputs": {
+              "result": "report"
+            },
+            "on": {
+              "succeeded": {
+                "kind": "succeed"
+              },
+              "failed": {
+                "kind": "retry",
+                "retry": {
+                  "maxAttempts": 2,
+                  "then": {
+                    "kind": "fail"
+                  }
+                }
+              },
+              "interrupted": {
+                "kind": "retry",
+                "retry": {
+                  "maxAttempts": 2,
+                  "then": {
+                    "kind": "fail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "inputs": {
+        "execution_manifest": {
+          "source": "execution-manifest"
+        },
+        "openapi": {
+          "source": "audit-input",
+          "name": "openapi"
+        },
+        "settings": {
+          "source": "audit-input",
+          "name": "settings"
+        },
+        "task": {
+          "source": "item-package"
+        }
+      },
+      "parameters": {},
+      "outputs": {
+        "result": "result"
+      }
+    }
+  },
+  "execution": {
+    "roundMode": "fixed-barrier",
+    "maxRounds": 1,
+    "batchSize": 1,
+    "maxItemsPerRound": 16,
+    "maxItemsTotal": 16,
+    "maxSubmittedRuns": 48,
+    "maxItemRunAttempts": 3,
+    "deadlineSeconds": 86400,
+    "maxEvidenceBytes": 67108864,
+    "incompleteRound": "assess-with-gaps"
+  },
+  "interaction": {
+    "activeChecks": "approval-required",
+    "findingConfirmation": "disabled",
+    "notApplicable": "profile-rule",
+    "reportAcceptance": "automatic"
+  }
+}

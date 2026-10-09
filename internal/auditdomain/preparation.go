@@ -11,6 +11,10 @@ const (
 	AuditPhaseRounds     AuditPhase = "rounds"
 )
 
+func (p AuditPhase) Valid() bool {
+	return p == AuditPhaseNotStarted || p == AuditPhasePreparing || p == AuditPhaseInventory || p == AuditPhaseRounds
+}
+
 type PreparationStatus string
 
 const (

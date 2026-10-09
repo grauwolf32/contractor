@@ -109,7 +109,8 @@ WITH collection_input AS MATERIALIZED (
            collection_receipt_id = $5, collection_disposition = $6,
            collection_source_output_ref = $7::jsonb, collection_source_output_digest = $8,
            collection_retained_refs = $9::jsonb, collection_error_code = $13,
-           collection_request_digest = $14, collected_at = clock_timestamp()
+           collection_request_digest = $14, collected_at = clock_timestamp(),
+           preparation_outputs = $15::jsonb
       FROM execution_gate AS gate JOIN advanced_audit USING (audit_id)
      WHERE execution.execution_id = gate.execution_id AND execution.state = 'collecting'
     RETURNING ` + collectionReceiptProjection("execution") + `

@@ -2,6 +2,7 @@ package auditstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,6 +14,11 @@ func (s *PostgresStore) Collect(
 	ctx context.Context,
 	params CollectParams,
 ) (CollectionReceipt, bool, error) {
+	var err error
+	params, err = withPreparationLinks(params)
+	if err != nil {
+		return CollectionReceipt{}, false, err
+	}
 	if err := ValidateCollect(params); err != nil {
 		return CollectionReceipt{}, false, err
 	}
@@ -22,16 +28,20 @@ func (s *PostgresStore) Collect(
 		return replay, false, err
 	}
 	prepared := prepareCollectionWrite(params)
+	outputs, _ := json.Marshal(append([]PreparationOutput{}, params.PreparationOutputs...))
 	receipt, err := scanReceipt(s.db.QueryRow(ctx, collectAuditExecutionSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.ReceiptID, string(params.Disposition),
 		prepared.sourceRef, prepared.sourceDigest, prepared.retained, prepared.items, prepared.links,
-		prepared.retainedBytes, params.ErrorCode, params.RequestDigest,
+		prepared.retainedBytes, params.ErrorCode, params.RequestDigest, outputs,
 	))
 	if err == nil {
 		return receipt, true, nil
 	}
 	sqlState := persistencepostgres.SQLState(err)
+	if sqlState == "23514" {
+		return CollectionReceipt{}, false, ErrPrecondition
+	}
 	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupReceiptReplay(
 			ctx, params.Claim.AuditID, params.ExecutionID, params.RequestDigest,

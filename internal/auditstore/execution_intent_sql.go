@@ -92,6 +92,15 @@ WITH member_input AS MATERIALIZED (
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	       AND (
+           ($5 = 'prepare' AND $6::text IS NULL AND audit.current_round_id IS NULL
+             AND audit.phase = 'preparing' AND jsonb_array_length($12::jsonb) = 0
+             AND $7::integer BETWEEN 1 AND (audit.profile_snapshot #>> ARRAY['workflows', $13::text, 'maxRunAttempts'])::integer
+             AND $7::integer = COALESCE((SELECT max(previous.role_attempt) + 1 FROM audit_executions AS previous
+                 WHERE previous.audit_id = audit.audit_id AND previous.role = 'prepare' AND previous.workflow_role = $13), 1)
+             AND NOT EXISTS (SELECT 1 FROM audit_executions AS previous
+                 WHERE previous.audit_id = audit.audit_id AND previous.role = 'prepare' AND previous.workflow_role = $13
+                   AND (previous.state <> 'collected' OR previous.collection_disposition = 'accepted-result')))
+           OR
            ($5 = 'check' AND $6::text IS NOT NULL
              AND jsonb_array_length($12::jsonb) > 0
              AND jsonb_array_length($12::jsonb) <= audit.batch_size
@@ -127,9 +136,9 @@ WITH member_input AS MATERIALIZED (
 ), inserted_execution AS (
     INSERT INTO audit_executions (
         execution_id, audit_id, round_id, role, workflow_role, role_attempt,
-        manifest_ref, manifest_digest, submission_key, request_digest
+        manifest_ref, manifest_digest, submission_key, request_digest, preparation_snapshot
     )
-    SELECT $4, audit_id, $6, $5, $13, $7, $8::jsonb, $9, $10, $11
+    SELECT $4, audit_id, $6, $5, $13, $7, $8::jsonb, $9, $10, $11, $14::jsonb
       FROM reserved
     RETURNING *
 ), inserted_members AS (

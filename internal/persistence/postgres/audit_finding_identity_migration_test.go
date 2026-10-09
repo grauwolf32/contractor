@@ -79,7 +79,7 @@ ON CONFLICT (receipt_id,audit_id) DO NOTHING`
 	// and migration 96 adds report candidate columns; new admission must not
 	// rewrite an accepted decision.
 	const legacyHistory = `SELECT jsonb_build_object(
-    'audit',(SELECT to_jsonb(a)-'continuation_count' FROM audits a WHERE audit_id='legacy-audit'),
+    'audit',(SELECT to_jsonb(a)-ARRAY['continuation_count','phase'] FROM audits a WHERE audit_id='legacy-audit'),
     'findings',(SELECT jsonb_agg(to_jsonb(f) ORDER BY finding_id) FROM audit_findings f WHERE audit_id='legacy-audit'),
     'contributions',(SELECT jsonb_agg(to_jsonb(c) ORDER BY receipt_id) FROM audit_finding_contributions c WHERE audit_id='legacy-audit'),
     'assessments',(SELECT jsonb_agg(to_jsonb(a) ORDER BY assessment_id) FROM audit_finding_assessments a WHERE audit_id='legacy-audit'),
