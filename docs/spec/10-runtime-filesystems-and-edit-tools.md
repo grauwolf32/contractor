@@ -768,3 +768,10 @@ allocation remains alive, and cover both narrow handles and Toolset consumers.
 8. Release/abort/lease loss cannot leave a reusable slot with a live workspace.
 9. Local direct disk state is authoritative; snapshots are derived values,
    never a fallback for failed current-state acquisition.
+
+Workspace diff matching is limited to 1,000,000 candidate line pairs per path.
+Larger inputs use one exact replacement hunk with three context lines after
+trimming equal ends, so rendering work stays linear in managed text size.
+Ordinary inputs retain the standard unified diff. The regression budget for
+repetitive files above 4 MiB is five seconds, including patch rendering; byte
+pagination and exact patch applicability are preserved.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -200,7 +201,11 @@ def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
-def test_workspace_diff_is_a_patch_git_applies_exactly(tmp_path: Path) -> None:
+@pytest.mark.parametrize("line_pair_budget", [overlay.MAX_DIFF_LINE_PAIRS, 0])
+def test_workspace_diff_is_a_patch_git_applies_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, line_pair_budget: int
+) -> None:
+    monkeypatch.setattr(overlay, "MAX_DIFF_LINE_PAIRS", line_pair_budget)
     before = ManagedWorkspaceTree(
         directories={"dir"},
         text_files={
@@ -296,3 +301,30 @@ def test_rolling_back_one_file_restores_parents_deleted_after_checkpoint() -> No
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
+def test_pathological_workspace_diff_is_bounded_and_applies_exactly(tmp_path: Path) -> None:
+    # Repetitive lines separated by unique anchors make an unbounded matcher
+    # repeatedly search large regions. Both sides exceed 4 MiB.
+    before_text = "".join(f"anchor-{n}\n" + "a\n" * 200 for n in range(11000))
+    after_text = "".join(f"anchor-{n}\n" + "b\n" * 200 for n in range(11000))
+    before = ManagedWorkspaceTree(text_files={"large.txt": before_text})
+    after = ManagedWorkspaceTree(text_files={"large.txt": after_text})
+    started = time.monotonic()
+    patch = overlay._workspace_diff(before, after, "", 16 << 20, 0)
+    elapsed = time.monotonic() - started
+    assert elapsed < 5, f"large repetitive diff held the session lock for {elapsed:.3f}s"
+    assert not patch.truncated
+    assert patch.text.count("@@") == 2
+    (tmp_path / "large.txt").write_bytes(before_text.encode())
+    patch_path = tmp_path / "change.patch"
+    patch_path.write_bytes(patch.text.encode())
+    applied = subprocess.run(
+        ["git", "apply", "--whitespace=nowarn", str(patch_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+    )
+    assert applied.returncode == 0, applied.stderr
+    assert (tmp_path / "large.txt").read_bytes() == after_text.encode()

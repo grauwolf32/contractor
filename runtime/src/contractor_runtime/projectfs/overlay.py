@@ -37,6 +37,9 @@ WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
 WORKSPACE_OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json"
 MAX_DIFF_BYTES = 1 << 20
+# SequenceMatcher can take quadratic time. Above this candidate-pair budget,
+# emit one exact replacement hunk in linear time instead of searching matches.
+MAX_DIFF_LINE_PAIRS = 1_000_000
 # Rendered diff bytes one session keeps between pages: the largest page plus the
 # diff of a fully rewritten 16 MiB file. A larger window is not retained.
 MAX_DIFF_CACHE_BYTES = 64 << 20
@@ -881,11 +884,54 @@ def _path_diff(
     after_text = after.text_files.get(path)
     if before_text is None and after_text is None:
         return ()
+    before_lines = [] if before_text is None else split_patch_lines(before_text)
+    after_lines = [] if after_text is None else split_patch_lines(after_text)
+    fromfile = "/dev/null" if before_text is None else f"a/{path}"
+    tofile = "/dev/null" if after_text is None else f"b/{path}"
+    if len(before_lines) * len(after_lines) > MAX_DIFF_LINE_PAIRS:
+        return _linear_unified_diff(before_lines, after_lines, fromfile, tofile)
     return difflib.unified_diff(
-        [] if before_text is None else split_patch_lines(before_text),
-        [] if after_text is None else split_patch_lines(after_text),
-        fromfile="/dev/null" if before_text is None else f"a/{path}",
-        tofile="/dev/null" if after_text is None else f"b/{path}",
-        lineterm="\n",
-        n=3,
+        before_lines, after_lines, fromfile=fromfile, tofile=tofile, lineterm="\n", n=3
     )
+
+
+def _linear_unified_diff(
+    before: list[str], after: list[str], fromfile: str, tofile: str
+) -> Iterable[str]:
+    """One exact hunk, trimming equal ends with three context lines.
+
+    Internal unchanged lines may appear as replacement lines. The result is
+    still a valid patch, including CRLF and absent final newlines, without
+    SequenceMatcher's unbounded search through repetitive input.
+    """
+    prefix = 0
+    while prefix < min(len(before), len(after)) and before[prefix] == after[prefix]:
+        prefix += 1
+    suffix = 0
+    while (
+        suffix < min(len(before), len(after)) - prefix and before[-suffix - 1] == after[-suffix - 1]
+    ):
+        suffix += 1
+    if prefix == len(before) == len(after):
+        return
+    start = max(0, prefix - 3)
+    before_end = len(before) - max(0, suffix - 3)
+    after_end = len(after) - max(0, suffix - 3)
+    yield f"--- {fromfile}\n"
+    yield f"+++ {tofile}\n"
+    yield f"@@ -{_diff_range(start, before_end)} +{_diff_range(start, after_end)} @@\n"
+    for line in before[start:prefix]:
+        yield " " + line
+    for line in before[prefix : len(before) - suffix]:
+        yield "-" + line
+    for line in after[prefix : len(after) - suffix]:
+        yield "+" + line
+    for line in before[len(before) - suffix : before_end]:
+        yield " " + line
+
+
+def _diff_range(start: int, end: int) -> str:
+    length = end - start
+    if length == 1:
+        return str(start + 1)
+    return f"{start if length == 0 else start + 1},{length}"

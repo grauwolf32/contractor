@@ -3,7 +3,7 @@ id: V353-001
 title: Bound overlay diff CPU under the session lock
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V320-001]
 languages: [python]
 goal: Keep a pathological diff from holding the workspace session lock for minutes.
