@@ -6,7 +6,10 @@ import { auditPresetPath } from "../../api/audit-presets";
 import { getAuditProfile, type AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
-import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
+import {
+  CONFIG_NAME_PATTERN,
+  CONFIG_VERSION_PATTERN,
+} from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, formatBytes } from "../../app/format";
