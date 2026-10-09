@@ -177,7 +177,7 @@ contractor-runtime \
   --workspace-work-root /var/lib/contractor/project-workspaces \
   ...
 
-# Isolated in-process fsspec storage; binary ZIP members are intentionally skipped.
+# Isolated in-process storage; binary ZIP members are intentionally skipped.
 contractor-runtime --workspace-storage memory ...
 ```
 

@@ -34,8 +34,8 @@ model-visible input.
 `AllocationWorkspace` in `contractor_runtime.workspace` remains the sandbox
 scratch directory used by skills and existing tools. A project workspace is a
 separate session. Local storage owns a private `run_workdir` below its
-configured provider root; memory storage uses an allocation-isolated fsspec
-instance. The [Podman executor](21-podman-sandbox.md) receives only the local
+configured provider root; memory storage uses an allocation-private managed
+tree. The [Podman executor](21-podman-sandbox.md) receives only the local
 direct project content directory, not the provider's ownership markers or the
 allocation's general scratch.
 
@@ -294,8 +294,8 @@ reading or mutating an unmanaged binary path through text tools returns
 
 `direct` mutates only the disposable allocation-private working copy. Local
 means a private directory below Runtime `workRoot`, never an operator checkout;
-memory means an isolated fsspec tree. Changes are visible to future subprocesses
-inside the same allocation but disappear on release. Direct mode has no
+memory means an isolated in-process tree. Local changes are visible to future subprocesses
+inside the same allocation; both storage kinds discard changes on release. Direct mode has no
 automatic diff, rollback or export. A Worker that needs persistence must write
 an ordinary Run artifact explicitly.
 

@@ -20,7 +20,7 @@ uv run contractor-runtime --listen 127.0.0.1:9443
 Project filesystem Toolsets are disabled unless the process has an explicit
 workspace provider. For disposable local storage, add
 `--workspace-storage local --workspace-work-root /var/lib/contractor/workspaces`;
-for an allocation-isolated fsspec tree, add `--workspace-storage memory`.
+for an allocation-private in-process tree, add `--workspace-storage memory`.
 `CONTRACTOR_WORKSPACE_STORAGE`, `CONTRACTOR_WORKSPACE_WORK_ROOT` and the four
 `CONTRACTOR_WORKSPACE_MAX_*` variables provide the equivalent immutable startup
 configuration. Physical roots are never registered with Control Plane.
