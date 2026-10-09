@@ -844,7 +844,9 @@ func ValidateCollect(params CollectParams) error {
 		if item.Disposition != CollectionAccepted && len(item.FindingAssociations) != 0 {
 			return invalidf("non-accepted collection item forbids finding associations")
 		}
-		if len(item.FindingAssociations) > 128 {
+		// A verification item also assesses its originating proposal, in
+		// addition to the bounded proposals selected by its Worker result.
+		if len(item.FindingAssociations) > auditdomain.MaximumProposalsPerItem+1 {
 			return invalidf("collection item has too many finding associations")
 		}
 		// Batch members may verify distinct proposed checks of one receipt,
