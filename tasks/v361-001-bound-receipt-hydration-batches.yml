@@ -3,7 +3,7 @@ id: V361-001
 title: Bound receipt hydration batches by bytes
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V283-001]
 languages: [go]
 goal: Keep next-Round preparation from retrying forever on a batch of large proposals.

@@ -169,17 +169,32 @@ func scanAuditHoldsBatch(rows pgx.Rows, size int) (map[string][]AuditHold, error
 
 func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
 	repository := artifacts.NewPostgresRepository(s.pool)
-	for start := 0; start < len(receipts); start += artifacts.MaxExactReadBatchSize {
-		batch := receipts[start:min(start+artifacts.MaxExactReadBatchSize, len(receipts))]
-		requests := make([]artifacts.ExactReadRequest, len(batch))
-		expected := make([]ExactArtifact, len(batch))
-		for index, receipt := range batch {
+	for start := 0; start < len(receipts); {
+		requests := make([]artifacts.ExactReadRequest, 0, artifacts.MaxExactReadBatchSize)
+		expected := make([]ExactArtifact, 0, artifacts.MaxExactReadBatchSize)
+		var bytes int64
+		end := start
+		for end < len(receipts) && len(requests) < artifacts.MaxExactReadBatchSize {
+			receipt := receipts[end]
 			request, artifact, err := receiptArtifact(receipt)
 			if err != nil {
 				return nil, err
 			}
-			requests[index], expected[index] = request, artifact
+			if artifact.SizeBytes < 0 {
+				return nil, artifacts.ErrArtifactIntegrity
+			}
+			if artifact.SizeBytes > artifacts.MaxPayloadSize {
+				return nil, artifacts.ErrPayloadTooLarge
+			}
+			if len(requests) > 0 && artifact.SizeBytes > artifacts.MaxPayloadSize-bytes {
+				break
+			}
+			requests = append(requests, request)
+			expected = append(expected, artifact)
+			bytes += artifact.SizeBytes
+			end++
 		}
+		batch := receipts[start:end]
 		reads, err := repository.ReadExactBatch(ctx, requests)
 		if err != nil {
 			return nil, err
@@ -191,6 +206,7 @@ func (s *Service) hydrateAuditReceiptBatch(ctx context.Context, receipts []Recei
 			}
 			batch[index].Document = document
 		}
+		start = end
 	}
 	return receipts, nil
 }

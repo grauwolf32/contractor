@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -130,6 +131,91 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 	if err != nil || params.RoundID != "" || reason == nil || reason.Code != "proposal_inventory_limit_exceeded" ||
 		!strings.Contains(reason.Message, "receipt-oversized (proposal_inventory.bytes)") {
 		t.Fatalf("closure with only an unschedulable proposal = (%+v, %+v, %v)", params.RoundID, reason, err)
+	}
+}
+
+func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	snapshot := loadAuditServiceProfilesWithProfile(t, func(profile string) string {
+		profile = strings.Replace(profile, "maxRounds: 1", "maxRounds: 4", 1)
+		return strings.Replace(profile, "findingConfirmation: disabled", "findingConfirmation: human-required", 1)
+	})
+	gateway, err := snapshot.LLMGateway("test-gateway@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
+	service, err := New(Options{
+		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
+		CredentialGuard: &countingCredentialGuard{},
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+		),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const ownerID, projectID, auditID = "round-budget-owner", "round-budget-project", "round-budget-audit"
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
+		Name: "Round budget", IdempotencyKey: "round-budget-project", RequestDigest: serviceTestDigest("round-budget-project"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checklist := writeChecklist(t, ctx, projectArtifacts, "round-budget", "automatic")
+	draft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
+		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		IdempotencyKey: "round-budget-draft", RequestDigest: serviceTestDigest("round-budget-draft"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := service.Start(ctx, StartParams{
+		OwnerID: ownerID, AuditID: auditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "round-budget-start", RequestDigest: serviceTestDigest("round-budget-start"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := auditstore.NewPostgresStore(pool)
+	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "round-budget-controller", Lease: time.Minute, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	round := closeRoundForTest(t, ctx, store, claim, started.Round)
+
+	// Nine exact documents near 8 MiB exceed the 64 MiB read ceiling as a
+	// group. Each still fits an otherwise empty proposal inventory.
+	check := auditdomain.ProposedCheck{Objective: "Confirm the reported condition.", Method: "static-trace"}
+	for n := range 9 {
+		suffix := fmt.Sprintf("near-limit-%d", n)
+		document := auditFindingDocument(suffix, check)
+		padFindingPreconditions(t, &document, auditdomain.MaximumDocumentBytes-8192)
+		seedAuditFindingDocument(t, ctx, pool, projectID, ownerID, auditID, suffix, document)
+	}
+	live, err := store.Get(ctx, ownerID, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, reason, err := service.PrepareNextRound(ctx, claim, auditstore.ReconcileSnapshot{Audit: live, Round: &round})
+	if err != nil || reason != nil || params.RoundID == "" || len(params.Items) != 1 {
+		t.Fatalf("next Round from nine near-limit proposals: id=%s items=%d reason=%+v err=%v", params.RoundID, len(params.Items), reason, err)
+	}
+	if _, inserted, err := store.AcceptNextRound(ctx, params); err != nil || !inserted {
+		t.Fatalf("accept prepared next Round: inserted=%t error=%v", inserted, err)
 	}
 }
 

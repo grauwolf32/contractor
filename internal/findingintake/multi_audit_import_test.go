@@ -3,6 +3,7 @@
 package findingintake
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -372,7 +373,7 @@ func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey st
 // proposal citing exact evidence revisions of the source Run, given in
 // canonical reference order.
 func insertAuditChildReceiptWithEvidence(
-	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact,
+	t *testing.T, f deletionImportFixture, clientKey string, evidence []ExactArtifact, padding ...int,
 ) Receipt {
 	t.Helper()
 	source, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
@@ -386,6 +387,10 @@ func insertAuditChildReceiptWithEvidence(
 	canonical, err := canonicalize(testSubmission(clientKey+"-invocation", clientKey, refs))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(padding) > 0 {
+		canonical.proposalBytes = append(canonical.proposalBytes,
+			bytes.Repeat([]byte(" "), padding[0]-len(canonical.proposalBytes))...)
 	}
 	written, err := artifacts.NewService(artifacts.NewPostgresRepository(f.pool)).WriteFindingProposal(
 		f.ctx, f.request.RunID, clientKey+"-proposal",
