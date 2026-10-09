@@ -25,11 +25,11 @@ cases:
     faults: [F02]
     expected: Stored, expanded, entry, member, manifest, frontmatter and path boundaries accept the exact limit and reject one byte or entry more.
     test: {source: internal/agentskills/validate_test.go, symbol: TestPackageLimitsAreStreamedAndExact}
-  - id: migrated_inventory_and_worker_boundary
+  - id: bundled_inventory_and_exact_packages
     covers: [A5]
     faults: [F03]
-    expected: All nine packages are deterministic and no model-visible Markdown exposes AgentTemplate vocabulary.
-    test: {source: internal/agentskills/hardening_test.go, symbol: TestMigratedAgentSkillsAreDeterministicAndWorkerFacing}
+    expected: Bundled Skill packages are deterministic, exact and pinned to their source members.
+    test: {source: internal/agentskills/pseudo_skill_test.go, symbol: TestPseudoSkillPackagingIsDeterministicAndPinned}
   - id: create_only_catalog_race
     covers: [A2]
     faults: [F04]
@@ -81,8 +81,8 @@ cases:
     test: {source: tests/e2e/agent_skills_test.go, symbol: TestAgentSkillsMVPProcesses}
   - id: exact_server_selection_topology
     covers: [A5]
-    expected: Current archive-backed and workspace-backed LikeC4 builder and validator templates select skills/likec4.
-    test: {source: internal/config/likec4_skill_versions_test.go, symbol: TestRepositoryCurrentLikeC4TemplatesSelectSkill}
+    expected: Workflow Skill selection includes all retained templates and remains bounded.
+    test: {source: internal/config/agent_skills_test.go, symbol: TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded}
   - id: artifact_plane_only_inventory
     covers: [A5]
     expected: Static public/private routes and migrations contain no Skill-specific endpoint, table or SystemScope.
@@ -91,7 +91,7 @@ cases:
 gates:
   - {id: matrix, command: make test-agent-skills-matrix}
   - {id: corpus, command: make test-agent-skill-contract}
-  - {id: packages, command: make test-migrated-agent-skills}
+  - {id: packages, command: make test-agent-skills-packaging}
   - {id: runtime, command: make test-agent-skills-runtime-hardening}
   - {id: races, command: make test-agent-skills-races}
   - {id: process, command: make test-agent-skills-mvp}

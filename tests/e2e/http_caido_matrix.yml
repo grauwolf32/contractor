@@ -96,8 +96,8 @@ cases:
     category: compatibility
     requirements: [A1, A3]
     faults: []
-    expected: Static tool Skill template and configuration names remain one reviewed closed assignment.
-    test: {source: internal/config/http_caido_repository_test.go, symbol: TestRepositoryHTTPAndCaidoConfigurationIsClosed}
+    expected: Every Caido tool requires its typed client in the reviewed descriptor.
+    test: {source: internal/config/config_test.go, symbol: TestCaidoToolsetDescriptorRequiresTypedClientForEveryTool}
 
 gates:
   - {id: matrix, command: make test-http-caido-matrix}
