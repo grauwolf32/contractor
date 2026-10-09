@@ -3,7 +3,7 @@ id: V344-001
 title: Deduplicate PKI CLI command tables
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V292-001]
 languages: [go]
 goal: Keep one PKI command implementation.
