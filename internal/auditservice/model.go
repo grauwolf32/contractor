@@ -65,8 +65,7 @@ func validateDraftSelection(value DraftSelection) error {
 func ValidateBaseline(value BaselineSnapshot) error {
 	if value.Schema != BaselineSchema || len(value.Inputs) == 0 ||
 		value.RuntimeLabels == nil || value.Skills == nil || value.LLMCredentialIDs == nil ||
-		value.RuntimeCredentialIDs == nil || value.Standards == nil ||
-		value.Inventory.ExecutionManifest.Items == nil {
+		value.RuntimeCredentialIDs == nil || value.Standards == nil {
 		return fmt.Errorf("%w: Audit baseline shape is invalid", ErrInvalid)
 	}
 	for name, input := range value.Inputs {
@@ -106,7 +105,10 @@ func ValidateBaseline(value BaselineSnapshot) error {
 			return fmt.Errorf("%w: Audit baseline HTTP target is invalid", ErrInvalid)
 		}
 	}
-	if validateExactArtifact(value.Inventory.Worklist, true) != nil ||
+	if value.Inventory == nil {
+		return nil
+	}
+	if value.Inventory.ExecutionManifest.Items == nil || validateExactArtifact(value.Inventory.Worklist, true) != nil ||
 		!contentdigest.Valid(value.Inventory.SourceContentDigest) ||
 		!contentdigest.Valid(value.Inventory.CanonicalInventoryDigest) ||
 		value.Inventory.Gaps == nil || !sort.StringsAreSorted(value.Inventory.Gaps) ||
@@ -234,6 +236,11 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		}
 		result.ProjectHTTPTarget = &target
 	}
+	if source.Inventory == nil {
+		return result
+	}
+	inventory := *source.Inventory
+	result.Inventory = &inventory
 	result.Inventory.Gaps = slices.Clone(source.Inventory.Gaps)
 	result.Inventory.StandardSelection = cloneAuditStandardSelection(source.Inventory.StandardSelection)
 	result.Inventory.ExecutionManifest.Items = slices.Clone(source.Inventory.ExecutionManifest.Items)

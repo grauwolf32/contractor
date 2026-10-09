@@ -1500,6 +1500,10 @@ type fakeImportStore struct {
 	collectErr func(auditstore.CollectParams) error
 }
 
+func (f *fakeImportStore) GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error) {
+	return auditstore.ArtifactLink{}, auditstore.ErrNotFound
+}
+
 func (f *fakeImportStore) ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error) {
 	return append([]auditstore.ExecutionItem{}, f.members...), nil
 }

@@ -205,6 +205,38 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
+	baseline := BaselineSnapshot{
+		Schema: BaselineSchema, Inputs: cloneExactInputs(selection.Inputs), Scope: selection.Scope,
+		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
+		Skills:               append([]contracts.RunSkillSnapshot{}, skills...),
+		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
+		RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, projectRuntimeCredentialIDs),
+		ProjectHTTPTarget:    projectTarget,
+		Standards:            append([]auditstandards.PinnedPackage{}, pinnedStandards...),
+	}
+	deadlineSeconds := profile.Execution.DeadlineSeconds
+	if params.DeadlineSeconds != nil {
+		deadlineSeconds = *params.DeadlineSeconds
+	}
+	var deadline time.Time
+	if deadlineSeconds > 0 {
+		deadline = s.now().UTC().Add(timeDurationSeconds(deadlineSeconds))
+	}
+	if profile.HasPreparation() {
+		baselineJSON, err := EncodeBaseline(baseline)
+		if err != nil {
+			return StartedAudit{}, err
+		}
+		started, created, err := store.StartPreparation(ctx, auditstore.StartPreparationParams{
+			OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: params.ExpectedRevision,
+			BaselineSnapshot: baselineJSON, DeadlineAt: deadline, InitialRetained: standardLinks,
+			IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
+		})
+		if err != nil {
+			return StartedAudit{}, err
+		}
+		return s.startedProjectionWithStore(ctx, store, started, !created)
+	}
 	inventory, err := buildInventory(profile, selection, inputPayloads, resolvedStandards)
 	if err != nil {
 		return StartedAudit{}, err
@@ -233,26 +265,40 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 
-	baseline := BaselineSnapshot{
-		Schema: BaselineSchema, Inputs: cloneExactInputs(selection.Inputs), Scope: selection.Scope,
-		RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot,
-		Skills:               append([]contracts.RunSkillSnapshot{}, skills...),
-		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
-		RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, projectRuntimeCredentialIDs),
-		ProjectHTTPTarget:    projectTarget,
-		Standards:            append([]auditstandards.PinnedPackage{}, pinnedStandards...),
-		Inventory: BaselineInventory{
-			SourceContentDigest:      inventory.SourceContentDigest,
-			CanonicalInventoryDigest: inventory.CanonicalInventoryDigest,
-			StandardSelection:        cloneAuditStandardSelection(profile.Inventory.StandardSelection),
-			Gaps:                     append([]string{}, inventory.Gaps...), Worklist: worklistArtifact,
-			ExecutionManifest: executionManifest,
-		},
+	baseline.Inventory = &BaselineInventory{
+		SourceContentDigest:      inventory.SourceContentDigest,
+		CanonicalInventoryDigest: inventory.CanonicalInventoryDigest,
+		StandardSelection:        cloneAuditStandardSelection(profile.Inventory.StandardSelection),
+		Gaps:                     append([]string{}, inventory.Gaps...), Worklist: worklistArtifact,
+		ExecutionManifest: executionManifest,
 	}
 	baselineJSON, err := EncodeBaseline(baseline)
 	if err != nil {
 		return StartedAudit{}, err
 	}
+	items, err := materializeInventoryItems(audit.AuditID, profile, inventory, taskArtifacts)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	roundID := auditdomain.DeterministicID("round", audit.AuditID, "1")
+	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+		OwnerID: params.OwnerID, AuditID: audit.AuditID,
+		ExpectedRevision: params.ExpectedRevision,
+		RoundID:          roundID, RoundOrdinal: 1, Manifest: worklistArtifact,
+		BaselineSnapshot: baselineJSON,
+		DeadlineAt:       deadline,
+		Items:            items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
+		RequestDigest: params.RequestDigest,
+	})
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	return s.startedProjectionWithStore(ctx, store, started, !created)
+}
+
+// materializeInventoryItems is shared by direct start and prepared initial
+// inventory. Workers never supply item identity, approval or coverage authority.
+func materializeInventoryItems(auditID string, profile config.ResolvedAuditProfile, inventory auditdomain.Inventory, taskArtifacts []auditstore.ExactArtifact) ([]auditstore.MaterializedItem, error) {
 	items := make([]auditstore.MaterializedItem, len(inventory.Worklist.Items))
 	for index, item := range inventory.Worklist.Items {
 		coverage := inventory.Coverage.Rows[index]
@@ -277,12 +323,12 @@ func (s *Service) startInTransaction(
 				},
 			}
 		}
-		itemID := auditdomain.DeterministicID("item", audit.AuditID, item.ItemKey)
+		itemID := auditdomain.DeterministicID("item", auditID, item.ItemKey)
 		approvalKind, approvalDigest, initialState, err := materializedItemApproval(
-			audit.AuditID, profile, itemID, item, taskArtifacts[index],
+			auditID, profile, itemID, item, taskArtifacts[index],
 		)
 		if err != nil {
-			return StartedAudit{}, err
+			return nil, err
 		}
 		items[index] = auditstore.MaterializedItem{
 			ItemID:  itemID,
@@ -298,28 +344,7 @@ func (s *Service) startInTransaction(
 			},
 		}
 	}
-	deadlineSeconds := profile.Execution.DeadlineSeconds
-	if params.DeadlineSeconds != nil {
-		deadlineSeconds = *params.DeadlineSeconds
-	}
-	var deadline time.Time
-	if deadlineSeconds > 0 {
-		deadline = s.now().UTC().Add(timeDurationSeconds(deadlineSeconds))
-	}
-	roundID := auditdomain.DeterministicID("round", audit.AuditID, "1")
-	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-		OwnerID: params.OwnerID, AuditID: audit.AuditID,
-		ExpectedRevision: params.ExpectedRevision,
-		RoundID:          roundID, RoundOrdinal: 1, Manifest: worklistArtifact,
-		BaselineSnapshot: baselineJSON,
-		DeadlineAt:       deadline,
-		Items:            items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
-		RequestDigest: params.RequestDigest,
-	})
-	if err != nil {
-		return StartedAudit{}, err
-	}
-	return s.startedProjectionWithStore(ctx, store, started, !created)
+	return items, nil
 }
 
 func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.ArtifactLink, error) {
@@ -500,6 +525,14 @@ func buildInventory(
 	if !exists {
 		return auditdomain.Inventory{}, fmt.Errorf("%w: inventory source input is missing", ErrInvalid)
 	}
+	var settings artifacts.ReadResult
+	if profile.Inventory.Settings != nil {
+		settings = inputs[profile.Inventory.Settings.Name]
+	}
+	return buildInventoryFromSources(profile, selection, source, settings, approval)
+}
+
+func buildInventoryFromSources(profile config.ResolvedAuditProfile, selection DraftSelection, source, settings artifacts.ReadResult, approval auditdomain.ApprovalRequirement) (auditdomain.Inventory, error) {
 	options := auditdomain.InventoryOptions{
 		Round: 1, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: profile.Inventory.Source.Name, SourceRef: source.Ref,
@@ -507,8 +540,7 @@ func buildInventory(
 	}
 	switch profile.Inventory.Implementation {
 	case config.AuditInventoryOpenAPIScans:
-		settings, exists := inputs[profile.Inventory.Settings.Name]
-		if !exists || settings.Payload.MediaType != "application/json" {
+		if settings.Ref.Revision == nil || settings.Payload.MediaType != "application/json" {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: scan settings input is missing or invalid", ErrInvalid)
 		}
 		return auditdomain.BuildOpenAPIScanInventory(source.Payload.Data, source.Payload.MediaType, settings.Payload.Data,
@@ -535,6 +567,7 @@ func writeTaskPackages(
 	profile config.ResolvedAuditProfile,
 	selection DraftSelection,
 	inventory auditdomain.Inventory,
+	prepared ...map[string]auditstore.ExactArtifact,
 ) ([]auditstore.ExactArtifact, auditdomain.ExecutionManifest, error) {
 	manifest := inventory.ExecutionManifest
 	manifest.Items = append([]auditdomain.ExecutionItem(nil), inventory.ExecutionManifest.Items...)
@@ -559,7 +592,7 @@ func writeTaskPackages(
 		if !exists {
 			return nil, auditdomain.ExecutionManifest{}, inconsistentRound("an Audit item names an unknown Workflow role", nil)
 		}
-		manifest.Items[index].Inputs = workflowInputs(binding, selection)
+		manifest.Items[index].Inputs = workflowInputs(binding, selection, prepared...)
 	}
 	if err := auditdomain.ValidateDispatchExecutionManifest(manifest); err != nil {
 		return nil, auditdomain.ExecutionManifest{}, err
@@ -570,6 +603,7 @@ func writeTaskPackages(
 func workflowInputs(
 	binding config.ResolvedAuditWorkflowBinding,
 	selection DraftSelection,
+	prepared ...map[string]auditstore.ExactArtifact,
 ) []auditdomain.ExactInput {
 	inputs := make([]auditdomain.ExactInput, 0)
 	names := make([]string, 0, len(binding.Inputs))
@@ -579,10 +613,18 @@ func workflowInputs(
 	sort.Strings(names)
 	for _, workflowInput := range names {
 		mapping := binding.Inputs[workflowInput]
-		if mapping.Source != config.AuditInputFromAudit {
+		var selected auditstore.ExactArtifact
+		var exists bool
+		switch mapping.Source {
+		case config.AuditInputFromAudit:
+			selected, exists = selection.Inputs[mapping.Name]
+		case config.AuditInputFromPreparation:
+			if len(prepared) == 1 {
+				selected, exists = prepared[0][preparationInputKey(mapping)]
+			}
+		default:
 			continue
 		}
-		selected, exists := selection.Inputs[mapping.Name]
 		if !exists {
 			continue
 		}
@@ -663,7 +705,10 @@ func (s *Service) startedProjectionWithStore(
 	replayed bool,
 ) (StartedAudit, error) {
 	if audit.CurrentRoundID == nil {
-		return StartedAudit{}, errors.New("started Audit has no current Round")
+		if audit.Phase != auditdomain.AuditPhasePreparing && audit.Phase != auditdomain.AuditPhaseInventory {
+			return StartedAudit{}, errors.New("started Audit has an invalid phase without a Round")
+		}
+		return StartedAudit{Audit: audit, Items: []auditstore.Item{}, Replayed: replayed}, nil
 	}
 	round, err := store.GetRound(ctx, audit.AuditID, *audit.CurrentRoundID)
 	if err != nil {

@@ -1,6 +1,6 @@
 # 19 — Audits: checks, findings, and iterative assessment
 
-Status: **Working agreement; baseline and [V62-002 preparation storage](../../tasks/v62-002-audit-preparation-store.yml) implemented. Controller dispatch and generated inventory (section 4.4) remain pending, so prepare profiles return `preparation_unsupported` until [V62-003](../../tasks/v62-003-audit-preparation-controller.yml) and [V62-004](../../tasks/v62-004-audit-prepared-inventory.yml) complete.**
+Status: **Working agreement; preparation storage, controller dispatch and generated initial inventory are implemented ([V62-002](../../tasks/v62-002-audit-preparation-store.yml), [V62-003](../../tasks/v62-003-audit-preparation-controller.yml), [V62-004](../../tasks/v62-004-audit-prepared-inventory.yml)). Minimal public controls work before a Round exists. Richer provenance, preparation UI and the generated-flow process/browser gate remain V62-010–012.**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 
@@ -373,14 +373,13 @@ enforce rather than silently weakening them.
 
 The stable start error is `audit_profile_unsupported`; its bounded reason codes
 describe missing Server capabilities rather than transient Worker availability.
-The Server emits `automatic_active_checks_unsupported`, `assessment_unsupported`
-for the unsupported finding-candidate inventory entry point, and
-`preparation_unsupported` (section 4.4). It also emits
+The Server emits `automatic_active_checks_unsupported` and `assessment_unsupported`
+for the unsupported finding-candidate inventory entry point. It also emits
 `finding_confirmation_unsupported` when `findingConfirmation: disabled` but a
 resolved Workflow has a `proposals` output or an AgentTemplate selects a
 finding-proposal tool. `batching_unsupported` and other older closed reason
-values remain reserved wire values for compatible clients; the Server does not
-produce them for bounded profile batch sizes, discovery, human review, report
+values, including `preparation_unsupported`, remain reserved wire values for compatible clients; the Server does not
+produce them for preparation, bounded profile batch sizes, discovery, human review, report
 acceptance, or multiple-round execution. A successfully started Audit may
 still wait in the ordinary queue for a compatible Runtime Agent.
 
@@ -459,11 +458,12 @@ Attempts reserve the existing cumulative Run budget atomically and do not
 introduce an Audit concurrency setting. Per-Run execution policies and the
 Scheduler retain their existing authority.
 
-A Server without preparation storage, controller and inventory acceptance
-returns `serverCompatible: false` with `preparation_unsupported` for valid
-prepare profiles; start and input preview reject them before building
-inventory or submitting Runs, and the example is then a test fixture rather
-than a runnable catalog preset. Preparation does not authorize classified
+The Server executes valid prepare profiles. Input preview validates original
+input presence and media contracts; generated document parsing waits until
+accepted preparation outputs exist. The runnable
+[`source-openapi-sqlmap-scan@1`](../../configs/audit-profiles/source_openapi_sqlmap_scan.yaml)
+preset uses `openapi-from-workspace@7` and the existing scan adapter.
+Preparation does not authorize classified
 active-check tools before item approval; profiles requiring such preparation
 are unsupported until an explicit Audit-scoped approval contract exists. Scan
 approval and outcome-aware retry rules are unchanged.
@@ -1100,6 +1100,11 @@ The original baseline has no inventory field for this path: generated
 inventory/worklist provenance is retained separately through its accepted
 Round and preparation descriptors. Validated worklist, tasks and first Round
 are accepted atomically, then `phase: rounds` requires `currentRoundId`.
+The protected `initial-inventory` Artifact link pins a versioned derived
+inventory snapshot, exact source/settings identities, gaps, worklist and
+execution manifest. It commits with the initial Round and coverage rows;
+its retained bytes consume the shared evidence budget. Report construction
+uses this accepted derived snapshot while keeping the original baseline digest.
 There is no partially accepted first Round. Empty or invalid generated
 inventory fails with `empty_inventory` or `invalid_inventory`, respectively,
 after dispatch closes and children drain. It does not create a placeholder

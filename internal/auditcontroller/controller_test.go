@@ -797,6 +797,17 @@ func (s *fakeControllerStore) RenewExpiredItemReview(
 	return false, nil
 }
 
+func (s *fakeControllerStore) CompletePreparation(_ context.Context, claim auditstore.ControllerClaim, revision uint64) (auditstore.Audit, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch || s.audit.Revision != revision {
+		return auditstore.Audit{}, auditstore.ErrPrecondition
+	}
+	s.audit.Phase = "inventory"
+	s.audit.Revision++
+	return s.audit, nil
+}
+
 func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1018,6 +1029,10 @@ func (s *fakeControllerStore) SettleUndispatched(
 		s.audit.Revision++
 	}
 	return settled, nil
+}
+
+func (s *fakeControllerStore) AcceptInitialRound(context.Context, auditstore.AcceptInitialRoundParams) (auditstore.Round, bool, error) {
+	return auditstore.Round{}, false, auditstore.ErrPrecondition
 }
 
 func (s *fakeControllerStore) AcceptNextRound(

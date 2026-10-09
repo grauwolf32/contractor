@@ -1,6 +1,6 @@
 # Audit preparation and Workflow composition
 
-Date: 2026-09-20. Series: **V62**. Status: **supplied-OpenAPI scans and preparation contracts accepted on 2026-09-21; preparation storage accepted on 2026-10-09; controller and generated inventory pending**.
+Date: 2026-09-20. Series: **V62**. Status: **supplied-OpenAPI scans and preparation contracts accepted on 2026-09-21; preparation storage, controller and generated initial inventory implemented on 2026-10-09; V62-010–012 next**.
 
 After review, the user requested explicit deferral of disputed work and accepted
 the order supplied OpenAPI → useful scan results → source preparation. Nuclei
@@ -11,8 +11,14 @@ persists preparation without creating a Round or items before inventory exists.
 Migration 98 pins attempts, submission snapshots, atomic output acceptance and
 source-deletion-safe retention. Its database and consumer checks passed with no
 skipped cases; see [V62-002 evidence](../../tasks/evidence/v62-002.json). V62-003
-is next: controller dispatch, restart recovery and controls before a Round exists.
-Public preparation remains `preparation_unsupported` until V62-003–004 complete.
+and V62-004 now supply controller dispatch, restart recovery, controls before a
+Round exists and fenced acceptance of the first generated inventory. Public
+preparation is enabled. The `source-openapi-sqlmap-scan@1` preset combines one
+existing source-to-OpenAPI Workflow with the delivered SQLMap scan adapter.
+Next are V62-010 richer provenance, V62-011 preparation UI and V62-012 the
+generated-flow process/browser gate. The current database tests exercise the
+complete prepared-checklist-to-report path and prepared OpenAPI scan inventory;
+they do not replace the V62-012 real-process acceptance gate.
 
 V62-009 owns the [scan contract](../spec/openapi-audit-scans.md), including
 scan-specific coverage and repeat prevention across Audit attempts. V62-001 then

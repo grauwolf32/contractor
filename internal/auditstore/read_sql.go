@@ -46,8 +46,8 @@ SELECT execution.collection_receipt_id, execution.audit_id, execution.execution_
        execution.terminal_run_sequence, execution.collection_disposition,
        execution.collection_error_code, execution.collection_request_digest, execution.collected_at
   FROM audit_executions AS execution
- WHERE execution.audit_id = $1 AND execution.role IN ('discovery', 'assessment')
-   AND execution.round_id IS NOT DISTINCT FROM $2
+ WHERE execution.audit_id = $1 AND (execution.role = 'prepare' OR (
+       execution.role IN ('discovery', 'assessment') AND execution.round_id IS NOT DISTINCT FROM $2))
    AND execution.collection_receipt_id IS NOT NULL
  ORDER BY execution.role, execution.workflow_role, execution.role_attempt, execution.execution_id
  LIMIT $3`

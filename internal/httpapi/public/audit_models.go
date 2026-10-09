@@ -65,6 +65,9 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 	if source.CurrentRoundID != nil {
 		result.Phase = auditdomain.AuditPhaseRounds
 	}
+	if source.Phase != "" {
+		result.Phase = source.Phase
+	}
 	if source.StopReason != nil {
 		result.StopReason = &auditStopReasonResponse{
 			Code: source.StopReason.Code, Message: source.StopReason.Message,
@@ -93,13 +96,15 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			},
 			Skills: skills, Standards: append([]auditstandards.PinnedPackage{}, baseline.Standards...),
 			ProjectHTTPTarget: baseline.ProjectHTTPTarget,
-			Inventory: &auditBaselineInventoryResponse{
+		}
+		if baseline.Inventory != nil {
+			result.Baseline.Inventory = &auditBaselineInventoryResponse{
 				SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 				CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 				StandardSelection:        baseline.Inventory.StandardSelection,
 				Gaps:                     append([]string{}, baseline.Inventory.Gaps...),
 				Worklist:                 baseline.Inventory.Worklist,
-			},
+			}
 		}
 	}
 	return result, nil

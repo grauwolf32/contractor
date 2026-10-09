@@ -34,6 +34,10 @@ type RoleOutputLookup interface {
 	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
 }
 
+type PreparationOutputLookup interface {
+	GetPreparationOutput(context.Context, string, string, string) (auditstore.AcceptedPreparationOutput, error)
+}
+
 type PinnedSubmissionBuilder struct {
 	artifacts ArtifactAccess
 	outputs   RoleOutputLookup
@@ -62,9 +66,8 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	attempt int,
 ) (PreparedSubmission, error) {
 	audit := snapshot.Audit
-	if snapshot.Round == nil || audit.CurrentRoundID == nil ||
-		snapshot.Round.RoundID != *audit.CurrentRoundID || attempt < 1 || b.outputs == nil {
-		return PreparedSubmission{}, invalidSubmission("Audit role is outside an immutable current Round")
+	if attempt < 1 || b.outputs == nil {
+		return PreparedSubmission{}, invalidSubmission("Audit role attempt or output lookup is invalid")
 	}
 	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version ||
@@ -72,8 +75,21 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		return PreparedSubmission{}, invalidSubmission("pinned AuditProfile cannot be decoded")
 	}
 	binding, exists := profile.Workflows[workflowRole]
-	if !exists || binding.Kind != config.AuditWorkflowDiscovery && binding.Kind != config.AuditWorkflowAssessment {
-		return PreparedSubmission{}, invalidSubmission("Audit role is not a discovery or assessment binding")
+	if !exists || binding.Kind != config.AuditWorkflowPrepare && binding.Kind != config.AuditWorkflowDiscovery && binding.Kind != config.AuditWorkflowAssessment {
+		return PreparedSubmission{}, invalidSubmission("Audit role binding is invalid")
+	}
+	var roundID *string
+	roundScope := ""
+	if binding.Kind == config.AuditWorkflowPrepare {
+		if audit.Phase != auditdomain.AuditPhasePreparing || snapshot.Round != nil || audit.CurrentRoundID != nil || attempt > binding.MaxRunAttempts {
+			return PreparedSubmission{}, invalidSubmission("preparation requires a bounded attempt before the first Round")
+		}
+	} else {
+		if snapshot.Round == nil || audit.CurrentRoundID == nil || snapshot.Round.RoundID != *audit.CurrentRoundID {
+			return PreparedSubmission{}, invalidSubmission("Audit role is outside an immutable current Round")
+		}
+		roundScope = snapshot.Round.RoundID
+		roundID = &roundScope
 	}
 	baseline, err := auditservice.DecodeBaseline(audit.BaselineSnapshot)
 	if err != nil {
@@ -109,16 +125,15 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 		return PreparedSubmission{}, err
 	}
 	kind := auditstore.ExecutionRole(binding.Kind)
-	roundID := snapshot.Round.RoundID
 	attemptText := strconv.Itoa(attempt)
 	executionID := auditdomain.DeterministicID(
-		"audit-role-execution", audit.AuditID, roundID, string(kind), workflowRole, attemptText,
+		"audit-role-execution", audit.AuditID, roundScope, string(kind), workflowRole, attemptText,
 	)
 	submissionKey := auditdomain.DeterministicID("audit-role-submission", executionID, manifestDigest)
 	requestDigest, err := submissionDigest(struct {
 		Schema        string                              `json:"schema"`
 		AuditID       string                              `json:"auditId"`
-		RoundID       string                              `json:"roundId"`
+		RoundID       *string                             `json:"roundId,omitempty"`
 		ExecutionID   string                              `json:"executionId"`
 		Kind          auditstore.ExecutionRole            `json:"kind"`
 		WorkflowRole  string                              `json:"workflowRole"`
@@ -142,9 +157,16 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
+	var preparation *auditstore.PreparationSnapshot
+	if kind == auditstore.ExecutionPrepare {
+		preparation = &auditstore.PreparationSnapshot{Inputs: maps.Clone(runInputs), Parameters: maps.Clone(parameters)}
+		for name, input := range preparation.Inputs {
+			preparation.Inputs[name] = cloneExact(input)
+		}
+	}
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
-			ExecutionID: executionID, RoundID: &roundID, Role: kind,
+			ExecutionID: executionID, RoundID: roundID, Role: kind, Preparation: preparation,
 			WorkflowRole: workflowRole, RoleAttempt: &attempt,
 			Manifest: manifestArtifact, SubmissionKey: submissionKey,
 			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
@@ -182,6 +204,12 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 			result[slot] = cloneExact(input)
 		case config.AuditInputFromExecutionManifest:
 			result[slot] = cloneExact(executionManifest)
+		case config.AuditInputFromPreparation:
+			output, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
+			if err != nil {
+				return nil, err
+			}
+			result[slot] = cloneExact(output)
 		case config.AuditInputFromRetainedOutput:
 			link, err := b.outputs.GetArtifactLink(
 				ctx, snapshot.Audit.AuditID,
@@ -198,6 +226,18 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 		}
 	}
 	return result, nil
+}
+
+func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID string, mapping config.AuditWorkflowInputMapping) (auditstore.ExactArtifact, error) {
+	lookup, ok := b.outputs.(PreparationOutputLookup)
+	if !ok {
+		return auditstore.ExactArtifact{}, invalidSubmission("accepted preparation output lookup is unavailable")
+	}
+	output, err := lookup.GetPreparationOutput(ctx, auditID, mapping.Role, mapping.Name)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	return output.Output.Retained, nil
 }
 
 func resolveRoleParameters(
@@ -604,6 +644,18 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			pinned, present := manifestInputs[slot]
 			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("baseline input differs from execution manifest")
+			}
+			runInputs[slot] = cloneExact(descriptor)
+			memberInputs = append(memberInputs, cloneExact(descriptor))
+			consumed++
+		case config.AuditInputFromPreparation:
+			descriptor, err := b.preparationOutput(ctx, snapshot.Audit.AuditID, mapping)
+			if err != nil {
+				return nil, nil, err
+			}
+			pinned, present := manifestInputs[slot]
+			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
+				return nil, nil, invalidSubmission("prepared input differs from execution manifest")
 			}
 			runInputs[slot] = cloneExact(descriptor)
 			memberInputs = append(memberInputs, cloneExact(descriptor))

@@ -118,19 +118,19 @@ func (i *Importer) collectRole(
 	snapshot auditstore.ReconcileSnapshot,
 	execution auditstore.Execution,
 ) (bool, error) {
-	if execution.RoleAttempt == nil || *execution.RoleAttempt < 1 || execution.RoundID == nil ||
-		snapshot.Round == nil || snapshot.Round.RoundID != *execution.RoundID {
+	preparing := execution.Role == auditstore.ExecutionPrepare
+	if execution.RoleAttempt == nil || *execution.RoleAttempt < 1 ||
+		(preparing && (execution.RoundID != nil || execution.Preparation == nil)) ||
+		(!preparing && (execution.RoundID == nil || snapshot.Round == nil || snapshot.Round.RoundID != *execution.RoundID)) {
 		return false, fmt.Errorf("%w: role execution identity is invalid", ErrPermanent)
 	}
 	switch *execution.TerminalOutcome {
 	case auditstore.TerminalFailed, auditstore.TerminalSubmissionFailed:
 		code := "execution-failed"
-		return i.commitCollection(ctx, claim, execution,
-			auditstore.CollectionExecutionFailed, nil, nil, &code, nil)
+		return i.commitRoleFailure(ctx, claim, snapshot, execution, auditstore.CollectionExecutionFailed, nil, code)
 	case auditstore.TerminalCancelled:
 		code := "execution-cancelled"
-		return i.commitCollection(ctx, claim, execution,
-			auditstore.CollectionExecutionCancelled, nil, nil, &code, nil)
+		return i.commitRoleFailure(ctx, claim, snapshot, execution, auditstore.CollectionExecutionCancelled, nil, code)
 	case auditstore.TerminalSucceeded:
 		return i.collectSucceededRole(ctx, claim, snapshot, execution)
 	default:
@@ -170,6 +170,12 @@ func (i *Importer) collectSucceededRole(
 
 	logicalNames := slices.Sorted(maps.Keys(binding.Outputs))
 	links := make([]auditstore.ArtifactLink, 0, len(logicalNames))
+	preparationOutputs := []auditstore.PreparationOutput{}
+	type frozenOutput struct {
+		logical, slot string
+		artifact      auditstore.ExactArtifact
+	}
+	frozenOutputs := make([]frozenOutput, 0, len(logicalNames))
 	var source *auditstore.ExactArtifact
 	var totalBytes int64
 	for _, logicalName := range logicalNames {
@@ -183,35 +189,52 @@ func (i *Importer) collectSucceededRole(
 		)
 		if errors.Is(readErr, artifacts.ErrArtifactNotFound) {
 			code := "missing-role-output"
-			return i.commitCollection(ctx, claim, execution,
-				auditstore.CollectionMissingOutput, nil, nil, &code, nil)
+			return i.commitRoleFailure(ctx, claim, snapshot, execution, auditstore.CollectionMissingOutput, nil, code)
 		}
 		if readErr != nil {
 			return false, readErr
 		}
-		if !frozen || !slices.Contains(contract.MediaTypes, descriptor.MediaType) {
+		if !frozen || !contracts.AcceptsMediaType(contract.MediaTypes, descriptor.MediaType) {
 			code := "invalid-role-output"
-			return i.commitCollection(ctx, claim, execution,
-				auditstore.CollectionInvalidResult, &descriptor, nil, &code, nil)
+			return i.commitRoleFailure(ctx, claim, snapshot, execution, auditstore.CollectionInvalidResult, &descriptor, code)
 		}
 		totalBytes += descriptor.SizeBytes
 		if totalBytes < 0 || totalBytes > snapshot.Audit.Limits.MaxEvidenceBytes-snapshot.Audit.RetainedEvidenceBytes {
 			code := "evidence-budget-exhausted"
-			return i.commitCollection(ctx, claim, execution,
-				auditstore.CollectionInvalidResult, &descriptor, nil, &code, nil)
+			return i.commitRoleFailure(ctx, claim, snapshot, execution, auditstore.CollectionInvalidResult, &descriptor, code)
+		}
+		frozenOutputs = append(frozenOutputs, frozenOutput{logicalName, slotName, descriptor})
+	}
+	// Validate the complete output set before publishing any retained binding.
+	// All accepted preparation descriptors then commit in one receipt write.
+	for _, output := range frozenOutputs {
+		logicalName, slotName, descriptor := output.logical, output.slot, output.artifact
+		scopeID := snapshot.Audit.AuditID
+		if snapshot.Round != nil {
+			scopeID = snapshot.Round.RoundID
 		}
 		retained, retainErr := i.artifacts.RetainRunExact(
 			ctx, run.RunID, descriptor, snapshot.Audit.ProjectID,
 			contracts.ArtifactRef{
 				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
 				Name: auditdomain.DeterministicID(
-					"role-output", snapshot.Round.RoundID, execution.WorkflowRole,
+					"role-output", scopeID, execution.WorkflowRole,
 					execution.ExecutionID, logicalName,
 				),
 			},
 		)
 		if retainErr != nil {
 			return false, retainErr
+		}
+		if source == nil {
+			value := descriptor
+			source = &value
+		}
+		if execution.Role == auditstore.ExecutionPrepare {
+			preparationOutputs = append(preparationOutputs, auditstore.PreparationOutput{
+				LogicalName: logicalName, WorkflowOutput: slotName, Source: descriptor, Retained: retained,
+			})
+			continue
 		}
 		provenance, encodeErr := json.Marshal(struct {
 			Schema          string                   `json:"schema"`
@@ -256,7 +279,7 @@ func (i *Importer) collectSucceededRole(
 		return false, fmt.Errorf("%w: role has no output contract", ErrPermanent)
 	}
 	changed, err := i.commitCollection(
-		ctx, claim, execution, auditstore.CollectionAccepted, source, links, nil, nil,
+		ctx, claim, execution, auditstore.CollectionAccepted, source, links, nil, nil, preparationOutputs,
 	)
 	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
 		// A concurrent writer consumed the budget the snapshot admitted.
@@ -531,7 +554,12 @@ func (i *Importer) commitCollection(
 	retained []auditstore.ArtifactLink,
 	errorCode *string,
 	items []auditstore.CollectionItem,
+	preparation ...[]auditstore.PreparationOutput,
 ) (bool, error) {
+	var preparationOutputs []auditstore.PreparationOutput
+	if len(preparation) != 0 {
+		preparationOutputs = preparation[0]
+	}
 	identity := struct {
 		Schema      string                           `json:"schema"`
 		ExecutionID string                           `json:"executionId"`
@@ -543,11 +571,12 @@ func (i *Importer) commitCollection(
 		Retained    []auditstore.ArtifactLink        `json:"retained"`
 		ErrorCode   *string                          `json:"errorCode,omitempty"`
 		Items       []auditstore.CollectionItem      `json:"items"`
+		Preparation []auditstore.PreparationOutput   `json:"preparationOutputs,omitempty"`
 	}{
 		Schema: "contractor.audit.collection-request.v1", ExecutionID: execution.ExecutionID,
 		Outcome: execution.TerminalOutcome, Generation: execution.TerminalRunGeneration,
 		Sequence: execution.TerminalRunSequence, Disposition: disposition,
-		Source: source, Retained: nonNilLinks(retained), ErrorCode: errorCode, Items: items,
+		Source: source, Retained: nonNilLinks(retained), ErrorCode: errorCode, Items: items, Preparation: preparationOutputs,
 	}
 	encoded, err := json.Marshal(identity)
 	if err != nil {
@@ -558,6 +587,7 @@ func (i *Importer) commitCollection(
 		ExecutionID: execution.ExecutionID, Disposition: disposition,
 		SourceOutput: source, Retained: nonNilLinks(retained), ErrorCode: errorCode,
 		RequestDigest: auditdomain.DigestBytes(encoded), Items: items,
+		PreparationOutputs: preparationOutputs,
 	})
 	if errors.Is(err, auditstore.ErrInvalid) {
 		// The store rejects a request by its content alone, so retrying the

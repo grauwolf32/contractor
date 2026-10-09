@@ -75,7 +75,11 @@ SELECT role.key, COALESCE(attempts.count, 0), (role.value->>'maxRunAttempts')::i
        latest.execution_id,
        CASE WHEN latest.collection_disposition = 'accepted-result' THEN 'accepted'
             WHEN latest.execution_id IS NULL THEN 'pending'
-            WHEN latest.state = 'collected' AND attempts.count >= (role.value->>'maxRunAttempts')::integer THEN 'failed'
+            WHEN latest.state = 'collected' AND (
+                attempts.count >= (role.value->>'maxRunAttempts')::integer
+                OR latest.collection_disposition IN ('collection-contract-invalid', 'execution-cancelled')
+                OR latest.collection_error_code = 'evidence-budget-exhausted'
+            ) THEN 'failed'
             ELSE 'running' END
   FROM audits AS audit CROSS JOIN LATERAL jsonb_each(audit.profile_snapshot->'workflows') AS role
   LEFT JOIN LATERAL (
@@ -83,7 +87,7 @@ SELECT role.key, COALESCE(attempts.count, 0), (role.value->>'maxRunAttempts')::i
        WHERE execution.audit_id = audit.audit_id AND execution.role = 'prepare' AND execution.workflow_role = role.key
   ) AS attempts ON true
   LEFT JOIN LATERAL (
-      SELECT execution_id, state, collection_disposition FROM audit_executions AS execution
+      SELECT execution_id, state, collection_disposition, collection_error_code FROM audit_executions AS execution
        WHERE execution.audit_id = audit.audit_id AND execution.role = 'prepare' AND execution.workflow_role = role.key
        ORDER BY role_attempt DESC LIMIT 1
   ) AS latest ON true

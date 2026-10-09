@@ -80,7 +80,7 @@ func configureAudits(
 			ClaimLease:       cfg.Operations.AuditController.ClaimLease,
 			OperationTimeout: cfg.Operations.AuditController.OperationTimeout,
 			ClaimBatch:       cfg.Operations.AuditController.ClaimBatch,
-			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService,
+			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService, InitialRoundBuilder: auditService,
 		},
 	)
 	if err != nil {

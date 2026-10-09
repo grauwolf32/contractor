@@ -3,7 +3,7 @@ id: V62-003
 title: Execute and recover prepare Workflows before the first Audit round
 milestone: audit-workflow-composition
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V62-002]
 languages: [go]

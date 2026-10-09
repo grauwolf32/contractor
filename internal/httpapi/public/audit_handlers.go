@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -124,7 +125,7 @@ func (h *handler) createAudit(w http.ResponseWriter, r *http.Request) {
 	if !created {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	response, err := auditReadModel(audit)
+	response, err := h.auditDetailReadModel(r, audit)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -217,6 +218,9 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
 		item, modelErr := auditReadModel(audit)
+		if modelErr == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
+			item, modelErr = h.auditDetailReadModel(r, audit)
+		}
 		if modelErr != nil {
 			h.handleError(w, modelErr)
 			return
@@ -240,7 +244,7 @@ func (h *handler) getAudit(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	response, err := auditReadModel(audit)
+	response, err := h.auditDetailReadModel(r, audit)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -288,7 +292,7 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	if started.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	audit, err := auditReadModel(started.Audit)
+	audit, err := h.auditDetailReadModel(r, started.Audit)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -298,9 +302,13 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		items[index] = auditItemReadModel(started.Items[index])
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(audit.Revision, 10)))
-	round := auditRoundReadModel(started.Round)
+	var round *auditRoundResponse
+	if started.Audit.CurrentRoundID != nil {
+		value := auditRoundReadModel(started.Round)
+		round = &value
+	}
 	writeJSON(w, http.StatusOK, auditStartResponse{
-		Audit: audit, Round: &round, Items: items,
+		Audit: audit, Round: round, Items: items,
 	})
 }
 
@@ -377,7 +385,7 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	response, err := auditReadModel(result.Audit)
+	response, err := h.auditDetailReadModel(r, result.Audit)
 	if err != nil {
 		h.handleError(w, err)
 		return

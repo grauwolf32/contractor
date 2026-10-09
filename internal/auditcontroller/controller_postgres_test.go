@@ -1400,6 +1400,7 @@ func newPostgresControllerReviewHarness(
 
 func newPostgresControllerHarnessWithConfig(
 	t *testing.T, ctx context.Context, manualCount, itemCount int, snapshot *config.Snapshot,
+	additionalInputs ...map[string]artifacts.Payload,
 ) *postgresControllerHarness {
 	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
@@ -1445,6 +1446,16 @@ func newPostgresControllerHarnessWithConfig(
 	if err != nil {
 		t.Fatal(err)
 	}
+	inputRefs := map[string]contracts.ArtifactRef{"checklist": input.Ref}
+	for _, values := range additionalInputs {
+		for name, payload := range values {
+			written, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: name}, payload, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputRefs[name] = written.Ref
+		}
+	}
 	guard := controllerCredentialGuard{}
 	auditService, err := auditservice.New(auditservice.Options{
 		Pool: pool, Profiles: snapshot,
@@ -1457,7 +1468,7 @@ func newPostgresControllerHarnessWithConfig(
 	draft, _, err := auditService.CreateDraft(ctx, auditservice.CreateDraftParams{
 		AuditID: "audit-controller", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:       auditservice.ProfileSelector{Name: "test-checklist", Version: "1"},
-		Inputs:        map[string]contracts.ArtifactRef{"checklist": input.Ref},
+		Inputs:        inputRefs,
 		RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Verify the test checklist"},
 		IdempotencyKey: "create-controller-audit", RequestDigest: postgresDigest("audit-create"),
 	})
@@ -1645,7 +1656,7 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 
 // loadControllerConfigWithFindings optionally lets the worker propose
 // findings and requires human confirmation for them.
-func loadControllerConfigWithFindings(t *testing.T, batchSize, maxItems int, findings bool) *config.Snapshot {
+func loadControllerConfigWithFindings(t *testing.T, batchSize, maxItems int, findings bool, customize ...func(map[string]string)) *config.Snapshot {
 	t.Helper()
 	findingTools, findingConfirmation := "", "disabled"
 	if findings {
@@ -1748,6 +1759,9 @@ spec:
     notApplicable: profile-rule
     reportAcceptance: automatic
 `, batchSize, maxItems, maxItems, 2*maxItems, findingConfirmation),
+	}
+	for _, apply := range customize {
+		apply(files)
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

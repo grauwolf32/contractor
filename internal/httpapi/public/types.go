@@ -187,6 +187,7 @@ type AuditManagement interface {
 	Cancel(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Get(context.Context, string, string) (auditstore.Audit, error)
+	Preparation(context.Context, string, string) (map[string]auditservice.PreparationRoleProjection, error)
 	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)

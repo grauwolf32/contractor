@@ -40,6 +40,8 @@ type Store interface {
 	TransitionClaimed(context.Context, auditstore.ClaimedTransitionParams) (auditstore.Audit, error)
 	TransitionRound(context.Context, auditstore.RoundTransitionParams) (auditstore.Round, error)
 	GetReconcileSnapshot(context.Context, auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error)
+	CompletePreparation(context.Context, auditstore.ControllerClaim, uint64) (auditstore.Audit, error)
+	AcceptInitialRound(context.Context, auditstore.AcceptInitialRoundParams) (auditstore.Round, bool, error)
 	CreateExecutionIntent(context.Context, auditstore.CreateExecutionIntentParams) (auditstore.Execution, bool, error)
 	NextItemAttempt(context.Context, auditstore.ControllerClaim, string) (int, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
@@ -108,33 +110,39 @@ type RoundBuilder interface {
 	) (auditstore.AcceptRoundParams, *auditstore.StopReason, error)
 }
 
+type InitialRoundBuilder interface {
+	PrepareInitialRound(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (auditstore.AcceptInitialRoundParams, *auditstore.StopReason, error)
+}
+
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
 }
 
 type Options struct {
-	PollInterval     time.Duration
-	ClaimLease       time.Duration
-	OperationTimeout time.Duration
-	ClaimBatch       int
-	HolderID         string
-	Clock            Clock
-	NewID            func(string) (string, error)
-	Logger           *slog.Logger
-	Collector        Collector
-	RoundBuilder     RoundBuilder
+	PollInterval        time.Duration
+	ClaimLease          time.Duration
+	OperationTimeout    time.Duration
+	ClaimBatch          int
+	HolderID            string
+	Clock               Clock
+	NewID               func(string) (string, error)
+	Logger              *slog.Logger
+	Collector           Collector
+	RoundBuilder        RoundBuilder
+	InitialRoundBuilder InitialRoundBuilder
 }
 
 type Controller struct {
-	store        Store
-	runs         RunStore
-	creator      RunCreator
-	builder      SubmissionBuilder
-	collector    Collector
-	roundBuilder RoundBuilder
-	notifier     RunNotifier
-	options      Options
+	store               Store
+	runs                RunStore
+	creator             RunCreator
+	builder             SubmissionBuilder
+	collector           Collector
+	roundBuilder        RoundBuilder
+	initialRoundBuilder InitialRoundBuilder
+	notifier            RunNotifier
+	options             Options
 
 	runMu   sync.Mutex
 	running bool
@@ -189,7 +197,7 @@ func New(
 	}
 	return &Controller{
 		store: store, runs: runs, creator: creator, builder: builder,
-		collector: options.Collector, roundBuilder: options.RoundBuilder,
+		collector: options.Collector, roundBuilder: options.RoundBuilder, initialRoundBuilder: options.InitialRoundBuilder,
 		notifier: notifier, options: options,
 	}, nil
 }

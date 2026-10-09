@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -115,6 +116,9 @@ func (c *Controller) reconcile(
 	if closed {
 		return c.settleClosedAudit(ctx, claim, snapshot)
 	}
+	if result := c.progressPreparation(ctx, claim, snapshot); result != nil {
+		return result.changed, result.err
+	}
 	return c.dispatchReadyBatch(ctx, claim, snapshot)
 }
 
@@ -135,7 +139,7 @@ func (c *Controller) reconcileRolePhase(
 	kind auditstore.ExecutionRole,
 ) (changed bool, complete bool, reason *auditstore.StopReason, err error) {
 	profile, decodeErr := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
-	if decodeErr != nil || snapshot.Round == nil {
+	if decodeErr != nil || (kind != auditstore.ExecutionPrepare && snapshot.Round == nil) {
 		return false, false, &auditstore.StopReason{
 			Code: "role_contract_invalid", Message: "The pinned Audit role configuration is invalid.",
 		}, nil
@@ -166,7 +170,11 @@ func (c *Controller) reconcileRolePhase(
 					),
 				}, nil
 			}
-			if latest.RoleAttempt == nil || *latest.RoleAttempt >= snapshot.Audit.Limits.MaxItemRunAttempts {
+			maxAttempts := snapshot.Audit.Limits.MaxItemRunAttempts
+			if kind == auditstore.ExecutionPrepare {
+				maxAttempts = profile.Workflows[workflowRole].MaxRunAttempts
+			}
+			if latest.RoleAttempt == nil || *latest.RoleAttempt >= maxAttempts {
 				return false, false, &auditstore.StopReason{
 					Code: "role_attempt_budget_exhausted",
 					Message: fmt.Sprintf(
@@ -188,6 +196,9 @@ func (c *Controller) reconcileRolePhase(
 				Code:    "submission_budget_exhausted",
 				Message: "The Audit child Run submission budget was exhausted before a required role completed.",
 			}, nil
+		}
+		if snapshot.MaxConcurrentRuns < 1 || snapshot.Audit.OutstandingRunCount >= snapshot.MaxConcurrentRuns {
+			return false, false, nil, nil
 		}
 		return c.dispatchRole(ctx, claim, snapshot, workflowRole, attempt)
 	}
@@ -321,7 +332,7 @@ func roleDependenciesSatisfied(
 ) bool {
 	binding := profile.Workflows[workflowRole]
 	for _, mapping := range binding.Inputs {
-		if mapping.Source != config.AuditInputFromRetainedOutput {
+		if mapping.Source != config.AuditInputFromRetainedOutput && mapping.Source != config.AuditInputFromPreparation {
 			continue
 		}
 		source, exists := profile.Workflows[mapping.Role]
@@ -373,6 +384,10 @@ func (c *Controller) dispatchClosureReason(
 		return &auditstore.StopReason{
 			Code: "deadline_exhausted", Message: "The Audit time limit was reached. Existing Runs can finish; extend or disable the limit to continue.",
 		}
+	}
+	if (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) &&
+		snapshot.Round == nil && audit.CurrentRoundID == nil {
+		return nil
 	}
 	if audit.Limits.BatchSize < 1 || audit.Limits.BatchSize > auditstore.MaxCollectionItems ||
 		snapshot.Round == nil || audit.CurrentRoundID == nil ||
@@ -504,9 +519,15 @@ func (c *Controller) resumeOneIntent(
 func matchingRoleIntent(
 	execution auditstore.Execution, prepared auditstore.CreateExecutionIntentParams,
 ) bool {
+	roundMatches := execution.RoundID == nil && prepared.RoundID == nil ||
+		execution.RoundID != nil && prepared.RoundID != nil && *execution.RoundID == *prepared.RoundID
+	preparationMatches := execution.Preparation == nil && prepared.Preparation == nil ||
+		execution.Preparation != nil && prepared.Preparation != nil &&
+			sameExactInputMap(execution.Preparation.Inputs, prepared.Preparation.Inputs) &&
+			sameParameters(execution.Preparation.Parameters, prepared.Preparation.Parameters)
 	return execution.ExecutionID == prepared.ExecutionID && execution.Role == prepared.Role &&
-		execution.WorkflowRole == prepared.WorkflowRole && execution.RoundID != nil && prepared.RoundID != nil &&
-		*execution.RoundID == *prepared.RoundID && execution.RoleAttempt != nil && prepared.RoleAttempt != nil &&
+		execution.WorkflowRole == prepared.WorkflowRole && roundMatches && preparationMatches &&
+		execution.RoleAttempt != nil && prepared.RoleAttempt != nil &&
 		*execution.RoleAttempt == *prepared.RoleAttempt && execution.SubmissionKey == prepared.SubmissionKey &&
 		execution.RequestDigest == prepared.RequestDigest && execution.Manifest.Digest == prepared.Manifest.Digest &&
 		execution.Manifest.Ref.SameExact(prepared.Manifest.Ref) && len(prepared.Members) == 0

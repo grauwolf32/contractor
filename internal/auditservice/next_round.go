@@ -116,8 +116,12 @@ func (s *Service) PrepareNextRound(
 		}
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
+	prepared, err := acceptedPreparationInputs(ctx, auditstore.NewPostgresStore(s.pool), snapshot.Audit.AuditID, profile)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
 	taskArtifacts, manifest, err := writeTaskPackages(
-		ctx, projectArtifacts, namespace, profile, selection, inventory,
+		ctx, projectArtifacts, namespace, profile, selection, inventory, prepared,
 	)
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)

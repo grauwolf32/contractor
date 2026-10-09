@@ -3,7 +3,7 @@ id: V62-004
 title: Build the first Audit worklist from accepted preparation artifacts
 milestone: audit-workflow-composition
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V62-003]
 languages: [go, json, yaml]

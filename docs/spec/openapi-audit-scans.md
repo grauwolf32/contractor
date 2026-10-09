@@ -1,6 +1,6 @@
 # OpenAPI Audit scan adapter
 
-Status: **Released and verified ([V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml)). Prepare-role execution that would generate the OpenAPI is specified in [19 §4.4](19-audits.md#44-preparation-contract) but not yet delivered, so prepare profiles return `preparation_unsupported`.**
+Status: **Supplied-input scans released and verified ([V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml)). Preparation execution and generated initial inventory are implemented by V62-003–004 under [19 §4.4](19-audits.md#44-preparation-contract); the generated-flow process/browser acceptance gate remains V62-012.**
 
 ## Delivery order
 
@@ -12,6 +12,15 @@ governed by [19 §4.4](19-audits.md#44-preparation-contract) and is not a
 prerequisite for this profile. Round result snapshots, retained dependencies,
 proposed-check routing and standalone project-analysis preparation are deferred
 and are not release prerequisites.
+
+The [`source-openapi-sqlmap-scan@1`](../../configs/audit-profiles/source_openapi_sqlmap_scan.yaml)
+preset accepts an exact source archive and the same explicit scan settings.
+One `openapi-from-workspace@7` prepare role produces OpenAPI and validation
+diagnostics. The Server retains both, constructs inventory from the accepted
+OpenAPI revision, and forks that revision into each check Run. No Round or
+successful coverage exists until the worklist is accepted. This preset keeps
+the same explicit operation denominator, active-check approvals, scanner
+arguments and retry rules as the supplied-input SQLMap profile.
 
 ## Assigned inputs and authority
 
