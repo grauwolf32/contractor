@@ -1,6 +1,10 @@
-package contracts
+package scan
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 const (
 	MaxScanTestParameters         = 64
@@ -28,17 +32,17 @@ type ScanToolPolicy struct {
 var scanTestParameterPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.\[\]-]*$`)
 
 func (p ScanPlanPolicy) Validate() error {
-	if ValidateArtifactName(p.InputArtifact) != nil || p.MaxInputs < 1 || p.MaxInputs > 1000 || p.MaxJobs < 1 || p.MaxJobs > 100 || p.MaxTotalSeconds < 1 || p.MaxTotalSeconds > 86400 || len(p.Tools) < 1 || len(p.Tools) > 4 {
-		return Invalidf("invalid scan plan policy or budget")
+	if contracts.ValidateArtifactName(p.InputArtifact) != nil || p.MaxInputs < 1 || p.MaxInputs > 1000 || p.MaxJobs < 1 || p.MaxJobs > 100 || p.MaxTotalSeconds < 1 || p.MaxTotalSeconds > 86400 || len(p.Tools) < 1 || len(p.Tools) > 4 {
+		return contracts.Invalidf("invalid scan plan policy or budget")
 	}
 	workers := map[string]bool{}
 	for _, tool := range p.Tools {
-		if ValidateArtifactName(tool.Worker) != nil || workers[tool.Worker] || tool.MaxJobs < 1 || tool.MaxJobs > 100 || tool.MaxTotalSeconds < 1 || tool.MaxTotalSeconds > 86400 {
-			return Invalidf("invalid scan tool policy or duplicate worker")
+		if contracts.ValidateArtifactName(tool.Worker) != nil || workers[tool.Worker] || tool.MaxJobs < 1 || tool.MaxJobs > 100 || tool.MaxTotalSeconds < 1 || tool.MaxTotalSeconds > 86400 {
+			return contracts.Invalidf("invalid scan tool policy or duplicate worker")
 		}
 		workers[tool.Worker] = true
-		if tool.WordlistArtifact != "" && ValidateArtifactName(tool.WordlistArtifact) != nil {
-			return Invalidf("invalid scan wordlist artifact slot")
+		if tool.WordlistArtifact != "" && contracts.ValidateArtifactName(tool.WordlistArtifact) != nil {
+			return contracts.Invalidf("invalid scan wordlist artifact slot")
 		}
 		if err := ValidateScanTestParameters(tool.TestParameters); err != nil {
 			return err
@@ -51,12 +55,12 @@ func (p ScanPlanPolicy) Validate() error {
 // settings. An empty list is valid here; SQLMap's caller requires a selection.
 func ValidateScanTestParameters(names []string) error {
 	if len(names) > MaxScanTestParameters {
-		return Invalidf("too many scan test parameters")
+		return contracts.Invalidf("too many scan test parameters")
 	}
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
 		if len(name) > MaxScanTestParameterNameBytes || !scanTestParameterPattern.MatchString(name) || seen[name] {
-			return Invalidf("invalid or duplicate scan test parameter")
+			return contracts.Invalidf("invalid or duplicate scan test parameter")
 		}
 		seen[name] = true
 	}

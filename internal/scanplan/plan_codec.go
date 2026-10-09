@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 var planDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
@@ -54,13 +55,13 @@ func DecodePlan(data []byte) (ScanPlan, error) {
 
 func (p ScanPlan) Validate() error {
 	bad := func() error { return failure("invalid_scan_plan") }
-	if p.SchemaVersion != 1 || p.Source.Artifact.ValidateExact() != nil || !planDigestPattern.MatchString(p.Source.ContentDigest) || p.Policy.Validate() != nil || p.Candidates == nil || p.Jobs == nil || p.PreparationGaps == nil || len(p.Candidates) > MaxPlanCandidates || len(p.Jobs) > p.Policy.MaxJobs || len(p.PreparationGaps) > contracts.MaxHTTPRequestSetGaps {
+	if p.SchemaVersion != 1 || p.Source.Artifact.ValidateExact() != nil || !planDigestPattern.MatchString(p.Source.ContentDigest) || p.Policy.Validate() != nil || p.Candidates == nil || p.Jobs == nil || p.PreparationGaps == nil || len(p.Candidates) > MaxPlanCandidates || len(p.Jobs) > p.Policy.MaxJobs || len(p.PreparationGaps) > scan.MaxHTTPRequestSetGaps {
 		return bad()
 	}
 	if !utf8.ValidString(*p.Source.Artifact.Revision) || !validPlanPreparation(p) {
 		return bad()
 	}
-	policies := map[string]contracts.ScanToolPolicy{}
+	policies := map[string]scan.ScanToolPolicy{}
 	previous := ""
 	for _, tool := range p.Policy.Tools {
 		if tool.Worker <= previous || !sort.StringsAreSorted(tool.TestParameters) {
@@ -171,7 +172,7 @@ func (p ScanPlan) Validate() error {
 			if job.Request == nil || job.Request.SchemaVersion != 1 || !reflect.DeepEqual(job.Request.TestParameters, policy.TestParameters) || len(job.Parameters) != 0 || len(job.Artifacts) != 0 {
 				return bad()
 			}
-			request := contracts.PreparedHTTPRequest{Method: job.Request.Method, URL: job.Request.URL, Headers: job.Request.Headers, Body: job.Request.Body}
+			request := scan.PreparedHTTPRequest{Method: job.Request.Method, URL: job.Request.URL, Headers: job.Request.Headers, Body: job.Request.Body}
 			if _, code := prepareSQLMapRequest(request, job.Request.TestParameters); code != "" {
 				return bad()
 			}
@@ -218,7 +219,7 @@ func validPlanPreparation(p ScanPlan) bool {
 	if p.Source.MediaType == TargetListMediaType {
 		return p.PreparationCoverage == nil && len(p.PreparationGaps) == 0
 	}
-	if p.Source.MediaType != contracts.HTTPRequestSetMediaType || p.PreparationCoverage == nil {
+	if p.Source.MediaType != scan.HTTPRequestSetMediaType || p.PreparationCoverage == nil {
 		return false
 	}
 	coverage := *p.PreparationCoverage
@@ -236,7 +237,7 @@ func validPlanPreparation(p ScanPlan) bool {
 }
 
 func validPlanSourceID(source, mediaType string) bool {
-	if mediaType == contracts.HTTPRequestSetMediaType {
+	if mediaType == scan.HTTPRequestSetMediaType {
 		return planRequestIDPattern.MatchString(source)
 	}
 	if !planLineIDPattern.MatchString(source) {
@@ -246,7 +247,7 @@ func validPlanSourceID(source, mediaType string) bool {
 	return err == nil && line > 0 && line <= MaxSourceBytes
 }
 
-func validPlanToolPolicy(policy contracts.ScanToolPolicy, tool string) bool {
+func validPlanToolPolicy(policy scan.ScanToolPolicy, tool string) bool {
 	if (tool == "scan_sqlmap") != (len(policy.TestParameters) > 0) {
 		return false
 	}

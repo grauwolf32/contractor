@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 func (p *preparer) resolve(value any, chain []string) (map[string]any, string) {
@@ -198,9 +198,9 @@ func (p *preparer) example(object map[string]any, schema any) (resultValue any, 
 // serialization still enforces its byte limit, including top-level JSON strings.
 func concreteValueFits(value any) bool {
 	if text, ok := value.(string); ok {
-		return len(text) <= contracts.MaxHTTPRequestBodyBytes
+		return len(text) <= scan.MaxHTTPRequestBodyBytes
 	}
-	remaining, nodes := contracts.MaxHTTPRequestBodyBytes, 0
+	remaining, nodes := scan.MaxHTTPRequestBodyBytes, 0
 	spend := func(size int) bool {
 		remaining -= size
 		return remaining >= 0

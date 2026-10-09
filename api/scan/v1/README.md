@@ -10,7 +10,7 @@ This directory defines [HTTPRequestSet](http-request-set.schema.json) and
 neutral prepared HTTP requests. Its normative structural schema is
 [http-request-set.schema.json](http-request-set.schema.json); the additional
 semantic rules below are enforced by
-[`internal/contracts/http_request_set.go`](../../../internal/contracts/http_request_set.go).
+[`internal/contracts/scan/http_request_set.go`](../../../internal/contracts/scan/http_request_set.go).
 The [valid fixture](testdata/valid.json) is canonical JSON. Preparation policy,
 including supported OpenAPI versions and coverage gap meanings, is specified in
 [scan request preparation](../../../docs/spec/31-scan-request-preparation.md).

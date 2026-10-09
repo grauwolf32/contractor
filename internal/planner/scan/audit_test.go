@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -133,7 +134,7 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 				if request.Method != "POST" || request.Body != `{"name":"Milo"}` || !slices.Contains(request.TestParameters, "name") {
 					t.Fatalf("request changed: %+v", request)
 				}
-				if !slices.Contains(request.Headers, contracts.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) {
+				if !slices.Contains(request.Headers, contractscan.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) {
 					t.Fatal("authentication lost")
 				}
 			} else {

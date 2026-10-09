@@ -1,4 +1,4 @@
-package contracts
+package scan
 
 import (
 	"bytes"

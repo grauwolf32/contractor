@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -216,7 +217,7 @@ type ResolvedStage struct {
 	Objective       string                          `json:"objective"`
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
-	ScanPlan        *contracts.ScanPlanPolicy       `json:"scanPlan,omitempty"`
+	ScanPlan        *scan.ScanPlanPolicy            `json:"scanPlan,omitempty"`
 	AuditScan       *AuditScanConfig                `json:"auditScan,omitempty"`
 	Session         contracts.WorkerSessionMode     `json:"session"`
 	Agents          map[string]ResolvedAgentBinding `json:"agents"`
@@ -420,7 +421,7 @@ type stageSource struct {
 	Objective       string                        `yaml:"objective"`
 	Instructions    *instructionsRefSource        `yaml:"instructions"`
 	Planner         string                        `yaml:"planner"`
-	ScanPlan        *contracts.ScanPlanPolicy     `yaml:"scanPlan,omitempty"`
+	ScanPlan        *scan.ScanPlanPolicy          `yaml:"scanPlan,omitempty"`
 	AuditScan       *AuditScanConfig              `yaml:"auditScan,omitempty"`
 	Session         yaml.Node                     `yaml:"session,omitempty"`
 	Agents          map[string]agentBindingSource `yaml:"agents"`

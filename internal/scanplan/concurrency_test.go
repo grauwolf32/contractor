@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -22,7 +22,7 @@ func TestPrepareConcurrentCallsPreserveSharedInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := contracts.MarshalHTTPRequestSet(expected)
+	want, err := scan.MarshalHTTPRequestSet(expected)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestPrepareConcurrentCallsPreserveSharedInputs(t *testing.T) {
 			result, err := scanplan.PrepareOperation(data, "application/json", ref, options, "#/paths/~1x/get")
 			if err == nil {
 				var wire []byte
-				wire, err = contracts.MarshalHTTPRequestSet(result)
+				wire, err = scan.MarshalHTTPRequestSet(result)
 				if err == nil && !bytes.Equal(wire, want) {
 					err = fmt.Errorf("concurrent output changed")
 				}

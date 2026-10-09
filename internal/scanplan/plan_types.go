@@ -1,6 +1,9 @@
 package scanplan
 
-import "github.com/grauwolf32/contractor/internal/contracts"
+import (
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
+)
 
 const (
 	PlanMediaType       = "application/vnd.contractor.scan-plan+json"
@@ -27,14 +30,14 @@ type PlanSource struct {
 }
 
 type ScanPlan struct {
-	PreparationCoverage *contracts.RequestSetCoverage `json:"preparationCoverage,omitempty"`
-	SchemaVersion       int                           `json:"schemaVersion"`
-	ID                  string                        `json:"id"`
-	Source              PlanSource                    `json:"source"`
-	Policy              contracts.ScanPlanPolicy      `json:"policy"`
-	PreparationGaps     []contracts.PreparationGap    `json:"preparationGaps"`
-	Candidates          []ScanCandidate               `json:"candidates"`
-	Jobs                []ScanJob                     `json:"jobs"`
+	PreparationCoverage *scan.RequestSetCoverage `json:"preparationCoverage,omitempty"`
+	SchemaVersion       int                      `json:"schemaVersion"`
+	ID                  string                   `json:"id"`
+	Source              PlanSource               `json:"source"`
+	Policy              scan.ScanPlanPolicy      `json:"policy"`
+	PreparationGaps     []scan.PreparationGap    `json:"preparationGaps"`
+	Candidates          []ScanCandidate          `json:"candidates"`
+	Jobs                []ScanJob                `json:"jobs"`
 }
 
 type ScanCandidate struct {
@@ -47,12 +50,12 @@ type ScanCandidate struct {
 }
 
 type SQLMapRequest struct {
-	SchemaVersion  int                           `json:"schemaVersion"`
-	Method         string                        `json:"method"`
-	URL            string                        `json:"url"`
-	Headers        []contracts.HTTPRequestHeader `json:"headers"`
-	Body           string                        `json:"body"`
-	TestParameters []string                      `json:"testParameters"`
+	SchemaVersion  int                      `json:"schemaVersion"`
+	Method         string                   `json:"method"`
+	URL            string                   `json:"url"`
+	Headers        []scan.HTTPRequestHeader `json:"headers"`
+	Body           string                   `json:"body"`
+	TestParameters []string                 `json:"testParameters"`
 }
 
 // ScanJob describes semantic input. Generated artifact revisions and physical
