@@ -7,6 +7,9 @@ package auditstore
 // with no live pending or approved replacement. It locks those requests FOR
 // UPDATE and orders each item's rows pending, decided, expired, newest first;
 // $2 caps the rows and NULL means no cap. Used by renewExpiredItemReviews.
+// Keep the live-authority lookup correlated to one item: pulling this volatile
+// view into an anti join can repeatedly scan every pending review before the
+// expired-review filter has eliminated the outer rows.
 var expiredItemReviewsSQL = `
 SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
        review.request_id, review.state
@@ -31,6 +34,7 @@ SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
    AND NOT EXISTS (
        SELECT 1 FROM audit_live_item_reviews AS live
         WHERE live.audit_id=item.audit_id AND live.item_id=item.item_id
+       OFFSET 0
    )
  ORDER BY item.ordinal, item.item_id,
           CASE review.state WHEN 'pending' THEN 0 WHEN 'decided' THEN 1 ELSE 2 END,

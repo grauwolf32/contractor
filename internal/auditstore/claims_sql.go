@@ -8,6 +8,8 @@ package auditstore
 // with an expired report review or item approval lacking a live replacement.
 // Free or expired claim rows are taken FOR UPDATE SKIP LOCKED, their epoch is
 // bumped, and the new claims are returned. Used by PostgresStore.Claim.
+// OFFSET 0 keeps the live-authority probe correlated to an exact item, rather
+// than expanding its volatile view into repeated scans of all pending reviews.
 var claimAuditSQL = `
 WITH candidates AS (
     SELECT claim.audit_id
@@ -69,6 +71,7 @@ WITH candidates AS (
                               AND NOT EXISTS (
                                   SELECT 1 FROM audit_live_item_reviews AS live
                                    WHERE live.audit_id=item.audit_id AND live.item_id=item.item_id
+                                  OFFSET 0
                               )
                        )
                    )
