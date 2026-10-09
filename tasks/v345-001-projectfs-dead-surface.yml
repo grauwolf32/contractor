@@ -3,7 +3,7 @@ id: V345-001
 title: Remove fsspec and test-only overlay APIs from projectfs
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V320-001, V321-001]
 languages: [python]
 goal: Shrink projectfs to the paths production uses.

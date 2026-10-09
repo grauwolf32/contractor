@@ -71,14 +71,14 @@ def test_export_respects_a_lower_transport_budget_without_partial_checkpoint(
                 await exporter.export(worker_result())
             assert rejected.value.cause == "workspace_limit_exceeded"
             assert client.calls == []
-            assert await session.changed_paths() == ("source.txt",)
+            assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
         else:
             await exporter.export(worker_result())
             restored = decode_workspace_state(
                 client.binding("workspace_state").data, session._source, session.limits
             )
             assert restored.snapshot() == await session.snapshot()
-            assert await session.changed_paths() == ()
+            assert tuple(entry.path for entry in await session.change_entries()) == ()
 
     asyncio.run(scenario())
 
@@ -109,7 +109,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
             session.limits,
         )
         assert reconstructed.snapshot() == await session.snapshot()
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
 
         await session.write_text("source.txt", "second result\n")
         second = await exporter.export(worker_result())
@@ -125,7 +125,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
             session.limits,
         )
         assert reconstructed.snapshot() == await session.snapshot()
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
 
     asyncio.run(scenario())
 
@@ -143,12 +143,12 @@ def test_partial_write_and_lost_response_never_advance_checkpoint(tmp_path: Path
         assert partial.value.retryable
         assert client.binding("workspace_state").revision == "revision-1"
         assert "workspace_diff" not in client.bindings
-        assert await session.changed_paths() == ("source.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
 
         completed = await exporter.export(worker_result())
         assert completed.result.artifacts["workspace_state"].revision == "revision-1"
         assert completed.result.artifacts["workspace_diff"].revision == "revision-1"
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
 
         await session.write_text("source.txt", "second result\n")
         client.fail_after("workspace_state")
@@ -156,12 +156,12 @@ def test_partial_write_and_lost_response_never_advance_checkpoint(tmp_path: Path
             await exporter.export(worker_result())
         assert client.binding("workspace_state").revision == "revision-2"
         assert client.binding("workspace_diff").revision == "revision-1"
-        assert await session.changed_paths() == ("source.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
 
         recovered = await exporter.export(worker_result())
         assert recovered.result.artifacts["workspace_state"].revision == "revision-2"
         assert recovered.result.artifacts["workspace_diff"].revision == "revision-2"
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
 
     asyncio.run(scenario())
 
@@ -209,7 +209,7 @@ def test_adk_maps_partial_export_to_stable_retryable_failure(tmp_path: Path) -> 
         assert result.failure.code == "workspace_export_failed"
         assert result.failure.retryable
         assert set(client.bindings) == {"workspace_state"}
-        assert await session.changed_paths() == ("source.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
         assert runtime._metrics.counters["workspace_exports.failed"] == 1
         assert runtime._metrics.errors[-1].code == "workspace_export_failed"
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
@@ -249,7 +249,7 @@ def test_adk_treats_protocol_shaped_and_free_text_as_opaque_before_export(
         assert failed.failure is None
         assert '"outcome":"failed"' in failed.result.result
         assert set(failed.result.artifacts) == {"workspace_state", "workspace_diff"}
-        assert await failed_session.changed_paths() == ()
+        assert tuple(entry.path for entry in await failed_session.change_entries()) == ()
         await failed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         malformed_session = await overlay("malformed")
@@ -266,7 +266,7 @@ def test_adk_treats_protocol_shaped_and_free_text_as_opaque_before_export(
         assert malformed.failure is None
         assert malformed.result.result == "ordinary summary"
         assert set(malformed.result.artifacts) == {"workspace_state", "workspace_diff"}
-        assert await malformed_session.changed_paths() == ()
+        assert tuple(entry.path for entry in await malformed_session.change_entries()) == ()
         await malformed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         reserved_session = await overlay("reserved")
@@ -322,7 +322,7 @@ def test_invocation_cancellation_during_export_writes_nothing_and_keeps_checkpoi
         with pytest.raises(asyncio.CancelledError):
             await invocation
         assert client.bindings == {}
-        assert await session.changed_paths() == ("source.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("source.txt",)
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -363,7 +363,6 @@ async def overlay(name: str) -> OverlayWorkspaceSession:
     source = ManagedWorkspaceTree(text_files={"source.txt": "source\n"})
     return OverlayWorkspaceSession(
         storage=storage,
-        content_root=f"{storage.root}/run_workdir",
         limits=limits,
         directories=source.directories,
         text_files=source.text_files,

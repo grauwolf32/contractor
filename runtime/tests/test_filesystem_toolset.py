@@ -396,7 +396,6 @@ async def workspace(mode: str, name: str) -> DirectWorkspaceSession:
     storage = await provider.create(name)
     arguments = dict(
         storage=storage,
-        content_root=f"{storage.root}/run_workdir",
         limits=workspace_limits(),
         directories={"src", "src/nested", "docs", "empty"},
         text_files={

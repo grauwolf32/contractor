@@ -206,7 +206,7 @@ class DirectWorkspaceSession:
         *,
         mode: WorkspaceMode,
         storage: ProjectWorkspaceStorage,
-        content_root: str,
+        content_root: str | None = None,
         limits: WorkspaceLimits,
         directories: set[str],
         text_files: dict[str, str],
@@ -221,7 +221,9 @@ class DirectWorkspaceSession:
 
         self._local = (
             LocalDirectWorkspace(
-                content_root, limits, operation_timeout_seconds=storage.operation_timeout_seconds
+                content_root or f"{storage.root}/run_workdir",
+                limits,
+                operation_timeout_seconds=storage.operation_timeout_seconds,
             )
             if mode == "direct" and storage.storage == "local"
             else None
@@ -540,11 +542,29 @@ def _subtree_paths(tree: ManagedWorkspaceTree, root: str) -> set[str]:
 
 
 def _remove_tree(tree: ManagedWorkspaceTree, root: str) -> None:
-    selected = _subtree_paths(tree, root)
+    if root and root not in tree.directories:
+        tree.text_files.pop(root, None)
+        tree.binary_paths.discard(root)
+        return
+    selected = {path for path in tree.paths() if _within(path, root)}
     tree.directories.difference_update(selected)
     for path in selected:
         tree.text_files.pop(path, None)
     tree.binary_paths.difference_update(selected)
+
+
+def _copy_subtree(
+    source: ManagedWorkspaceTree, destination: ManagedWorkspaceTree, root: str
+) -> None:
+    destination.directories.update(path for path in source.directories if _within(path, root))
+    destination.text_files.update(
+        (path, text) for path, text in source.text_files.items() if _within(path, root)
+    )
+    destination.binary_paths.update(path for path in source.binary_paths if _within(path, root))
+
+
+def _within(path: str, root: str) -> bool:
+    return root == "" or path == root or path.startswith(f"{root}/")
 
 
 def _copy_tree(

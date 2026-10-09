@@ -142,7 +142,6 @@ def test_local_provider_handles_are_private_and_cleanup_is_bounded(tmp_path: Pat
         outside.mkdir()
         forged = ProjectWorkspaceStorage(
             storage="local",
-            filesystem=storage.filesystem,
             root=str(outside),
             provider_id=storage.provider_id,
             owner_token=storage.owner_token,
@@ -169,6 +168,8 @@ def test_local_provider_rejects_root_replaced_by_symlink(tmp_path: Path) -> None
 
 
 def test_memory_provider_isolates_allocations_and_provider_instances() -> None:
+    from contractor_runtime.projectfs import DirectWorkspaceSession
+
     async def scenario() -> None:
         settings = memory_settings()
         first = MemoryWorkspaceProvider(settings)
@@ -176,22 +177,32 @@ def test_memory_provider_isolates_allocations_and_provider_instances() -> None:
         left = await first.create("allocation-left")
         right = await first.create("allocation-right")
         foreign = await second.create("allocation-foreign")
-        left.filesystem.pipe(f"{left.root}/value.txt", b"left")
-        right.filesystem.pipe(f"{right.root}/value.txt", b"right")
-        assert left.filesystem.cat(f"{left.root}/value.txt") == b"left"
-        assert right.filesystem.cat(f"{right.root}/value.txt") == b"right"
-        assert not foreign.filesystem.exists(f"{foreign.root}/value.txt")
-        assert not foreign.filesystem.exists(f"{left.root}/value.txt")
+        sessions = [
+            DirectWorkspaceSession(
+                mode="direct",
+                storage=handle,
+                limits=settings.limits,
+                directories=set(),
+                text_files={},
+                binary_paths=set(),
+            )
+            for handle in (left, right, foreign)
+        ]
+        await sessions[0].write_text("value.txt", "left")
+        await sessions[1].write_text("value.txt", "right")
+        assert await sessions[0].read_text("value.txt") == "left"
+        assert await sessions[1].read_text("value.txt") == "right"
+        assert (await sessions[2].snapshot()).files == ()
         assert left.root != right.root != foreign.root
         assert left.root not in repr(left)
-
         with pytest.raises(ValueError, match="another provider"):
             await second.cleanup(left)
+        await sessions[0].close()
         await first.cleanup(left)
-        assert not left.filesystem.exists(left.root)
-        assert right.filesystem.exists(right.root)
-        await first.cleanup(right)
-        await second.cleanup(foreign)
+        assert await sessions[1].read_text("value.txt") == "right"
+        for session, provider in zip(sessions[1:], (first, second), strict=True):
+            await session.close()
+            await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
 

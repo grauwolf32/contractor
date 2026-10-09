@@ -96,24 +96,24 @@ def test_imported_state_and_sequential_checkpoints_need_only_latest_state() -> N
         source = source_tree()
         first = await overlay(source, "first")
         await first.write_text("src/a.py", "revision one\n")
-        state_one = await first.export_state()
+        state_one = (await first.prepare_export()).state
 
         second = await overlay(source, "second")
         await second.import_state(state_one)
-        assert await second.changed_paths() == ()
+        assert tuple(entry.path for entry in await second.change_entries()) == ()
         await second.make_directory("generated")
         await second.write_text("generated/one.txt", "one\n")
         first_diff = await second.diff()
         assert "generated/one.txt" in first_diff.text
         assert "src/a.py" not in first_diff.text
-        state_two = await second.export_state()
-        await second.commit_checkpoint()
+        state_two = (await second.prepare_export()).state
+        await second.commit_export(await second.prepare_export())
 
         await second.write_text("src/a.py", "revision three\n")
         second_diff = await second.diff()
         assert "src/a.py" in second_diff.text
         assert "generated/one.txt" not in second_diff.text
-        latest = await second.export_state()
+        latest = (await second.prepare_export()).state
 
         reconstructed = decode_workspace_state(latest, source, limits())
         assert reconstructed.snapshot() == await second.snapshot()
@@ -149,7 +149,7 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
         assert isinstance(seed, OverlayWorkspaceSession)
         await seed.write_text("src/a.py", "imported\n")
         await seed.delete_path("remove.txt")
-        state_payload = await seed.export_state()
+        state_payload = (await seed.prepare_export()).state
         await seed_provider.cleanup(seed.storage)
 
         state_ref = ArtifactRef(namespace="analysis", name="state", revision=REVISION)
@@ -171,8 +171,8 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
             timeout_seconds=5,
         )
         assert await imported.read_text("src/a.py") == "imported\n"
-        assert await imported.changed_paths() == ()  # type: ignore[attr-defined]
-        assert not imported.storage.filesystem.exists(f"{imported.storage.root}/run_workdir")
+        assert tuple(entry.path for entry in await imported.change_entries()) == ()  # type: ignore[attr-defined]
+        assert not Path(f"{imported.storage.root}/run_workdir").exists()
 
         direct_spec = spec.model_copy(deep=True, update={"mode": "direct"})
         direct_provider = LocalWorkspaceProvider(settings("local", tmp_path / "direct"))
@@ -184,13 +184,10 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
             timeout_seconds=5,
         )
         assert await direct.read_text("src/a.py") == "imported\n"
-        assert (
-            direct.storage.filesystem.cat(f"{direct.storage.root}/run_workdir/src/a.py")
-            == b"imported\n"
-        )
-        assert not direct.storage.filesystem.exists(f"{direct.storage.root}/run_workdir/remove.txt")
+        assert Path(f"{direct.storage.root}/run_workdir/src/a.py").read_bytes() == b"imported\n"
+        assert not Path(f"{direct.storage.root}/run_workdir/remove.txt").exists()
         # Imported state initializes local disk, not a retained direct overlay.
-        direct.storage.filesystem.pipe(f"{direct.storage.root}/run_workdir/src/a.py", b"external\n")
+        Path(f"{direct.storage.root}/run_workdir/src/a.py").write_bytes(b"external\n")
         assert await direct.read_text("src/a.py") == "external\n"
         assert not direct._tree.paths()
 
@@ -204,7 +201,7 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
         )
         assert await memory.read_text("src/a.py") == "imported\n"
         assert all(file.path != "remove.txt" for file in (await memory.snapshot()).files)
-        assert not memory.storage.filesystem.exists(f"{memory.storage.root}/run_workdir")
+        assert not Path(f"{memory.storage.root}/run_workdir").exists()
 
         await overlay_provider.cleanup(imported.storage)
         await direct_provider.cleanup(direct.storage)
@@ -312,7 +309,6 @@ def test_overlay_edits_validate_only_changed_text_and_keep_limits(
         storage = await provider.create("edit-limits")
         bounded = OverlayWorkspaceSession(
             storage=storage,
-            content_root=f"{storage.root}/run_workdir",
             limits=tight,
             directories=set(),
             text_files={"a.txt": "12345", "b.txt": "67890"},
@@ -374,7 +370,6 @@ def test_overlay_delete_and_mkdir_keep_count_and_byte_limits() -> None:
         storage = await provider.create("path-limits")
         session = OverlayWorkspaceSession(
             storage=storage,
-            content_root=f"{storage.root}/run_workdir",
             limits=tight,
             directories=set(),
             text_files={"a.txt": "12345", "b.txt": "67890"},
@@ -439,7 +434,6 @@ def test_overlay_delete_and_mkdir_match_memory_direct_session(
             storage = await provider.create(f"parity-{session_type.__name__}")
             arguments = dict(
                 storage=storage,
-                content_root=f"{storage.root}/run_workdir",
                 limits=bounds,
                 directories=tree.directories,
                 text_files=tree.text_files,
@@ -512,7 +506,6 @@ async def overlay(source: ManagedWorkspaceTree, name: str) -> OverlayWorkspaceSe
     storage = await provider.create(name)
     return OverlayWorkspaceSession(
         storage=storage,
-        content_root=f"{storage.root}/run_workdir",
         limits=limits(),
         directories=source.directories,
         text_files=source.text_files,

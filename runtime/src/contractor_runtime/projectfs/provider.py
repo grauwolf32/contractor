@@ -14,10 +14,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from fsspec import AbstractFileSystem
-from fsspec.implementations.local import LocalFileSystem
-from fsspec.implementations.memory import MemoryFileSystem
-
 from contractor_runtime.contracts import (
     WorkspaceCapabilities,
     WorkspaceMode,
@@ -65,7 +61,6 @@ class ProjectWorkspaceStorage:
     """Opaque provider-owned storage handle; physical locations stay private."""
 
     storage: WorkspaceStorage
-    filesystem: AbstractFileSystem = field(repr=False)
     root: str = field(repr=False)
     provider_id: str = field(repr=False)
     owner_token: str = field(repr=False)
@@ -98,7 +93,6 @@ class LocalWorkspaceProvider:
         self._root = settings.work_root
         self._provider_id = uuid.uuid4().hex
         self._capability = _capability(settings)
-        self._filesystem = LocalFileSystem(auto_mkdir=False)
         self._initialization_lock = asyncio.Lock()
         self._initialized = False
         self._before_initialize = before_initialize
@@ -132,7 +126,6 @@ class LocalWorkspaceProvider:
         return ProjectWorkspaceStorage(
             storage="local",
             operation_timeout_seconds=self._operation_timeout_seconds,
-            filesystem=self._filesystem,
             root=str(path),
             provider_id=self._provider_id,
             owner_token=owner_token,
@@ -167,7 +160,7 @@ class LocalWorkspaceProvider:
 
 
 class MemoryWorkspaceProvider:
-    """Give each allocation a unique prefix in a private fsspec instance."""
+    """Give each allocation a unique opaque handle; sessions own their managed trees."""
 
     def __init__(self, settings: WorkspaceSettings) -> None:
         if settings.storage != "memory" or settings.work_root is not None:
@@ -189,11 +182,8 @@ class MemoryWorkspaceProvider:
             raise ValueError("allocation ID is required")
         owner_token = uuid.uuid4().hex
         root = f"{_MEMORY_ROOT}/{self._provider_id}/{owner_token}"
-        filesystem = _IsolatedMemoryFileSystem(skip_instance_cache=True)
-        filesystem.makedirs(root, exist_ok=False)
         return ProjectWorkspaceStorage(
             storage="memory",
-            filesystem=filesystem,
             root=root,
             provider_id=self._provider_id,
             owner_token=owner_token,
@@ -207,16 +197,6 @@ class MemoryWorkspaceProvider:
             or storage.root != expected
         ):
             raise ValueError("workspace storage belongs to another provider")
-        await asyncio.to_thread(_remove_memory_workspace, storage)
-
-
-class _IsolatedMemoryFileSystem(MemoryFileSystem):
-    """Override fsspec's class-global store for one allocation handle."""
-
-    def __init__(self, **storage_options: object) -> None:
-        super().__init__(**storage_options)
-        self.store = {}
-        self.pseudo_dirs = [""]
 
 
 def build_workspace_provider(
@@ -333,11 +313,6 @@ def _open_for_removal(parent: int, name: str) -> tuple[int, str, list[str]]:
     except BaseException:
         os.close(directory)
         raise
-
-
-def _remove_memory_workspace(storage: ProjectWorkspaceStorage) -> None:
-    if storage.filesystem.exists(storage.root):
-        storage.filesystem.rm(storage.root, recursive=True)
 
 
 def _initialize_local_root(root: Path) -> None:

@@ -23,9 +23,11 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceDiff,
     WorkspaceSnapshot,
     WorkspaceStorageError,
+    _copy_subtree,
     _copy_tree,
     _normalized_path,
     _remove_tree,
+    _within,
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
@@ -84,7 +86,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         self,
         *,
         storage: ProjectWorkspaceStorage,
-        content_root: str,
         limits: WorkspaceLimits,
         directories: set[str],
         text_files: dict[str, str],
@@ -93,7 +94,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         super().__init__(
             mode="overlay",
             storage=storage,
-            content_root=content_root,
             limits=limits,
             directories=directories,
             text_files=text_files,
@@ -334,19 +334,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         candidate = decode_workspace_state(payload, self._source, self._limits)
         return candidate, candidate.clone()
 
-    async def export_state(self) -> bytes:
-        async with self._lock:
-            self._require_open()
-            return await to_thread_until_done(
-                encode_workspace_state,
-                self._source,
-                self._tree,
-                name="workspace-state-export",
-            )
-
-    async def changed_paths(self, path: str = "") -> tuple[str, ...]:
-        return tuple(entry.path for entry in await self.change_entries(path))
-
     async def change_entries(self, path: str = "") -> tuple[WorkspaceChange, ...]:
         normalized = normalize_project_path(path, allow_root=True)
         async with self._lock:
@@ -427,7 +414,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         if self._tree.kind(normalized) is None and self._checkpoint.kind(normalized) is None:
             raise WorkspaceStorageError("workspace_not_found")
         candidate = self._tree.clone()
-        _remove_subtree(candidate, normalized)
+        _remove_tree(candidate, normalized)
         if self._checkpoint.kind(normalized) is not None:
             # Parents deleted after the checkpoint come back with the path;
             # one that has since become a file is not silently replaced.
@@ -440,19 +427,6 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         _copy_subtree(self._checkpoint, candidate, normalized)
         _validate_tree(candidate, self._limits)
         return candidate
-
-    async def commit_checkpoint(self) -> WorkspaceSnapshot:
-        async with self._lock:
-            self._require_open()
-            self._checkpoint, snapshot = await to_thread_until_done(
-                self._checkpoint_candidate, name="workspace-checkpoint"
-            )
-            self._generation += 1
-            return snapshot
-
-    def _checkpoint_candidate(self) -> tuple[ManagedWorkspaceTree, WorkspaceSnapshot]:
-        candidate = self._tree.clone()
-        return candidate, candidate.snapshot()
 
     async def prepare_export(
         self, *, max_payload_bytes: int = MAX_WORKSPACE_EXPORT_BYTES
@@ -594,7 +568,7 @@ def canonical_overlay_operations(
     working = source.clone()
     operations: list[OverlayOperation] = []
     for path in deletions:
-        _remove_subtree(working, path)
+        _remove_tree(working, path)
         operations.append(OverlayOperation(op="delete_path", path=path))
 
     for path in sorted(result.directories, key=lambda value: (value.count("/"), value)):
@@ -653,7 +627,7 @@ def _apply_operation(tree: ManagedWorkspaceTree, operation: OverlayOperation) ->
     if operation.op == "delete_path":
         if tree.kind(operation.path) is None:
             raise WorkspaceStateError("workspace_state_invalid")
-        _remove_subtree(tree, operation.path)
+        _remove_tree(tree, operation.path)
         return
     _require_parent_directory(tree, operation.path, state=True)
     if operation.op == "create_directory":
@@ -709,37 +683,6 @@ def _require_parent_directory(
     if parents and tree.kind(parents[-1]) != "directory":
         error = WorkspaceStateError if state else WorkspaceStorageError
         raise error("workspace_state_invalid" if state else "workspace_not_found")
-
-
-def _remove_subtree(tree: ManagedWorkspaceTree, path: str) -> None:
-    if path and path not in tree.directories:
-        # Only a directory has descendants; avoid scanning the whole tree.
-        tree.text_files.pop(path, None)
-        tree.binary_paths.discard(path)
-        return
-    selected = {candidate for candidate in tree.paths() if _within(candidate, path)}
-    tree.directories.difference_update(selected)
-    for candidate in selected:
-        tree.text_files.pop(candidate, None)
-    tree.binary_paths.difference_update(selected)
-
-
-def _copy_subtree(
-    source: ManagedWorkspaceTree, destination: ManagedWorkspaceTree, path: str
-) -> None:
-    for candidate in source.directories:
-        if _within(candidate, path):
-            destination.directories.add(candidate)
-    for candidate, text in source.text_files.items():
-        if _within(candidate, path):
-            destination.text_files[candidate] = text
-    destination.binary_paths.update(
-        candidate for candidate in source.binary_paths if _within(candidate, path)
-    )
-
-
-def _within(path: str, root: str) -> bool:
-    return root == "" or path == root or path.startswith(f"{root}/")
 
 
 def _path_value(tree: ManagedWorkspaceTree, path: str) -> tuple[str | None, str | None]:

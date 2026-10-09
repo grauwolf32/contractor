@@ -11,11 +11,14 @@ import stat
 import time
 import zipfile
 import zlib
+from contextlib import ExitStack
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
 
 from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
 from contractor_runtime.contracts import AllocationWorkspaceSpec, ArtifactRef
+from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
 from contractor_runtime.projectfs.overlay import (
     WORKSPACE_OVERLAY_MEDIA_TYPE,
     OverlayWorkspaceSession,
@@ -29,7 +32,7 @@ from contractor_runtime.projectfs.paths import (
     normalize_project_path,
     parent_paths,
 )
-from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage, WorkspaceProvider
+from contractor_runtime.projectfs.provider import WorkspaceProvider
 from contractor_runtime.projectfs.storage import (
     DirectWorkspaceSession,
     ManagedWorkspaceTree,
@@ -75,9 +78,8 @@ class WorkspacePreparationError(RuntimeError):
 
 @dataclass(slots=True)
 class _TreeAccumulator:
-    storage: ProjectWorkspaceStorage = field(repr=False)
-    content_root: str = field(repr=False)
-    materialize: bool
+    local: RootedLocalFilesystem | None = field(repr=False)
+    deadline: float
     max_files: int
     max_expanded_bytes: int
     max_managed_text_bytes: int
@@ -113,24 +115,28 @@ async def hydrate_workspace(
             "workspace_capacity_exceeded", retryable=True, status_code=503
         ) from None
 
-    content_root = f"{storage.root.rstrip('/')}/run_workdir"
+    content_root = Path(storage.root) / "run_workdir"
+    materialize = spec.mode == "direct" and storage.storage == "local"
     limits = provider.capability.limits
     accumulator = _TreeAccumulator(
-        storage=storage,
-        content_root=content_root,
-        materialize=spec.mode == "direct" and storage.storage == "local",
+        local=None,
+        deadline=time.monotonic() + timeout_seconds,
         max_files=limits.max_files,
         max_expanded_bytes=limits.max_expanded_bytes,
         max_managed_text_bytes=limits.max_managed_text_bytes,
         max_file_bytes=limits.max_file_bytes,
     )
-    deadline = time.monotonic() + timeout_seconds
+    deadline = accumulator.deadline
     session: DirectWorkspaceSession | None = None
     try:
-        if accumulator.materialize:
-            await to_thread_until_done(
-                lambda: storage.filesystem.makedirs(content_root, exist_ok=False),
-                name="workspace-zip-hydration",
+        if materialize:
+
+            def initialize_local() -> RootedLocalFilesystem:
+                content_root.mkdir(mode=0o700)
+                return RootedLocalFilesystem(content_root, limits)
+
+            accumulator.local = await to_thread_until_done(
+                initialize_local, name="workspace-zip-hydration"
             )
         for source in spec.sources:
             if time.monotonic() >= deadline:
@@ -146,7 +152,6 @@ async def hydrate_workspace(
             )
         arguments = dict(
             storage=storage,
-            content_root=content_root,
             limits=limits,
             directories=accumulator.directories,
             text_files=accumulator.text_files,
@@ -188,11 +193,11 @@ async def hydrate_workspace(
                     limits,
                     name="workspace-state-import",
                 )
-                if accumulator.materialize:
+                if accumulator.local is not None:
                     try:
                         await to_thread_until_done(
                             lambda: _materialize_state(
-                                storage, content_root, source_tree, result_tree
+                                accumulator.local, source_tree, result_tree, deadline
                             ),
                             name="workspace-zip-hydration",
                         )
@@ -365,8 +370,8 @@ def _make_directory(path: str, tree: _TreeAccumulator) -> None:
     tree.path_types[path] = "directory"
     if len(tree.path_types) > tree.max_files:
         raise _capacity()
-    if tree.materialize:
-        tree.storage.filesystem.makedirs(_backend_path(tree.content_root, path), exist_ok=True)
+    if tree.local is not None:
+        tree.local.mkdir(path, deadline=tree.deadline, parents=True)
 
 
 def _extract_file(
@@ -378,9 +383,10 @@ def _extract_file(
 ) -> None:
     for parent in parent_paths(path):
         _make_directory(parent, tree)
+    outputs = ExitStack()
     local_output = (
-        tree.storage.filesystem.open(_backend_path(tree.content_root, path), mode="wb")
-        if tree.materialize
+        outputs.enter_context(tree.local.create_output(path, deadline=deadline))
+        if tree.local is not None
         else None
     )
     decoder = codecs.getincrementaldecoder("utf-8")("strict")
@@ -433,8 +439,7 @@ def _extract_file(
         else:
             tree.binary_paths.add(path)
     finally:
-        if local_output is not None:
-            local_output.close()
+        outputs.close()
 
 
 def _apply_execute_bits(descriptor: int, info: zipfile.ZipInfo) -> None:
@@ -449,29 +454,21 @@ def _apply_execute_bits(descriptor: int, info: zipfile.ZipInfo) -> None:
         os.fchmod(descriptor, current | (executable & ((current & 0o444) >> 2)))
 
 
-def _backend_path(root: str, relative: str) -> str:
-    return f"{root.rstrip('/')}/{relative}"
-
-
 def _materialize_state(
-    storage: ProjectWorkspaceStorage,
-    content_root: str,
+    filesystem: RootedLocalFilesystem,
     source: ManagedWorkspaceTree,
     result: ManagedWorkspaceTree,
+    deadline: float,
 ) -> None:
-    filesystem = storage.filesystem
     for operation in canonical_overlay_operations(source, result):
-        target = _backend_path(content_root, operation.path)
         if operation.op == "delete_path":
-            if filesystem.exists(target):
-                filesystem.rm(target, recursive=True)
+            filesystem.remove(operation.path, recursive=True, deadline=deadline)
         elif operation.op == "create_directory":
-            filesystem.makedirs(target, exist_ok=False)
+            filesystem.mkdir(operation.path, deadline=deadline)
         else:
-            if not (operation.text is not None):
-                raise RuntimeError("Expected operation.text is not None")
-            with filesystem.open(target, mode="wb") as destination:
-                destination.write(operation.text.encode("utf-8"))
+            if operation.text is None:
+                raise RuntimeError("Expected workspace state text")
+            filesystem.write(operation.path, operation.text.encode("utf-8"), deadline=deadline)
 
 
 def _check_deadline(deadline: float) -> None:

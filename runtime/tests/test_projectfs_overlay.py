@@ -64,7 +64,7 @@ def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
         assert all(isinstance(session, OverlayWorkspaceSession) for session in sessions)
 
         for session in sessions:
-            assert not session.storage.filesystem.exists(f"{session.storage.root}/run_workdir")
+            assert not Path(f"{session.storage.root}/run_workdir").exists()
             await session.write_text("README.md", "after\n")
             await session.delete_path("old.txt")
             await session.make_directory("new/deep", parents=True)
@@ -75,7 +75,7 @@ def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
                 await session.write_text("logo.bin", "not allowed")
 
         snapshots = [await session.snapshot() for session in sessions]
-        states = [await session.export_state() for session in sessions]  # type: ignore[attr-defined]
+        states = [(await session.prepare_export()).state for session in sessions]  # type: ignore[attr-defined]
         diffs = [await session.diff(max_bytes=65536) for session in sessions]  # type: ignore[attr-defined]
         assert snapshots[0] == snapshots[1]
         assert states[0] == states[1]
@@ -88,7 +88,7 @@ def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
             source = session._source  # type: ignore[attr-defined]
             reconstructed = decode_workspace_state(states[0], source, session.limits)
             assert reconstructed.snapshot() == snapshots[0]
-            assert not session.storage.filesystem.exists(f"{session.storage.root}/run_workdir")
+            assert not Path(f"{session.storage.root}/run_workdir").exists()
 
         await local_provider.cleanup(sessions[0].storage)
         await memory_provider.cleanup(sessions[1].storage)
@@ -114,12 +114,12 @@ def test_overlay_rolls_back_to_checkpoint_and_bounds_diff(tmp_path: Path) -> Non
 
         await session.write_text("a.txt", "changed\n")
         await session.write_text("new.txt", "new\n")
-        assert await session.changed_paths() == ("a.txt", "new.txt")
+        assert tuple(entry.path for entry in await session.change_entries()) == ("a.txt", "new.txt")
         await session.rollback_changes("a.txt")
         assert await session.read_text("a.txt") == "one\n"
-        assert await session.changed_paths() == ("new.txt",)
-        await session.commit_checkpoint()
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ("new.txt",)
+        await session.commit_export(await session.prepare_export())
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
 
         await session.write_text("new.txt", "x" * 1024)
         bounded = await session.diff(max_bytes=64)
@@ -192,7 +192,7 @@ def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
         await session.write_text("f.txt", "u" * 5)
         with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
             await session.write_text("f.txt", "u" * 6)
-        assert await session.changed_paths() == ("e.txt", "f.txt")
+        assert tuple(entry.path for entry in await session.change_entries()) == ("e.txt", "f.txt")
 
         await session.close()
         await provider.cleanup(session.storage)
@@ -285,10 +285,15 @@ def test_rolling_back_one_file_restores_parents_deleted_after_checkpoint() -> No
 
         await session.rollback_changes("dir/a.txt")
         assert await session.read_text("dir/a.txt") == "a\n"
-        assert await session.changed_paths() == ("deep", "deep/er", "deep/er/c.txt", "dir/b.txt")
+        assert tuple(entry.path for entry in await session.change_entries()) == (
+            "deep",
+            "deep/er",
+            "deep/er/c.txt",
+            "dir/b.txt",
+        )
         await session.rollback_changes("deep/er/c.txt")
         assert await session.read_text("deep/er/c.txt") == "c\n"
-        assert await session.changed_paths() == ("dir/b.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("dir/b.txt",)
 
         # A parent that became a file is not silently replaced.
         await session.delete_path("kind", recursive=True)

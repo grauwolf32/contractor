@@ -85,7 +85,7 @@ def test_change_classification_pagination_diff_and_rollback_are_deterministic(
         await tools["rollback_changes"]("modified.txt")
         assert await session.read_text("modified.txt") == "before\n"
         await tools["rollback_changes"]()
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
         assert (await tools["changed_paths"]())["changes"] == []
         assert all(call.arguments == {} for call in state.metrics.tool_calls)
 
@@ -98,7 +98,7 @@ def test_rollback_uses_imported_and_later_checkpoint_not_original_source(
     async def scenario() -> None:
         first = await overlay("first")
         await first.write_text("modified.txt", "imported baseline\n")
-        imported_state = await first.export_state()
+        imported_state = (await first.prepare_export()).state
 
         second = await overlay("second")
         await second.import_state(imported_state)
@@ -113,7 +113,7 @@ def test_rollback_uses_imported_and_later_checkpoint_not_original_source(
         assert await second.read_text("modified.txt") == "imported baseline\n"
 
         await second.write_text("modified.txt", "checkpoint two\n")
-        await second.commit_checkpoint()
+        await second.commit_export(await second.prepare_export())
         await second.write_text("modified.txt", "invocation two\n")
         assert "checkpoint two" in (await tools["diff"]())["text"]
         await tools["rollback_changes"]()
@@ -133,7 +133,6 @@ def test_factory_rejects_absent_and_direct_views_and_cursors_track_content(
         storage = await provider.create("direct")
         direct = OverlayWorkspaceSession(
             storage=storage,
-            content_root=f"{storage.root}/run_workdir",
             limits=limits(),
             directories=set(),
             text_files={"file.txt": "one\n"},
@@ -352,7 +351,6 @@ async def overlay(name: str) -> OverlayWorkspaceSession:
     source = source_tree()
     return OverlayWorkspaceSession(
         storage=storage,
-        content_root=f"{storage.root}/run_workdir",
         limits=limits(),
         directories=source.directories,
         text_files=source.text_files,

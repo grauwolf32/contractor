@@ -59,10 +59,10 @@ def test_export_snapshot_rejects_concurrent_change_and_preserves_checkpoint(
         with pytest.raises(WorkspaceStorageError, match="export_stale"):
             await session.commit_export(bundle)
 
-        assert await session.changed_paths() == ("lf.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("lf.txt",)
         fresh = await session.prepare_export()
         await session.commit_export(fresh)
-        assert await session.changed_paths() == ()
+        assert tuple(entry.path for entry in await session.change_entries()) == ()
         assert fresh.snapshot == await session.snapshot()
         await provider.cleanup(session.storage)
 
@@ -76,7 +76,7 @@ def test_export_generation_rejects_rollback_import_and_checkpoint(tmp_path: Path
         )
         assert isinstance(session, OverlayWorkspaceSession)
         await session.write_text("lf.txt", "changed\n")
-        state = await session.export_state()
+        state = (await session.prepare_export()).state
 
         bundle = await session.prepare_export()
         await session.rollback_changes("lf.txt")
@@ -89,7 +89,7 @@ def test_export_generation_rejects_rollback_import_and_checkpoint(tmp_path: Path
             await session.commit_export(bundle)
 
         bundle = await session.prepare_export()
-        await session.commit_checkpoint()
+        await session.commit_export(await session.prepare_export())
         with pytest.raises(WorkspaceStorageError, match="workspace_export_stale"):
             await session.commit_export(bundle)
 
@@ -137,7 +137,7 @@ def test_cancelled_state_import_does_not_replace_only_one_tree(
         assert isinstance(session, OverlayWorkspaceSession)
         await session.write_text("lf.txt", "changed\n")
         before = await session.snapshot()
-        payload = await session.export_state()
+        payload = (await session.prepare_export()).state
         started, release = threading.Event(), threading.Event()
         original = session._import_candidate
 
@@ -156,7 +156,7 @@ def test_cancelled_state_import_does_not_replace_only_one_tree(
         with pytest.raises(asyncio.CancelledError):
             await task
         assert await session.snapshot() == before
-        assert await session.changed_paths() == ("lf.txt",)
+        assert tuple(entry.path for entry in await session.change_entries()) == ("lf.txt",)
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())

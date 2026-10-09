@@ -84,12 +84,10 @@ def test_safe_multi_source_archives_have_equal_local_and_memory_text_views(
         assert local_snapshot.binary_paths == ("backend/assets/logo.bin",)
         assert "backend/src/empty" in local_snapshot.directories
         assert (
-            local.storage.filesystem.cat(
-                f"{local.storage.root}/run_workdir/backend/assets/logo.bin"
-            )
+            Path(f"{local.storage.root}/run_workdir/backend/assets/logo.bin").read_bytes()
             == b"\x00\xffbinary"
         )
-        assert not memory.storage.filesystem.exists(f"{memory.storage.root}/run_workdir")
+        assert not Path(f"{memory.storage.root}/run_workdir").exists()
 
         await local_provider.cleanup(local.storage)
         await memory_provider.cleanup(memory.storage)

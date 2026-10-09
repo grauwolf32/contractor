@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import BinaryIO
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
@@ -86,6 +87,21 @@ class RootedLocalFilesystem:
                 return _entry(path, os.fstat(root))
             with _parent(root, path) as (parent, name):
                 return _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
+
+    @contextmanager
+    def create_output(self, path: str, *, deadline: float) -> Iterator[BinaryIO]:
+        """Stream a new private hydration member without following links."""
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root, _parent(root, path) as (parent, name):
+            _check_deadline(deadline)
+            descriptor = os.open(
+                name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o666,
+                dir_fd=parent,
+            )
+            with os.fdopen(descriptor, "wb") as output:
+                yield output
 
     def read(self, path: str, *, deadline: float) -> bytes:
         path = _path(path)

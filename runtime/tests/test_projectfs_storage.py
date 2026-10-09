@@ -45,7 +45,6 @@ def test_snapshots_are_sorted_deterministic_and_hide_backend_details(tmp_path: P
         session = DirectWorkspaceSession(
             mode="direct",
             storage=storage,
-            content_root=f"{storage.root}/run_workdir",
             limits=limits(),
             directories={"z", "a"},
             text_files={"z/b.txt": "two", "a/a.txt": "one"},
@@ -215,19 +214,34 @@ def test_private_storage_isolated_for_simultaneous_and_later_allocations(
         )
         left = await provider.create("left")
         right = await provider.create("right")
-        left_path = f"{left.root}/run_workdir/value.txt"
-        right_path = f"{right.root}/run_workdir/value.txt"
-        left.filesystem.makedirs(f"{left.root}/run_workdir")
-        right.filesystem.makedirs(f"{right.root}/run_workdir")
-        left.filesystem.pipe(left_path, b"changed")
-        right.filesystem.pipe(right_path, b"initial")
-        assert left.filesystem.cat(left_path) == b"changed"
-        assert right.filesystem.cat(right_path) == b"initial"
 
+        def session(storage):
+            if storage.storage == "local":
+                (Path(storage.root) / "run_workdir").mkdir()
+            return DirectWorkspaceSession(
+                mode="direct",
+                storage=storage,
+                limits=limits(),
+                directories=set(),
+                text_files={},
+                binary_paths=set(),
+            )
+
+        left_session = session(left)
+        right_session = session(right)
+        await left_session.write_text("value.txt", "changed")
+        await right_session.write_text("value.txt", "initial")
+        assert await left_session.read_text("value.txt") == "changed"
+        assert await right_session.read_text("value.txt") == "initial"
+
+        await left_session.close()
         await provider.cleanup(left)
         later = await provider.create("later")
-        assert not later.filesystem.exists(f"{later.root}/run_workdir/value.txt")
-        assert right.filesystem.cat(right_path) == b"initial"
+        later_session = session(later)
+        assert (await later_session.snapshot()).files == ()
+        assert await right_session.read_text("value.txt") == "initial"
+        await right_session.close()
+        await later_session.close()
         await provider.cleanup(right)
         await provider.cleanup(later)
 

@@ -4,7 +4,6 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import pytest
 from test_edit_files_toolset import hydrated_workspace, make_tools
 
 from contractor_runtime.allocation import WorkerState
@@ -38,7 +37,7 @@ def test_complete_edit_matrix_matches_all_direct_overlay_local_memory_backends(
                 )
                 physical_root = f"{session.storage.root}/run_workdir"
                 if storage != "local" or mode != "direct":
-                    assert not session.storage.filesystem.exists(physical_root)
+                    assert not Path(physical_root).exists()
 
                 await tools["append_file"]("crlf.txt", "four\nfive")
                 await tools["insert_line"]("crlf.txt", 2, "inserted")
@@ -60,44 +59,16 @@ def test_complete_edit_matrix_matches_all_direct_overlay_local_memory_backends(
                 assert all(call.arguments == {} for call in state.metrics.tool_calls)
 
                 if storage == "local" and mode == "direct":
-                    physical_crlf = session.storage.filesystem.cat(f"{physical_root}/crlf.txt")
+                    physical_crlf = Path(f"{physical_root}/crlf.txt").read_bytes()
                     assert physical_crlf == (await session.read_text("crlf.txt")).encode()
                     assert (
-                        session.storage.filesystem.cat(f"{physical_root}/generated/deep/moved.txt")
-                        == b"new\n"
+                        Path(f"{physical_root}/generated/deep/moved.txt").read_bytes() == b"new\n"
                     )
-                    assert not session.storage.filesystem.exists(f"{physical_root}/tree")
+                    assert not Path(f"{physical_root}/tree").exists()
                 else:
-                    assert not session.storage.filesystem.exists(physical_root)
+                    assert not Path(physical_root).exists()
                 await provider.cleanup(session.storage)
 
         assert all(snapshot == results[0] for snapshot in results[1:])
-
-    asyncio.run(scenario())
-
-
-def test_memory_direct_edits_do_not_touch_fsspec(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    async def scenario() -> None:
-        session, provider = await hydrated_workspace(tmp_path, "memory", "direct", "no-mirror")
-        filesystem = session.storage.filesystem
-
-        def reject(*_args: object, **_kwargs: object) -> None:
-            raise AssertionError("memory-direct edit called fsspec")
-
-        try:
-            assert not filesystem.exists(f"{session.storage.root}/run_workdir")
-            with monkeypatch.context() as broken:
-                for method in ("open", "pipe", "rm", "makedirs", "exists"):
-                    broken.setattr(filesystem, method, reject)
-                await session.write_text("crlf.txt", "changed\n")
-                await session.make_directory("generated", parents=True)
-                await session.move_path("crlf.txt", "generated/moved.txt")
-                await session.delete_path("generated/moved.txt")
-                assert "generated" in (await session.snapshot()).directories
-            assert not filesystem.exists(f"{session.storage.root}/run_workdir")
-        finally:
-            await provider.cleanup(session.storage)
 
     asyncio.run(scenario())

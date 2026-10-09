@@ -8,8 +8,6 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fsspec.implementations.local import LocalFileSystem
-
 from contractor_runtime.projectfs import DirectWorkspaceSession
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
@@ -26,9 +24,7 @@ async def main():
     root = Path(config["root"])
     session = DirectWorkspaceSession(
         mode="direct",
-        storage=ProjectWorkspaceStorage(
-            "local", LocalFileSystem(), str(root.parent), "test", "test"
-        ),
+        storage=ProjectWorkspaceStorage("local", str(root.parent), "test", "test"),
         content_root=str(root),
         limits=WorkspaceLimits(100, 100000, 100000, 10000),
         directories=set(),
