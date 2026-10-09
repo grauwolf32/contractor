@@ -409,9 +409,9 @@ func inspectFiles(root *os.Root, paths []string) ([]sourceFile, int64, error) {
 	return files, expanded, nil
 }
 
-// runtimeTextPath reports whether the Runtime reads a member at path as
+// RuntimeTextPath reports whether the Runtime reads a member at path as
 // source text when its content is strict UTF-8.
-func runtimeTextPath(path string) bool {
+func RuntimeTextPath(path string) bool {
 	parts := strings.Split(path, "/")
 	for _, part := range parts[:len(parts)-1] {
 		if runtimeIgnoredDirectories[part] {
@@ -476,7 +476,7 @@ func portablePath(value string) (string, error) {
 func encodeFiles(root *os.Root, files []sourceFile) ([]byte, error) {
 	candidates := false
 	for _, file := range files {
-		candidates = candidates || runtimeTextPath(file.path)
+		candidates = candidates || RuntimeTextPath(file.path)
 	}
 	if !candidates {
 		return nil, errNoRuntimeText
@@ -488,7 +488,7 @@ func encodeFiles(root *os.Root, files []sourceFile) ([]byte, error) {
 			Name: file.path, Size: file.info.Size(),
 			Write: func(destination io.Writer) error {
 				text, err := copyRegularFile(destination, root, file)
-				readable = readable || text && runtimeTextPath(file.path)
+				readable = readable || text && RuntimeTextPath(file.path)
 				return err
 			},
 		}

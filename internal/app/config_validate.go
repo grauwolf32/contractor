@@ -17,7 +17,7 @@ import (
 // defaultManagedConfigRoot derives the sibling managed-configs directory from
 // the cleaned operator root, so "configs/" and "configs" share one parent.
 func defaultManagedConfigRoot(operatorRoot string) string {
-	return filepath.Join(filepath.Dir(filepath.Clean(operatorRoot)), "managed-configs")
+	return filepath.Join(operatorRoot, "..", "managed-configs")
 }
 
 // effectiveConfig applies derived defaults and validates the final flag-overridden

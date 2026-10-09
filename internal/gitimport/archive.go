@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/grauwolf32/contractor/internal/sourcebundle"
 	"github.com/grauwolf32/contractor/internal/sourcezip"
 )
 
@@ -125,6 +126,13 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 		return nil, plumbing.ZeroHash, err
 	}
 	if len(files) == 0 {
+		return nil, plumbing.ZeroHash, ErrContent
+	}
+	readable := false
+	for _, file := range files {
+		readable = readable || sourcebundle.RuntimeTextPath(file.name) && utf8.Valid(file.data)
+	}
+	if !readable {
 		return nil, plumbing.ZeroHash, ErrContent
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })

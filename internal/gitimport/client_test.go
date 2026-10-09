@@ -327,6 +327,23 @@ func snapshotObjects(mode, name string, data []byte) (map[plumbing.Hash]*gitObje
 	commitHash := objectHash(commit)
 	return map[plumbing.Hash]*gitObject{blobHash: blob, treeHash: tree, commitHash: commit}, commitHash
 }
+func TestSnapshotRejectsContentTheRuntimeCannotOpen(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data []byte
+	}{
+		{"image.png", []byte("valid UTF-8 but binary extension")},
+		{"source.py", []byte{0xff, 0xfe}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			objects, commit := snapshotObjects("100644", tc.name, tc.data)
+			if _, _, err := archiveSnapshot(context.Background(), objects, commit); !errors.Is(err, ErrContent) {
+				t.Fatalf("Runtime-unopenable snapshot error = %v", err)
+			}
+		})
+	}
+}
+
 func TestSnapshotContentAndDeterminism(t *testing.T) {
 	objects, commit := snapshotObjects("100755", "hello.txt", []byte("hello\n"))
 	first, resolved, err := archiveSnapshot(context.Background(), objects, commit)

@@ -125,6 +125,26 @@ func TestConfigValidateDefaultsToSiblingManagedRoot(t *testing.T) {
 	}
 }
 
+func TestConfigValidateDotRootUsesSiblingManagedRoot(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	t.Chdir(operator)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := runConfigCLI([]string{"validate", "--root", "."}, logger); err != nil {
+		t.Fatalf("validate dot root: %v", err)
+	}
+	for root, want := range map[string]string{
+		".":  filepath.Join("..", "managed-configs"),
+		"..": filepath.Join("..", "..", "managed-configs"),
+	} {
+		if got := defaultManagedConfigRoot(root); got != want {
+			t.Errorf("managed root for %s = %s, want %s", root, got, want)
+		}
+	}
+	if _, err := os.Stat("managed-configs"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dot root created an overlapping managed directory: %v", err)
+	}
+}
+
 func TestConfigValidateTreatsUncleanRootLikeCleanPath(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, suffix := range []string{"/", "//", "/."} {
