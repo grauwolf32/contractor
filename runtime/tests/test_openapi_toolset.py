@@ -499,6 +499,39 @@ def test_path_and_component_listings_fit_the_model_output_limit(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("mutation", ["path", "component", "servers", "tags"])
+def test_mutation_depth_rejection_preserves_the_published_document(
+    tmp_path: Path, mutation: str
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        initialized = await tools["initialize_openapi"](title="Service")
+        writes = client.write_count
+        nested: Any = "leaf"
+        for _ in range(600):
+            nested = {"child": nested}
+        calls = {
+            "path": lambda: tools["upsert_openapi_path"](
+                "/health", {"x-deep": nested}, ["src/app.py"]
+            ),
+            "component": lambda: tools["upsert_openapi_component"](
+                "schemas", "Deep", {"x-deep": nested}, ["src/app.py"]
+            ),
+            "servers": lambda: tools["set_openapi_servers"](
+                [{"url": "https://example.test", "x-deep": nested}]
+            ),
+            "tags": lambda: tools["set_openapi_tags"]([{"name": "health", "x-deep": nested}]),
+        }
+        with pytest.raises(ToolInputError, match="maximum nesting depth") as rejected:
+            await calls[mutation]()
+        assert _safe_tool_response("mutation", rejected.value)["error"]["retryable"] is False
+        assert client.write_count == writes
+        assert (await tools["get_openapi_info"]())["artifact"] == initialized["artifact"]
+
+    asyncio.run(scenario())
+
+
 def test_parser_enforces_byte_depth_and_item_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -292,6 +292,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
             return {"artifact": artifact.model_dump(by_alias=True), "servers": servers}
 
     async def set_servers(self, servers: list[dict[str, Any]]) -> dict[str, Any]:
+        _validate_json_tree(servers)
         normalized = _validate_servers(servers)
         return await self._mutate(
             lambda document: document.__setitem__("servers", normalized),
@@ -306,6 +307,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
             return {"artifact": artifact.model_dump(by_alias=True), "tags": tags}
 
     async def set_tags(self, tags: list[dict[str, Any]]) -> dict[str, Any]:
+        _validate_json_tree(tags)
         normalized = _validate_tags(tags)
         return await self._mutate(
             lambda document: document.__setitem__("tags", normalized),
@@ -341,6 +343,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         normalized = _validate_api_path(path)
         if not isinstance(path_item, dict):
             raise ToolInputError("path_item must be an object")
+        _validate_json_tree(path_item)
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(path_item)
         candidate["x-path-files"] = validated_evidence
@@ -408,6 +411,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         _validate_component_name(name)
         if not isinstance(component, dict):
             raise ToolInputError("component must be an object")
+        _validate_json_tree(component)
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(component)
 
