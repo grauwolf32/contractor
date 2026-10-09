@@ -1,0 +1,132 @@
+[
+  {
+    "host": "target.example",
+    "authority": "target.example",
+    "accepted": true
+  },
+  {
+    "host": "juice_shop",
+    "authority": "juice_shop",
+    "accepted": true
+  },
+  {
+    "host": "web_app.example",
+    "authority": "web_app.example",
+    "accepted": true
+  },
+  {
+    "host": "ab--cd.example",
+    "authority": "ab--cd.example",
+    "accepted": true
+  },
+  {
+    "host": "xn--bcher-kva.example",
+    "authority": "xn--bcher-kva.example",
+    "accepted": true
+  },
+  {
+    "host": "bücher.example",
+    "authority": "bücher.example",
+    "accepted": true
+  },
+  {
+    "host": "10.0.0.5",
+    "authority": "10.0.0.5",
+    "accepted": true
+  },
+  {
+    "host": "2001:db8::5",
+    "authority": "[2001:db8::5]",
+    "accepted": true
+  },
+  {
+    "host": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "accepted": true
+  },
+  {
+    "host": "trailing.example.",
+    "authority": "trailing.example.",
+    "accepted": true
+  },
+  {
+    "host": "_service.example",
+    "authority": "_service.example",
+    "accepted": true
+  },
+  {
+    "host": "trailing-.example",
+    "authority": "trailing-.example",
+    "accepted": true
+  },
+  {
+    "host": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
+    "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
+    "accepted": true
+  },
+  {
+    "host": "169.254.169.%32%35%34",
+    "authority": "169.254.169.%32%35%34",
+    "accepted": false
+  },
+  {
+    "host": "%6c%6fcalhost",
+    "authority": "%6c%6fcalhost",
+    "accepted": false
+  },
+  {
+    "host": "a!b$c.example",
+    "authority": "a!b$c.example",
+    "accepted": false
+  },
+  {
+    "host": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example",
+    "accepted": false
+  },
+  {
+    "host": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "authority": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "accepted": false
+  },
+  {
+    "host": "-option.example",
+    "authority": "-option.example",
+    "accepted": false
+  },
+  {
+    "host": "xn--zz.example",
+    "authority": "xn--zz.example",
+    "accepted": false
+  },
+  {
+    "host": "bad..example",
+    "authority": "bad..example",
+    "accepted": false
+  },
+  {
+    "host": "fe80::1%eth0",
+    "authority": "[fe80::1%25eth0]",
+    "accepted": false
+  },
+  {
+    "host": "",
+    "authority": "",
+    "accepted": false
+  },
+  {
+    "host": ".",
+    "authority": ".",
+    "accepted": false
+  },
+  {
+    "host": "bücher._service",
+    "authority": "bücher._service",
+    "accepted": false
+  },
+  {
+    "host": "xn--.example",
+    "authority": "xn--.example",
+    "accepted": false
+  }
+]

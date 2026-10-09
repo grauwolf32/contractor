@@ -35,31 +35,12 @@ from contractor_runtime.toolsets.scan.ffuf import validate_ffuf_url
 from contractor_runtime.toolsets.scan.http_request import parse_http_request
 from contractor_runtime.toolsets.scan.katana import canonical_url
 
-# Each case is (bare host, host as written in a URL authority).
-ACCEPTED_HOSTS = [
-    ("target.example", "target.example"),
-    ("juice_shop", "juice_shop"),
-    ("web_app.example", "web_app.example"),
-    ("ab--cd.example", "ab--cd.example"),
-    ("xn--bcher-kva.example", "xn--bcher-kva.example"),
-    ("bücher.example", "bücher.example"),
-    ("10.0.0.5", "10.0.0.5"),
-    ("2001:db8::5", "[2001:db8::5]"),
-    ("a" * 63 + ".example", "a" * 63 + ".example"),
-    ("trailing.example.", "trailing.example."),
-]
-REJECTED_HOSTS = [
-    ("169.254.169.%32%35%34", "169.254.169.%32%35%34"),
-    ("%6c%6fcalhost", "%6c%6fcalhost"),
-    ("a!b$c.example", "a!b$c.example"),
-    ("a" * 64 + ".example", "a" * 64 + ".example"),
-    (".".join(["a" * 63] * 4), ".".join(["a" * 63] * 4)),
-    ("-option.example", "-option.example"),
-    ("xn--zz.example", "xn--zz.example"),
-    ("bad..example", "bad..example"),
-    ("fe80::1%eth0", "[fe80::1%25eth0]"),
-]
-CASES = [(*case, True) for case in ACCEPTED_HOSTS] + [(*case, False) for case in REJECTED_HOSTS]
+# Shared with Go scan planning so admission and Runtime keep one host rule.
+_HOST_CASES = json.loads(
+    (Path(__file__).resolve().parents[2] / "api/testdata/scan-host-syntax.json").read_text()
+)
+CASES = [(case["host"], case["authority"], case["accepted"]) for case in _HOST_CASES]
+REJECTED_HOSTS = [(host, authority) for host, authority, accepted in CASES if not accepted]
 
 
 def _sqlmap_request(authority: str) -> object:
@@ -102,7 +83,7 @@ def test_one_host_rule_for_http_caido_and_scanners(
     else:
         with pytest.raises(ValueError) as failure:
             validate_host_syntax(host)
-        assert host not in str(failure.value)
+        assert not host or host not in str(failure.value)
         # The policy itself never classifies such text as a name.
         with pytest.raises(TargetDenied):
             TargetPolicy().check_host(host, 80)
@@ -120,7 +101,7 @@ def test_scanner_entry_points_apply_the_shared_host_rule(
     with pytest.raises(ToolInputError) as failure:
         validate(host, authority)
     assert failure.value.retryable is False
-    assert host not in str(failure.value)
+    assert not host or host not in str(failure.value)
 
 
 @pytest.mark.parametrize("route", ["direct", "proxy"])
