@@ -3,8 +3,8 @@ id: V62-003
 title: Execute and recover prepare Workflows before the first Audit round
 milestone: audit-workflow-composition
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 114716409000993efb3b8c7a1a7357749f9f21aa
 depends_on: [V62-002]
 languages: [go]
 goal: Coordinate bounded ordinary prepare Runs and collect their outputs before initial inventory acceptance.
@@ -54,3 +54,16 @@ test_prerequisites:
   - Disposable PostgreSQL for required restart, transaction and reference-fence cases.
 verification_requirements:
   - Fault tests must assert durable Run counts, accepted receipts, phase, budgets and release state, not only a terminal Audit status.
+
+acceptance_verification:
+  verified_on: "2026-10-09"
+  evidence: tasks/evidence/v62-003.json
+  result: A1–A4 passed against disposable PostgreSQL 17.11 with zero skipped test cases.
+  integration_cases: 1694
+  preparation_race_cases: 35
+  inventory_final_race_cases: 16
+  source_deletion_final_race_cases: 1
+  identity_final_race_cases: 2
+  public_api: passed
+  ui_client_cases: 39
+  scope_limit: Real generated-flow process/browser acceptance remains V62-012; richer provenance and preparation UI remain V62-010/011.

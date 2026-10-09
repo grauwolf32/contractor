@@ -18,7 +18,9 @@ existing source-to-OpenAPI Workflow with the delivered SQLMap scan adapter.
 Next are V62-010 richer provenance, V62-011 preparation UI and V62-012 the
 generated-flow process/browser gate. The current database tests exercise the
 complete prepared-checklist-to-report path and prepared OpenAPI scan inventory;
-they do not replace the V62-012 real-process acceptance gate.
+they do not replace the V62-012 real-process acceptance gate. Results and exact
+checks are recorded in [V62-003 evidence](../../tasks/evidence/v62-003.json) and
+[V62-004 evidence](../../tasks/evidence/v62-004.json).
 
 V62-009 owns the [scan contract](../spec/openapi-audit-scans.md), including
 scan-specific coverage and repeat prevention across Audit attempts. V62-001 then
