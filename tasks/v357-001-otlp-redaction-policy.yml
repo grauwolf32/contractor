@@ -3,7 +3,7 @@ id: V357-001
 title: Apply the shared redaction policy to OTLP span attributes
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V311-001]
 languages: [python]
 goal: Stop dropping span attributes that merely contain a short secret.

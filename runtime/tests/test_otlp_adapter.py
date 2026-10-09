@@ -203,6 +203,38 @@ def test_otlp_delivery_failure_is_safe_metrics_only(failure: str) -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("secret", ["a", "short", "β", "long-secret-123456"])
+def test_otlp_metadata_uses_shared_secret_matching(secret: str) -> None:
+    embedded = f"prefix-{secret}-suffix"
+    instrumentation = OTLPInstrumentation(
+        _metrics(),
+        {"service.name": embedded, "exact": secret, "values": (embedded, secret)},
+        secret_values=(secret,),
+        run_metadata_labels={"note": embedded, "exact": secret},
+    )
+    span = instrumentation.start_span(
+        "contractor.worker.a2a_task",
+        attributes={"tool.name": embedded, "model.alias": secret},
+    )
+    span.end(outcome="succeeded")
+    request = ExportTraceServiceRequest.FromString(instrumentation.export_request())
+    resource = _attributes(request.resource_spans[0].resource.attributes)
+    attributes = _attributes(request.resource_spans[0].scope_spans[0].spans[0].attributes)
+    assert "exact" not in resource
+    assert "model.alias" not in attributes
+    assert "contractor.run.label.exact" not in attributes
+    if len(secret.encode("utf-8")) < 16:
+        assert resource["service.name"] == embedded
+        assert resource["values"] == [embedded]
+        assert attributes["tool.name"] == embedded
+        assert attributes["contractor.run.label.note"] == embedded
+    else:
+        assert "service.name" not in resource
+        assert resource["values"] == []
+        assert "tool.name" not in attributes
+        assert "contractor.run.label.note" not in attributes
+
+
 def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
     metrics = _metrics()
     instrumentation = OTLPInstrumentation(

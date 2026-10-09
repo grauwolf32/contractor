@@ -48,6 +48,7 @@ from contractor_runtime.contracts import (
     TelemetryRetrySettings,
     TelemetrySettings,
 )
+from contractor_runtime.redaction import contains_private_value
 
 MAX_SPAN_ATTRIBUTES = 64
 MAX_STRING_ATTRIBUTE_BYTES = 256
@@ -666,7 +667,7 @@ def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) 
             or len(value.encode("utf-8")) > MAX_RUN_METADATA_LABEL_VALUE_BYTES
         ):
             return {}
-        if any(secret and secret in value for secret in secrets):
+        if contains_private_value(value, secrets):
             continue
         result[attribute_key] = value
     return result
@@ -682,7 +683,7 @@ def _safe_attribute_value(
     if isinstance(value, int):
         return max(-(2**63), min(2**63 - 1, value))
     if isinstance(value, str):
-        if any(secret and secret in value for secret in secrets):
+        if contains_private_value(value, secrets):
             return None
         selected = _truncate_utf8(value, MAX_STRING_ATTRIBUTE_BYTES)
         if key == "error.type" and _SAFE_IDENTIFIER.fullmatch(selected) is None:
