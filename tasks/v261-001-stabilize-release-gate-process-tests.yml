@@ -4,7 +4,7 @@ title: Restore the deterministic release process gate
 milestone: release-gate-2026-10
 priority: P1
 status: in_progress
-implementation_commit: 23ec377019865d70d26cd2ca0a1fbeafd53d4872
+implementation_commit: a075a2e5060bebea443f3fd1ce9a6d68f1134ac3
 depends_on: []
 languages: [go, python]
 goal: Make the failing release process tests pass on main under the CI runner.
@@ -35,10 +35,12 @@ reassessment:
     - Latest main CI run 37194642464 at e015298c failed only in the browser stage; process-a and process-b passed.
     - Current CI runs selected PR stages and full tag/manual stages; ordinary main pushes do not trigger the full gate.
     - No GitHub API write token is available; local verification cannot establish A4.
-  next_step: Reproduce the three original process cases and current release stages on disposable infrastructure; record actual failures without relaxing assertions.
+  next_step: Dispatch the full CI workflow on current main and record its actual release verdict; local verification is complete.
 
 local_verification:
   date: "2026-10-09"
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  implementation_revision: 00778946ae0e25b2e5afcad74c4dc9672a502158
   passed:
     - Agent Skills process fixture, 167.04 seconds.
     - Audit Programs process fixture, 357.29 seconds with exact Worker attempt assertions after tool-surface correction.
@@ -46,5 +48,12 @@ local_verification:
     - New fast Audit Programs configuration closure check.
     - make lint, including nonempty release test selections.
     - All hardening matrices and configuration closure cases after replacing deleted test references.
+    - All Go packages; full Runtime suite, 3621 passed and 39 optional skips.
+    - UI generation, typecheck, lint, 1757 tests, 13 static-server tests and production build.
+    - Audit completion gate, 197 Go cases and 402 Runtime cases with no selected skips; Findings gate, 14 required process cases and Runtime contracts.
+    - Both race stages, all 59 tagged integration selections and the non-race Finding Intake budget.
+    - All 19 production-process release fixtures across shards A, B and C.
+    - All 50 mocked browser cases, real Operations stack and native/external Eval stacks.
+  method: Composed local stage verification with corrected substeps rerun; not a single successful aggregate invocation or a GitHub Actions verdict.
   remaining:
-    - Full release stages and the GitHub Actions success criterion A4.
+    - Successful full GitHub Actions release gate on current main, acceptance criterion A4.

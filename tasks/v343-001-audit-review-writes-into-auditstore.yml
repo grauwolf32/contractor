@@ -22,7 +22,8 @@ acceptance_criteria:
   - {id: A1, text: "auditservice issues no raw writes to review tables."}
   - {id: A2, text: "One live item authority predicate."}
 tests:
-  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditservice ./internal/auditcontroller", covers: [A1, A2]}
+  - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -p 1 -race -tags=integration -count=1 ./internal/auditstore ./internal/auditservice ./internal/auditcontroller", covers: [A1, A2]}
+  - {command: "make release-verify-integration", covers: [A2]}
   - {command: "make lint", covers: [A1, A2]}
 
 reassessment:
@@ -32,6 +33,9 @@ reassessment:
   outcome: Audit service still contains direct review writes; store authority consolidation is unfinished.
 
 implementation_commit: 5eb6154228e392bc56b5f87f071ede15dd5dd8b5
+followup_implementation_commits:
+  - ae787587ef9c5465cc968b3ba408eb33ddaf74ab
+  - 00778946ae0e25b2e5afcad74c4dc9672a502158
 verification:
   date: "2026-10-09"
   checks:
@@ -41,3 +45,6 @@ verification:
     - Claiming, review renewal and execution admission use the shared exact-subject authority view.
     - Batch review events preserve order and revisions and roll back together on an invalid event.
     - Replacing an expired finding review records expiry and replacement with monotonic timestamps.
+    - Full auditstore, auditservice and auditcontroller suites with race detector and integration tag passed after fixing the shared-view query plan.
+    - make release-verify-integration passed, including the two large pending-review fixtures and the non-race Finding Intake budget.
+    - On 205 pending reviews, keeping the authority lookup correlated reduced measured query time from 1327.852 ms to 7.260 ms without changing the one-second controller operation budget.
