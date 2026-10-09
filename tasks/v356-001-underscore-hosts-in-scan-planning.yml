@@ -21,3 +21,9 @@ acceptance_criteria:
 tests:
   - {command: "go test -count=1 ./internal/scanplan", covers: [A1]}
   - {command: "cd runtime && uv run pytest tests/test_host_syntax.py", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Go scanHost still rejects underscores accepted by the Runtime host rule.

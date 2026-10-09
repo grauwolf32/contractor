@@ -22,3 +22,9 @@ acceptance_criteria:
   - {id: A1, text: "fsspec is no longer a dependency and no test-only API remains."}
 tests:
   - {command: "cd runtime && uv run pytest && uv run ruff check .", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: fsspec remains a direct dependency and the three test-only overlay methods remain.

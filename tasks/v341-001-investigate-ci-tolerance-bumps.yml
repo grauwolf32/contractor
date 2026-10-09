@@ -24,3 +24,9 @@ acceptance_criteria:
 tests:
   - {command: "make test-runtime", covers: [A1]}
   - {command: "make -n release-verify", covers: [A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: The 12-second factory timeout and permissive Audit retry assertions are still present; measurements and exact attempt checks remain necessary.

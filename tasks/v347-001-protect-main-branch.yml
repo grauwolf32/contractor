@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "main requires a passing CI check before merge."}
 tests:
   - {command: "GitHub repository settings review", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: GitHub main is still unprotected. No GitHub API write credential is available in this environment; prepare a reviewable required-check configuration and keep acceptance open.

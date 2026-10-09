@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "Short secrets no longer drop unrelated span attributes; long secrets are still redacted."}
 tests:
   - {command: "cd runtime && uv run pytest tests -k 'otlp or telemetry'", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: OTLP attribute and Run-label filtering still matches every secret as a substring.

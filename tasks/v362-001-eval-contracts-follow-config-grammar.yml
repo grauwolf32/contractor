@@ -25,3 +25,9 @@ acceptance_criteria:
 tests:
   - {command: "go test -count=1 ./internal/evaldomain ./internal/httpapi/public", covers: [A1, A2]}
   - {command: "cd ui && corepack pnpm generate:check", covers: [A1, A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Eval selector/media contracts still need alignment with the shared configuration rules and database media limit.

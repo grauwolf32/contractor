@@ -21,3 +21,9 @@ acceptance_criteria:
   - {id: A1, text: "runtime/src contains no assert statements and ruff enforces it."}
 tests:
   - {command: "cd runtime && uv run ruff check . && uv run pytest", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Production Runtime still contains 76 assert statements; the lint selection does not prohibit them.

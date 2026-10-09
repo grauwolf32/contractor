@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "Repeated failed event-triggered snapshot reads back off exponentially."}
 tests:
   - {command: "cd ui && corepack pnpm exec vitest run src/routes/operations", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Failed event-triggered snapshot reads still retry after the fixed one-second interval.

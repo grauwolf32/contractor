@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "Both stop codes render with specific labels."}
 tests:
   - {command: "cd ui && corepack pnpm exec vitest run src/routes/projects", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: The UI stop-reason dictionaries still omit both newer inventory/next-round codes.

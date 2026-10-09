@@ -21,3 +21,9 @@ acceptance_criteria:
   - {id: A1, text: "A deeply nested mutation fragment returns the depth ToolInputError."}
 tests:
   - {command: "cd runtime && uv run pytest tests/test_openapi_toolset.py", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Path and component mutation fragments are copied before the nesting guard.

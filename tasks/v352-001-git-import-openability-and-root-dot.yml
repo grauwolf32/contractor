@@ -22,3 +22,9 @@ acceptance_criteria:
   - {id: A2, text: "config validate --root . and serve with '.' use a sibling managed root."}
 tests:
   - {command: "go test -count=1 ./internal/gitimport ./internal/sourcebundle ./internal/app", covers: [A1, A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Git import does not apply source-bundle openability validation; dot config-root behavior needs correction.

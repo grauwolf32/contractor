@@ -21,3 +21,9 @@ acceptance_criteria:
   - {id: A1, text: "Nine 8 MiB proposals hydrate across batches and the next Round is prepared."}
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/findingintake ./internal/auditservice", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Audit hydration still groups by count alone against the exact-read byte ceiling.

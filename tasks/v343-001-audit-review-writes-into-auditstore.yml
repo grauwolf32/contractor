@@ -24,3 +24,9 @@ acceptance_criteria:
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditservice ./internal/auditcontroller", covers: [A1, A2]}
   - {command: "make lint", covers: [A1, A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Audit service still contains direct review writes; store authority consolidation is unfinished.

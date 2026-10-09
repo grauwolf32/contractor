@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "A page with one unreadable proposal document still collects the others."}
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./internal/findingintake ./internal/auditimport", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Audit receipt hydration still returns a whole-page error for one unreadable proposal document.

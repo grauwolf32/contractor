@@ -21,3 +21,9 @@ acceptance_criteria:
 tests:
   - {command: "go test -count=1 ./cmd/contractor-pki ./internal/cli", covers: [A1]}
   - {command: "make lint", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Both PKI entry points still own command implementations and have different certificate-name defaults.

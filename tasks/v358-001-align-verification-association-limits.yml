@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "An item with the maximum number of selected proposals collects successfully."}
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore ./internal/auditimport", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Selected-proposal and finding-association limits remain independently defined and must cover the maximum legitimate item.

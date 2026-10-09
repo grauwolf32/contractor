@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "A pathological diff input finishes within a documented bound."}
 tests:
   - {command: "cd runtime && uv run pytest tests -k 'workspace or projectfs'", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Overlay diff still uses unbounded difflib work while holding the session lock.

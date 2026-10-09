@@ -20,3 +20,9 @@ acceptance_criteria:
   - {id: A1, text: "Invalid configuration names are rejected at route level."}
 tests:
   - {command: "cd ui && corepack pnpm exec vitest run", covers: [A1]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: Six UI route pre-checks still use CONFIG_ID_PATTERN for configuration names.

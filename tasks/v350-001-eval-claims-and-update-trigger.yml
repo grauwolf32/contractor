@@ -23,3 +23,9 @@ acceptance_criteria:
   - {id: A2, text: "A bulk update touching 20k experiments bumps each affected collection once."}
 tests:
   - {command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalstore ./internal/evalservice ./internal/projectlifecycle", covers: [A1, A2]}
+
+reassessment:
+  date: "2026-10-09"
+  revision: 63496210830a4c12816dfb9fd22e132645fb60cb
+  review: docs/research/2026-10-09-maintenance-backlog.md
+  outcome: The claim query and per-row experiment collection UPDATE trigger still need the large-population checks and correction.
