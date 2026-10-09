@@ -760,6 +760,23 @@ func waitForProcessLog(t *testing.T, ctx context.Context, process *childProcess,
 	for {
 		logs := process.logs.redacted(publicToken, llmGatewayToken)
 		if strings.Contains(logs, expected) {
+			if expected == "runtime agent registered" {
+				// Retain safe startup measurements in successful CI output too,
+				// before later Worker logs evict the bounded process buffer.
+				for _, line := range strings.Split(logs, "\n") {
+					var probe struct {
+						Logger   string `json:"logger"`
+						Ref      string `json:"capabilityRef"`
+						Kind     string `json:"capabilityKind"`
+						Outcome  string `json:"probeOutcome"`
+						Duration int    `json:"durationMs"`
+					}
+					if json.Unmarshal([]byte(line), &probe) == nil && probe.Logger == "contractor_runtime.capabilities" {
+						t.Logf("Runtime probe: process=%q kind=%q ref=%q outcome=%q durationMs=%d",
+							process.name, probe.Kind, probe.Ref, probe.Outcome, probe.Duration)
+					}
+				}
+			}
 			return
 		}
 		if exited, processErr := process.exited(); exited {

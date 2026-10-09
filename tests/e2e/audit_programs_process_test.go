@@ -852,18 +852,18 @@ func waitForAuditProgram(
 			lastAudit = audit
 			switch audit.State {
 			case "completed":
-				if audit.SubmittedRunCount != expectedRuns || audit.OutstandingRuns != 0 {
-					var page struct {
-						Items []auditProgramItem `json:"items"`
-					}
-					_ = auditProgramTryGET(
-						ctx, client, baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/items?limit=100", &page,
-					)
-					if audit.OutstandingRuns != 0 || audit.SubmittedRunCount < expectedRuns ||
-						!auditProgramRunsAreOnlyRetries(page.Items, expectedRuns, audit.SubmittedRunCount) {
-						t.Fatalf("completed Audit counters = %+v; items=%+v", audit, page.Items)
-					}
+				var page struct {
+					Items []auditProgramItem `json:"items"`
 				}
+				if err := auditProgramTryGET(ctx, client,
+					baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/items?limit=100", &page); err != nil {
+					break // Retry an unreadable page; counters alone cannot prove attempts.
+				}
+				if audit.SubmittedRunCount != expectedRuns || audit.OutstandingRuns != 0 ||
+					!auditProgramHasExactAttempts(page.Items, expectedRuns) {
+					t.Fatalf("completed Audit counters or exact attempts differ: %+v; items=%+v", audit, page.Items)
+				}
+				t.Logf("Audit %s completed with exactly %d Worker attempts", auditID, expectedRuns)
 				return audit
 			case "failed", "cancelled":
 				t.Fatalf("Audit reached %s: %+v\nserver:\n%s\nruntime:\n%s\ngateway: %v",
@@ -889,35 +889,23 @@ func waitForAuditProgram(
 	}
 }
 
-// A failed or missing Worker result may be retried by the Audit controller.
-// Preserve the expected number of distinct selected items and reject any
-// duplicate successful dispatch hidden by a larger submitted-run count.
-func auditProgramRunsAreOnlyRetries(items []auditProgramItem, expectedItems, submittedRuns int) bool {
-	selected, attempts := 0, 0
+// The deterministic fixture must complete each selected item exactly once.
+// A retry is a regression even if a later result happened to succeed.
+func auditProgramHasExactAttempts(items []auditProgramItem, expectedRuns int) bool {
 	seenRuns := make(map[string]struct{})
 	for _, item := range items {
 		if len(item.Attempts) == 0 {
 			continue
 		}
-		selected++
-		attempts += len(item.Attempts)
-		for index, attempt := range item.Attempts {
-			if attempt.RunID == "" {
-				return false
-			}
-			if _, duplicate := seenRuns[attempt.RunID]; duplicate {
-				return false
-			}
-			seenRuns[attempt.RunID] = struct{}{}
-			if index < len(item.Attempts)-1 &&
-				attempt.CollectionDisposition != "execution-failed" &&
-				attempt.CollectionDisposition != "missing-output" &&
-				attempt.CollectionDisposition != "invalid-result" {
-				return false
-			}
+		if len(item.Attempts) != 1 || item.Attempts[0].RunID == "" ||
+			item.Attempts[0].CollectionDisposition != "accepted-result" {
+			return false
 		}
+		runID := item.Attempts[0].RunID
+		// A Workflow batch executes several selected items in the same Run.
+		seenRuns[runID] = struct{}{}
 	}
-	return selected == expectedItems && attempts == submittedRuns
+	return len(seenRuns) == expectedRuns
 }
 
 func decidePendingAuditItems(

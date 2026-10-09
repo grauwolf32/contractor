@@ -276,7 +276,7 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" ||
+				if item.SlotState != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
 					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
 					return false
 				}
@@ -308,7 +308,7 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" ||
+				if item.SlotState != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
 					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
 					return false
 				}

@@ -3,7 +3,7 @@ id: V341-001
 title: Investigate tolerances raised to unblock CI
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, go]
 goal: Restore tight bounds or justify them with measurements.
@@ -30,3 +30,13 @@ reassessment:
   revision: 63496210830a4c12816dfb9fd22e132645fb60cb
   review: docs/research/2026-10-09-maintenance-backlog.md
   outcome: The 12-second factory timeout and permissive Audit retry assertions are still present; measurements and exact attempt checks remain necessary.
+
+local_verification:
+  date: "2026-10-09"
+  passed:
+    - Deterministic Audit process fixture, 357.29 seconds, exact submitted Run counts 1, 2, 10 and 4 with one accepted attempt per executed item.
+    - Heterogeneous Code Analysis process fixture, 78.24 seconds, both release/reuse boundaries require idle slots and confirmed leases.
+    - Full Runtime suite, 3621 passed and 39 optional skips.
+  remaining:
+    - Successful CI output with factory probe durations, now retained by the process test harness.
+    - Use those CI measurements to justify the current timeouts or reduce them.
