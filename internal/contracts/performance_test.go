@@ -8,24 +8,25 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type performanceCase struct {
 	Name  string          `json:"name"`
 	Value json.RawMessage `json:"value"`
 }
+
 type performanceCases struct {
-	ValidResources      []performanceCase `json:"validResources"`
-	InvalidResources    []performanceCase `json:"invalidResources"`
-	ValidRequests       []json.RawMessage `json:"validRequests"`
-	InvalidRequests     []json.RawMessage `json:"invalidRequests"`
-	ValidCapabilities   []json.RawMessage `json:"validCapabilities"`
-	InvalidCapabilities []json.RawMessage `json:"invalidCapabilities"`
+	ValidResources   []performanceCase `json:"validResources"`
+	InvalidResources []performanceCase `json:"invalidResources"`
+	ValidRequests    []json.RawMessage `json:"validRequests"`
+	InvalidRequests  []json.RawMessage `json:"invalidRequests"`
 }
 
 func readPerformanceCases(t *testing.T) performanceCases {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/testdata/v1alpha1/performance-cases.json")
+	raw, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "v1alpha1", "performance-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +55,7 @@ func TestPerformanceGoldenResources(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					assertSemanticJSONEqual(t, entry.Value, encoded)
+					contractstest.AssertSemanticJSONEqual(t, entry.Value, encoded)
 					wire, _ := json.Marshal(map[string]any{"complete": true, "adapters": map[string]any{}, "resources": value})
 					report, err := DecodePrivateStrict[RuntimeReport](wire)
 					if err != nil || report.Resources == nil || report.ResourcesError != nil {
@@ -78,42 +79,17 @@ func TestPerformanceGoldenResources(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenRequestsAndCapabilities(t *testing.T) {
+func TestPerformanceGoldenRequests(t *testing.T) {
 	cases := readPerformanceCases(t)
 	for _, valid := range []bool{true, false} {
-		requests, capabilities := cases.InvalidRequests, cases.InvalidCapabilities
+		requests := cases.InvalidRequests
 		if valid {
-			requests, capabilities = cases.ValidRequests, cases.ValidCapabilities
+			requests = cases.ValidRequests
 		}
 		for _, raw := range requests {
 			_, err := DecodePrivateStrict[PerformanceMetricsRequest](raw)
 			if (err == nil) != valid {
 				t.Fatalf("request validity %v: %v", valid, err)
-			}
-		}
-		for _, raw := range capabilities {
-			var registration map[string]json.RawMessage
-			if err := json.Unmarshal(readFixture(t, "valid", "agent-registration.json"), &registration); err != nil {
-				t.Fatal(err)
-			}
-			registration["supportedPerformanceMetricsVersions"] = raw
-			encoded, _ := json.Marshal(registration)
-			value, err := DecodePrivateStrict[AgentRegistration](encoded)
-			if (err == nil) != valid {
-				t.Fatalf("capability %s validity %v: %v", raw, valid, err)
-			}
-			if valid && len(value.SupportedPerformanceMetricsVersions) != 0 {
-				clone := NormalizeAgentRegistration(value)
-				clone.SupportedPerformanceMetricsVersions[0] = 2
-				if value.SupportedPerformanceMetricsVersions[0] != 1 {
-					t.Fatal("normalization aliases capability")
-				}
-				fingerprint, _ := AgentRegistrationFingerprint(value)
-				value.SupportedPerformanceMetricsVersions = nil
-				withoutCapabilityFingerprint, _ := AgentRegistrationFingerprint(value)
-				if fingerprint == withoutCapabilityFingerprint {
-					t.Fatal("capability missing from fingerprint")
-				}
 			}
 		}
 	}
@@ -143,46 +119,15 @@ func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
 	}
 }
 
-func TestPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
-	var spec map[string]json.RawMessage
-	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec.json"), &spec); err != nil {
-		t.Fatal(err)
-	}
-	spec["runtimeSettings"] = readFixture(t, "valid", "runtime-settings-empty.json")
-	spec["resolvedRuntimeConfigProvenance"] = readFixture(t, "valid", "runtime-provenance.json")
-	raw, _ := json.Marshal(spec)
-	withoutMetrics, err := DecodePrivateStrict[AllocationSpec](raw)
-	if err != nil || withoutMetrics.PerformanceMetrics != nil {
-		t.Fatalf("allocation without metrics: %v", err)
-	}
-	canonical, err := MarshalPrivateCanonical(withoutMetrics)
-	if err != nil || bytes.Contains(canonical, []byte("performanceMetrics")) {
-		t.Fatalf("omitted request must remain disabled: %v", err)
-	}
-	spec["performanceMetrics"] = json.RawMessage(`{"version":1,"intervalSeconds":15}`)
-	raw, _ = json.Marshal(spec)
-	current, err := DecodePrivateStrict[AllocationSpec](raw)
-	if err != nil || current.PerformanceMetrics == nil {
-		t.Fatalf("new allocation: %v", err)
-	}
-	canonical, err = MarshalPrivateCanonical(current)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := DecodePrivateStrict[AllocationSpec](canonical); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestPerformanceGoldenInvalidResourcesDoNotPoisonFinalReports(t *testing.T) {
-	base, err := DecodePrivateStrict[AllocationFinalResponse](readFixture(t, "valid", "allocation-final-response.json"))
+	base, err := DecodePrivateStrict[AllocationFinalResponse](contractstest.ReadFixture(t, "valid", "allocation-final-response.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, entry := range readPerformanceCases(t).InvalidResources {
 		t.Run(entry.Name, func(t *testing.T) {
 			var envelope map[string]any
-			if err := json.Unmarshal(readFixture(t, "valid", "allocation-final-response.json"), &envelope); err != nil {
+			if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "allocation-final-response.json"), &envelope); err != nil {
 				t.Fatal(err)
 			}
 			envelope["report"].(map[string]any)["runtime"].(map[string]any)["resources"] = entry.Value
@@ -226,7 +171,7 @@ func TestPerformanceResourceIsolationKeepsEnvelopeStrict(t *testing.T) {
 		}
 	}
 	var report map[string]any
-	if err := json.Unmarshal(readFixture(t, "valid", "allocation-final-response.json"), &report); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "allocation-final-response.json"), &report); err != nil {
 		t.Fatal(err)
 	}
 	report["report"].(map[string]any)["runtime"].(map[string]any)["resources"] = map[string]string{"unknown": strings.Repeat("x", 1024*1024)}

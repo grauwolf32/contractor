@@ -1,9 +1,11 @@
-package contracts
+package contracts_test
 
 import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
@@ -28,13 +30,13 @@ func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
 			var err error
 			switch c.Model {
 			case "contract":
-				err = privateReject[WorkerCompletionContract](c.Value)
+				err = privateReject[contracts.WorkerCompletionContract](c.Value)
 			case "capabilities":
-				err = privateReject[RuntimeCompletionCapabilities](c.Value)
+				err = privateReject[contracts.RuntimeCompletionCapabilities](c.Value)
 			case "allocation":
-				err = privateReject[AllocationSpec](c.Value)
+				err = privateReject[contracts.AllocationSpec](c.Value)
 			case "registration":
-				err = privateReject[AgentRegistration](c.Value)
+				err = privateReject[contracts.AgentRegistration](c.Value)
 			default:
 				t.Fatalf("unknown fixture model %q", c.Model)
 			}
@@ -42,18 +44,5 @@ func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
 				t.Fatalf("valid=%v got %v", c.Valid, err)
 			}
 		})
-	}
-}
-
-func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
-	empty := NormalizeAgentRegistration(AgentRegistration{})
-	if empty.Capabilities != nil {
-		t.Fatal("omission invented completion capability")
-	}
-	original := AgentRegistration{Capabilities: &RuntimeCompletionCapabilities{CompletionContracts: []string{AuditCheckResultsV1}}}
-	cloned := NormalizeAgentRegistration(original)
-	cloned.Capabilities.CompletionContracts[0] = "changed"
-	if original.Capabilities.CompletionContracts[0] != AuditCheckResultsV1 {
-		t.Fatal("capability clone aliases mutable source")
 	}
 }

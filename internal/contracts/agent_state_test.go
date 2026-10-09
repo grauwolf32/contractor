@@ -3,11 +3,13 @@ package contracts
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 	var baseline map[string]any
-	if err := json.Unmarshal(readFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)
 	}
 	tests := map[string]func(map[string]any){
@@ -71,7 +73,7 @@ func TestAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 
 func TestAgentStateRejectsInconsistentSummarizerState(t *testing.T) {
 	var baseline map[string]any
-	if err := json.Unmarshal(readFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFixture(t, "valid", "agent-state-snapshot.json"), &baseline); err != nil {
 		t.Fatal(err)
 	}
 	tests := map[string]func(map[string]any){

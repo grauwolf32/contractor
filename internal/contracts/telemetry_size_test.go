@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type telemetrySizeCase struct {
@@ -20,7 +22,7 @@ type telemetrySizeCase struct {
 
 func telemetrySizeCases(t *testing.T) []telemetrySizeCase {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/testdata/v1alpha1/telemetry-json-size-cases.json")
+	raw, err := os.ReadFile(contractstest.Path(t, "api", "testdata", "v1alpha1", "telemetry-json-size-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

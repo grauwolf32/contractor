@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func requestSetFixture(t *testing.T) []byte {
 	t.Helper()
-	raw, err := os.ReadFile("../../api/scan/v1/testdata/valid.json")
+	raw, err := os.ReadFile(contractstest.Path(t, "api", "scan", "v1", "testdata", "valid.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +35,7 @@ func validRequestSet(t *testing.T) HTTPRequestSet {
 
 func requestSetSchema(t *testing.T) *jsonschema.Schema {
 	t.Helper()
-	path, err := filepath.Abs("../../api/scan/v1/http-request-set.schema.json")
+	path, err := filepath.Abs(contractstest.Path(t, "api", "scan", "v1", "http-request-set.schema.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +367,7 @@ func TestHTTPRequestSetOriginsAreUniqueAcrossRequests(t *testing.T) {
 func TestHTTPRequestSetInvalidFixtures(t *testing.T) {
 	for _, name := range []string{"invalid-missing-body.json", "invalid-content-digest.json", "invalid-duplicate-key.json"} {
 		t.Run(name, func(t *testing.T) {
-			raw, err := os.ReadFile(filepath.Join("../../api/scan/v1/testdata", name))
+			raw, err := os.ReadFile(contractstest.Path(t, "api", "scan", "v1", "testdata", name))
 			if err != nil {
 				t.Fatal(err)
 			}

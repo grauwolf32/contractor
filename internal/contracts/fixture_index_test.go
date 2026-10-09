@@ -1,4 +1,4 @@
-package contracts
+package contracts_test
 
 import (
 	"bytes"
@@ -11,6 +11,9 @@ import (
 
 	"github.com/dlclark/regexp2"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 // fixtureIndexEntry mirrors api/testdata/v1alpha1/index.json, which Go and
@@ -34,32 +37,32 @@ type fixtureCodec struct {
 	privateReject    func([]byte) error
 }
 
-func codecFor[T Validatable]() fixtureCodec {
+func codecFor[T contracts.Validatable]() fixtureCodec {
 	return fixtureCodec{roundTrip[T], reject[T], privateRoundTrip[T], privateReject[T]}
 }
 
 var fixtureCodecs = map[string]fixtureCodec{
-	"AbortAllocationRequest":          codecFor[AbortAllocationRequest](),
-	"AgentHeartbeat":                  codecFor[AgentHeartbeat](),
-	"AgentRegistration":               codecFor[AgentRegistration](),
-	"AgentRegistrationResponse":       codecFor[AgentRegistrationResponse](),
-	"AgentStateSnapshot":              codecFor[AgentStateSnapshot](),
-	"AllocationFinalResponse":         codecFor[AllocationFinalResponse](),
-	"AllocationSpec":                  codecFor[AllocationSpec](),
-	"AllocationWorkspaceSpec":         codecFor[AllocationWorkspaceSpec](),
-	"ArtifactListResult":              codecFor[ArtifactListResult](),
-	"ArtifactReadResult":              codecFor[ArtifactReadResult](),
-	"FinalizeAllocationRequest":       codecFor[FinalizeAllocationRequest](),
-	"HeartbeatResponse":               codecFor[HeartbeatResponse](),
-	"ReleaseAllocationRequest":        codecFor[ReleaseAllocationRequest](),
-	"ResolvedLLMGatewayConfig":        codecFor[ResolvedLLMGatewayConfig](),
-	"ResolvedRuntimeConfigProvenance": codecFor[ResolvedRuntimeConfigProvenance](),
-	"RuntimeReport":                   codecFor[RuntimeReport](),
-	"RuntimeSettings":                 codecFor[RuntimeSettings](),
-	"StageContentRequest":             codecFor[StageContentRequest](),
-	"StageContentResult":              codecFor[StageContentResult](),
-	"WorkerCompletion":                codecFor[WorkerCompletion](),
-	"WorkspaceCapabilities":           codecFor[WorkspaceCapabilities](),
+	"AbortAllocationRequest":          codecFor[contracts.AbortAllocationRequest](),
+	"AgentHeartbeat":                  codecFor[contracts.AgentHeartbeat](),
+	"AgentRegistration":               codecFor[contracts.AgentRegistration](),
+	"AgentRegistrationResponse":       codecFor[contracts.AgentRegistrationResponse](),
+	"AgentStateSnapshot":              codecFor[contracts.AgentStateSnapshot](),
+	"AllocationFinalResponse":         codecFor[contracts.AllocationFinalResponse](),
+	"AllocationSpec":                  codecFor[contracts.AllocationSpec](),
+	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
+	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
+	"ArtifactReadResult":              codecFor[contracts.ArtifactReadResult](),
+	"FinalizeAllocationRequest":       codecFor[contracts.FinalizeAllocationRequest](),
+	"HeartbeatResponse":               codecFor[contracts.HeartbeatResponse](),
+	"ReleaseAllocationRequest":        codecFor[contracts.ReleaseAllocationRequest](),
+	"ResolvedLLMGatewayConfig":        codecFor[contracts.ResolvedLLMGatewayConfig](),
+	"ResolvedRuntimeConfigProvenance": codecFor[contracts.ResolvedRuntimeConfigProvenance](),
+	"RuntimeReport":                   codecFor[contracts.RuntimeReport](),
+	"RuntimeSettings":                 codecFor[contracts.RuntimeSettings](),
+	"StageContentRequest":             codecFor[contracts.StageContentRequest](),
+	"StageContentResult":              codecFor[contracts.StageContentResult](),
+	"WorkerCompletion":                codecFor[contracts.WorkerCompletion](),
+	"WorkspaceCapabilities":           codecFor[contracts.WorkspaceCapabilities](),
 }
 
 func readFixtureIndex(t *testing.T) fixtureIndex {
@@ -167,7 +170,7 @@ func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: compile %s: %v", name, entry.Schema, err)
 			}
-			value, err := jsonschema.UnmarshalJSON(bytes.NewReader(readFixture(t, kind, name)))
+			value, err := jsonschema.UnmarshalJSON(bytes.NewReader(contractstest.ReadFixture(t, kind, name)))
 			if err != nil {
 				t.Fatalf("%s: %v", name, err)
 			}
