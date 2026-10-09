@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -12,6 +13,10 @@ from tree_sitter import Node, Parser
 from tree_sitter_language_pack import get_parser
 
 MAX_SYMBOL_NAME_CHARS = 256
+# The C parser holds the GIL. A callback yields between bounded input chunks
+# for large files; parsing a bytes object in a thread alone cannot do that.
+COOPERATIVE_PARSE_THRESHOLD = 64 << 10
+PARSE_CHUNK_BYTES = 8 << 10
 
 
 class Language(StrEnum):
@@ -481,7 +486,15 @@ def parse_symbols(
     language: Language,
     max_symbols: int,
 ) -> ParseResult:
-    tree = parser.parse(source)
+    if len(source) < COOPERATIVE_PARSE_THRESHOLD:
+        tree = parser.parse(source)
+    else:
+
+        def read_chunk(byte_offset: int, _position: object) -> bytes:
+            time.sleep(0)  # Release the GIL for heartbeats on the event loop.
+            return source[byte_offset : byte_offset + PARSE_CHUNK_BYTES]
+
+        tree = parser.parse(read_chunk)
     root = tree.root_node
     spec_map = {spec.node_type: spec for spec in NODE_SPECS[language]}
     stack: list[Node] = [root]

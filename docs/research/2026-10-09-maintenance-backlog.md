@@ -18,3 +18,13 @@ Reviewed main `63496210830a4c12816dfb9fd22e132645fb60cb` against the task record
 5. Apply V347 protection when GitHub settings write access is available. This does not prevent the independent repository work.
 
 Use an isolated PostgreSQL container for checks. The demo database and existing user work are outside the test fixtures. Pending tasks become in progress before implementation and completed only after their acceptance and required checks pass.
+
+
+V346 measurement on the disposable local runner: a 4 MiB Python file with
+80,660 top-level definitions blocked the event loop for 408 ms when passed as
+one byte string. Callback input with 8 KiB chunks and a GIL yield reduced the
+largest observed gap to about 41 ms. The regression bound is 100 ms on this
+real parse, including native finalization and symbol extraction. Small files
+retain the direct byte-string path. The pinned tree-sitter 0.25.2 progress
+callback is not used: it segfaulted on this Python 3.13 runner; chunked input
+uses the supported read callback and leaves parse results unchanged.

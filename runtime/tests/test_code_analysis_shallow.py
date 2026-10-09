@@ -6,6 +6,7 @@ import re
 import threading
 import time
 from collections import Counter
+from itertools import pairwise
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -1152,3 +1153,39 @@ async def _tools(
         project_workspace=reader,
     )
     return dict(tools), metrics
+
+
+def test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms() -> None:
+    # Many syntax nodes exercise the native parser rather than a sleeping fake.
+    unit = b'def handler():\n    return "a moderately long value"\n'
+    source = unit * ((4 << 20) // len(unit))
+    source += b"#" * ((4 << 20) - len(source))
+
+    async def scenario() -> None:
+        ticks: list[float] = []
+        running = True
+
+        async def heartbeat() -> None:
+            while running:
+                ticks.append(time.monotonic())
+                await asyncio.sleep(0.001)
+
+        task = asyncio.create_task(heartbeat())
+        await asyncio.sleep(0.01)
+        result = await asyncio.to_thread(
+            code_analysis_languages.parse_symbols,
+            code_analysis_languages.load_parser(code_analysis_languages.Language.PYTHON),
+            source,
+            "large.py",
+            code_analysis_languages.Language.PYTHON,
+            1,
+        )
+        await asyncio.sleep(0.01)
+        running = False
+        await task
+        gap = max(b - a for a, b in pairwise(ticks))
+        assert gap < 0.1, f"native parsing stalled the event loop for {gap:.3f}s"
+        assert result.symbol_limit_reached and not result.parse_error
+        assert len(result.symbols) == 1 and result.symbols[0].name == "handler"
+
+    asyncio.run(scenario())

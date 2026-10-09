@@ -3,7 +3,7 @@ id: V346-001
 title: Bound tree-sitter parse stalls for large files
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V316-001]
 languages: [python]
 goal: Keep large-file parses from stalling the Runtime event loop.
