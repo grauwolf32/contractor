@@ -3,7 +3,7 @@ id: V359-001
 title: Isolate unreadable proposal documents during collection reads
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V282-001]
 languages: [go]
 goal: Extend V282's per-proposal isolation to documents that fail while being read.

@@ -419,6 +419,12 @@ func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourc
 			}
 			request := f.request
 			request.Proposal = candidate.Receipt.Proposal.Ref
+			if candidate.ReadFailure != "" {
+				if err := f.intake.RejectAuditCollection(ctx, request, candidate.ReadFailure); err != nil {
+					return err
+				}
+				continue
+			}
 			pending = append(pending, request)
 		}
 		if len(pending) != 0 {

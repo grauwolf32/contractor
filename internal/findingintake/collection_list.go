@@ -2,6 +2,7 @@ package findingintake
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,9 @@ type CollectionReceipt struct {
 	PostTerminalRetained bool
 	DirectAssessed       bool
 	Rejected             bool
+	// ReadFailure is a safe deterministic rejection reason for this proposal.
+	// Transient storage failures fail the page and are never converted to it.
+	ReadFailure string
 }
 
 // NeedsRetention reports whether collection must still pass this proposal to
@@ -75,16 +79,41 @@ func (s *Service) ListAuditCollection(
 			positions = append(positions, i)
 		}
 	}
-	if len(pending) != 0 {
-		pending, err = s.hydrateAuditReceiptBatch(ctx, pending)
-		if err != nil {
-			return nil, err
-		}
-		for i, position := range positions {
-			result[position].Receipt = pending[i]
-		}
+	if err := s.hydrateCollectionPage(ctx, pending, positions, result); err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+// hydrateCollectionPage keeps the healthy path batched. Only deterministic
+// exact-data failures split a batch until the offending proposal is isolated;
+// storage and context failures remain retryable errors for the whole page.
+func (s *Service) hydrateCollectionPage(
+	ctx context.Context, receipts []Receipt, positions []int, result []CollectionReceipt,
+) error {
+	if len(receipts) == 0 {
+		return nil
+	}
+	hydrated, err := s.hydrateAuditReceiptBatch(ctx, receipts)
+	if err == nil {
+		for i, position := range positions {
+			result[position].Receipt = hydrated[i]
+		}
+		return nil
+	}
+	var unretainable *unretainableProposal
+	if !errors.As(classifyProposalData(err), &unretainable) {
+		return err
+	}
+	if len(receipts) == 1 {
+		result[positions[0]].ReadFailure = unretainable.reason
+		return nil
+	}
+	middle := len(receipts) / 2
+	if err := s.hydrateCollectionPage(ctx, receipts[:middle], positions[:middle], result); err != nil {
+		return err
+	}
+	return s.hydrateCollectionPage(ctx, receipts[middle:], positions[middle:], result)
 }
 
 type collectionState struct{ retained, postTerminalRetained, directAssessed, rejected bool }

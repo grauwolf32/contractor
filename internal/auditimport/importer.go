@@ -315,7 +315,8 @@ func (i *Importer) retainFindingProposals(
 				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
 				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
 			}
-			if !candidate.Retained && len(receipt.Document.StandardRefs) != 0 {
+			rejectionReason := candidate.ReadFailure
+			if rejectionReason == "" && !candidate.Retained && len(receipt.Document.StandardRefs) != 0 {
 				if standards == nil {
 					standards, err = loadStandards()
 					if err != nil {
@@ -323,17 +324,20 @@ func (i *Importer) retainFindingProposals(
 					}
 				}
 				if validateProposalStandardRefs(receipt.Document, standards) != nil {
-					// The model authored this one proposal; reject only it
-					// and keep collecting the others and the execution.
-					err := i.findings.RejectAuditCollection(ctx, request, "finding-proposal-standard-invalid")
-					if errors.Is(err, findingintake.ErrAuditClosed) {
-						return nil
-					}
-					if err != nil {
-						return fmt.Errorf("reject invalid Audit child finding proposal: %w", err)
-					}
-					continue
+					rejectionReason = "finding-proposal-standard-invalid"
 				}
+			}
+			if rejectionReason != "" {
+				// One proposal's exact bytes or authored content cannot
+				// prevent collection of its siblings and the execution.
+				err := i.findings.RejectAuditCollection(ctx, request, rejectionReason)
+				if errors.Is(err, findingintake.ErrAuditClosed) {
+					return nil
+				}
+				if err != nil {
+					return fmt.Errorf("reject invalid Audit child finding proposal: %w", err)
+				}
+				continue
 			}
 			pending = append(pending, request)
 		}

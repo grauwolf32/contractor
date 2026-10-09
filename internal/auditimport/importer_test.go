@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -473,7 +474,7 @@ func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) 
 	}
 }
 
-func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
+func TestImporterRejectsOnlyInvalidOrUnreadableFindingProposals(t *testing.T) {
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
 	profileSnapshot, err := json.Marshal(profile)
@@ -496,7 +497,7 @@ func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
 	}
 	revision := "finding-revision"
 	findings := &fakeFindingRetention{}
-	for _, name := range []string{"invalid", "valid"} {
+	for _, name := range []string{"invalid", "valid", "missing", "corrupt"} {
 		document := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{}}
 		if name == "invalid" {
 			document.StandardRefs = []auditdomain.StandardReference{{
@@ -514,6 +515,19 @@ func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
 			}},
 		})
 	}
+	for _, receipt := range findings.receipts {
+		candidate := findingintake.CollectionReceipt{Receipt: receipt}
+		switch receipt.ReceiptID {
+		case "missing":
+			candidate.ReadFailure = "finding-proposal-artifact-missing"
+		case "corrupt":
+			candidate.ReadFailure = "finding-proposal-artifact-invalid"
+		}
+		if candidate.ReadFailure != "" {
+			candidate.Receipt.Document = auditdomain.FindingProposal{}
+		}
+		findings.collection = append(findings.collection, candidate)
+	}
 	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
 	if err != nil {
 		t.Fatal(err)
@@ -525,7 +539,11 @@ func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
 		t.Fatalf("collection = (%t, %v, %+v)", worked, err, harness.store.collected)
 	}
 	if len(findings.imports) != 1 || findings.imports[0].Proposal.Name != "valid" ||
-		len(findings.rejections) != 1 || findings.rejections[0] != "invalid:finding-proposal-standard-invalid" {
+		!reflect.DeepEqual(findings.rejections, []string{
+			"invalid:finding-proposal-standard-invalid",
+			"missing:finding-proposal-artifact-missing",
+			"corrupt:finding-proposal-artifact-invalid",
+		}) {
 		t.Fatalf("imports=%+v rejections=%v", findings.imports, findings.rejections)
 	}
 }
