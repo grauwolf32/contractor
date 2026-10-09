@@ -28,6 +28,8 @@ var layers = []layerSpec{
 			"internal/clone",
 			"internal/configtest",
 			"internal/contentdigest",
+			// Wire fixture helpers for contract tests; standard library only.
+			"internal/contracts/contractstest",
 			"internal/credentialerrors",
 			"internal/documentnumber",
 			"internal/httpapi/httpx",
@@ -48,6 +50,12 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/auth",
 			"internal/contracts",
+			"internal/contracts/control",
+			"internal/contracts/llmgateway",
+			"internal/contracts/reporting",
+			"internal/contracts/runlabels",
+			"internal/contracts/runtimesettings",
+			"internal/contracts/scan",
 			"internal/localpki",
 			"internal/mtls",
 			"internal/persistence",
