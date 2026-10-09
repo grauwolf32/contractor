@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -697,7 +698,7 @@ func newHandlerFixtureWithAuth(
 	configure ...func(*Dependencies),
 ) handlerFixture {
 	t.Helper()
-	manager, err := config.NewManager(config.ManagerOptions{
+	manager, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 		Descriptors:  config.MVPDescriptors(),
@@ -1768,7 +1769,7 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1878,7 +1879,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

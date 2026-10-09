@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
-	catalog, err := config.Load(filepath.Join(repoRoot(t), "configs"), config.MVPDescriptors())
+	catalog, err := configload.Load(filepath.Join(repoRoot(t), "configs"), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

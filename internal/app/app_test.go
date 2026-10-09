@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
@@ -595,7 +596,7 @@ func TestParseConfigReadsConfigurationRootsAndDerivesManagedFlagDefault(t *testi
 
 func TestDevelopmentCredentialsBindNamedTokensToPinnedLocalGateway(t *testing.T) {
 	t.Parallel()
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

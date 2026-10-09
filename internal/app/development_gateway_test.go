@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -56,7 +57,7 @@ func TestDevelopmentCredentialsUseSelectedGatewayWithoutChangingManagedCredentia
 	if err := os.WriteFile(filepath.Join(root, "llm-gateways/selected.yaml"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := workflowconfig.Load(root, workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load(root, workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

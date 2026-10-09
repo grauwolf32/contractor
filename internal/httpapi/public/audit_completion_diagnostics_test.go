@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -16,7 +17,7 @@ import (
 
 func TestRunStatusExposesCompletionAsPublicationNotAuditAcceptance(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

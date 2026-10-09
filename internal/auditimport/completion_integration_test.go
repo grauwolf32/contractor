@@ -32,6 +32,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -223,7 +224,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 		}
 		mustCompletion(t, os.WriteFile(path, data, 0600))
 	}
-	catalog, err := config.Load(catalogRoot, config.MVPDescriptors())
+	catalog, err := configload.Load(catalogRoot, config.MVPDescriptors())
 	mustCompletion(t, err)
 	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)
@@ -247,7 +248,7 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 	}
 	_, err = f.audits.TransitionRound(ctx, auditstore.RoundTransitionParams{Claim: f.claim, RoundID: f.id, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting})
 	mustCompletion(t, err)
-	manager, err := config.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
 	mustCompletion(t, err)
 	f.service, err = runservice.New(runservice.Options{Runs: f.runs, Workflows: manager, LLMCredentials: completionCredentials{}, CredentialGuard: completionCredentials{}, RuntimeCredentials: completionCredentials{}, Projects: projects,
 		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -69,7 +70,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	snapshot, err := workflowconfig.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

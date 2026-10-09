@@ -14,6 +14,7 @@ import (
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -446,7 +447,7 @@ func newPlacementFixture(
 	runLabels []string,
 ) *placementFixture {
 	t.Helper()
-	configuration, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	configuration, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

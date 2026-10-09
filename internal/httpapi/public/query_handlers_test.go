@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -118,7 +119,7 @@ const publicCatalogFixture = "testdata/catalog"
 
 func catalogWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	t.Helper()
-	snapshot, err := config.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +454,7 @@ func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
 
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
