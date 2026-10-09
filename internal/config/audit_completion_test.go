@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -224,5 +225,42 @@ func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
 	writeFile(t, path, []byte(strings.Replace(string(raw), "audit-results@2", "audit-results@1", 1)))
 	if _, err := Load(root, MVPDescriptors()); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
 		t.Fatalf("retired Audit toolset must be rejected during catalog loading: %v", err)
+	}
+}
+
+// Catalog authoring lives in fixtures now, rather than the removed bundled
+// production profiles. Keep their native completion tools and exact binding
+// executable in the mandatory release gate.
+func TestAuditCompletionFixturesPinNativeWorkerTools(t *testing.T) {
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-completion-catalog"), MVPDescriptors())
+	checked := 0
+	for _, profile := range snapshot.AuditProfiles() {
+		for role, binding := range profile.Workflows {
+			if binding.WorkerCompletion == nil {
+				continue
+			}
+			checked++
+			if err := ValidateAuditWorkerCompletion(binding); err != nil {
+				t.Fatalf("%s/%s: %v", profile.Ref.Name, role, err)
+			}
+			completion := binding.WorkerCompletion
+			agent := binding.Workflow.Stages[completion.Stage].Agents[completion.Agent]
+			found := false
+			for _, toolset := range agent.Template.Toolsets {
+				if toolset.Ref.ToolsetID != "audit-results" {
+					continue
+				}
+				if found || toolset.Ref.Version != "2" || !slices.Equal(toolset.Tools, []string{"read_audit_task", "submit_check_result"}) {
+					t.Fatalf("%s/%s has an unexpected completion toolset: %+v", profile.Ref.Name, role, toolset)
+				}
+				found = true
+			}
+			if !found {
+				t.Fatalf("%s/%s has no native completion tools", profile.Ref.Name, role)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("completion fixture selected no opted-in Workers")
 	}
 }
