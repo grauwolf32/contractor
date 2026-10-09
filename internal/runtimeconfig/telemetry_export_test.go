@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestNormalizeWorkerTelemetryExportSettings(t *testing.T) {
@@ -27,9 +27,9 @@ func TestNormalizeWorkerTelemetryExportSettings(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := stored.Spec.Worker.Telemetry.Value
-		want := contracts.DefaultTelemetryExportSettings()
+		want := runtimesettings.DefaultTelemetryExportSettings()
 		if source != `{}` {
-			want = contracts.TelemetryExportSettings{BatchSizeBytes: 1048576, MaxAttempts: 3, MaxPendingSpans: 16, MaxPendingBytes: 2097152}
+			want = runtimesettings.TelemetryExportSettings{BatchSizeBytes: 1048576, MaxAttempts: 3, MaxPendingSpans: 16, MaxPendingBytes: 2097152}
 		}
 		if got.FlushTimeoutSeconds != 10 || got.Export == nil || *got.Export != want {
 			t.Fatalf("normalized telemetry = %+v, export = %+v", got, got.Export)

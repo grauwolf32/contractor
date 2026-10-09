@@ -10,7 +10,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -89,13 +89,13 @@ func TestPublicConfigurationProjectionContracts(t *testing.T) {
 	t.Run("telemetry retry publication and reads", func(t *testing.T) {
 		for index, test := range []struct {
 			name, export string
-			want         *contracts.TelemetryRetrySettings
+			want         *runtimesettings.TelemetryRetrySettings
 		}{
 			{"legacy omission", `{}`, nil},
-			{"defaults", `{"retry":{}}`, &contracts.TelemetryRetrySettings{InitialBackoffMilliseconds: 100, MaxBackoffMilliseconds: 1000}},
-			{"explicit", `{"retry":{"initialBackoffMilliseconds":17,"maxBackoffMilliseconds":43}}`, &contracts.TelemetryRetrySettings{InitialBackoffMilliseconds: 17, MaxBackoffMilliseconds: 43}},
-			{"minimum", `{"retry":{"initialBackoffMilliseconds":1,"maxBackoffMilliseconds":1}}`, &contracts.TelemetryRetrySettings{InitialBackoffMilliseconds: 1, MaxBackoffMilliseconds: 1}},
-			{"maximum", `{"retry":{"initialBackoffMilliseconds":60000,"maxBackoffMilliseconds":60000}}`, &contracts.TelemetryRetrySettings{InitialBackoffMilliseconds: 60000, MaxBackoffMilliseconds: 60000}},
+			{"defaults", `{"retry":{}}`, &runtimesettings.TelemetryRetrySettings{InitialBackoffMilliseconds: 100, MaxBackoffMilliseconds: 1000}},
+			{"explicit", `{"retry":{"initialBackoffMilliseconds":17,"maxBackoffMilliseconds":43}}`, &runtimesettings.TelemetryRetrySettings{InitialBackoffMilliseconds: 17, MaxBackoffMilliseconds: 43}},
+			{"minimum", `{"retry":{"initialBackoffMilliseconds":1,"maxBackoffMilliseconds":1}}`, &runtimesettings.TelemetryRetrySettings{InitialBackoffMilliseconds: 1, MaxBackoffMilliseconds: 1}},
+			{"maximum", `{"retry":{"initialBackoffMilliseconds":60000,"maxBackoffMilliseconds":60000}}`, &runtimesettings.TelemetryRetrySettings{InitialBackoffMilliseconds: 60000, MaxBackoffMilliseconds: 60000}},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				name := fmt.Sprintf("retry-%d", index)

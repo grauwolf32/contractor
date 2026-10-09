@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -92,16 +93,16 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	}
 	resolved.HTTPProxy = &runtimeconfig.HTTPProxyConfig{
 		Adapter: string(contracts.RuntimeAdapterHTTPProxy), ProxyURL: "https://proxy.example",
-		Credential: "proxy", Targets: []string{string(contracts.ProxyTargetToolHTTP)},
+		Credential: "proxy", Targets: []string{string(runtimesettings.ProxyTargetToolHTTP)},
 	}
 	resolved.Caido = &runtimeconfig.CaidoConfig{
 		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/api",
 		Credential: "caido", RequestTimeoutSeconds: 5,
 	}
 	run := harness.store.run
-	run.ProjectHTTPTarget = &contracts.HTTPOriginTargetRef{
+	run.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://target.example/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "origin", Kind: contracts.RuntimeCredentialOriginBasic,
 		},
 	}
@@ -109,7 +110,7 @@ func TestReportPersistenceReresolvesAllocationCredentialsAcrossSchedulers(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := map[string]contracts.WorkerExecutionSettings{
+	settings := map[string]runtimesettings.WorkerExecutionSettings{
 		"builder": {RuntimeSettings: prepared},
 	}
 	clearWorkerExecutionSettings(settings)

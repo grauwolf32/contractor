@@ -11,11 +11,12 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 type RuntimeLifecycle interface {
-	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error)
+	Prepare(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (contracts.WorkerHandle, error)
 	Finalize(context.Context, Reservation, string, time.Time) (reporting.AllocationFinalReport, error)
 	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (reporting.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
@@ -78,7 +79,7 @@ func NewRuntimeBatchController(
 func (c *RuntimeBatchController) PrepareAll(
 	ctx context.Context,
 	reservations []Reservation,
-	settings map[string]contracts.WorkerExecutionSettings,
+	settings map[string]runtimesettings.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err

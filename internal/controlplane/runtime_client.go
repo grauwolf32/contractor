@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
@@ -85,7 +86,7 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,
-	settings contracts.WorkerExecutionSettings,
+	settings runtimesettings.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
@@ -537,7 +538,7 @@ func (c *RuntimeControlClient) endpoint(baseURL, allocationID, operation string)
 func validateWorkerHandle(
 	handle contracts.WorkerHandle,
 	reservation Reservation,
-	settings contracts.RuntimeSettings,
+	settings runtimesettings.RuntimeSettings,
 ) error {
 	minimumLease := reservation.initialLeaseExpiresAt
 	if minimumLease.IsZero() {

@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 type PrepareAllocationResponse struct {
@@ -93,23 +94,23 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
-	CompletionContract              *contracts.WorkerCompletionContract       `json:"completionContract,omitempty"`
-	APIVersion                      string                                    `json:"apiVersion"`
-	AllocationID                    string                                    `json:"allocationId"`
-	RunID                           string                                    `json:"runId"`
-	StageExecutionID                string                                    `json:"stageExecutionId"`
-	LogicalAgentName                string                                    `json:"logicalAgentName"`
-	Namespace                       string                                    `json:"namespace"`
-	WorkerSessionMode               contracts.WorkerSessionMode               `json:"workerSessionMode"`
-	RunMetadataLabels               runlabels.RunMetadataLabels               `json:"runMetadataLabels"`
-	LeaseExpiresAt                  time.Time                                 `json:"leaseExpiresAt"`
-	AgentTemplate                   contracts.ResolvedAgentTemplate           `json:"agentTemplate"`
-	ResolvedSkills                  []contracts.ResolvedSkill                 `json:"resolvedSkills"`
-	ModelPolicy                     contracts.ResolvedModelPolicy             `json:"modelPolicy,omitzero"`
-	RuntimeSettings                 contracts.RuntimeSettings                 `json:"runtimeSettings"`
-	ResolvedRuntimeConfigProvenance contracts.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
-	Workspace                       *contracts.AllocationWorkspaceSpec        `json:"workspace,omitempty"`
-	PerformanceMetrics              *reporting.PerformanceMetricsRequest      `json:"performanceMetrics,omitempty"`
+	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
+	APIVersion                      string                                          `json:"apiVersion"`
+	AllocationID                    string                                          `json:"allocationId"`
+	RunID                           string                                          `json:"runId"`
+	StageExecutionID                string                                          `json:"stageExecutionId"`
+	LogicalAgentName                string                                          `json:"logicalAgentName"`
+	Namespace                       string                                          `json:"namespace"`
+	WorkerSessionMode               contracts.WorkerSessionMode                     `json:"workerSessionMode"`
+	RunMetadataLabels               runlabels.RunMetadataLabels                     `json:"runMetadataLabels"`
+	LeaseExpiresAt                  time.Time                                       `json:"leaseExpiresAt"`
+	AgentTemplate                   contracts.ResolvedAgentTemplate                 `json:"agentTemplate"`
+	ResolvedSkills                  []contracts.ResolvedSkill                       `json:"resolvedSkills"`
+	ModelPolicy                     contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
+	RuntimeSettings                 runtimesettings.RuntimeSettings                 `json:"runtimeSettings"`
+	ResolvedRuntimeConfigProvenance runtimesettings.ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
+	Workspace                       *contracts.AllocationWorkspaceSpec              `json:"workspace,omitempty"`
+	PerformanceMetrics              *reporting.PerformanceMetricsRequest            `json:"performanceMetrics,omitempty"`
 }
 
 func (s AllocationSpec) Validate() error {

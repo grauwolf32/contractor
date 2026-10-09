@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -177,7 +177,7 @@ func (h *handler) updateProject(w http.ResponseWriter, r *http.Request) {
 	if request.targetSet {
 		httpTarget = nil
 		if request.HTTPTarget != nil {
-			httpTarget = &contracts.HTTPOriginTargetRef{
+			httpTarget = &runtimesettings.HTTPOriginTargetRef{
 				URL: request.HTTPTarget.URL, Credential: request.HTTPTarget.Credential,
 			}
 		}

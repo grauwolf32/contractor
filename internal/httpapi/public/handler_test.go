@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -377,9 +378,9 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 				CreatedBy: "user-1", CreatedAt: time.Now(),
 			}
 			configured := fixture.projects.projects["project-two"]
-			configured.HTTPTarget = &contracts.HTTPOriginTargetRef{
+			configured.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 				URL: "https://attacker.example.test",
-				Credential: &contracts.RuntimeCredentialRef{
+				Credential: &runtimesettings.RuntimeCredentialRef{
 					CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 				},
 			}
@@ -547,9 +548,9 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 		CreatedBy: "user-1", CreatedAt: time.Now(),
 	}
 	configuredProject := fixture.projects.projects["project-one"]
-	configuredProject.HTTPTarget = &contracts.HTTPOriginTargetRef{
+	configuredProject.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}

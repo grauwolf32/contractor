@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -17,9 +17,9 @@ func TestSchedulerMaterializesPinnedTelemetryExportSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	export := contracts.TelemetryExportSettings{
+	export := runtimesettings.TelemetryExportSettings{
 		BatchSizeBytes: 1048576, MaxAttempts: 3, MaxPendingSpans: 16, MaxPendingBytes: 2097152,
-		Retry: &contracts.TelemetryRetrySettings{InitialBackoffMilliseconds: 17, MaxBackoffMilliseconds: 43},
+		Retry: &runtimesettings.TelemetryRetrySettings{InitialBackoffMilliseconds: 17, MaxBackoffMilliseconds: 43},
 	}
 	resolved.WorkerTelemetry = &runtimeconfig.TelemetryConfig{
 		Adapter: "otlp-http@1", Endpoint: "https://collector.example/v1/traces",

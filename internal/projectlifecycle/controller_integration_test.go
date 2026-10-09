@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -54,9 +55,9 @@ INSERT INTO runtime_credentials (
 	project, err = projects.Update(ctx, projectstore.UpdateParams{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
 		Name: project.Name, Description: project.Description,
-		HTTPTarget: &contracts.HTTPOriginTargetRef{
+		HTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 			URL: "https://app.example.test/api",
-			Credential: &contracts.RuntimeCredentialRef{
+			Credential: &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 			},
 		},

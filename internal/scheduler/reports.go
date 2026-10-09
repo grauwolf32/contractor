@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -219,7 +220,7 @@ func (s *Scheduler) allocationReportSecrets(
 		if err != nil {
 			s.options.Logger.Warn("allocation report HTTP origin credential resolution was incomplete", "allocation_id", reservation.Grant.AllocationID)
 		} else {
-			secrets = append(secrets, (contracts.RuntimeSettings{HTTPOriginTarget: target}).SecretValues()...)
+			secrets = append(secrets, (runtimesettings.RuntimeSettings{HTTPOriginTarget: target}).SecretValues()...)
 		}
 	}
 	return secrets

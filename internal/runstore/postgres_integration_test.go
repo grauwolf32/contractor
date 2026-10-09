@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -442,7 +443,7 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	projectID := "project-one"
 	projectParams := testRunParams("run-project-member")
 	projectParams.ProjectID = &projectID
-	projectParams.ProjectHTTPTarget = &contracts.HTTPOriginTargetRef{
+	projectParams.ProjectHTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 	}
 	projectRun, err := store.CreateRun(ctx, projectParams)
@@ -774,18 +775,18 @@ func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			Default: contracts.RuntimeLabelBindingProvenance{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{
+				Config: runtimesettings.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
-			AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
 }

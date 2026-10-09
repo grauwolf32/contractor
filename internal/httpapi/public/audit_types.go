@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -59,14 +60,14 @@ type auditRuntimeSnapshotResponse struct {
 }
 
 type auditBaselineResponse struct {
-	Inputs            map[string]auditstore.ExactArtifact `json:"inputs"`
-	Scope             auditservice.Scope                  `json:"scope"`
-	RuntimeLabels     []string                            `json:"runtimeLabels"`
-	RuntimeConfig     auditRuntimeSnapshotResponse        `json:"runtimeConfig"`
-	Skills            []auditSkillResponse                `json:"skills"`
-	Standards         []auditstandards.PinnedPackage      `json:"standards"`
-	ProjectHTTPTarget *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
-	Inventory         *auditBaselineInventoryResponse     `json:"inventory,omitempty"`
+	Inputs            map[string]auditstore.ExactArtifact  `json:"inputs"`
+	Scope             auditservice.Scope                   `json:"scope"`
+	RuntimeLabels     []string                             `json:"runtimeLabels"`
+	RuntimeConfig     auditRuntimeSnapshotResponse         `json:"runtimeConfig"`
+	Skills            []auditSkillResponse                 `json:"skills"`
+	Standards         []auditstandards.PinnedPackage       `json:"standards"`
+	ProjectHTTPTarget *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Inventory         *auditBaselineInventoryResponse      `json:"inventory,omitempty"`
 }
 
 type auditSkillResponse struct {

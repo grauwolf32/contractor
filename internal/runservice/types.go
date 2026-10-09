@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -130,7 +131,7 @@ type AuditCreateParams struct {
 	Workflow          config.ResolvedWorkflow
 	RuntimeConfig     runtimeconfig.RunSnapshot
 	Skills            []contracts.RunSkillSnapshot
-	ProjectHTTPTarget *contracts.HTTPOriginTargetRef
+	ProjectHTTPTarget *runtimesettings.HTTPOriginTargetRef
 	Parameters        map[string]string
 	Inputs            map[string]auditstore.ExactArtifact
 	ExecutionManifest auditstore.ExactArtifact

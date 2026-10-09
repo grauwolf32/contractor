@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -495,7 +496,7 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
 		t.Fatal("formatted Runtime settings exposed Caido bearer")
 	}
-	workerSettings := map[string]contracts.WorkerExecutionSettings{
+	workerSettings := map[string]runtimesettings.WorkerExecutionSettings{
 		"builder": {RuntimeSettings: settings},
 	}
 	clearWorkerExecutionSettings(workerSettings)
@@ -527,9 +528,9 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 		Tools: []string{"http_request"},
 	})
 	stage.Agents["builder"] = binding
-	run := runstore.WorkflowRun{ProjectHTTPTarget: &contracts.HTTPOriginTargetRef{
+	run := runstore.WorkflowRun{ProjectHTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}}
@@ -634,16 +635,16 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
-			resolved.PlannerRuntimeCredential = &contracts.RuntimeCredentialRef{
+			resolved.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "planner-otel", Kind: contracts.RuntimeCredentialOTLPHeaders,
 			}
 			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
 			}
-			resolved.Provenance.RunLabels = []contracts.RuntimeLabelBindingProvenance{{
+			resolved.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
 			}}
-			resolved.Provenance.AgentLabels = []contracts.RuntimeLabelBindingProvenance{{
+			resolved.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
 			}}
 			harness.allocator.resolvedRuntimeConfig = &resolved
@@ -2750,7 +2751,7 @@ type memoryWorkers struct {
 	finalizeCalls        int
 	abortCalls           int
 	releaseCalls         int
-	preparedSettings     []map[string]contracts.WorkerExecutionSettings
+	preparedSettings     []map[string]runtimesettings.WorkerExecutionSettings
 	preparedReservations [][]controlplane.Reservation
 	prepareError         error
 	abortError           error
@@ -2761,7 +2762,7 @@ type memoryWorkers struct {
 
 func (w *memoryWorkers) PrepareAll(
 	_ context.Context, reservations []controlplane.Reservation,
-	settings map[string]contracts.WorkerExecutionSettings,
+	settings map[string]runtimesettings.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.preparedSettings = append(w.preparedSettings, settings)
@@ -2954,8 +2955,8 @@ func (r *recordingPlannerTelemetryRegistry) Create(
 	return r.inner.Create(ref, settings)
 }
 
-func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) contracts.RuntimeConfigRef {
-	return contracts.RuntimeConfigRef{
+func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) runtimesettings.RuntimeConfigRef {
+	return runtimesettings.RuntimeConfigRef{
 		Name: value.Name, Version: value.Version, Digest: value.Digest,
 	}
 }

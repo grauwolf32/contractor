@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -453,7 +454,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 		if path != "spec.worker.telemetry" || value.Export.null {
 			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export is only supported as a Worker telemetry object", path)
 		}
-		export := contracts.DefaultTelemetryExportSettings()
+		export := runtimesettings.DefaultTelemetryExportSettings()
 		fields := []struct {
 			name   string
 			source optional[int]
@@ -477,7 +478,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 			if source.null {
 				return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export.retry cannot be null", path)
 			}
-			retry := contracts.DefaultTelemetryRetrySettings()
+			retry := runtimesettings.DefaultTelemetryRetrySettings()
 			for _, setting := range []struct {
 				source optional[int]
 				target *int
@@ -589,7 +590,7 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 	}
 	timeout := 0
 	if value.RequestTimeoutSeconds.present {
-		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > contracts.MaxCaidoRequestTimeoutSeconds {
+		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > runtimesettings.MaxCaidoRequestTimeoutSeconds {
 			return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.requestTimeoutSeconds must be from 1 through 120")
 		}
 		timeout = value.RequestTimeoutSeconds.value

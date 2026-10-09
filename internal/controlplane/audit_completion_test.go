@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func completionBinding(t *testing.T) BindingRequirement {
@@ -82,7 +83,7 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 	}
 	binding := completionBinding(t)
 	reservation := Reservation{Grant: AllocationGrant{Namespace: binding.Namespace}, AgentTemplate: binding.AgentTemplate, CompletionContract: binding.CompletionContract}
-	if _, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
+	if _, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("direct prepare: %v", err)
 	}
 }
@@ -109,7 +110,7 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+	_, err = client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 	if err != nil {
 		t.Fatal(err)
 	}

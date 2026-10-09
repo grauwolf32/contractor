@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 const (
@@ -62,12 +63,12 @@ type LLMGatewayPatch struct {
 }
 
 type TelemetryConfig struct {
-	Adapter             string                             `json:"adapter"`
-	Endpoint            string                             `json:"endpoint"`
-	Credential          string                             `json:"credential,omitempty"`
-	CaptureContent      bool                               `json:"captureContent"`
-	FlushTimeoutSeconds int                                `json:"flushTimeoutSeconds"`
-	Export              *contracts.TelemetryExportSettings `json:"export,omitempty"`
+	Adapter             string                                   `json:"adapter"`
+	Endpoint            string                                   `json:"endpoint"`
+	Credential          string                                   `json:"credential,omitempty"`
+	CaptureContent      bool                                     `json:"captureContent"`
+	FlushTimeoutSeconds int                                      `json:"flushTimeoutSeconds"`
+	Export              *runtimesettings.TelemetryExportSettings `json:"export,omitempty"`
 }
 
 type HTTPProxyConfig struct {

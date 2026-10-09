@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -44,15 +45,15 @@ type BaselineInventory struct {
 }
 
 type BaselineSnapshot struct {
-	Schema               string                              `json:"schema"`
-	Inputs               map[string]auditstore.ExactArtifact `json:"inputs"`
-	Scope                Scope                               `json:"scope"`
-	RuntimeLabels        []string                            `json:"runtimeLabels"`
-	RuntimeConfig        runtimeconfig.RunSnapshot           `json:"runtimeConfig"`
-	Skills               []contracts.RunSkillSnapshot        `json:"skills"`
-	LLMCredentialIDs     []string                            `json:"llmCredentialIds"`
-	RuntimeCredentialIDs []string                            `json:"runtimeCredentialIds"`
-	ProjectHTTPTarget    *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
-	Standards            []auditstandards.PinnedPackage      `json:"standards"`
-	Inventory            BaselineInventory                   `json:"inventory"`
+	Schema               string                               `json:"schema"`
+	Inputs               map[string]auditstore.ExactArtifact  `json:"inputs"`
+	Scope                Scope                                `json:"scope"`
+	RuntimeLabels        []string                             `json:"runtimeLabels"`
+	RuntimeConfig        runtimeconfig.RunSnapshot            `json:"runtimeConfig"`
+	Skills               []contracts.RunSkillSnapshot         `json:"skills"`
+	LLMCredentialIDs     []string                             `json:"llmCredentialIds"`
+	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
+	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
+	Standards            []auditstandards.PinnedPackage       `json:"standards"`
+	Inventory            BaselineInventory                    `json:"inventory"`
 }

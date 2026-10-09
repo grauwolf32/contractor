@@ -1,17 +1,19 @@
-package contracts
+package runtimesettings
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestRuntimeSettingsRedactFormattingButSerializeOnWire(t *testing.T) {
 	t.Parallel()
 
 	const token = "recognizable-secret-token"
-	secret := NewSecretString(token)
+	secret := contracts.NewSecretString(token)
 	settings := RuntimeSettings{
 		LLMGatewayURL:         "https://gateway.example/v1",
 		LLMGatewayToken:       &secret,
@@ -49,7 +51,7 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	reference := HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
 		Credential: &RuntimeCredentialRef{
-			CredentialID: "project-origin", Kind: RuntimeCredentialOriginBearer,
+			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}
 	if err := reference.Validate(); err != nil {
@@ -57,7 +59,7 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	}
 	invalidKind := reference
 	invalidKind.Credential = &RuntimeCredentialRef{
-		CredentialID: "project-origin", Kind: RuntimeCredentialProxyBearer,
+		CredentialID: "project-origin", Kind: contracts.RuntimeCredentialProxyBearer,
 	}
 	if err := invalidKind.Validate(); err == nil {
 		t.Fatal("proxy credential was accepted as an origin credential")
@@ -69,7 +71,7 @@ func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
 	}
 
 	secret := "recognizable-project-origin-secret"
-	token := NewSecretString(secret)
+	token := contracts.NewSecretString(secret)
 	settings := HTTPOriginTargetSettings{
 		URL: "https://app.example.test/api", BearerToken: &token,
 	}

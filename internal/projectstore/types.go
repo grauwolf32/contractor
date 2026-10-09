@@ -3,7 +3,7 @@ package projectstore
 import (
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 const (
@@ -55,7 +55,7 @@ type Project struct {
 	Kind        Kind
 	Name        string
 	Description string
-	HTTPTarget  *contracts.HTTPOriginTargetRef
+	HTTPTarget  *runtimesettings.HTTPOriginTargetRef
 	Lifecycle   Lifecycle
 	Deletion    *Deletion
 	Revision    uint64
@@ -79,7 +79,7 @@ type UpdateParams struct {
 	ExpectedRevision uint64
 	Name             string
 	Description      string
-	HTTPTarget       *contracts.HTTPOriginTargetRef
+	HTTPTarget       *runtimesettings.HTTPOriginTargetRef
 }
 
 type BeginDeletionParams struct {

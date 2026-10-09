@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 )
@@ -126,7 +127,7 @@ func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 	}
 	reservation.PerformanceCollectionPolicy = reporting.PerformanceCollectionRequested
 	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
-	settings := contracts.WorkerExecutionSettings{
+	settings := runtimesettings.WorkerExecutionSettings{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	}

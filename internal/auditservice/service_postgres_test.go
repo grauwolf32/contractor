@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -610,9 +611,9 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	// lost the Operations capability.
 	project, err = projects.Update(ctx, projectstore.UpdateParams{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
-		Name: project.Name, HTTPTarget: &contracts.HTTPOriginTargetRef{
+		Name: project.Name, HTTPTarget: &runtimesettings.HTTPOriginTargetRef{
 			URL: "https://attacker.example.test",
-			Credential: &contracts.RuntimeCredentialRef{
+			Credential: &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 			},
 		},

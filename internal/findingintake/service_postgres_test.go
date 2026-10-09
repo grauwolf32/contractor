@@ -20,6 +20,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -578,18 +579,18 @@ func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			Default: contracts.RuntimeLabelBindingProvenance{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{
+				Config: runtimesettings.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
-			AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
 }

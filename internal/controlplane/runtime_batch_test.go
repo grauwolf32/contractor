@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
@@ -108,7 +109,7 @@ func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
 		testReservation("allocation_1", "first", "https://first.example", "https://first.example", template, lease),
 		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
 	}
-	for name, settings := range map[string]map[string]contracts.WorkerExecutionSettings{
+	for name, settings := range map[string]map[string]runtimesettings.WorkerExecutionSettings{
 		"unknown": testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second", "third"),
 		"missing": testWorkerExecutionSettings(template, testRuntimeSettings(), "first"),
 	} {
@@ -393,7 +394,7 @@ type recordingRuntime struct {
 }
 
 func (r *recordingRuntime) Prepare(
-	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettings,
+	_ context.Context, reservation Reservation, _ runtimesettings.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

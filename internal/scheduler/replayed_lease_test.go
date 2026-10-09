@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -43,11 +44,11 @@ type deferredLeaseRuntime struct {
 	workers *memoryWorkers
 }
 
-func (r *deferredLeaseRuntime) Prepare(ctx context.Context, reservation controlplane.Reservation, settings contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error) {
+func (r *deferredLeaseRuntime) Prepare(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.WorkerExecutionSettings) (contracts.WorkerHandle, error) {
 	if !r.now().Before(reservation.LeaseExpiresAt) {
 		return contracts.WorkerHandle{}, errors.New("Runtime rejected expired prepare lease")
 	}
-	handles, err := r.workers.PrepareAll(ctx, []controlplane.Reservation{reservation}, map[string]contracts.WorkerExecutionSettings{
+	handles, err := r.workers.PrepareAll(ctx, []controlplane.Reservation{reservation}, map[string]runtimesettings.WorkerExecutionSettings{
 		reservation.Grant.LogicalAgentName: settings,
 	})
 	return handles[reservation.Grant.LogicalAgentName], err
@@ -67,7 +68,7 @@ type deferredLeaseWorkers struct {
 	batch *controlplane.RuntimeBatchController
 }
 
-func (w deferredLeaseWorkers) PrepareAll(ctx context.Context, reservations []controlplane.Reservation, settings map[string]contracts.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
+func (w deferredLeaseWorkers) PrepareAll(ctx context.Context, reservations []controlplane.Reservation, settings map[string]runtimesettings.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
 	return w.batch.PrepareAll(ctx, reservations, settings)
 }
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestResolverComplexPrecedenceFixture(t *testing.T) {
@@ -139,7 +140,7 @@ func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
 	}
 	if result.Caido == nil || result.Caido.Endpoint != "https://run.example/prefix" ||
 		result.Origins.Caido.Layer != LayerRunLabels ||
-		!reflect.DeepEqual(result.Provenance.RuntimeCredentialRefs, []contracts.RuntimeCredentialRef{{
+		!reflect.DeepEqual(result.Provenance.RuntimeCredentialRefs, []runtimesettings.RuntimeCredentialRef{{
 			CredentialID: "run-caido", Kind: contracts.RuntimeCredentialCaidoBearer,
 		}}) {
 		t.Fatalf("Run Caido precedence = %+v", result)
@@ -380,14 +381,14 @@ func TestResolverReturnsCallerOwnedValuesAndPreservesModelPolicy(t *testing.T) {
 }
 
 type resolverFixtureProjection struct {
-	GatewayID       string                                    `json:"gatewayId"`
-	CredentialID    string                                    `json:"credentialId"`
-	WorkerTelemetry *TelemetryConfig                          `json:"workerTelemetry"`
-	ProxyEnabled    bool                                      `json:"proxyEnabled"`
-	PlannerEndpoint string                                    `json:"plannerEndpoint"`
-	Adapters        []contracts.RuntimeAdapterRef             `json:"adapters"`
-	Origins         ResolvedRuntimeConfigOrigins              `json:"origins"`
-	Provenance      contracts.ResolvedRuntimeConfigProvenance `json:"provenance"`
+	GatewayID       string                                          `json:"gatewayId"`
+	CredentialID    string                                          `json:"credentialId"`
+	WorkerTelemetry *TelemetryConfig                                `json:"workerTelemetry"`
+	ProxyEnabled    bool                                            `json:"proxyEnabled"`
+	PlannerEndpoint string                                          `json:"plannerEndpoint"`
+	Adapters        []contracts.RuntimeAdapterRef                   `json:"adapters"`
+	Origins         ResolvedRuntimeConfigOrigins                    `json:"origins"`
+	Provenance      runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
 func assertResolverFixture(t *testing.T, result ResolvedRuntimeConfig) {

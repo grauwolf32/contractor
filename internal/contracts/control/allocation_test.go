@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestAllocationRunMetadataLabelCasesAreStrict(t *testing.T) {
@@ -300,13 +301,13 @@ func TestPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings, err := contracts.DecodePrivateStrict[contracts.RuntimeSettings](
+	settings, err := contracts.DecodePrivateStrict[runtimesettings.RuntimeSettings](
 		contractstest.ReadFixture(t, "valid", "runtime-settings-combined.json"),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	provenance, err := contracts.DecodePrivateStrict[contracts.ResolvedRuntimeConfigProvenance](
+	provenance, err := contracts.DecodePrivateStrict[runtimesettings.ResolvedRuntimeConfigProvenance](
 		contractstest.ReadFixture(t, "valid", "runtime-provenance.json"),
 	)
 	if err != nil {

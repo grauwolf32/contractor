@@ -15,6 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -469,24 +470,24 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 				Layer: runtimeconfig.LayerAgentLabels, Configs: []runtimeconfig.Ref{allocationRef},
 			},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			Default: contracts.RuntimeLabelBindingProvenance{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{
+				Config: runtimesettings.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels: []contracts.RuntimeLabelBindingProvenance{},
-			AgentLabels: []contracts.RuntimeLabelBindingProvenance{{
+			RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "allocation-debug", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{
+				Config: runtimesettings.RuntimeConfigRef{
 					Name: allocationRef.Name, Version: allocationRef.Version, Digest: allocationRef.Digest,
 				},
 			}},
 			RuntimeAdapters:  []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
 			LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{{
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{{
 				CredentialID: "allocation-debug", Kind: contracts.RuntimeCredentialOTLPHeaders,
 			}},
 		},

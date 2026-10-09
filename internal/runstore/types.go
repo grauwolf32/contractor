@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -99,7 +100,7 @@ type WorkflowRun struct {
 	MetadataLabels            RunMetadataLabels
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
-	ProjectHTTPTarget         *contracts.HTTPOriginTargetRef
+	ProjectHTTPTarget         *runtimesettings.HTTPOriginTargetRef
 	SkillSnapshot             []contracts.RunSkillSnapshot
 	PublicationMode           OutputPublicationMode
 	AuditExecutionID          *string
@@ -250,7 +251,7 @@ type CreateRunParams struct {
 	Parameters            map[string]string
 	MetadataLabels        RunMetadataLabels
 	RuntimeConfig         runtimeconfig.RunSnapshot
-	ProjectHTTPTarget     *contracts.HTTPOriginTargetRef
+	ProjectHTTPTarget     *runtimesettings.HTTPOriginTargetRef
 }
 
 type CreateRunIdempotentParams struct {
@@ -556,9 +557,9 @@ const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-p
 // outside PostgreSQL; immutable refs, origins and adapter requirements remain
 // available for audit and report attribution.
 type AllocationRuntimeConfiguration struct {
-	ModelPolicy contracts.ModelPolicyRef                   `json:"modelPolicy,omitzero"`
-	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
-	Provenance  contracts.ResolvedRuntimeConfigProvenance  `json:"provenance"`
+	ModelPolicy contracts.ModelPolicyRef                        `json:"modelPolicy,omitzero"`
+	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins      `json:"origins"`
+	Provenance  runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
 // StageExecutionReport is the trusted Server envelope around one bounded
