@@ -8,7 +8,7 @@ import {
 
 describe("stop reasons", () => {
   it("explains every code the Server sends in one plain sentence", () => {
-    expect(STOP_REASON_CODES).toHaveLength(19);
+    expect(STOP_REASON_CODES).toHaveLength(21);
     for (const code of STOP_REASON_CODES) {
       const stop = describeStopReason({
         state: "completed",

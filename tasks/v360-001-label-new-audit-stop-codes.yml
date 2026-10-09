@@ -3,7 +3,7 @@ id: V360-001
 title: Label the new Audit stop codes in the UI
 milestone: review-followups-2026-10-04
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V283-001, V284-001]
 languages: [typescript]
 goal: Show readable labels for the stop codes V283-001 and V284-001 introduced.

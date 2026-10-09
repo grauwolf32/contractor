@@ -16,6 +16,8 @@ const STOP_REASON_LABELS: Readonly<Record<string, string>> = {
   round_budget_exhausted: "Round limit reached",
   role_attempt_budget_exhausted: "Step attempt limit reached",
   proposal_scan_budget_exhausted: "Possible issue limit reached",
+  proposal_inventory_limit_exceeded: "Possible issue inventory too large",
+  next_round_contract_invalid: "Next round data invalid",
   controller_contract_invalid: "Check type configuration invalid",
   dispatch_contract_invalid: "Work data invalid",
   role_contract_invalid: "Step configuration invalid",
@@ -25,7 +27,7 @@ const STOP_REASON_LABELS: Readonly<Record<string, string>> = {
 };
 
 /**
- * One plain sentence per stop reason the Server sends (19 codes). Unknown
+ * One plain sentence per stop reason the Server sends. Unknown
  * codes are never shown raw: the Server's own message stands in.
  */
 const STOP_REASON_SENTENCES: Readonly<Record<string, string>> = {
@@ -45,6 +47,10 @@ const STOP_REASON_SENTENCES: Readonly<Record<string, string>> = {
   role_attempt_budget_exhausted: "A step used every attempt it was allowed.",
   proposal_scan_budget_exhausted:
     "The check reached its limit for following up possible issues.",
+  proposal_inventory_limit_exceeded:
+    "The next round could not start because its possible issue inventory exceeds the limit.",
+  next_round_contract_invalid:
+    "The next round could not start because its work data was invalid.",
   controller_contract_invalid:
     "The check stopped because its check type is configured incorrectly.",
   dispatch_contract_invalid:
