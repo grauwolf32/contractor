@@ -42,7 +42,7 @@ func (s *Store) SelectRecords(ctx context.Context, scope Scope, id, actor string
 		if err = checkMutable(e, mutation); err != nil {
 			return nil, err
 		}
-		plan, err := s.FrozenPlan(ctx, e.OwnerID, id)
+		plan, err := s.FrozenPlanMetadata(ctx, e.OwnerID, id)
 		if err != nil {
 			return nil, err
 		}

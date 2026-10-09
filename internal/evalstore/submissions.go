@@ -53,7 +53,7 @@ func (s *Store) Admit(ctx context.Context, p Admission) (Receipt, error) {
 		} else if e.ControlMode != evaldomain.ControlExternal {
 			return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_external_control")
 		}
-		plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
+		plan, err := s.FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 		if err != nil {
 			return AcceptedSubmissionReceipt{}, err
 		}

@@ -33,19 +33,20 @@ func (s *Store) putResources(ctx context.Context, id string, resources []PlanRes
 }
 
 func (s *Store) PlanResource(ctx context.Context, owner, id, path string) (PlanResource, error) {
-	var kind string
+	var kind, digest string
 	var data []byte
 	err := s.db.QueryRow(ctx, `
-SELECT r.document_kind, r.document
+SELECT r.document_kind, r.document, r.document_sha256
 FROM eval_plan_resources r
 JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id=$1
     AND e.experiment_id=$2
     AND r.resource_path=$3
-`, owner, id, path).Scan(&kind, &data)
+`, owner, id, path).Scan(&kind, &data, &digest)
 	if err != nil {
 		return PlanResource{}, normalize(err)
 	}
-	document, err := evaldomain.Freeze(kind, data)
-	return PlanResource{Path: path, Document: document}, err
+	// putResources validates before insertion; the immutable row and generated
+	// digest have the same trust boundary as FrozenPlan.
+	return PlanResource{Path: path, Document: evaldomain.Restore(kind, data, digest)}, nil
 }

@@ -293,7 +293,7 @@ func (s *Service) admitNativeMembers(ctx context.Context, claim evalstore.Claim)
 		if capacity <= 0 {
 			return nil
 		}
-		plan, err := st.FrozenPlan(ctx, current.OwnerID, current.ID)
+		plan, err := st.FrozenPlanMetadata(ctx, current.OwnerID, current.ID)
 		if err != nil {
 			return err
 		}

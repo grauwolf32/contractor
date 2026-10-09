@@ -36,7 +36,7 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 			return nil, err
 		}
 		if p.Command.Kind != "prepare" && (p.Command.Kind != "duplicate" || p.Command.PlanSHA256 != "") {
-			plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
+			plan, err := s.FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 			if err != nil {
 				return nil, err
 			}

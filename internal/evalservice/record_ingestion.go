@@ -29,7 +29,7 @@ func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, memb
 		receipt, err = st.PutRecord(ctx, evalstore.RecordParams{
 			Scope: scope, ExperimentID: id, MemberID: member, ActorID: scope.OwnerID, Operation: operation, Mutation: mutation,
 			Build: func(e evalstore.Experiment) (evaldomain.Frozen, error) {
-				plan, err := st.FrozenPlan(ctx, scope.OwnerID, id)
+				plan, err := st.FrozenPlanMetadata(ctx, scope.OwnerID, id)
 				if err != nil {
 					return evaldomain.Frozen{}, err
 				}
@@ -49,7 +49,7 @@ func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, memb
 	return receipt, err
 }
 
-func validateCollectedResult(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.Plan, doc evaldomain.Frozen) error {
+func validateCollectedResult(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen) error {
 	var result evaldomain.ResultInput
 	if err := evaldomain.DecodeInto("ResultInput", doc.Bytes(), &result); err != nil {
 		return err
@@ -105,7 +105,7 @@ func sameExecution(a, b evaldomain.ExecutionView) bool {
 	return string(rawA) == string(rawB)
 }
 
-func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.Plan, doc evaldomain.Frozen) (evaldomain.Frozen, error) {
+func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen) (evaldomain.Frozen, error) {
 	var setup preparedSetup
 	if err := json.Unmarshal(plan.Setup, &setup); err != nil {
 		return evaldomain.Frozen{}, err

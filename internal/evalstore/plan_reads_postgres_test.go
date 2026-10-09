@@ -98,6 +98,13 @@ func TestPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *testing.
 	if plan.Document.Kind() != "ExternalRegistration" || !bytes.Equal(plan.Document.Bytes(), stored) || plan.Document.Digest() != digest || plan.SHA256 != identity {
 		t.Fatalf("restored plan kind=%s digest=%s identity=%s", plan.Document.Kind(), plan.Document.Digest(), plan.SHA256)
 	}
+	metadata, err := NewPostgresStore(pool).FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
+	if err != nil || metadata.SHA256 != plan.SHA256 || !bytes.Equal(metadata.Setup, plan.Setup) {
+		t.Fatalf("metadata differs from full plan: %+v, %v", metadata, err)
+	}
+	if _, err := NewPostgresStore(pool).FrozenPlanMetadata(ctx, "other-owner", e.ID); !code(err, "eval_not_found") {
+		t.Fatalf("metadata crossed owner boundary: %v", err)
+	}
 	if digest != evaldomain.Digest(stored) {
 		t.Fatal("generated document digest differs from the stored bytes")
 	}

@@ -97,7 +97,7 @@ func (s *Store) insertRecord(ctx context.Context, e Experiment, member, actor st
 			return r, err
 		}
 		r.Predecessor = input.PreviousResultSHA256
-		plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
+		plan, err := s.FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 		if err != nil {
 			return r, err
 		}

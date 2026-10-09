@@ -1,13 +1,19 @@
 package evalservice
 
 import (
+	"context"
 	"fmt"
+	"regexp"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // preparedAtNativeCeiling freezes a workflow plan with MaxNativeMembers members
@@ -101,6 +107,15 @@ func TestPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
 	if _, err := evaldomain.Freeze(portablePlanSchema, h.planBytes(t, e)); !evaldomain.IsCode(err, "eval_invalid") {
 		t.Fatalf("probe kept the stored plan schema-valid: %v", err)
 	}
+	trace := &planTransferTracer{}
+	config := h.pool.Config()
+	config.ConnConfig.Tracer = trace
+	traced, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer traced.Close()
+	h.service.pool = traced
 	tick(t, h.coordinator(t, "ceiling"))
 	e = h.get(t, e.ID)
 	if e.State != evaldomain.StateRunning || e.Outstanding != capacity || count(t, h.pool, "eval_submissions") != capacity {
@@ -109,6 +124,12 @@ func TestPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
 	if got := projectedMembers(t, h, e.ID) - collected; got < evaldomain.CollectionBatchSize-capacity {
 		t.Fatalf("tick collected %d dirty members", got)
 	}
+	trace.mu.Lock()
+	defer trace.mu.Unlock()
+	if trace.full > 1 || trace.metadata < capacity {
+		t.Fatalf("native tick transferred %d full plan documents and %d metadata projections", trace.full, trace.metadata)
+	}
+
 }
 
 func (h *serviceHarness) planBytes(t *testing.T, e evalstore.Experiment) []byte {
@@ -119,3 +140,27 @@ func (h *serviceHarness) planBytes(t *testing.T, e evalstore.Experiment) []byte 
 	}
 	return plan.Document.Bytes()
 }
+
+// Observe actual PostgreSQL projections at the 1,000-member ceiling. Publishing
+// a comparison may read the plan once; individual members must use metadata.
+type planTransferTracer struct {
+	mu             sync.Mutex
+	full, metadata int
+}
+
+var fullPlanProjection = regexp.MustCompile(`\bp\.document\b`)
+
+func (p *planTransferTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	query := strings.ToLower(data.SQL)
+	if strings.Contains(query, "eval_frozen_plans") && strings.HasPrefix(strings.TrimSpace(query), "select") {
+		p.mu.Lock()
+		if fullPlanProjection.MatchString(query) {
+			p.full++
+		} else {
+			p.metadata++
+		}
+		p.mu.Unlock()
+	}
+	return ctx
+}
+func (*planTransferTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}

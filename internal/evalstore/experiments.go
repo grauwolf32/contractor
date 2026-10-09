@@ -159,6 +159,22 @@ WHERE e.owner_id=$1
 	return Plan{Document: evaldomain.Restore(kind, raw, digest), Setup: setup, SHA256: identity}, nil
 }
 
+// PlanMetadata contains only the immutable attribution and setup used by
+// admission and per-member collection. It never transfers the matrix document.
+type PlanMetadata struct {
+	SHA256 string
+	Setup  json.RawMessage `json:"-"`
+}
+
+func (s *Store) FrozenPlanMetadata(ctx context.Context, owner, id string) (PlanMetadata, error) {
+	var out PlanMetadata
+	err := s.db.QueryRow(ctx, `
+SELECT p.plan_sha256, p.setup
+FROM eval_frozen_plans p JOIN eval_experiments e USING (experiment_id)
+WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup)
+	return out, normalize(err)
+}
+
 // FreezePrepared is called after read-only preparation, under the coordinator's
 // claim. The whole expected matrix and its exact bytes commit together.
 func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, claim Claim, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case, resources ...PlanResource) error {

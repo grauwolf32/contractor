@@ -89,7 +89,7 @@ func (s *Service) collectMember(ctx context.Context, e evalstore.Experiment, mem
 		if err != nil {
 			return err
 		}
-		plan, err := st.FrozenPlan(ctx, e.OwnerID, e.ID)
+		plan, err := st.FrozenPlanMetadata(ctx, e.OwnerID, e.ID)
 		if err != nil {
 			return err
 		}
