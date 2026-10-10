@@ -1,0 +1,127 @@
+{
+  "task": "V62-004",
+  "verified_on": "2026-10-09",
+  "result": "passed",
+  "implementation_commit": "114716409000993efb3b8c7a1a7357749f9f21aa",
+  "database": {
+    "engine": "PostgreSQL",
+    "version": "17.11",
+    "disposable": true,
+    "mandatory_skipped_test_cases": 0
+  },
+  "verification_composition": "Broad integration regression plus targeted race runs after the final source-lookup, source-deletion and versioned identity/provenance changes. Counts include Go test and subtest cases; repeated runs are not unique-case totals.",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 -json ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/auditstore ./internal/auditdomain ./internal/artifacts ./internal/runservice ./internal/runstore ./internal/httpapi/public ./internal/scheduler ./internal/controlplane",
+      "result": "passed",
+      "test_cases": 1694,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 98,
+        "github.com/grauwolf32/contractor/internal/auditservice": 151,
+        "github.com/grauwolf32/contractor/internal/auditimport": 120,
+        "github.com/grauwolf32/contractor/internal/auditstore": 31,
+        "github.com/grauwolf32/contractor/internal/auditdomain": 200,
+        "github.com/grauwolf32/contractor/internal/artifacts": 103,
+        "github.com/grauwolf32/contractor/internal/runservice": 11,
+        "github.com/grauwolf32/contractor/internal/runstore": 66,
+        "github.com/grauwolf32/contractor/internal/httpapi/public": 527,
+        "github.com/grauwolf32/contractor/internal/scheduler": 212,
+        "github.com/grauwolf32/contractor/internal/controlplane": 175
+      },
+      "log_sha256": "9d559fb48f2edf539a9e0bd1c5e375016840e22fbb87ba1dae3eac4e814c7dbe",
+      "scope": "Broad integration regression before the final targeted changes."
+    },
+    {
+      "command": "go test -race -tags=integration -count=1 -json ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/httpapi/public -run 'TestPostgresPreparation|TestPostgresInitialInventory|TestPostgresGenerated|TestPostgresPreparedOpenAPI|TestPreparation|TestAuditPreparationHandlers'",
+      "result": "passed",
+      "test_cases": 35,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 32,
+        "github.com/grauwolf32/contractor/internal/auditservice": 2,
+        "github.com/grauwolf32/contractor/internal/httpapi/public": 1
+      },
+      "log_sha256": "89e2ab26e5d9191729a7c5a9ec670632ce5ae316924b983dcce1ac76cec39895",
+      "scope": "Preparation recovery, lifecycle and inventory race cases, including stale claims and scan-specific coverage. No importer tests match this filter; its 120 cases ran in the broad integration suite."
+    },
+    {
+      "command": "go test -race -tags=integration -count=1 -json ./internal/auditcontroller -run 'TestPostgresInitialInventory|TestPostgresGenerated|TestPostgresPreparedOpenAPI'",
+      "result": "passed",
+      "test_cases": 16,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 16
+      },
+      "log_sha256": "9a101cfedc5fcf973695ee50ae91e8c8737e56d5a9ec6e728454384276f04fa1",
+      "scope": "Final one-query accepted-source lookup and inventory behavior."
+    },
+    {
+      "command": "go test -race -tags=integration -count=1 -json ./internal/auditcontroller -run '^TestPostgresInitialInventoryAtomicAcceptanceAndPackageReplay$'",
+      "result": "passed",
+      "test_cases": 1,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 1
+      },
+      "log_sha256": "34de9635579895d8a71c5ee3f3adfdff67731a88b5585ca51bcf56420331cce8",
+      "scope": "Source Run is actually deleted before generated inventory construction and acceptance."
+    },
+    {
+      "command": "go test -race -tags=integration -count=1 -json ./internal/auditcontroller -run 'TestPostgresInitialInventoryAtomic|TestPostgresPreparationMissingOutput'",
+      "result": "passed",
+      "test_cases": 2,
+      "skipped_cases": 0,
+      "package_cases": {
+        "github.com/grauwolf32/contractor/internal/auditcontroller": 2
+      },
+      "log_sha256": "97ea582636035982a5e8242579d282e20f72ecbb6ad94e0bbaeb2f9180680863",
+      "scope": "Final versioned acceptance identity and failed-attempt provenance serialization."
+    },
+    {
+      "command": "make lint",
+      "result": "passed",
+      "scope": "Go formatting/vet/staticcheck, release graph guards, 52 Python script tests and runtime Python checks; ran after source lookup optimization and before the final JSON tag changes."
+    },
+    {
+      "command": "make verify-public-api",
+      "result": "passed"
+    },
+    {
+      "command": "go test -count=1 ./internal/config",
+      "result": "passed"
+    },
+    {
+      "command": "go run ./cmd/contractor-server config validate --root ./configs",
+      "result": "passed",
+      "workflows": 21,
+      "agents": 25,
+      "audit_profiles": 13
+    },
+    {
+      "command": "pnpm --dir ui test run src/api/audit-composition.test.ts src/api/audits.test.ts src/api/audit-presets.test.ts",
+      "result": "passed",
+      "test_cases": 39,
+      "test_files": 3,
+      "log_sha256": "92efc1d0f305cbee881b9088a29eaa632c261a5611da85e1340b5dd12f99acc5"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "scope_limit": "Controller/service/store/importer/public API integration is verified using ordinary Run submission and controlled terminal outputs on PostgreSQL. The real generated-flow process/browser gate remains V62-012. Richer provenance and dedicated preparation UI remain V62-010/011. V62-005/006/007/008 remain deferred.",
+  "acceptance": {
+    "A1": "Equivalent reordered JSON/YAML generated OpenAPI creates three deterministically attributed operation items with matching canonical digest, exact retained source identity and explicit unsupported-webhook gap. The prepared SQLMap profile creates three selected scan items with scan-specific coverage and approval reviews.",
+    "A2": "Prepared checklist-to-report integration, direct-input regressions and standards paths pass. Original baseline bytes remain immutable and accepted derived inventory is stored as a separate protected exact artifact; source Run deletion before inventory construction is covered.",
+    "A3": "Malformed, empty and over-limit generated inputs fail explicitly before a Round exists. Only accepted mapped outputs resolve as inventory sources; partial failed-attempt evidence is never accepted dependency input.",
+    "A4": "Concurrent identical acceptance inserts one Round, item set, coverage/review ledger and derived link with bytes charged once; changed replay conflicts. Crash/replay package publication, stale claim, pause, deadline, cancel and delete fences produce no authoritative orphan items."
+  },
+  "profile": {
+    "ref": "source-openapi-sqlmap-scan@1",
+    "server_compatible": true,
+    "prepare_workflow": "openapi-from-workspace@7",
+    "scan_workflow": "audit-openapi-sqlmap-scan@1",
+    "standalone_project_analysis_required": false
+  }
+}

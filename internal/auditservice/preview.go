@@ -29,6 +29,11 @@ func ValidateInputPreview(profile config.ResolvedAuditProfile, scope Scope, inpu
 			return fmt.Errorf("%w: unknown Audit input", ErrInvalid)
 		}
 	}
+	// Preparation consumes the original inputs. Its generated inventory cannot
+	// be previewed before the exact outputs have been accepted by the Audit.
+	if profile.HasPreparation() {
+		return nil
+	}
 	inventory, err := buildInventory(profile, DraftSelection{Scope: scope}, inputs, standards)
 	if err != nil {
 		return err

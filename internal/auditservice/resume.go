@@ -66,7 +66,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if audit.Revision != params.ExpectedRevision || audit.State != auditstore.AuditPaused || audit.CurrentRoundID == nil {
+	if audit.Revision != params.ExpectedRevision || audit.State != auditstore.AuditPaused || len(audit.BaselineSnapshot) == 0 {
 		return MutationResult{}, auditstore.ErrPrecondition
 	}
 	var candidate bool

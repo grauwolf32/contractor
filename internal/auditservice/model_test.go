@@ -10,7 +10,7 @@ import (
 func TestCloneBaselineDoesNotShareExecutionManifestRefs(t *testing.T) {
 	taskRevision := "task-r1"
 	inputRevision := "input-r1"
-	source := BaselineSnapshot{Inventory: BaselineInventory{
+	source := BaselineSnapshot{Inventory: &BaselineInventory{
 		ExecutionManifest: auditdomain.ExecutionManifest{Items: []auditdomain.ExecutionItem{{
 			TaskRef: &contracts.ArtifactRef{Namespace: "audit", Name: "task", Revision: &taskRevision},
 			Inputs: []auditdomain.ExactInput{{

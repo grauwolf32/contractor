@@ -44,6 +44,16 @@ type BaselineInventory struct {
 	ExecutionManifest        auditdomain.ExecutionManifest  `json:"executionManifest"`
 }
 
+const DerivedInventorySchema = "contractor.audit.derived-inventory.v1"
+
+// DerivedInventory is retained separately from the original immutable baseline.
+// Preparation outputs retain both their accepted receipt and exact source Run.
+type DerivedInventory struct {
+	Schema    string                              `json:"schema"`
+	Inventory BaselineInventory                   `json:"inventory"`
+	Sources   map[string]auditstore.ExactArtifact `json:"sources"`
+}
+
 type BaselineSnapshot struct {
 	Schema               string                               `json:"schema"`
 	Inputs               map[string]auditstore.ExactArtifact  `json:"inputs"`
@@ -55,5 +65,5 @@ type BaselineSnapshot struct {
 	RuntimeCredentialIDs []string                             `json:"runtimeCredentialIds"`
 	ProjectHTTPTarget    *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
 	Standards            []auditstandards.PinnedPackage       `json:"standards"`
-	Inventory            BaselineInventory                    `json:"inventory"`
+	Inventory            *BaselineInventory                   `json:"inventory,omitempty"`
 }

@@ -563,6 +563,8 @@ type fakeAuditManagement struct {
 	standards           []auditstandards.PackageProjection
 	audit               auditstore.Audit
 	started             auditservice.StartedAudit
+	preparation         map[string]auditservice.PreparationRoleProjection
+	preparationOwner    string
 	created             auditservice.CreateDraftParams
 	start               auditservice.StartParams
 	mutation            auditservice.MutationParams
@@ -579,6 +581,11 @@ type fakeAuditManagement struct {
 	provenanceParams    auditservice.ProvenanceListParams
 	reviewReplayed      bool
 	decisionReplayed    bool
+}
+
+func (f *fakeAuditManagement) Preparation(_ context.Context, ownerID, _ string) (map[string]auditservice.PreparationRoleProjection, error) {
+	f.preparationOwner = ownerID
+	return f.preparation, f.err
 }
 
 type fakeFindingProposalManagement struct {

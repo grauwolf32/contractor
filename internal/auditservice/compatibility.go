@@ -22,8 +22,11 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
-	if profile.HasPreparation() {
-		reasons[ReasonPreparationUnsupported] = struct{}{}
+	for role, binding := range profile.Workflows {
+		// Preparation has no item whose exact approval could authorize tools.
+		if binding.Kind == config.AuditWorkflowPrepare && workflowRoleSelectsClassifiedTool(profile, role, true) {
+			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
+		}
 	}
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}

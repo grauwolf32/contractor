@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -171,7 +172,7 @@ func (i *Importer) Finalize(
 	}
 	var baseline auditbaseline.ReportProjection
 	if json.Unmarshal(snapshot.Audit.BaselineSnapshot, &baseline) != nil ||
-		baseline.Schema != auditbaseline.Schema || baseline.Inventory.Gaps == nil {
+		baseline.Schema != auditbaseline.Schema {
 		return false, fmt.Errorf("%w: report baseline snapshot is invalid", ErrPermanent)
 	}
 	rounds, err := i.store.ListRounds(ctx, snapshot.Audit.AuditID)
@@ -180,6 +181,30 @@ func (i *Importer) Finalize(
 	}
 	if len(rounds) == 0 || rounds[len(rounds)-1].RoundID != snapshot.Round.RoundID {
 		return false, fmt.Errorf("%w: report round barrier is incomplete", ErrPermanent)
+	}
+	if profile.HasPreparation() {
+		if baseline.Inventory.Gaps != nil {
+			return false, fmt.Errorf("%w: preparation mutated its original baseline", ErrPermanent)
+		}
+		link, err := i.store.GetArtifactLink(ctx, snapshot.Audit.AuditID, auditstore.InitialInventoryLogicalKey)
+		if err != nil {
+			return false, err
+		}
+		data, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, link.Artifact)
+		if err != nil {
+			return false, err
+		}
+		var derived auditbaseline.DerivedInventory
+		if len(data) > auditstore.MaxSnapshotBytes || json.Unmarshal(data, &derived) != nil || derived.Schema != auditbaseline.DerivedInventorySchema ||
+			!derived.Inventory.Worklist.Ref.SameExact(rounds[0].Manifest.Ref) || derived.Inventory.Worklist.Digest != rounds[0].Manifest.Digest ||
+			!contentdigest.Valid(derived.Inventory.SourceContentDigest) || !contentdigest.Valid(derived.Inventory.CanonicalInventoryDigest) ||
+			auditdomain.ValidateDispatchExecutionManifest(derived.Inventory.ExecutionManifest) != nil {
+			return false, fmt.Errorf("%w: derived initial inventory is invalid", ErrPermanent)
+		}
+		baseline.Inventory = derived.Inventory
+	}
+	if baseline.Inventory.Gaps == nil {
+		return false, fmt.Errorf("%w: report inventory gaps are absent", ErrPermanent)
 	}
 	items, err := i.store.ListItems(ctx, snapshot.Audit.AuditID)
 	if err != nil {

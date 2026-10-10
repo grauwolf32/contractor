@@ -725,8 +725,8 @@ func (s *PostgresStore) listRoleExecutions(
 ) ([]Execution, error) {
 	rows, err := s.db.Query(ctx, `
 SELECT `+executionColumns+` FROM audit_executions
- WHERE audit_id = $1 AND role IN ('discovery', 'assessment')
-   AND round_id IS NOT DISTINCT FROM $2
+ WHERE audit_id = $1 AND (role = 'prepare' OR (
+       role IN ('discovery', 'assessment') AND round_id IS NOT DISTINCT FROM $2))
  ORDER BY role, workflow_role, role_attempt, execution_id
  LIMIT $3`, auditID, roundID, MaxAuditRoleExecutionsPerRound+1)
 	if err != nil {

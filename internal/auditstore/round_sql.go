@@ -13,6 +13,11 @@ WITH project_gate AS MATERIALIZED (
     SELECT contractor_require_active_audit_project(project_id, owner_id)
       FROM audits
      WHERE audit_id = $2 AND owner_id = $1
+), round_input AS MATERIALIZED (
+    SELECT $4::text AS round_id, $5::integer AS ordinal,
+           $6::jsonb AS manifest_ref, $9::jsonb AS items,
+           $10::text AS manifest_digest, $14::jsonb AS links,
+           $16::text AS acceptance_digest
 ), started AS (
     UPDATE audits AS audit
 	       SET baseline_snapshot = $7::jsonb,
@@ -31,17 +36,40 @@ WITH project_gate AS MATERIALIZED (
 	       AND jsonb_array_length($9::jsonb) <= audit.max_items_total
 	       AND $15 <= audit.max_evidence_bytes
 	    RETURNING audit.*
-), inserted_round AS (
+` + initialRoundRowsSQL + `), idempotency_row AS (
+    INSERT INTO audit_idempotency (
+        owner_id, operation, idempotency_key, request_digest,
+        audit_id, resource_id, response_snapshot
+    )
+    SELECT $1, 'audit.start', $11, $12, audit_id, $4, $13::jsonb
+      FROM started
+), event_row AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT audit_id, next_event_sequence - 1, 'round.accepted', $4, 1,
+           jsonb_build_object(
+               'round', $5::integer, 'items', jsonb_array_length($9::jsonb),
+               'reviews', (SELECT count(*) FROM inserted_reviews)
+           )
+      FROM started
+)
+SELECT ` + prefixedAuditColumns("started") + ` FROM started`
+
+// initialRoundRowsSQL atomically publishes the same items, reviews and exact
+// links for direct start and prepared-inventory acceptance. Each caller pins
+// its immutable input in round_input; controller acceptance also pins a digest.
+const initialRoundRowsSQL = `), inserted_round AS (
     INSERT INTO audit_rounds (
         round_id, audit_id, ordinal, manifest_ref, manifest_digest,
-        state, expected_item_count
+        state, expected_item_count, acceptance_digest
     )
-    SELECT $4, audit_id, $5, $6::jsonb, $10,
-           'accepted', jsonb_array_length($9::jsonb)
-      FROM started
+    SELECT input.round_id, audit_id, input.ordinal, input.manifest_ref, input.manifest_digest,
+           'accepted', jsonb_array_length(input.items), input.acceptance_digest
+      FROM started CROSS JOIN round_input AS input
     RETURNING round_id, audit_id
 ), item_input AS MATERIALIZED (
-    SELECT * FROM jsonb_to_recordset($9::jsonb) AS item(
+    SELECT * FROM jsonb_to_recordset((SELECT items FROM round_input)) AS item(
         item_id text, item_key text, ordinal integer, kind text,
         subject_key text, task_ref jsonb, task_digest text, origin jsonb,
         workflow_role text, initial_state text, approval_kind text,
@@ -82,7 +110,7 @@ WITH project_gate AS MATERIALIZED (
 	     WHERE item.approval_kind <> 'none'
 	    RETURNING request_id
 ), link_input AS MATERIALIZED (
-	SELECT * FROM jsonb_to_recordset($14::jsonb) AS link(
+	SELECT * FROM jsonb_to_recordset((SELECT links FROM round_input)) AS link(
 	    logical_key text, artifact_ref jsonb, artifact_digest text,
 	    media_type text, size_bytes bigint, source_provenance jsonb, display_ref text
 	)
@@ -95,25 +123,7 @@ WITH project_gate AS MATERIALIZED (
 	       link.artifact_digest, link.media_type, link.size_bytes,
 	       link.source_provenance, link.display_ref
 	  FROM started CROSS JOIN link_input AS link
-), idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, 'audit.start', $11, $12, audit_id, $4, $13::jsonb
-      FROM started
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1, 'round.accepted', $4, 1,
-           jsonb_build_object(
-               'round', $5::integer, 'items', jsonb_array_length($9::jsonb),
-               'reviews', (SELECT count(*) FROM inserted_reviews)
-           )
-      FROM started
-)
-SELECT ` + prefixedAuditColumns("started") + ` FROM started`
+`
 
 // acceptNextRoundSQL closes the previous round and opens its successor
 // under one controller claim, carrying proposal sources forward.

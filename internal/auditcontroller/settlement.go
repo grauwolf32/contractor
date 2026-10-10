@@ -38,6 +38,14 @@ func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.Con
 	}
 	switch audit.State {
 	case auditstore.AuditFinalizing:
+		if audit.CurrentRoundID == nil {
+			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+				Claim: claim, ExpectedRevision: audit.Revision,
+				ExpectedState: auditstore.AuditFinalizing, TargetState: auditstore.AuditFailed,
+				Reason: audit.StopReason,
+			})
+			return err == nil, err
+		}
 		if snapshot.Round != nil && snapshot.Round.State != auditstore.RoundClosed {
 			_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
 				Claim: claim, RoundID: snapshot.Round.RoundID,

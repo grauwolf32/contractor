@@ -91,7 +91,7 @@ func (s *PostgresStore) MaterializeRound(
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
 		[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
 		params.Manifest.Digest, params.IdempotencyKey, params.RequestDigest, response,
-		encodedLinks, retainedBytes,
+		encodedLinks, retainedBytes, nil,
 	))
 	if err == nil {
 		return audit, true, nil

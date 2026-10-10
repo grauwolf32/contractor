@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 )
@@ -25,7 +26,7 @@ func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
 	return snapshot
 }
 
-func TestPreparationIsCatalogValidButCannotStartOrPreview(t *testing.T) {
+func TestPreparationPreviewValidatesOriginalInputsBeforeGeneratedInventory(t *testing.T) {
 	snapshot := loadAuditServiceCatalog(t)
 	profile, err := snapshot.AuditProfile("openapi-sqlmap-scan@1")
 	if err != nil {
@@ -45,10 +46,33 @@ func TestPreparationIsCatalogValidButCannotStartOrPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	compatibility := ProfileCompatibility(profile)
-	if compatibility.ServerCompatible || len(compatibility.Reasons) != 1 || compatibility.Reasons[0] != ReasonPreparationUnsupported {
-		t.Fatalf("prepare was advertised as runnable: %+v", compatibility)
+	if !compatibility.ServerCompatible || len(compatibility.Reasons) != 0 {
+		t.Fatalf("preparation is not available: %+v", compatibility)
 	}
-	if err := ValidateInputPreview(profile, Scope{}, nil, nil); !errors.Is(err, ErrUnsupported) {
-		t.Fatalf("preview attempted inventory before capability gating: %v", err)
+	if err := ValidateInputPreview(profile, Scope{}, nil, nil); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("preview ignored required original inputs: %v", err)
+	}
+	inputs := map[string]artifacts.ReadResult{}
+	for name, input := range profile.Inputs {
+		if input.Required {
+			inputs[name] = artifacts.ReadResult{Payload: artifacts.Payload{MediaType: input.MediaTypes[0], Data: []byte("original input")}}
+		}
+	}
+	if err := ValidateInputPreview(profile, Scope{}, inputs, nil); err != nil {
+		t.Fatalf("preview tried to parse inventory before preparation: %v", err)
+	}
+}
+
+func TestPreparationCannotUseClassifiedToolsBeforeItemApproval(t *testing.T) {
+	profile, err := loadAuditServiceCatalog(t).AuditProfile("openapi-sqlmap-scan@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepare := profile.Workflows["scan"]
+	prepare.Kind, prepare.MaxRunAttempts = config.AuditWorkflowPrepare, 1
+	profile.Workflows["prepare-scan"] = prepare
+	compatibility := ProfileCompatibility(profile)
+	if compatibility.ServerCompatible || len(compatibility.Reasons) != 1 || compatibility.Reasons[0] != ReasonAutomaticActiveChecksUnsupported {
+		t.Fatalf("item approval authorized preparation tools: %+v", compatibility)
 	}
 }

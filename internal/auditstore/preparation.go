@@ -47,6 +47,13 @@ type PreparationRole struct {
 	ExecutionID    *string
 }
 
+func (s *PostgresStore) ListPreparationExecutions(ctx context.Context, auditID string) ([]Execution, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return nil, err
+	}
+	return s.listRoleExecutions(ctx, auditID, nil)
+}
+
 // ListPreparationRoles is independent of the paged Round/execution history;
 // even an Audit with no executions exposes each pinned role as pending.
 func (s *PostgresStore) ListPreparationRoles(ctx context.Context, auditID string) ([]PreparationRole, error) {
@@ -80,8 +87,8 @@ type StartPreparationParams struct {
 	RequestDigest    string
 }
 
-// StartPreparation is the storage boundary only. Public start remains gated
-// until the preparation controller and generated inventory are implemented.
+// StartPreparation pins the original baseline before any preparation Run or
+// generated inventory exists.
 func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparationParams) (Audit, bool, error) {
 	if validateText("ownerID", p.OwnerID, 256, true) != nil || validateID("auditID", p.AuditID) != nil ||
 		p.ExpectedRevision == 0 || p.ExpectedRevision > math.MaxInt64 {
