@@ -45,6 +45,8 @@ or legacy data to protect.
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
 | What is done, in progress or deferred? | `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
+| Settled architecture decisions | `docs/decisions/fixed-decisions.yml` |
+| Why past epics were shaped as they were | `docs/decisions/planning-history.yml` (non-normative) |
 | Shipped Workflows, templates, policies, Skills | `configs/` (see `configs/README.md`) |
 | Architecture model | `docs/spec/artitecture.likec4` (`make verify-architecture`) |
 | Database schema picture | `docs/spec/database-erd.html` (`make docs-erd`) |
@@ -284,8 +286,7 @@ create or change a task.
   new milestone with `exit_task` and `outcome` under `milestones:` in
   `tasks/index.yml`; do not create one milestone per defect. Add an epic to
   `tasks/epics.yml` only for a new lasting area. Use only declared
-  priorities (P0–P3). Update `current_checkpoint` when you finish a
-  milestone.
+  priorities (P0–P3).
 - **One task per commit**, unless two tasks must land together to keep the
   build green.
 - **Land your branch.** V61 (9 tasks) was completed on a feature branch and

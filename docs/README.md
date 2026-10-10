@@ -15,6 +15,9 @@ The [configuration catalog](../configs/README.md) lists shipped Workflows and
 policies. [Operations](operations/README.md) contains focused references used by
 the deployment guide.
 
+[Decisions](decisions/README.md) holds the settled architecture decisions and
+the planning history of past epics.
+
 [Research](research/README.md) holds unimplemented proposals and hypotheses.
 Accepted contracts belong in the specification; implementation status belongs in
 [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
