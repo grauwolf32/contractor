@@ -5,7 +5,22 @@ milestone: toolset-runtime-configuration
 epic: runtime-config
 kind: feature
 priority: P1
-status: pending
+status: deferred
+deferral:
+  date: "2026-10-11"
+  previous_status: pending
+  reason: >-
+    Implemented and verified on 2026-09-20 on branch
+    feat/v61-toolset-runtime-configuration but never merged; main has since
+    moved about 1,700 commits (contract package split, credential table
+    folds, V3B UI, layer checks). V62 and V64 do not depend on it, so the
+    port is postponed instead of resolving 35 conflicts now.
+  reactivate_when: >-
+    Explicit user decision that external MCP tools are needed (for example
+    for autonomous pentest Audits, spec 33); then port the branch onto main
+    rather than reimplementing, renumber its migration and rerun the V61-009
+    release gate.
+  branch_commit: "9d74c38b495fae7638c00e4092ac48ddeafb6df2"
 implementation_commit: null
 depends_on: [V61-001]
 languages: [go, python, yaml, markdown]
