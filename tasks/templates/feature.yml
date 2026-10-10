@@ -1,0 +1,67 @@
+# Feature task template: a new or extended capability.
+# Copy to tasks/vNN-NNN-short-slug.yml, replace every <placeholder> and delete
+# the comments. make lint checks the result. A feature task is a small
+# specification: write down the failure outcomes, sizes and lifecycle now,
+# because each one left out became a later defect task.
+schema_version: "1.0"
+id: VNN-NNN
+title: "<Imperative outcome, e.g. Bound Audit collection transactions by work>"
+milestone: "<delivery slice inside the epic>"
+epic: "<id from tasks/epics.yml>"
+kind: feature
+priority: P1  # P0..P3, defined in tasks/index.yml
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  <One paragraph: the user-visible outcome and why it is needed now.>
+context:
+  # Documents named here are required reading for whoever implements the task.
+  specification: "docs/spec/<NN-area>.md"
+  design: "<optional plan or decision record>"
+scope:
+  in:
+    - "<behaviour this task delivers>"
+  out:
+    - "<excluded behaviour, and the task that owns it if any>"
+requirements:
+  # One rule, one definition: when a grammar, limit, enum or error code is
+  # shared by Go, Python, OpenAPI or the UI, name the fixture all of them use.
+  - id: R1
+    text: "<contract statement>"
+failure_outcomes:
+  # One entry per external call or mutation the task adds.
+  - operation: "<call or write>"
+    permanent: "<error code and HTTP status; never retried>"
+    retryable: "<backoff, attempt and deadline bounds>"
+    ambiguous: "<how it reconciles when the write may have committed>"
+    cancelled: "<who joins in-flight work before cleanup>"
+    timeout: "<which timeout owns it>"
+cardinality:
+  # Every collection the implementation reads, including its parent.
+  - collection: "<what>"
+    expected: "<n>"
+    maximum: "<n>"
+    bound: "<rows and bytes per tick, transaction, page or request>"
+lifecycle:
+  # Every new entity or state.
+  - entity: "<what>"
+    delete: "<who may delete it and what blocks deletion>"
+    cascade: "<what goes with it>"
+    retention: "<what is kept and for how long>"
+acceptance_criteria:
+  - id: A1
+    given: "<state>"
+    when: "<action>"
+    then: "<observable result>"
+  - id: A2
+    given: "<a failure outcome, race or maximum size from above>"
+    when: "<action>"
+    then: "<bounded, correctly classified result>"
+tests:
+  # Persistence runs against PostgreSQL, process behaviour against the real
+  # Server and Runtime; a fake store must validate like the real one.
+  - command: "go test ./internal/<package>"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

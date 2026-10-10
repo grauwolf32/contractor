@@ -44,7 +44,9 @@ or legacy data to protect.
 | How should it behave? | `docs/spec/NN-*.md` (accepted contracts), `docs/spec/core-execution-model.md` |
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
-| What is done, in progress or deferred? | `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
+| What is done, in progress or deferred? | `tasks/BACKLOG.md` (generated), `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
+| Settled architecture decisions | `docs/decisions/fixed-decisions.yml` |
+| Why past epics were shaped as they were | `docs/decisions/planning-history.yml` (non-normative) |
 | Shipped Workflows, templates, policies, Skills | `configs/` (see `configs/README.md`) |
 | Architecture model | `docs/spec/artitecture.likec4` (`make verify-architecture`) |
 | Database schema picture | `docs/spec/database-erd.html` (`make docs-erd`) |
@@ -246,6 +248,8 @@ create or change a task.
 - **Layout.** Open tasks (`pending`, `in_progress`, `deferred`) live in
   `tasks/`; finished tasks (`completed`, `archived`) live in `tasks/done/`.
   The task files are the index; there is no separate list to maintain.
+  `tasks/BACKLOG.md` is generated from them: run `make tasks-backlog` after
+  you add a task or change a status, priority, epic or dependency.
   `scripts/check_tasks.py` (part of `make lint`) enforces the layout, declared
   statuses, priorities, epics and kinds, IDs matching file names, full
   implementation commits, known dependencies and `introduced_by` references,
@@ -274,6 +278,9 @@ create or change a task.
 - **Create the task first, even for small fixes.** Work done without a task
   file (about 180 commits on 2026-09-22/23, the V3B redesign, the layer checks)
   later produced defects that nobody could trace.
+- **Start from a template.** Copy `tasks/templates/feature.yml`, `defect.yml`
+  or `chore.yml`. The templates carry the sections that were missing when
+  later fixes became necessary.
 - **Write tasks as small specifications, not one-line tickets.** Early tasks
   (scope in/out, requirements, given/when/then acceptance, test commands with
   `covers`) held up; later tickets with two flat criteria did not. A feature
@@ -284,8 +291,7 @@ create or change a task.
   new milestone with `exit_task` and `outcome` under `milestones:` in
   `tasks/index.yml`; do not create one milestone per defect. Add an epic to
   `tasks/epics.yml` only for a new lasting area. Use only declared
-  priorities (P0–P3). Update `current_checkpoint` when you finish a
-  milestone.
+  priorities (P0–P3).
 - **One task per commit**, unless two tasks must land together to keep the
   build green.
 - **Land your branch.** V61 (9 tasks) was completed on a feature branch and
