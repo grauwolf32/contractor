@@ -40,7 +40,10 @@ type controlPlaneLease struct {
 	mu        sync.Mutex
 	private   net.Listener
 	lost      bool
-	close     sync.Once
+	// held is set once this session wins the advisory lock; reconnect is only
+	// valid while it is false.
+	held  bool
+	close sync.Once
 }
 
 // PostgreSQL keeps a session advisory lock until it notices the session is
@@ -102,6 +105,9 @@ func (lease *controlPlaneLease) tryAcquire(ctx context.Context) (bool, error) {
 	err := lease.conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, controlPlaneLeaseKey).Scan(&acquired)
 	if err != nil {
 		return false, fmt.Errorf("acquire Control Plane lease: %w", err)
+	}
+	if acquired {
+		lease.held = true
 	}
 	return acquired, nil
 }
@@ -175,6 +181,14 @@ func (lease *controlPlaneLease) Close() {
 	lease.close.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
+		// Closing the session alone releases the lock only when PostgreSQL
+		// ends its backend, which happens after the client disconnects, so a
+		// standby polling right after a normal exit could still find it held.
+		// Unlocking first hands the lease over before Close returns; on a lost
+		// session the unlock fails and release falls back to the backend exit.
+		if lease.held {
+			_, _ = lease.conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, controlPlaneLeaseKey)
+		}
 		_ = lease.conn.Close(ctx)
 	})
 }
