@@ -118,7 +118,7 @@ test-shared-memory-hardening: test-shared-memory-matrix test-memory-contracts te
 test-http-caido-matrix: test-hardening-matrices
 
 test-http-caido-runtime:
-	cd runtime && uv run pytest -W error tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_proxy_adapter.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_adapter_host.py
+	cd runtime && uv run pytest -W error tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_proxy_adapter.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_adapter_host.py tests/test_sensitive_output_tools.py
 
 test-http-caido-architecture: verify-architecture
 
