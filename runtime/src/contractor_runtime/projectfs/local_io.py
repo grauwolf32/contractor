@@ -22,9 +22,9 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import BinaryIO
 
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
-from contractor_runtime.settings import WorkspaceLimits
 
 _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC

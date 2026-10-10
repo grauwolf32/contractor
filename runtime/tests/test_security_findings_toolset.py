@@ -13,14 +13,14 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.security_findings.classification import (
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.cwe import (
     CWEReferenceError,
     check_cwe_reference,
     cwe_reference,
 )
+from contractor_runtime.toolsets.common.finding_locations import ExactEvidenceRef
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingsToolsetFactory
-from contractor_runtime.toolsets.security_findings.locations import ExactEvidenceRef
 from contractor_runtime.workspace import AllocationWorkspace
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 
 MAX_WORDLIST_ARTIFACT_BYTES = 1024 * 1024
 MAX_WORDLIST_LINES = 10_000

@@ -11,7 +11,7 @@ import trailmark
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets.code_analysis.languages import (
     GRAPH_EXCLUDED_DIRECTORIES,
     GRAPH_EXTENSION_LANGUAGES,

@@ -888,8 +888,9 @@ material declare sensitive output (`contractor_sensitive_output`). A Worker
 that selects any such tool uses metadata-only instrumentation for the whole
 allocation even when `captureContent=true`, because later model requests,
 result finalizers and summaries can repeat that output. `exec_command`
-declares it; until their toolsets declare it per tool, Runtime's central
-registry treats every `http-tools@1` and Caido tool the same way.
+declares it on the tool. The `http-tools@1` and `caido@1` toolset factories
+declare it for every tool they export (`sensitive_output_tools`); the Runtime
+derives the set from the registered toolsets and passes it to the Worker.
 
 Captured model input includes conversation messages, system instructions and
 tool declarations; output includes the model response. Worker tool spans include

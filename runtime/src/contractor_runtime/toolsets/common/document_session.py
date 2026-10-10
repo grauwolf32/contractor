@@ -8,9 +8,9 @@ from typing import Any
 
 from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.document_write import write_document_exact
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 
 class DocumentSession[D]:

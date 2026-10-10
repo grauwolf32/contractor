@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from contractor_runtime.toolsets.common.process import (
+from contractor_runtime.core.process import (
     ProcessOutputLimitError,
     ProcessTimeoutError,
     run_command,

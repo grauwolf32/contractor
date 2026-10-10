@@ -15,7 +15,7 @@ import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.http_request import MAX_BODY_BYTES, MAX_REQUEST_ARTIFACT_BYTES
 from contractor_runtime.workspace import AllocationWorkspace
 

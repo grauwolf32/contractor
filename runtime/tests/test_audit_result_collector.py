@@ -32,8 +32,8 @@ from contractor_runtime.toolsets.audit_results.encoding import (
     CanonicalAuditPackageEncoder,
 )
 from contractor_runtime.toolsets.audit_results.v2 import ReadAuditTaskTool, SubmitCheckResultTool
+from contractor_runtime.toolsets.common.finding_locations import StandardReference
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
-from contractor_runtime.toolsets.security_findings.locations import StandardReference
 from contractor_runtime.toolsets.security_findings.publisher import (
     FindingPublisher,
     call_client_key,

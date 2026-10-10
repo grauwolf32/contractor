@@ -57,7 +57,7 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
     WorkerSummarizerConfig,
 )
-from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.factories import WorkerBuildContext, built_in_factories
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import (
@@ -423,7 +423,9 @@ def test_a2a_task_span_counts_are_per_invocation_and_absent_on_rejection(
     asyncio.run(scenario())
 
 
-def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry() -> None:
+def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry(
+    tmp_path: Path,
+) -> None:
     from google.adk.tools import FunctionTool
 
     from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
@@ -435,13 +437,22 @@ def test_sensitive_output_registry_and_declared_attribute_select_content_free_te
         return {"ok": True}
 
     declared = DeclaredSensitiveTool()
-    assert not requires_content_free_telemetry({})
-    assert not requires_content_free_telemetry({"plain": plain, "read_artifact": plain})
-    assert requires_content_free_telemetry({"declared_probe": declared})
-    assert requires_content_free_telemetry({"wrapped": FunctionTool(declared)})
+    registered = built_in_factories(tmp_path).sensitive_output_tools
+
+    def content_free(tools: dict[str, Any]) -> bool:
+        return requires_content_free_telemetry(tools, sensitive_output_tools=registered)
+
+    assert not content_free({})
+    assert not content_free({"plain": plain, "read_artifact": plain})
+    assert content_free({"declared_probe": declared})
+    assert content_free({"wrapped": FunctionTool(declared)})
     assert ExecCommandTool.contractor_sensitive_output is True
     for name in HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES:
-        assert requires_content_free_telemetry({"plain": plain, name: plain})
+        assert content_free({"plain": plain, name: plain})
+        # The decision follows the registered declaration, not a Worker-side list.
+        assert not requires_content_free_telemetry(
+            {"plain": plain, name: plain}, sensitive_output_tools=frozenset()
+        )
 
 
 @pytest.mark.parametrize("tool_name", ["http_request", "caido_replay", "declared_probe", "probe"])
@@ -2779,6 +2790,8 @@ def build_context(
         state=state,
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
+        # What AllocationService passes for the production registry.
+        sensitive_output_tools=built_in_factories(tmp_path).sensitive_output_tools,
     )
 
 

@@ -7,17 +7,17 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from contractor_runtime.toolsets.http.limits import (
-    MAX_EXCHANGE_ATTEMPTS,
-    MAX_HEADER_BYTES,
-    MAX_REQUEST_BODY_BYTES,
-    header_block_bytes,
-)
-from contractor_runtime.toolsets.security_findings.locations import (
+from contractor_runtime.toolsets.common.finding_locations import (
     HTTP_TOKEN,
     ClosedModel,
     LineNumber,
     WebLocation,
+)
+from contractor_runtime.toolsets.common.http_limits import (
+    MAX_EXCHANGE_ATTEMPTS,
+    MAX_HEADER_BYTES,
+    MAX_REQUEST_BODY_BYTES,
+    header_block_bytes,
 )
 
 

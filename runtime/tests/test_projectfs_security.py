@@ -19,13 +19,13 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.projectfs import local_io as local_io_module
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.paths import (
     MAX_PROJECT_PATH_BYTES,
     ProjectPathError,
     normalize_project_glob,
     normalize_project_path,
 )
-from contractor_runtime.settings import WorkspaceLimits
 
 
 @pytest.mark.parametrize(

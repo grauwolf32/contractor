@@ -7,13 +7,13 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.target_policy import validate_host_syntax
 from contractor_runtime.strict_json import (
     DuplicateJSONKey,
     NonStandardJSONConstant,
     strict_json_loads,
 )
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.target_policy import validate_host_syntax
 
 MAX_REQUEST_ARTIFACT_BYTES = 256 * 1024
 MAX_BODY_BYTES = 64 * 1024

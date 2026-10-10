@@ -13,7 +13,7 @@ from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.security_findings.locations import (
+from contractor_runtime.toolsets.common.finding_locations import (
     ExactEvidenceRef,
     LineNumber,
     LineRange,

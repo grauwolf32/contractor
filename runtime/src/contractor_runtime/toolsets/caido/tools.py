@@ -22,6 +22,13 @@ from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGra
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.core.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+    validate_host_syntax,
+)
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.redaction import REDACTED, runtime_secrets, substring_values
 from contractor_runtime.toolsets.common.artifact_visibility import (
     ArtifactObservingTool,
@@ -35,13 +42,6 @@ from contractor_runtime.toolsets.common.credentials import (
     target_authorization,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
-from contractor_runtime.toolsets.common.target_policy import (
-    TargetDenied,
-    TargetPolicy,
-    TargetPolicyConfig,
-    validate_host_syntax,
-)
 from contractor_runtime.workspace import AllocationWorkspace
 
 CAIDO_EXCHANGE_MEDIA_TYPE = "application/vnd.contractor.caido-exchange+json"
@@ -204,6 +204,9 @@ class CaidoToolsetFactory:
     infrastructure_channels = MappingProxyType(
         {tool: frozenset({"caido-graphql-client"}) for tool in sorted(exported_tools)}
     )
+    # Every tool's result carries captured HTTP traffic or HTTP session
+    # material, including tools added later.
+    sensitive_output_tools = exported_tools
 
     def __init__(
         self,

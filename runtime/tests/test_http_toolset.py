@@ -28,7 +28,7 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
-from contractor_runtime.toolsets.common.target_policy import TargetDenied
+from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.toolsets.http.tools import (
     HTTP_BODY_MEDIA_TYPE,
     HTTPToolError,

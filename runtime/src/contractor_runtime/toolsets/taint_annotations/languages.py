@@ -8,8 +8,8 @@ from types import MappingProxyType
 
 from tree_sitter import Node, Parser
 
+from contractor_runtime.core.lines import split_lines
 from contractor_runtime.toolsets.code_analysis.languages import Language, extract_node_name
-from contractor_runtime.toolsets.common.lines import split_lines
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,10 +9,10 @@ from urllib.parse import urlsplit, urlunsplit
 
 import idna
 
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.target_policy import validate_host_syntax
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import strict_json_loads
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.target_policy import validate_host_syntax
 from contractor_runtime.toolsets.scan.process import ProcessResult
 
 TARGET_LIST_MEDIA_TYPE = "text/vnd.contractor.target-list"

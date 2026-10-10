@@ -3,8 +3,8 @@
 from collections.abc import Sequence
 from typing import Any, NotRequired, TypedDict
 
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.audit_results.contracts import IDENTIFIER, MAX_VALUES
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 
 class EvidenceArgument(TypedDict):

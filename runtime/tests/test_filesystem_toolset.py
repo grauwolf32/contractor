@@ -16,8 +16,8 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     OverlayWorkspaceSession,
 )
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets.filesystem.tools import (
     FilesystemToolError,
     FilesystemToolsetFactory,

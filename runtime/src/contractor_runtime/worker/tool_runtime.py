@@ -28,8 +28,8 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import jcs_digest, sha256_digest
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext

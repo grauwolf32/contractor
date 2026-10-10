@@ -17,7 +17,7 @@ from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyTargetDenied
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     IPAddress,
     TargetPolicy,
     TargetPolicyConfig,

@@ -21,7 +21,7 @@ The boundary returns exactly one of:
 - `complete`: a trusted WorkerResult ready for normal lifecycle processing;
 - `fail`: a bounded WorkerFailure, with no fabricated successful result.
 
-The shared boundary lives in `worker/completion.py`; the Audit implementation
+The shared boundary lives in `core/worker_completion.py`; the Audit implementation
 lives with `toolsets/audit_results`. Worker orchestration binds a prepared
 completion implementation to the identical trusted contract and all its required
 tools under one owner. Missing, mixed or forged owners fail preparation. The

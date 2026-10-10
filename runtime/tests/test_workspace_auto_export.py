@@ -44,7 +44,7 @@ from contractor_runtime.projectfs import (
     WorkspaceExportError,
     decode_workspace_state,
 )
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import AllocationWorkspace
@@ -439,6 +439,7 @@ def build_context(
             artifactApiUrl="https://control.example/private/v1",
             requestTimeoutSeconds=30,
         ),
+        sensitive_output_tools=frozenset(),
         project_workspace=session,
         workspace_export=AllocationWorkspaceExport(state="workspace_state", diff="workspace_diff"),
     )

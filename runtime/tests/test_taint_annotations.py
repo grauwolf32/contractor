@@ -10,6 +10,7 @@ from google.adk.tools import FunctionTool
 from test_projectfs_zip import archive, settings, workspace_inputs
 
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.lines import split_lines
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     MemoryWorkspaceProvider,
@@ -19,7 +20,6 @@ from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
-from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
     MAX_SOURCE_FILE_BYTES,

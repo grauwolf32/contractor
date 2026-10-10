@@ -16,9 +16,9 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry.metrics import MAX_METRIC_TOOL_CALLS
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 

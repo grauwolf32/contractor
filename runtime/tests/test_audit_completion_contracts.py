@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
     WorkerCompletionContract,
     decode_private,
 )
+from contractor_runtime.core.worker_completion import ContinueCompletion
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_COLLECTED_BYTES,
     MAX_PACKAGE_BYTES,
@@ -30,7 +31,6 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     RecordedAuditItem,
     SealedAuditSnapshot,
 )
-from contractor_runtime.worker.completion import ContinueCompletion
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/audit-completion-cases.json").read_bytes())

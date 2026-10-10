@@ -6,11 +6,11 @@ import json
 import pytest
 
 import contractor_runtime.worker.observations as observations_module
+from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.projectfs import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
-    WorkspaceToolObservation,
     lean_workspace_summary,
     validate_workspace_observation,
 )

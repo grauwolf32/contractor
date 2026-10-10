@@ -22,7 +22,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.contracts import (
     WorkspaceLimits as WireWorkspaceLimits,
 )
-from contractor_runtime.settings import (
+from contractor_runtime.projectfs.config import (
     DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
     WorkspaceLimits,
     WorkspaceSettings,

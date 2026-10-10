@@ -13,6 +13,13 @@ from test_adk_runtime import create_runtime, stage_request
 from test_filesystem_toolset import create_tools, workspace
 
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    annotation_tool_observation,
+    edit_tool_observation,
+    filesystem_tool_observation,
+    workspace_changes_observation,
+)
 from contractor_runtime.projectfs import WorkspaceObservationMetadata
 from contractor_runtime.toolsets.code_analysis.tools import SearchDefinitionTool
 from contractor_runtime.toolsets.edit_files.tools import EditTextTool
@@ -24,13 +31,8 @@ from contractor_runtime.toolsets.taint_annotations.tools import AnnotateTraceToo
 from contractor_runtime.toolsets.workspace_changes.tools import ChangedPathsTool
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.worker.observations import (
-    WorkspaceToolObservation,
-    annotation_tool_observation,
-    edit_tool_observation,
-    filesystem_tool_observation,
     lean_workspace_summary,
     validate_workspace_observation,
-    workspace_changes_observation,
 )
 from contractor_runtime.worker.state import WorkerStateStore
 

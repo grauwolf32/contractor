@@ -9,7 +9,7 @@ from typing import Any
 import httpcore
 import httpx
 
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
     TargetUnresolved,

@@ -38,21 +38,22 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.core.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+    validate_host_syntax,
+)
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
 from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics, elapsed_ms
-from contractor_runtime.toolsets.common.target_policy import (
-    TargetDenied,
-    TargetPolicy,
-    TargetPolicyConfig,
-    validate_host_syntax,
-)
-from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
-from contractor_runtime.toolsets.http.limits import (
+from contractor_runtime.toolsets.common.finding_locations import validate_web_url
+from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
+from contractor_runtime.toolsets.common.http_limits import (
     MAX_ATTEMPTS,
     MAX_COOKIES,
     MAX_HEADER_BYTES,
@@ -70,9 +71,8 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_URL_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
-from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
-from contractor_runtime.toolsets.security_findings.locations import validate_web_url
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
@@ -157,6 +157,9 @@ class HTTPToolsetFactory:
         }
     )
     infrastructure_channels = MappingProxyType({"http_request": frozenset({"runtime-http-client"})})
+    # Every tool's result carries captured HTTP traffic or HTTP session
+    # material, including tools added later.
+    sensitive_output_tools = exported_tools
 
     def __init__(
         self,

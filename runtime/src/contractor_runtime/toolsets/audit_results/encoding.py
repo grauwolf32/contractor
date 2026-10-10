@@ -3,6 +3,7 @@
 import io
 import zipfile
 
+from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_COLLECTED_BYTES,
     MAX_MEMBER_BYTES,
@@ -20,7 +21,6 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _match_trusted_inputs,
     _validate_values,
 )
-from contractor_runtime.worker.completion import WorkerCompletionError
 
 
 class AuditResultError(WorkerCompletionError):

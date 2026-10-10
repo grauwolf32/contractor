@@ -27,8 +27,8 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.likec4.tools import (
     MAX_DOCUMENT_UTF8_BYTES,
     LikeC4ToolsetFactory,
@@ -97,7 +97,7 @@ def test_likec4_editing_validation_and_cleanup(
             )
 
         monkeypatch.setattr(
-            "contractor_runtime.toolsets.common.process.run_command", AsyncMock(side_effect=run)
+            "contractor_runtime.core.process.run_command", AsyncMock(side_effect=run)
         )
         written = await tools["write_likec4"](BASE_DOCUMENT + f"// {SECRET}\n")
         appended = await tools["append_likec4"]("// generated from source\n")
@@ -401,7 +401,7 @@ def test_validation_reports_deeply_nested_output_as_invalid_json(
 ) -> None:
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command",
+        "contractor_runtime.core.process.run_command",
         AsyncMock(
             side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
                 [], 1, b"[" * 500_000, b""
@@ -447,7 +447,7 @@ def test_validation_accepts_banner_and_current_json_and_normalizes_paths(
         ]
     )
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command",
+        "contractor_runtime.core.process.run_command",
         AsyncMock(side_effect=lambda *_args, **_kwargs: next(outputs)),
     )
     invalid = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
@@ -481,7 +481,7 @@ def test_validation_keeps_found_token_in_long_parser_diagnostic(
     message = "Expecting one of:\n" + "  [IdTerminal, ->]\n" * 400 + "but found: `view`"
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command",
+        "contractor_runtime.core.process.run_command",
         AsyncMock(
             side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
                 [],
@@ -534,7 +534,7 @@ def test_validation_execution_and_output_failures_are_not_clean(
 ) -> None:
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command",
+        "contractor_runtime.core.process.run_command",
         AsyncMock(side_effect=lambda *_args, **_kwargs: result),
     )
     validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
@@ -557,7 +557,7 @@ def test_validation_missing_timeout_and_oversized_output_are_not_clean(
         raise subprocess.TimeoutExpired("likec4", 30, stderr=b"private timeout banner")
 
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command", AsyncMock(side_effect=timeout)
+        "contractor_runtime.core.process.run_command", AsyncMock(side_effect=timeout)
     )
     timed_out = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not timed_out["valid"] and "timed out" in timed_out["executionError"]
@@ -565,7 +565,7 @@ def test_validation_missing_timeout_and_oversized_output_are_not_clean(
     assert not list(tmp_path.glob(".likec4-validate-*"))
 
     monkeypatch.setattr(
-        "contractor_runtime.toolsets.common.process.run_command",
+        "contractor_runtime.core.process.run_command",
         AsyncMock(
             side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
                 [], 0, b"x" * (likec4_module.MAX_VALIDATOR_OUTPUT_BYTES + 1), b""

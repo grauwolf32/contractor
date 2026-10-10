@@ -137,9 +137,9 @@ def test_configured_io_budget_and_shorter_close_deadline_preserve_owner(
 def test_initialization_uses_earlier_operation_or_enclosing_deadline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from contractor_runtime.projectfs.config import WorkspaceLimits
     from contractor_runtime.projectfs.local_direct import LocalDirectWorkspace
     from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
-    from contractor_runtime.settings import WorkspaceLimits
 
     async def scenario() -> None:
         local = LocalDirectWorkspace(

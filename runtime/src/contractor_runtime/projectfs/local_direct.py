@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TypeVar
 
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
 from contractor_runtime.projectfs.local_io import (
     LocalTree,
@@ -29,7 +30,6 @@ from contractor_runtime.projectfs.storage import (
     _validate_managed_text,
     _validate_managed_tree,
 )
-from contractor_runtime.settings import WorkspaceLimits
 
 T = TypeVar("T")
 # Internal ceiling; a caller's earlier timeout also fences and retains ownership.

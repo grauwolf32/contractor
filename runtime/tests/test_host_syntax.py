@@ -21,15 +21,15 @@ from test_scan_toolset import make_tools as make_scan_tools
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
     TargetPolicyConfig,
     TargetUnresolved,
     validate_host_syntax,
 )
+from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 from contractor_runtime.toolsets.scan.ffuf import validate_ffuf_url
 from contractor_runtime.toolsets.scan.http_request import parse_http_request

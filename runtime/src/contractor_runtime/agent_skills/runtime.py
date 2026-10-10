@@ -28,9 +28,9 @@ from contractor_runtime.artifacts import (
     ArtifactClientError,
 )
 from contractor_runtime.contracts import ResolvedSkill, RuntimeSettings
+from contractor_runtime.core.tool_metrics import ToolCallCancelled
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.metrics import ToolCallCancelled
 from contractor_runtime.workspace import AllocationWorkspace
 
 from .package import (

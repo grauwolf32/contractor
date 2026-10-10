@@ -20,13 +20,13 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
-from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,
     parse_allowed_networks,
 )
+from contractor_runtime.factories import built_in_factories
+from contractor_runtime.toolsets.caido.tools import CaidoToolError, CaidoToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 
 

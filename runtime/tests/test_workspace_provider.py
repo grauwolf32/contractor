@@ -15,8 +15,8 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     ProjectWorkspaceStorage,
 )
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.projectfs.provider import LOCAL_DIRECTORY_PREFIX
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 

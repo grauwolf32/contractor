@@ -4,6 +4,8 @@ import asyncio
 from copy import deepcopy
 from dataclasses import replace
 
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_EVIDENCE,
     MAX_ITEMS,
@@ -24,12 +26,10 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _decode_task_input,
     _requested_coverage,
 )
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.security_findings.classification import (
+from contractor_runtime.toolsets.common.cwe import (
     CWEReferenceError,
     check_cwe_reference,
 )
-from contractor_runtime.worker.completion import WorkerCompletionError
 
 
 class AuditCollectionError(WorkerCompletionError, ToolInputError):

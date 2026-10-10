@@ -9,6 +9,7 @@ from typing import Any
 from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.core.tool_metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 from contractor_runtime.toolsets.audit_results.arguments import (
     AuditArgumentError,
     BatchResultArgument,
@@ -31,7 +32,6 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
-from contractor_runtime.toolsets.common.metrics import ToolCallCancelled, ToolMetrics, elapsed_ms
 
 
 def _text(value, field, key):

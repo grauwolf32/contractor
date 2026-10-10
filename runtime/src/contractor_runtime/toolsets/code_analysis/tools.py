@@ -20,6 +20,11 @@ import contractor_runtime.toolsets.code_analysis.languages as language_support
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.tool_metrics import (
+    RecordedToolCall,
+    ToolMetrics,
+    instrumented_call,
+)
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import (
     WorkspaceReader,
@@ -44,11 +49,6 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 )
 from contractor_runtime.toolsets.common import cursors
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.metrics import (
-    RecordedToolCall,
-    ToolMetrics,
-    instrumented_call,
-)
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"

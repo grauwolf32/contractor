@@ -19,13 +19,13 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
-from contractor_runtime.worker import runtime as worker_runtime
-from contractor_runtime.worker.completion import (
+from contractor_runtime.core.worker_completion import (
     CompleteCompletion,
     ContinueCompletion,
     PreparedWorkerCompletion,
     bind_worker_completion,
 )
+from contractor_runtime.worker import runtime as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.worker.state import WorkerStateStore
 

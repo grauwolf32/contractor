@@ -8,7 +8,7 @@ import re
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import API_VERSION, ArtifactRef
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 
 FINDING_SCHEMA = "contractor.audit.finding-proposal.v1"
 

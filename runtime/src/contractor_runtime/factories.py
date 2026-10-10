@@ -29,15 +29,15 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.contracts.settings import AgentTemplateRef
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
+from contractor_runtime.projectfs.config import WorkspaceSettings
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
-from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
-from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
@@ -105,6 +105,11 @@ class WorkerBuildContext:
     state: Any
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
+    # Tool names that the registered toolset factories declare as returning
+    # captured HTTP traffic or HTTP session material
+    # (FactoryRegistry.sensitive_output_tools). Required, so a Worker is never
+    # built without the declaration.
+    sensitive_output_tools: frozenset[str]
     gateway_recovery: GatewayRecoveryClient | None = field(default=None, repr=False)
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
@@ -118,6 +123,12 @@ class WorkerBuildContext:
     agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
     project_workspace: DirectWorkspaceSession | None = field(default=None, repr=False)
     workspace_export: AllocationWorkspaceExport | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.sensitive_output_tools, frozenset) or not all(
+            isinstance(name, str) for name in self.sensitive_output_tools
+        ):
+            raise TypeError("sensitive_output_tools must be a frozenset of tool names")
 
 
 class WorkerRuntimeFactory(Protocol):
@@ -133,6 +144,12 @@ class ToolsetFactory(Protocol):
     ref: str
     exported_tools: frozenset[str]
     infrastructure_channels: Mapping[str, frozenset[InfrastructureChannel]]
+    # Exported tools whose results carry captured HTTP traffic or HTTP session
+    # material. A Worker that selects any of them keeps its telemetry
+    # content-free. Optional: a factory that does not set it declares none
+    # (read through declared_sensitive_output_tools). Tools may also declare
+    # contractor_sensitive_output themselves.
+    sensitive_output_tools: frozenset[str] = frozenset()
 
     async def probe(self) -> frozenset[str]: ...
 
@@ -194,8 +211,17 @@ class FactoryRegistry:
         _validate_registry("Toolset", self.toolsets)
         for ref, factory in self.toolsets.items():
             _validate_toolset_channels(ref, factory)
+            declared_sensitive_output_tools(factory)
         _validate_registry("SandboxProfile", self.sandbox_profiles)
         _validate_registry("RuntimeAdapter", self.runtime_adapters, allow_empty=True)
+
+    @property
+    def sensitive_output_tools(self) -> frozenset[str]:
+        """Every tool name that a registered toolset declares sensitive output for."""
+
+        return frozenset().union(
+            *(declared_sensitive_output_tools(factory) for factory in self.toolsets.values())
+        )
 
 
 def built_in_factories(
@@ -324,6 +350,19 @@ def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bo
     for ref, factory in entries.items():
         if ref != factory.ref:
             raise ValueError(f"{kind} registry key {ref!r} does not match descriptor ref")
+
+
+def declared_sensitive_output_tools(factory: ToolsetFactory) -> frozenset[str]:
+    """Return a toolset's sensitive-output declaration (empty when it sets none)."""
+
+    declared = getattr(factory, "sensitive_output_tools", frozenset())
+    if (
+        not isinstance(declared, frozenset)
+        or not all(isinstance(name, str) for name in declared)
+        or not declared <= factory.exported_tools
+    ):
+        raise ValueError(f"Toolset {factory.ref!r} declares invalid sensitive-output tools")
+    return declared
 
 
 def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:

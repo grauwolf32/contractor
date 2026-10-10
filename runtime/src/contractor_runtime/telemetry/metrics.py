@@ -23,10 +23,10 @@ from contractor_runtime.contracts import (
     WorkerCompletionDiagnostics,
     WorkerSummarizerMetrics,
 )
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.errors import GatewayFailure
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.redaction import redact_private_values, substring_values
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 MAX_METRIC_TOOL_CALLS = 1000
 MAX_METRIC_ERRORS = 100

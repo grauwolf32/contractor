@@ -9,13 +9,13 @@ from test_projectfs_zip import archive, settings, workspace_inputs
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.lines import newline_style, split_lines
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets.common.lines import newline_style, split_lines
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace

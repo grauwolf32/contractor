@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
 from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
-from contractor_runtime.settings import WorkspaceLimits
 
 
 def disk(root: Path, **overrides: int) -> RootedLocalFilesystem:

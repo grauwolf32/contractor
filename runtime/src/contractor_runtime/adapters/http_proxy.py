@@ -23,12 +23,12 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
-from contractor_runtime.toolsets.common.process import (
+from contractor_runtime.core.process import (
     ProcessOutputLimitError,
     ProcessTimeoutError,
     run_command,
 )
-from contractor_runtime.toolsets.common.target_policy import TargetDenied, TargetPolicy
+from contractor_runtime.core.target_policy import TargetDenied, TargetPolicy
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096

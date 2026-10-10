@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     IPAddress,
     TargetPolicyConfig,
     TargetUnresolved,

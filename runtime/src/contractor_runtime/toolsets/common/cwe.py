@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 
 
 @dataclass(frozen=True)
