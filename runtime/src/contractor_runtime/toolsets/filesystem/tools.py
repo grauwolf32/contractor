@@ -21,6 +21,10 @@ from contractor_runtime.core.tool_metrics import (
     instrumented_call,
 )
 from contractor_runtime.digests import jcs_digest
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    filesystem_tool_observation,
+)
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     normalize_project_glob,
@@ -41,10 +45,6 @@ from contractor_runtime.toolsets.common.cursors import (
     require_limit,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.worker.observations import (
-    WorkspaceToolObservation,
-    filesystem_tool_observation,
-)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100

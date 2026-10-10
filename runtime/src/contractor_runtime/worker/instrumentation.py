@@ -15,6 +15,7 @@ from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, Tel
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.response import output_limit_reached
+from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
     SAFE_ERROR_CODE,
@@ -26,7 +27,6 @@ from contractor_runtime.telemetry.metrics import (
 from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
     WorkspaceObservationSource,
-    WorkspaceToolObservation,
 )
 from contractor_runtime.worker.state import InvocationPhase, WorkerStateStore
 

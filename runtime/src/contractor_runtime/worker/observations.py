@@ -1,4 +1,8 @@
-"""Bounded deterministic observations for one Worker workspace invocation."""
+"""Bounded deterministic observations for one Worker workspace invocation.
+
+Tools report WorkspaceToolObservation facts (contractor_runtime.observations);
+this module reduces them into the bounded per-invocation State section.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,10 @@ from typing import Any, Protocol
 
 from contractor_runtime.contracts import WorkspaceObservationSummary
 from contractor_runtime.contracts.base import _require_workspace_target
-from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    exact_observation_path,
+)
 from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
 
 MAX_WORKSPACE_SCOPE_PATHS = 10_000
@@ -20,26 +27,6 @@ MAX_WORKSPACE_INTERACTION_PATH_BYTES = 2 * 1024 * 1024
 MAX_LEAN_FILES_READ = 25
 _MAX_UINT64 = 2**64 - 1
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-
-
-@dataclass(frozen=True, slots=True)
-class WorkspaceToolObservation:
-    """One content-free fact extracted from a successful model-visible call."""
-
-    discovered: tuple[str, ...] = ()
-    read: tuple[str, ...] = ()
-    matched: tuple[str, ...] = ()
-    modified: tuple[str, ...] = ()
-
-
-class ObservationExtractor(Protocol):
-    """Reviewed opt-in interface implemented by model-visible tool objects."""
-
-    def contractor_observation(
-        self,
-        tool_args: Mapping[str, Any],
-        result: Any,
-    ) -> WorkspaceToolObservation | None: ...
 
 
 class WorkspaceObservationSource(Protocol):
@@ -96,7 +83,7 @@ class WorkspaceObservationReducer:
         complete = True
         for raw_path in metadata.managed_text_paths:
             try:
-                normalized_paths.append(_exact_path(raw_path))
+                normalized_paths.append(exact_observation_path(raw_path))
             except ValueError:
                 complete = False
 
@@ -135,7 +122,7 @@ class WorkspaceObservationReducer:
         )
         normalized: dict[str, set[str]] = {}
         for field_name, paths in categories:
-            normalized[field_name] = {_exact_path(path) for path in paths}
+            normalized[field_name] = {exact_observation_path(path) for path in paths}
         for path in sorted(set().union(*normalized.values())):
             interaction = self._interactions.get(path)
             if interaction is None:
@@ -206,7 +193,7 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
         or type(detail_complete) is not bool
     ):
         raise ValueError("Worker workspace observation bounds are invalid")
-    copied_scope = [_exact_path(path) for path in scope_paths]
+    copied_scope = [exact_observation_path(path) for path in scope_paths]
     if copied_scope != sorted(set(copied_scope)) or _json_list_bytes(copied_scope) > (
         MAX_WORKSPACE_SCOPE_PATH_BYTES
     ):
@@ -273,70 +260,6 @@ def lean_workspace_summary(
     )
 
 
-def filesystem_tool_observation(
-    tool_name: str,
-    tool_args: Mapping[str, Any],
-    result: Any,
-) -> WorkspaceToolObservation | None:
-    del tool_args
-    document = _mapping(result)
-    if tool_name == "ls":
-        return WorkspaceToolObservation(discovered=_file_entry_paths(document, "entries"))
-    if tool_name == "glob":
-        return WorkspaceToolObservation(discovered=_file_entry_paths(document, "matches"))
-    if tool_name == "read_file":
-        return WorkspaceToolObservation(read=(_result_path(document),))
-    if tool_name == "grep":
-        return WorkspaceToolObservation(matched=_item_paths(document, "matches"))
-    return None
-
-
-def edit_tool_observation(
-    tool_name: str,
-    tool_args: Mapping[str, Any],
-    result: Any,
-) -> WorkspaceToolObservation | None:
-    document = _mapping(result)
-    if document.get("changed") is not True:
-        return WorkspaceToolObservation()
-    if tool_name in {"write_file", "append_file", "rm", "insert_line", "edit", "replace_range"}:
-        return WorkspaceToolObservation(modified=(_argument_path(tool_args, "path"),))
-    if tool_name == "cp":
-        return WorkspaceToolObservation(modified=(_argument_path(tool_args, "destination"),))
-    if tool_name == "mv":
-        return WorkspaceToolObservation(
-            modified=(
-                _argument_path(tool_args, "source"),
-                _argument_path(tool_args, "destination"),
-            )
-        )
-    if tool_name == "mkdir":
-        return WorkspaceToolObservation()
-    return None
-
-
-def annotation_tool_observation(
-    tool_args: Mapping[str, Any],
-    result: Any,
-) -> WorkspaceToolObservation:
-    del tool_args
-    document = _mapping(result)
-    if document.get("changed") is not True:
-        return WorkspaceToolObservation()
-    return WorkspaceToolObservation(modified=(_result_path(document),))
-
-
-def workspace_changes_observation(
-    tool_name: str,
-    tool_args: Mapping[str, Any],
-    result: Any,
-) -> WorkspaceToolObservation | None:
-    del tool_args
-    if tool_name != "changed_paths":
-        return None
-    return WorkspaceToolObservation(modified=_item_paths(_mapping(result), "changes"))
-
-
 def _validate_interaction(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != {
         "path",
@@ -348,7 +271,7 @@ def _validate_interaction(value: Any) -> dict[str, Any]:
         "mutationCalls",
     }:
         raise ValueError("Worker workspace interaction fields are invalid")
-    result = {"path": _exact_path(value.get("path"))}
+    result = {"path": exact_observation_path(value.get("path"))}
     for field_name in (
         "firstOrdinal",
         "lastOrdinal",
@@ -368,57 +291,6 @@ def _validate_interaction(value: Any) -> dict[str, Any]:
     ):
         raise ValueError("Worker workspace interaction is inconsistent")
     return result
-
-
-def _mapping(value: Any) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping):
-        raise ValueError("tool observation result is invalid")
-    return value
-
-
-def _file_entry_paths(document: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
-    items = document.get(field_name)
-    if not isinstance(items, list):
-        raise ValueError("tool observation entries are invalid")
-    paths: list[str] = []
-    for item in items:
-        if not isinstance(item, Mapping) or not isinstance(item.get("type"), str):
-            raise ValueError("tool observation entry is invalid")
-        if item["type"] == "file":
-            paths.append(_result_path(item))
-    return tuple(paths)
-
-
-def _item_paths(document: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
-    items = document.get(field_name)
-    if not isinstance(items, list):
-        raise ValueError("tool observation items are invalid")
-    return tuple(_result_path(_mapping(item)) for item in items)
-
-
-def _result_path(document: Mapping[str, Any]) -> str:
-    return _exact_path(document.get("path"))
-
-
-def _argument_path(arguments: Mapping[str, Any], field_name: str) -> str:
-    if not isinstance(arguments, Mapping):
-        raise ValueError("tool observation arguments are invalid")
-    try:
-        return normalize_project_path(arguments.get(field_name), allow_root=False)
-    except ProjectPathError:
-        raise ValueError("workspace observation path is invalid") from None
-
-
-def _exact_path(value: Any) -> str:
-    if not isinstance(value, str):
-        raise ValueError("workspace observation path is invalid")
-    try:
-        normalized = normalize_project_path(value, allow_root=False)
-    except ProjectPathError:
-        raise ValueError("workspace observation path is invalid") from None
-    if normalized != value:
-        raise ValueError("workspace observation path is not normalized")
-    return normalized
 
 
 def _json_string_bytes(value: str) -> int:

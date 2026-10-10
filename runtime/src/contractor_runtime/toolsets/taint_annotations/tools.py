@@ -16,6 +16,10 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    annotation_tool_observation,
+)
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.threads import to_thread_until_done
@@ -29,10 +33,6 @@ from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
     AnnotationTarget,
     parse_annotation_targets,
-)
-from contractor_runtime.worker.observations import (
-    WorkspaceToolObservation,
-    annotation_tool_observation,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
