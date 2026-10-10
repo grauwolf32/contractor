@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-34 open tasks: 3 in progress, 26 pending, 5 deferred. 771 finished: 768 completed, 3 archived.
+34 open tasks: 3 in progress, 17 pending, 14 deferred. 771 finished: 768 completed, 3 archived.
 
 ## In progress
 
@@ -16,20 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 
 ## Pending
-
-### Runtime labels, configuration and credentials (`runtime-config`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V61-001](v61-001-toolset-configuration-contracts.yml) | feature | P1 | — | Specify Run-scoped toolset configuration and allocation discovery contracts |
-| [V61-002](v61-002-toolset-runtime-config-store.yml) | feature | P1 | V61-001 | Extend RuntimeConfig merge and credential lifecycle for configurable toolsets |
-| [V61-003](v61-003-run-toolset-pinning-allocation.yml) | feature | P1 | V61-002, V61-004 | Pin shared toolset settings on Run and deliver only allocation-selected configuration |
-| [V61-004](v61-004-allocation-tool-discovery.yml) | feature | P1 | V61-001 | Match allocation-discovered toolsets without weakening static capabilities |
-| [V61-005](v61-005-mcp-session-lifecycle.yml) | feature | P1 | V61-003 | Own Streamable HTTP MCP sessions through allocation preparation and cleanup |
-| [V61-006](v61-006-mcp-tools-adk.yml) | feature | P1 | V61-005 | Expose exact prepared MCP tools through ADK with normal Worker accounting |
-| [V61-007](v61-007-toolset-configuration-read-api.yml) | feature | P1 | V61-003 | Project workflow toolset requirements and safe runtime-label coverage |
-| [V61-008](v61-008-toolset-connections-ui.yml) | feature | P1 | V61-007 | Select and create reusable toolset connections from the Run form |
-| [V61-009](v61-009-toolset-configuration-release.yml) | feature | P1 | V61-006, V61-008 | Verify configured toolsets and MCP across Run, Runtime and browser boundaries |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -72,6 +58,15 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Epic | Since | Reactivate when |
 | --- | --- | --- | --- |
+| [V61-001](v61-001-toolset-configuration-contracts.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-002](v61-002-toolset-runtime-config-store.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-003](v61-003-run-toolset-pinning-allocation.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-004](v61-004-allocation-tool-discovery.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-005](v61-005-mcp-session-lifecycle.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-006](v61-006-mcp-tools-adk.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-007](v61-007-toolset-configuration-read-api.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-008](v61-008-toolset-connections-ui.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
+| [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, spec 33); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V62-005](v62-005-audit-round-result-snapshots.yml) | audits | 2026-09-20 | Explicit user approval after the first scan slice demonstrates useful results; define the snapshot contract in this task before execution. |
 | [V62-006](v62-006-audit-retained-dependencies.yml) | audits | 2026-09-20 | Explicit user approval of an actual later-round consumer and its exact dependency contract. |
 | [V62-007](v62-007-audit-check-routing.yml) | audits | 2026-09-20 | Explicit user approval of iterative checks after dependency and snapshot contracts are reviewed. |
