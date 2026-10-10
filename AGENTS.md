@@ -276,6 +276,9 @@ create or change a task.
 - **Create the task first, even for small fixes.** Work done without a task
   file (about 180 commits on 2026-09-22/23, the V3B redesign, the layer checks)
   later produced defects that nobody could trace.
+- **Start from a template.** Copy `tasks/templates/feature.yml`, `defect.yml`
+  or `chore.yml`. The templates carry the sections that were missing when
+  later fixes became necessary.
 - **Write tasks as small specifications, not one-line tickets.** Early tasks
   (scope in/out, requirements, given/when/then acceptance, test commands with
   `covers`) held up; later tickets with two flat criteria did not. A feature

@@ -119,6 +119,35 @@ def validate(records: Iterable[Record], policy: Policy) -> list[str]:
     return errors
 
 
+def validate_templates(templates: Mapping[str, Any]) -> list[str]:
+    """Check that each tasks/templates/<kind>.yml still carries the schema."""
+    errors: list[str] = []
+    if set(templates) != KINDS:
+        errors.append(f"templates/: expected one template per kind ({', '.join(sorted(KINDS))})")
+    for kind, data in sorted(templates.items()):
+        path = f"templates/{kind}.yml"
+        if not isinstance(data, dict):
+            errors.append(f"{path}: template is not a mapping")
+            continue
+        missing = [key for key in REQUIRED if key not in data]
+        if missing:
+            errors.append(f"{path}: missing {', '.join(missing)}")
+        if data.get("kind") != kind:
+            errors.append(f"{path}: kind must be {kind}")
+        if data.get("status") != "pending":
+            errors.append(f"{path}: status must be pending")
+    return errors
+
+
+def load_templates(tasks: Path = TASKS) -> dict[str, Any]:
+    import yaml  # Provided by the Runtime environment; see the module docstring.
+
+    return {
+        path.stem: yaml.safe_load(path.read_text(encoding="utf-8"))
+        for path in sorted((tasks / "templates").glob("*.yml"))
+    }
+
+
 def load(tasks: Path = TASKS) -> tuple[list[Record], Policy]:
     import yaml  # Provided by the Runtime environment; see the module docstring.
 
@@ -153,7 +182,7 @@ def load(tasks: Path = TASKS) -> tuple[list[Record], Policy]:
 
 def main() -> int:
     records, policy = load()
-    errors = validate(records, policy)
+    errors = validate(records, policy) + validate_templates(load_templates())
     for error in errors:
         print(f"tasks/{error}" if not error.startswith("tasks/") else error, file=sys.stderr)
     if errors:

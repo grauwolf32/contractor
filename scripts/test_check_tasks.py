@@ -1,6 +1,6 @@
 import unittest
 
-from check_tasks import Policy, Record, validate
+from check_tasks import Policy, Record, validate, validate_templates
 
 POLICY = Policy(
     statuses=frozenset({"pending", "in_progress", "deferred", "completed", "archived"}),
@@ -96,6 +96,21 @@ class ValidateTasksTest(unittest.TestCase):
         self.assertIn("v1-003-x.yml: introduced_by 'V1-003' must name another existing task", errors)
         self.assertIn("v1-004-x.yml: introduced_by 'V9-999' must name another existing task", errors)
         self.assertEqual(len(errors), 4)
+
+
+class ValidateTemplatesTest(unittest.TestCase):
+    def test_one_complete_template_per_kind_passes(self):
+        templates = {kind: task("VNN-NNN", kind=kind) for kind in ("feature", "defect", "chore")}
+        self.assertEqual(validate_templates(templates), [])
+
+    def test_missing_kind_field_and_wrong_kind_fail(self):
+        broken = task("VNN-NNN", kind="feature")
+        del broken["tests"]
+        templates = {"feature": broken, "defect": task("VNN-NNN", kind="chore")}
+        errors = validate_templates(templates)
+        self.assertIn("templates/: expected one template per kind (chore, defect, feature)", errors)
+        self.assertIn("templates/feature.yml: missing tests", errors)
+        self.assertIn("templates/defect.yml: kind must be defect", errors)
 
 
 if __name__ == "__main__":

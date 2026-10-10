@@ -1,0 +1,48 @@
+# Defect task template: behaviour that was wrong.
+# Copy to tasks/vNN-NNN-short-slug.yml, replace every <placeholder> and delete
+# the comments. make lint checks the result. Fix the class, not the instance:
+# a quarter of the fixes in the 2026-10 review were partial because only the
+# reported path was changed.
+schema_version: "1.0"
+id: VNN-NNN
+title: "<Imperative fix, e.g. Collect co-batched verification checks of one finding proposal>"
+# Reuse the epic's open milestone; do not declare a milestone per defect.
+milestone: "<delivery slice>"
+epic: "<id from tasks/epics.yml: the area that owns the broken code>"
+kind: defect
+# The task whose implementation caused the defect. Find it with git log or
+# git blame on the code you fix; delete the line only when it is unknowable.
+introduced_by: VNN-NNN
+priority: P1  # P0..P3, defined in tasks/index.yml
+status: pending
+depends_on: []
+languages: [go]
+goal: "<One sentence: the correct behaviour after the fix.>"
+context:
+  issue: "<https://github.com/grauwolf32/contractor/issues/NNN, if it came from an issue>"
+  review: "<docs/research/<review>.md and finding id, if it came from a review>"
+  severity: "<low | medium | high>"
+  finding: >-
+    <What fails: every file:line involved, the reproduction and the observed
+    error or wrong result.>
+  siblings: >-
+    <Every other code path, language, encoding or client that applies the
+    same rule, and whether this task fixes it or it is already correct.>
+scope:
+  in:
+    - "<the fix, covering every sibling listed above>"
+    - "<a regression test on the real path: PostgreSQL, the real process or the browser>"
+  out:
+    - "<what this fix deliberately leaves alone>"
+acceptance_criteria:
+  - id: A1
+    text: "<the failing scenario now succeeds, or fails with the correct classified error>"
+  - id: A2
+    text: "<each sibling path behaves the same way>"
+  - id: A3
+    text: "<the regression test fails on the unfixed code>"
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/<package>"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
