@@ -74,6 +74,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: architecture-layers-2026-10
+    exit_task: V366-005
+    outcome: Dependencies follow the layer stack in the Go server and the Runtime, enforced in CI, with no Runtime exceptions.
   - id: schema-reduction-2026-10
     exit_task: V365-022
     outcome: The schema drops from 91 to 70 tables without behaviour changes, and SQL statements of 10 or more lines live in commented *_sql.go files.

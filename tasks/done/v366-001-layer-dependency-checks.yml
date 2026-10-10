@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V366-001
+title: Enforce layer dependencies for Go packages and Runtime modules in CI
+milestone: architecture-layers-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 5fea5919d46bc834f60e1e265ad445afb9d93a87
+depends_on: []
+languages: [go, python]
+goal: An upward import, an unclassified package or a stale known violation fails make lint or make test-go, so layer boundaries stop eroding.
+context:
+  review: "Architecture layer review of main @ 5a0c6b37, 2026-10-09 (https://claude.ai/artifact/EontMJPJvpGyrCXwe9d9Uv)"
+  finding: >-
+    make verify-architecture only validated the LikeC4 model syntax; nothing
+    checked code dependencies. Go had two upward imports (internal/config ->
+    internal/auditdomain, internal/runstore -> internal/auditstore) and the
+    Runtime 23 layer and toolset violations and two package cycles, none of
+    them tracked.
+scope:
+  in:
+    - "internal/archtest: a test-only package that parses imports of every non-test Go file and checks them against a nine-layer table with a knownViolations ratchet."
+    - "import-linter contracts in runtime/pyproject.toml, run by make lint, with exhaustive layers and stale ignore detection."
+    - "docs/development.md: where the tables live and how to handle a failure."
+  out:
+    - "Fixing the violations themselves (V366-003, V366-005)."
+    - "UI layering."
+acceptance_criteria:
+  - {id: A1, text: "go test ./internal/archtest fails on an upward import, an unclassified package, a duplicate or unmatched table row and a stale knownViolations entry; each was shown with an injected violation."}
+  - {id: A2, text: "make lint runs import-linter with exhaustive layers and fails on a new upward import, an unclassified module and an unmatched ignore_imports entry."}
+  - {id: A3, text: "Both checks pass with every known violation recorded with a reason and the intended fix."}
+tests:
+  - {command: "go test -count=1 ./internal/archtest", covers: [A1, A3]}
+  - {command: make lint, covers: [A2, A3]}

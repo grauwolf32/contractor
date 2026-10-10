@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V366-002
+title: Split internal/contracts into a core and concern packages
+milestone: architecture-layers-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 972a6753c309437295e64263604a09359b23f782
+depends_on: []
+languages: [go]
+goal: A change to telemetry, Runtime settings, scan plans, Run labels or the registration protocol reaches only the packages that use that concern instead of every importer of internal/contracts.
+context:
+  review: "Architecture layer review of main @ 5a0c6b37, 2026-10-09 (https://claude.ai/artifact/EontMJPJvpGyrCXwe9d9Uv)"
+  finding: >-
+    internal/contracts (5.3k lines, 29 files) was imported by 38 of 75
+    internal packages and changed in 66 commits in 60 days, so any change to
+    one concern formally touched the Planner, Audit and the public API.
+scope:
+  in:
+    - "A core package (base vocabulary, codec, media types, agent templates, Planner and Worker contracts) and concern packages control, reporting, runtimesettings, llmgateway, runlabels and scan."
+    - "contracts/contractstest fixture helpers; every call site updated without aliases or re-exports."
+  out:
+    - "The wire format: JSON tags and the api/v1alpha1 schemas stay identical."
+    - "Python Runtime models."
+acceptance_criteria:
+  - {id: A1, text: "Direct internal importers: reporting 9, runtimesettings 10, llmgateway 13, scan 4, runlabels 4, control 1; the core imports none of the concern packages."}
+  - {id: A2, text: "All 508 struct JSON tags are unchanged and the cross-language golden fixtures pass."}
+tests:
+  - {command: "go test ./internal/contracts/...", covers: [A1, A2]}
+  - {command: make verify-wire-contracts, covers: [A2]}
+  - {command: make test-wire-cross-language, covers: [A2]}

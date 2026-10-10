@@ -1,0 +1,38 @@
+schema_version: '1.0'
+id: V366-005
+title: Untangle the Runtime import graph so import-linter needs no exceptions
+milestone: architecture-layers-2026-10
+epic: quality
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 49a6e22d83b6d492e90ced3e04e87e7039f6b296
+depends_on: [V366-001]
+languages: [python]
+goal: Runtime modules depend only downward, toolsets share code only through toolsets.common or two declared chains, and the Worker depends on no concrete toolset.
+context:
+  review: "Architecture layer review of main @ 5a0c6b37, 2026-10-09 (https://claude.ai/artifact/EontMJPJvpGyrCXwe9d9Uv)"
+  finding: >-
+    import-linter recorded 13 layer exceptions (platform modules importing
+    toolsets.common helpers, toolsets importing worker.completion and
+    worker.observations) and 10 toolset exceptions; the packages
+    settings/sandbox/projectfs and toolsets.http/security_findings formed
+    cycles; worker/runtime.py imported toolsets.caido and toolsets.http to
+    build its sensitive-output tool set.
+scope:
+  in:
+    - "contractor_runtime.core for target_policy, process, lines, tool_metrics, input_errors and the Worker completion protocol."
+    - "contractor_runtime.observations for tool-facing observation builders; projectfs/config for workspace settings."
+    - "sensitive_output_tools declared on toolset factories and passed to the Worker through WorkerBuildContext."
+    - "Declared toolset chains (taint_annotations on code_analysis; edit_files and workspace_changes on filesystem) and a contract that forbids the Worker from importing concrete toolsets."
+  out:
+    - "The explicit toolset registration list in factories.py."
+    - "Runtime behaviour, including the set of tools whose output is treated as sensitive."
+acceptance_criteria:
+  - {id: A1, text: "lint-imports keeps five contracts with no ignore_imports entries."}
+  - {id: A2, text: "The derived sensitive-output tool set equals the previous 16 tools for the production registry."}
+  - {id: A3, text: "The Runtime test suite passes."}
+tests:
+  - {command: make lint, covers: [A1]}
+  - {command: "cd runtime && uv run pytest tests/test_sensitive_output_tools.py", covers: [A2]}
+  - {command: make test-runtime, covers: [A3]}
