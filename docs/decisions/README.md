@@ -11,6 +11,7 @@ Both files were moved verbatim from `tasks/index.yml` on 2026-10-11. Older task
 records and reviews refer to their sections as `tasks/index.yml <section>`; the
 section names are unchanged.
 
-Current work lives elsewhere: open tasks in [tasks/](../../tasks/), finished
-tasks in [tasks/done/](../../tasks/done/), accepted contracts in
+Current work lives elsewhere: the generated [backlog](../../tasks/BACKLOG.md),
+open tasks in [tasks/](../../tasks/), finished tasks in
+[tasks/done/](../../tasks/done/), accepted contracts in
 [the specification](../spec/README.md).

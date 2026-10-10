@@ -1,8 +1,8 @@
 # Planning history of contractor-v2: planning and implementation reviews,
 # ports, delivery order and checkpoint summaries, moved verbatim from
 # tasks/index.yml on 2026-10-11 in their original order. This is a
-# non-normative record. Current status lives in the task files; accepted
-# contracts live in docs/spec/.
+# non-normative record. Current status lives in the task files and
+# tasks/BACKLOG.md; accepted contracts live in docs/spec/.
 
 schema_version: "1.0"
 

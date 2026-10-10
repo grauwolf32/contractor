@@ -2,7 +2,7 @@
 # public API and the architecture model to the specifications.
 
 .PHONY: fmt lint generate-public-client verify-architecture docs-erd verify-public-api \
-	verify-public-api-postgres run-local
+	verify-public-api-postgres run-local tasks-backlog
 
 fmt:
 	gofmt -w cmd internal tests
@@ -18,6 +18,10 @@ lint:
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
+
+# Regenerates tasks/BACKLOG.md from the task files; make lint fails when it is stale.
+tasks-backlog:
+	cd runtime && uv run python ../scripts/check_tasks.py --write-backlog
 
 generate-public-client:
 	go generate ./internal/publicclient/generated

@@ -44,7 +44,7 @@ or legacy data to protect.
 | How should it behave? | `docs/spec/NN-*.md` (accepted contracts), `docs/spec/core-execution-model.md` |
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
-| What is done, in progress or deferred? | `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
+| What is done, in progress or deferred? | `tasks/BACKLOG.md` (generated), `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
 | Settled architecture decisions | `docs/decisions/fixed-decisions.yml` |
 | Why past epics were shaped as they were | `docs/decisions/planning-history.yml` (non-normative) |
 | Shipped Workflows, templates, policies, Skills | `configs/` (see `configs/README.md`) |
@@ -248,6 +248,8 @@ create or change a task.
 - **Layout.** Open tasks (`pending`, `in_progress`, `deferred`) live in
   `tasks/`; finished tasks (`completed`, `archived`) live in `tasks/done/`.
   The task files are the index; there is no separate list to maintain.
+  `tasks/BACKLOG.md` is generated from them: run `make tasks-backlog` after
+  you add a task or change a status, priority, epic or dependency.
   `scripts/check_tasks.py` (part of `make lint`) enforces the layout, declared
   statuses, priorities, epics and kinds, IDs matching file names, full
   implementation commits, known dependencies and `introduced_by` references,

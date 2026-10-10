@@ -1,6 +1,6 @@
 import unittest
 
-from check_tasks import Policy, Record, validate, validate_templates
+from check_tasks import Policy, Record, render_backlog, validate, validate_templates
 
 POLICY = Policy(
     statuses=frozenset({"pending", "in_progress", "deferred", "completed", "archived"}),
@@ -96,6 +96,35 @@ class ValidateTasksTest(unittest.TestCase):
         self.assertIn("v1-003-x.yml: introduced_by 'V1-003' must name another existing task", errors)
         self.assertIn("v1-004-x.yml: introduced_by 'V9-999' must name another existing task", errors)
         self.assertEqual(len(errors), 4)
+
+
+class RenderBacklogTest(unittest.TestCase):
+    def test_backlog_groups_open_tasks_and_counts_epics(self):
+        policy = Policy(
+            POLICY.statuses,
+            POLICY.priorities,
+            {},
+            frozenset({"core", "ui"}),
+            {"core": "Core", "ui": "Web UI"},
+        )
+        records = [
+            Record("done/v1-001-a.yml", task("V1-001", "completed")),
+            Record("v2-001-b.yml", task("V2-001", depends_on=["V1-001", "V10-001"], title="Pipe | title")),
+            Record("v10-001-c.yml", task("V10-001", "in_progress", epic="ui", kind="defect", introduced_by="V1-001")),
+            Record(
+                "v3-001-d.yml",
+                task("V3-001", "deferred", deferral={"date": "2026-10-01", "reactivate_when": "User\n approval"}),
+            ),
+        ]
+        text = render_backlog(records, policy)
+        self.assertIn("3 open tasks: 1 in progress, 1 pending, 1 deferred. 1 finished: 1 completed, 0 archived.", text)
+        self.assertIn("| [V10-001](v10-001-c.yml) | ui | defect | P1 | t |", text)
+        self.assertIn("### Core (`core`)", text)
+        self.assertNotIn("### Web UI", text)
+        self.assertIn("| [V2-001](v2-001-b.yml) | feature | P1 | V10-001 | Pipe \\| title |", text)
+        self.assertIn("| [V3-001](v3-001-d.yml) | core | 2026-10-01 | User approval |", text)
+        self.assertIn("| Core (`core`) | 2 | 3 | 0 | 0 | 1 |", text)
+        self.assertIn("| Web UI (`ui`) | 1 | 0 | 1 | 0 | 0 |", text)
 
 
 class ValidateTemplatesTest(unittest.TestCase):
