@@ -16,6 +16,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -74,7 +75,7 @@ func configureHTTP(
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
 		TrustedPeers:           trustedPeers,
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runStore, RunQueue: runStore, RunLifecycle: runStore, RunCreator: audits.runs, Artifacts: catalogs.artifacts,
+		Runs: runStore, RunQueue: runStore, RunLifecycle: runStore, RunDeletion: rundeletion.New(pool), RunCreator: audits.runs, Artifacts: catalogs.artifacts,
 		Credentials: credentialSet.provider, ManagedCredentials: credentialSet.lifecycle,
 		RuntimeConfigs: control.runtimeConfigurations, RuntimeCredentials: credentialSet.runtime,
 		GitKeys:                credentialSet.gitKeys,

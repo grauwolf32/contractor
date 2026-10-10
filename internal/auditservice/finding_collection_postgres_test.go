@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -174,7 +175,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 		if _, err := runs.TransitionRun(ctx, id, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_done"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := runs.DeleteReleasedTerminalRun(ctx, owner, id); err != nil {
+		if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, owner, id); err != nil {
 			t.Fatal(err)
 		}
 	}

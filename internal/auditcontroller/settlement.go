@@ -7,6 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -79,8 +80,8 @@ func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.Con
 			return false, err
 		}
 		if found {
-			err = c.runs.DeleteReleasedTerminalRun(ctx, audit.OwnerID, runID)
-			var blocked *runstore.RunNotDeletableError
+			err = c.deleter.DeleteReleasedTerminalRun(ctx, audit.OwnerID, runID)
+			var blocked *rundeletion.NotDeletableError
 			if errors.As(err, &blocked) || errors.Is(err, runstore.ErrNotFound) {
 				return false, nil
 			}

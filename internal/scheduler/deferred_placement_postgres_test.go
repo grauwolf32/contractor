@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -583,7 +584,7 @@ func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t
 			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
 				t.Fatalf("allocation grant after recovery = %v", err)
 			}
-			if err := h.store.DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
+			if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
 				t.Fatalf("delete released terminal Run: %v", err)
 			}
 		})

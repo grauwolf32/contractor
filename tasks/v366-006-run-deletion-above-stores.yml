@@ -28,28 +28,51 @@ context:
     audits, audit_executions and finding_proposal_receipts. A callback from
     runstore would remove the import but keep that SQL in runstore and would
     let a store built without the callback skip Audit invalidation silently.
+    The Run list repeated the same deletability rule a third time in
+    listRunsSQL, also reading audit_executions.
+  decision: >-
+    Run deletion is a product-layer composition (internal/rundeletion) over
+    store steps, not a runstore operation with an injected Audit hook.
+    Alternatives considered: a multi-phase hook from runstore (keeps lock
+    order split across packages and lets a store without the hook skip
+    Audit invalidation), moving Audit SQL into a lower package (two homes
+    for Audit revision rules), database triggers (lock order invisible) and
+    asynchronous invalidation (breaks the V60-012 atomicity contract).
+    The finding receipt tombstone stays in rundeletion because no other
+    code writes that retention transition and findingintake's in-package
+    tests delete Runs, so rundeletion cannot import findingintake. Reopen
+    if another component needs to change receipt retention.
 scope:
   in:
     - "internal/rundeletion (product layer) owns DeleteReleasedTerminalRun, RunDeletionBlocker and the not-deletable error and reasons; it works on a pool (own retrying transaction) or inside a caller's pgx.Tx."
-    - "runstore keeps the Run-owned steps: lock the Run and read its deletion gates, read them without a lock, delete the Run row."
-    - "auditstore owns locking the affected Audits, stamping the collected AuditExecution and reading its collection gate; findingintake owns tombstoning finding proposal receipts."
-    - "HTTP API, Audit controller and Project lifecycle controller take a separate Run deleter; internal/app wires rundeletion."
+    - "runstore keeps the Run-owned steps: lock one Run and read its deletion gates, read the gates of up to one Run page without a lock, delete the Run row; ListRuns no longer computes deletability."
+    - "auditstore owns locking the affected Audits, stamping the collected AuditExecution and reading the collection gate, each predicate defined once; rundeletion tombstones finding proposal receipts."
+    - "rundeletion reports deletability for the Run detail (RunDeletionBlocker) and for a Run list page (DeletableRuns) from the same gates deletion checks."
+    - "HTTP API takes a RunDeletion dependency for the Run detail, the Run list and DELETE; the Audit and Project lifecycle controllers take a Run deleter; internal/app wires rundeletion."
     - "internal/rundeletion is classified in the product layer and the runstore -> auditstore known violation is deleted."
+    - "Boundary tests: deletion steps are named only in runstore, auditstore and rundeletion; runstore's Go source names no Audit or finding table."
+    - "The LikeC4 model gains a Run Deletion component that owns the deletion relationships."
   out:
     - "Deletion order and lock order: Run, Audits, AuditExecution, proposal receipts, Artifacts, Run row, Audit revisions."
-    - "Public API responses, error codes, deletion reasons and database schema."
+    - "Public API responses, including the deletable flag, error codes, deletion reasons and database schema."
 acceptance_criteria:
   - id: A1
-    text: "internal/archtest has no known violations, internal/rundeletion is in the product layer, and runstore SQL no longer names audits, audit_executions or finding_proposal_* tables in deletion code."
+    text: "internal/archtest has no known violations, internal/rundeletion is in the product layer, and runstore's Go source names no Audit or finding table."
   - id: A2
-    text: "Run deletion keeps its behaviour: the existing deletion, retention and concurrency tests on real PostgreSQL pass, with test edits limited to the moved constructor and error types."
+    text: "Run deletion keeps its behaviour: the existing deletion, retention and concurrency tests on real PostgreSQL pass, with test edits limited to the moved constructor, error types and deletable flag."
   - id: A3
     text: "A store method that takes row locks for deletion refuses a pool-backed store instead of running without a transaction."
+  - id: A4
+    text: "Run detail, Run list and deletion agree on every gate (not terminal, allocation release pending, deletable, missing or foreign Run) on real PostgreSQL, and a list batch above one Run page is rejected."
+  - id: A5
+    text: "Deletion steps are named only in runstore, auditstore and rundeletion, and the LikeC4 model validates."
 tests:
   - command: make lint
     covers: [A1]
   - command: "go test ./internal/archtest ./internal/rundeletion ./internal/runstore ./internal/auditstore"
-    covers: [A1, A3]
+    covers: [A1, A3, A4, A5]
+  - command: make verify-architecture
+    covers: [A5]
   - command: "go test -tags integration ./internal/rundeletion ./internal/runstore ./internal/auditstore ./internal/findingintake ./internal/auditimport ./internal/auditcontroller ./internal/projectlifecycle ./internal/artifacts ./internal/httpapi/public ./internal/evalservice ./internal/auditservice ./internal/scheduler"
     covers: [A2]
   - command: "make -k release-verify-unit release-verify-integration release-verify-race"

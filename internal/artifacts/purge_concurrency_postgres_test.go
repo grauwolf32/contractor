@@ -11,6 +11,7 @@ import (
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -41,7 +42,7 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer first.Rollback(context.Background())
-			if err := runstore.NewPostgresStore(first).DeleteReleasedTerminalRun(ctx, "user-1", "purge-a"); err != nil {
+			if err := rundeletion.New(first).DeleteReleasedTerminalRun(ctx, "user-1", "purge-a"); err != nil {
 				t.Fatal(err)
 			}
 			second, err := pool.Begin(ctx)
@@ -51,7 +52,7 @@ func TestPostgresConcurrentPurgeSharedBlob(t *testing.T) {
 			defer second.Rollback(context.Background())
 			done := make(chan error, 1)
 			go func() {
-				err := runstore.NewPostgresStore(second).DeleteReleasedTerminalRun(ctx, "user-1", "purge-b")
+				err := rundeletion.New(second).DeleteReleasedTerminalRun(ctx, "user-1", "purge-b")
 				if err == nil {
 					err = second.Commit(ctx)
 				}

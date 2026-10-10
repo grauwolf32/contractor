@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -83,7 +84,7 @@ SELECT collection_disposition FROM audit_executions WHERE execution_id = $1`,
 	if disposition != string(auditstore.CollectionContractInvalid) {
 		t.Fatalf("collection disposition = %q", disposition)
 	}
-	mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	var retention string
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
 SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`, receiptID).Scan(&retention))
@@ -147,7 +148,7 @@ INSERT INTO finding_proposal_receipts (
 SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
-	mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 	after, err := f.audits.Get(f.ctx, "owner", f.id)
 	mustCompletion(t, err)
 	if after.Revision != before.Revision+1 || !after.UpdatedAt.After(before.UpdatedAt) {

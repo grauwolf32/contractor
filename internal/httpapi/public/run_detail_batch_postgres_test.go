@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -100,7 +101,8 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch := &handler{dependencies: Dependencies{
-		Runs: tracedRuns, Metrics: telemetry.NewRepository(traced), PlannerPlans: tracedPlans,
+		Runs: tracedRuns, RunDeletion: rundeletion.New(traced),
+		Metrics: telemetry.NewRepository(traced), PlannerPlans: tracedPlans,
 		AllocationResources: telemetry.NewRepository(traced),
 		Artifacts:           artifacts.NewService(artifacts.NewPostgresRepository(traced)),
 	}}

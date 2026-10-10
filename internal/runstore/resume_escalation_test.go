@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestPostgresResumeEscalatedStage(t *testing.T) {
@@ -112,7 +113,13 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 				t.Fatalf("second continuation: %+v %v", latest, err)
 			}
 			failResumeStage(t, ctx, store, runID, latest.StageExecutionID)
-			if err := store.DeleteReleasedTerminalRun(ctx, run.OwnerID, runID); err != nil {
+			if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				locked := NewPostgresStore(tx)
+				if _, err := locked.LockRunForDeletion(ctx, run.OwnerID, runID); err != nil {
+					return err
+				}
+				return locked.DeleteLockedRun(ctx, run.OwnerID, runID)
+			}); err != nil {
 				t.Fatalf("delete resumed terminal Run: %v", err)
 			}
 			var remaining int

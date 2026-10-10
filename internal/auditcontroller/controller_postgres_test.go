@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -96,15 +97,15 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 		t.Fatal(err)
 	}
 	runID := *executions[0].RunID
-	blocker, err := harness.runs.RunDeletionBlocker(ctx, harness.started.Audit.OwnerID, runID)
-	if err != nil || blocker == nil || *blocker != runstore.RunAuditCollectionPending {
+	blocker, err := rundeletion.New(harness.pool).RunDeletionBlocker(ctx, harness.started.Audit.OwnerID, runID)
+	if err != nil || blocker == nil || *blocker != rundeletion.AuditCollectionPending {
 		t.Fatalf("uncollected Audit Run deletion blocker = (%v, %v)", blocker, err)
 	}
-	if err := harness.runs.DeleteReleasedTerminalRun(ctx, harness.started.Audit.OwnerID, runID); err == nil {
+	if err := rundeletion.New(harness.pool).DeleteReleasedTerminalRun(ctx, harness.started.Audit.OwnerID, runID); err == nil {
 		t.Fatal("uncollected Audit Run deletion unexpectedly succeeded")
 	} else {
-		var blocked *runstore.RunNotDeletableError
-		if !errors.As(err, &blocked) || blocked.Reason != runstore.RunAuditCollectionPending {
+		var blocked *rundeletion.NotDeletableError
+		if !errors.As(err, &blocked) || blocked.Reason != rundeletion.AuditCollectionPending {
 			t.Fatalf("uncollected Audit Run deletion error = %v", err)
 		}
 	}
@@ -1232,7 +1233,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		t.Fatalf("mutate frozen Audit report error = %v", err)
 	}
 
-	if err := harness.runs.DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
+	if err := rundeletion.New(harness.pool).DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	attempts, err := harness.audits.ListItemAttempts(
@@ -1538,7 +1539,7 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1558,7 +1559,7 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	t.Helper()
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: holderID, ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
@@ -1588,7 +1589,7 @@ func (h *postgresControllerHarness) controllerWithCollector(
 	}
 	var ids int
 	controller, err := New(
-		h.audits, h.runs, h.runService, h.builder(t), &postgresNotifier{},
+		h.audits, h.runs, rundeletion.New(h.pool), h.runService, h.builder(t), &postgresNotifier{},
 		Options{
 			HolderID: "postgres-audit-collection-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: 2 * time.Second, ClaimBatch: 1, Collector: collector,

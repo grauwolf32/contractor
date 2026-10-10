@@ -126,7 +126,6 @@ type WorkflowRunSummary struct {
 	WorkflowVersion string
 	MetadataLabels  RunMetadataLabels
 	State           WorkflowRunState
-	Deletable       bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	FinishedAt      *time.Time

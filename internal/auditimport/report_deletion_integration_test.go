@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -37,7 +38,7 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 				deleted := false
 				hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(observed string) {
 					if observed == point && !deleted {
-						mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+						mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 						deleted = true
 					}
 				}}
@@ -119,7 +120,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 			service := reportDeletionReviewService(t, f)
 			review, err := service.GetReview(f.ctx, "owner", f.id, candidate.RequestID)
 			mustCompletion(t, err)
-			mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+			mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 			after, err := f.audits.Get(f.ctx, "owner", f.id)
 			mustCompletion(t, err)
 			if after.State != auditstore.AuditWaitingReview || after.Revision != before.Revision+1 || !after.UpdatedAt.After(before.UpdatedAt) {
@@ -183,7 +184,7 @@ func TestImporterReportRetryRejectsChangedFinalizationTimestamp(t *testing.T) {
 	mustCompletion(t, err)
 	hooked := &reportDeletionArtifacts{ArtifactAccess: access, hook: func(point string) {
 		if point == "after-machine" {
-			mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+			mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 			// Counterexample: simulate a naive deletion timestamp update after
 			// report.json has been durably written. Immutable collision stays fatal.
 			_, err := pool.Exec(f.ctx, `UPDATE audits SET updated_at = updated_at + interval '1 second' WHERE audit_id = $1`, f.id)
@@ -212,7 +213,7 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		tx, err := pool.Begin(f.ctx)
 		mustCompletion(t, err)
 		defer tx.Rollback(context.Background())
-		mustCompletion(t, runstore.NewPostgresStore(tx).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+		mustCompletion(t, rundeletion.New(tx).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 		changed, err := auditstore.NewPostgresStore(tx).Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
 		if changed.Revision != snapshot.Audit.Revision+1 || !changed.UpdatedAt.Equal(snapshot.Audit.UpdatedAt) {
@@ -224,13 +225,13 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		mustCompletion(t, tx.Rollback(f.ctx))
 		assertReportDeletionSourceIntact(t, f, snapshot.Audit)
 
-		mustCompletion(t, f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+		mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
 		changed, err = f.audits.Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
 		if changed.Revision != snapshot.Audit.Revision+1 {
 			t.Fatal("rolled-back deletion consumed a durable Audit revision")
 		}
-		if err := f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
+		if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID); !errors.Is(err, runstore.ErrNotFound) {
 			t.Fatalf("repeated source deletion: %v", err)
 		}
 		repeated, err := f.audits.Get(f.ctx, "owner", f.id)
@@ -245,9 +246,9 @@ func TestImporterManagedRunDeletionRollbackAndRejection(t *testing.T) {
 		mustCompletion(t, err)
 		before, err := f.audits.Get(f.ctx, "owner", f.id)
 		mustCompletion(t, err)
-		err = f.runs.DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID)
-		var blocked *runstore.RunNotDeletableError
-		if !errors.As(err, &blocked) || blocked.Reason != runstore.RunAuditCollectionPending {
+		err = rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID)
+		var blocked *rundeletion.NotDeletableError
+		if !errors.As(err, &blocked) || blocked.Reason != rundeletion.AuditCollectionPending {
 			t.Fatalf("uncollected source deletion: %v", err)
 		}
 		assertReportDeletionSourceIntact(t, f, before)

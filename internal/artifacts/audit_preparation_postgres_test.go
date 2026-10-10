@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -435,7 +436,7 @@ func TestPostgresAuditPreparationRetentionAndLifecycleWithoutRound(t *testing.T)
 		t.Fatalf("preparation credential hold: %v %v", ids, err)
 	}
 	beforeDelete := f.current(t)
-	if err := runstore.NewPostgresStore(f.pool).DeleteReleasedTerminalRun(f.ctx, f.audit.OwnerID, *execution.RunID); err != nil {
+	if err := rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, f.audit.OwnerID, *execution.RunID); err != nil {
 		t.Fatalf("delete collected source Run: %v", err)
 	}
 	if f.current(t).Revision <= beforeDelete.Revision {

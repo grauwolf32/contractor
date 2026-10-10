@@ -18,6 +18,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -174,6 +175,7 @@ func configureWorkflows(
 	projectDeletionController, err := projectlifecycle.New(
 		pool,
 		runstore.NewPostgresStore(pool),
+		rundeletion.New(pool),
 		workflowScheduler,
 		projectlifecycle.Options{
 			OperationTimeout: cfg.Operations.ProjectLifecycle.OperationTimeout,

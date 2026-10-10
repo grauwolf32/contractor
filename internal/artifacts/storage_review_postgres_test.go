@@ -10,6 +10,7 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -249,7 +250,7 @@ func TestStorageReviewSingleConnectionCleanup(t *testing.T) {
 	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "minimal-pool", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := runstore.NewPostgresStore(pool).DeleteReleasedTerminalRun(ctx, "user-1", "minimal-pool"); err != nil {
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, "user-1", "minimal-pool"); err != nil {
 		t.Fatal(err)
 	}
 	report, err := CleanupFilesystemBlobs(ctx, pool, path, true)

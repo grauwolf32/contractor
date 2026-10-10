@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -35,7 +36,6 @@ type RunReader interface {
 	ResumableStage(context.Context, string, string) (*string, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
-	RunDeletionBlocker(context.Context, string, string) (*runstore.RunNotDeletableReason, error)
 	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
@@ -51,8 +51,13 @@ type RunQueue interface {
 
 type RunLifecycle interface {
 	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
-	DeleteReleasedTerminalRun(context.Context, string, string) error
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type RunDeletion interface {
+	RunDeletionBlocker(context.Context, string, string) (*rundeletion.Reason, error)
+	DeletableRuns(context.Context, string, []string) (map[string]bool, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
 }
 
 type PlannerPlanReader interface {
@@ -234,6 +239,7 @@ type Dependencies struct {
 	Runs                    RunReader
 	RunQueue                RunQueue
 	RunLifecycle            RunLifecycle
+	RunDeletion             RunDeletion
 	RunCreator              RunCreationService
 	PlannerPlans            PlannerPlanReader
 	Metrics                 MetricsReader

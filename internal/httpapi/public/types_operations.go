@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -163,6 +164,6 @@ type auditUnsupportedDetailsResponse struct {
 }
 
 type runNotDeletableDetailsResponse struct {
-	Kind   string                         `json:"kind"`
-	Reason runstore.RunNotDeletableReason `json:"reason"`
+	Kind   string             `json:"kind"`
+	Reason rundeletion.Reason `json:"reason"`
 }

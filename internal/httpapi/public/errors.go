@@ -17,6 +17,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -29,7 +30,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
 	var auditUnsupported *auditservice.UnsupportedError
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
-	var runNotDeletable *runstore.RunNotDeletableError
+	var runNotDeletable *rundeletion.NotDeletableError
 	switch {
 	case errors.Is(err, settingsstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)

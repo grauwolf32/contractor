@@ -27,6 +27,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -97,7 +98,7 @@ func (r *lostRunResponse) CreatePublic(ctx context.Context, p runservice.PublicC
 			if _, err = store.TransitionRun(ctx, result.Run.RunID, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
 				return result, err
 			}
-			if err = store.DeleteReleasedTerminalRun(ctx, p.OwnerID, result.Run.RunID); err != nil {
+			if err = rundeletion.New(r.pool).DeleteReleasedTerminalRun(ctx, p.OwnerID, result.Run.RunID); err != nil {
 				return result, err
 			}
 		}

@@ -59,6 +59,9 @@ type RunStore interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+}
+
+type RunDeleter interface {
 	DeleteReleasedTerminalRun(context.Context, string, string) error
 }
 
@@ -136,6 +139,7 @@ type Options struct {
 type Controller struct {
 	store               Store
 	runs                RunStore
+	deleter             RunDeleter
 	creator             RunCreator
 	builder             SubmissionBuilder
 	collector           Collector
@@ -153,12 +157,13 @@ type Controller struct {
 func New(
 	store Store,
 	runs RunStore,
+	deleter RunDeleter,
 	creator RunCreator,
 	builder SubmissionBuilder,
 	notifier RunNotifier,
 	options Options,
 ) (*Controller, error) {
-	if store == nil || runs == nil || creator == nil || builder == nil || notifier == nil {
+	if store == nil || runs == nil || deleter == nil || creator == nil || builder == nil || notifier == nil {
 		return nil, errors.New("Audit Controller dependencies are incomplete")
 	}
 	if options.PollInterval == 0 {
@@ -196,7 +201,7 @@ func New(
 		options.HolderID = value
 	}
 	return &Controller{
-		store: store, runs: runs, creator: creator, builder: builder,
+		store: store, runs: runs, deleter: deleter, creator: creator, builder: builder,
 		collector: options.Collector, roundBuilder: options.RoundBuilder, initialRoundBuilder: options.InitialRoundBuilder,
 		notifier: notifier, options: options,
 	}, nil

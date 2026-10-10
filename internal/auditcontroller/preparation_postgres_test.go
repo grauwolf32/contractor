@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/randomid"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -221,7 +222,7 @@ func TestPostgresPreparationDependentRunsRetainExactOutputs(t *testing.T) {
 		if execution.State != auditstore.ExecutionCollected || len(execution.PreparationOutputs) != 2 {
 			t.Fatalf("incomplete receipt: %+v", execution)
 		}
-		if err := h.runs.DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
+		if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -380,7 +381,7 @@ func TestPostgresPreparationRecoversLostCollectionResponse(t *testing.T) {
 	if after.ReservedRunCount != 1 || after.RetainedEvidenceBytes != before.RetainedEvidenceBytes || after.Phase != auditdomain.AuditPhaseInventory {
 		t.Fatalf("collection replay charged twice: %+v", after)
 	}
-	if err := h.runs.DeleteReleasedTerminalRun(ctx, after.OwnerID, *execution.RunID); err != nil {
+	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, after.OwnerID, *execution.RunID); err != nil {
 		t.Fatalf("committed collection did not release Run: %v", err)
 	}
 }
@@ -451,7 +452,7 @@ func TestPostgresPreparationMissingOutputRetriesThenFailsWithoutRound(t *testing
 				if execution.State != auditstore.ExecutionCollected || len(execution.PreparationOutputs) != 0 {
 					t.Fatalf("partial output receipt: %+v", execution)
 				}
-				if err := h.runs.DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
+				if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, *execution.RunID); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := h.audits.GetArtifactLink(ctx, audit.AuditID, "prepare-attempt:"+execution.ExecutionID+":list"); err != nil {
@@ -511,7 +512,7 @@ func TestPostgresPreparationCancelAndDeleteDrainBeforeDependencies(t *testing.T)
 					if audit.OutstandingRunCount != 0 || audit.Hold != auditstore.HoldReleased {
 						t.Fatalf("cancelled Audit did not drain: %+v", audit)
 					}
-					if err := h.runs.DeleteReleasedTerminalRun(ctx, audit.OwnerID, run.RunID); err != nil {
+					if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, audit.OwnerID, run.RunID); err != nil {
 						t.Fatal(err)
 					}
 					return

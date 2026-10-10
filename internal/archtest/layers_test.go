@@ -137,6 +137,7 @@ var layers = []layerSpec{
 			"internal/planner/scan",
 			"internal/projectlifecycle",
 			"internal/projectstore",
+			"internal/rundeletion",
 			"internal/runservice",
 		},
 	},
@@ -166,11 +167,4 @@ var layers = []layerSpec{
 // knownViolations are the upward imports that exist today. Each entry names
 // why the import exists and how it should be removed. Do not add an entry to
 // silence a new violation without both.
-var knownViolations = []knownViolation{
-	{
-		from:   "internal/runstore",
-		to:     "internal/auditstore",
-		reason: "delete_store.go invalidates Audit projections of a deleted WorkflowRun inside the delete transaction",
-		fix:    "invert it: runstore takes a run-deletion hook that runs in the transaction, and internal/app wires auditstore into it",
-	},
-}
+var knownViolations = []knownViolation{}
