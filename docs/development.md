@@ -107,8 +107,16 @@ module may import its own layer or a lower one. Both run in CI.
 | Go Server | `layers` and `knownViolations` in [internal/archtest/layers_test.go](../internal/archtest/layers_test.go) | `go test ./internal/archtest` (part of `make test-go`) |
 | Python Runtime | `[tool.importlinter]` contracts in [runtime/pyproject.toml](../runtime/pyproject.toml) | `cd runtime && uv run lint-imports` (part of `make lint`) |
 
-The Runtime also keeps its toolsets independent: a toolset may share code
-with another only through `toolsets.common`. Runtime imports under
+The Runtime's layers run, top to bottom: entry points, orchestration,
+composition (the factory registry), the Worker, toolsets, platform, and the
+kernel (wire contracts and the dependency-free `core` helpers). It has no
+known violations. The Runtime also keeps its toolsets independent: a toolset
+may share code with another only through `toolsets.common`, except for two
+declared chains, `taint_annotations` on `code_analysis` and `edit_files` and
+`workspace_changes` on `filesystem`. A protected contract per chain base names
+its only importers. The Worker may not import any concrete toolset; it learns
+what it needs about them, such as the sensitive-output tools that toolset
+factories declare, from its build context. Runtime imports under
 `if TYPE_CHECKING:` are ignored. A failure is one of three kinds:
 
 - **Upward import.** Invert the dependency (the lower package declares an

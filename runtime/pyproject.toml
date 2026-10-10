@@ -58,14 +58,15 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "S101"]
 "tests/**" = ["S101"]
 
 # Architecture fitness check, run by `make lint` (`uv run lint-imports`).
-# The layer tables below are the single source of truth for the Runtime's
+# The contracts below are the single source of truth for the Runtime's
 # dependency direction. Layers are listed top to bottom: a module may import
 # its own layer or any layer below it ("a : b" siblings may import each
-# other, "a | b" siblings may not). Both contracts are exhaustive, so a new
-# top-level module or a new toolset fails until it is classified here. Each
-# ignore_imports entry is a known violation: keep a "reason; fix" comment on
-# it. An entry whose import no longer exists fails the check, so delete it
-# once fixed. Imports under `if TYPE_CHECKING:` are excluded.
+# other, "a | b" siblings may not). Both layers contracts are exhaustive, so a
+# new top-level module or a new toolset fails until it is classified here. A
+# forbidden contract keeps the Worker off the concrete toolsets, and two
+# protected contracts declare the only chains between toolsets. No contract
+# has ignore_imports entries (known violations); if one is ever added, keep a
+# "reason; fix" comment on it. Imports under `if TYPE_CHECKING:` are excluded.
 # See docs/development.md.
 [tool.importlinter]
 root_package = "contractor_runtime"
