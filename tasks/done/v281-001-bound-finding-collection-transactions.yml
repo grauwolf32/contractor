@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V281-001
 title: Bound finding-collection transactions by work
 milestone: review-defects-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V240-001
 priority: P1
 status: completed
 implementation_commit: 62235607559d60fe3bf319f04087f5ce497f2e14

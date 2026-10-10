@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-006
 title: Name Runtime Agents and de-emphasise offline identities
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 2f87023df4a38920e7a0bb11aa973089ffa087e2

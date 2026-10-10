@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V300-001
 title: Use a stable timestamp in the paused Eval claim branch
 milestone: review-defects-2026-10-04
+epic: evals
+kind: defect
+introduced_by: V254-001
 priority: P2
 status: completed
 implementation_commit: 334d003194351ec65b3e9d4588c74c1917e2898a

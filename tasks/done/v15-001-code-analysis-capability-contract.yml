@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V15-001
 title: Add code-analysis descriptors and workspace validation
 milestone: workspace-code-analysis-mvp
+epic: code-analysis
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 2702d2a5e58f140b746659fcac3e47f0de9ac1e2

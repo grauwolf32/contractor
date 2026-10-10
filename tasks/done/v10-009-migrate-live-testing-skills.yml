@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V10-009
 title: Migrate contractor-old live-testing and exploitation skills
 milestone: agent-skills-port-and-hardening
+epic: agent-skills
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 12915aae696182d379572146fd3e13e328789d5d

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-009
 title: Verify configured toolsets and MCP across Run, Runtime and browser boundaries
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

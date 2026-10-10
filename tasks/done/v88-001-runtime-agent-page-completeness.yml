@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V88-001
 title: Load all Runtime Agent principals and label bindings
 milestone: runtime-agent-page-completeness-2026-10
+epic: operations
+kind: defect
+introduced_by: V8-015
 priority: P2
 status: completed
 implementation_commit: 7cd327522be860e934935eb21acd01d9d2d12556

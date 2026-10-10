@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V256-001
 title: Verify embedded migrations before Server startup
 milestone: database-schema-verification-2026-10
+epic: persistence
+kind: defect
+introduced_by: MVP-004
 priority: P1
 status: completed
 implementation_commit: ff34fc1953b808cfe58a4ab11406f36080dafac0

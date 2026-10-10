@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-005
 title: "Score normalized results with immutable provenance and existing scorers"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 5b1dd323623b5243b0b1b4f34e0d051820aefb98

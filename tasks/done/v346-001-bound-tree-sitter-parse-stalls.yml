@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V346-001
 title: Bound tree-sitter parse stalls for large files
 milestone: review-followups-2026-10-04
+epic: code-analysis
+kind: defect
+introduced_by: V15-001
 priority: P2
 status: completed
 depends_on: [V316-001]

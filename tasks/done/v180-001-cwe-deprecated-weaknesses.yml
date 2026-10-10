@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V180-001
 title: Exclude deprecated weaknesses from the bundled CWE catalog
 milestone: cwe-catalog-deprecation-2026-10
+epic: audits
+kind: defect
+introduced_by: V63-001
 priority: P2
 status: completed
 implementation_commit: 332d5d44258f1921f0385a4e0d616c2c305c91be

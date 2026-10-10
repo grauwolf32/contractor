@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-004
 title: Scan a complete prepared HTTP request with sqlmap
 milestone: scan-tools-first-slice
+epic: scan-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 716c51f0fd7c861125288f579f102487381cd435

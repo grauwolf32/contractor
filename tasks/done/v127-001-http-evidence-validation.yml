@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V127-001
 title: Reject HTTP exchanges that finding evidence cannot retain
 milestone: http-evidence-validation-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V63-001
 priority: P1
 status: completed
 implementation_commit: f9c94bffe876ef2db04be11bbad303fd516c807d

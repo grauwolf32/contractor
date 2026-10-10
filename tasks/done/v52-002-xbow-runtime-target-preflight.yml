@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V52-002
 title: Align local XBOW target publication with Runtime HTTP policy
 milestone: live-workflow-baselines
+epic: workflows
+kind: defect
 priority: P1
 status: completed
 implementation_commit: cd3c3d5cb594b71ad8b2225def432d7ec8a6b667

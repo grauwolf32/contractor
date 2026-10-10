@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V17-006
 title: Add explicit Planner projections over correlated Worker State
 milestone: worker-results-and-live-state
+epic: planner-worker
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 991f557a0497388a98be0085e0179cf47dc3eda2

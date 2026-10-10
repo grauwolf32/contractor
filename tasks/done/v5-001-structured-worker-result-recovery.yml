@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V5-001
 title: Recover Worker results with structured output
 milestone: live-model-reliability
+epic: planner-worker
+kind: defect
+introduced_by: MVP-012
 priority: P0
 status: completed
 implementation_commit: 7bda680abb957577a6996d9ea5250e10a356e1e7

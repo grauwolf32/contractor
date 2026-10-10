@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-000
 title: Implement independent priority verdict contracts and deterministic selection core
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 3fedf3c1648ef75592a6d47f254584a168364a02

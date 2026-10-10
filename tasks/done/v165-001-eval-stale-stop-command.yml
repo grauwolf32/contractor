@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V165-001
 title: Clear stale Eval stop commands that are no longer allowed
 milestone: review-defects-2026-10
+epic: evals
+kind: defect
+introduced_by: V72-001
 priority: P1
 status: completed
 implementation_commit: eb9fbe68d0e1d2268848e0258107777bdd92e49b

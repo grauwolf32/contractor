@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-011
 title: Verify contextual checklist prioritization across process and browser boundaries
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-007
 title: Simplify legacy evaluation workspaces
 milestone: ui-design-review-2
+epic: ui
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 218146f9652be680190fdeb98c4ebec0a3b91bf8

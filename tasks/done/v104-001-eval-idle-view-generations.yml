@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V104-001
 title: Stop idle evaluation ticks from publishing duplicate views
 milestone: eval-idle-view-generations-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
 priority: P1
 status: completed
 implementation_commit: 5517ee449ccb886317407819d9ce650ba9b1af6e

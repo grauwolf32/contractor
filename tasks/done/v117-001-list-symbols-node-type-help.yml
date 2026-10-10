@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V117-001
 title: Correct list_symbols node-type guidance
 milestone: list-symbols-node-type-help-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V15-002
 priority: P2
 status: completed
 implementation_commit: 3c6672d4d17d9e0c468032c3f815c96e770eee2e

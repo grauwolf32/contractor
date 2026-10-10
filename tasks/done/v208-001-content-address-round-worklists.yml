@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V208-001
 title: Content-address Audit Round worklist packages
 milestone: audit-round-reliability-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: e289fd7fe20765385e055f3341c185bbf4fe523b

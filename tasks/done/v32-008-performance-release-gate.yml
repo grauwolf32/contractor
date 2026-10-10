@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-008
 title: Verify performance metrics, disabled paths and profiling overhead end to end
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 18bf39cdaf33cb63ef60fd85617888447aed5c8d

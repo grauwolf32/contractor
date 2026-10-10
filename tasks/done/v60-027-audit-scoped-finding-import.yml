@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V60-027
 title: Preserve independent findings when importing one receipt into multiple Audits
 milestone: project-review-v60
+epic: audits
+kind: chore
+introduced_by: V25-010
 priority: P2
 status: completed
 implementation_commit: f72102a16258172d726a2688b51b5334fb103aeb

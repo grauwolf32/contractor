@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-008
 title: Expose complete priority inventory, pass history and truthful Audit coverage
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

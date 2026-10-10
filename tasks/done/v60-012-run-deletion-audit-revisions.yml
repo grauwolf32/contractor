@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-012
 title: Invalidate affected Audit revisions atomically when a retained Run is deleted
 milestone: project-review-v60
+epic: audits
+kind: defect
+introduced_by: V25-008
 priority: P2
 status: completed
 depends_on:

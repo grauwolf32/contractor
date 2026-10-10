@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-025
 title: Simplify reviewed subsystem boundaries after correctness fixes
 milestone: project-review-v60
+epic: quality
+kind: chore
 priority: P2
 status: completed
 depends_on:

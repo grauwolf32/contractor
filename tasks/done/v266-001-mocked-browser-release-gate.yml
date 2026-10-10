@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V266-001
 title: Run every mocked browser journey in release verification
 milestone: release-gate-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: eddef91dada4eaa73c028b74f4fa4d4e85d68907

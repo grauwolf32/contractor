@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V4-009A
 title: Implement Workflow selection and idempotent Run creation UI
 milestone: server-ui-and-operations
+epic: ui
+kind: feature
 priority: P0
 status: completed
 implementation_commit: e86e61ff184a3958a6f78e5bcf0fa5d067f16ec8

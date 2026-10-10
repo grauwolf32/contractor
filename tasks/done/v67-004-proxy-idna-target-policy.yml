@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V67-004
 title: Apply HTTP proxy target policy to the canonical destination host
 milestone: github-issue-remediation-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V12-003
 priority: P1
 status: completed
 implementation_commit: 6e4b1587e62e4482db74f4772495b8564fae771a

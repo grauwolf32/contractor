@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V70-002
 title: Preserve artifact media types during version updates
 milestone: github-issue-remediation-2026-10-v70
+epic: projects-artifacts
+kind: defect
+introduced_by: V4-009
 priority: P1
 status: completed
 implementation_commit: b76d6e930ac75a24a7869b82745098b9b7e9e29b

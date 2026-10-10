@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V307-001
 title: Correct paged inventory states, library links and triage codes
 milestone: review-defects-2026-10-04
+epic: operations
+kind: defect
+introduced_by: V260-001
 priority: P2
 status: completed
 implementation_commit: 56369cf787a03ba2e9a91cc376a37030b1898133

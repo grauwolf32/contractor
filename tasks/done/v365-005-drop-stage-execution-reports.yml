@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-005
 title: "Drop the dead stage_execution_reports table"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V1-004
 priority: P2
 status: completed
 implementation_commit: bc114ccfca330a3e4f28ae25b02399f4297fbd10

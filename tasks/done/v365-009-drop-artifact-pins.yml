@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-009
 title: "Drop the write-only artifact_pins table"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: MVP-005
 priority: P2
 status: completed
 implementation_commit: 852c273fc6aa68dfbf9dea52ef5abc9567b3b6c6

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-010
 title: Relative dates, scaled Markdown headings and smaller main bundle
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 9e5d19dcdd3f2662135eea3dd28dfb428db07a98

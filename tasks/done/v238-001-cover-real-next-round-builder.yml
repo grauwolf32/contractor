@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V238-001
 title: Verify real multi-Round Audit preparation and its stop boundaries
 milestone: runtime-maintenance-2026-10
+epic: audits
+kind: chore
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: 1a4d63f1d4cba8a577c2c714cc4360eb40c9291f

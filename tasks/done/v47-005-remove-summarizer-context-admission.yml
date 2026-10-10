@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V47-005
 title: "Remove implicit summarizer context admission from V47-003"
 milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: chore
+introduced_by: V47-003
 priority: P1
 status: completed
 implementation_commit: e146a33abef314b9856c539f9b7f23b683cc65f4

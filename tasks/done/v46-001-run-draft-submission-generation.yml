@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V46-001"
 title: "Preserve replacement Run drafts when an earlier submission finishes"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V37-002
 priority: "P2"
 status: "completed"
 implementation_commit: a6c13b50ffc47854eae267abddb6227d5b19b668

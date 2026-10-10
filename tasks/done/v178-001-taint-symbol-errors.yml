@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V178-001
 title: Clarify taint annotation symbol names and deterministic misses
 milestone: taint-symbol-resolution-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V16-002
 priority: P2
 status: completed
 implementation_commit: 1b8a3fae339ff057b49110d11eeaf1d0fa4f0639

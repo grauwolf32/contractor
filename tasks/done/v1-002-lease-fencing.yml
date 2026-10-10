@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V1-002
 title: Complete confirmed heartbeat leases, self-termination, fencing, and reconciliation
 milestone: first-slice-hardening
+epic: execution-core
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "d86859eecae703daef603063d45897e1baa274b2"

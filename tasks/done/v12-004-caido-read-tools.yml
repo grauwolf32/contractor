@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V12-004
 title: Port bounded Caido discovery and read tools
 milestone: http-caido-tools-mvp
+epic: http-tools
+kind: feature
 priority: P0
 status: completed
 implementation_commit: e37ba6fb7c301dfbb5fa7435e19f66d98efd7b7b

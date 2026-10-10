@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V365-002
 title: "Move run execution SQL into *_sql.go files"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 246cc7aee9fc0d65c3f3e3b1c6ac2263df08d6c6

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V37-009"
 title: "Highlight declared primary outputs and preview a selected result with one action"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V24-001
 priority: "P2"
 status: "completed"
 implementation_commit: "b2b136b679975e2afbbe380052e6aaccf0a02226"

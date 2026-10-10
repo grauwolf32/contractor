@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V240-001
 title: Batch Audit finding collection and skip retained proposals on replay
 milestone: runtime-maintenance-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-010
 priority: P2
 status: completed
 implementation_commit: f42f4e4d871000ae634fde871496a701c9d5c346

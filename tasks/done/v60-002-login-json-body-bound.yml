@@ -1,5 +1,8 @@
 schema_version: '1.0'
 milestone: project-review-v60
+epic: operations
+kind: defect
+introduced_by: V4-006
 priority: P2
 languages:
 - go

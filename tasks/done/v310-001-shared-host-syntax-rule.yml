@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V310-001
 title: One host-syntax rule for HTTP, Caido and scanners
 milestone: review-defects-2026-10-04
+epic: http-tools
+kind: defect
+introduced_by: V162-001
 priority: P2
 status: completed
 implementation_commit: eb646480da8e75abb4593f1ba32cc3cf9e3bb941

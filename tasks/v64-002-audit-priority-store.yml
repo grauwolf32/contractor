@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-002
 title: Persist Audit candidate inventory, ranking cycles and atomic admissions
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

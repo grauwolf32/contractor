@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V163-001
 title: Scope Audit inbox holds and skip unreadable discarded receipts
 milestone: review-defects-2026-10
+epic: audits
+kind: defect
+introduced_by: V60-027
 priority: P1
 status: completed
 implementation_commit: 3b2d8259c1575de105eafa0e1fc2c4923d239bd6

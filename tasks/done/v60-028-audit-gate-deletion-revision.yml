@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-028
 title: Refresh Audit revision after source Run deletion in the controller gate
 milestone: project-review-v60
+epic: audits
+kind: chore
+introduced_by: V60-012
 priority: P2
 status: completed
 implementation_commit: 00a44a5b971f4a4e353779d0dcc63dc2c91e65dd

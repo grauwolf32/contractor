@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V231-001
 title: Charge and classify rejected Planner Gateway responses
 milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V65-001
 priority: P2
 status: completed
 implementation_commit: c2a935eb1db3f24ab5a9afa31665775cc6d8faeb

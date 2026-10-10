@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-021
 title: Serve encoded valid client-route identities on direct navigation
 milestone: project-review-v60
+epic: ui
+kind: defect
+introduced_by: V4-008
 priority: P2
 status: completed
 depends_on:

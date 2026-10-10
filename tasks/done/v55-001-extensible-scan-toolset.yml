@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-001
 title: Add extensible optional scanner tools and capability probes
 milestone: scan-tools-first-slice
+epic: scan-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 81e476278e0ed5e9e1ff97cf187761f43e092aa9

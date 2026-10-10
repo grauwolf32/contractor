@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V131-001
 title: Preserve retryability for transient HTTP body artifact reads
 milestone: http-body-read-retry-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V12-003
 priority: P2
 status: completed
 implementation_commit: 8d6753c64791e6ab6620368e63dd500b14445565

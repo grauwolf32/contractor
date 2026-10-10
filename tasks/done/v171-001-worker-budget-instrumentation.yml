@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V171-001
 title: Remove unreachable Worker budget error hooks
 milestone: worker-budget-instrumentation-2026-10
+epic: planner-worker
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 6b31f1b425bf83079c31bc988f47f66191a75824

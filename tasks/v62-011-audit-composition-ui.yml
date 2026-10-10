@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-011
 title: Show preparation and generated coverage in the Audit user journey
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V365-004
 title: "Move the remaining SQL into *_sql.go files and enforce placement"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 72825e4fa46477bb524624c695efb1e414c2eb5a

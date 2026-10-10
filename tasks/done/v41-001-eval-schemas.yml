@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-001
 title: "Implement portable eval schemas, records and semantic validation"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 2f2bccb76fca5ceeb8b389f784c43df874eb8949

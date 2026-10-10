@@ -1,5 +1,7 @@
 schema_version: '1.0'
 milestone: project-review-v60
+epic: quality
+kind: chore
 priority: P2
 languages:
 - go

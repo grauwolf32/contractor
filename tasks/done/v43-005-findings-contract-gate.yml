@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V43-005
 title: "Verify the reusable findings path and prepare quality eval scenarios"
 milestone: findings-tools
+epic: findings
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 243fed1034140f9f9af625a2a190fc5c92faa925

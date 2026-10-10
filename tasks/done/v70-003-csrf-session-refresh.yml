@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V70-003
 title: Recover stale CSRF tokens after another tab signs in
 milestone: github-issue-remediation-2026-10-v70
+epic: ui
+kind: defect
+introduced_by: V4-008
 priority: P1
 status: completed
 implementation_commit: 26cbb733697c4658f07212a31b99f59f5a457848

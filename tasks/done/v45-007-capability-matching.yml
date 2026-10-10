@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V45-007
 title: Isolate deterministic capability matching from Registry
 milestone: server-maintainability
+epic: quality
+kind: chore
 priority: P2
 status: completed
 depends_on: []

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-006
 title: "Compare complete experiment membership with honest quality and cost coverage"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 1f06c199c70bfca4b38148134373715c391fb194

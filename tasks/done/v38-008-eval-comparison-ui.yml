@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-008"
 title: "Show complete experiment comparisons, evidence and review in Evals"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "a5aaa119d99b842ab84e2a3a41923f3cd4078d47"

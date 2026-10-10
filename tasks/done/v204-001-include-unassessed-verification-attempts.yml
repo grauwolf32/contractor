@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V204-001
 title: Include unassessed verification attempts in finding provenance
 milestone: audit-provenance-truth-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: 1f5c138c607be784aaadf0498d2305dd3514fa23

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V40-002
 title: "Prepare instruction experiment bindings and a frozen plan after format readiness"
 milestone: agent-instruction-evaluation
+epic: evals
+kind: feature
 priority: P1
 status: in_progress
 implementation_commit: null

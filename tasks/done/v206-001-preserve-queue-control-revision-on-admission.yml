@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V206-001
 title: Preserve owner Queue control revision during Stage admission
 milestone: queue-control-consistency-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V24-003
 priority: P2
 status: completed
 implementation_commit: 10ff0699fc9a44b5d75c72674aa906087748ac62

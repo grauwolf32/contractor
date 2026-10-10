@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V10-001
 title: Define deterministic Agent Skill package validation
 milestone: agent-skills-mvp
+epic: agent-skills
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 7fe40a3bdca73f295b5db38a1a34a1b704bd7ac7

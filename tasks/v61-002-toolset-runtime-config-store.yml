@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-002
 title: Extend RuntimeConfig merge and credential lifecycle for configurable toolsets
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

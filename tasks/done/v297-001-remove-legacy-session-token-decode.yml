@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V297-001
 title: Remove legacy Planner session token decoding
 milestone: review-defects-2026-10-04
+epic: planner-worker
+kind: chore
+introduced_by: V188-001
 priority: P2
 status: completed
 implementation_commit: 96e72561094f50684f034d3e157d94ef9b7f4043

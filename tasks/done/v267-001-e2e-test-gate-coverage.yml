@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V267-001
 title: Select every e2e-tagged test through an executable gate
 milestone: release-gate-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 810b71d301857deb815136f257fc8dd043f7302c

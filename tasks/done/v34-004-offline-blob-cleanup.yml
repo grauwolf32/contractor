@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V34-004
 title: Add offline dry-run cleanup for orphan filesystem blobs
 milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 69fb7f32b7b6d04523c427b56e3d7bdda7c3ba8a

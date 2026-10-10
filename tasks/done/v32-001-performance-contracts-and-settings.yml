@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-001
 title: Define performance switches, bounded records and allocation resource contracts
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 18fd412df87d8b14e9f8ce55c8860f064615cd79

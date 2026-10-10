@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V96-002
 title: Label offline identity timestamps by what they record
 milestone: operations-detail-fact-clarity-2026-10
+epic: operations
+kind: defect
+introduced_by: V66-006
 priority: P2
 status: completed
 implementation_commit: 1e5a8593f830b6fb5a8af001658a596557838f5e

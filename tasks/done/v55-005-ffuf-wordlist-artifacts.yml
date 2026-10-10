@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-005
 title: Add ffuf with validated artifact-backed wordlists
 milestone: scan-tools-first-slice
+epic: scan-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: d3f80ff7eb79d9cb6e8336a0f03fcb1bae08770f

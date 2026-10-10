@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V123-001
 title: Distinguish read_file past EOF from a missing workspace file
 milestone: read-file-past-eof-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V11-007
 priority: P2
 status: completed
 implementation_commit: e26aecd77db1f62085f35eea9553e01cb080610a

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-006
 title: Deliver simple scan Workflows and artifact upload journey
 milestone: scan-tools-first-slice
+epic: scan-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "3728168c03155279a0145c65e2898d613886ce18"

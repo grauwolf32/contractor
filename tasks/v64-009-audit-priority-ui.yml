@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-009
 title: Show Audit ranking progress, top-N selection and deferred checklist reasons
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

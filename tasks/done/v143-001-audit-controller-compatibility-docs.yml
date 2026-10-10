@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V143-001
 title: Correct Audit controller surface and compatibility reason docs
 milestone: audit-controller-compatibility-docs-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-004
 priority: P3
 status: completed
 implementation_commit: 41ca820d39d94be8c586752882d36697cdbc1c48

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-007
 title: Route admitted proposed checks to explicit profile Workflow bindings
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P2
 status: deferred
 deferral:

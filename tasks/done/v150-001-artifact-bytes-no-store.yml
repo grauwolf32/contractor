@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V150-001
 title: Prevent browser caching of raw Artifact downloads
 milestone: artifact-bytes-no-store-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V4-001A
 priority: P2
 status: completed
 implementation_commit: 16f99cad9dc70318baee5f31bac025c329409a68

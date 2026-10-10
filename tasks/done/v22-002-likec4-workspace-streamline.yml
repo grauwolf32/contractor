@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V22-002
 title: Publish the workspace-backed LikeC4 Streamline workflow
 milestone: workflow-catalog-consolidation
+epic: workflows
+kind: feature
 priority: P1
 status: completed
 implementation_commit: ad228239a09b2d68ccead31315916609f3a38803

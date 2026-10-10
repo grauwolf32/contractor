@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V70-001
 title: Drain expired Scheduler telemetry without starving reports
 milestone: github-issue-remediation-2026-10-v70
+epic: execution-core
+kind: defect
+introduced_by: V1-004
 priority: P1
 status: completed
 implementation_commit: d42f8d2d3c97fa7b5ce63b132233df748ca47be6

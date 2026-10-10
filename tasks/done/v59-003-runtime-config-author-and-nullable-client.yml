@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V59-003
 title: Separate RuntimeConfig author/read contracts and preserve explicit null in Go
 milestone: public-api-review-corrections
+epic: api-contracts
+kind: defect
+introduced_by: V8-008
 priority: P2
 status: completed
 implementation_commit: ccecdf6370f11d6e1e5e11d91075aa713caf3299

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V29-004
 title: Index Artifact reference checks and history and compare binary digests directly
 milestone: postgres-reliability-and-query-efficiency
+epic: persistence
+kind: defect
+introduced_by: V24-004
 priority: P2
 status: completed
 implementation_commit: 6d4e5212e691980344e07627ef5464db433a9ad6

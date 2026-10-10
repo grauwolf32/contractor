@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-004
 title: Add primary Workflow outputs and canonicalize built-in output names
 milestone: project-workspaces-mvp
+epic: projects-artifacts
+kind: feature
 priority: P0
 status: completed
 implementation_commit: d52905f681b4c46aa97487cc02afd949eb4b4903

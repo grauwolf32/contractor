@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V207-001
 title: Retry production public Run creation after definite PostgreSQL aborts
 milestone: run-creation-reliability-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V45-001
 priority: P2
 status: completed
 implementation_commit: 6a529332c03550db722086fbbd040505d82d3edb

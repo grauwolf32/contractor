@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-005
 title: Review execution recovery and concurrent lifecycle transitions
 milestone: project-review-v60
+epic: execution-core
+kind: chore
 priority: P2
 status: completed
 depends_on:

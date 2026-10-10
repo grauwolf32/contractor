@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V198-001
 title: Reject source bundles that the runtime cannot open
 milestone: sourcebundle-validation-2026-10
+epic: projects-artifacts
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 48c00037b5079d5f647ab9a7cc3d25a888931e60

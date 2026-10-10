@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V24-004
 title: Hard-delete released terminal Runs and their complete RunScope
 milestone: workspace-lifecycle-controls
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: caeff574dd0a954177511b5349b57205ee20ee60

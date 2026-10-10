@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V244-001
 title: Remove unused Eval Store and domain helper APIs
 milestone: runtime-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-003
 priority: P2
 status: completed
 implementation_commit: 8c7a64c59e9f27087d09641e696644d5a0e8ba71

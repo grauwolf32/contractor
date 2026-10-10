@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V359-001
 title: Isolate unreadable proposal documents during collection reads
 milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V45-003
 priority: P2
 status: completed
 depends_on: [V282-001]

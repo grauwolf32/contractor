@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V19-001
 title: Add Stage-selected isolated and shared Worker sessions
 milestone: worker-session-modes
+epic: planner-worker
+kind: feature
 priority: P1
 status: completed
 implementation_commit: a4e260a47c6ca2bf746f412861b21127f3eb8928

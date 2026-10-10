@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V2-010
 title: Enforce cumulative Worker invocation budgets
 milestone: project-workflows-operations
+epic: workflows
+kind: defect
+introduced_by: MVP-012
 priority: P1
 status: completed
 implementation_commit: "9426486745fbc3fda74208d11c286585f431f17f"

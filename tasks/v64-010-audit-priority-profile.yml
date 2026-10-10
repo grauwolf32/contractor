@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-010
 title: Publish a runnable prioritized custom-checklist Audit profile and guide
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

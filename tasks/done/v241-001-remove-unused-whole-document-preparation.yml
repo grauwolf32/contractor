@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V241-001
 title: Remove unused whole-document scan preparation entry point
 milestone: runtime-maintenance-2026-10
+epic: scan-tools
+kind: chore
+introduced_by: V55-007
 priority: P2
 status: completed
 implementation_commit: a6fe6e87e517ab41346bd367d7f651b555cb5d01

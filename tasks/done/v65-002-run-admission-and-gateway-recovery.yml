@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V65-002
 title: Persist pending and waiting Runs and coordinate gateway recovery
 milestone: run-admission-gateway-recovery
+epic: planner-worker
+kind: defect
 priority: P1
 status: completed
 implementation_commit: fae981a0010650ff55023facfa71eddf061fe650

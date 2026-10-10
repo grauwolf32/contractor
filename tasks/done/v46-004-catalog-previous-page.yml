@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V46-004"
 title: "Navigate to the previous Catalog result page independently of browser history"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V37-007
 priority: "P2"
 status: "completed"
 implementation_commit: 0de2d0ea741d572f3217e8042d91748f8529879c

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V57-005
 title: Measure and fault-test invocation-scoped A2A connection reuse
 milestone: architecture-review-followups
+epic: execution-core
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 6f2bc0968a439cba944cbce0fab160a13a37c89d

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V28-004
 title: Add safe internal diagnostics at the public API error boundary
 milestone: implementation-maintainability
+epic: quality
+kind: defect
+introduced_by: V4-007A
 priority: P2
 status: completed
 implementation_commit: 1a45b9febb839d07836c46358da91691b51903c0

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-011
 title: Verify and release the second design review implementation
 milestone: ui-design-review-2
+epic: ui
+kind: feature
 priority: P1
 status: completed
 implementation_commit: a597ca1cd04ec2064a09c95cba8877e85c08c604

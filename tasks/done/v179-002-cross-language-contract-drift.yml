@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-002
 title: Align drifted cross-language contract rules
 milestone: code-reuse-2026-10
+epic: api-contracts
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 0da3d64a0e2233215a2cc47e0dfc0f126c8f42f6

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V47-001
 title: "Honor the selected Planner sampling temperature"
 milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: defect
+introduced_by: V1-006
 priority: P1
 status: completed
 implementation_commit: 5696778da4cbf7f02d2ad7dd5f95268ee414e7c6

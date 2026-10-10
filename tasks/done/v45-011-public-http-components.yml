@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V45-011
 title: Separate HTTP route groups and consumer interfaces
 milestone: server-maintainability
+epic: quality
+kind: chore
 priority: P2
 status: completed
 depends_on:

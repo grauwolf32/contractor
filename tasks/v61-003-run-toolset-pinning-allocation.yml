@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-003
 title: Pin shared toolset settings on Run and deliver only allocation-selected configuration
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V354-001
 title: Back off failed Operations snapshot reads triggered by live events
 milestone: review-followups-2026-10-04
+epic: operations
+kind: defect
+introduced_by: V262-001
 priority: P2
 status: completed
 implementation_commit: 941373e286b86fcf26cbfc163a6b6c683d8cf1ed

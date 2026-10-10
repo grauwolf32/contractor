@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V285-001
 title: Renew expired item reviews on Resume through auditstore
 milestone: review-defects-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V236-001
 priority: P2
 status: completed
 implementation_commit: 07f87d2bea9fd1d6f0e760d8b3d722b3ccb383c6

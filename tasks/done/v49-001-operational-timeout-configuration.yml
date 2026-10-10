@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V49-001
 title: Separate transport, operation and lifecycle budgets and expose operational settings
 milestone: operational-timeout-configuration
+epic: runtime-config
+kind: defect
+introduced_by: MVP-014
 priority: P2
 status: completed
 implementation_commit: 31c781996aeec71015759e8f5fb06c20654b6bd1

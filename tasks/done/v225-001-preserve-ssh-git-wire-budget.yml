@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V225-001
 title: Preserve SSH Git wire-budget failures
 milestone: runtime-maintenance-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
 priority: P2
 status: completed
 implementation_commit: 7f9c77c2e111b4ccd52ade45481508f8f36b7fab

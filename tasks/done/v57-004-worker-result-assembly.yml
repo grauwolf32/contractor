@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V57-004
 title: Separate model-result decoding from trusted Worker result assembly
 milestone: architecture-review-followups
+epic: planner-worker
+kind: chore
+introduced_by: V39-005
 priority: P2
 status: completed
 implementation_commit: 7f553b2295051b8ad88a2cea98972727b41afaf8

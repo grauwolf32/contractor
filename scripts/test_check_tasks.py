@@ -6,6 +6,7 @@ POLICY = Policy(
     statuses=frozenset({"pending", "in_progress", "deferred", "completed", "archived"}),
     priorities=frozenset({"P0", "P1", "P2", "P3"}),
     exit_tasks={},
+    epics=frozenset({"core"}),
 )
 COMMIT = "0" * 40
 
@@ -16,6 +17,8 @@ def task(task_id, status="pending", **fields):
         "id": task_id,
         "title": "t",
         "milestone": "m",
+        "epic": "core",
+        "kind": "feature",
         "priority": "P1",
         "status": status,
         "depends_on": [],
@@ -75,10 +78,24 @@ class ValidateTasksTest(unittest.TestCase):
     def test_missing_fields_and_milestone_exit_task(self):
         data = task("V1-001")
         del data["tests"]
-        policy = Policy(POLICY.statuses, POLICY.priorities, {"m": "V1-404"})
+        policy = Policy(POLICY.statuses, POLICY.priorities, {"m": "V1-404"}, POLICY.epics)
         errors = validate([Record("v1-001-x.yml", data)], policy)
         self.assertIn("v1-001-x.yml: missing tests", errors)
         self.assertIn("tasks/index.yml: milestone m exit_task V1-404 has no task file", errors)
+
+    def test_epic_kind_and_introduced_by_checks(self):
+        records = [
+            Record("v1-001-x.yml", task("V1-001", epic="nowhere", kind="bug")),
+            Record("v1-002-x.yml", task("V1-002", kind="defect", introduced_by="V1-001")),
+            Record("v1-003-x.yml", task("V1-003", kind="defect", introduced_by="V1-003")),
+            Record("v1-004-x.yml", task("V1-004", kind="defect", introduced_by="V9-999")),
+        ]
+        errors = validate(records, POLICY)
+        self.assertIn("v1-001-x.yml: epic 'nowhere' is not declared in tasks/epics.yml", errors)
+        self.assertIn("v1-001-x.yml: kind 'bug' is not one of chore, defect, feature", errors)
+        self.assertIn("v1-003-x.yml: introduced_by 'V1-003' must name another existing task", errors)
+        self.assertIn("v1-004-x.yml: introduced_by 'V9-999' must name another existing task", errors)
+        self.assertEqual(len(errors), 4)
 
 
 if __name__ == "__main__":

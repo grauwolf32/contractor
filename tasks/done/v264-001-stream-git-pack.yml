@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V264-001
 title: Stream Git pack import without whole-pack buffering
 milestone: git-import-memory-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
 priority: P2
 status: completed
 implementation_commit: d94366abe22b4c6780ddc54f16ff3a8b9d341862

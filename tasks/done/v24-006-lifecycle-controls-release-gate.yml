@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V24-006
 title: Prove lifecycle controls recovery retention and browser behavior
 milestone: workspace-lifecycle-controls
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 9589827c9105172d6b241d1c96877332b24a27de

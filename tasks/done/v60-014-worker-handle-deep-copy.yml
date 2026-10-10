@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-014
 title: Detach WorkerHandle AgentCard copies without shared mutation
 milestone: project-review-v60
+epic: execution-core
+kind: defect
+introduced_by: V1-006
 priority: P2
 status: completed
 depends_on:

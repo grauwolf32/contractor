@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-006
 title: Consolidate duplicated Runtime digest, JSON, worker and document helpers
 milestone: code-reuse-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 17279feecd96e165e8afc2d539f12b05a769d454

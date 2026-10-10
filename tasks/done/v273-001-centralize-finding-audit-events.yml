@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V273-001
 title: Centralize finding-intake Audit event mutations
 milestone: code-reuse-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-010
 priority: P1
 status: completed
 implementation_commit: 4dc5c535e47900cfa42985948fe2123516758098

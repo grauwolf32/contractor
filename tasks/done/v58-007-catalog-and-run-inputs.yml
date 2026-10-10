@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V58-007
 title: Improve catalog discovery and parameter authoring
 milestone: ui-design-review
+epic: ui
+kind: defect
+introduced_by: V37-007
 priority: P1
 status: completed
 implementation_commit: 846b1c1197c075916324c585ee964f24edec9386

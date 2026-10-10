@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V293-001
 title: Report permanent Planner Gateway failures as non-retryable
 milestone: review-defects-2026-10-04
+epic: planner-worker
+kind: defect
+introduced_by: V65-002
 priority: P1
 status: completed
 implementation_commit: 077810e66f70947872edbdb9d6814bd2d5dcfed9

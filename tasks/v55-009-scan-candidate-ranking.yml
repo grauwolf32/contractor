@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-009
 title: Optionally rank existing scan candidates with an LLM
 milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
 priority: P2
 status: pending
 depends_on: [V55-008]

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V52-001
 title: Validate Caido tool response contracts against the live API
 milestone: live-workflow-baselines
+epic: workflows
+kind: chore
+introduced_by: V12-004
 priority: P1
 status: completed
 implementation_commit: 4bc6abc0c43b3e6d321a072c77d9525f0bf8f27b

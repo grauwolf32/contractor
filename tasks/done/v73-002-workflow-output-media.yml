@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V73-002
 title: Check mapped Workflow output media before finalization
 milestone: scheduler-result-and-report-correctness-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V1-003
 priority: P1
 status: completed
 implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67

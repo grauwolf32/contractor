@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V114-001
 title: Do not renew a Runtime lease from a reregister heartbeat
 milestone: reregister-heartbeat-lease-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V1-002
 priority: P2
 status: completed
 implementation_commit: faa8b3b2dc8ffd968596dc2530ac952261fe69c1

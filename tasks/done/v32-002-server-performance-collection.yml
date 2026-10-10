@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-002
 title: Collect bounded Server HTTP, process and pool performance every 15 seconds
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 52b366174bcd1e42188d3ed9ac8b415672cadec4

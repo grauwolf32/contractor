@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V333-001
 title: Normalize configuration roots and accept group-level help
 milestone: review-defects-2026-10-04
+epic: operations
+kind: defect
+introduced_by: V4-002
 priority: P2
 status: completed
 implementation_commit: d7c45b1b0e31592eaa880dbe80f33713da142595

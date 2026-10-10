@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V72-001
 title: Refresh Eval stop-command revisions before sending
 milestone: eval-revision-race-recovery-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-007
 priority: P1
 status: completed
 implementation_commit: 7eca6aa80040e2f36e59167679528330537b52a9

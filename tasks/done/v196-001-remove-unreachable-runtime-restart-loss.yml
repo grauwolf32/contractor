@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V196-001
 title: Remove unreachable Runtime restart allocation loss reason
 milestone: controlplane-registry-cleanup-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V1-002
 priority: P2
 status: completed
 implementation_commit: 45aa724b89a548b27618e45087121dfcd7c380f5

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V98-001
 title: Recover visibly from failed lazy route chunks
 milestone: ui-navigation-and-run-disclosure-reliability-2026-10
+epic: ui
+kind: defect
+introduced_by: V66-010
 priority: P2
 status: completed
 implementation_commit: 43715178df4987797d70563c4f9a8831937d7010

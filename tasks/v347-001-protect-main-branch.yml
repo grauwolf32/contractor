@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V347-001
 title: Protect main with a required check
 milestone: review-process-2026-10-04
+epic: quality
+kind: chore
 priority: P1
 status: pending
 depends_on: [V334-001]

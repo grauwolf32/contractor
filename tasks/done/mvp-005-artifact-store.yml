@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: MVP-005
 title: Implement the scoped PostgreSQL ArtifactStore core
 milestone: mvp
+epic: execution-core
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "46a1c8b6ad6cbf0d13b495356afd31b5de800030"

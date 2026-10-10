@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V289-001
 title: Scope allocation-loss interrupts to the owning Stage
 milestone: review-defects-2026-10-04
+epic: execution-core
+kind: defect
+introduced_by: V1-002
 priority: P1
 status: completed
 implementation_commit: fe83530f520fab3f34468f8d117bfc4f021f63dd

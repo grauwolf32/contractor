@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V342-001
 title: Replace production asserts in the Runtime
 milestone: review-followups-2026-10-04
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 1681d9cf535f8437097a56798c397121dcf460da

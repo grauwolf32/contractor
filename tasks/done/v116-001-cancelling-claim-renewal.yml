@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V116-001
 title: Preserve cancellation cleanup after claim renewal
 milestone: cancelling-claim-renewal-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V1-001
 priority: P2
 status: completed
 implementation_commit: 72c1a7ddab5ab1487004e6081d5c3f2e7d24eb4b

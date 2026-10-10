@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V15-004
 title: Expose core Trailmark graph navigation tools
 milestone: workspace-code-analysis-mvp
+epic: code-analysis
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 83aa10fd3cbabc24a5a0fbcc95f615fdbdad2127

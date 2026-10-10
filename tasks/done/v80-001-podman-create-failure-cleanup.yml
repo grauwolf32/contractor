@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V80-001
 title: Release Podman ownership after a completed failed create
 milestone: podman-create-failure-cleanup-2026-10
+epic: sandbox
+kind: defect
+introduced_by: V31-002
 priority: P1
 status: completed
 implementation_commit: dd62e7f4f14310c9456a55c9f6a682100cdfe923

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V227-001
 title: Bound Audit inventory gaps in the human report
 milestone: runtime-maintenance-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-007
 priority: P2
 status: completed
 implementation_commit: f3224f33409aeb6e16eb360f7034df0dc63ba774

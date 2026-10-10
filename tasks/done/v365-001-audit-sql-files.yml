@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V365-001
 title: "Move Audit and finding SQL into *_sql.go files"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
 priority: P2
 status: completed
 implementation_commit: a8a0e716340180d3be96d98cbb72596094e88a3b

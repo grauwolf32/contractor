@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-004
 title: Share Go contract value methods and persistence, planner and CLI helpers
 milestone: code-reuse-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 88b181cd061086a16c1e6a8260177288d6c6cbaa

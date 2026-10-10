@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-010"
 title: "Verify native Evals independence and the full external producer journey"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "f3d00ccda97df0a33bfc13764ae8b68d6b868564"

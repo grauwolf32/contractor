@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V35-001
 title: Define Git import contracts and owner-scoped encrypted SSH-key settings
 milestone: git-artifact-import
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: b9e821d18f96e1b7c487da6b6206c940dd03af51

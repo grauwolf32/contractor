@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V350-001
 title: Index Eval claim candidates and batch collection updates
 milestone: review-followups-2026-10-04
+epic: evals
+kind: defect
+introduced_by: V38-003
 priority: P2
 status: completed
 depends_on: [V300-001, V304-001]

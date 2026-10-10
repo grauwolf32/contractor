@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V10-002
 title: Add the artifact-backed SkillCatalog and bundled initialization
 milestone: agent-skills-mvp
+epic: agent-skills
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 809e08bc25785394b691dd99561ee635f9b659c1

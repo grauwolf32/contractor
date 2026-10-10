@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V142-001
 title: Remove stale workspace gate alias and use published live model
 milestone: live-routing-entrypoints-2026-10
+epic: quality
+kind: chore
+introduced_by: V47-006
 priority: P3
 status: completed
 implementation_commit: efed6f1cf2a2b73678dc2011905aa9aee00026dc

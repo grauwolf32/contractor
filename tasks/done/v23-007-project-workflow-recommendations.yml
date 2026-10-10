@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-007
 title: Recommend compatible Workflows and launch Project Runs from UI
 milestone: project-workspaces-mvp
+epic: projects-artifacts
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 90091b861acd1cafd91c4052c1670210ffe0d044

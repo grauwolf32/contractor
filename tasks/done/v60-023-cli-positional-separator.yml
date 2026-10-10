@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-023
 title: Retain positional protection after CLI flag reordering
 milestone: project-review-v60
+epic: operations
+kind: defect
 priority: P2
 status: completed
 depends_on:

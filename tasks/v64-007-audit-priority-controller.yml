@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-007
 title: Run prioritization before each Audit pass and advance deferred checklist work
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

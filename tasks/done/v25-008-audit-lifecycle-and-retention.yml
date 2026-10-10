@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V25-008
 title: Integrate Audit pause, cancel, deletion and retention fences
 milestone: audits-mvp
+epic: audits
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "a8285d51c85c96e9d45a05497f5e881a7d88779b"

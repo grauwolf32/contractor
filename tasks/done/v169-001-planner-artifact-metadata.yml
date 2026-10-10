@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V169-001
 title: Inspect Planner artifacts through exact metadata
 milestone: planner-artifact-metadata-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V34-003
 priority: P2
 status: completed
 implementation_commit: 3762e921ed57312e79c7a0343b946dda9c3c40b3

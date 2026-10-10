@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V69-001
 title: Keep Project finding review status accurate at bounded request cost
 milestone: audit-findings-ui-correctness
+epic: audits
+kind: defect
+introduced_by: V66-008
 priority: P1
 status: completed
 implementation_commit: bf92a15163ae059bf53882e46d09ca96dc503b7a

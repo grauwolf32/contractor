@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V14-002
 title: Retire allocation-free inactive Runtime process instances
 milestone: runtime-lifecycle-hardening
+epic: execution-core
+kind: defect
+introduced_by: MVP-008
 priority: P1
 status: completed
 implementation_commit: 4d37d273306912ce5488d6f4f926770c95be132b

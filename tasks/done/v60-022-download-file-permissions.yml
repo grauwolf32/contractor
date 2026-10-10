@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-022
 title: Preserve private file permissions on forced CLI downloads
 milestone: project-review-v60
+epic: operations
+kind: defect
 priority: P2
 status: completed
 depends_on:

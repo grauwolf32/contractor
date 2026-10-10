@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V8-016
 title: Harden Runtime labels with full API browser and failure-path E2E
 milestone: label-driven-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 5ea78cc580edc833c41aadd6cd3e87201fbda0a5

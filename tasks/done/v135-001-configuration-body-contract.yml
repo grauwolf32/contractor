@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V135-001
 title: Remove unused configuration reference-summary body
 milestone: configuration-body-contract-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: V4-001
 priority: P3
 status: completed
 implementation_commit: 1544736ca11789734537fa42d8c261ebf7097e61

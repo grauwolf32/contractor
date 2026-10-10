@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V37-006"
 title: "Expose authored Workflow summaries and bounded Catalog discovery queries"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V33-001
 priority: "P2"
 status: "completed"
 implementation_commit: "a9a9c7f854a8999a13e3a177106f9c72cd5de0d3"

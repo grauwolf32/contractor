@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V90-001
 title: Remove dead Projects single-page layout modes and exports
 milestone: project-section-dead-modes-2026-10
+epic: ui
+kind: chore
 priority: P2
 status: completed
 implementation_commit: a3ad5adbe2fac7b5a381a6b9f29387f2cf8eea5f

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V75-002
 title: Enforce Eval dataset document size before saving
 milestone: release-and-ui-guardrails-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-007
 priority: P1
 status: completed
 implementation_commit: 8349907dc5b1aa91e23951f2eb272f67781c1299

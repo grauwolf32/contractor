@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V26-003
 title: Ship a curated OWASP ASVS 5.0 verification program
 milestone: audit-program-library
+epic: audits
+kind: feature
 priority: P2
 status: completed
 implementation_commit: f1c20485bdca91e445f3d10162c487966be1af7a

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V37-007"
 title: "Help users discover Workflows and inspect exact Agent versions and usage"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V33-001
 priority: "P2"
 status: "completed"
 implementation_commit: "97e5663afd26e8397c2e668eabbd50c626d6596c"

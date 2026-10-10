@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V313-001
 title: Name C++ declarations that return references
 milestone: review-defects-2026-10-04
+epic: code-analysis
+kind: chore
+introduced_by: V161-001
 priority: P1
 status: completed
 implementation_commit: b120f1d9838e59fae28d5b1e86658396aaf419f0

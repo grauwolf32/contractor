@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V39-002
 title: "Pin Audit completion authority through Run creation and Runtime placement"
 milestone: audit-worker-completion
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: ad8d4e6eab5e2901cd10599a61fe9ac8be4b3df2

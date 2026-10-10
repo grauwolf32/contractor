@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V155-001
 title: Deduplicate release-gate race and process tests
 milestone: release-gate-test-dedup-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 81b84acd60a9d02b73564069e72312787d8ffdc2

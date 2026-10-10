@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V260-001
 title: Expose later Operations configuration and credential pages
 milestone: operations-pagination-2026-10
+epic: operations
+kind: defect
+introduced_by: V8-015
 priority: P1
 status: completed
 implementation_commit: 8c18618b73a0fc0feedcb66215c1dc3c6da17369

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V58-002
 title: Unify fields, responsive layouts and interaction states
 milestone: ui-design-review
+epic: ui
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 7f5e987f59b58b4cdedbbc60b5f3853e3c8bdcbf

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V9-006
 title: Prove Memory response-loss CAS and terminal fencing
 milestone: shared-memory-tools
+epic: memory
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 1de32aa7e72af50551ac82f5154cbc364ce01b5d

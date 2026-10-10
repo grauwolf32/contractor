@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V357-001
 title: Apply the shared redaction policy to OTLP span attributes
 milestone: review-followups-2026-10-04
+epic: operations
+kind: defect
+introduced_by: V8-011
 priority: P2
 status: completed
 implementation_commit: 7d4243fe22d182e1e185774deea3d42606133c90

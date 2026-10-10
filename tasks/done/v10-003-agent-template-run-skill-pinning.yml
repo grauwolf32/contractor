@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V10-003
 title: Resolve AgentTemplate skills into immutable Run artifacts
 milestone: agent-skills-mvp
+epic: agent-skills
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 2852e1e5db32582bdae8b7c60e44f4187e14d866

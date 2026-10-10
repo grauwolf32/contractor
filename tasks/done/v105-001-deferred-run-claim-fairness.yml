@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V105-001
 title: Let pending Runs pass deferred running Runs
 milestone: scheduler-deferred-claim-fairness-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V27-002
 priority: P1
 status: completed
 implementation_commit: 25f469e1c4149e557acbb41ccd053e72d666d379

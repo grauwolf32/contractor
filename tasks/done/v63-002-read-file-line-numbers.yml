@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V63-002
 title: Restore opt-in absolute line numbers in workspace read_file
 milestone: findings-benchmark-contracts
+epic: findings
+kind: feature
+introduced_by: V11-007
 priority: P1
 status: completed
 implementation_commit: 6253c99df7a4ce240d9cda6c1e88272d448ff099

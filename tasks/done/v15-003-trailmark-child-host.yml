@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V15-003
 title: Build the allocation-local Trailmark child host
 milestone: workspace-code-analysis-mvp
+epic: code-analysis
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 4a4c6fe9dbb3e88f5f76633bf10ceeaf5f1f84b9

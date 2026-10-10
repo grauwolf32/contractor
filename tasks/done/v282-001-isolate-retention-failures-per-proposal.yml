@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V282-001
 title: Isolate deterministic retention failures to one proposal
 milestone: review-defects-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V240-001
 priority: P2
 status: completed
 implementation_commit: 79ad62e2370f023ada7c9377a6e437d1dc11f0f8

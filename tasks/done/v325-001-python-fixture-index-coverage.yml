@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V325-001
 title: Restore Python coverage of every fixture-index message type
 milestone: review-defects-2026-10-04
+epic: api-contracts
+kind: chore
+introduced_by: V222-001
 priority: P2
 status: completed
 implementation_commit: c3ec72ab3180c702c44668ae72eaa695cb010fbd

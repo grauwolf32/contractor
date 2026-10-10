@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V43-002
 title: "Prepare pinned findings collections from existing server records"
 milestone: findings-tools
+epic: findings
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 67452ff58aa4ea63b50470b8f9c9a4b07e5bb689

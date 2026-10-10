@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V58-013
 title: Restore full Finding descriptions and improve expanded history layouts
 milestone: ui-design-review
+epic: ui
+kind: defect
+introduced_by: V58-005
 priority: P1
 status: completed
 implementation_commit: c030303ab81a80665836ccc484dae7e45e3ed504

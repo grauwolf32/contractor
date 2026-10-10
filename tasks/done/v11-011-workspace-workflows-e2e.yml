@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V11-011
 title: Add source-workspace workflow fixtures and allocation-boundary E2E
 milestone: run-workspaces-mvp
+epic: workspaces
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 5566a95e1b1cec8d5e3de9928698f55fb5563d0b

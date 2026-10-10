@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V157-001
 title: Remove dead test helpers and lint tagged Go source
 milestone: tagged-unused-code-lint-2026-10
+epic: quality
+kind: chore
 priority: P3
 status: completed
 implementation_commit: 8f3bdec94310b7aeb75bde88f95c5ec442236ae3

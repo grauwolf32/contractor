@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-001"
 title: "Define the Evals experiment and comparison experience before implementation"
 milestone: "evals-experience-design"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "3a73e8fe993c5dc3134ae47230f878d115dbda7f"

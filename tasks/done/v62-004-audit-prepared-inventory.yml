@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-004
 title: Build the first Audit worklist from accepted preparation artifacts
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 114716409000993efb3b8c7a1a7357749f9f21aa

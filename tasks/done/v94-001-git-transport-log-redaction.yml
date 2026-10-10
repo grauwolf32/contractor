@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V94-001
 title: Remove private Git repository paths from transport failure logs
 milestone: local-secret-log-and-process-boundaries-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
 priority: P2
 status: completed
 implementation_commit: 2a331265c0e600f25aeecabf8846dd7d140062f8

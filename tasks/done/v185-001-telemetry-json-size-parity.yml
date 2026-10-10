@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V185-001
 title: Align telemetry JSON size limits across Runtime and Server
 milestone: telemetry-json-size-parity-2026-10
+epic: operations
+kind: defect
+introduced_by: V1-004
 priority: P1
 status: completed
 implementation_commit: c1336ef0d9a53d31f72a81f9bac2a3004d650e29

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V101-001
 title: Classify non-applicable Agent labels as invalid registration input
 milestone: private-agent-label-registration-error-2026-10
+epic: runtime-config
+kind: defect
+introduced_by: V8-009
 priority: P2
 status: completed
 implementation_commit: 9c4feccac87767ecb56c5dd2af2f6645da8c904c

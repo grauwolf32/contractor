@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V230-001
 title: Allow Planner finish after the Worker-call budget is spent
 milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V1-006
 priority: P2
 status: completed
 implementation_commit: 4cbf33ad03058ae6d12b39db4986afe071ead42f

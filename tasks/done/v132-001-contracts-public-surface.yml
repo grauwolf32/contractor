@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V132-001
 title: Remove dead credential sets and private contract re-exports
 milestone: contracts-public-surface-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: V8-003
 priority: P3
 status: completed
 implementation_commit: 0712ad41ed6ff52fc2d2070c7faa08987f444c2f

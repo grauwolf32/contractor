@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V57-003
 title: Decide the ordinary Worker completion strategy from controlled evidence
 milestone: architecture-review-followups
+epic: planner-worker
+kind: chore
 priority: P2
 status: archived
 archive:

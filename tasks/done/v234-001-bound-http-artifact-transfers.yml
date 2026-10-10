@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V234-001
 title: Bound client I/O while artifact transfer slots are held
 milestone: runtime-maintenance-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V34-003
 priority: P2
 status: completed
 implementation_commit: 73bd3d5a349cb537da597efd070831868c8a274e

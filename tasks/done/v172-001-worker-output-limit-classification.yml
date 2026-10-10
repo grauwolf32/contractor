@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V172-001
 title: Classify completion and summarizer output limits
 milestone: worker-output-limit-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V18-002
 priority: P2
 status: completed
 implementation_commit: e4090fadb48f2de169bee3e8c07e2e1ad9a6d2ad

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V353-001
 title: Bound overlay diff CPU under the session lock
 milestone: review-followups-2026-10-04
+epic: workspaces
+kind: defect
+introduced_by: V11-006
 priority: P2
 status: completed
 depends_on: [V320-001]

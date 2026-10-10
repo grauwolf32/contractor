@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-002
 title: Persist Audit preparation executions and retained outputs
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: c13dfbb9b93589716e194aa9a9fe8065a7380d7f

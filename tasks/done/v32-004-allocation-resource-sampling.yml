@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-004
 title: Return allocation-scoped Runtime process resources in final reports
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 198df586165ff9856e9c544dd3c5efc73e5bf8f4

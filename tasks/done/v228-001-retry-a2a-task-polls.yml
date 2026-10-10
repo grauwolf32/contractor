@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V228-001
 title: Retry A2A Task polls and cancel abandoned tasks
 milestone: runtime-maintenance-2026-10
+epic: execution-core
+kind: defect
+introduced_by: MVP-013
 priority: P2
 status: completed
 implementation_commit: 3d3f4532d7351c016a74f09606375b19e7e787c2

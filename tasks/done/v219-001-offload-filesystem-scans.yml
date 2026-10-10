@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V219-001
 title: Keep filesystem read and grep scans off the asyncio loop
 milestone: runtime-maintenance-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V11-007
 priority: P2
 status: completed
 implementation_commit: bf3c722d26a76ecdd76164da7a588ccc3234561b

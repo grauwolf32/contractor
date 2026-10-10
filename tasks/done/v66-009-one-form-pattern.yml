@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-009
 title: Use one pattern for create flows
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: d0ed598505bf222ba26d6f6ede8e21281b650ed5

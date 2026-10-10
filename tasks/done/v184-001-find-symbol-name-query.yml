@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V184-001
 title: Clarify find_symbol name-query guidance
 milestone: code-analysis-tool-guidance-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V15-004
 priority: P2
 status: completed
 implementation_commit: 438ea1167071bdc3fd733dfb9f9786159652145f

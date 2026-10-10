@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V31-006
 title: Enable Podman capabilities only after complete bounded startup probes
 milestone: podman-allocation-execution
+epic: sandbox
+kind: feature
 priority: P0
 status: completed
 implementation_commit: c5815646e53eb2e0cc05e26669e748e1f1b1ccb9

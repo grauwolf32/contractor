@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V35-004
 title: Add Git SSH-key Settings and a shared Workflow/Project import dialog
 milestone: git-artifact-import
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 195db3b54d098dc02b2a8eb966ce32b66ba9c3c8

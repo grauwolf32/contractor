@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V288-001
 title: Tolerate transient Control Plane lease-session stalls
 milestone: review-defects-2026-10-04
+epic: execution-core
+kind: defect
+introduced_by: V107-001
 priority: P1
 status: completed
 implementation_commit: e578642a37faeb3dea95fb47dd95db01cd63cadc

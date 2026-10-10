@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-024
 title: Verify the integrated independent-review corrections
 milestone: project-review-v60
+epic: quality
+kind: feature
 priority: P2
 status: completed
 depends_on:

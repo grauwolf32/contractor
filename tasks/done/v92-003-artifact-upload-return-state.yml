@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V92-003
 title: Preserve Artifact return navigation after version uploads
 milestone: artifact-feedback-corrections-2026-10
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 45dfa5160a29638eada6971735a37af481db4dc0

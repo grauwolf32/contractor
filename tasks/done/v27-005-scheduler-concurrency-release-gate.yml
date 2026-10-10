@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V27-005
 title: Prove Scheduler concurrency settings across production boundaries
 milestone: workflow-scheduler-concurrency
+epic: execution-core
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "742790d376479e635ca19ac203f4246e4c767e7b"

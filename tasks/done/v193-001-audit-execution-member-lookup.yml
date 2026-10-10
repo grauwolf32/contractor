@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V193-001
 title: Read Audit execution members outside the reconcile item window
 milestone: audit-collection-correctness-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-006
 priority: P1
 status: completed
 implementation_commit: 43ec5757470cd25f4356c056c3ac0067b6c9625c

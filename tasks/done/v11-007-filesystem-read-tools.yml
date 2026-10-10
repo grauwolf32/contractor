@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V11-007
 title: Add backend-independent filesystem@1 read tools
 milestone: run-workspaces-mvp
+epic: workspaces
+kind: feature
 priority: P0
 status: completed
 implementation_commit: f07ca56045f279ce47c94c104dc0ac9bba5a188d

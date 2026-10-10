@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V67-006
 title: Align release process tests with asynchronous Run admission and recovery
 milestone: github-issue-remediation-2026-10
+epic: quality
+kind: chore
+introduced_by: V65-002
 priority: P1
 status: completed
 implementation_commit: de1b3866203b3ad57fac896e3e98aa0df6a32c80

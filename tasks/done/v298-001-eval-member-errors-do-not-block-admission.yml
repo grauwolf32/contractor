@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V298-001
 title: Keep Eval admission and publication running when one member fails
 milestone: review-defects-2026-10-04
+epic: evals
+kind: defect
+introduced_by: V38-004
 priority: P1
 status: completed
 implementation_commit: 06eeb858a608c50e605ff113b5e4a309d83dda8b

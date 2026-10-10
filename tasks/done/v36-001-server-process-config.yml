@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V36-001
 title: Load non-secret Server process settings from strict YAML
 milestone: implementation-maintainability
+epic: quality
+kind: defect
+introduced_by: MVP-003
 priority: P2
 status: completed
 implementation_commit: 3d56f4fdf2532fb8ee874c1c1841d81bd1139404

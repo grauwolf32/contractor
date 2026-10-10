@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V195-001
 title: Stop blocked Audit dispatch from rebuilding artifacts and leaking blobs
 milestone: audit-dispatch-correctness-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-006
 priority: P1
 status: completed
 implementation_commit: 63fd01a8a487e94ba3704da98ab2a7052132b4a1

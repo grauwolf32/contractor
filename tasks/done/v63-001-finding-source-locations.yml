@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V63-001
 title: Preserve explicit source and web locations in finding proposals
 milestone: findings-benchmark-contracts
+epic: findings
+kind: feature
+introduced_by: V25-010
 priority: P1
 status: completed
 implementation_commit: 22fcba08211b83bb109c34c706ce5696602b699d

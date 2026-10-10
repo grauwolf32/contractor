@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V48-002
 title: "Keep Memory enumeration independent of ordinary Artifact count"
 milestone: shared-memory-production-correctness
+epic: memory
+kind: defect
+introduced_by: V9-002
 priority: P2
 status: completed
 implementation_commit: 40ac02fd5b1a294c0ff8fca0117dc551862f1e2d

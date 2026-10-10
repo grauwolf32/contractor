@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-020
 title: "Fold finding_proposal_retention into finding_proposal_receipts"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V25-010
 priority: P2
 status: completed
 implementation_commit: 43e25e7159f0dbe5ac186a27c1383fcf51417c7d

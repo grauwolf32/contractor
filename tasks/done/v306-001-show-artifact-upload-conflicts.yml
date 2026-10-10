@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V306-001
 title: Show artifact version-upload conflicts across reconciles
 milestone: review-defects-2026-10-04
+epic: ui
+kind: defect
+introduced_by: V179-008
 priority: P1
 status: completed
 implementation_commit: dd211c2955fd1f4eee20eacf5804b8c46700d08d

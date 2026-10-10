@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V344-001
 title: Deduplicate PKI CLI command tables
 milestone: review-followups-2026-10-04
+epic: operations
+kind: chore
+introduced_by: MVP-007
 priority: P2
 status: completed
 depends_on: [V292-001]

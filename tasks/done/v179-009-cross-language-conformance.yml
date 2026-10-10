@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V179-009
 title: Check hand-written Go, Python and UI contracts against shared schemas and fixtures
 milestone: code-reuse-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: MVP-002
 priority: P2
 status: completed
 implementation_commit: d0bcf6e1261cabc6c93eddfbd00a6a810d90747e

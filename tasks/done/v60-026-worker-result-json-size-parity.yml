@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-026
 title: Align Go result size accounting with the compact UTF-8 Runtime contract
 milestone: project-review-v60
+epic: planner-worker
+kind: defect
+introduced_by: V17-001
 priority: P2
 status: completed
 implementation_commit: 1388a507e7ab626e20c5896de79a43d4981ab148

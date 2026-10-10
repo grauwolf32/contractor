@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V323-001
 title: One configuration ID and version grammar across languages
 milestone: review-defects-2026-10-04
+epic: api-contracts
+kind: defect
+introduced_by: V4-001
 priority: P1
 status: completed
 implementation_commit: 1dcadfc526055b36baea167977235921a735e086

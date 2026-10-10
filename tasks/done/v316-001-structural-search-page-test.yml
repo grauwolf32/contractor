@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V316-001
 title: Replace the V221 wall-clock stall test with structural checks
 milestone: review-defects-2026-10-04
+epic: code-analysis
+kind: chore
+introduced_by: V221-001
 priority: P2
 status: completed
 implementation_commit: 9cb86008196315e154d441a1ded8a358ac7f0b73

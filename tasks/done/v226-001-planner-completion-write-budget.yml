@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V226-001
 title: Preserve Planner completions through database contention
 milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V49-001
 priority: P2
 status: completed
 implementation_commit: ba97a6dd801b928901c4dcd08d67b77c0263cd42

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V364-001
 title: Report the Control Plane lease holder of the current database only
 milestone: review-defects-2026-10-04
+epic: execution-core
+kind: defect
+introduced_by: V107-001
 priority: P2
 status: completed
 implementation_commit: c22cd0489c33d956adde56b246342f39a31d9d5b

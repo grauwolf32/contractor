@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V43-001
 title: "Specify reusable finding creation and collection reading"
 milestone: findings-tools
+epic: findings
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 054f1c203603cb3565385c36e294d05e35a10a12

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V212-001
 title: Remove dead Audit store and domain paths
 milestone: audit-maintenance-2026-10
+epic: audits
+kind: chore
+introduced_by: V25-003
 priority: P2
 status: completed
 implementation_commit: e7dd4839caadba09ae9a21c31aa02ad3fb707bfe

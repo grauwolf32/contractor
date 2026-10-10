@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V24-001
 title: Separate the global Artifact library from Skills and share file drop
 milestone: workspace-lifecycle-controls
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: df550cb624bac16561fe2be65dc813611d1a0119

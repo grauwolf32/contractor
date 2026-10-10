@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-008
 title: Plan bounded scan jobs deterministically
 milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
 priority: P2
 status: completed
 implementation_commit: "e6f6c3a2d921210eafc3139a98105896fabf537e"

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V199-001
 title: Package conflicted Git working-tree paths once
 milestone: sourcebundle-validation-2026-10
+epic: projects-artifacts
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 9d28bce2fb0fe338fd797ff42dc2e396bcbb60ac

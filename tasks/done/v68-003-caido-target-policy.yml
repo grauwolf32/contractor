@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V68-003
 title: Enforce Runtime target policy for Caido replay and Automate
 milestone: github-issue-remediation-2026-10-next
+epic: http-tools
+kind: defect
+introduced_by: V12-005
 priority: P1
 status: completed
 implementation_commit: f9647fa45c6e9bcc25a2e09b75c48a20e4f45b27

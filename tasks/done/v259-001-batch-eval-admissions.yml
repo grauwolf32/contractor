@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V259-001
 title: Admit native Eval members up to available capacity per tick
 milestone: eval-coordinator-throughput-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-004
 priority: P2
 status: completed
 implementation_commit: 4ee5fff096d85f58ce6c25da5f1e32e7d6544a0d

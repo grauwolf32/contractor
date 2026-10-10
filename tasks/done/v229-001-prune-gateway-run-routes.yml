@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V229-001
 title: Prune historical Gateway routes from Run recovery
 milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V65-002
 priority: P2
 status: completed
 implementation_commit: 84f0b406829611357cad735a229fc2b27096a11b

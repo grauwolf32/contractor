@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-009"
 title: "Connect Playground as an optional managed Evals API client"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "d1f7e970e3db12a231bffca565748d1293cbed6d"

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V40-001
 title: "Reuse playground-v2 evals and cover missing instruction-quality cases"
 milestone: agent-instruction-evaluation
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 99d9071bfb12b2191a986d8b66cb8192ddfeb248

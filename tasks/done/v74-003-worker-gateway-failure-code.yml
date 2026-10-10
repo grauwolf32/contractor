@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V74-003
 title: Emit stable Worker Gateway failure code
 milestone: runtime-contract-parity-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V65-001
 priority: P1
 status: completed
 implementation_commit: ec2d347984a6620284c48d763d732ca1215474cd

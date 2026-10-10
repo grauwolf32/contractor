@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-002
 title: Specify deterministic tool Worker inputs and model-free execution
 milestone: scan-tools-first-slice
+epic: scan-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 906e59b2f419c51ede3b3d430779b766847bb948

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-005
 title: Gather execution configuration under one Operations section
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 84bfe696ce7e3fa67ab8c24a2896d90ffbce0cd6

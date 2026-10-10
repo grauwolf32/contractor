@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V149-001
 title: Include prepare maxRunAttempts in AuditProfile identity
 milestone: audit-preparation-attempt-digest-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-001
 priority: P3
 status: completed
 implementation_commit: ab799945aca045955254b9d88d2ededa9e283fae

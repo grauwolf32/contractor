@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V211-001
 title: Accept OpenAPI 3.0 reference-only component aliases and sourced Path Items
 milestone: openapi-reliability-2026-10
+epic: workflows
+kind: defect
+introduced_by: V22-001
 priority: P2
 status: completed
 implementation_commit: 8f8337c1bd636d62d7320a8375ed03869e812709

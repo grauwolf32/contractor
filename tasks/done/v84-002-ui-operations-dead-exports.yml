@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V84-002
 title: Remove test-only Operations requests and unused Workflow presentation helper
 milestone: ui-api-dead-surface-2026-10
+epic: ui
+kind: chore
+introduced_by: V4-010
 priority: P2
 status: completed
 implementation_commit: 985f5755e63e8f5b712de82761d7a81e3e933ae0

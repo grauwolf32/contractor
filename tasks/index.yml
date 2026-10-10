@@ -36,8 +36,18 @@ execution_policy:
     in tasks/; finished tasks (completed, archived) live in tasks/done/. The
     commit that sets a terminal status moves the file with git mv and repoints
     links to it. scripts/check_tasks.py (make lint) enforces location, declared
-    statuses and priorities, unique IDs matching file names, full
-    implementation commits, known dependencies and milestone exit tasks.
+    statuses, priorities, epics and kinds, unique IDs matching file names,
+    full implementation commits, known dependencies and introduced_by
+    references, and milestone exit tasks.
+  task_classification_rule: >-
+    Every task names its epic, one of the stable areas declared in
+    tasks/epics.yml, and its kind: feature (adds or extends a capability),
+    defect (corrects behaviour that was wrong) or chore (no intended behaviour
+    change: tests, CI, dead code, refactoring, documentation, schema
+    consolidation). A defect or chore that repairs earlier work names that
+    task in introduced_by whenever it can be identified. Milestones remain
+    delivery slices; group defects by epic instead of declaring a milestone
+    per defect.
   dependency_rule: >-
     A task may start only after every ID in depends_on is complete. The worker
     may inspect code produced by those dependencies. Each task states its scope,

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-004
 title: Fold audit Checks into Coverage rows
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P2
 status: completed
 implementation_commit: b0ad37f8dfb6e7f5fea5a045d12405207133a5de

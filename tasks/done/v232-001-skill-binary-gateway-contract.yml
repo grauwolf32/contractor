@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V232-001
 title: Keep binary Agent Skill assets compatible with the text Gateway
 milestone: runtime-maintenance-2026-10
+epic: agent-skills
+kind: defect
+introduced_by: V42-001
 priority: P2
 status: completed
 implementation_commit: 67b52ad04c835e6831684be57758995a74544987

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V74-001
 title: Align Server and Runtime CA bundle grammar
 milestone: runtime-contract-parity-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V8-001
 priority: P1
 status: completed
 implementation_commit: 1f9d3046fb71141c02f6d341ed77bfa3ea070932

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V20-001
 title: Rename Run-selected infrastructure labels to runtimeLabels
 milestone: run-metadata-labels
+epic: execution-core
+kind: feature
+introduced_by: V8-015
 priority: P0
 status: completed
 implementation_commit: 88f7206a4103404129588efd7b5fe06373b89523

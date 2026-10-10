@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V11-005
 title: Securely hydrate exact ZIP sources into isolated workspaces
 milestone: run-workspaces-mvp
+epic: workspaces
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 990ab31d391d98d7d76b44e61aa8e474f7883e1d

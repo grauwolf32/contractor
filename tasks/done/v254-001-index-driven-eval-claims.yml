@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V254-001
 title: Select Eval coordinator claims from actionable work
 milestone: eval-controller-efficiency-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-004
 priority: P2
 status: completed
 implementation_commit: 3565c2a20a4c2248399978cfff7c009f077f57dc

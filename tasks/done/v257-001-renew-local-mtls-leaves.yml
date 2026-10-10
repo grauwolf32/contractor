@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V257-001
 title: Renew local mTLS leaves without changing Runtime principal
 milestone: local-pki-renewal-2026-10
+epic: operations
+kind: defect
+introduced_by: MVP-007
 priority: P1
 status: completed
 implementation_commit: 4c493131a20b6ed0ec2d64e5e5a3ada46d613a57

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V24-005
 title: Delete Projects through durable cancellation drain and scoped purge
 milestone: workspace-lifecycle-controls
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 381a86f7510e07c3cda947777cfe2422299f3837
