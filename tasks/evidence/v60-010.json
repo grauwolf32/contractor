@@ -179,43 +179,43 @@
       "task_id": "V37-010",
       "status": "completed",
       "implementation_commit": "1b45fc52bc93c1a3ed53d3081ab243902a1a398a",
-      "path": "tasks/v37-010-audit-review-workspace.yml"
+      "path": "tasks/done/v37-010-audit-review-workspace.yml"
     },
     {
       "task_id": "V37-011",
       "status": "completed",
       "implementation_commit": "efbf7a7f68dbaf5e093c7d29ac148d1b2956ce88",
-      "path": "tasks/v37-011-operations-progressive-forms.yml"
+      "path": "tasks/done/v37-011-operations-progressive-forms.yml"
     },
     {
       "task_id": "V37-012",
       "status": "completed",
       "implementation_commit": "efa7d5dab88c9b200bb7126c2ad6039a544cecc7",
-      "path": "tasks/v37-012-ui-journey-verification.yml"
+      "path": "tasks/done/v37-012-ui-journey-verification.yml"
     },
     {
       "task_id": "V38-007",
       "status": "completed",
       "implementation_commit": "d2a843d32b1653471430d5307dbb73ed11e9ffa2",
-      "path": "tasks/v38-007-eval-setup-ui.yml"
+      "path": "tasks/done/v38-007-eval-setup-ui.yml"
     },
     {
       "task_id": "V38-008",
       "status": "completed",
       "implementation_commit": "a5aaa119d99b842ab84e2a3a41923f3cd4078d47",
-      "path": "tasks/v38-008-eval-comparison-ui.yml"
+      "path": "tasks/done/v38-008-eval-comparison-ui.yml"
     },
     {
       "task_id": "V38-009",
       "status": "completed",
       "implementation_commit": "d1f7e970e3db12a231bffca565748d1293cbed6d",
-      "path": "tasks/v38-009-playground-eval-client.yml"
+      "path": "tasks/done/v38-009-playground-eval-client.yml"
     },
     {
       "task_id": "V38-010",
       "status": "completed",
       "implementation_commit": "f3d00ccda97df0a33bfc13764ae8b68d6b868564",
-      "path": "tasks/v38-010-eval-release-gate.yml"
+      "path": "tasks/done/v38-010-eval-release-gate.yml"
     },
     {
       "task_id": "V40-002",
@@ -227,19 +227,19 @@
       "task_id": "V55-006",
       "status": "completed",
       "implementation_commit": null,
-      "path": "tasks/v55-006-scan-workflows-release.yml"
+      "path": "tasks/done/v55-006-scan-workflows-release.yml"
     },
     {
       "task_id": "V55-007",
       "status": "completed",
       "implementation_commit": "a51c6d938497ce7fb1763931a6126ec664c43f20",
-      "path": "tasks/v55-007-openapi-request-set.yml"
+      "path": "tasks/done/v55-007-openapi-request-set.yml"
     },
     {
       "task_id": "V55-008",
       "status": "completed",
       "implementation_commit": null,
-      "path": "tasks/v55-008-deterministic-scan-planner.yml"
+      "path": "tasks/done/v55-008-deterministic-scan-planner.yml"
     },
     {
       "task_id": "V55-009",
@@ -251,7 +251,7 @@
       "task_id": "V55-010",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v55-010-katana-scan-adapter.yml"
+      "path": "tasks/done/v55-010-katana-scan-adapter.yml"
     },
     {
       "task_id": "V61-001",

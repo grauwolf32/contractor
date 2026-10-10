@@ -1,6 +1,6 @@
 # 19 — Audits: checks, findings, and iterative assessment
 
-Status: **Working agreement; preparation storage, controller dispatch and generated initial inventory are implemented ([V62-002](../../tasks/v62-002-audit-preparation-store.yml), [V62-003](../../tasks/v62-003-audit-preparation-controller.yml), [V62-004](../../tasks/v62-004-audit-prepared-inventory.yml)). Minimal public controls work before a Round exists. Richer provenance, preparation UI and the generated-flow process/browser gate remain V62-010–012.**
+Status: **Working agreement; preparation storage, controller dispatch and generated initial inventory are implemented ([V62-002](../../tasks/done/v62-002-audit-preparation-store.yml), [V62-003](../../tasks/done/v62-003-audit-preparation-controller.yml), [V62-004](../../tasks/done/v62-004-audit-prepared-inventory.yml)). Minimal public controls work before a Round exists. Richer provenance, preparation UI and the generated-flow process/browser gate remain V62-010–012.**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 
@@ -111,12 +111,12 @@ without reinterpretation:
   separate lifetime and remain until Audit deletion.
 
 Verification: the baseline release gates are recorded in
-[V25-012](../../tasks/v25-012-audits-release-gate.yml),
-[V26-005](../../tasks/v26-005-audit-program-library-release-gate.yml) and
-[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml); the
-preparation contract in [V62-001](../../tasks/v62-001-audit-composition-contracts.yml)
+[V25-012](../../tasks/done/v25-012-audits-release-gate.yml),
+[V26-005](../../tasks/done/v26-005-audit-program-library-release-gate.yml) and
+[V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml); the
+preparation contract in [V62-001](../../tasks/done/v62-001-audit-composition-contracts.yml)
 and the OpenAPI scan profile in
-[V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml).
+[V62-009](../../tasks/done/v62-009-audit-openapi-scan-profile.yml).
 
 ## 4. AuditProfile
 
@@ -469,9 +469,9 @@ are unsupported until an explicit Audit-scoped approval contract exists. Scan
 approval and outcome-aware retry rules are unchanged.
 
 Verification: preparation execution is delivered by
-[V62-002](../../tasks/v62-002-audit-preparation-store.yml),
-[V62-003](../../tasks/v62-003-audit-preparation-controller.yml) and
-[V62-004](../../tasks/v62-004-audit-prepared-inventory.yml).
+[V62-002](../../tasks/done/v62-002-audit-preparation-store.yml),
+[V62-003](../../tasks/done/v62-003-audit-preparation-controller.yml) and
+[V62-004](../../tasks/done/v62-004-audit-prepared-inventory.yml).
 
 ## 5. Baseline and scope
 
@@ -2097,13 +2097,13 @@ attempt, evidence, proposal, coverage and provenance retention; and a two-item
 checklist demo while preserving the one-item wire path.
 
 Verification: increments 1–2 are recorded in
-[V25-012](../../tasks/v25-012-audits-release-gate.yml) with
-[V25-010](../../tasks/v25-010-security-findings-intake.yml) and
-[V25-011](../../tasks/v25-011-audit-review-and-multiround.yml); increment 3 in
-[V26-005](../../tasks/v26-005-audit-program-library-release-gate.yml); increment 4
-in [V26-004](../../tasks/v26-004-batched-audit-executions.yml) and
-[V26-006](../../tasks/v26-006-audit-batch-byte-budget.yml); Worker completion in
-[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml); preparation
+[V25-012](../../tasks/done/v25-012-audits-release-gate.yml) with
+[V25-010](../../tasks/done/v25-010-security-findings-intake.yml) and
+[V25-011](../../tasks/done/v25-011-audit-review-and-multiround.yml); increment 3 in
+[V26-005](../../tasks/done/v26-005-audit-program-library-release-gate.yml); increment 4
+in [V26-004](../../tasks/done/v26-004-batched-audit-executions.yml) and
+[V26-006](../../tasks/done/v26-006-audit-batch-byte-budget.yml); Worker completion in
+[V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml); preparation
 in section 4.4.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit

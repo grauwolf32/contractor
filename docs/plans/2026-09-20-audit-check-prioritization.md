@@ -90,7 +90,7 @@ keep unimplemented capabilities unavailable.
 
 | Task | Deliverable | Dependencies |
 | --- | --- | --- |
-| [000](../../tasks/v64-000-audit-priority-core.yml) | Strict model verdicts, stable candidate identities and pure deterministic top-N | V25-002, V25-011 |
+| [000](../../tasks/done/v64-000-audit-priority-core.yml) | Strict model verdicts, stable candidate identities and pure deterministic top-N | V25-002, V25-011 |
 | [001](../../tasks/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and current-schema validation | 000, V62-001, V25-011 |
 | [002](../../tasks/v64-002-audit-priority-store.yml) | Full inventory, cycles, evaluation journal, reservations and retention | 001, V62-002 |
 | [003](../../tasks/v64-003-planner-only-priority-execution.yml) | Explicit zero-Worker Planner shape through Scheduler/model accounting | 001 |

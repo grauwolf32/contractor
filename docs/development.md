@@ -5,7 +5,9 @@
 This guide covers dependency setup and the first local checks. To run the
 application, continue with [the local stack](guides/local-stack.md). For
 integration and release checks, use [the testing guide](testing/README.md).
-Implementation status and recorded evidence live in [tasks/index.yml](../tasks/index.yml).
+Implementation status and recorded evidence live in [tasks/](../tasks/): open
+tasks at the top level, finished ones in `tasks/done/`, with the policy in
+[tasks/index.yml](../tasks/index.yml).
 
 ## Prerequisites
 

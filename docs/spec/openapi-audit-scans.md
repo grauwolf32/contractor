@@ -1,6 +1,6 @@
 # OpenAPI Audit scan adapter
 
-Status: **Supplied-input scans released and verified ([V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml)). Preparation execution and generated initial inventory are implemented by V62-003–004 under [19 §4.4](19-audits.md#44-preparation-contract); the generated-flow process/browser acceptance gate remains V62-012.**
+Status: **Supplied-input scans released and verified ([V62-009](../../tasks/done/v62-009-audit-openapi-scan-profile.yml)). Preparation execution and generated initial inventory are implemented by V62-003–004 under [19 §4.4](19-audits.md#44-preparation-contract); the generated-flow process/browser acceptance gate remains V62-012.**
 
 ## Delivery order
 
