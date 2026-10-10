@@ -111,6 +111,42 @@ An unlisted module must be added to one layer. "No matches for ignored import"
 means a known violation is gone: delete that ignore_imports entry.
 """
 
+# The layers above let the Worker import toolsets; it may use only
+# toolsets.common. The composition root (factories) registers the concrete
+# toolsets, and the Worker learns what it needs about them through its
+# WorkerBuildContext (for example the sensitive-output tools that the
+# registered toolset factories declare). Add a new toolset here too.
+[[tool.importlinter.contracts]]
+id = "worker-no-concrete-toolsets"
+name = "The Worker imports no concrete toolset, only toolsets.common"
+type = "forbidden"
+source_modules = ["contractor_runtime.worker"]
+forbidden_modules = [
+  "contractor_runtime.toolsets.audit_results",
+  "contractor_runtime.toolsets.caido",
+  "contractor_runtime.toolsets.code_analysis",
+  "contractor_runtime.toolsets.code_execution",
+  "contractor_runtime.toolsets.edit_files",
+  "contractor_runtime.toolsets.filesystem",
+  "contractor_runtime.toolsets.http",
+  "contractor_runtime.toolsets.likec4",
+  "contractor_runtime.toolsets.memory",
+  "contractor_runtime.toolsets.openapi",
+  "contractor_runtime.toolsets.run_artifacts",
+  "contractor_runtime.toolsets.scan",
+  "contractor_runtime.toolsets.security_findings",
+  "contractor_runtime.toolsets.source_analysis",
+  "contractor_runtime.toolsets.taint_annotations",
+  "contractor_runtime.toolsets.text_artifacts",
+  "contractor_runtime.toolsets.workspace_changes",
+]
+broken_contract_guidance = """
+The Worker imports a concrete toolset. Declare what the Worker needs on the
+toolset factory (see ToolsetFactory in factories.py), let the composition root
+derive it from the registered factories and pass it in through
+WorkerBuildContext, or move shared code into toolsets.common.
+"""
+
 [[tool.importlinter.contracts]]
 id = "toolsets"
 name = "Toolsets are independent and share code only through toolsets.common"

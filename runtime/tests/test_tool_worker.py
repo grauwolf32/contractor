@@ -178,6 +178,7 @@ async def worker(tmp_path, store, tool, *, spec=None):
         state=WorkerState(),
         a2a_base_url="https://runtime.invalid",
         runtime_settings=spec.runtime_settings,
+        sensitive_output_tools=frozenset(),
     )
     factory = ToolWorkerRuntimeFactory(
         lambda allocation, settings: ArtifactClient(allocation, store)

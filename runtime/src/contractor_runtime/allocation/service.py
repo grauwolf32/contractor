@@ -307,6 +307,7 @@ class AllocationService:
                         state=worker_state,
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
+                        sensitive_output_tools=self._factories.sensitive_output_tools,
                         summarizer=spec.agent_template.summarizer,
                         completion_contract=spec.completion_contract,
                         adapter_handles=adapter_host.handles.for_worker(),

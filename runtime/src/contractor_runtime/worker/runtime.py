@@ -76,9 +76,7 @@ from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
 )
-from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
-from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.finalizer import (
     ResultFinalizerFailure,
@@ -111,18 +109,21 @@ MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
 SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
-# Central registry of tools whose results carry captured HTTP traffic or HTTP
-# session material but whose toolsets do not yet declare
-# ``contractor_sensitive_output`` themselves. Every tool exported by
-# http-tools@1 and the Caido toolset is covered, including tools added later.
-UNDECLARED_SENSITIVE_OUTPUT_TOOLS = frozenset(HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES)
 
 
-def requires_content_free_telemetry(tools: Mapping[str, Any]) -> bool:
-    """Whether any selected tool makes the whole Worker's telemetry content-free."""
+def requires_content_free_telemetry(
+    tools: Mapping[str, Any], *, sensitive_output_tools: frozenset[str]
+) -> bool:
+    """Whether any selected tool makes the whole Worker's telemetry content-free.
+
+    ``sensitive_output_tools`` are the tool names that the registered toolset
+    factories declare as returning captured HTTP traffic or HTTP session
+    material (every http-tools@1 and Caido tool, including tools added later).
+    A tool may also declare ``contractor_sensitive_output`` itself.
+    """
 
     return any(
-        name in UNDECLARED_SENSITIVE_OUTPUT_TOOLS or declares_sensitive_output(tool)
+        name in sensitive_output_tools or declares_sensitive_output(tool)
         for name, tool in tools.items()
     )
 
@@ -148,7 +149,9 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
-        if self._instrumentation is not None and requires_content_free_telemetry(context.tools):
+        if self._instrumentation is not None and requires_content_free_telemetry(
+            context.tools, sensitive_output_tools=context.sensitive_output_tools
+        ):
             self._instrumentation = ContentFreeInstrumentation(self._instrumentation)
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"

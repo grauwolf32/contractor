@@ -182,6 +182,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             tools={"inspect_marker": inspect_marker},  # type: ignore[dict-item]
             state=WorkerState(),
             a2a_base_url="https://runtime.invalid",
+            sensitive_output_tools=frozenset(),
             runtime_settings=RuntimeSettings(
                 llmGatewayUrl=GATEWAY_URL,
                 llmGatewayToken=GATEWAY_TOKEN,

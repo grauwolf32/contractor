@@ -439,6 +439,7 @@ def build_context(
             artifactApiUrl="https://control.example/private/v1",
             requestTimeoutSeconds=30,
         ),
+        sensitive_output_tools=frozenset(),
         project_workspace=session,
         workspace_export=AllocationWorkspaceExport(state="workspace_state", diff="workspace_diff"),
     )
