@@ -1,6 +1,6 @@
 # 34 — Contextual Audit checklist prioritization
 
-Status: **Draft integration target; pure core implemented ([V64-000](../../tasks/v64-000-audit-priority-core.yml)); Audit capability not enabled.**
+Status: **Draft integration target; pure core implemented ([V64-000](../../tasks/done/v64-000-audit-priority-core.yml)); Audit capability not enabled.**
 
 This document owns the proposed behavior; the
 [plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing.
@@ -57,9 +57,9 @@ that it already works.
 
 Verification: integration depends on the preparation contract, store and
 controller tasks
-([V62-001](../../tasks/v62-001-audit-composition-contracts.yml),
-[V62-002](../../tasks/v62-002-audit-preparation-store.yml),
-[V62-003](../../tasks/v62-003-audit-preparation-controller.yml)).
+([V62-001](../../tasks/done/v62-001-audit-composition-contracts.yml),
+[V62-002](../../tasks/done/v62-002-audit-preparation-store.yml),
+[V62-003](../../tasks/done/v62-003-audit-preparation-controller.yml)).
 
 A new opt-in profile declares a pinned ranking Workflow, its resolved model
 route and finite ranking policy, plus existing check roles, limits and interaction
@@ -260,7 +260,7 @@ can authorize a Round. The pure package registers no planner or profile
 capability and changes no existing API or canonical contract.
 
 Verification: the pure core is recorded in
-[V64-000](../../tasks/v64-000-audit-priority-core.yml).
+[V64-000](../../tasks/done/v64-000-audit-priority-core.yml).
 
 ## 6. Evaluation execution, bounds and accounting
 

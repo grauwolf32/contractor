@@ -41,7 +41,7 @@ context:
   informative_references:
     - docs/research/2026-09-19-architecture-evolution-review.md
     - docs/plans/2026-09-19-architecture-review-followups.md
-    - tasks/v2-008-project-workflows-live-eval.yml
+    - tasks/done/v2-008-project-workflows-live-eval.yml
     - tasks/v40-002-agent-instruction-paired-runner.yml
 scope:
   in:

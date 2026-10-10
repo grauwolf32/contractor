@@ -17,7 +17,7 @@ the deployment guide.
 
 [Research](research/README.md) holds unimplemented proposals and hypotheses.
 Accepted contracts belong in the specification; implementation status belongs in
-[tasks/index.yml](../tasks/index.yml). A historical test report does not establish
+[task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
 current readiness.
 
 [UI redesign explorations](design/ui/README.md) record the 2026-10 Web UI

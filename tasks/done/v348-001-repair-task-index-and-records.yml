@@ -11,7 +11,7 @@ goal: Make tasks/index.yml and the task records consistent again.
 context:
   review: docs/research/2026-10-04-code-review.md
   severity: low
-  finding: tasks/index.yml omits all tasks V241-001..V277-001, current_checkpoint still says completed_through V18-003, none of the 71 milestones used by V158-V277 is declared, tasks/v136-001-audit-api-route-table.yml is invalid YAML at line 21 (an unquoted brace in a flow mapping) and V191-001 references the non-existent docs/spec/15-managed-evaluations.md.
+  finding: tasks/index.yml omits all tasks V241-001..V277-001, current_checkpoint still says completed_through V18-003, none of the 71 milestones used by V158-V277 is declared, tasks/done/v136-001-audit-api-route-table.yml is invalid YAML at line 21 (an unquoted brace in a flow mapping) and V191-001 references the non-existent docs/spec/15-managed-evaluations.md.
 scope:
   in:
     - Index V241-V348.

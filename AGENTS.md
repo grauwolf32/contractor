@@ -44,7 +44,7 @@ or legacy data to protect.
 | How should it behave? | `docs/spec/NN-*.md` (accepted contracts), `docs/spec/core-execution-model.md` |
 | Public HTTP/WebSocket contract | `api/openapi/contractor-public-v1.yaml`, `api/events/` |
 | Server ↔ Runtime wire contract | `api/v1alpha1/` plus shared golden fixtures |
-| What is done, in progress or deferred? | `tasks/*.yml` and `tasks/index.yml` |
+| What is done, in progress or deferred? | `tasks/*.yml` (open), `tasks/done/*.yml` (finished), policy in `tasks/index.yml` |
 | Shipped Workflows, templates, policies, Skills | `configs/` (see `configs/README.md`) |
 | Architecture model | `docs/spec/artitecture.likec4` (`make verify-architecture`) |
 | Database schema picture | `docs/spec/database-erd.html` (`make docs-erd`) |
@@ -243,12 +243,22 @@ does not argue it again.
 `execution_policy` at the top of `tasks/index.yml`; read them before you
 create or change a task.
 
+- **Layout.** Open tasks (`pending`, `in_progress`, `deferred`) live in
+  `tasks/`; finished tasks (`completed`, `archived`) live in `tasks/done/`.
+  The task files are the index; there is no separate list to maintain.
+  `scripts/check_tasks.py` (part of `make lint`) enforces the layout, declared
+  statuses and priorities, IDs matching file names, full implementation
+  commits, known dependencies and milestone exit tasks.
 - **Status.** Set `in_progress` before starting. Set `completed` only when
   every acceptance criterion passes and every listed test command succeeds,
   and record `implementation_commit` as the full hash of the last commit whose
-  primary purpose completed the task. Do not pick up another agent's
+  primary purpose completed the task. In that same commit, `git mv` the file
+  into `tasks/done/` and repoint links to it. Do not pick up another agent's
   `in_progress` task. `deferred` and `archived` tasks are not eligible and do
   not satisfy dependencies; reactivating them needs the user.
+- **Intake.** GitHub issues are an intake channel only: turn an issue into a
+  task file (link it from `context.issue`) and close the issue with a link to
+  the task. The task file is what agents work from.
 - **Inputs.** A task may start only when everything in `depends_on` is
   complete. Documents named in `context.specification`, `context.design`,
   `context.format` or `context.proposal` are required reading.
@@ -261,11 +271,11 @@ create or change a task.
   task states failure outcomes, cardinality and lifecycle cases. A defect task
   names the finding with `file:line`, lists every sibling path in scope, and
   requires a regression test on the real store.
-- **Keep the index consistent.** Add `{id, file}` to the `tasks:` list. Use the
-  owning epic's milestone, or declare a new milestone with `exit_task` and
-  `outcome` under `milestones:`; do not create one milestone per defect. Use
-  only declared priorities (P0–P2). Update `current_checkpoint` when you finish
-  a milestone.
+- **Keep the index consistent.** Use the owning epic's milestone, or declare a
+  new milestone with `exit_task` and `outcome` under `milestones:` in
+  `tasks/index.yml`; do not create one milestone per defect. Use only declared
+  priorities (P0–P3). Update `current_checkpoint` when you finish a
+  milestone.
 - **One task per commit**, unless two tasks must land together to keep the
   build green.
 - **Land your branch.** V61 (9 tasks) was completed on a feature branch and
@@ -392,5 +402,5 @@ Notes:
 - [ ] Nothing new is without a production caller (3.7).
 - [ ] `make lint` and the tests for every touched package pass; you report
       exactly what you ran.
-- [ ] The task file and `tasks/index.yml` are updated, and the commit hash is
-      recorded.
+- [ ] The task file is updated (status, commit hash, moved to `tasks/done/`
+      when finished) and `make lint` accepts it.
