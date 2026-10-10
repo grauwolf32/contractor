@@ -13,6 +13,11 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorage
 from contractor_runtime.core.target_policy import IPNetwork, parse_allowed_networks
+from contractor_runtime.projectfs.config import (
+    DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
+    WorkspaceLimits,
+    WorkspaceSettings,
+)
 from contractor_runtime.sandbox.podman.settings import (
     PodmanSettings,
     add_podman_arguments,
@@ -20,31 +25,9 @@ from contractor_runtime.sandbox.podman.settings import (
 )
 from contractor_runtime.work_root_lock import validate_distinct_work_roots
 
-DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS = 30.0
-
 LOCAL_WORKSPACE_DEFAULTS = (50_000, 2 << 30, 256 << 20, 16 << 20)
 MEMORY_WORKSPACE_DEFAULTS = (10_000, 256 << 20, 64 << 20, 4 << 20)
 WORKSPACE_LIMIT_CEILINGS = (1_000_000, 64 << 30, 16 << 30, 2 << 30)
-
-
-@dataclass(frozen=True, slots=True)
-class WorkspaceLimits:
-    max_files: int
-    max_expanded_bytes: int
-    max_managed_text_bytes: int
-    max_file_bytes: int
-
-
-@dataclass(frozen=True, slots=True)
-class WorkspaceSettings:
-    storage: WorkspaceStorage
-    limits: WorkspaceLimits
-    work_root: Path | None = field(default=None, repr=False)
-    operation_timeout_seconds: float = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
-
-    def __post_init__(self) -> None:
-        if not math.isfinite(self.operation_timeout_seconds) or self.operation_timeout_seconds <= 0:
-            raise ValueError("workspace operation timeout must be finite and positive")
 
 
 @dataclass(frozen=True, slots=True)

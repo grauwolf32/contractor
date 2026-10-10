@@ -25,7 +25,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.projectfs import overlay as overlay_module
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 
 
 def test_state_codec_is_canonical_cumulative_and_reconstructs_type_changes() -> None:

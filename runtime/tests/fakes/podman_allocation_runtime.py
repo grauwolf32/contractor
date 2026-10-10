@@ -9,10 +9,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from contractor_runtime.projectfs import DirectWorkspaceSession
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.settings import PodmanSettings
-from contractor_runtime.settings import WorkspaceLimits
 
 
 async def main():

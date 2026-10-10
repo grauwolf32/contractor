@@ -22,8 +22,8 @@ from contractor_runtime.projectfs import (
     WorkspaceStorageError,
     hydrate_workspace,
 )
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
-from contractor_runtime.settings import WorkspaceLimits
 
 
 @asynccontextmanager

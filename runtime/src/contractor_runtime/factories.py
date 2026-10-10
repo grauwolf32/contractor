@@ -32,8 +32,8 @@ from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
+from contractor_runtime.projectfs.config import WorkspaceSettings
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
-from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory

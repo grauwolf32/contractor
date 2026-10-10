@@ -11,6 +11,7 @@ from typing import Protocol
 import jcs
 
 from contractor_runtime.contracts import WorkspaceMode
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError as WorkspaceStorageError
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
@@ -18,7 +19,6 @@ from contractor_runtime.projectfs.paths import (
     parent_paths,
 )
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
-from contractor_runtime.settings import WorkspaceLimits
 from contractor_runtime.threads import to_thread_until_done
 
 

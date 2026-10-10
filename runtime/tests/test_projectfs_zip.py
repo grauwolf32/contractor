@@ -23,7 +23,7 @@ from contractor_runtime.projectfs import (
     WorkspacePreparationError,
     hydrate_workspace,
 )
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 
 REVISION = "sha256:" + "a" * 64
 NOW = datetime(2026, 9, 1, tzinfo=UTC)

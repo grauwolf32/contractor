@@ -44,7 +44,7 @@ from contractor_runtime.projectfs import (
     WorkspaceExportError,
     decode_workspace_state,
 )
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import AllocationWorkspace

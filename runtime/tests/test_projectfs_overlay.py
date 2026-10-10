@@ -18,8 +18,8 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
     overlay,
 )
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree
-from contractor_runtime.settings import WorkspaceLimits
 
 
 def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(

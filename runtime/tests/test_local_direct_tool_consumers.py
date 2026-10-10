@@ -22,7 +22,7 @@ from test_taint_annotations import make_tools as annotation_tools
 import contractor_runtime.toolsets.openapi.tools as openapi_module
 import contractor_runtime.toolsets.taint_annotations.tools as annotations_module
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
 from contractor_runtime.toolsets.filesystem.tools import (
     FilesystemToolError,

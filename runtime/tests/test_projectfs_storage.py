@@ -27,7 +27,7 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     WorkspaceStorageError,
 )
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory
 

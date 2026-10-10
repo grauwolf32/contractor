@@ -24,7 +24,8 @@ from contractor_runtime.factories import (
     FactoryRegistry,
     built_in_factories,
 )
-from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.settings import Settings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets.code_analysis.tools import (
     CODE_ANALYSIS_REF,

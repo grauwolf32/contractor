@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from contractor_runtime.projectfs import LocalWorkspaceProvider
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.projectfs.provider import cleanup_stale_local_workspaces
 from contractor_runtime.sandbox.contracts import SandboxErrorCode
 from contractor_runtime.sandbox.podman.ownership import (
@@ -17,7 +18,7 @@ from contractor_runtime.sandbox.podman.ownership import (
     OwnerLockUnsafeError,
     ServiceOwnerLock,
 )
-from contractor_runtime.settings import LOCAL_WORKSPACE_DEFAULTS, WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.settings import LOCAL_WORKSPACE_DEFAULTS
 from contractor_runtime.work_root_lock import WorkRootLockError, hold_work_roots
 from contractor_runtime.workspace import LocalWorkdirFactory, cleanup_orphan_workdirs
 
@@ -48,7 +49,8 @@ import asyncio
 import sys
 from pathlib import Path
 from contractor_runtime.cli import serve
-from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.settings import Settings
 scratch, project = map(Path, sys.argv[1:])
 settings = Settings(
     control_plane_url='https://localhost:8443',
