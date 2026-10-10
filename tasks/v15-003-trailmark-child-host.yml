@@ -3,7 +3,7 @@ id: V15-003
 title: Build the allocation-local Trailmark child host
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: complete
+status: completed
 implementation_commit: 4a4c6fe9dbb3e88f5f76633bf10ceeaf5f1f84b9
 depends_on: [V15-001]
 languages: [python]

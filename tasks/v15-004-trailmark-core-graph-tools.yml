@@ -3,7 +3,7 @@ id: V15-004
 title: Expose core Trailmark graph navigation tools
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: complete
+status: completed
 implementation_commit: 83aa10fd3cbabc24a5a0fbcc95f615fdbdad2127
 depends_on: [V15-002, V15-003]
 languages: [python]

@@ -3,7 +3,7 @@ id: V11-011
 title: Add source-workspace workflow fixtures and allocation-boundary E2E
 milestone: run-workspaces-mvp
 priority: P0
-status: complete
+status: completed
 implementation_commit: 5566a95e1b1cec8d5e3de9928698f55fb5563d0b
 depends_on: [V11-007, V11-008, V11-010]
 languages: [go, python, yaml]

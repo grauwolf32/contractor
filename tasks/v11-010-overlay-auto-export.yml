@@ -3,7 +3,7 @@ id: V11-010
 title: Auto-export overlay state before terminal A2A response
 milestone: run-workspaces-mvp
 priority: P0
-status: complete
+status: completed
 implementation_commit: 4d39a6925278a5916f9c97be1ec2526b0789f5c6
 amended_by: V17-003
 amendment_note: >-

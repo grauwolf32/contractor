@@ -3,7 +3,7 @@ id: V15-002
 title: Implement portable Tree-sitter workspace analysis
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: complete
+status: completed
 implementation_commit: 834e0908e49b068d742e5fd6f174b62ef9647114
 depends_on: [V15-001]
 languages: [python]

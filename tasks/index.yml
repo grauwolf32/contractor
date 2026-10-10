@@ -14,15 +14,14 @@ execution_policy:
     in_progress: Taken into development; implementation or verification is ongoing.
     deferred: Explicitly on hold after review; must not be selected until the user reactivates it.
     completed: Finished under completion_rule and implementation_commit_rule.
-    complete: Legacy alias of completed; existing task files remain valid.
     archived: Deferred out of the active backlog; retained evidence does not imply completion.
   task_status_rule: >-
     Set status to in_progress in the task file before beginning implementation.
     Keep it in_progress while implementation or required verification remains;
     an intermediate commit does not complete the task. Set status to completed
     only after completion_rule is satisfied, and record implementation_commit.
-    Treat complete and completed as finished when checking dependencies; pending
-    and in_progress are unfinished. Do not independently take an in_progress
+    Only completed tasks satisfy dependencies; pending and in_progress are
+    unfinished. Do not independently take an in_progress
     task already being worked on unless explicitly assigned to continue it.
     Exclude deferred tasks from eligible work even when dependencies are complete.
     They do not satisfy dependencies. Preserve their scope and record the date,
@@ -54,6 +53,7 @@ execution_policy:
     P0: Required for the first runnable MVP.
     P1: Required to harden the MVP into the specified first slice.
     P2: Planned follow-up that is intentionally outside the first releasable slice.
+    P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 fixed_decisions:
   server:

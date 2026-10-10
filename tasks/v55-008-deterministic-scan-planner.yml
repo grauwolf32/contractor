@@ -4,6 +4,7 @@ title: Plan bounded scan jobs deterministically
 milestone: scan-tools-followups
 priority: P2
 status: completed
+implementation_commit: "e6f6c3a2d921210eafc3139a98105896fabf537e"
 depends_on: [V55-007]
 languages: [go, typescript, json, yaml, markdown]
 goal: Turn prepared targets/RequestSet into a persisted reproducible plan executed by ordinary tool Workers.

@@ -3,7 +3,7 @@ id: V9-004
 title: Prove shared Planner and Worker memory in a process MVP
 milestone: shared-memory-tools
 priority: P0
-status: complete
+status: completed
 implementation_commit: e11f45b6661732ab9a30a7b11f126f7700ae23e8
 depends_on: [V9-003]
 languages: [go, python, yaml]

@@ -3,7 +3,7 @@ id: V9-007
 title: Gate Memory redaction isolation and release readiness
 milestone: shared-memory-tools
 priority: P1
-status: complete
+status: completed
 implementation_commit: 9eb4aab2b1f3b4bab0755d5152191a87e8582b49
 depends_on: [V9-006]
 languages: [go, python, yaml]

@@ -3,7 +3,7 @@ id: V17-007
 title: Prove typed Worker results and live observations across process boundaries
 milestone: worker-results-and-live-state
 priority: P0
-status: complete
+status: completed
 implementation_commit: e8428303c703d996919d30c92711e306a23232ea
 depends_on: [V17-006]
 languages: [go, python, yaml]
