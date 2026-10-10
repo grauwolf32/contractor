@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V366-006
+title: Move Run deletion above the Run and Audit stores
+milestone: architecture-layers-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V60-012
+priority: P2
+status: in_progress
+depends_on: [V366-001]
+languages: [go]
+goal: >-
+  Run deletion is composed in one product-layer package, each table's SQL
+  lives with the store that owns it, and the Go layer check needs no known
+  violations.
+context:
+  review: "Architecture layer review of main @ 5a0c6b37, 2026-10-09 (https://claude.ai/artifact/EontMJPJvpGyrCXwe9d9Uv), recommendation 4"
+  specification:
+    - docs/spec/18-run-and-workspace-lifecycle-controls.md
+    - docs/spec/19-audits.md
+  finding: >-
+    internal/runstore/delete_store.go deletes a terminal Run in one
+    transaction that also locks Audits, stamps the collected AuditExecution,
+    tombstones finding proposal receipts and advances Audit revisions through
+    auditstore. runstore (execution layer) therefore imports auditstore
+    (product layer), the last entry in knownViolations of
+    internal/archtest/layers_test.go, and delete_store_sql.go holds SQL for
+    audits, audit_executions and finding_proposal_receipts. A callback from
+    runstore would remove the import but keep that SQL in runstore and would
+    let a store built without the callback skip Audit invalidation silently.
+scope:
+  in:
+    - "internal/rundeletion (product layer) owns DeleteReleasedTerminalRun, RunDeletionBlocker and the not-deletable error and reasons; it works on a pool (own retrying transaction) or inside a caller's pgx.Tx."
+    - "runstore keeps the Run-owned steps: lock the Run and read its deletion gates, read them without a lock, delete the Run row."
+    - "auditstore owns locking the affected Audits, stamping the collected AuditExecution and reading its collection gate; findingintake owns tombstoning finding proposal receipts."
+    - "HTTP API, Audit controller and Project lifecycle controller take a separate Run deleter; internal/app wires rundeletion."
+    - "internal/rundeletion is classified in the product layer and the runstore -> auditstore known violation is deleted."
+  out:
+    - "Deletion order and lock order: Run, Audits, AuditExecution, proposal receipts, Artifacts, Run row, Audit revisions."
+    - "Public API responses, error codes, deletion reasons and database schema."
+acceptance_criteria:
+  - id: A1
+    text: "internal/archtest has no known violations, internal/rundeletion is in the product layer, and runstore SQL no longer names audits, audit_executions or finding_proposal_* tables in deletion code."
+  - id: A2
+    text: "Run deletion keeps its behaviour: the existing deletion, retention and concurrency tests on real PostgreSQL pass, with test edits limited to the moved constructor and error types."
+  - id: A3
+    text: "A store method that takes row locks for deletion refuses a pool-backed store instead of running without a transaction."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/archtest ./internal/rundeletion ./internal/runstore ./internal/auditstore"
+    covers: [A1, A3]
+  - command: "go test -tags integration ./internal/rundeletion ./internal/runstore ./internal/auditstore ./internal/findingintake ./internal/auditimport ./internal/auditcontroller ./internal/projectlifecycle ./internal/artifacts ./internal/httpapi/public ./internal/evalservice ./internal/auditservice ./internal/scheduler"
+    covers: [A2]
+  - command: "make -k release-verify-unit release-verify-integration release-verify-race"
+    covers: [A2]
