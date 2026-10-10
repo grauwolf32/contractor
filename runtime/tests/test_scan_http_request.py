@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.http_request import (
     MAX_BODY_BYTES,
     MAX_HEADER_VALUE_BYTES,

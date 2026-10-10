@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.wordlist import (
     MAX_WORDLIST_ARTIFACT_BYTES,
     MAX_WORDLIST_LINES,

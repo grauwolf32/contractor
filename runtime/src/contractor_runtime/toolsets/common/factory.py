@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Set
 from typing import Any
 
-from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.core.tool_metrics import ToolMetrics
 
 
 def require_selected_tools(

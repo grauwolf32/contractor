@@ -15,8 +15,8 @@ import pytest
 
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessError, ProxySubprocessLauncher
-from contractor_runtime.toolsets.common import process as process_module
-from contractor_runtime.toolsets.common.process import (
+from contractor_runtime.core import process as process_module
+from contractor_runtime.core.process import (
     ProcessOutputLimitError,
     ProcessTimeoutError,
     run_command,

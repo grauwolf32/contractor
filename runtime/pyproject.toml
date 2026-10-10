@@ -90,25 +90,12 @@ layers = [
   "toolsets",
   # platform: infrastructure clients, workspace, sandbox, settings and protocol bindings
   "a2a_server : adapters : agent_skills : artifacts : llm : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
-  # kernel: wire contracts and dependency-free helpers
-  "_https : backoff : contracts : digests : http_body : log : mtls : probe : redaction : strict_json : threads",
+  # kernel: wire contracts and dependency-free helpers (core: target policy,
+  # subprocess pipes, line splitting, tool metrics and input errors, and the
+  # Worker completion protocol)
+  "_https : backoff : contracts : core : digests : http_body : log : mtls : probe : redaction : strict_json : threads",
 ]
 ignore_imports = [
-  # Platform modules use pure helpers that live under toolsets/common.
-  # Fix: move target_policy, process, lines, input_errors and the
-  # ToolCallCancelled signal out of toolsets/ into kernel modules.
-  "contractor_runtime.adapters.http_proxy -> contractor_runtime.toolsets.common.process",
-  "contractor_runtime.adapters.http_proxy -> contractor_runtime.toolsets.common.target_policy",
-  "contractor_runtime.agent_skills.runtime -> contractor_runtime.toolsets.common.metrics",
-  "contractor_runtime.projectfs.overlay -> contractor_runtime.toolsets.common.lines",
-  "contractor_runtime.settings -> contractor_runtime.toolsets.common.target_policy",
-  "contractor_runtime.telemetry.metrics -> contractor_runtime.toolsets.common.input_errors",
-  # audit_results implements the Worker completion protocol defined in the
-  # agent loop. Fix: move PreparedWorkerCompletion, the completion results and
-  # WorkerCompletionError below toolsets (contracts or toolsets.common).
-  "contractor_runtime.toolsets.audit_results.collector -> contractor_runtime.worker.completion",
-  "contractor_runtime.toolsets.audit_results.completion -> contractor_runtime.worker.completion",
-  "contractor_runtime.toolsets.audit_results.encoding -> contractor_runtime.worker.completion",
   # Workspace toolsets build their observations with helpers that live in the
   # agent loop. Fix: move WorkspaceToolObservation and the per-tool builders
   # below toolsets; the Worker keeps only the observation reducer.

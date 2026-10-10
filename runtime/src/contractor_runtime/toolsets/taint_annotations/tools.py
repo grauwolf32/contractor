@@ -14,6 +14,8 @@ import contractor_runtime.toolsets.code_analysis.languages as language_support
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.lines import split_lines
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.threads import to_thread_until_done
@@ -23,8 +25,6 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     dependency_versions_match,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.lines import split_lines
-from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
     AnnotationTarget,

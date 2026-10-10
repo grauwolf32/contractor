@@ -14,6 +14,13 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
 )
+from contractor_runtime.core.worker_completion import (
+    CompleteCompletion,
+    ContinueCompletion,
+    FailCompletion,
+    PreparedWorkerCompletion,
+    WorkerCompletionError,
+)
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.collector import (
     AuditCollectionError,
@@ -31,13 +38,6 @@ from contractor_runtime.toolsets.audit_results.packages import _decode_task_inpu
 from contractor_runtime.toolsets.audit_results.publication import (
     DeterministicAuditResultPublisher,
     PublicationArtifactClient,
-)
-from contractor_runtime.worker.completion import (
-    CompleteCompletion,
-    ContinueCompletion,
-    FailCompletion,
-    PreparedWorkerCompletion,
-    WorkerCompletionError,
 )
 
 

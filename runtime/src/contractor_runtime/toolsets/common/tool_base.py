@@ -6,12 +6,12 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from contractor_runtime.artifacts import ArtifactClient
-from contractor_runtime.toolsets.common.artifact_visibility import ArtifactObservingTool
-from contractor_runtime.toolsets.common.metrics import (
+from contractor_runtime.core.tool_metrics import (
     RecordedToolCall,
     ToolMetrics,
     instrumented_call,
 )
+from contractor_runtime.toolsets.common.artifact_visibility import ArtifactObservingTool
 
 
 class _ClosableSession(Protocol):

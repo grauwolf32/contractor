@@ -48,6 +48,12 @@ from contractor_runtime.contracts import (
     WorkerResult,
     WorkerSummarizerConfig,
 )
+from contractor_runtime.core.worker_completion import (
+    ContinueCompletion,
+    FailCompletion,
+    WorkerCompletionError,
+    bind_worker_completion,
+)
 from contractor_runtime.llm.factory import ModelFactory, gateway_model
 from contractor_runtime.llm.openai import (
     GatewayModelError,
@@ -74,12 +80,6 @@ from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
-from contractor_runtime.worker.completion import (
-    ContinueCompletion,
-    FailCompletion,
-    WorkerCompletionError,
-    bind_worker_completion,
-)
 from contractor_runtime.worker.finalizer import (
     ResultFinalizerFailure,
     WorkerResultFinalizer,

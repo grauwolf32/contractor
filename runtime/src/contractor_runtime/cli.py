@@ -13,6 +13,7 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
+from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.log import configure_logging
@@ -27,7 +28,6 @@ from contractor_runtime.server import RuntimeServer, create_app, create_server_c
 from contractor_runtime.settings import Settings, parse_settings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
 from contractor_runtime.work_root_lock import WorkRootLockError, hold_work_roots
 from contractor_runtime.workspace import cleanup_orphan_workdirs
 

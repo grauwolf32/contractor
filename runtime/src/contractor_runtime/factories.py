@@ -29,6 +29,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.contracts.settings import AgentTemplateRef
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
@@ -37,7 +38,6 @@ from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFact
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
-from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory

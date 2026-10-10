@@ -13,7 +13,7 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     IPAddress,
     TargetDenied,
     TargetPolicy,

@@ -13,6 +13,7 @@ from google.adk.plugins import BasePlugin
 
 from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
@@ -22,7 +23,6 @@ from contractor_runtime.telemetry.metrics import (
     reset_tool_metric_correlation,
     safe_error_code,
 )
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
     WorkspaceObservationSource,

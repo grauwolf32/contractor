@@ -13,7 +13,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.security_findings.classification import (
     CWEReferenceError,
     check_cwe_reference,

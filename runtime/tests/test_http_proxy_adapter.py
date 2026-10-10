@@ -35,15 +35,15 @@ from contractor_runtime.adapters.http_proxy import (
     _ObservedProxyTransport,
 )
 from contractor_runtime.contracts import HTTPProxySettings
+from contractor_runtime.core.target_policy import (
+    TargetPolicy,
+    parse_allowed_networks,
+)
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.http_body import read_limited_body
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
 from contractor_runtime.toolsets.common.credentials import proxy_authorization
-from contractor_runtime.toolsets.common.target_policy import (
-    TargetPolicy,
-    parse_allowed_networks,
-)
 
 PROXY_PASSWORD = "recognizable-proxy-password"
 PROXY_BEARER = "recognizable-proxy-bearer"

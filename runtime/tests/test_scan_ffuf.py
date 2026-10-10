@@ -16,7 +16,7 @@ import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.wordlist import (
     MAX_WORDLIST_ARTIFACT_BYTES,
     MAX_WORDLIST_LINES,

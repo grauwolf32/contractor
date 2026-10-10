@@ -89,7 +89,7 @@ Audit result handling lives in `src/contractor_runtime/toolsets/audit_results/`.
 collection and canonical result publication. `completion.py` implements the trusted completion
 lifecycle invoked by the Runtime after model output, including completeness
 checks and publication of the final artifact. It implements the shared
-`worker/completion.py` boundary; the ADK runner binds a trusted completion
+`core/worker_completion.py` boundary; the ADK runner binds a trusted completion
 implementation and its required tools without depending on Audit tool names.
 
 The rest of the Runtime source follows these boundaries:
@@ -101,9 +101,10 @@ The rest of the Runtime source follows these boundaries:
 | `worker/` | ADK orchestration and instrumentation, worker construction, budgets, sessions, state, summarization, and finalization. |
 | `contracts/` | Strict wire models grouped into registration, allocation, workspace, worker, artifacts, settings, and reports, plus encoding/decoding. Existing imports are exported by `contracts/__init__.py`. |
 | `allocation/` | Slot lifecycle service, admission validation, resource context, final reports, and cleanup primitives. The service owns preparation, cancellation, and release ordering. |
-| `toolsets/common/` | Shared tool metrics interface, artifact client helpers, and artifact visibility rules. |
+| `core/` | Kernel helpers that every layer may use: target policy, subprocess pipes, line splitting, the tool metrics interface, tool input errors, and the Worker completion protocol. |
+| `toolsets/common/` | Artifact client helpers and artifact visibility rules shared by built-in toolsets. |
 
-Completion decisions and bounded failures belong to `worker/completion.py`.
+Completion decisions and bounded failures belong to `core/worker_completion.py`.
 Concrete completion implementations own request validation, result publication,
 and error classification. A tool binding must cover all required tools under
 one prepared owner and match the allocation's trusted completion contract.

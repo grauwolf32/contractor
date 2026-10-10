@@ -24,12 +24,12 @@ from contractor_runtime.contracts import (
     HTTPProxySettings,
     RuntimeSettings,
 )
+from contractor_runtime.core.target_policy import TargetPolicyConfig, TargetUnresolved
 from contractor_runtime.toolsets.caido.tools import (
     CAIDO_TOOL_NAMES,
     CaidoToolError,
     CaidoToolsetFactory,
 )
-from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig, TargetUnresolved
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 HTTP_AUTH_SECRET = "canary-http-auth-07e42"

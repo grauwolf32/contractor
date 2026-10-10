@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 import jcs
 
+from contractor_runtime.core.lines import split_patch_lines
 from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.paths import normalize_project_path, parent_paths
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
@@ -33,7 +34,6 @@ from contractor_runtime.projectfs.storage import (
 from contractor_runtime.settings import WorkspaceLimits
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.lines import split_patch_lines
 
 WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"

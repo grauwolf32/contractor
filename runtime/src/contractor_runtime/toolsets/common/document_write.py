@@ -9,7 +9,7 @@ from contractor_runtime.artifacts import (
     ArtifactValue,
 )
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 
 _DEFINITE_DENIALS = frozenset({"allocation_write_fenced", "artifact_access_denied"})
 

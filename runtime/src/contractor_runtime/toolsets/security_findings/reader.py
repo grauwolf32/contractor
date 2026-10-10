@@ -14,8 +14,8 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.digests import sha256_digest
-from contractor_runtime.toolsets.common.metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
     MAX_ARCHIVE_BYTES,

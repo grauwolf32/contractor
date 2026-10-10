@@ -19,9 +19,9 @@ from test_text_artifacts_toolset import MemoryArtifactClient
 from test_text_artifacts_toolset import make_tools as text_tools
 
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.caido.tools import CaidoToolError
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.openapi.tools import _validate_path_item
 from contractor_runtime.toolsets.run_artifacts.tools import WriteArtifactTool

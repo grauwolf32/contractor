@@ -297,7 +297,7 @@ def test_likec4_close_joins_cancelled_file_work(
         monkeypatch.setattr(owner, name, blocked)
         monkeypatch.setattr(likec4_tools.shutil, "which", lambda _: "/unused/likec4")
         monkeypatch.setattr(
-            "contractor_runtime.toolsets.common.process.run_command",
+            "contractor_runtime.core.process.run_command",
             AsyncMock(return_value=subprocess.CompletedProcess([], 0, b"[]", b"")),
         )
         task = asyncio.create_task(tools["validate_likec4"]())

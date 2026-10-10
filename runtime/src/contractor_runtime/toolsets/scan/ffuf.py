@@ -8,7 +8,7 @@ import json
 import re
 from urllib.parse import urlsplit
 
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.process import ProcessResult
 from contractor_runtime.toolsets.scan.wordlist import MAX_WORDLIST_PAYLOAD_BYTES
 

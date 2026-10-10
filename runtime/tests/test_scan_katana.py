@@ -14,7 +14,7 @@ import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
-from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.katana import (
     MAX_TARGET_BYTES,
     canonical_url,

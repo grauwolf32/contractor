@@ -19,12 +19,12 @@ import pytest
 
 import contractor_runtime.cli as runtime_cli
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.settings import Settings
-from contractor_runtime.state import ProcessState, RuntimeState
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     TargetDenied,
     parse_allowed_networks,
 )
+from contractor_runtime.settings import Settings
+from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.work_root_lock import hold_work_roots
 
 

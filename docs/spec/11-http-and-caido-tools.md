@@ -161,7 +161,7 @@ routing, not a hint; failure never falls back to direct network.
 ### Target policy
 
 `http-tools@1`, every `scan@1` operation and request-bound `caido@1` actions share one Runtime target policy
-(`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
+(`core/target_policy.py`). It classifies IP addresses, not URL text.
 
 Every host first passes one shared syntax rule: `http_request` URLs and each
 redirect hop, Caido raw and captured Replay, Automate and active-workflow

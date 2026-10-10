@@ -19,12 +19,12 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeSettings
-from contractor_runtime.factories import FactoryRegistry
-from contractor_runtime.toolsets.common.target_policy import (
+from contractor_runtime.core.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,
     parse_allowed_networks,
 )
+from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.toolsets.scan.process import run_process
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
