@@ -81,7 +81,7 @@ func TestStandardProposalReferencesRequirePinnedExistingEntries(t *testing.T) {
 func TestBundledCWEClassificationMatchesRuntime(t *testing.T) {
 	runtimeCatalog, err := os.ReadFile(filepath.Join(
 		"..", "..", "runtime", "src", "contractor_runtime", "toolsets",
-		"security_findings", "cwe_catalog.json",
+		"common", "cwe_catalog.json",
 	))
 	if err != nil {
 		t.Fatal(err)

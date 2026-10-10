@@ -26,7 +26,7 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _decode_task_input,
     _requested_coverage,
 )
-from contractor_runtime.toolsets.security_findings.classification import (
+from contractor_runtime.toolsets.common.cwe import (
     CWEReferenceError,
     check_cwe_reference,
 )

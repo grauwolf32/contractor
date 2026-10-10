@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic.json_schema import SkipJsonSchema
 
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.toolsets.http.limits import MAX_URL_BYTES
+from contractor_runtime.toolsets.common.http_limits import MAX_URL_BYTES
 
 # V63-001 / docs/spec/27: match the retained Go contract, not tool display limits.
 MAX_LOCATIONS = 256  # Same bound as finding evidence links.

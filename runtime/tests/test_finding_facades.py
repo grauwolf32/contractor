@@ -20,9 +20,14 @@ from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettin
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
-from contractor_runtime.toolsets.http.limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
+from contractor_runtime.toolsets.common.cwe import CWEReferenceError
+from contractor_runtime.toolsets.common.finding_locations import (
+    StandardReference,
+    normalize_locations,
+)
+from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
+from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
-from contractor_runtime.toolsets.security_findings.classification import CWEReferenceError
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingsToolsetFactory,
@@ -31,11 +36,6 @@ from contractor_runtime.toolsets.security_findings.facades import (
     GeneralFindingTool,
     HTTPFindingsToolsetFactory,
     HTTPFindingTool,
-)
-from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
-from contractor_runtime.toolsets.security_findings.locations import (
-    StandardReference,
-    normalize_locations,
 )
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.worker.instrumentation import _safe_tool_response

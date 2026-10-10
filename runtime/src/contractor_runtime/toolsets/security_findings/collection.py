@@ -17,8 +17,8 @@ import jcs
 from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import unique_json_object
-from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
-from contractor_runtime.toolsets.security_findings.locations import normalize_locations
+from contractor_runtime.toolsets.common.finding_locations import normalize_locations
+from contractor_runtime.toolsets.common.http_evidence import HTTPExchange
 
 COLLECTION_MEDIA_TYPE = "application/vnd.contractor.findings-collection+zip"
 MAX_ARCHIVE_BYTES = 16 * 1024 * 1024

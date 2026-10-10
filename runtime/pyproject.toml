@@ -147,49 +147,76 @@ derive it from the registered factories and pass it in through
 WorkerBuildContext, or move shared code into toolsets.common.
 """
 
+# Toolsets are independent of each other and share code through
+# toolsets.common, except for two declared chains in which one toolset builds
+# on another:
+#   taint_annotations -> code_analysis
+#     (tree-sitter language support and the pinned-dependency check)
+#   edit_files, workspace_changes -> filesystem
+#     (the filesystem tool error type)
+# The layers contract below puts the two chain bases in a layer under the other
+# toolsets, so no base imports a toolset. The two protected contracts after it
+# then admit, per base, only its declared consumers and the composition root
+# that registers every toolset. Any other import of a base, from a toolset or
+# from anywhere else in the Runtime, breaks a contract. A new toolset joins the
+# top layer; it becomes a chain base only together with its own protected
+# contract.
 [[tool.importlinter.contracts]]
 id = "toolsets"
-name = "Toolsets are independent and share code only through toolsets.common"
+name = "Toolsets are independent apart from declared chains and share code through toolsets.common"
 type = "layers"
 containers = ["contractor_runtime.toolsets"]
 exhaustive = true
 layers = [
   # concrete toolsets: independent of each other ("|")
-  "audit_results | caido | code_analysis | code_execution | edit_files | filesystem | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  "audit_results | caido | code_execution | edit_files | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  # chain bases: independent of each other; each one is imported only by the
+  # consumers its protected contract below declares
+  "code_analysis | filesystem",
   # shared tool base
   "common",
 ]
-ignore_imports = [
-  # audit_results validates CWE references with the security_findings
-  # classifier. Fix: move check_cwe_reference into toolsets.common.
-  "contractor_runtime.toolsets.audit_results.collector -> contractor_runtime.toolsets.security_findings.classification",
-  # edit_files and workspace_changes reuse the filesystem toolset's error type.
-  # Fix: move FilesystemToolError into toolsets.common.
-  "contractor_runtime.toolsets.edit_files.tools -> contractor_runtime.toolsets.filesystem.tools",
-  "contractor_runtime.toolsets.workspace_changes.tools -> contractor_runtime.toolsets.filesystem.tools",
-  # http and security_findings import each other (a module cycle): HTTP
-  # evidence and URL validation on one side, HTTP limits on the other.
-  # Fix: move the HTTP limits and the evidence/location model into
-  # toolsets.common.
-  "contractor_runtime.toolsets.http.tools -> contractor_runtime.toolsets.security_findings.http_evidence",
-  "contractor_runtime.toolsets.http.tools -> contractor_runtime.toolsets.security_findings.locations",
-  "contractor_runtime.toolsets.security_findings.http_evidence -> contractor_runtime.toolsets.http.limits",
-  "contractor_runtime.toolsets.security_findings.locations -> contractor_runtime.toolsets.http.limits",
-  # taint_annotations reuses code_analysis tree-sitter language support and
-  # its pinned-dependency check. Fix: move the language support into
-  # toolsets.common.
-  "contractor_runtime.toolsets.taint_annotations.languages -> contractor_runtime.toolsets.code_analysis.languages",
-  "contractor_runtime.toolsets.taint_annotations.tools -> contractor_runtime.toolsets.code_analysis.languages",
-  "contractor_runtime.toolsets.taint_annotations.tools -> contractor_runtime.toolsets.code_analysis.tools",
-]
 unmatched_ignore_imports_alerting = "error"
 broken_contract_guidance = """
-A toolset imports another toolset, toolsets.common imports a toolset, or a
-toolset package is not classified.
+A toolset imports another toolset outside a declared chain, a chain base or
+toolsets.common imports a toolset above it, or a toolset package is not
+classified.
 - Move the shared code into toolsets.common (or below toolsets).
 - Add a new toolset to the concrete-toolsets layer in runtime/pyproject.toml.
-- If the coupling is genuinely intended, add an ignore_imports entry with a
-  "reason; fix" comment.
-"No matches for ignored import" means a known violation is gone: delete that
-ignore_imports entry.
+- If one toolset genuinely builds on another, declare the chain: move the base
+  to the chain-bases layer and give it a protected contract that names its
+  consumers.
+"""
+
+[[tool.importlinter.contracts]]
+id = "toolsets-chain-code-analysis"
+name = "Declared chain: only taint_annotations builds on code_analysis"
+type = "protected"
+protected_modules = ["contractor_runtime.toolsets.code_analysis"]
+allowed_importers = [
+  "contractor_runtime.toolsets.taint_annotations",
+  # composition root: registers every toolset
+  "contractor_runtime.factories",
+]
+broken_contract_guidance = """
+Only taint_annotations (and the factory registry) may import code_analysis.
+Move code that another toolset needs into toolsets.common, or extend the
+declared chain here and in the comment above the toolsets contract.
+"""
+
+[[tool.importlinter.contracts]]
+id = "toolsets-chain-filesystem"
+name = "Declared chain: only edit_files and workspace_changes build on filesystem"
+type = "protected"
+protected_modules = ["contractor_runtime.toolsets.filesystem"]
+allowed_importers = [
+  "contractor_runtime.toolsets.edit_files",
+  "contractor_runtime.toolsets.workspace_changes",
+  # composition root: registers every toolset
+  "contractor_runtime.factories",
+]
+broken_contract_guidance = """
+Only edit_files and workspace_changes (and the factory registry) may import
+filesystem. Move code that another toolset needs into toolsets.common, or
+extend the declared chain here and in the comment above the toolsets contract.
 """

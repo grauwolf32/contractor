@@ -11,7 +11,7 @@ import httpx
 
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.common.credentials import RUNTIME_TARGET_CREDENTIAL
-from contractor_runtime.toolsets.http.limits import MAX_HISTORY
+from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY
 
 
 def capture_headers(headers: httpx.Headers) -> list[dict[str, str]]:

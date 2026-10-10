@@ -102,7 +102,7 @@ The rest of the Runtime source follows these boundaries:
 | `contracts/` | Strict wire models grouped into registration, allocation, workspace, worker, artifacts, settings, and reports, plus encoding/decoding. Existing imports are exported by `contracts/__init__.py`. |
 | `allocation/` | Slot lifecycle service, admission validation, resource context, final reports, and cleanup primitives. The service owns preparation, cancellation, and release ordering. |
 | `core/` | Kernel helpers that every layer may use: target policy, subprocess pipes, line splitting, the tool metrics interface, tool input errors, and the Worker completion protocol. |
-| `toolsets/common/` | Artifact client helpers and artifact visibility rules shared by built-in toolsets. |
+| `toolsets/common/` | Code shared by built-in toolsets: artifact client helpers, artifact visibility rules, the HTTP transport limits, the HTTP evidence and finding location models, and the pinned CWE catalog. |
 
 Completion decisions and bounded failures belong to `core/worker_completion.py`.
 Concrete completion implementations own request validation, result publication,

@@ -51,8 +51,9 @@ from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ART
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
-from contractor_runtime.toolsets.http.limits import (
+from contractor_runtime.toolsets.common.finding_locations import validate_web_url
+from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
+from contractor_runtime.toolsets.common.http_limits import (
     MAX_ATTEMPTS,
     MAX_COOKIES,
     MAX_HEADER_BYTES,
@@ -70,9 +71,8 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_URL_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
-from contractor_runtime.toolsets.security_findings.http_evidence import HTTPAttempt
-from contractor_runtime.toolsets.security_findings.locations import validate_web_url
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
