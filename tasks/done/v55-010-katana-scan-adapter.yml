@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-010
 title: Add Katana as a bounded discovery adapter
 milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 69b25836febfe37039417cb89dd60223214e59f1

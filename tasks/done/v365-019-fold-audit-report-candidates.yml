@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-019
 title: "Fold audit_report_candidates into audit_artifact_links and the review request"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: b74c3f5cd006def6d09502a88f44129e3f88e7a7

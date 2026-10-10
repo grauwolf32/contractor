@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V130-001
 title: Remove unbounded buffered proxy request helper
 milestone: proxy-stream-only-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V8-012
 priority: P3
 status: completed
 implementation_commit: 245bb6767f4d3e1fc09fbc904ea268d95f997410

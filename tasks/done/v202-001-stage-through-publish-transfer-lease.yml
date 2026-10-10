@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V202-001
 title: Hold one transfer lease from blob staging through publication
 milestone: artifact-transfer-reliability-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V34-003
 priority: P2
 status: completed
 implementation_commit: 03b9715ebc0e27da9b6995ed9f7fbfb9902b525f

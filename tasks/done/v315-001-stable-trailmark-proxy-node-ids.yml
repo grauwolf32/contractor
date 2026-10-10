@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V315-001
 title: Keep Trailmark proxy node IDs stable for root packages
 milestone: review-defects-2026-10-04
+epic: code-analysis
+kind: defect
+introduced_by: V194-001
 priority: P1
 status: completed
 implementation_commit: d8216052268ae8630cb1bc65feeadf5dcb1e1c8a

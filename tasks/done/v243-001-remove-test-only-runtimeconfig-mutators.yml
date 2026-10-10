@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V243-001
 title: Remove test-only RuntimeConfig mutation protocols
 milestone: runtime-maintenance-2026-10
+epic: runtime-config
+kind: chore
+introduced_by: V8-002
 priority: P2
 status: completed
 implementation_commit: 523879dd7a928b5df10312466e21f20ed4192363

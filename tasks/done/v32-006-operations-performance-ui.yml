@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-006
 title: Show Server performance charts and completed allocation resources in Operations
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: dfd30428dee1da1832f8504a41725fb3b04a7529

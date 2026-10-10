@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V59-004
 title: Correct request conditions, labels, password units and Git/history documentation
 milestone: public-api-review-corrections
+epic: api-contracts
+kind: defect
 priority: P2
 status: completed
 implementation_commit: d2daa5382da2340936e8d19729d97c68bab7ee7b

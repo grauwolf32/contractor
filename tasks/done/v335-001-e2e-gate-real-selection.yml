@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V335-001
 title: Gate e2e tests by real selection and existence
 milestone: review-process-2026-10-04
+epic: quality
+kind: chore
+introduced_by: V155-001
 priority: P1
 status: completed
 implementation_commit: c28db5a290e1d7dd6bd5e515fa6f77e6f6b2ea27

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V352-001
 title: Reject Runtime-unopenable Git snapshots and normalize dot config roots
 milestone: review-followups-2026-10-04
+epic: projects-artifacts
+kind: defect
+introduced_by: V198-001
 priority: P2
 status: completed
 implementation_commit: 95d132e4eba9c38f69f6b44741543234e5c520d9

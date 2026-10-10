@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-009
 title: Add separate Evals and global Skills UI views
 milestone: project-workspaces-operations
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 741127dd86aa1950abb7c4a57bc3cf44a377cf9e

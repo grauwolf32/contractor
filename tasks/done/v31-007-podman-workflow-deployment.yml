@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V31-007
 title: Add a local Podman workflow and reproducible deployment instructions
 milestone: podman-allocation-execution
+epic: sandbox
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 3105f11fdd0b0e9b3bb1b6ac9553a97de9d7f539

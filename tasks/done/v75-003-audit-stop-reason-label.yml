@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V75-003
 title: Remove unproduced Audit owner pause stop label
 milestone: release-and-ui-guardrails-2026-10
+epic: audits
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 68a33e90afb13050b925393310ac7cbf5a8d953f

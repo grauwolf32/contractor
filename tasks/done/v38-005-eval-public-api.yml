@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-005"
 title: "Expose native eval setup and external producer submission APIs"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "bb3c3bdbe6f3001728f32dec106f6832351fc079"

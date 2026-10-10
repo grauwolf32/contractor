@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V43-004
 title: "Connect finding producers and a reusable findings analyst"
 milestone: findings-tools
+epic: findings
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 40c13401416868948b48ddc1176d8e2740a0c402

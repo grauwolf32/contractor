@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V12-002
 title: Implement allocation-scoped caido-graphql@1 adapter
 milestone: http-caido-tools-mvp
+epic: http-tools
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 40ca63c42157a97ba8565dac33d508168cbb17b3

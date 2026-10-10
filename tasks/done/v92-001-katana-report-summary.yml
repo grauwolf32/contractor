@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V92-001
 title: Summarize Katana discovery reports in Artifact previews
 milestone: artifact-feedback-corrections-2026-10
+epic: ui
+kind: defect
+introduced_by: V55-010
 priority: P2
 status: completed
 implementation_commit: 50553eec3ec3aaeb1daa418c32b20b2bab9bd1d8

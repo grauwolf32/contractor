@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V194-001
 title: Keep root __init__.py symbol IDs stable across Trailmark rebuilds
 milestone: code-analysis-identity-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V15-003
 priority: P1
 status: completed
 implementation_commit: 93cd9b428dc75d4f620d7ee35597b1f702145cc5

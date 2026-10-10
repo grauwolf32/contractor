@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-001
 title: Specify Audit preparation and a single explicit inventory source schema
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 22fcba08211b83bb109c34c706ce5696602b699d

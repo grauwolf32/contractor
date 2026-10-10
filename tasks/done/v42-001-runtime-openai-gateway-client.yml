@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V42-001
 title: "Replace per-Runtime LiteLLM SDK with a bounded OpenAI-compatible ADK client"
 milestone: runtime-memory-efficiency
+epic: planner-worker
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 530b0072a3d358d997755ad9330f19a126ea23f8

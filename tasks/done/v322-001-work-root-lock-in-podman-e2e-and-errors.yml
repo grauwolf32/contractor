@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V322-001
 title: Account for the Runtime work-root lock in Podman e2e and diagnostics
 milestone: review-defects-2026-10-04
+epic: workspaces
+kind: chore
+introduced_by: V258-001
 priority: P1
 status: completed
 implementation_commit: bdd9e0b092131663d57f86ca7c7332174c39cadf

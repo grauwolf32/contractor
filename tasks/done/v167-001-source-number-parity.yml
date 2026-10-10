@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V167-001
 title: Bound JSON Audit source numbers like their YAML form
 milestone: review-defects-2026-10
+epic: audits
+kind: defect
+introduced_by: V100-001
 priority: P1
 status: completed
 implementation_commit: e34e6820f1bff7b659dcc7f1c10939b85a8cc41e

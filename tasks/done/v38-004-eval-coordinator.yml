@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-004"
 title: "Coordinate native evals through replay-safe Run and Audit submissions"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "859cc500f829fb88051cc6e47036ba5c43543b8a"

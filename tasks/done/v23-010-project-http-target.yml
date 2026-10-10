@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-010
 title: Resolve Project HTTP target credentials only into AllocationSpec
 milestone: project-workspaces-operations
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: d4eee1b9786acdce1a52c8c10841d3eae9b9e1d8

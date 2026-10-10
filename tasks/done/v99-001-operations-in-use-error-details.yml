@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V99-001
 title: Show structured deletion blockers in Operations
 milestone: operations-in-use-error-details-2026-10
+epic: operations
+kind: defect
+introduced_by: V8-015
 priority: P2
 status: completed
 implementation_commit: 25ae067dc9628bb5b4f4dc6a77a9064bb159d0eb

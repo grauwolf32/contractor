@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V125-001
 title: Remove ignored memory retryability argument and unread payload
 milestone: memory-dead-fields-2026-10
+epic: memory
+kind: chore
+introduced_by: V9-002
 priority: P2
 status: completed
 implementation_commit: a2b0398efd54b8734acaa7c3e59752f704f414f9

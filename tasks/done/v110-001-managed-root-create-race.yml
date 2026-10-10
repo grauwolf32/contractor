@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V110-001
 title: Tolerate concurrent creation of managed configuration subtrees
 milestone: managed-root-create-2026-10
+epic: runtime-config
+kind: defect
+introduced_by: V4-002
 priority: P3
 status: completed
 implementation_commit: 0955dac78f0fa9a7ecb683939e172b8c70a0da7a

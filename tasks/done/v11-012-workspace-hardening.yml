@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V11-012
 title: Harden workspace confinement concurrency and legacy parity
 milestone: run-workspaces-hardening
+epic: workspaces
+kind: feature
 priority: P1
 status: completed
 implementation_commit: c4c7678005d56a9b882806aad8c2452787ee9ff9

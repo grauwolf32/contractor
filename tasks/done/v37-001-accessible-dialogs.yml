@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V37-001"
 title: "Unify dialog focus, keyboard behavior and nested form ownership"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V28-003
 priority: "P2"
 status: "completed"
 implementation_commit: "0a2011baa5147beb618e8221dfa6f40997795bf6"

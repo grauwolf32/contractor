@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V153-001
 title: Bound public request reads and give shutdown stages independent budgets
 milestone: public-server-shutdown-budgets-2026-10
+epic: execution-core
+kind: defect
+introduced_by: MVP-014
 priority: P1
 status: completed
 implementation_commit: 104a0f4df961a775460dc08cdd2c84c6335c00b8

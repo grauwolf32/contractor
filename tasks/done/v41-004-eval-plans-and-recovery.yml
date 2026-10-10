@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-004
 title: "Freeze experiment matrices and recover submission intents safely"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 74bda220ea6b108918c48ff5b20e12c6a080129b

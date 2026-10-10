@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V280-001
 title: Collect co-batched verification checks of one finding proposal
 milestone: review-defects-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V26-004
 priority: P1
 status: completed
 implementation_commit: 6aa761f476544f3949d48aa475f65138a3d1c05b

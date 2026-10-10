@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V261-001
 title: Restore the deterministic release process gate
 milestone: release-gate-2026-10
+epic: quality
+kind: chore
 priority: P1
 status: in_progress
 implementation_commit: a075a2e5060bebea443f3fd1ce9a6d68f1134ac3

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V8-010
 title: Add allocation-scoped Runtime adapter lifecycle host
 milestone: label-driven-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 650421c3f9dfe4a31cd5567acd2fe3d3583670fb

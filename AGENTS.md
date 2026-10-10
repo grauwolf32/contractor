@@ -247,8 +247,9 @@ create or change a task.
   `tasks/`; finished tasks (`completed`, `archived`) live in `tasks/done/`.
   The task files are the index; there is no separate list to maintain.
   `scripts/check_tasks.py` (part of `make lint`) enforces the layout, declared
-  statuses and priorities, IDs matching file names, full implementation
-  commits, known dependencies and milestone exit tasks.
+  statuses, priorities, epics and kinds, IDs matching file names, full
+  implementation commits, known dependencies and `introduced_by` references,
+  and milestone exit tasks.
 - **Status.** Set `in_progress` before starting. Set `completed` only when
   every acceptance criterion passes and every listed test command succeeds,
   and record `implementation_commit` as the full hash of the last commit whose
@@ -256,6 +257,14 @@ create or change a task.
   into `tasks/done/` and repoint links to it. Do not pick up another agent's
   `in_progress` task. `deferred` and `archived` tasks are not eligible and do
   not satisfy dependencies; reactivating them needs the user.
+- **Classification.** Every task sets `epic` (one of the areas in
+  `tasks/epics.yml`, the area that owns the change) and `kind`: `feature`
+  adds or extends a capability, `defect` corrects behaviour that was wrong,
+  `chore` changes no intended behaviour (tests, CI, dead code, refactoring,
+  docs, schema consolidation). A defect or chore that repairs earlier work
+  sets `introduced_by` to the task whose implementation caused it; find it
+  with `git log`/`git blame` on the code you fix. This is how the project
+  learns which epics leave gaps, so do not skip it when it is knowable.
 - **Intake.** GitHub issues are an intake channel only: turn an issue into a
   task file (link it from `context.issue`) and close the issue with a link to
   the task. The task file is what agents work from.
@@ -273,7 +282,8 @@ create or change a task.
   requires a regression test on the real store.
 - **Keep the index consistent.** Use the owning epic's milestone, or declare a
   new milestone with `exit_task` and `outcome` under `milestones:` in
-  `tasks/index.yml`; do not create one milestone per defect. Use only declared
+  `tasks/index.yml`; do not create one milestone per defect. Add an epic to
+  `tasks/epics.yml` only for a new lasting area. Use only declared
   priorities (P0–P3). Update `current_checkpoint` when you finish a
   milestone.
 - **One task per commit**, unless two tasks must land together to keep the

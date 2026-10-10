@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V46-002"
 title: "Accept valid aggregate intervals at Performance history window boundaries"
 milestone: "operations-performance-and-profiling"
+epic: operations
+kind: defect
+introduced_by: V32-006
 priority: "P2"
 status: "completed"
 implementation_commit: 352663fb660d7558f656b76aba0b6ed92ca882a8

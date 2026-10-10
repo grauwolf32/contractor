@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V168-001
 title: Bound Control Plane lease hold after holder host loss
 milestone: review-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V107-001
 priority: P1
 status: completed
 implementation_commit: cd09287cf698d3fa6facbd8cf9c9476e76aeacdb

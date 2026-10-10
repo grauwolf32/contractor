@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V10-010
 title: Harden Agent Skills races bounds isolation and redaction
 milestone: agent-skills-port-and-hardening
+epic: agent-skills
+kind: feature
 priority: P1
 status: completed
 implementation_commit: a685e7a77680ccc5dd8b4d13bf6687d3e03d0d8e

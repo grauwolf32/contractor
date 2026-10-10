@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-003
 title: Execute and recover prepare Workflows before the first Audit round
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 114716409000993efb3b8c7a1a7357749f9f21aa

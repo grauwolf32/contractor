@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-017
 title: "Fold audit_collection_receipts into audit_executions"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V25-003
 priority: P2
 status: completed
 implementation_commit: b97fa2b61271743b066c735ae7dfb0fda3ce9756

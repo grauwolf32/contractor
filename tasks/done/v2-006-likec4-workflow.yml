@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V2-006
 title: Define the four-Stage LikeC4 project workflow
 milestone: project-workflows-mvp
+epic: workflows
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "82809583cf5cae32ab3bd6d4aa7074c1259d90f6"

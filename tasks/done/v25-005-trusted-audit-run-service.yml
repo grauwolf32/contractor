@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V25-005
 title: Create pinned Audit child Runs through a trusted Run Service
 milestone: audits-mvp
+epic: audits
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "e0873a3ea40d986519395907ee1697aabfe66fc4"

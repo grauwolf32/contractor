@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V29-005
 title: Batch PostgreSQL reads used to build Run detail
 milestone: postgres-reliability-and-query-efficiency
+epic: persistence
+kind: defect
+introduced_by: V5-003
 priority: P2
 status: completed
 implementation_commit: 2a16ef25d04dd34070fad8fa1a53d4f0596c4291

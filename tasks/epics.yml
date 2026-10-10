@@ -1,0 +1,171 @@
+schema_version: "1.0"
+
+# Stable product and platform areas. Every task names exactly one epic in its
+# `epic` field: the area that owns the change. Milestones remain delivery
+# slices inside an epic. Add an epic only for a new lasting area, not for a
+# defect batch; scripts/check_tasks.py rejects tasks with an undeclared epic
+# and epics whose specs do not exist.
+
+epics:
+  - id: execution-core
+    title: Run execution core
+    scope: >-
+      Scheduler, Control Plane, Runtime Agent registration, leases, allocation
+      and placement, A2A transport, Run creation, recovery and metadata labels.
+    specs:
+      - docs/spec/core-execution-model.md
+      - docs/spec/02-runtime-and-a2a.md
+      - docs/spec/04-execution-lifecycle-and-metrics.md
+      - docs/spec/16-run-metadata-labels.md
+      - docs/spec/20-scheduler-concurrency-control.md
+
+  - id: planner-worker
+    title: Planners and the Worker model boundary
+    scope: >-
+      Streamline and Router Planners, Worker results and live state, the result
+      finalizer, terminal summarization, session modes, model policies and the
+      LLM Gateway client, failure classification and recovery.
+    specs:
+      - docs/spec/00-workflow-and-planner.md
+      - docs/spec/01-agent-template.md
+      - docs/spec/14-worker-results-and-live-state.md
+      - docs/spec/15-worker-summarization.md
+
+  - id: runtime-config
+    title: Runtime labels, configuration and credentials
+    scope: >-
+      RuntimeConfig labels and resolution, Runtime and LLM credentials, Gateway
+      descriptions, timeouts and configurable toolsets.
+    specs:
+      - docs/spec/07-runtime-labels-and-infrastructure-config.md
+
+  - id: memory
+    title: Shared Memory tools
+    scope: Run-scoped Planner and Worker Memory notes and their tools.
+    specs:
+      - docs/spec/08-memory-tools.md
+
+  - id: agent-skills
+    title: Agent Skills
+    scope: Skill packages, the Skill catalog, pinning and the ADK Skill toolset.
+    specs:
+      - docs/spec/09-agent-skills.md
+
+  - id: workspaces
+    title: Run workspaces and project filesystem
+    scope: >-
+      Workspace hydration, local, memory and overlay storage, local-direct disk
+      authority, filesystem, edit and change tools.
+    specs:
+      - docs/spec/10-runtime-filesystems-and-edit-tools.md
+
+  - id: code-analysis
+    title: Code analysis and taint annotations
+    scope: Tree-sitter symbol tools, Trailmark graph tools and structured taint annotations.
+    specs:
+      - docs/spec/12-code-analysis-tools.md
+      - docs/spec/13-taint-annotations.md
+
+  - id: http-tools
+    title: HTTP and Caido tools
+    scope: Generic HTTP tools, the forward proxy, Caido adapters and the target policy.
+    specs:
+      - docs/spec/11-http-and-caido-tools.md
+
+  - id: scan-tools
+    title: Scanner tool Workers and scan planning
+    scope: Model-free tool Workers, scanner adapters, scan request preparation and planning.
+    specs:
+      - docs/spec/29-tool-workers.md
+      - docs/spec/31-scan-request-preparation.md
+      - docs/spec/32-scan-planning.md
+
+  - id: findings
+    title: Findings tools and collections
+    scope: Finding producer and reader tools, collections, locations, analysis and SARIF.
+    specs:
+      - docs/spec/27-findings-tools-and-collections.md
+      - docs/spec/28-finding-analysis-and-sarif.md
+
+  - id: workflows
+    title: Workflow catalog and document workflows
+    scope: >-
+      Shipped Workflows and AgentTemplates, OpenAPI and LikeC4 generation,
+      catalog presentation and agent instructions.
+    specs:
+      - docs/spec/00-workflow-and-planner.md
+
+  - id: projects-artifacts
+    title: Projects, artifacts and lifecycle controls
+    scope: >-
+      Projects and the queue, the artifact plane and blob backends, Git import,
+      source bundles, Run and Project deletion and retention.
+    specs:
+      - docs/spec/03-artifact-plane.md
+      - docs/spec/17-projects-and-queue.md
+      - docs/spec/18-run-and-workspace-lifecycle-controls.md
+      - docs/spec/23-artifact-blob-backends.md
+      - docs/spec/24-git-artifacts.md
+
+  - id: audits
+    title: Audits
+    scope: >-
+      Audit coordination, profiles and programs, rounds, inventory, result
+      collection, finding review, preparation and check prioritization.
+    specs:
+      - docs/spec/19-audits.md
+      - docs/spec/25-audit-worker-finalization.md
+      - docs/spec/33-autonomous-pentest-audits.md
+      - docs/spec/34-audit-check-prioritization.md
+      - docs/spec/openapi-audit-scans.md
+
+  - id: evals
+    title: Evaluations
+    scope: Managed Evals, the portable evaluation format and instruction evaluation.
+    specs:
+      - docs/spec/26-portable-evaluation-format.md
+      - docs/spec/30-managed-evals.md
+
+  - id: sandbox
+    title: Podman sandbox
+    scope: Opt-in per-allocation Podman containers and code execution.
+    specs:
+      - docs/spec/21-podman-sandbox.md
+
+  - id: ui
+    title: Web UI
+    scope: The React application, its journeys, language, layout and data freshness.
+    specs:
+      - docs/spec/06-server-ui-and-operations.md
+      - docs/spec/ui-user-stories.md
+
+  - id: operations
+    title: Operations, authentication, CLI and deployment
+    scope: >-
+      Operations views and settings, performance metrics, telemetry, browser and
+      bearer authentication, local PKI, the CLI and deployment images.
+    specs:
+      - docs/spec/06-server-ui-and-operations.md
+      - docs/spec/22-performance-metrics-and-profiling.md
+
+  - id: api-contracts
+    title: Public API and wire contracts
+    scope: >-
+      The public OpenAPI and event contracts, the private Server and Runtime
+      wire contract, and grammars and limits shared across languages.
+    specs:
+      - docs/spec/02-runtime-and-a2a.md
+      - docs/spec/06-server-ui-and-operations.md
+
+  - id: persistence
+    title: PostgreSQL persistence and schema
+    scope: Migrations, store APIs, transactions, indexes and schema consolidation.
+    specs:
+      - docs/spec/04-execution-lifecycle-and-metrics.md
+
+  - id: quality
+    title: Quality, CI and process
+    scope: >-
+      Release gates and CI, test infrastructure, dead-code removal, code reuse,
+      architecture checks, dependency hygiene and the task process itself.
+    specs: []

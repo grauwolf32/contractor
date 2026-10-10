@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-002"
 title: "Define managed eval DTOs and portable conformance fixtures"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "d5f31ab94b16f99254e64ebdd20efa89fdb4100a"

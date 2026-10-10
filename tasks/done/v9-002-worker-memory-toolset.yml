@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V9-002
 title: Implement the Worker memory-tools@1 Toolset
 milestone: shared-memory-tools
+epic: memory
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 8e8fad0e9a651d34553d80fc4e6da29a1e40fdf2

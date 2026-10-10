@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V277-001
 title: Split oversized Audit HTTP handler module
 milestone: code-reuse-2026-10
+epic: audits
+kind: chore
 priority: P2
 status: completed
 implementation_commit: a755607c529911c5093a063dd2c22511837d22e0

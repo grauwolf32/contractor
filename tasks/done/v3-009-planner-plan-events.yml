@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V3-009
 title: Persist typed Planner plans and reduced Run events
 milestone: planner-routing-and-escalation
+epic: planner-worker
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "2fbac4ddcf61709d01fd57025c8aa52d477b44a6"

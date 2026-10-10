@@ -1,5 +1,8 @@
 schema_version: '1.0'
 milestone: project-review-v60
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: 85845acab28fc64bfe5429118700b89b26502691

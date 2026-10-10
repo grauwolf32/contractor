@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V25-011
 title: Add analyst finding ratings, backtrace and bounded multiple rounds
 milestone: audits-iterative
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "9311fa60cc9e3e4184c6e867112fae2122cb867b"

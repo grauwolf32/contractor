@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V133-001
 title: Remove unused unpaged AuditManagement methods
 milestone: audit-management-interface-2026-10
+epic: audits
+kind: chore
+introduced_by: V37-010
 priority: P3
 status: completed
 implementation_commit: e42444f5e2d3d08ca2b1a209a8483f769bc8b763

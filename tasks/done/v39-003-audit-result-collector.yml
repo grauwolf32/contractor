@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V39-003
 title: "Collect and validate Audit results incrementally with revisioned updates"
 milestone: audit-worker-completion
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "4344c034a64d85a3876e2d3db50e12085293891a"

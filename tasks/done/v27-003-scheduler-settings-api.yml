@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V27-003
 title: Expose the Scheduler settings Operations API
 milestone: workflow-scheduler-concurrency
+epic: execution-core
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "bcd90605b84f76153e6fdd5397daeff098dc55e5"

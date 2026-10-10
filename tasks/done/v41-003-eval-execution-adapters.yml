@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-003
 title: "Separate execution adapters and normalize Contractor observations"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 6b0219842ff30dc986a66d0d037aaec9e6bc20b6

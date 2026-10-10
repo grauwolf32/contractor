@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V318-001
 title: Reject OpenAPI 3.0 Path Item references with guidance
 milestone: review-defects-2026-10-04
+epic: workflows
+kind: chore
+introduced_by: V211-001
 priority: P2
 status: completed
 implementation_commit: e5cebac98296efa5e258c99a6389cbc04e6e2376

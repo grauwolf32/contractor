@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V245-001
 title: Remove unreachable managed Eval interrupted state
 milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-002
 priority: P2
 status: completed
 implementation_commit: 5e5bf0e3c1174b7bd63e0f02e45af99d1256e8e7

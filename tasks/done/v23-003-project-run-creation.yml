@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-003
 title: Launch ordinary WorkflowRuns from exact ProjectScope inputs
 milestone: project-workspaces-mvp
+epic: projects-artifacts
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 5e63842ee23414a6bc5f95fb9c2e80e1aeafca13

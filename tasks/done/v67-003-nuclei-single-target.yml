@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V67-003
 title: Ensure Nuclei receives exactly one policy-checked scan target
 milestone: github-issue-remediation-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V55-003
 priority: P1
 status: completed
 implementation_commit: 775e416a7428cc82cdaf112d23329fb197331bc2

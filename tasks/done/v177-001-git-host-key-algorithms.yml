@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V177-001
 title: Negotiate SSH host key types pinned for Git import
 milestone: git-host-key-trust-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
 priority: P1
 status: completed
 implementation_commit: cbbb351b6fd84fca38187aa3707d9a2dbc16bb16

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V291-001
 title: Classify concurrent label removal during rebind as a precondition failure
 milestone: review-defects-2026-10-04
+epic: runtime-config
+kind: defect
+introduced_by: V29-002
 priority: P2
 status: completed
 implementation_commit: 182eb56f3f4d93b4e8d469ae909c8f78e23b299f

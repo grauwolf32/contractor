@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V237-001
 title: Bound proposal limitations before Audit Round materialization
 milestone: runtime-maintenance-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-010
 priority: P2
 status: completed
 implementation_commit: 2a06d6a049f21cb35a0d740d0a14689bbacf5f6d

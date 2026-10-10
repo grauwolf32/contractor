@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V34-006
 title: Keep overlay export limits compatible with 64 MiB Artifacts
 milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: defect
+introduced_by: V11-010
 priority: P1
 status: completed
 implementation_commit: 0a07bfab144da4cb9b1c1b01cb1943d7b4b0ef69

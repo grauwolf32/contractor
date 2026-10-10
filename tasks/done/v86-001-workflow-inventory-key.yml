@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V86-001
 title: Move Workflow inventory key into the query-key registry
 milestone: workflow-inventory-key-2026-10
+epic: ui
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 764e08bcbdd4dd05d27b48df2013554240fef005

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-007
 title: Move shared UI primitives into app and share API and pagination helpers
 milestone: code-reuse-2026-10
+epic: ui
+kind: chore
 priority: P2
 status: completed
 implementation_commit: c3754ee6a6847067f2b3f057cad38a36a4d2f94b

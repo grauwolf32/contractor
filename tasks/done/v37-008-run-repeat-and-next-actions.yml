@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V37-008"
 title: "Open a reviewed repeat Run draft and explain actionable failure or waiting states"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
 priority: "P2"
 status: "completed"
 implementation_commit: "c008980672cdf8ac15a6f9204a9be11382e3c145"

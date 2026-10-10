@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V9-003
 title: Mirror selected MemoryTools into Streamline and Router Planners
 milestone: shared-memory-tools
+epic: memory
+kind: feature
 priority: P0
 status: completed
 implementation_commit: acf1c0f2a436cf82ce10d26ef9db5e26c606d557

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-005
 title: Supply immutable settled-round snapshots to assessment Workflows
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P2
 status: deferred
 deferral:

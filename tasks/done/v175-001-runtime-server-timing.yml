@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V175-001
 title: Remove Runtime-owned heartbeat and lease timing flags
 milestone: runtime-server-timing-2026-10
+epic: execution-core
+kind: chore
+introduced_by: MVP-009
 priority: P2
 status: completed
 implementation_commit: 516e3436a8e2ac9e29ec421a3835ab60b5ac283e

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V96-001
 title: Render nested RuntimeConfig settings with labels and units
 milestone: operations-detail-fact-clarity-2026-10
+epic: operations
+kind: defect
+introduced_by: V8-015
 priority: P2
 status: completed
 implementation_commit: 475ee22d9649f01ac0d2c5afb5bb333a4603e9da

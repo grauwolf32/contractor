@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V53-001
 title: Prevent large-source Audit checks from exhausting their budget without a result
 milestone: real-project-audit-stability
+epic: audits
+kind: defect
 priority: P1
 status: archived
 archive:

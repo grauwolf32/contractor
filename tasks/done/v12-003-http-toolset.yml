@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V12-003
 title: Port bounded allocation-scoped http-tools@1
 milestone: http-caido-tools-mvp
+epic: http-tools
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 5041d1cbd92cbf7f2ebe8a8561c219d5db79bb96

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V320-001
 title: Compute overlay diffs off the event loop
 milestone: review-defects-2026-10-04
+epic: workspaces
+kind: defect
+introduced_by: V11-006
 priority: P1
 status: completed
 implementation_commit: 496a4e2583f5614c7796c575668a09774df3d207

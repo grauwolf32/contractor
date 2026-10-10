@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V77-001
 title: Align Audit result collector assessments with profile mode
 milestone: audit-assessment-mode-parity-2026-10
+epic: audits
+kind: defect
+introduced_by: V39-003
 priority: P1
 status: completed
 implementation_commit: 4d432c1324d8b790dcc74a66753b5758a06c6ac2

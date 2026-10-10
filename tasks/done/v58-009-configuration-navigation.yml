@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V58-009
 title: Expose active configuration and separate reading from publishing
 milestone: ui-design-review
+epic: ui
+kind: defect
+introduced_by: V8-015
 priority: P1
 status: completed
 implementation_commit: a6ae161ee8ea272a3af2dcd8d64112d1bb141e7d

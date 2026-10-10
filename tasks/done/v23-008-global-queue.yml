@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-008
 title: Add the owner-scoped global WorkflowRun Queue read model and UI
 milestone: project-workspaces-operations
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: ee0906cf8d5f92cda55100e537be5498c87ccb94

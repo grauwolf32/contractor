@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V162-001
 title: Accept ASCII HTTP host names outside IDNA rules
 milestone: review-defects-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V128-001
 priority: P1
 status: completed
 implementation_commit: 54f4c899fb77df303aa0db61d6281c432742c145

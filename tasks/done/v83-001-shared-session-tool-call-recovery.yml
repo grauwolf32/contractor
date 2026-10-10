@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V83-001
 title: Balance unanswered shared-session tool calls in gateway requests
 milestone: shared-session-tool-call-recovery-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V19-001
 priority: P1
 status: completed
 implementation_commit: 937456cac24375792d32c3076849910a86b38aba

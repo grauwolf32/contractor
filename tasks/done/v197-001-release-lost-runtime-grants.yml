@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V197-001
 title: Release lost Runtime grants after bounded release failure
 milestone: allocation-release-recovery-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V6-002
 priority: P1
 status: completed
 implementation_commit: 48996d059dc8290022221349ffb011804851452b

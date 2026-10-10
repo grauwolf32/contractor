@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V1-004
 title: Persist bounded Planner, Worker, allocation, and Stage metrics
 milestone: first-slice-hardening
+epic: execution-core
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "a1db02a5b1dc7a0a906664862605e27399147910"

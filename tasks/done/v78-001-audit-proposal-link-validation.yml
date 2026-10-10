@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V78-001
 title: Validate Audit finding proposal links before result publication
 milestone: audit-proposal-link-validation-2026-10
+epic: audits
+kind: defect
+introduced_by: V39-003
 priority: P1
 status: completed
 implementation_commit: 7720500a1a1cca514ab76cee759aad17d5614e6e

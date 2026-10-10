@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-001
 title: Replace internal-model vocabulary and explanatory copy with plain labels
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 670763bd065e772b2517f29618168052fca23b4e

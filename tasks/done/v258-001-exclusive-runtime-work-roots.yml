@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V258-001
 title: Hold exclusive Runtime work-root locks before startup cleanup
 milestone: runtime-work-root-isolation-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V14-003
 priority: P1
 status: completed
 implementation_commit: 483b47bf91869dc122d1420f60d8d68fcd51fc28

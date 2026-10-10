@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V60-031
 title: Restore Audit lifecycle and repeat journeys to the mandatory browser gate
 milestone: project-review-v60
+epic: quality
+kind: chore
+introduced_by: V37-012
 priority: P2
 status: completed
 implementation_commit: 7afb380963f918a8fd8220f7c33262d6068d5d8c

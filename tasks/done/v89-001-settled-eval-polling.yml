@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V89-001
 title: Back off settled Eval detail and list polling
 milestone: settled-eval-polling-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-007
 priority: P2
 status: completed
 implementation_commit: a98a9e323459cc6a4b37ae8d95aaeb8f83976d85

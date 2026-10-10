@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-003"
 title: "Persist owner-scoped eval datasets, plans and durable commands"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "d4c4e8854d73fe44f52c8b3f6d461cfc56dcbcc1"

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V25-010
 title: Add allocation-bound security finding proposals and receipts
 milestone: audits-iterative
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 610cab5f434f68f9c126a9361380c982f7313ec8

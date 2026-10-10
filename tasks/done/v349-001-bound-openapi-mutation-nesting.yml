@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V349-001
 title: Bound OpenAPI mutation nesting before deep copies
 milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V319-001
 priority: P2
 status: completed
 depends_on: [V319-001]

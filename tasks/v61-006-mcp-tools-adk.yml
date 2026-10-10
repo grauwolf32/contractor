@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-006
 title: Expose exact prepared MCP tools through ADK with normal Worker accounting
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V26-004
 title: Execute small compatible Audit item batches in one ordinary Run
 milestone: audit-batch-efficiency
+epic: audits
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 9509666c6c24c9819962f7d1f60641501289d953

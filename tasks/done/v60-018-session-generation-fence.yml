@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-018
 title: Fence stale session responses from newer authentication state
 milestone: project-review-v60
+epic: ui
+kind: defect
 priority: P2
 status: completed
 depends_on:

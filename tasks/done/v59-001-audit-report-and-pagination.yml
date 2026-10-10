@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V59-001
 title: Restore Audit report review and full-size public pages
 milestone: public-api-review-corrections
+epic: api-contracts
+kind: defect
+introduced_by: V25-011
 priority: P1
 status: completed
 implementation_commit: 7a618fb1f9d7db14fe79a946c9432b97d07ab84d

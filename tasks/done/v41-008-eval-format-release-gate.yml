@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-008
 title: "Gate portable eval readiness before any instruction quality runs"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 34fa2936ae37a95ddd1a98fec5124e9e894d4452

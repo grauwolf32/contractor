@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V46-003"
 title: "Serve Project Run setup when its URL is opened directly or refreshed"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V37-008
 priority: "P2"
 status: "completed"
 implementation_commit: a9b6851819eff83ae5b056407388dab4b83bebea

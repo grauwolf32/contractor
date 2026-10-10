@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V236-001
 title: Renew Audit item reviews that expire after Resume
 milestone: runtime-maintenance-2026-10
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: ac873c2bcf298515f1798ebc0715ad0f9fa1ee9d

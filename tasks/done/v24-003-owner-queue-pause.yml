@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V24-003
 title: Add a durable owner-scoped Queue pause and resume gate
 milestone: workspace-lifecycle-controls
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 78eef87eab038bba4a7f4b77f6051a9a71284f20

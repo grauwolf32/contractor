@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V166-001
 title: Age deferred Run claims back into their tier
 milestone: review-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V105-001
 priority: P1
 status: completed
 implementation_commit: a2435bd4d42f850a1f2db7a925012028443160c0

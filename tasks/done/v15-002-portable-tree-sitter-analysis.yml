@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V15-002
 title: Implement portable Tree-sitter workspace analysis
 milestone: workspace-code-analysis-mvp
+epic: code-analysis
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 834e0908e49b068d742e5fd6f174b62ef9647114

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: MVP-002
 title: Define versioned cross-language wire contracts and golden fixtures
 milestone: mvp
+epic: execution-core
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "e5dee8f09f527cb85197c513a0edff7deddcb494"

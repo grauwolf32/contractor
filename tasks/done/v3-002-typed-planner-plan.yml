@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V3-002
 title: Add a bounded typed PlannerPlan state machine
 milestone: planner-routing-and-escalation
+epic: planner-worker
+kind: feature
 priority: P0
 status: completed
 implementation_commit: "2c64cee2117dbc99829021becc1f7a8db2d42baf"

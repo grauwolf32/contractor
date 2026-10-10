@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V34-005
 title: Verify blob backends in Kubernetes-compatible deployments without PVC
 milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 4edd8d52fd55aaf50e70f40750d9fab127acf813

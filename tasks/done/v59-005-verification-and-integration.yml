@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V59-005
 title: Verify and integrate all public API review corrections
 milestone: public-api-review-corrections
+epic: api-contracts
+kind: feature
 priority: P1
 status: completed
 depends_on:

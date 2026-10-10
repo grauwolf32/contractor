@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V182-001
 title: Restore Runtime tests after proxy and annotation interface changes
 milestone: runtime-test-parity-2026-10
+epic: quality
+kind: chore
+introduced_by: V173-001
 priority: P1
 status: completed
 implementation_commit: d8736cba42aaeccf23983004e4dd349261141def

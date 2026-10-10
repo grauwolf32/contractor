@@ -3,6 +3,8 @@
 Open tasks (pending, in_progress, deferred) live directly in tasks/; finished
 tasks (completed, archived) live in tasks/done/. The task files are the
 index: this check keeps them consistent instead of a hand-maintained list.
+Every task names an epic declared in tasks/epics.yml and a kind; a task that
+repairs earlier work names that task in introduced_by.
 
 PyYAML comes from the Runtime environment, so run it from the repository root
 as ``cd runtime && uv run python ../scripts/check_tasks.py`` (``make lint``).
@@ -21,6 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TASKS = ROOT / "tasks"
 DONE = "done"
 FINISHED = frozenset({"completed", "archived"})
+KINDS = frozenset({"feature", "defect", "chore"})
+NOT_TASKS = frozenset({"index.yml", "epics.yml"})
 TASK_ID = re.compile(r"^(MVP|V\d+)-\d{3}[A-Z]?$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 REQUIRED = (
@@ -28,6 +32,8 @@ REQUIRED = (
     "id",
     "title",
     "milestone",
+    "epic",
+    "kind",
     "priority",
     "status",
     "depends_on",
@@ -50,6 +56,7 @@ class Policy:
     statuses: frozenset[str]
     priorities: frozenset[str]
     exit_tasks: Mapping[str, str]  # milestone id -> exit task id
+    epics: frozenset[str] = frozenset()
 
 
 def validate(records: Iterable[Record], policy: Policy) -> list[str]:
@@ -79,6 +86,10 @@ def validate(records: Iterable[Record], policy: Policy) -> list[str]:
         status = data.get("status")
         if status not in policy.statuses:
             errors.append(f"{record.path}: status {status!r} is not declared")
+        if "epic" in data and data["epic"] not in policy.epics:
+            errors.append(f"{record.path}: epic {data['epic']!r} is not declared in tasks/epics.yml")
+        if "kind" in data and data["kind"] not in KINDS:
+            errors.append(f"{record.path}: kind {data['kind']!r} is not one of {', '.join(sorted(KINDS))}")
         priority = data.get("priority")
         if priority not in policy.priorities:
             errors.append(f"{record.path}: priority {priority!r} is not declared")
@@ -98,6 +109,9 @@ def validate(records: Iterable[Record], policy: Policy) -> list[str]:
         for dependency in data.get("depends_on") or []:
             if dependency not in by_id:
                 errors.append(f"{record.path}: depends_on unknown task {dependency}")
+        introducer = data.get("introduced_by")
+        if introducer is not None and (introducer not in by_id or introducer == data.get("id")):
+            errors.append(f"{record.path}: introduced_by {introducer!r} must name another existing task")
 
     for milestone, exit_task in sorted(policy.exit_tasks.items()):
         if exit_task not in by_id:
@@ -110,15 +124,22 @@ def load(tasks: Path = TASKS) -> tuple[list[Record], Policy]:
 
     index = yaml.safe_load((tasks / "index.yml").read_text(encoding="utf-8"))
     execution = index["execution_policy"]
+    epics = yaml.safe_load((tasks / "epics.yml").read_text(encoding="utf-8"))["epics"]
+    for epic in epics:
+        for spec in epic.get("specs") or []:
+            if not (tasks.parent / spec).is_file():
+                print(f"epics.yml: epic {epic['id']} names missing spec {spec}", file=sys.stderr)
+                raise SystemExit(1)
     policy = Policy(
         statuses=frozenset(execution["task_statuses"]),
         priorities=frozenset(execution["priorities"]),
         exit_tasks={m["id"]: m["exit_task"] for m in index.get("milestones") or [] if "exit_task" in m},
+        epics=frozenset(epic["id"] for epic in epics),
     )
     records: list[Record] = []
     for path in sorted([*tasks.glob("*.yml"), *(tasks / DONE).glob("*.yml")]):
         relative = path.relative_to(tasks).as_posix()
-        if relative == "index.yml":
+        if relative in NOT_TASKS:
             continue
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))

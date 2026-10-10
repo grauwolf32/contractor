@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V144-001
 title: Enforce the Audit standard baseline contract and trim dead catalog helpers
 milestone: audit-standard-baseline-contract-2026-10
+epic: audits
+kind: defect
+introduced_by: V26-001
 priority: P3
 status: completed
 implementation_commit: 21b025a2e6ed2606cb84185a1b1bc35eb7af0b19

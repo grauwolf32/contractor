@@ -1,5 +1,8 @@
 schema_version: '1.0'
 milestone: project-review-v60
+epic: quality
+kind: chore
+introduced_by: V39-007
 priority: P2
 status: completed
 implementation_commit: 34d9fc7a40dfb935e401088a170a7ff15579c636

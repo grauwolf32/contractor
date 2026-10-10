@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V35-002
 title: Fetch bounded Git snapshots over HTTPS and SSH entirely in memory
 milestone: git-artifact-import
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: b876832422f1c346a7c91dedcb13f06af27144b3

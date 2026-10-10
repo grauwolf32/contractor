@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V23-011
 title: Prove Project workspace recovery, security and end-to-end UX
 milestone: project-workspaces-operations
+epic: projects-artifacts
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 2aea06392ac8f207715102bb599feacd794179c2

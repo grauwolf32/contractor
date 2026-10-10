@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V217-001
 title: Cache decoded HTTP body artifacts for paged reads
 milestone: runtime-maintenance-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V12-003
 priority: P2
 status: completed
 implementation_commit: 1ad4d86547e9df9d7da23209624d728e2129c457

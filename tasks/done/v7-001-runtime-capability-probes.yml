@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V7-001
 title: Probe and freeze Runtime Agent capabilities at startup
 milestone: runtime-capability-placement
+epic: execution-core
+kind: feature
+introduced_by: MVP-009
 priority: P0
 status: completed
 implementation_commit: 6ee2a40a2aabb7a029cb64542a562d2df05c2a60

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-003
 title: Support ordinary zero-Worker Runs for the audit-priority planner
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V48-003
 title: "Return empty Memory tags as arrays in Planner and Worker projections"
 milestone: shared-memory-production-correctness
+epic: memory
+kind: defect
+introduced_by: V9-001
 priority: P2
 status: completed
 implementation_commit: 84190d6e89460f8ddc237cbf9f1c86ff263d3419

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-010
 title: "Read member pages from eval_view_pairs and drop eval_view_members"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V38-006
 priority: P2
 status: completed
 implementation_commit: 544b57d43767b745a249843f8bfcd5a99eeb014e

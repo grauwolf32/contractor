@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-010
 title: Expose Audit preparation and exact composition provenance through the API
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

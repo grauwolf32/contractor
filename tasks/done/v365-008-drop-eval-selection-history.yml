@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-008
 title: "Drop the write-only eval_selection_history table"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V38-006
 priority: P2
 status: completed
 implementation_commit: b01d7216583e51938165dd0be9b76eea1e5680b9

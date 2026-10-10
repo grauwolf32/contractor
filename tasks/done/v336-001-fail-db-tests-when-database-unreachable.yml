@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V336-001
 title: Fail Postgres-backed tests when the configured database is unreachable
 milestone: review-process-2026-10-04
+epic: quality
+kind: chore
+introduced_by: V27-001
 priority: P2
 status: completed
 implementation_commit: 7d933af49ba68ff8c64bd4af28f972515cd50f48

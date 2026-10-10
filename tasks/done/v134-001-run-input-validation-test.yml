@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V134-001
 title: Test production Run input validation and remove dead handler copy
 milestone: run-input-validation-test-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V25-005
 priority: P3
 status: completed
 implementation_commit: a56bcf32d80ba3d60e31e753d4a73ee35c5fcf99

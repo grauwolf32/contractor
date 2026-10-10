@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V26-001
 title: Add a versioned curated Audit standard package catalog
 milestone: audit-program-library
+epic: audits
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 3124cbc769a656ed4b92f3edeafd48d2eb1069b2

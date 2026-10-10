@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V2-009
 title: Add explicit precomputed-analysis workflow variants
 milestone: project-workflows-quality
+epic: workflows
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "8d4b5175ec81446da0af623101e9da666c0740f1"

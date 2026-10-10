@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-009
 title: Review authentication, delivery gates and operational recovery evidence
 milestone: project-review-v60
+epic: operations
+kind: chore
 priority: P2
 status: completed
 depends_on:

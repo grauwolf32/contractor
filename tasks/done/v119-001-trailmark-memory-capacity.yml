@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V119-001
 title: Classify Trailmark child memory exhaustion as capacity
 milestone: trailmark-memory-capacity-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V15-003
 priority: P2
 status: completed
 implementation_commit: eae6f6354ebae1fb1343ab597254d2a94b3c09dd

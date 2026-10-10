@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V224-001
 title: Skip unused physical workspace copies
 milestone: runtime-maintenance-2026-10
+epic: workspaces
+kind: chore
+introduced_by: V11-005
 priority: P2
 status: completed
 implementation_commit: 512143dcf0498dd60ea8fbf5731cca0ff154107f

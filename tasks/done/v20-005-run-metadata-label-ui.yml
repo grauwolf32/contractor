@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V20-005
 title: Add Run metadata label authoring and filtering to the UI
 milestone: run-metadata-labels
+epic: execution-core
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 853a0f6a259aab5b0e04bbf30ea3b5a51985d8d7

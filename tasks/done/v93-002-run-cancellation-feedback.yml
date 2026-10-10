@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V93-002
 title: Correct failed Run cancellation feedback and terminal race test
 milestone: ui-outcome-corrections-2026-10
+epic: ui
+kind: defect
+introduced_by: V66-001
 priority: P2
 status: completed
 implementation_commit: e68475f041f7a0e7a9a54d3e08c666b0762e1775

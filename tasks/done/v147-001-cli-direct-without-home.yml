@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V147-001
 title: Let direct CLI API commands run without a user config directory
 milestone: cli-direct-without-home-2026-10
+epic: operations
+kind: defect
 priority: P3
 status: completed
 implementation_commit: a416ac1ffb6ec6017682ecc23a08fc9a77862336

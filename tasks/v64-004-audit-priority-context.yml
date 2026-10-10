@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V64-004
 title: Freeze bounded service and finding context for each priority cycle
 milestone: audit-check-prioritization
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

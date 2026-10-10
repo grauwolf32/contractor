@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-010
 title: Review configuration attribution and delivered versus pending evaluation scope
 milestone: project-review-v60
+epic: evals
+kind: chore
 priority: P2
 status: completed
 depends_on:

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V45-005
 title: Separate Scheduler lifecycle phases
 milestone: server-maintainability
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 9ef3eec6f9841abdfb3165536d488c437c613004

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V33-001
 title: Group Workflows, Agents and Skills in Catalog and expose agent base prompts
 milestone: catalog-and-agent-prompts
+epic: workflows
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 7eda32e6ab4b361fcc503128a7dbf62bd70345c6

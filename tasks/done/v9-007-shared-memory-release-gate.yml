@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V9-007
 title: Gate Memory redaction isolation and release readiness
 milestone: shared-memory-tools
+epic: memory
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 9eb4aab2b1f3b4bab0755d5152191a87e8582b49

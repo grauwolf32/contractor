@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V148-001
 title: Accept digit-leading portable Agent Skill path components
 milestone: digit-leading-skill-paths-2026-10
+epic: agent-skills
+kind: defect
+introduced_by: V10-001
 priority: P2
 status: completed
 implementation_commit: 87a48a32420081389451ef9c226ee2fbf95e78e4

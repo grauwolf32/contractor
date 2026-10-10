@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V31-004
 title: Bind Podman preparation, shutdown and recovery to allocation lifecycle
 milestone: podman-allocation-execution
+epic: sandbox
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 050ca9101f9d747dbe1143221fba1f1d79cdca41

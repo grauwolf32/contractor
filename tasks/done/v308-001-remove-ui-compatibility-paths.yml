@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V308-001
 title: Remove UI compatibility paths and duplicated helpers
 milestone: review-defects-2026-10-04
+epic: ui
+kind: chore
+introduced_by: V97-001
 priority: P2
 status: completed
 implementation_commit: 6830d55d895050044d88933051bd1b39ea9e0f77

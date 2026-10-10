@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V151-001
 title: Align API READMEs with Eval routes and empty Gateway-token behavior
 milestone: api-readme-contract-corrections-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V38-005
 priority: P3
 status: completed
 implementation_commit: dd5e5c4b901608e5fe1b507fa42d6e15bf86d0e0

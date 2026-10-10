@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V43-003
 title: "Add list_findings with independently selectable read and write tools"
 milestone: findings-tools
+epic: findings
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 89c4dcae60d3e8b000b81f43ed18fce5cd4b382a

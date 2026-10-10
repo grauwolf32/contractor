@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V32-005
 title: Expose Operations performance and durable allocation resource history
 milestone: operations-performance-and-profiling
+epic: operations
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 78016cf29ec4dada507bdc45f465a902a9668092

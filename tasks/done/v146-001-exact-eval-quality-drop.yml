@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V146-001
 title: Compare eval quality drops at exact decimal gate boundaries
 milestone: exact-eval-quality-drop-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
 priority: P2
 status: completed
 implementation_commit: effdcd427e00a0e92097f3cbfd794cf4bdc20595

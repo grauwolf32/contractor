@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V164-001
 title: Validate CA bundles with one grammar in Server and Runtime
 milestone: review-defects-2026-10
+epic: api-contracts
+kind: defect
+introduced_by: V74-001
 priority: P1
 status: completed
 implementation_commit: 03d0414cd5158cf5ea5ae80d97c4fc0f38bc8412

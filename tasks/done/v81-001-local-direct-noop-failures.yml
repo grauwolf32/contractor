@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V81-001
 title: Keep local-direct workspaces usable after confirmed no-op filesystem errors
 milestone: local-direct-noop-failures-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V30-002
 priority: P1
 status: completed
 implementation_commit: 8d97fd020e8aac227e1b1a03f29f433c57e58c7b

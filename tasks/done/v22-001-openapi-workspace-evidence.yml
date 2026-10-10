@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V22-001
 title: Bind OpenAPI evidence validation to the project workspace
 milestone: workflow-catalog-consolidation
+epic: workflows
+kind: defect
+introduced_by: V15-007
 priority: P0
 status: completed
 implementation_commit: e4cebab3cf9861697c959a409b32821da0a98fac

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V360-001
 title: Label the new Audit stop codes in the UI
 milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V283-001
 priority: P2
 status: completed
 implementation_commit: cdbcfea4aa2bbbf8af0dfd62dace815a9fc6956b

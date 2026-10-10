@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V331-001
 title: Enforce source bundle member sizes while writing
 milestone: review-defects-2026-10-04
+epic: projects-artifacts
+kind: defect
 priority: P2
 status: completed
 implementation_commit: f2b4aa33a4615b7a5b9994d3b9887851d38d745f

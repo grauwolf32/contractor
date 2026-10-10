@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V355-001
 title: Index the RESTRICT keys of Audit finding assessments
 milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P2
 status: completed
 implementation_commit: 6e509ad7a686a56a39d5d2858be32ef3a2f3086c

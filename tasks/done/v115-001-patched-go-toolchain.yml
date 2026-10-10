@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V115-001
 title: Build and scan with a patched Go toolchain
 milestone: patched-go-toolchain-2026-10
+epic: quality
+kind: defect
+introduced_by: MVP-001
 priority: P1
 status: completed
 implementation_commit: 9d1cbe0552f78a1b9e7fe117c26abd3f289ab9cd

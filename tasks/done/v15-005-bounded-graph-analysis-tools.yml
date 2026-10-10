@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V15-005
 title: Add bounded Trailmark graph analysis operations
 milestone: workspace-code-analysis-port
+epic: code-analysis
+kind: feature
 priority: P1
 status: completed
 implementation_commit: c1d9c46eea51aa85fbee26177277e7cfc3cd7a3d

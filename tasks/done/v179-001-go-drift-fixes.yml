@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-001
 title: Fix behavior drift between duplicated Go helpers
 milestone: code-reuse-2026-10
+epic: quality
+kind: defect
 priority: P1
 status: completed
 implementation_commit: a8fd4104efc0e5e85f4d152ff5bc698a0a82e201

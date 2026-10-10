@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V25-012
 title: Prove Audit recovery, isolation, retention and truthful reporting
 milestone: audits-hardening
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 82735d89db2fc3f38c469b9185012bf1b3ad5358

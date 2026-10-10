@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-007
 title: "Publish portable eval reports through existing Contractor artifact APIs"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 2ee43504ffd8e319af4803d60107b1fe002b39b9

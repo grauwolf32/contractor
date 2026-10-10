@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V139-001
 title: Correct AgentTemplate Toolset examples
 milestone: agent-template-tool-examples-2026-10
+epic: workflows
+kind: defect
+introduced_by: MVP-001
 priority: P3
 status: completed
 implementation_commit: 0e269376adb82da9c33d0da2bf12df9c954a36ba

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V111-001
 title: Require a fresh registration after Runtime local lease expiry
 milestone: runtime-lease-rearm-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V1-002
 priority: P2
 status: completed
 implementation_commit: f23343a9d8ded806519e3063000f221759749bbc

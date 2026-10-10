@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V79-001
 title: Bound Audit completion by Stage deadline instead of request timeout
 milestone: audit-stage-deadline-2026-10
+epic: audits
+kind: defect
+introduced_by: V39-005
 priority: P1
 status: completed
 implementation_commit: 6863b4269278552649fae45d3577dd1207766a17

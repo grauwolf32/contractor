@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V158-001
 title: Refresh confirmed leases when preparing replayed reservations
 milestone: replayed-prepare-lease-2026-10
+epic: execution-core
+kind: defect
+introduced_by: MVP-008
 priority: P2
 status: completed
 implementation_commit: c66f0f2a8d00e81dea244d242c81ea500ef7f332

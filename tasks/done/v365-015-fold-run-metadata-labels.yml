@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-015
 title: "Fold workflow_run_metadata_labels into workflow_runs"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V20-002
 priority: P2
 status: completed
 implementation_commit: 8156e0632880b1622067da5966db4e7aa219fc06

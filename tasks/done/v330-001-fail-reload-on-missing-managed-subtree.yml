@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V330-001
 title: Fail configuration reloads when a managed subtree is missing
 milestone: review-defects-2026-10-04
+epic: runtime-config
+kind: defect
+introduced_by: V210-001
 priority: P2
 status: completed
 implementation_commit: 592a5cef3a0afcdcff1826f2da1eed10ee597a9a

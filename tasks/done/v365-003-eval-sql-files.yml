@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V365-003
 title: "Move managed-eval SQL into *_sql.go files"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 16b29c9f322f1ab9384da352bd06de37e3290616

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: "V37-003"
 title: "Put Project source actions and Workflow Run setup at the start of the page"
 milestone: "ui-journey-usability"
+epic: ui
+kind: defect
+introduced_by: V28-003
 priority: "P2"
 status: "completed"
 implementation_commit: "918fae30113b9df9f418d6ab949e4a5990cbf65b"

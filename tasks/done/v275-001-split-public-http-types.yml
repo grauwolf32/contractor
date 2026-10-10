@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V275-001
 title: Split oversized public HTTP type declarations
 milestone: code-reuse-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: aa95d592b00add1e53bca0b320c59419e284af49

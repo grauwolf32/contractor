@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-004
 title: Match allocation-discovered toolsets without weakening static capabilities
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

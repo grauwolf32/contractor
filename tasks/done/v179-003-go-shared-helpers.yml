@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V179-003
 title: Consolidate duplicated Go digest, JSON, ID and collection helpers
 milestone: code-reuse-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: dba6aacfdc48824a74e82d299ea74ee6d0cf663d

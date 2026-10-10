@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V67-005
 title: Keep nested Git metadata out of source bundles
 milestone: github-issue-remediation-2026-10
+epic: projects-artifacts
+kind: defect
 priority: P1
 status: completed
 implementation_commit: c3e43de6dcf34dddb29b74beaa20d3af0f4bf799

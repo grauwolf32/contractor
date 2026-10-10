@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V91-001
 title: Confirm Runtime credential, label binding and Git key removal
 milestone: confirm-destructive-setup-actions-2026-10
+epic: ui
+kind: defect
+introduced_by: V8-015
 priority: P2
 status: completed
 implementation_commit: ee1d013869b791dd859b4b53d8c1fc3123c5a429

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V14-003
 title: Bound Runtime cleanup without blocking the asyncio event loop
 milestone: runtime-lifecycle-hardening
+epic: execution-core
+kind: defect
+introduced_by: MVP-010
 priority: P1
 status: completed
 implementation_commit: ca4b819f8634d0eaeba8198e86ed792a422f49d2

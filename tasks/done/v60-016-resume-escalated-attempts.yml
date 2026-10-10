@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-016
 title: Resume escalated Run attempts without reusing automatic escalation identity
 milestone: project-review-v60
+epic: execution-core
+kind: defect
 priority: P2
 status: completed
 depends_on:

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V170-001
 title: Remove dead Audit results scaffolding
 milestone: audit-results-cleanup-2026-10
+epic: audits
+kind: chore
+introduced_by: V39-001
 priority: P2
 status: completed
 implementation_commit: d0640cf4f99e793098187d64ba80c2e5d1860177

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V186-001
 title: Align Gateway failure-signature Unicode validation
 milestone: gateway-signature-parity-2026-10
+epic: planner-worker
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 0f35bb3a6493bb1f1a086e287847d82b6bde72b1

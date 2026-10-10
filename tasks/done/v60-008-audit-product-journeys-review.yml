@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-008
 title: Review Audit consistency and complete Project Run and finding journeys
 milestone: project-review-v60
+epic: audits
+kind: chore
 priority: P2
 status: completed
 depends_on:

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V57-002
 title: Reconcile current documentation status with authoritative task evidence
 milestone: architecture-review-corrections
+epic: quality
+kind: defect
 priority: P2
 status: completed
 implementation_commit: f6494a55d67abb02f44d0af3a89942dce9c4ee4a

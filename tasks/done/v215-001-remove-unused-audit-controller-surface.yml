@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V215-001
 title: Remove unused Audit Controller and service API surface
 milestone: audit-maintenance-2026-10
+epic: audits
+kind: chore
+introduced_by: V25-006
 priority: P2
 status: completed
 implementation_commit: 828db4aabb98d20fe1e82821b98706030cb82869

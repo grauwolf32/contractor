@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V2-008
 title: Add an opt-in live-model quality evaluation for project workflows
 milestone: project-workflows-quality
+epic: workflows
+kind: feature
 priority: P1
 status: completed
 implementation_commit: "4cb721e0ed9a2b4d34da6672b6f9345df20872df"

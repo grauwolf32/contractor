@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V45-002
 title: Separate process settings phases and name deployment defaults
 milestone: server-maintainability
+epic: quality
+kind: defect
 priority: P2
 status: completed
 implementation_commit: d86729d4f5b873cd9263986076daf7d37b4231ce

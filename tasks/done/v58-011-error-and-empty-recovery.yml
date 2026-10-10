@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V58-011
 title: Verify coherent recovery and empty states across views
 milestone: ui-design-review
+epic: ui
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 7ae6013fbdcfe3eb961033861982ac09fffd1e19

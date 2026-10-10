@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V278-001
 title: Purge Audits that hold review decisions or collected finding assessments
 milestone: review-defects-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V25-011
 priority: P1
 status: completed
 implementation_commit: 1d28f59709dffea4360f8ebb4eeed635d0b9d9e2

@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-008
 title: Publish reusable project analysis and chained OpenAPI preparation
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P2
 status: deferred
 deferral:

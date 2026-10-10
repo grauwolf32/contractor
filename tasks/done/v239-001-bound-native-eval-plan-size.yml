@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V239-001
 title: Reject native Eval matrices that cannot fit a frozen plan
 milestone: runtime-maintenance-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-002
 priority: P1
 status: completed
 implementation_commit: 08e130f2c460ce5108b859b5a094cd9ebf949618

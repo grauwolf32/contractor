@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V44-001
 title: Integrate the limited OpenAPI graph comparison profile
 milestone: openapi-workflow-variants
+epic: workflows
+kind: feature
 priority: P2
 status: completed
 implementation_commit: 0eb47803f4b458aea6e27297d6e7ce867f97fd96

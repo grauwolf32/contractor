@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V72-002
 title: Select human Eval assessments with current revision
 milestone: eval-revision-race-recovery-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-008
 priority: P1
 status: completed
 implementation_commit: 551ebb7cef5a476c7815bce81c9872b131ec6296

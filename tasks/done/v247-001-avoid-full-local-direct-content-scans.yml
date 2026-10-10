@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V247-001
 title: Avoid whole-workspace reads for local direct edits
 milestone: runtime-projectfs-2026-10
+epic: workspaces
+kind: defect
+introduced_by: V30-002
 priority: P2
 status: completed
 implementation_commit: d1d9a7737ade8e1158a7bda63727f02f804caa40

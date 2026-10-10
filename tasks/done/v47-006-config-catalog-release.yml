@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V47-006
 title: "Finalize model-policy catalog and verify the live gateway"
 milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 394018a04a57c52a1e4cdce8d0c4ef63edd74114

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V29-007
 title: Bound database waits and verify the PostgreSQL hardening milestone
 milestone: postgres-reliability-and-query-efficiency
+epic: persistence
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 4cfd75c87e1c20825fbadba427a7129da26cc95a

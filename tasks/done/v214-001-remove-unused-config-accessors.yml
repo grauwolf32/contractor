@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V214-001
 title: Remove unused configuration accessors
 milestone: configuration-maintenance-2026-10
+epic: runtime-config
+kind: chore
+introduced_by: V3-007
 priority: P2
 status: completed
 implementation_commit: cf4424662285a62a87b624db16ec6fe723c7acb7

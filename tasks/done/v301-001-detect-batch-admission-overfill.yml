@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V301-001
 title: Make the batch-admission race test detect overfill
 milestone: review-defects-2026-10-04
+epic: evals
+kind: chore
+introduced_by: V259-001
 priority: P2
 status: completed
 implementation_commit: 9f7303b3180de4ee59d2dcebae3b8ce7bedb1aa2

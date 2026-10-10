@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V268-001
 title: Complete the CLI, build, and deployment review fixes
 milestone: release-gate-2026-10
+epic: quality
+kind: defect
+introduced_by: V4-006
 priority: P2
 status: completed
 implementation_commit: 12960ddb0be0a9d509b853256027b1a3d0012a86

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V160-001
 title: Classify numeric-code and unwrapped Gateway errors consistently
 milestone: gateway-error-body-parity-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V65-001
 priority: P2
 status: completed
 implementation_commit: 0a6b6ba4bb9ada151161bdb0516bcf305d73d056

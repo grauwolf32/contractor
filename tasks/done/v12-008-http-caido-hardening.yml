@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V12-008
 title: Harden HTTP and Caido limits redaction and teardown
 milestone: http-caido-tools-hardening
+epic: http-tools
+kind: feature
 priority: P1
 status: completed
 implementation_commit: b66263101cbc644f9d1d9a4d1a0ead80958e6cb9

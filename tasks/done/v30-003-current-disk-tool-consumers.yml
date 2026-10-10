@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V30-003
 title: Make filesystem tools and analysis observe fresh local direct snapshots
 milestone: local-direct-disk-authority
+epic: workspaces
+kind: feature
 priority: P0
 status: completed
 implementation_commit: cb73e4293505842d7371f76b924a10abd4c5f7f7

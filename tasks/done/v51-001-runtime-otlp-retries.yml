@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V51-001
 title: Bound Runtime OTLP retries and expose discarded-span diagnostics
 milestone: runtime-otlp-delivery
+epic: operations
+kind: defect
+introduced_by: V8-011
 priority: P2
 status: completed
 implementation_commit: b763e6ab93ec30e9b09c5280fc36f326234880e3

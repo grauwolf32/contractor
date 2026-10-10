@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V356-001
 title: Accept underscore hosts in Go scan planning
 milestone: review-followups-2026-10-04
+epic: scan-tools
+kind: defect
+introduced_by: V55-007
 priority: P2
 status: completed
 implementation_commit: 5a54d0b355bd4ab596c7727aaeb273181512b7dd

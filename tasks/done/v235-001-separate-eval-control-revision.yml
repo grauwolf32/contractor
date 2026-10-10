@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V235-001
 title: Keep Eval authority revisions stable across coordinator observations
 milestone: runtime-maintenance-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-003
 priority: P2
 status: completed
 implementation_commit: 776ffb2ab780bb93e4d71ac3cd696c43bb0c49d5

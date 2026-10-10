@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V34-001
 title: Define startup blob selection and extract the PostgreSQL payload boundary
 milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: eec2ee5abb60a108e9d7d8b42c3e0d86727f553d

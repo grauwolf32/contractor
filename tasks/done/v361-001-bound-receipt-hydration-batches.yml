@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V361-001
 title: Bound receipt hydration batches by bytes
 milestone: review-followups-2026-10-04
+epic: audits
+kind: defect
+introduced_by: V45-003
 priority: P2
 status: completed
 depends_on: [V283-001]

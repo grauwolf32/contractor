@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V246-001
 title: Remove unused Go exports and test-only copies of production logic
 milestone: go-maintenance-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 67b4379706366bb7f667682fafa82bc8b060998d

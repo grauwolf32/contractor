@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V66-003
 title: Compact project and audit headers and move delete into the overflow menu
 milestone: ui-design-review-2
+epic: ui
+kind: defect
 priority: P1
 status: completed
 implementation_commit: 64735aca59478d2cd15e86a29f3842c3f2251f82

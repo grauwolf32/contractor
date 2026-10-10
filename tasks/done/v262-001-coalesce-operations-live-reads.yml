@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V262-001
 title: Coalesce Operations live snapshot and principal reads
 milestone: operations-live-2026-10
+epic: operations
+kind: defect
+introduced_by: V4-010
 priority: P1
 status: completed
 implementation_commit: a18fc58d36072d79b5210294cb53e71061d57065

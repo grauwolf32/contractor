@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V339-001
 title: Move live advisory scans out of the deterministic gate
 milestone: review-process-2026-10-04
+epic: quality
+kind: chore
+introduced_by: V250-001
 priority: P2
 status: completed
 implementation_commit: b100f747d9aeb1e8088f89520f82eb204b4431ac

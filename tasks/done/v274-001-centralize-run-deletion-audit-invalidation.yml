@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V274-001
 title: Centralize Run-deletion Audit projection invalidation
 milestone: code-reuse-2026-10
+epic: audits
+kind: defect
+introduced_by: V60-012
 priority: P1
 status: completed
 implementation_commit: bbff50d2e802d2482303bd54316102a5f4fb6ead

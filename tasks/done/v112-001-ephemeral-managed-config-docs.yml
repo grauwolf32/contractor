@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V112-001
 title: Disclose ephemeral managed configurations in the no-PVC deployment
 milestone: managed-config-deployment-docs-2026-10
+epic: operations
+kind: chore
+introduced_by: V34-005
 priority: P2
 status: completed
 implementation_commit: 607f683035ea3ac742119d3cab0efa1ffdbf59a1

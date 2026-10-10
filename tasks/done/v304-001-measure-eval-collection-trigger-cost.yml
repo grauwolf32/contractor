@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V304-001
 title: Measure and fix per-row eval_collections upserts on bulk experiment inserts
 milestone: review-followups-2026-10-04
+epic: evals
+kind: defect
+introduced_by: V38-003
 priority: P2
 status: completed
 implementation_commit: ed3f53c9e9323f17cc5fb80fbbb82b0d4d758649

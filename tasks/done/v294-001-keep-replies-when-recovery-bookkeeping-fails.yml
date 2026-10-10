@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V294-001
 title: Keep model replies when Gateway recovery bookkeeping fails
 milestone: review-defects-2026-10-04
+epic: planner-worker
+kind: defect
+introduced_by: V65-002
 priority: P2
 status: completed
 implementation_commit: b373a05415239f017836f0b4577797ce08f0382d

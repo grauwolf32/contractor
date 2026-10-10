@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V9-005
 title: Harden Memory semantics and model-visible boundaries
 milestone: shared-memory-tools
+epic: memory
+kind: defect
+introduced_by: V9-002
 priority: P1
 status: completed
 implementation_commit: a8fe196a0c295efd7c7975e9333b4d9a29421f37

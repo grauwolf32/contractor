@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V18-003
 title: Harden and process-test optional terminal Worker summarization
 milestone: terminal-worker-summarization
+epic: planner-worker
+kind: feature
 priority: P1
 status: completed
 implementation_commit: cec515c325321108e9cf2706af2753b9476ff223

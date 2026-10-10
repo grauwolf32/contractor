@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V65-001
 title: Classify gateway failures consistently and recognize model unloads
 milestone: run-admission-gateway-recovery
+epic: planner-worker
+kind: defect
+introduced_by: V47-002
 priority: P1
 status: completed
 implementation_commit: fae981a0010650ff55023facfa71eddf061fe650

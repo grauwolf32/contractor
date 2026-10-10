@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-007"
 title: "Build dataset authoring and full native experiment setup in Evals"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "d2a843d32b1653471430d5307dbb73ed11e9ffa2"

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-006
 title: Review Runtime authority, completion, cross-language contracts and tools
 milestone: project-review-v60
+epic: api-contracts
+kind: chore
 priority: P2
 status: completed
 depends_on:

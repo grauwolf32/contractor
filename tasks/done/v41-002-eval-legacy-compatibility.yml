@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V41-002
 title: "Preserve playground v1 suites and results through explicit conversion"
 milestone: portable-eval-format
+epic: evals
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 7eeb274e044b83b88bb73884f12b60d5599d9da5

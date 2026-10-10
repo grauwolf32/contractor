@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V61-005
 title: Own Streamable HTTP MCP sessions through allocation preparation and cleanup
 milestone: toolset-runtime-configuration
+epic: runtime-config
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

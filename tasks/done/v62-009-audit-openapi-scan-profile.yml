@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-009
 title: Connect supplied OpenAPI to SQLMap and pinned-URL Nuclei Audit checks
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: completed
 implementation_commit: 4bd4fd6d45200f813397e3aebcdcf91efef09fb9

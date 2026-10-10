@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: "V38-006"
 title: "Collect eval results and build attributed complete comparisons"
 milestone: "managed-evals-ui"
+epic: evals
+kind: feature
 priority: "P2"
 status: "completed"
 implementation_commit: "9fc021501ce34389ecc7f35ca65bdf7959a25ce9"

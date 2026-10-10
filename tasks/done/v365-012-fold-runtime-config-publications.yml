@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V365-012
 title: "Fold runtime_config_publications into runtime_config_versions"
 milestone: schema-reduction-2026-10
+epic: persistence
+kind: chore
+introduced_by: V8-001
 priority: P2
 status: completed
 implementation_commit: 9fc18e380afe44fdf3ecac12bd620840e3386ca6

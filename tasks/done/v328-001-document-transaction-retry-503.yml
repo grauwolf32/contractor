@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V328-001
 title: Document transaction-retry 503 responses for public operations
 milestone: review-defects-2026-10-04
+epic: api-contracts
+kind: defect
+introduced_by: V207-001
 priority: P2
 status: completed
 implementation_commit: be4b73382c26eecb14ca11b42eaf1ed19e8ea540

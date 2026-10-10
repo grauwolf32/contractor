@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V191-001
 title: Reject Eval create intents on deleted Runtime label bindings
 milestone: eval-admission-recovery-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-004
 priority: P1
 status: completed
 implementation_commit: 32236894d475841a2a59c8dc4300fe169f04d613

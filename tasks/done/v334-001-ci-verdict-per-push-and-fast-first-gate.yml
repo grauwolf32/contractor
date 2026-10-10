@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V334-001
 title: Keep a verdict for every main push and run fast gates first
 milestone: review-process-2026-10-04
+epic: quality
+kind: chore
+introduced_by: V8-016
 priority: P1
 status: completed
 implementation_commit: ec9af537c8b3ba623b56f35f8b4b0310bfacb5cd

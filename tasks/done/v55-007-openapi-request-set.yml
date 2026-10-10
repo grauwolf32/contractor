@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V55-007
 title: Prepare deterministic scan requests from OpenAPI
 milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
 priority: P2
 status: completed
 implementation_commit: a51c6d938497ce7fb1763931a6126ec664c43f20

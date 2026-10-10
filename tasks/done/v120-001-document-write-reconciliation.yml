@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V120-001
 title: Reconcile ambiguous LikeC4 and OpenAPI document writes
 milestone: document-write-reconciliation-2026-10
+epic: workflows
+kind: defect
+introduced_by: V2-005
 priority: P2
 status: completed
 implementation_commit: ef804f3fc00ab1b186ee4029e202715eec3e059f

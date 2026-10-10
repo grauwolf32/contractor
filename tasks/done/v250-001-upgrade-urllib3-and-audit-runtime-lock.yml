@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V250-001
 title: Upgrade urllib3 and audit the Runtime lock in the release gate
 milestone: runtime-dependency-hygiene-2026-10
+epic: quality
+kind: defect
 priority: P2
 status: completed
 implementation_commit: 3bb5993e2abdb060e96bd728ff818a7bf1217983

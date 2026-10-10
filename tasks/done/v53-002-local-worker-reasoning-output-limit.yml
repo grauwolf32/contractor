@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V53-002
 title: Diagnose local Worker reasoning-only output-limit failures
 milestone: real-project-audit-stability
+epic: audits
+kind: defect
 priority: P1
 status: archived
 archive:

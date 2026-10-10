@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V47-004
 title: "Configure and bound terminal summarizer instructions"
 milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: feature
 priority: P1
 status: completed
 implementation_commit: ba329bdda3def34770cd267e6b7be7d00231689e

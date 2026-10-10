@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V363-001
 title: Use exact configuration-name patterns in UI route pre-checks
 milestone: review-followups-2026-10-04
+epic: api-contracts
+kind: defect
+introduced_by: V323-001
 priority: P2
 status: completed
 implementation_commit: 305bd4567083952e5a2f0a6df9d699007561eb3a

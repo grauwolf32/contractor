@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V12-006
 title: Connect migrated Caido Skill and explicit AgentTemplates
 milestone: http-caido-tools-mvp
+epic: http-tools
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 04eedd9ebc92df55ccc560c12d4693ccfa688210

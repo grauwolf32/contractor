@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V287-001
 title: Separate storage budgets from transfer socket deadlines
 milestone: review-defects-2026-10-04
+epic: projects-artifacts
+kind: defect
+introduced_by: V234-001
 priority: P2
 status: completed
 implementation_commit: 0792d0a46bb5cc6dcc27953ec3ef54185db0e3e7

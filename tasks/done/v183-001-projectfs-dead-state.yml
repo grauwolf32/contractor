@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V183-001
 title: Remove unreachable project workspace writes and unused binary state
 milestone: projectfs-dead-state-2026-10
+epic: workspaces
+kind: chore
+introduced_by: V30-002
 priority: P2
 status: completed
 implementation_commit: b314d7baa93d259347ca3f5f2da92316538b60b1

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V272-001
 title: Centralize Project-owned Audit deletion transitions
 milestone: code-reuse-2026-10
+epic: audits
+kind: defect
+introduced_by: V24-005
 priority: P1
 status: completed
 implementation_commit: 0714c96a89a6768d8055a9d8f6ae5d9e9d086a45

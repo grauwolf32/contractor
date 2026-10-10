@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V34-002
 title: Implement rooted immutable filesystem blob storage
 milestone: artifact-blob-backends
+epic: projects-artifacts
+kind: feature
 priority: P2
 status: completed
 implementation_commit: d65b27f178aa325732677de2ee6ca1872087ed13

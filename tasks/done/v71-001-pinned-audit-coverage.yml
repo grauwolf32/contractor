@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V71-001
 title: Keep pinned Audit Coverage stable while the Audit advances
 milestone: audit-ui-refresh-correctness-2026-10
+epic: audits
+kind: defect
+introduced_by: V66-008
 priority: P1
 status: completed
 implementation_commit: fe8c4942129ecadb33a56f0ea4c7c4856963b1a2

@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V60-007
 title: Review Artifact authority, deletion races and persistence recovery
 milestone: project-review-v60
+epic: projects-artifacts
+kind: chore
 priority: P2
 status: completed
 depends_on:

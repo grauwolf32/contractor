@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V3-001
 title: Unify model-backed Planner completion under finish
 milestone: planner-routing-and-escalation
+epic: planner-worker
+kind: feature
+introduced_by: V1-006
 priority: P0
 status: completed
 implementation_commit: "41cf03b0087a827d5effa9718f42d40f6ca1133f"

@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V276-001
 title: Share bounded source ZIP encoding
 milestone: code-reuse-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V35-002
 priority: P2
 status: completed
 implementation_commit: 233c4b0dd87fded95989d2c318a51447be4ddc95

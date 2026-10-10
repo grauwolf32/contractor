@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V20-003
 title: Add exact owner-scoped Run label filtering
 milestone: run-metadata-labels
+epic: execution-core
+kind: feature
 priority: P0
 status: completed
 implementation_commit: 0371c40b944f7a6c025e7673d53fb0d0f7a1883d

@@ -2,6 +2,9 @@ schema_version: "1.0"
 id: V26-006
 title: Bound Audit batches by task-package bytes before dispatch
 milestone: audit-batch-efficiency
+epic: audits
+kind: defect
+introduced_by: V26-004
 priority: P2
 status: completed
 implementation_commit: c5e19b5c3bc64e11fa002da0a3002486d58ec9e9

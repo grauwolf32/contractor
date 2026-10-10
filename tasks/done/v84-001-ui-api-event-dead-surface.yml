@@ -2,6 +2,9 @@ schema_version: '1.0'
 id: V84-001
 title: Remove unused UI API exports, query keys and subscription resume API
 milestone: ui-api-dead-surface-2026-10
+epic: ui
+kind: chore
+introduced_by: V4-009B
 priority: P2
 status: completed
 implementation_commit: 04a8895c7ac5041986cf1e885abea01944850f5b

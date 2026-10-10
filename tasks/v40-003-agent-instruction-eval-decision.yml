@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V40-003
 title: "Evaluate instruction candidates and record evidence-based adoption decisions"
 milestone: agent-instruction-evaluation
+epic: evals
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null

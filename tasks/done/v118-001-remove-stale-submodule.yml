@@ -2,6 +2,8 @@ schema_version: '1.0'
 id: V118-001
 title: Remove stale playground submodule metadata
 milestone: remove-stale-submodule-2026-10
+epic: quality
+kind: chore
 priority: P2
 status: completed
 implementation_commit: 59bcc460ce03d3ca221617ca54fff7be02475a72

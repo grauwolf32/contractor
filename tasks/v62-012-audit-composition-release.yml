@@ -2,6 +2,8 @@ schema_version: "1.0"
 id: V62-012
 title: Verify preparation and OpenAPI scans across production boundaries
 milestone: audit-workflow-composition
+epic: audits
+kind: feature
 priority: P1
 status: pending
 implementation_commit: null
