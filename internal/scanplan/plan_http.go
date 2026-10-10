@@ -8,12 +8,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"golang.org/x/net/idna"
 )
 
 func scanURL(target string) (*url.URL, string) {
-	request := contracts.PreparedHTTPRequest{Method: "GET", URL: target, Headers: []contracts.HTTPRequestHeader{}}
+	request := scan.PreparedHTTPRequest{Method: "GET", URL: target, Headers: []scan.HTTPRequestHeader{}}
 	if request.Validate() != nil || !(strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://")) {
 		return nil, "unsupported_url"
 	}
@@ -73,7 +73,7 @@ func isASCII(value string) bool {
 
 // Match the existing request-file adapter's representation limits before
 // selecting a job. Test parameter names remain an explicit policy input.
-func prepareSQLMapRequest(request contracts.PreparedHTTPRequest, names []string) (SQLMapRequest, string) {
+func prepareSQLMapRequest(request scan.PreparedHTTPRequest, names []string) (SQLMapRequest, string) {
 	empty := SQLMapRequest{}
 	u, code := scanURL(request.URL)
 	if code != "" || request.Validate() != nil {
@@ -174,7 +174,7 @@ func prepareSQLMapRequest(request contracts.PreparedHTTPRequest, names []string)
 	if !hasLength {
 		bytesInHeaders += len("Content-Length: \r\n") + len(strconv.Itoa(len(request.Body)))
 	}
-	if bytesInHeaders > contracts.MaxHTTPRequestHeaderBytes {
+	if bytesInHeaders > scan.MaxHTTPRequestHeaderBytes {
 		return empty, "unsupported_request_representation"
 	}
 	if strings.HasPrefix(strings.ToLower(contentType), "application/x-www-form-urlencoded") {
@@ -207,5 +207,5 @@ func prepareSQLMapRequest(request contracts.PreparedHTTPRequest, names []string)
 			return empty, "unsupported_request_representation"
 		}
 	}
-	return SQLMapRequest{SchemaVersion: 1, Method: request.Method, URL: request.URL, Headers: append([]contracts.HTTPRequestHeader{}, request.Headers...), Body: request.Body, TestParameters: append([]string{}, names...)}, ""
+	return SQLMapRequest{SchemaVersion: 1, Method: request.Method, URL: request.URL, Headers: append([]scan.HTTPRequestHeader{}, request.Headers...), Body: request.Body, TestParameters: append([]string{}, names...)}, ""
 }

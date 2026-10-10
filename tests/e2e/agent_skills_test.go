@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -764,7 +765,7 @@ func sameAgentSkillArtifactRef(left, right contracts.ArtifactRef) bool {
 
 func assertContentFreeAgentSkillMetrics(
 	t *testing.T,
-	report contracts.ExecutionReport,
+	report reporting.ExecutionReport,
 	fixture agentSkillMVPFixture,
 ) {
 	t.Helper()
@@ -788,7 +789,7 @@ func assertContentFreeAgentSkillMetrics(
 				continue
 			}
 			matches++
-			if call.Outcome != contracts.ToolCallSucceeded || call.Error != nil ||
+			if call.Outcome != reporting.ToolCallSucceeded || call.Error != nil ||
 				call.ArgumentsTruncated || call.ResultSizeBytes == nil || *call.ResultSizeBytes <= 0 {
 				t.Fatalf("native Skill call %s = %+v", name, call)
 			}

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -32,10 +32,10 @@ type publishConfigurationRequest struct {
 }
 
 type createCredentialRequest struct {
-	CredentialID  string                        `json:"credentialId"`
-	LLMGateway    contracts.LLMGatewayConfigRef `json:"llmGateway"`
-	Label         *string                       `json:"label,omitempty"`
-	GatewayPolicy credentials.GatewayPolicy     `json:"gatewayPolicy"`
+	CredentialID  string                         `json:"credentialId"`
+	LLMGateway    llmgateway.LLMGatewayConfigRef `json:"llmGateway"`
+	Label         *string                        `json:"label,omitempty"`
+	GatewayPolicy credentials.GatewayPolicy      `json:"gatewayPolicy"`
 }
 
 func (r *createCredentialRequest) UnmarshalJSON(data []byte) error {

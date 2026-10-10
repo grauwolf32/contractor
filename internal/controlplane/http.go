@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -86,7 +87,7 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: query parameters are not supported", ErrInvalidRequest))
 		return
 	}
-	registration, err := decodePrivateJSON[contracts.AgentRegistration](w, r)
+	registration, err := decodePrivateJSON[control.AgentRegistration](w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -118,7 +119,7 @@ func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: query parameters are not supported", ErrInvalidRequest))
 		return
 	}
-	heartbeat, err := decodePrivateJSON[contracts.AgentHeartbeat](w, r)
+	heartbeat, err := decodePrivateJSON[control.AgentHeartbeat](w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return

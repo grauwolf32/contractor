@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/config"
 )
 
 func TestConfigValidateMatchesServerForFilesystemAndUnionFailures(t *testing.T) {
@@ -58,6 +56,17 @@ func TestConfigValidateMatchesServerForFilesystemAndUnionFailures(t *testing.T) 
 				t.Fatal(err)
 			}
 		}, "duplicate ModelPolicy identity"},
+		{"invalid bundled skill", func(t *testing.T, operator, _ string) {
+			writeOperatorFile(t, filepath.Join(operator, "skills", "trace", "SKILL.md"), "not a skill manifest")
+		}, "bundled skills: skill_manifest_invalid"},
+		{"invalid bundled Audit standard", func(t *testing.T, operator, _ string) {
+			writeOperatorFile(t, filepath.Join(operator, "audit-standards", "owasp-asvs-5.0.0", "standard.json"), "{}")
+		}, "bundled Audit standards: "},
+		{"findings reader without collection input", func(t *testing.T, operator, _ string) {
+			addFindingsReader(t, operator, func(workflow string) string {
+				return strings.Replace(workflow, "mediaTypes: [application/vnd.contractor.findings-collection+zip]", "mediaTypes: [application/zip]", 1)
+			})
+		}, `Stage "read" Agent "reader" security-findings@1 list_findings requires the required Workflow input findings with media type application/vnd.contractor.findings-collection+zip`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			operator := copyConfigValidationTree(t)
@@ -67,14 +76,55 @@ func TestConfigValidateMatchesServerForFilesystemAndUnionFailures(t *testing.T) 
 			if validationErr == nil || !strings.Contains(validationErr.Error(), test.want) {
 				t.Fatalf("config validate error = %v, want %q", validationErr, test.want)
 			}
-			_, serverErr := config.NewManager(config.ManagerOptions{
-				OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
-			})
+			_, serverErr := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			if serverErr == nil || !strings.Contains(serverErr.Error(), test.want) {
 				t.Fatalf("Server load error = %v, want %q", serverErr, test.want)
 			}
 		})
 	}
+}
+
+// The positive control for the findings reader case above: the same Workflow
+// with its declared collection input passes both loads.
+func TestConfigValidateAndServerAcceptFindingsReaderWithCollectionInput(t *testing.T) {
+	operator := copyConfigValidationTree(t)
+	managed := filepath.Join(filepath.Dir(operator), "managed-configs")
+	addFindingsReader(t, operator, func(workflow string) string { return workflow })
+	if err := validateConfigForTest(operator, managed); err != nil {
+		t.Fatalf("config validate rejected the findings reader: %v", err)
+	}
+	manager, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("Server rejected the findings reader: %v", err)
+	}
+	if _, err := manager.Workflow("findings-reader@1"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeOperatorFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// addFindingsReader adds a Workflow whose agent selects
+// security-findings@1 list_findings, after edit rewrites the Workflow.
+func addFindingsReader(t *testing.T, operator string, edit func(string) string) {
+	t.Helper()
+	if err := os.CopyFS(operator, os.DirFS("testdata/findings-reader")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(operator, "workflows", "findings_reader.yaml")
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeOperatorFile(t, path, edit(string(original)))
 }
 
 func TestConfigValidateNeverCreatesManagedRootOrSubtrees(t *testing.T) {
@@ -98,9 +148,7 @@ func TestConfigValidateNeverCreatesManagedRootOrSubtrees(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(managed, "workflows")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("validation created managed subtree: %v", err)
 	}
-	if _, err := config.NewManager(config.ManagerOptions{
-		OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
-	}); err != nil {
+	if _, err := loadServerConfiguration(operator, managed, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
 		t.Fatalf("Server rejected configuration accepted by config validate: %v", err)
 	}
 }

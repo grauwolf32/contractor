@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -90,9 +91,9 @@ INSERT INTO runtime_credentials (
 	); err != nil {
 		t.Fatal(err)
 	}
-	target := &contracts.HTTPOriginTargetRef{
+	target := &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}

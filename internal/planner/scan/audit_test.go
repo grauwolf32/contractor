@@ -12,7 +12,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -35,7 +37,7 @@ func (s *auditFactoryHistory) ReadAuditScanHistory(context.Context, string) ([]p
 func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *auditFactoryHistory) {
 	t.Helper()
 	h := newFactoryHarness(t, 1)
-	snapshot, err := config.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +135,7 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 				if request.Method != "POST" || request.Body != `{"name":"Milo"}` || !slices.Contains(request.TestParameters, "name") {
 					t.Fatalf("request changed: %+v", request)
 				}
-				if !slices.Contains(request.Headers, contracts.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) {
+				if !slices.Contains(request.Headers, contractscan.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) {
 					t.Fatal("authentication lost")
 				}
 			} else {

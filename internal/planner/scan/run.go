@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -124,7 +125,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 			return emptyPlan, emptyState, err
 		}
 		source, payload = &prepared, preparedPayload
-		policy.Tools = append([]contracts.ScanToolPolicy{}, policy.Tools...)
+		policy.Tools = append([]contractscan.ScanToolPolicy{}, policy.Tools...)
 		policy.Tools[0].TestParameters = append([]string{}, p.audit.task.Scan.TestParameters...)
 	}
 	bindings := map[string]scanplan.ToolBinding{}

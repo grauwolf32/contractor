@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // Snapshot is an immutable, dependency-resolved view of one successful load.
@@ -16,7 +17,7 @@ type Snapshot struct {
 	workflows        map[string]ResolvedWorkflow
 	templates        map[string]contracts.ResolvedAgentTemplate
 	policies         map[string]contracts.ResolvedModelPolicy
-	gateways         map[string]contracts.ResolvedLLMGatewayConfig
+	gateways         map[string]llmgateway.ResolvedLLMGatewayConfig
 	executionConfigs map[string]ResolvedExecutionConfigProfile
 	auditProfiles    map[string]ResolvedAuditProfile
 	instructions     map[string]contracts.ResolvedInstructions
@@ -27,7 +28,7 @@ func newSnapshot(
 	workflows map[string]ResolvedWorkflow,
 	templates map[string]contracts.ResolvedAgentTemplate,
 	policies map[string]contracts.ResolvedModelPolicy,
-	gateways map[string]contracts.ResolvedLLMGatewayConfig,
+	gateways map[string]llmgateway.ResolvedLLMGatewayConfig,
 	executionConfigs map[string]ResolvedExecutionConfigProfile,
 	auditProfiles map[string]ResolvedAuditProfile,
 	instructions map[string]contracts.ResolvedInstructions,
@@ -37,7 +38,7 @@ func newSnapshot(
 		workflows:        make(map[string]ResolvedWorkflow, len(workflows)),
 		templates:        make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
 		policies:         make(map[string]contracts.ResolvedModelPolicy, len(policies)),
-		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
+		gateways:         make(map[string]llmgateway.ResolvedLLMGatewayConfig, len(gateways)),
 		executionConfigs: make(map[string]ResolvedExecutionConfigProfile, len(executionConfigs)),
 		auditProfiles:    make(map[string]ResolvedAuditProfile, len(auditProfiles)),
 		instructions:     make(map[string]contracts.ResolvedInstructions, len(instructions)),
@@ -107,14 +108,14 @@ func (s *Snapshot) AuditProfiles() []ResolvedAuditProfile {
 }
 
 // LLMGateway resolves one exact id@version and returns a caller-owned non-secret copy.
-func (s *Snapshot) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (s *Snapshot) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	selector, err := ParseSelector(raw)
 	if err != nil {
-		return contracts.ResolvedLLMGatewayConfig{}, err
+		return llmgateway.ResolvedLLMGatewayConfig{}, err
 	}
 	gateway, ok := s.gateways[selector.String()]
 	if !ok {
-		return contracts.ResolvedLLMGatewayConfig{}, fmt.Errorf("unknown LLMGatewayConfig %q", selector)
+		return llmgateway.ResolvedLLMGatewayConfig{}, fmt.Errorf("unknown LLMGatewayConfig %q", selector)
 	}
 	return cloneLLMGatewayConfig(gateway), nil
 }
@@ -192,8 +193,8 @@ func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, err
 }
 
 func cloneLLMGatewayConfig(
-	source contracts.ResolvedLLMGatewayConfig,
-) contracts.ResolvedLLMGatewayConfig {
+	source llmgateway.ResolvedLLMGatewayConfig,
+) llmgateway.ResolvedLLMGatewayConfig {
 	result := source
 	if source.CredentialManager != nil {
 		manager := *source.CredentialManager

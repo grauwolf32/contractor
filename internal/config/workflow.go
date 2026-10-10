@@ -847,7 +847,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
 		return err
 	}
-	if err := validateFindingsReaderInput(workflow); err != nil {
+	if err := validateToolWorkflowInputs(workflow, registeredToolsets()); err != nil {
 		return err
 	}
 

@@ -9,7 +9,7 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
@@ -21,7 +21,7 @@ const (
 )
 
 type GatewayLookup interface {
-	LLMGateway(string) (contracts.ResolvedLLMGatewayConfig, error)
+	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
 type adminKey struct{ value string }
@@ -39,7 +39,7 @@ type exactBinding struct {
 // startup. The exact Gateway ref is resolved while loading so a forged
 // same-ref request cannot redirect an admin key to another origin.
 type AdminBindings struct {
-	bindings map[contracts.LLMGatewayConfigRef]exactBinding
+	bindings map[llmgateway.LLMGatewayConfigRef]exactBinding
 }
 
 func (b *AdminBindings) Len() int {
@@ -71,7 +71,7 @@ type gatewayRefSource struct {
 // owner-only admin-key file. An empty path deliberately configures no managed
 // Gateways; it is not an implicit default binding.
 func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, error) {
-	result := &AdminBindings{bindings: make(map[contracts.LLMGatewayConfigRef]exactBinding)}
+	result := &AdminBindings{bindings: make(map[llmgateway.LLMGatewayConfigRef]exactBinding)}
 	if path == "" {
 		return result, nil
 	}
@@ -98,7 +98,7 @@ func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, err
 		return nil, fmt.Errorf("%w: Gateway admin bindings must contain 1 through %d entries", credentials.ErrManagerUnavailable, maximumAdminBindings)
 	}
 	for _, source := range documents[0].Bindings {
-		ref := contracts.LLMGatewayConfigRef{
+		ref := llmgateway.LLMGatewayConfigRef{
 			GatewayID: source.LLMGateway.GatewayID,
 			Version:   source.LLMGateway.Version,
 			Digest:    source.LLMGateway.Digest,
@@ -111,7 +111,7 @@ func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, err
 		}
 		gateway, err := gateways.LLMGateway(ref.GatewayID + "@" + ref.Version)
 		if err != nil || gateway.Ref != ref || gateway.Validate() != nil || gateway.CredentialManager == nil ||
-			gateway.CredentialManager.Implementation != contracts.LiteLLMVirtualKeysManager {
+			gateway.CredentialManager.Implementation != llmgateway.LiteLLMVirtualKeysManager {
 			return nil, fmt.Errorf("%w: Gateway admin binding does not resolve to its exact managed Gateway", credentials.ErrManagerUnavailable)
 		}
 		key, err := loadAdminKey(source.AdminKeyFile)
@@ -126,9 +126,9 @@ func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, err
 	return result, nil
 }
 
-func (b *AdminBindings) bindingFor(gateway contracts.ResolvedLLMGatewayConfig) (exactBinding, error) {
+func (b *AdminBindings) bindingFor(gateway llmgateway.ResolvedLLMGatewayConfig) (exactBinding, error) {
 	if b == nil || gateway.Validate() != nil || gateway.CredentialManager == nil ||
-		gateway.CredentialManager.Implementation != contracts.LiteLLMVirtualKeysManager {
+		gateway.CredentialManager.Implementation != llmgateway.LiteLLMVirtualKeysManager {
 		return exactBinding{}, credentials.ErrManagerUnavailable
 	}
 	binding, exists := b.bindings[gateway.Ref]

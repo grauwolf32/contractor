@@ -1,0 +1,22 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: findings_reader
+  version: "1"
+
+spec:
+  description: Reads a supplied finding collection and writes a report
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: security-findings@1
+      tools:
+        - list_findings
+    - ref: run-artifacts@1
+      tools:
+        - read_artifact
+        - write_artifact
+  sandboxProfile: local-workdir@1

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestSendMarksOnlyDeliveredTimeoutsAbandoned(t *testing.T) {
@@ -44,7 +44,7 @@ func TestSendMarksOnlyDeliveredTimeoutsAbandoned(t *testing.T) {
 				t.Fatal(err)
 			}
 			client := &http.Client{Timeout: 200 * time.Millisecond}
-			_, err = Send(request, client, 1024, contracts.DefaultGatewayFailureSignatures())
+			_, err = Send(request, client, 1024, llmgateway.DefaultGatewayFailureSignatures())
 			var failure *FailureError
 			if !errors.As(err, &failure) || failure.Failure != test.want {
 				t.Fatalf("Send error = %v, want %+v", err, test.want)

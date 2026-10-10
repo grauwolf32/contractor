@@ -38,7 +38,7 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+auditdomain.FindingCollectionMediaType+"]}"), 1)
+	workflowBytes = bytes.Replace(workflowBytes, []byte("source: {required: true, mediaTypes: [text/plain]}"), []byte("source: {required: true, mediaTypes: ["+contracts.FindingCollectionMediaType+"]}"), 1)
 	if err := os.WriteFile(workflowPath, workflowBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}

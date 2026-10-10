@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"google.golang.org/protobuf/proto"
@@ -43,7 +44,7 @@ func TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadataLabels := contracts.RunMetadataLabels{
+	metadataLabels := runlabels.RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
 		"eval.case": "case_1", "eval.note": "left = right/β",
 	}
@@ -202,7 +203,7 @@ func TestPlannerTelemetryRequiresExplicitValidRunMetadataLabels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, labels := range map[string]contracts.RunMetadataLabels{
+	for name, labels := range map[string]runlabels.RunMetadataLabels{
 		"missing":  nil,
 		"reserved": {"contractor.internal": "value"},
 	} {
@@ -251,7 +252,7 @@ func newPlannerTestAdapter(t *testing.T, endpoint string) PlannerTelemetry {
 	}
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
 		Endpoint: endpoint, Headers: map[string]contracts.SecretString{}, FlushTimeout: time.Second,
-		RunMetadataLabels: contracts.RunMetadataLabels{},
+		RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource:          PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "passthrough@1"},
 	})
 	if err != nil {

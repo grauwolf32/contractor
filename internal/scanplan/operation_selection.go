@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 type operationSelection struct {
@@ -54,7 +55,7 @@ func (s operationSelection) valid() bool {
 // PrepareOperation prepares only the assigned operation from the original exact
 // source. Other operations neither consume its request budget nor contribute gaps.
 // Bindings for other operations are rejected, never silently broadened.
-func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (contracts.HTTPRequestSet, error) {
+func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, options Options, pointer string) (scan.HTTPRequestSet, error) {
 	return prepare(data, mediaType, source, options, operationSelection{pointer: pointer, mode: "request"})
 }
 
@@ -63,11 +64,11 @@ func PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRe
 // The caller retains the source/operation/preparation identity alongside the
 // exact target artifact passed to the ordinary Nuclei planner.
 type OperationTarget struct {
-	Source            contracts.RequestSetSource
+	Source            scan.RequestSetSource
 	Operation         string
 	PreparationDigest string
 	URL               string
-	Gaps              []contracts.PreparationGap
+	Gaps              []scan.PreparationGap
 }
 
 // PrepareOperationTarget fixes a concrete URL for Nuclei's target-only interface.

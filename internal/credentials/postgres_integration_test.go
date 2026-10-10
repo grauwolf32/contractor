@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -269,8 +269,8 @@ func isolatedCredentialPool(t *testing.T, ctx context.Context, databaseURL strin
 	return pool
 }
 
-func storedCredentialRef(record Record) contracts.LLMCredentialRef {
-	return contracts.LLMCredentialRef{CredentialID: record.CredentialID}
+func storedCredentialRef(record Record) llmgateway.LLMCredentialRef {
+	return llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}
 }
 
 func assertCredentialSQLState(t *testing.T, err error, want string) {

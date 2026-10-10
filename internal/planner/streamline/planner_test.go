@@ -18,6 +18,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -213,7 +216,7 @@ func streamlineTestTelemetry(
 	}
 	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
-		FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{},
+		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
 			PlannerRef: Ref,
@@ -621,7 +624,7 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 				{"missing model policy", func(i *planner.Invocation) { i.ModelAccess.ModelPolicy = contracts.ResolvedModelPolicy{} }},
 				{"invalid gateway", func(i *planner.Invocation) { i.ModelAccess.LLMGateway.URL = "invalid" }},
 				{"missing credential token", func(i *planner.Invocation) {
-					i.ModelAccess.Credential = &contracts.LLMCredentialRef{CredentialID: "selected"}
+					i.ModelAccess.Credential = &llmgateway.LLMCredentialRef{CredentialID: "selected"}
 				}},
 			} {
 				t.Run(invalid.name, func(t *testing.T) {
@@ -644,7 +647,7 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 				{"planner-small", "small", "credential-small", "secret-small", 3, 4, 5000},
 				{"planner-strong", "strong", "credential-strong", "secret-strong", 7, 9, 15000},
 			} {
-				credential := contracts.LLMCredentialRef{CredentialID: values.credential}
+				credential := llmgateway.LLMCredentialRef{CredentialID: values.credential}
 				access := planner.ModelAccess{
 					ModelPolicy: contracts.ResolvedModelPolicy{
 						Ref: contracts.ModelPolicyRef{
@@ -654,11 +657,11 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 						MaxModelCalls: values.modelCalls, MaxWorkerCalls: values.workerCalls,
 						MaxTotalTokens: values.tokens,
 					},
-					LLMGateway: contracts.ResolvedLLMGatewayConfig{
-						Ref: contracts.LLMGatewayConfigRef{
+					LLMGateway: llmgateway.ResolvedLLMGatewayConfig{
+						Ref: llmgateway.LLMGatewayConfigRef{
 							GatewayID: values.gateway, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('c'+index)), 64),
 						},
-						Protocol: contracts.OpenAICompatibleProtocol,
+						Protocol: llmgateway.OpenAICompatibleProtocol,
 						URL:      "https://" + values.gateway + ".example/v1",
 					},
 					Credential: &credential,
@@ -982,7 +985,7 @@ func TestStreamlineProviderErrorIsSafe(t *testing.T) {
 	encoded, marshalErr := json.Marshal(struct {
 		Error      string                    `json:"error"`
 		Completion *planner.Completion       `json:"completion"`
-		Report     contracts.ExecutionReport `json:"report"`
+		Report     reporting.ExecutionReport `json:"report"`
 	}{Error: err.Error(), Completion: sessions.completion, Report: report})
 	if marshalErr != nil || strings.Contains(string(encoded), secret) {
 		t.Fatalf("provider secret leaked: %s (%v)", encoded, marshalErr)
@@ -1313,9 +1316,9 @@ func testInvocation(bindings ...string) planner.Invocation {
 				Model: "fake-streamline-model", MaxOutputTokens: 1024,
 				MaxModelCalls: 32, MaxTotalTokens: 200_000, MaxWorkerCalls: 64,
 			},
-			LLMGateway: contracts.ResolvedLLMGatewayConfig{
-				Ref:      contracts.LLMGatewayConfigRef{GatewayID: "planner-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
-				Protocol: contracts.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
+			LLMGateway: llmgateway.ResolvedLLMGatewayConfig{
+				Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: "planner-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+				Protocol: llmgateway.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
 			},
 		},
 		Stage: workflowconfig.ResolvedStage{

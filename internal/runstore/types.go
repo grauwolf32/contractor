@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -98,7 +100,7 @@ type WorkflowRun struct {
 	MetadataLabels            RunMetadataLabels
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
-	ProjectHTTPTarget         *contracts.HTTPOriginTargetRef
+	ProjectHTTPTarget         *runtimesettings.HTTPOriginTargetRef
 	SkillSnapshot             []contracts.RunSkillSnapshot
 	PublicationMode           OutputPublicationMode
 	AuditExecutionID          *string
@@ -249,7 +251,7 @@ type CreateRunParams struct {
 	Parameters            map[string]string
 	MetadataLabels        RunMetadataLabels
 	RuntimeConfig         runtimeconfig.RunSnapshot
-	ProjectHTTPTarget     *contracts.HTTPOriginTargetRef
+	ProjectHTTPTarget     *runtimesettings.HTTPOriginTargetRef
 }
 
 type CreateRunIdempotentParams struct {
@@ -542,7 +544,7 @@ type StageAllocation struct {
 	RuntimeAgentLabelRevision         uint64
 	RuntimeConfigurationSchemaVersion string
 	RuntimeConfiguration              *AllocationRuntimeConfiguration
-	PerformanceCollectionPolicy       contracts.PerformanceCollectionPolicy
+	PerformanceCollectionPolicy       reporting.PerformanceCollectionPolicy
 	CreatedAt                         time.Time
 	ReleaseAttemptedAt                *time.Time
 	ReleaseCompletedAt                *time.Time
@@ -555,9 +557,9 @@ const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-p
 // outside PostgreSQL; immutable refs, origins and adapter requirements remain
 // available for audit and report attribution.
 type AllocationRuntimeConfiguration struct {
-	ModelPolicy contracts.ModelPolicyRef                   `json:"modelPolicy,omitzero"`
-	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
-	Provenance  contracts.ResolvedRuntimeConfigProvenance  `json:"provenance"`
+	ModelPolicy contracts.ModelPolicyRef                        `json:"modelPolicy,omitzero"`
+	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins      `json:"origins"`
+	Provenance  runtimesettings.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
 // StageExecutionReport is the trusted Server envelope around one bounded
@@ -568,7 +570,7 @@ type StageExecutionReport struct {
 	AllocationID        string
 	LogicalAgentName    string
 	ReportSchemaVersion string
-	Report              contracts.AllocationFinalReport
+	Report              reporting.AllocationFinalReport
 	ReceivedAt          time.Time
 	ExpiresAt           time.Time
 }
@@ -578,8 +580,8 @@ type RecordStageExecutionReportParams struct {
 	AllocationID                string
 	LogicalAgentName            string
 	ReportSchemaVersion         string
-	Report                      contracts.AllocationFinalReport
-	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	Report                      reporting.AllocationFinalReport
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
 	Secrets                     []string
 }
 
@@ -590,7 +592,7 @@ type RecordPlannerExecutionReportParams struct {
 	StartedAt           time.Time
 	FinishedAt          time.Time
 	ReportSchemaVersion string
-	Report              contracts.ExecutionReport
+	Report              reporting.ExecutionReport
 	Secrets             []string
 }
 

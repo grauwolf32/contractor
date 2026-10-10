@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {
-	snapshot, err := config.Load("../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

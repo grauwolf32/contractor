@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // Failure stores a safe classification, never provider response content.
@@ -33,7 +33,7 @@ const (
 // Classify applies the openai-compatible@1 status rules plus the Gateway's
 // declared failure signatures. Signature text is matched exactly so arbitrary
 // 4xx bodies can never become a transient availability failure.
-func Classify(status int, header http.Header, body []byte, signatures contracts.GatewayFailureSignatures) Failure {
+func Classify(status int, header http.Header, body []byte, signatures llmgateway.GatewayFailureSignatures) Failure {
 	var code, message string
 	var response map[string]json.RawMessage
 	if len(body) <= maximumClassificationBytes && json.Unmarshal(body, &response) == nil {
@@ -75,7 +75,7 @@ func Classify(status int, header http.Header, body []byte, signatures contracts.
 	return Failure{Code: "gateway_request_rejected", Retryable: false}
 }
 
-func modelUnavailable(status int, message string, signatures contracts.GatewayFailureSignatures) bool {
+func modelUnavailable(status int, message string, signatures llmgateway.GatewayFailureSignatures) bool {
 	for _, signature := range signatures.ModelUnavailable {
 		if signature.Status != status {
 			continue

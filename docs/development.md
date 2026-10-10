@@ -97,5 +97,29 @@ likec4 validate docs/spec
 likec4 start docs/spec
 ```
 
+## Layer checks
+
+Two checks keep code dependencies pointing down the layer stack: a package or
+module may import its own layer or a lower one. Both run in CI.
+
+| Code | Layer table and known violations | Run locally |
+| --- | --- | --- |
+| Go Server | `layers` and `knownViolations` in [internal/archtest/layers_test.go](../internal/archtest/layers_test.go) | `go test ./internal/archtest` (part of `make test-go`) |
+| Python Runtime | `[tool.importlinter]` contracts in [runtime/pyproject.toml](../runtime/pyproject.toml) | `cd runtime && uv run lint-imports` (part of `make lint`) |
+
+The Runtime also keeps its toolsets independent: a toolset may share code
+with another only through `toolsets.common`. Runtime imports under
+`if TYPE_CHECKING:` are ignored. A failure is one of three kinds:
+
+- **Upward import.** Invert the dependency (the lower package declares an
+  interface or callback that the higher layer, or the composition root,
+  supplies), or move the shared type down into the lower layer. Only if the
+  dependency is genuinely intended, move a package to another layer or add a
+  known-violation entry with its reason and the intended fix.
+- **Unclassified package, module or toolset.** Add it to exactly one layer.
+- **Stale known violation** (`the import no longer exists` in Go,
+  `No matches for ignored import` in Python). The violation was fixed: delete
+  the entry, so the list only shrinks.
+
 Continue with [deployment](deployment.md), the [user guides](guides/README.md)
 or [testing](testing/README.md).

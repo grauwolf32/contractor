@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -21,10 +22,10 @@ func TestStageRuntimeConfigurationReadModelIsSafeAndHistorical(t *testing.T) {
 				Configs: []runtimeconfig.Ref{{Name: "site-debug", Version: "2", Digest: digest}},
 			},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			AgentLabels: []contracts.RuntimeLabelBindingProvenance{{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7,
-				Config: contracts.RuntimeConfigRef{Name: "site-debug", Version: "2", Digest: digest},
+				Config: runtimesettings.RuntimeConfigRef{Name: "site-debug", Version: "2", Digest: digest},
 			}},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
 		},

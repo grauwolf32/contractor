@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -316,29 +317,29 @@ type factoryHarness struct {
 func newFactoryHarness(t *testing.T, count int) *factoryHarness {
 	t.Helper()
 	store := &factoryArtifacts{values: map[string]artifacts.Payload{}, current: map[string]contracts.ArtifactRef{}}
-	requestSet := contracts.HTTPRequestSet{
-		SchemaVersion: 1, Source: contracts.RequestSetSource{Artifact: factoryExactRef("inputs", "openapi"), ContentDigest: "sha256:" + strings.Repeat("b", 64)},
-		PreparationDigest: "sha256:" + strings.Repeat("c", 64), Requests: []contracts.RequestSetEntry{}, Gaps: []contracts.PreparationGap{},
-		Coverage: contracts.RequestSetCoverage{Operations: count, Prepared: count, Complete: true},
+	requestSet := contractscan.HTTPRequestSet{
+		SchemaVersion: 1, Source: contractscan.RequestSetSource{Artifact: factoryExactRef("inputs", "openapi"), ContentDigest: "sha256:" + strings.Repeat("b", 64)},
+		PreparationDigest: "sha256:" + strings.Repeat("c", 64), Requests: []contractscan.RequestSetEntry{}, Gaps: []contractscan.PreparationGap{},
+		Coverage: contractscan.RequestSetCoverage{Operations: count, Prepared: count, Complete: true},
 	}
 	for i := range count {
-		request := contracts.PreparedHTTPRequest{Method: "GET", URL: fmt.Sprintf("https://target.invalid/items?id=%d", i), Headers: []contracts.HTTPRequestHeader{}, Body: ""}
-		digest, err := contracts.RequestContentDigest(request)
+		request := contractscan.PreparedHTTPRequest{Method: "GET", URL: fmt.Sprintf("https://target.invalid/items?id=%d", i), Headers: []contractscan.HTTPRequestHeader{}, Body: ""}
+		digest, err := contractscan.RequestContentDigest(request)
 		if err != nil {
 			t.Fatal(err)
 		}
-		requestSet.Requests = append(requestSet.Requests, contracts.RequestSetEntry{
+		requestSet.Requests = append(requestSet.Requests, contractscan.RequestSetEntry{
 			ID: "request-" + strings.TrimPrefix(digest, "sha256:"), ContentDigest: digest, Request: request,
-			Origins: []contracts.RequestOrigin{{Pointer: fmt.Sprintf("#/paths/~1items%d/get", i)}},
+			Origins: []contractscan.RequestOrigin{{Pointer: fmt.Sprintf("#/paths/~1items%d/get", i)}},
 		})
 	}
 	sort.Slice(requestSet.Requests, func(i, j int) bool { return requestSet.Requests[i].ID < requestSet.Requests[j].ID })
-	data, err := contracts.MarshalHTTPRequestSet(requestSet)
+	data, err := contractscan.MarshalHTTPRequestSet(requestSet)
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := factoryExactRef("inputs", "requests")
-	store.values[factoryRefKey(source)] = artifacts.Payload{MediaType: contracts.HTTPRequestSetMediaType, Data: data}
+	store.values[factoryRefKey(source)] = artifacts.Payload{MediaType: contractscan.HTTPRequestSetMediaType, Data: data}
 	template := contracts.ResolvedAgentTemplate{
 		Ref:         contracts.AgentTemplateRef{TemplateID: "sqlmap-scan", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)},
 		Description: "Fixed SQLMap Worker", Runtime: contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"},
@@ -351,8 +352,8 @@ func newFactoryHarness(t *testing.T, count int) *factoryHarness {
 		Stage: workflowconfig.ResolvedStage{
 			Objective: "Execute bounded scan jobs", Instructions: contracts.ResolvedInstructions{Text: "Use only the fixed scanner configuration"},
 			Planner: workflowconfig.PlannerRef{PlannerID: "scan-plan", Version: "1"},
-			ScanPlan: &contracts.ScanPlanPolicy{InputArtifact: "requests", MaxInputs: 100, MaxJobs: 100, MaxTotalSeconds: 3600,
-				Tools: []contracts.ScanToolPolicy{{Worker: "sqlmap", MaxJobs: 100, MaxTotalSeconds: 3600, TestParameters: []string{"id"}}}},
+			ScanPlan: &contractscan.ScanPlanPolicy{InputArtifact: "requests", MaxInputs: 100, MaxJobs: 100, MaxTotalSeconds: 3600,
+				Tools: []contractscan.ScanToolPolicy{{Worker: "sqlmap", MaxJobs: 100, MaxTotalSeconds: 3600, TestParameters: []string{"id"}}}},
 			Agents:  map[string]workflowconfig.ResolvedAgentBinding{"sqlmap": {Template: template, Namespace: "sqlmap"}},
 			Context: workflowconfig.StageContext{Artifacts: map[string]workflowconfig.ContextArtifact{"requests": {Namespace: "inputs", Name: "requests", Required: true}}},
 			Result:  workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{"report": {Required: true, MediaTypes: []string{"application/json"}, From: &workflowconfig.ArtifactBinding{Namespace: "scan-results", Name: "aggregate"}}}},

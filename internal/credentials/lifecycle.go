@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -48,7 +49,7 @@ func (e *CredentialInUseError) Error() string {
 }
 
 type GatewayLookup interface {
-	LLMGateway(string) (contracts.ResolvedLLMGatewayConfig, error)
+	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
 type NonTerminalRunLookup interface {
@@ -61,7 +62,7 @@ type AuditDispatchHoldLookup interface {
 
 type CreateRequest struct {
 	CredentialID   string
-	LLMGateway     contracts.LLMGatewayConfigRef
+	LLMGateway     llmgateway.LLMGatewayConfigRef
 	Label          string
 	GatewayPolicy  GatewayPolicy
 	IdempotencyKey string
@@ -425,19 +426,19 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 }
 
 type createOperationRequest struct {
-	CredentialID  string                        `json:"credentialId"`
-	LLMGateway    contracts.LLMGatewayConfigRef `json:"llmGateway"`
-	Label         string                        `json:"label,omitempty"`
-	GatewayPolicy GatewayPolicy                 `json:"gatewayPolicy"`
-	ActorID       string                        `json:"actorId"`
+	CredentialID  string                         `json:"credentialId"`
+	LLMGateway    llmgateway.LLMGatewayConfigRef `json:"llmGateway"`
+	Label         string                         `json:"label,omitempty"`
+	GatewayPolicy GatewayPolicy                  `json:"gatewayPolicy"`
+	ActorID       string                         `json:"actorId"`
 }
 
 type deleteOperationRequest struct {
-	CredentialID string                        `json:"credentialId"`
-	LLMGateway   contracts.LLMGatewayConfigRef `json:"llmGateway"`
-	RemoteKeyID  string                        `json:"remoteKeyId"`
-	ActorID      string                        `json:"actorId"`
-	DeletedAt    time.Time                     `json:"deletedAt"`
+	CredentialID string                         `json:"credentialId"`
+	LLMGateway   llmgateway.LLMGatewayConfigRef `json:"llmGateway"`
+	RemoteKeyID  string                         `json:"remoteKeyId"`
+	ActorID      string                         `json:"actorId"`
+	DeletedAt    time.Time                      `json:"deletedAt"`
 }
 
 func normalizeCreateRequest(request CreateRequest) (createOperationRequest, string, error) {
@@ -622,15 +623,15 @@ func (s *Service) listAuditHolds(ctx context.Context, credentialID string) ([]st
 }
 
 func (s *Service) resolveManager(
-	ref contracts.LLMGatewayConfigRef,
-) (contracts.ResolvedLLMGatewayConfig, GatewayCredentialManager, error) {
+	ref llmgateway.LLMGatewayConfigRef,
+) (llmgateway.ResolvedLLMGatewayConfig, GatewayCredentialManager, error) {
 	gateway, err := s.gateways.LLMGateway(ref.GatewayID + "@" + ref.Version)
 	if err != nil || gateway.Ref != ref {
-		return contracts.ResolvedLLMGatewayConfig{}, nil, fmt.Errorf("%w: exact LLM Gateway is unavailable", ErrInvalid)
+		return llmgateway.ResolvedLLMGatewayConfig{}, nil, fmt.Errorf("%w: exact LLM Gateway is unavailable", ErrInvalid)
 	}
 	manager, err := s.managers.ForGateway(gateway)
 	if err != nil {
-		return contracts.ResolvedLLMGatewayConfig{}, nil, ErrManagerUnavailable
+		return llmgateway.ResolvedLLMGatewayConfig{}, nil, ErrManagerUnavailable
 	}
 	return gateway, manager, nil
 }

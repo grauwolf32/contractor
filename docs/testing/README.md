@@ -52,7 +52,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 
 | Stage | Runs |
 | --- | --- |
-| `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, and the command builds |
+| `release-verify-lint` | `make lint build`: gofmt, vet, staticcheck, the release-graph guard and its tests, Ruff, the Runtime import-layer contracts, and the command builds |
 | `release-verify-unit` | `make test`: the hardening matrices, every Go package (PostgreSQL-backed tests included when the test URL is set) and the Runtime suite |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' Runtime, UI and matrix checks, and the Audit completion and findings process gates |

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // classificationFixture is shared with runtime/tests/test_gateway_error_classification.py
 // so the planner and worker classifiers cannot drift apart.
 type classificationFixture struct {
-	Declared contracts.GatewayFailureSignatures `json:"declared"`
+	Declared llmgateway.GatewayFailureSignatures `json:"declared"`
 	Cases    []struct {
 		Name       string            `json:"name"`
 		Status     int               `json:"status"`
@@ -39,9 +39,9 @@ func TestClassifyGatewayFailureMatchesSharedFixture(t *testing.T) {
 	if err := fixture.Declared.Validate(); err != nil {
 		t.Fatalf("declared fixture signatures are invalid: %v", err)
 	}
-	sets := map[string]contracts.GatewayFailureSignatures{
+	sets := map[string]llmgateway.GatewayFailureSignatures{
 		"declared": fixture.Declared,
-		"default":  contracts.DefaultGatewayFailureSignatures(),
+		"default":  llmgateway.DefaultGatewayFailureSignatures(),
 		"empty":    {},
 	}
 	covered := map[[2]any]bool{}

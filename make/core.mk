@@ -35,7 +35,7 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py -k 'golden or digest or resolved_skills'
 
 test-config:
-	go test ./internal/config/...
+	go test ./internal/config/... ./internal/configload/...
 	go run ./cmd/contractor-server config validate --root ./configs
 
 test-postgres: require-database

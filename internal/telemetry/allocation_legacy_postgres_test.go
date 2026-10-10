@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -100,7 +100,7 @@ func TestAllocationReportRejectsLegacyPolicyWithoutChangingRetainedReport(t *tes
 	if err := pool.QueryRow(ctx, snapshot).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	for _, policy := range []contracts.PerformanceCollectionPolicy{"", "legacy", "unknown"} {
+	for _, policy := range []reporting.PerformanceCollectionPolicy{"", "legacy", "unknown"} {
 		invalid := current
 		invalid.PerformanceCollectionPolicy = policy
 		for range 2 {

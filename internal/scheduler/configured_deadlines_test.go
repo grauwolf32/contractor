@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -17,12 +18,12 @@ type terminalDeadlineWorkers struct {
 	operationID string
 }
 
-func (w *terminalDeadlineWorkers) FinalizeAll(ctx context.Context, rs []controlplane.Reservation, id string, deadline time.Time) (map[string]contracts.AllocationFinalReport, error) {
+func (w *terminalDeadlineWorkers) FinalizeAll(ctx context.Context, rs []controlplane.Reservation, id string, deadline time.Time) (map[string]reporting.AllocationFinalReport, error) {
 	w.deadline, w.operationID = deadline, id
 	return w.memoryWorkers.FinalizeAll(ctx, rs, id, deadline)
 }
 
-func (w *terminalDeadlineWorkers) AbortAll(ctx context.Context, rs []controlplane.Reservation, id string, reason contracts.TerminationError, deadline time.Time) (map[string]contracts.AllocationFinalReport, error) {
+func (w *terminalDeadlineWorkers) AbortAll(ctx context.Context, rs []controlplane.Reservation, id string, reason contracts.TerminationError, deadline time.Time) (map[string]reporting.AllocationFinalReport, error) {
 	w.deadline, w.operationID = deadline, id
 	return w.memoryWorkers.AbortAll(ctx, rs, id, reason, deadline)
 }

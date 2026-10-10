@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -84,8 +84,8 @@ func TestLLMCredentialLookupErrorsOnlyMarkConfirmedInvalidConfiguration(t *testi
 		name     string
 		metadata config.CredentialMetadata
 	}{
-		{"identity", config.CredentialMetadata{Ref: contracts.LLMCredentialRef{CredentialID: "other"}}},
-		{"gateway", config.CredentialMetadata{Ref: contracts.LLMCredentialRef{CredentialID: "llm-key"}}},
+		{"identity", config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "other"}}},
+		{"gateway", config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "llm-key"}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withGateway := spec

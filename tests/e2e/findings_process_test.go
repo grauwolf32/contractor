@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/localpki"
 )
@@ -212,7 +213,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	raw, mime := download(t, h.client, h.baseURL+"/v1/artifacts/"+collection.Artifact.Ref.Namespace+"/"+
 		collection.Artifact.Ref.Name+"?revision="+url.QueryEscape(*collection.Artifact.Ref.Revision))
 	decoded, _, err := auditdomain.DecodeFindingCollectionPackage(raw)
-	if err != nil || mime != auditdomain.FindingCollectionMediaType || len(decoded.Entries) != 1 ||
+	if err != nil || mime != contracts.FindingCollectionMediaType || len(decoded.Entries) != 1 ||
 		decoded.Entries[0].ReceiptID != receipt.ReceiptID || len(decoded.Entries[0].Reviews) != 1 {
 		t.Fatalf("published collection = %+v, %v", decoded, err)
 	}

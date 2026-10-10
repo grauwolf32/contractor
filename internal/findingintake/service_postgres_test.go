@@ -18,7 +18,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -69,7 +73,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatal(err)
 	}
 
-	snapshot, err := workflowconfig.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +136,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              findingRuntimeConfiguration(),
-		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
+		PerformanceCollectionPolicy:       reporting.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +571,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 }
 
 func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
-	gateway := contracts.LLMGatewayConfigRef{
+	gateway := llmgateway.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
 	return &runstore.AllocationRuntimeConfiguration{
@@ -577,18 +581,18 @@ func findingRuntimeConfiguration() *runstore.AllocationRuntimeConfiguration {
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenance{
-			Default: contracts.RuntimeLabelBindingProvenance{
+		Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{
+			Default: runtimesettings.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRef{
+				Config: runtimesettings.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
-			AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
+			RunLabels:       []runtimesettings.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []runtimesettings.RuntimeLabelBindingProvenance{},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+			RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{},
 		},
 	}
 }

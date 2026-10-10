@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -38,7 +39,7 @@ func TestRuntimeConfigLLMCredentialReferencesValidateAndFenceDeletion(t *testing
 	mismatch.Digest = "sha256:" + strings.Repeat("e", 64)
 	static, err := NewStaticProvider([]StaticEntry{{
 		Metadata: config.CredentialMetadata{
-			Ref: contracts.LLMCredentialRef{CredentialID: "wrong-gateway"}, LLMGateway: mismatch,
+			Ref: llmgateway.LLMCredentialRef{CredentialID: "wrong-gateway"}, LLMGateway: mismatch,
 		},
 		Token: contracts.NewSecretString("static-test-token"),
 	}})
@@ -202,13 +203,13 @@ func TestRuntimeConfigBindingAndCredentialDeleteSerializeAcrossBarriers(t *testi
 }
 
 func newReferenceTestServices(
-	t *testing.T, pool *pgxpool.Pool, gateway contracts.ResolvedLLMGatewayConfig,
+	t *testing.T, pool *pgxpool.Pool, gateway llmgateway.ResolvedLLMGatewayConfig,
 	factory *TransactionLookupFactory, barrier *LifecycleBarrier,
 ) (*runtimeconfig.Publisher, *runtimeconfig.BindingService, runtimeconfig.GatewayResolver) {
 	t.Helper()
-	resolver := runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+	resolver := runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 		if selector != gateway.Ref.GatewayID+"@"+gateway.Ref.Version {
-			return contracts.ResolvedLLMGatewayConfig{}, fmt.Errorf("unexpected Gateway %q", selector)
+			return llmgateway.ResolvedLLMGatewayConfig{}, fmt.Errorf("unexpected Gateway %q", selector)
 		}
 		return gateway, nil
 	})

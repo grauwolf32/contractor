@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -147,14 +147,14 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool:                     pool,
 		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
-		GatewayResolver: GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+		GatewayResolver: GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			gatewayID, version, _ := strings.Cut(selector, "@")
-			return contracts.ResolvedLLMGatewayConfig{
-				Ref: contracts.LLMGatewayConfigRef{
+			return llmgateway.ResolvedLLMGatewayConfig{
+				Ref: llmgateway.LLMGatewayConfigRef{
 					GatewayID: gatewayID, Version: version,
 					Digest: "sha256:" + strings.Repeat("a", 64),
 				},
-				Protocol: contracts.OpenAICompatibleProtocol,
+				Protocol: llmgateway.OpenAICompatibleProtocol,
 				URL:      "http://127.0.0.1:4000/v1",
 			}, nil
 		}),
@@ -287,18 +287,18 @@ func TestPostgresLabelRebindCannotInvalidateAssignedPrincipalLayer(t *testing.T)
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 1, 2, 0, 0, 0, time.UTC)
-	resolver := GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+	resolver := GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 		gatewayID, version, _ := strings.Cut(selector, "@")
 		digit := "b"
 		if gatewayID == "other-litellm" {
 			digit = "c"
 		}
-		return contracts.ResolvedLLMGatewayConfig{
-			Ref: contracts.LLMGatewayConfigRef{
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref: llmgateway.LLMGatewayConfigRef{
 				GatewayID: gatewayID, Version: version,
 				Digest: "sha256:" + strings.Repeat(digit, 64),
 			},
-			Protocol: contracts.OpenAICompatibleProtocol,
+			Protocol: llmgateway.OpenAICompatibleProtocol,
 			URL:      "http://127.0.0.1:4000/v1",
 		}, nil
 	})

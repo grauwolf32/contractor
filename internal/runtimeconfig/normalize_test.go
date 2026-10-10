@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
@@ -310,14 +311,14 @@ func TestBuiltInCanonicalDigest(t *testing.T) {
 }
 
 func fixedGatewayResolver(digest string) GatewayResolver {
-	return GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+	return GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 		id, version, ok := strings.Cut(selector, "@")
 		if !ok {
-			return contracts.ResolvedLLMGatewayConfig{}, errors.New("bad selector")
+			return llmgateway.ResolvedLLMGatewayConfig{}, errors.New("bad selector")
 		}
-		return contracts.ResolvedLLMGatewayConfig{
-			Ref:      contracts.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: digest},
-			Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: digest},
+			Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
 }

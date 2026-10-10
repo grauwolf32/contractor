@@ -6,6 +6,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -121,8 +122,8 @@ func (p *execution) auditPlanInput(ctx context.Context) (contracts.ArtifactRef, 
 	payload := artifacts.Payload{}
 	var err error
 	if p.audit.prepared.RequestSet != nil {
-		payload.MediaType = contracts.HTTPRequestSetMediaType
-		payload.Data, err = contracts.MarshalHTTPRequestSet(*p.audit.prepared.RequestSet)
+		payload.MediaType = contractscan.HTTPRequestSetMediaType
+		payload.Data, err = contractscan.MarshalHTTPRequestSet(*p.audit.prepared.RequestSet)
 	} else {
 		payload.MediaType = scanplan.TargetListMediaType
 		payload.Data = []byte(p.audit.prepared.Target.URL + "\n")

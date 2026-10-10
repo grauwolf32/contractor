@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
@@ -76,7 +77,7 @@ func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
 }
 
 func TestToolWorkerGoldenDigest(t *testing.T) {
-	var spec contracts.AllocationSpec
+	var spec control.AllocationSpec
 	data, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-tool.json"))
 	if err != nil {
 		t.Fatal(err)

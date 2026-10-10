@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -53,7 +54,7 @@ func TestASVSPackageAndProfilePinExactSelectedDenominator(t *testing.T) {
 		t.Fatalf("ASVS packaged entries = %v", entryIDs)
 	}
 
-	snapshot, err := config.Load(configRoot(), config.MVPDescriptors())
+	snapshot, err := configload.Load(configRoot(), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

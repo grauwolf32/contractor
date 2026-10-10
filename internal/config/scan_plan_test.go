@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -177,7 +178,7 @@ func TestScanPlanFFUFRequiresBoundWordlist(t *testing.T) {
 		"rate":         {Source: "literal", Value: 10},
 	}
 	stage.Agents = map[string]ResolvedAgentBinding{"ffuf": binding}
-	stage.ScanPlan.Tools = []contracts.ScanToolPolicy{{Worker: "ffuf", MaxJobs: 2, MaxTotalSeconds: 600, WordlistArtifact: "words"}}
+	stage.ScanPlan.Tools = []scan.ScanToolPolicy{{Worker: "ffuf", MaxJobs: 2, MaxTotalSeconds: 600, WordlistArtifact: "words"}}
 	stage.Context.Artifacts["words"] = ContextArtifact{Namespace: "inputs", Name: "words", Required: true}
 	if err := ValidateScanPlanStage(stage); err != nil {
 		t.Fatal(err)

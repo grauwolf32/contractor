@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -70,7 +71,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				return fmt.Errorf("encode resolved Workflow: %w", encodeErr)
 			}
 
-			var projectTarget *contracts.HTTPOriginTargetRef
+			var projectTarget *runtimesettings.HTTPOriginTargetRef
 			if normalized.ProjectID != nil {
 				project, projectErr := s.projects.Get(ctx, normalized.OwnerID, *normalized.ProjectID)
 				if projectErr != nil {

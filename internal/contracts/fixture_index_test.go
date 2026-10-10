@@ -1,4 +1,4 @@
-package contracts
+package contracts_test
 
 import (
 	"bytes"
@@ -11,6 +11,13 @@ import (
 
 	"github.com/dlclark/regexp2"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 // fixtureIndexEntry mirrors api/testdata/v1alpha1/index.json, which Go and
@@ -34,32 +41,32 @@ type fixtureCodec struct {
 	privateReject    func([]byte) error
 }
 
-func codecFor[T Validatable]() fixtureCodec {
+func codecFor[T contracts.Validatable]() fixtureCodec {
 	return fixtureCodec{roundTrip[T], reject[T], privateRoundTrip[T], privateReject[T]}
 }
 
 var fixtureCodecs = map[string]fixtureCodec{
-	"AbortAllocationRequest":          codecFor[AbortAllocationRequest](),
-	"AgentHeartbeat":                  codecFor[AgentHeartbeat](),
-	"AgentRegistration":               codecFor[AgentRegistration](),
-	"AgentRegistrationResponse":       codecFor[AgentRegistrationResponse](),
-	"AgentStateSnapshot":              codecFor[AgentStateSnapshot](),
-	"AllocationFinalResponse":         codecFor[AllocationFinalResponse](),
-	"AllocationSpec":                  codecFor[AllocationSpec](),
-	"AllocationWorkspaceSpec":         codecFor[AllocationWorkspaceSpec](),
-	"ArtifactListResult":              codecFor[ArtifactListResult](),
-	"ArtifactReadResult":              codecFor[ArtifactReadResult](),
-	"FinalizeAllocationRequest":       codecFor[FinalizeAllocationRequest](),
-	"HeartbeatResponse":               codecFor[HeartbeatResponse](),
-	"ReleaseAllocationRequest":        codecFor[ReleaseAllocationRequest](),
-	"ResolvedLLMGatewayConfig":        codecFor[ResolvedLLMGatewayConfig](),
-	"ResolvedRuntimeConfigProvenance": codecFor[ResolvedRuntimeConfigProvenance](),
-	"RuntimeReport":                   codecFor[RuntimeReport](),
-	"RuntimeSettings":                 codecFor[RuntimeSettings](),
-	"StageContentRequest":             codecFor[StageContentRequest](),
-	"StageContentResult":              codecFor[StageContentResult](),
-	"WorkerCompletion":                codecFor[WorkerCompletion](),
-	"WorkspaceCapabilities":           codecFor[WorkspaceCapabilities](),
+	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
+	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
+	"AgentRegistration":               codecFor[control.AgentRegistration](),
+	"AgentRegistrationResponse":       codecFor[control.AgentRegistrationResponse](),
+	"AgentStateSnapshot":              codecFor[reporting.AgentStateSnapshot](),
+	"AllocationFinalResponse":         codecFor[reporting.AllocationFinalResponse](),
+	"AllocationSpec":                  codecFor[control.AllocationSpec](),
+	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
+	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
+	"ArtifactReadResult":              codecFor[contracts.ArtifactReadResult](),
+	"FinalizeAllocationRequest":       codecFor[control.FinalizeAllocationRequest](),
+	"HeartbeatResponse":               codecFor[control.HeartbeatResponse](),
+	"ReleaseAllocationRequest":        codecFor[control.ReleaseAllocationRequest](),
+	"ResolvedLLMGatewayConfig":        codecFor[llmgateway.ResolvedLLMGatewayConfig](),
+	"ResolvedRuntimeConfigProvenance": codecFor[runtimesettings.ResolvedRuntimeConfigProvenance](),
+	"RuntimeReport":                   codecFor[reporting.RuntimeReport](),
+	"RuntimeSettings":                 codecFor[runtimesettings.RuntimeSettings](),
+	"StageContentRequest":             codecFor[contracts.StageContentRequest](),
+	"StageContentResult":              codecFor[contracts.StageContentResult](),
+	"WorkerCompletion":                codecFor[contracts.WorkerCompletion](),
+	"WorkspaceCapabilities":           codecFor[contracts.WorkspaceCapabilities](),
 }
 
 func readFixtureIndex(t *testing.T) fixtureIndex {
@@ -167,7 +174,7 @@ func TestPrivateSchemasAcceptAndRejectGoldenFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: compile %s: %v", name, entry.Schema, err)
 			}
-			value, err := jsonschema.UnmarshalJSON(bytes.NewReader(readFixture(t, kind, name)))
+			value, err := jsonschema.UnmarshalJSON(bytes.NewReader(contractstest.ReadFixture(t, kind, name)))
 			if err != nil {
 				t.Fatalf("%s: %v", name, err)
 			}

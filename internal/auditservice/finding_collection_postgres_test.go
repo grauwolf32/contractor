@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -45,7 +46,7 @@ func newCollectionTestPublisher(t *testing.T, pool *pgxpool.Pool) *findingintake
 
 func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID string) {
 	t.Helper()
-	snapshot, err := config.Load("../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -108,7 +109,7 @@ func TestKatanaDiscoveryAcrossProductionProcesses(t *testing.T) {
 	}
 	// Consume the actual exported bytes in the pure planner. This verifies a
 	// reusable input without dispatching any follow-up network scans.
-	snapshot, err := config.Load(filepath.Join(h.repositoryRoot, "configs", "scan"), config.MVPDescriptors())
+	snapshot, err := configload.Load(filepath.Join(h.repositoryRoot, "configs", "scan"), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestPodmanWorkspaceRequirementsStayBindingSpecific(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

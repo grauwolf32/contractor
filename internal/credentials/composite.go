@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -61,8 +62,8 @@ func (p *CompositeProvider) LookupLLMCredential(
 
 func (p *CompositeProvider) ResolveLLMCredential(
 	ctx context.Context,
-	ref contracts.LLMCredentialRef,
-	gateway contracts.LLMGatewayConfigRef,
+	ref llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	var selected Resolver
 	for _, provider := range p.providers {

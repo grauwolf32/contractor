@@ -18,7 +18,7 @@ func (s ResolvedSkill) Validate() error {
 	if err := validateExactRunSkillRef(s.Artifact, s.Name, "artifact"); err != nil {
 		return err
 	}
-	return validateDigest("resolved Skill packageDigest", s.PackageDigest)
+	return ValidateDigest("resolved Skill packageDigest", s.PackageDigest)
 }
 
 // ValidateResolvedSkills enforces the exact, canonical projection selected for
@@ -26,13 +26,13 @@ func (s ResolvedSkill) Validate() error {
 // has no Skills so private-wire upgrades fail closed.
 func ValidateResolvedSkills(template ResolvedAgentTemplate, skills []ResolvedSkill) error {
 	if skills == nil {
-		return invalidf("resolvedSkills is required")
+		return Invalidf("resolvedSkills is required")
 	}
 	if len(skills) > MaxAgentTemplateSkills {
-		return invalidf("resolvedSkills exceeds %d entries", MaxAgentTemplateSkills)
+		return Invalidf("resolvedSkills exceeds %d entries", MaxAgentTemplateSkills)
 	}
 	if len(skills) != len(template.Skills) {
-		return invalidf("resolvedSkills must exactly match AgentTemplate skills")
+		return Invalidf("resolvedSkills must exactly match AgentTemplate skills")
 	}
 	previous := ""
 	for index, skill := range skills {
@@ -40,10 +40,10 @@ func ValidateResolvedSkills(template ResolvedAgentTemplate, skills []ResolvedSki
 			return err
 		}
 		if skill.Name <= previous {
-			return invalidf("resolvedSkills must be sorted and unique")
+			return Invalidf("resolvedSkills must be sorted and unique")
 		}
 		if template.Skills[index].Name != skill.Name {
-			return invalidf("resolvedSkills must exactly match AgentTemplate skills")
+			return Invalidf("resolvedSkills must exactly match AgentTemplate skills")
 		}
 		previous = skill.Name
 	}
@@ -85,36 +85,36 @@ func (s RunSkillSnapshot) Validate() error {
 	}
 	if s.Source == nil {
 		if s.SourceDigest != "" || s.SourceSize != 0 || s.Artifact != nil || s.PackageDigest != "" || s.ExpandedBytes != 0 {
-			return invalidf("missing Run Skill source marker has unexpected resolved fields")
+			return Invalidf("missing Run Skill source marker has unexpected resolved fields")
 		}
 		return nil
 	}
 	if err := validateExactRunSkillRef(*s.Source, s.Name, "source"); err != nil {
 		return err
 	}
-	if err := validateDigest("Run Skill sourceDigest", s.SourceDigest); err != nil {
+	if err := ValidateDigest("Run Skill sourceDigest", s.SourceDigest); err != nil {
 		return err
 	}
 	if s.SourceSize < 1 || s.SourceSize > 16<<20 {
-		return invalidf("Run Skill sourceSize must be between 1 and 16 MiB")
+		return Invalidf("Run Skill sourceSize must be between 1 and 16 MiB")
 	}
 	if s.Artifact == nil {
 		if s.PackageDigest != "" || s.ExpandedBytes != 0 {
-			return invalidf("uninitialized Run Skill has package result fields")
+			return Invalidf("uninitialized Run Skill has package result fields")
 		}
 		return nil
 	}
 	if err := validateExactRunSkillRef(*s.Artifact, s.Name, "artifact"); err != nil {
 		return err
 	}
-	if err := validateDigest("Run Skill packageDigest", s.PackageDigest); err != nil {
+	if err := ValidateDigest("Run Skill packageDigest", s.PackageDigest); err != nil {
 		return err
 	}
 	if s.PackageDigest != s.SourceDigest {
-		return invalidf("Run Skill source and package digests differ")
+		return Invalidf("Run Skill source and package digests differ")
 	}
 	if s.ExpandedBytes < 1 || s.ExpandedBytes > 32<<20 {
-		return invalidf("Run Skill expandedBytes must be between 1 and 32 MiB")
+		return Invalidf("Run Skill expandedBytes must be between 1 and 32 MiB")
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func (s RunSkillSnapshot) Initialized() bool { return s.Artifact != nil }
 
 func validateExactRunSkillRef(ref ArtifactRef, name, field string) error {
 	if ref.Namespace != AgentSkillNamespace || ref.Name != name {
-		return invalidf("Run Skill %s must identify skills/%s", field, name)
+		return Invalidf("Run Skill %s must identify skills/%s", field, name)
 	}
 	if err := ref.ValidateExact(); err != nil {
 		return err

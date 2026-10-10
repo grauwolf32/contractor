@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -57,7 +58,7 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		t.Fatal(err)
 	}
 	for _, id := range []string{"development-worker", "development-planner"} {
-		credentialLookup.lookups[id] = config.CredentialMetadata{Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
+		credentialLookup.lookups[id] = config.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref, Unrestricted: true}
 	}
 	credentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) { return credentialLookup, nil })
 	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: credentials, CredentialGuard: credentialLookup})

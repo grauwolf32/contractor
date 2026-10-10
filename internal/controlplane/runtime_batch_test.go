@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
@@ -106,7 +109,7 @@ func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
 		testReservation("allocation_1", "first", "https://first.example", "https://first.example", template, lease),
 		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
 	}
-	for name, settings := range map[string]map[string]contracts.WorkerExecutionSettings{
+	for name, settings := range map[string]map[string]runtimesettings.WorkerExecutionSettings{
 		"unknown": testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second", "third"),
 		"missing": testWorkerExecutionSettings(template, testRuntimeSettings(), "first"),
 	} {
@@ -210,18 +213,18 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	}
 	releaseDeletion()
 
-	registration.ObservedState = contracts.AgentFenced
+	registration.ObservedState = control.AgentFenced
 	registration.AllocationID = &allocationID
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatalf("returning fenced Runtime registration = %v", err)
 	}
-	fenced := contracts.AgentHeartbeat{
+	fenced := control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
-		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: contracts.AgentFenced,
+		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: control.AgentFenced,
 		AllocationID: &allocationID,
 	}
 	response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, fenced)
-	if err != nil || response.Action != contracts.ActionRelease {
+	if err != nil || response.Action != control.ActionRelease {
 		t.Fatalf("returning fenced Runtime heartbeat = (%+v, %v)", response, err)
 	}
 	request := ReservationRequest{
@@ -233,7 +236,7 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	}
 	idle := heartbeat(registration.InstanceID, 2, 1)
 	if response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, idle); err != nil ||
-		response.Action != contracts.ActionContinue {
+		response.Action != control.ActionContinue {
 		t.Fatalf("idle lease confirmation = (%+v, %v)", response, err)
 	}
 	if next, err := registry.ReserveAll(request); err != nil || len(next) != 1 {
@@ -391,7 +394,7 @@ type recordingRuntime struct {
 }
 
 func (r *recordingRuntime) Prepare(
-	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettings,
+	_ context.Context, reservation Reservation, _ runtimesettings.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -406,9 +409,9 @@ func (r *recordingRuntime) Prepare(
 
 func (r *recordingRuntime) Finalize(
 	ctx context.Context, reservation Reservation, _ string, _ time.Time,
-) (contracts.AllocationFinalReport, error) {
+) (reporting.AllocationFinalReport, error) {
 	if err := ctx.Err(); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	r.mu.Lock()
 	allocationID := reservation.Grant.AllocationID
@@ -417,7 +420,7 @@ func (r *recordingRuntime) Finalize(
 	r.mu.Unlock()
 	if blocked {
 		<-ctx.Done()
-		return contracts.AllocationFinalReport{}, ctx.Err()
+		return reporting.AllocationFinalReport{}, ctx.Err()
 	}
 	return testExecutionReport(reservation.Grant.AllocationID), nil
 }
@@ -428,9 +431,9 @@ func (r *recordingRuntime) Abort(
 	_ string,
 	_ contracts.TerminationError,
 	_ time.Time,
-) (contracts.AllocationFinalReport, error) {
+) (reporting.AllocationFinalReport, error) {
 	if err := ctx.Err(); err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	r.mu.Lock()
 	allocationID := reservation.Grant.AllocationID
@@ -439,7 +442,7 @@ func (r *recordingRuntime) Abort(
 	r.mu.Unlock()
 	if blocked {
 		<-ctx.Done()
-		return contracts.AllocationFinalReport{}, ctx.Err()
+		return reporting.AllocationFinalReport{}, ctx.Err()
 	}
 	return testExecutionReport(reservation.Grant.AllocationID), nil
 }
@@ -498,7 +501,7 @@ func (r *recordingAllocationRegistry) SetAllocationPhase(
 
 func (r *recordingAllocationRegistry) RecordAllocationReport(
 	allocationID string,
-	_ contracts.AllocationFinalReport,
+	_ reporting.AllocationFinalReport,
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

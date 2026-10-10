@@ -10,19 +10,21 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
 // These are configuration observations, not proof of upstream weights or inference.
 type liveModelSelection struct {
-	Workflow         string                        `json:"workflow"`
-	Stage            string                        `json:"stage"`
-	Agent            string                        `json:"agent"`
-	Variant          string                        `json:"variant"`
-	ModelPolicy      contracts.ModelPolicyRef      `json:"modelPolicy"`
-	Gateway          contracts.LLMGatewayConfigRef `json:"gateway"`
-	ModelAliasSHA256 string                        `json:"modelAliasSha256"`
+	Workflow         string                         `json:"workflow"`
+	Stage            string                         `json:"stage"`
+	Agent            string                         `json:"agent"`
+	Variant          string                         `json:"variant"`
+	ModelPolicy      contracts.ModelPolicyRef       `json:"modelPolicy"`
+	Gateway          llmgateway.LLMGatewayConfigRef `json:"gateway"`
+	ModelAliasSHA256 string                         `json:"modelAliasSha256"`
 }
 
 type liveResolvedWorker struct {
@@ -63,7 +65,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 	}); err != nil {
 		return nil, errors.New("copy live configuration failed")
 	}
-	snapshot, err := config.Load(target, config.MVPDescriptors())
+	snapshot, err := configload.Load(target, config.MVPDescriptors())
 	if err != nil {
 		return nil, errors.New("live configuration cannot be resolved")
 	}
@@ -107,7 +109,7 @@ func copyLiveConfiguration(repositoryRoot, target string, settings liveSettings)
 		return nil, err
 	}
 	// Recompute all identities and effective selections with the same loader the Server uses.
-	snapshot, err = config.Load(target, config.MVPDescriptors())
+	snapshot, err = configload.Load(target, config.MVPDescriptors())
 	if err != nil {
 		return nil, errors.New("overridden live configuration cannot be resolved")
 	}

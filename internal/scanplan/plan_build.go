@@ -12,11 +12,12 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 type planSourceInput struct {
 	id, target string
-	request    *contracts.PreparedHTTPRequest
+	request    *scan.PreparedHTTPRequest
 }
 type plannedCandidate struct {
 	candidate ScanCandidate
@@ -25,14 +26,14 @@ type plannedCandidate struct {
 
 // BuildPlan is pure: it performs no Artifact access, Worker calls or network I/O.
 // Binding templates, exact refs and source bytes must come from the Run snapshot.
-func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[string]ToolBinding, wordlists map[string]contracts.ArtifactRef) (ScanPlan, error) {
+func BuildPlan(input PlanInput, policy scan.ScanPlanPolicy, bindings map[string]ToolBinding, wordlists map[string]contracts.ArtifactRef) (ScanPlan, error) {
 	empty := ScanPlan{}
 	if input.Artifact.ValidateExact() != nil || policy.Validate() != nil {
 		return empty, failure("invalid_scan_plan_input")
 	}
 	// Detach all caller-owned maps, slices, revision pointers and literal values.
 	raw, err := json.Marshal(struct {
-		Policy    contracts.ScanPlanPolicy
+		Policy    scan.ScanPlanPolicy
 		Bindings  map[string]ToolBinding
 		Wordlists map[string]contracts.ArtifactRef
 	}{policy, bindings, wordlists})
@@ -40,7 +41,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 		return empty, failure("invalid_scan_plan_bindings")
 	}
 	var detached struct {
-		Policy    contracts.ScanPlanPolicy
+		Policy    scan.ScanPlanPolicy
 		Bindings  map[string]ToolBinding
 		Wordlists map[string]contracts.ArtifactRef
 	}
@@ -57,7 +58,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 	}
 	revision := *input.Artifact.Revision
 	input.Artifact.Revision = &revision
-	plan := ScanPlan{SchemaVersion: 1, Source: PlanSource{Artifact: input.Artifact, MediaType: input.MediaType, ContentDigest: contentdigest.Bytes(input.Data)}, Policy: policy, PreparationGaps: []contracts.PreparationGap{}, Candidates: []ScanCandidate{}, Jobs: []ScanJob{}}
+	plan := ScanPlan{SchemaVersion: 1, Source: PlanSource{Artifact: input.Artifact, MediaType: input.MediaType, ContentDigest: contentdigest.Bytes(input.Data)}, Policy: policy, PreparationGaps: []scan.PreparationGap{}, Candidates: []ScanCandidate{}, Jobs: []ScanJob{}}
 	sources, err := parsePlanSources(input, &plan)
 	if err != nil {
 		return empty, err
@@ -92,7 +93,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 	if len(candidates) > MaxPlanCandidates {
 		return empty, failure("scan_candidate_limit_exceeded")
 	}
-	policies := map[string]contracts.ScanToolPolicy{}
+	policies := map[string]scan.ScanToolPolicy{}
 	for _, p := range policy.Tools {
 		policies[p.Worker] = p
 	}
@@ -137,7 +138,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 	return plan, nil
 }
 
-func validatePlanBindings(policy contracts.ScanPlanPolicy, bindings map[string]ToolBinding, wordlists map[string]contracts.ArtifactRef) error {
+func validatePlanBindings(policy scan.ScanPlanPolicy, bindings map[string]ToolBinding, wordlists map[string]contracts.ArtifactRef) error {
 	if len(bindings) != len(policy.Tools) {
 		return failure("invalid_scan_plan_bindings")
 	}
@@ -202,8 +203,8 @@ func validatePlanBindings(policy contracts.ScanPlanPolicy, bindings map[string]T
 func parsePlanSources(input PlanInput, plan *ScanPlan) ([]planSourceInput, error) {
 	result := []planSourceInput{}
 	switch input.MediaType {
-	case contracts.HTTPRequestSetMediaType:
-		set, err := contracts.DecodeHTTPRequestSet(input.Data)
+	case scan.HTTPRequestSetMediaType:
+		set, err := scan.DecodeHTTPRequestSet(input.Data)
 		if err != nil {
 			return nil, failure("invalid_request_set")
 		}
@@ -239,7 +240,7 @@ func parsePlanSources(input PlanInput, plan *ScanPlan) ([]planSourceInput, error
 	return result, nil
 }
 
-func planJob(source planSourceInput, p contracts.ScanToolPolicy, b ToolBinding, wordlists map[string]contracts.ArtifactRef) (ScanJob, string) {
+func planJob(source planSourceInput, p scan.ScanToolPolicy, b ToolBinding, wordlists map[string]contracts.ArtifactRef) (ScanJob, string) {
 	e := *b.Template.Execution
 	job := ScanJob{Worker: p.Worker, Tool: e.Tool, Namespace: b.Namespace, TemplateRef: b.Template.Ref.TemplateID + "@" + b.Template.Ref.Version, TemplateDigest: b.Template.Ref.Digest, Execution: e, TimeoutSeconds: e.TimeoutSeconds, Parameters: map[string]string{}, Artifacts: map[string]contracts.ArtifactRef{}}
 	switch e.Tool {

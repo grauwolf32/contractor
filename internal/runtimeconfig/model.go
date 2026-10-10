@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 const (
@@ -57,17 +58,17 @@ type AtomicPatch[T any] struct {
 
 type LLMGatewayPatch struct {
 	Present    bool
-	Gateway    Field[contracts.LLMGatewayConfigRef]
+	Gateway    Field[llmgateway.LLMGatewayConfigRef]
 	Credential Field[string]
 }
 
 type TelemetryConfig struct {
-	Adapter             string                             `json:"adapter"`
-	Endpoint            string                             `json:"endpoint"`
-	Credential          string                             `json:"credential,omitempty"`
-	CaptureContent      bool                               `json:"captureContent"`
-	FlushTimeoutSeconds int                                `json:"flushTimeoutSeconds"`
-	Export              *contracts.TelemetryExportSettings `json:"export,omitempty"`
+	Adapter             string                                   `json:"adapter"`
+	Endpoint            string                                   `json:"endpoint"`
+	Credential          string                                   `json:"credential,omitempty"`
+	CaptureContent      bool                                     `json:"captureContent"`
+	FlushTimeoutSeconds int                                      `json:"flushTimeoutSeconds"`
+	Export              *runtimesettings.TelemetryExportSettings `json:"export,omitempty"`
 }
 
 type HTTPProxyConfig struct {

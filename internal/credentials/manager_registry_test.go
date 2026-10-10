@@ -5,23 +5,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestManagerRegistryRequiresExactDeclaredImplementation(t *testing.T) {
 	t.Parallel()
 	manager := newFakeGatewayManager()
 	registry, err := NewManagerRegistry(ManagerRegistration{
-		Implementation: contracts.LiteLLMVirtualKeysManager, Manager: manager,
+		Implementation: llmgateway.LiteLLMVirtualKeysManager, Manager: manager,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := contracts.ResolvedLLMGatewayConfig{
+	gateway := llmgateway.ResolvedLLMGatewayConfig{
 		Ref:      testPinnedGatewayRef("1", strings.Repeat("1", 64)),
-		Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
-		CredentialManager: &contracts.LLMGatewayCredentialManager{
-			Implementation: contracts.LiteLLMVirtualKeysManager,
+		Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		CredentialManager: &llmgateway.LLMGatewayCredentialManager{
+			Implementation: llmgateway.LiteLLMVirtualKeysManager,
 			ManagementURL:  "http://127.0.0.1:4000",
 		},
 	}
@@ -33,8 +33,8 @@ func TestManagerRegistryRequiresExactDeclaredImplementation(t *testing.T) {
 		t.Fatalf("unmanaged Gateway error = %v", err)
 	}
 	if _, err := NewManagerRegistry(
-		ManagerRegistration{Implementation: contracts.LiteLLMVirtualKeysManager, Manager: manager},
-		ManagerRegistration{Implementation: contracts.LiteLLMVirtualKeysManager, Manager: manager},
+		ManagerRegistration{Implementation: llmgateway.LiteLLMVirtualKeysManager, Manager: manager},
+		ManagerRegistration{Implementation: llmgateway.LiteLLMVirtualKeysManager, Manager: manager},
 	); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate manager registration error = %v", err)
 	}

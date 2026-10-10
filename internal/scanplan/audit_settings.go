@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 const AuditScanSettingsSchema = "contractor.audit.openapi-scan-settings.v1"
@@ -52,7 +53,7 @@ func DecodeAuditScanSettings(data []byte) (AuditScanSettings, error) {
 	if code != "" || server.RawQuery != "" || server.ForceQuery || strings.ContainsAny(value.Server, "{}") {
 		return bad()
 	}
-	if contracts.ValidateScanTestParameters(value.TestParameters) != nil || (value.Scanner == "sqlmap") != (len(value.TestParameters) > 0) {
+	if scan.ValidateScanTestParameters(value.TestParameters) != nil || (value.Scanner == "sqlmap") != (len(value.TestParameters) > 0) {
 		return bad()
 	}
 	for pointer, input := range value.Operations {
@@ -157,9 +158,9 @@ type PreparedAuditOperation struct {
 	Operation         string
 	PreparationDigest string
 	Runnable          bool
-	RequestSet        *contracts.HTTPRequestSet
+	RequestSet        *scan.HTTPRequestSet
 	Target            *OperationTarget
-	Gaps              []contracts.PreparationGap
+	Gaps              []scan.PreparationGap
 }
 
 func (s AuditScanSettings) PrepareOperation(data []byte, mediaType string, source contracts.ArtifactRef, pointer string) (PreparedAuditOperation, error) {
@@ -175,12 +176,12 @@ func (s AuditScanSettings) PrepareOperation(data []byte, mediaType string, sourc
 		if err != nil {
 			return PreparedAuditOperation{}, err
 		}
-		result.Target, result.PreparationDigest, result.Gaps = &target, target.PreparationDigest, append([]contracts.PreparationGap{}, target.Gaps...)
+		result.Target, result.PreparationDigest, result.Gaps = &target, target.PreparationDigest, append([]scan.PreparationGap{}, target.Gaps...)
 		result.Runnable = target.URL != ""
 		if result.Runnable {
 			if _, code := scanURL(target.URL); code != "" {
 				result.Runnable = false
-				result.Gaps = append(result.Gaps, contracts.PreparationGap{Pointer: pointer, Code: code})
+				result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
 			}
 		}
 	} else {
@@ -188,12 +189,12 @@ func (s AuditScanSettings) PrepareOperation(data []byte, mediaType string, sourc
 		if err != nil {
 			return PreparedAuditOperation{}, err
 		}
-		result.RequestSet, result.PreparationDigest, result.Gaps = &set, set.PreparationDigest, append([]contracts.PreparationGap{}, set.Gaps...)
+		result.RequestSet, result.PreparationDigest, result.Gaps = &set, set.PreparationDigest, append([]scan.PreparationGap{}, set.Gaps...)
 		if len(set.Requests) == 1 {
 			_, code := prepareSQLMapRequest(set.Requests[0].Request, s.document.TestParameters)
 			result.Runnable = code == ""
 			if code != "" {
-				result.Gaps = append(result.Gaps, contracts.PreparationGap{Pointer: pointer, Code: code})
+				result.Gaps = append(result.Gaps, scan.PreparationGap{Pointer: pointer, Code: code})
 			}
 		}
 	}

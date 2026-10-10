@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -477,9 +479,9 @@ func assertDuplicatePrincipalRegistrationRejected(
 	if principal.Live == nil {
 		t.Fatalf("Runtime Agent principal has no live process: %+v", principal)
 	}
-	toolsets := make([]contracts.ToolsetCapability, len(principal.Live.SupportedToolsets))
+	toolsets := make([]control.ToolsetCapability, len(principal.Live.SupportedToolsets))
 	for index, capability := range principal.Live.SupportedToolsets {
-		toolsets[index] = contracts.ToolsetCapability{
+		toolsets[index] = control.ToolsetCapability{
 			Ref: capability.Ref, Tools: append([]string(nil), capability.Tools...),
 		}
 	}
@@ -487,13 +489,13 @@ func assertDuplicatePrincipalRegistrationRejected(
 	for index, adapter := range principal.Live.SupportedRuntimeAdapters {
 		adapters[index] = contracts.RuntimeAdapterRef(adapter)
 	}
-	registration := contracts.AgentRegistration{
+	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
 		StartedAt: time.Now().UTC(), ControlURL: "https://127.0.0.1:1", A2AURL: "https://127.0.0.1:1",
 		InitialLabels: []string{}, SupportedRuntimes: append([]string(nil), principal.Live.SupportedRuntimes...),
 		SupportedToolsets:        toolsets,
 		SupportedSandboxProfiles: append([]string(nil), principal.Live.SupportedSandboxProfiles...),
-		SupportedRuntimeAdapters: adapters, ObservedState: contracts.AgentIdle,
+		SupportedRuntimeAdapters: adapters, ObservedState: control.AgentIdle,
 	}
 	if err := registration.Validate(); err != nil {
 		t.Fatalf("duplicate registration fixture: %v", err)
@@ -889,7 +891,7 @@ func onlyRuntimeAdapterMetrics(
 	ctx context.Context,
 	store runstore.Repository,
 	runID, adapter string,
-) contracts.RuntimeAdapterMetrics {
+) reporting.RuntimeAdapterMetrics {
 	t.Helper()
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {

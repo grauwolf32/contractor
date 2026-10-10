@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -64,7 +65,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 					}
 					return provider, nil
 				})
-			manager, err := config.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: t.TempDir(), Descriptors: config.MVPDescriptors()})
+			manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: "../config/testdata/valid", ManagedRoot: t.TempDir(), Descriptors: config.MVPDescriptors()})
 			if err != nil {
 				t.Fatal(err)
 			}

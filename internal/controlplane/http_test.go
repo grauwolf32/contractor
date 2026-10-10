@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -60,7 +61,7 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	if trusted.Code != http.StatusOK {
 		t.Fatalf("registration status = %d, body %s", trusted.Code, trusted.Body.String())
 	}
-	var response contracts.AgentRegistrationResponse
+	var response control.AgentRegistrationResponse
 	if err := json.Unmarshal(trusted.Body.Bytes(), &response); err != nil || response.HeartbeatIntervalSeconds != 10 || response.ConfirmedLeaseSeconds != 60 {
 		t.Fatalf("registration response = (%+v, %v)", response, err)
 	}
@@ -143,8 +144,8 @@ func TestPrivateHeartbeatPathMustMatchBodyAndUnknownAgentReregisters(t *testing.
 	if response.Code != http.StatusOK {
 		t.Fatalf("unknown instance heartbeat status = %d", response.Code)
 	}
-	var decoded contracts.HeartbeatResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil || decoded.Action != contracts.ActionReregister || decoded.AckSeq != 1 {
+	var decoded control.HeartbeatResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil || decoded.Action != control.ActionReregister || decoded.AckSeq != 1 {
 		t.Fatalf("unknown instance response = (%+v, %v)", decoded, err)
 	}
 }

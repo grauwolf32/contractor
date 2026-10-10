@@ -8,12 +8,13 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 	t.Parallel()
 
-	var allocation contracts.AllocationSpec
+	var allocation control.AllocationSpec
 	encoded := readFile(
 		t, filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-summarizer.json"),
 	)

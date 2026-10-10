@@ -153,7 +153,7 @@ The source path explains the result:
   invokes the token-based duplicate-key scanner in
   [`private.go`](../../internal/contracts/private.go).
 - Report validation also serializes report content again to check size and
-  other invariants in [`telemetry.go`](../../internal/contracts/telemetry.go).
+  other invariants in [`telemetry.go`](../../internal/contracts/reporting/telemetry.go).
 
 The profile's `encoding/json.(*scanner).error` frames occur inside token
 decoding; they do not imply that the HTTP requests failed. All confirmed

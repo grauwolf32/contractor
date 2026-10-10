@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -147,7 +148,7 @@ func (s *Scheduler) resumeAborting(
 	fenceContext, cancelFence := s.terminalOperationContext(ctx)
 	_ = s.fenceRecordedAllocations(fenceContext, execution.StageExecutionID, reservations)
 	cancelFence()
-	var reports map[string]contracts.AllocationFinalReport
+	var reports map[string]reporting.AllocationFinalReport
 	if len(reservations) > 0 && execution.AbortDeadline.After(s.now()) {
 		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
 		var err error

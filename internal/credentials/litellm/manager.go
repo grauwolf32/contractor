@@ -22,6 +22,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -34,7 +35,7 @@ const (
 	maximumRequestBytes   = 64 * 1024
 	liteLLMKeyType        = "llm_api"
 	liteLLMAllowedRoute   = "llm_api_routes"
-	managerImplementation = contracts.LiteLLMVirtualKeysManager
+	managerImplementation = llmgateway.LiteLLMVirtualKeysManager
 	managerUserAgent      = "contractor/litellm-virtual-keys@1"
 	confirmedNotFoundBody = "{'error': 'No keys found'}"
 )
@@ -258,13 +259,13 @@ func (m *Manager) createPayload(
 func (m *Manager) validateBase(
 	ctx context.Context,
 	operationID, credentialID string,
-	gateway contracts.ResolvedLLMGatewayConfig,
+	gateway llmgateway.ResolvedLLMGatewayConfig,
 ) (exactBinding, error) {
 	if err := ctx.Err(); err != nil {
 		return exactBinding{}, err
 	}
 	if !operationIDPattern.MatchString(operationID) ||
-		(contracts.LLMCredentialRef{CredentialID: credentialID}).Validate() != nil ||
+		(llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate() != nil ||
 		gateway.Validate() != nil || gateway.CredentialManager == nil ||
 		gateway.CredentialManager.Implementation != managerImplementation {
 		return exactBinding{}, fmt.Errorf("%w: LiteLLM manager request is invalid", credentials.ErrInvalid)
@@ -278,8 +279,8 @@ func (m *Manager) validateBase(
 
 // KeyAlias returns the bounded deterministic LiteLLM alias committed by the
 // specification. It contains only a fixed prefix and a SHA-256 digest.
-func KeyAlias(ref contracts.LLMGatewayConfigRef, credentialID string) (string, error) {
-	if ref.ValidateRef() != nil || (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate() != nil {
+func KeyAlias(ref llmgateway.LLMGatewayConfigRef, credentialID string) (string, error) {
+	if ref.ValidateRef() != nil || (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate() != nil {
 		return "", fmt.Errorf("%w: cannot derive LiteLLM key alias", credentials.ErrInvalid)
 	}
 	digest := sha256.New()

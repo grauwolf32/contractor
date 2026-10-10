@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -62,7 +63,7 @@ type passthroughPlanner struct {
 	invoker    WorkerInvoker
 	inspector  ArtifactInspector
 	reportMu   sync.RWMutex
-	report     contracts.ExecutionReport
+	report     reporting.ExecutionReport
 	hasReport  bool
 }
 
@@ -170,7 +171,7 @@ func (p *passthroughPlanner) Run(
 	return result.Clone(), nil
 }
 
-func (p *passthroughPlanner) ExecutionReport() (contracts.ExecutionReport, bool) {
+func (p *passthroughPlanner) ExecutionReport() (reporting.ExecutionReport, bool) {
 	p.reportMu.RLock()
 	defer p.reportMu.RUnlock()
 	return p.report, p.hasReport
@@ -189,36 +190,36 @@ func (p *passthroughPlanner) finishReport(
 	if identity.SessionID != "" {
 		reportID = "planner-" + identity.SessionID
 	}
-	report := contracts.ExecutionReport{
+	report := reporting.ExecutionReport{
 		ReportID: reportID,
 		Complete: true,
-		Metrics: contracts.ExecutionMetrics{
+		Metrics: reporting.ExecutionMetrics{
 			DurationMS:   int64Pointer(durationMS),
 			ModelCalls:   int64Pointer(0),
 			InputTokens:  int64Pointer(0),
 			OutputTokens: int64Pointer(0),
 			TotalTokens:  int64Pointer(0),
-			Tools:        map[string]contracts.ToolMetrics{},
+			Tools:        map[string]reporting.ToolMetrics{},
 		},
-		ToolCalls: []contracts.ToolCallRecord{},
-		Errors:    []contracts.ExecutionError{},
+		ToolCalls: []reporting.ToolCallRecord{},
+		Errors:    []reporting.ExecutionError{},
 	}
 	if invoked {
 		calls, succeeded, failed := int64(1), int64(1), int64(0)
-		outcome := contracts.ToolCallSucceeded
-		var executionError *contracts.ExecutionError
+		outcome := reporting.ToolCallSucceeded
+		var executionError *reporting.ExecutionError
 		if invokeFailure != nil {
 			succeeded, failed = 0, 1
-			outcome = contracts.ToolCallFailed
+			outcome = reporting.ToolCallFailed
 			retryable := invokeFailure.Retryable
-			executionError = &contracts.ExecutionError{
+			executionError = &reporting.ExecutionError{
 				Code: invokeFailure.Code, Message: invokeFailure.Message, Retryable: &retryable,
 			}
 		}
-		report.Metrics.Tools["a2a.invoke"] = contracts.ToolMetrics{
+		report.Metrics.Tools["a2a.invoke"] = reporting.ToolMetrics{
 			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 		}
-		report.ToolCalls = append(report.ToolCalls, contracts.ToolCallRecord{
+		report.ToolCalls = append(report.ToolCalls, reporting.ToolCallRecord{
 			CallID: "a2a-" + reportID, Tool: "a2a.invoke",
 			Arguments: map[string]any{"binding": p.binding}, Outcome: outcome,
 			DurationMS: &invokeDurationMS, Error: executionError,
@@ -227,7 +228,7 @@ func (p *passthroughPlanner) finishReport(
 	if runErr != nil {
 		failure := FailureFrom(runErr)
 		retryable := failure.Retryable
-		report.Errors = append(report.Errors, contracts.ExecutionError{
+		report.Errors = append(report.Errors, reporting.ExecutionError{
 			Code: failure.Code, Message: failure.Message, Retryable: &retryable,
 		})
 	}

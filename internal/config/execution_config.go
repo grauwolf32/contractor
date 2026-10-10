@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -22,8 +23,8 @@ const (
 // CredentialMetadata is the safe lookup result used while a Run is resolved.
 // It deliberately contains no token or provider response.
 type CredentialMetadata struct {
-	Ref           contracts.LLMCredentialRef
-	LLMGateway    contracts.LLMGatewayConfigRef
+	Ref           llmgateway.LLMCredentialRef
+	LLMGateway    llmgateway.LLMGatewayConfigRef
 	ModelPolicies []contracts.ModelPolicyRef
 	Models        []string
 	// Unrestricted is reserved for explicit process-local development
@@ -393,7 +394,7 @@ func (l *loader) applySelection(
 		selection.Origins.Credential = origin
 		selection.Credential = nil
 		if !patch.credential.null {
-			ref := contracts.LLMCredentialRef{CredentialID: patch.credential.value}
+			ref := llmgateway.LLMCredentialRef{CredentialID: patch.credential.value}
 			if err := ref.Validate(); err != nil {
 				return fmt.Errorf("credential is invalid: %w", err)
 			}

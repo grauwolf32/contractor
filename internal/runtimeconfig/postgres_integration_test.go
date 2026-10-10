@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -57,12 +57,12 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	var resolverCalls atomic.Int32
 	var gatewayDigest atomic.Value
 	gatewayDigest.Store("sha256:" + strings.Repeat("a", 64))
-	resolver := GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+	resolver := GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 		resolverCalls.Add(1)
 		id, version, _ := strings.Cut(selector, "@")
-		return contracts.ResolvedLLMGatewayConfig{
-			Ref:      contracts.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: gatewayDigest.Load().(string)},
-			Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: gatewayDigest.Load().(string)},
+			Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
 	now := time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
@@ -75,8 +75,8 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 					return config.CredentialMetadata{}, errors.New("test LLM credential not found")
 				}
 				return config.CredentialMetadata{
-					Ref: contracts.LLMCredentialRef{CredentialID: id},
-					LLMGateway: contracts.LLMGatewayConfigRef{
+					Ref: llmgateway.LLMCredentialRef{CredentialID: id},
+					LLMGateway: llmgateway.LLMGatewayConfigRef{
 						GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 					},
 				}, nil
@@ -124,7 +124,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	var concurrentCalls atomic.Int32
 	var resolvedTogether sync.WaitGroup
 	resolvedTogether.Add(2)
-	concurrentResolver := GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+	concurrentResolver := GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 		call := concurrentCalls.Add(1)
 		resolvedTogether.Done()
 		resolvedTogether.Wait()
@@ -133,9 +133,9 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 		if call == 2 {
 			digit = "d"
 		}
-		return contracts.ResolvedLLMGatewayConfig{
-			Ref:      contracts.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: "sha256:" + strings.Repeat(digit, 64)},
-			Protocol: contracts.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
+		return llmgateway.ResolvedLLMGatewayConfig{
+			Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: id, Version: version, Digest: "sha256:" + strings.Repeat(digit, 64)},
+			Protocol: llmgateway.OpenAICompatibleProtocol, URL: "http://127.0.0.1:4000/v1",
 		}, nil
 	})
 	concurrentPublisher, err := NewPublisher(PublisherOptions{

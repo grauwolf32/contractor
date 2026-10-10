@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
@@ -68,7 +69,7 @@ type boundWorker struct {
 type cacheEntry struct {
 	selector completionSelector
 	etag     string
-	snapshot contracts.AgentStateSnapshot
+	snapshot reporting.AgentStateSnapshot
 }
 
 type cursorRecord struct {
@@ -325,14 +326,14 @@ func (s *Service) GetWorkerToolUsage(
 func (s *Service) loadWorkspace(
 	ctx context.Context,
 	logicalName string,
-) (contracts.WorkerStateWorkspace, completionSelector, error) {
+) (reporting.WorkerStateWorkspace, completionSelector, error) {
 	snapshot, selector, err := s.load(ctx, logicalName, true)
 	if err != nil {
-		return contracts.WorkerStateWorkspace{}, completionSelector{}, err
+		return reporting.WorkerStateWorkspace{}, completionSelector{}, err
 	}
 	invocation := snapshot.State.LastCompletedInvocation
 	if invocation == nil || invocation.Workspace == nil {
-		return contracts.WorkerStateWorkspace{}, completionSelector{}, projectionError(
+		return reporting.WorkerStateWorkspace{}, completionSelector{}, projectionError(
 			CodeWorkspaceUnavailable, false,
 		)
 	}
@@ -343,11 +344,11 @@ func (s *Service) load(
 	ctx context.Context,
 	logicalName string,
 	requireWorkspace bool,
-) (contracts.AgentStateSnapshot, completionSelector, error) {
+) (reporting.AgentStateSnapshot, completionSelector, error) {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
 	binding, exists := s.bindings[logicalName]
 	selector, selected := s.selectors[logicalName]
@@ -357,10 +358,10 @@ func (s *Service) load(
 	}
 	s.mu.Unlock()
 	if !exists || !selected {
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
 	if requireWorkspace && !binding.workspaceEligible {
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(
 			CodeWorkspaceUnavailable, false,
 		)
 	}
@@ -375,42 +376,42 @@ func (s *Service) load(
 		if errors.As(readErr, &typed) {
 			retryable = typed.Retryable
 		}
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, retryable)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, retryable)
 	}
-	var snapshot contracts.AgentStateSnapshot
+	var snapshot reporting.AgentStateSnapshot
 	switch {
 	case read.NotModified && read.Snapshot == nil && hasCache && read.ETag == cached.etag:
 		snapshot = cached.snapshot
 	case !read.NotModified && read.Snapshot != nil:
 		cloned, cloneErr := cloneSnapshot(*read.Snapshot)
 		if cloneErr != nil {
-			return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+			return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
 		}
 		snapshot = cloned
 	default:
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
 	expectedETag := fmt.Sprintf("\"contractor-agent-state-v1-%d\"", snapshot.State.StateRevision)
 	if read.ETag != expectedETag || !correlates(snapshot, selector) {
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed || s.selectors[logicalName] != selector {
-		return contracts.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
+		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeChanged, true)
 	}
 	s.cache[logicalName] = cacheEntry{selector: selector, etag: read.ETag, snapshot: snapshot}
 	return snapshot, selector, nil
 }
 
-func correlates(snapshot contracts.AgentStateSnapshot, selector completionSelector) bool {
+func correlates(snapshot reporting.AgentStateSnapshot, selector completionSelector) bool {
 	invocation := snapshot.State.LastCompletedInvocation
 	return snapshot.State.StateRevision == selector.Revision && invocation != nil &&
 		invocation.InvocationID == selector.InvocationID && invocation.SubtaskID == selector.SubtaskID
 }
 
 func workspaceSets(
-	workspace contracts.WorkerStateWorkspace,
+	workspace reporting.WorkerStateWorkspace,
 ) (map[string]struct{}, map[string]struct{}, map[string]struct{}, map[string]struct{}) {
 	discovered := map[string]struct{}{}
 	read := map[string]struct{}{}
@@ -556,12 +557,12 @@ func hmacDigest(key, value []byte) []byte {
 	return mac.Sum(nil)
 }
 
-func cloneSnapshot(input contracts.AgentStateSnapshot) (contracts.AgentStateSnapshot, error) {
+func cloneSnapshot(input reporting.AgentStateSnapshot) (reporting.AgentStateSnapshot, error) {
 	encoded, err := json.Marshal(input)
-	if err != nil || len(encoded) > contracts.MaxAgentStateSnapshotBytes {
-		return contracts.AgentStateSnapshot{}, errors.New("Worker State snapshot cannot be cloned")
+	if err != nil || len(encoded) > reporting.MaxAgentStateSnapshotBytes {
+		return reporting.AgentStateSnapshot{}, errors.New("Worker State snapshot cannot be cloned")
 	}
-	return contracts.DecodeStrict[contracts.AgentStateSnapshot](encoded)
+	return contracts.DecodeStrict[reporting.AgentStateSnapshot](encoded)
 }
 
 func projectionError(code string, retryable bool) *Error {

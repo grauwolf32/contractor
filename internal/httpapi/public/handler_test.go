@@ -17,8 +17,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -376,9 +380,9 @@ func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
 				CreatedBy: "user-1", CreatedAt: time.Now(),
 			}
 			configured := fixture.projects.projects["project-two"]
-			configured.HTTPTarget = &contracts.HTTPOriginTargetRef{
+			configured.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 				URL: "https://attacker.example.test",
-				Credential: &contracts.RuntimeCredentialRef{
+				Credential: &runtimesettings.RuntimeCredentialRef{
 					CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 				},
 			}
@@ -546,9 +550,9 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 		CreatedBy: "user-1", CreatedAt: time.Now(),
 	}
 	configuredProject := fixture.projects.projects["project-one"]
-	configuredProject.HTTPTarget = &contracts.HTTPOriginTargetRef{
+	configuredProject.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRef{
+		Credential: &runtimesettings.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}
@@ -697,7 +701,7 @@ func newHandlerFixtureWithAuth(
 	configure ...func(*Dependencies),
 ) handlerFixture {
 	t.Helper()
-	manager, err := config.NewManager(config.ManagerOptions{
+	manager, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: configRoot,
 		ManagedRoot:  filepath.Join(t.TempDir(), "managed-configs"),
 		Descriptors:  config.MVPDescriptors(),
@@ -717,12 +721,12 @@ func newHandlerFixtureWithAuth(
 	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
 		for _, id := range []string{"development-worker", "development-planner"} {
 			managedCredentials.lookups[id] = config.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+				Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
 			}
 		}
 	}
 	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
-		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+		func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 			return manager.LLMGateway(selector)
 		},
 	))
@@ -973,7 +977,7 @@ func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) 
 	fixture := newHandlerFixture(t)
 	fixture.credentials.records["managed-worker"] = credentials.Record{
 		CredentialID: "managed-worker",
-		LLMGateway: contracts.LLMGatewayConfigRef{
+		LLMGateway: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("1", 64),
 		},
 		EffectivePolicy: credentials.EffectiveGatewayPolicy{
@@ -1768,7 +1772,7 @@ func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
 
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../config/testdata/valid", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1791,15 +1795,15 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	}}
 	retryable := true
 	normalizedWorker, err := telemetry.NewPolicy("must-not-be-public").NormalizeExecutionReport(
-		contracts.ExecutionReport{
+		reporting.ExecutionReport{
 			ReportID: "worker-secret", Complete: true,
-			Metrics: contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{}},
-			ToolCalls: []contracts.ToolCallRecord{{
+			Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+			ToolCalls: []reporting.ToolCallRecord{{
 				CallID: "call-secret", Tool: "probe",
 				Arguments: map[string]any{"token": "must-not-be-public"},
-				Outcome:   contracts.ToolCallSucceeded,
+				Outcome:   reporting.ToolCallSucceeded,
 			}},
-			Errors: []contracts.ExecutionError{
+			Errors: []reporting.ExecutionError{
 				{
 					Code:      "worker_result_schema_json_invalid",
 					Message:   "Worker result did not match StageContentResult",
@@ -1818,11 +1822,11 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	}
 	fixture.metrics.records["stage-metrics"] = telemetry.StageMetricsRecord{
 		StageExecutionID: "stage-metrics",
-		Metrics: contracts.StageMetrics{
-			Workers: map[string]contracts.ExecutionReport{
+		Metrics: reporting.StageMetrics{
+			Workers: map[string]reporting.ExecutionReport{
 				"builder": normalizedWorker,
 			},
-			Runtime: map[string]contracts.RuntimeReport{"builder": {Complete: true}},
+			Runtime: map[string]reporting.RuntimeReport{"builder": {Complete: true}},
 		},
 		Summary: telemetry.Summary{
 			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1, ErrorCount: 2,
@@ -1832,7 +1836,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 		AllocationID: "allocation-metrics", RunID: "run-metrics", StageExecutionID: "stage-metrics",
 		Stage: "copy", LogicalAgent: "builder", Outcome: "succeeded",
 		FinishedAt:       time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
-		CollectionPolicy: contracts.PerformanceCollectionUnsupported,
+		CollectionPolicy: reporting.PerformanceCollectionUnsupported,
 		Status:           telemetry.AllocationResourceUnsupported,
 	}}
 
@@ -1878,7 +1882,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
+	snapshot, err := configload.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestMergeSameLayerIsOrderIndependent(t *testing.T) {
 	t.Parallel()
 	one := LayerEntry{Label: "a", Ref: testRef("a", "1"), Spec: Spec{Worker: WorkerPatch{
-		LLMGateway: LLMGatewayPatch{Present: true, Gateway: Field[contracts.LLMGatewayConfigRef]{Present: true, Value: contracts.LLMGatewayConfigRef{
+		LLMGateway: LLMGatewayPatch{Present: true, Gateway: Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: llmgateway.LLMGatewayConfigRef{
 			GatewayID: "local", Version: "1", Digest: "sha256:" + strings.Repeat("1", 64),
 		}}},
 	}}}

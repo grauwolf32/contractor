@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
@@ -67,7 +68,7 @@ type GatewaySettings struct {
 	Recovery *gatewayrecovery.Participant
 	// FailureSignatures classify failures of a request sent without Recovery;
 	// a Recovery participant applies the set it was bound with.
-	FailureSignatures contracts.GatewayFailureSignatures
+	FailureSignatures llmgateway.GatewayFailureSignatures
 	URL               string
 	Token             contracts.SecretString
 	Model             string

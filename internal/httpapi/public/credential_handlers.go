@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
@@ -51,7 +51,7 @@ func (h *handler) getCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	credentialID := r.PathValue("credentialId")
-	if err := (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
+	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
 		h.handleError(w, fmt.Errorf("%w: invalid credential ID", errInvalidRequest))
 		return
 	}
@@ -120,7 +120,7 @@ func (h *handler) deleteCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	credentialID := r.PathValue("credentialId")
-	if err := (contracts.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
+	if err := (llmgateway.LLMCredentialRef{CredentialID: credentialID}).Validate(); err != nil {
 		h.handleError(w, fmt.Errorf("%w: invalid credential ID", errInvalidRequest))
 		return
 	}

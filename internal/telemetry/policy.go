@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 const (
@@ -46,12 +47,12 @@ func NewPolicy(secrets ...string) Policy {
 }
 
 func (p Policy) NormalizeAllocationReport(
-	source contracts.AllocationFinalReport,
-) (contracts.AllocationFinalReport, error) {
+	source reporting.AllocationFinalReport,
+) (reporting.AllocationFinalReport, error) {
 	result := source
 	worker, err := p.NormalizeExecutionReport(source.Worker, MaxReportJSONBytes-allocationReserveSize)
 	if err != nil {
-		return contracts.AllocationFinalReport{}, err
+		return reporting.AllocationFinalReport{}, err
 	}
 	result.Worker = worker
 	if result.Runtime.StopReason != nil {
@@ -69,20 +70,20 @@ func (p Policy) NormalizeAllocationReport(
 			result.Worker.Truncated = true
 			continue
 		}
-		return contracts.AllocationFinalReport{}, errors.New("allocation report aggregate exceeds 1 MiB")
+		return reporting.AllocationFinalReport{}, errors.New("allocation report aggregate exceeds 1 MiB")
 	}
 	if err := result.Validate(); err != nil {
-		return contracts.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
+		return reporting.AllocationFinalReport{}, fmt.Errorf("normalize allocation report: %w", err)
 	}
 	return result, nil
 }
 
 func (p Policy) NormalizeExecutionReport(
-	source contracts.ExecutionReport,
+	source reporting.ExecutionReport,
 	maximumBytes int,
-) (contracts.ExecutionReport, error) {
+) (reporting.ExecutionReport, error) {
 	if maximumBytes <= 0 || maximumBytes > MaxReportJSONBytes {
-		return contracts.ExecutionReport{}, errors.New("invalid execution report byte limit")
+		return reporting.ExecutionReport{}, errors.New("invalid execution report byte limit")
 	}
 	result := source
 	result.Metrics.Tools = cloneToolMetrics(source.Metrics.Tools)
@@ -93,9 +94,9 @@ func (p Policy) NormalizeExecutionReport(
 	result.Metrics.WorkerBudget = cloneWorkerBudget(source.Metrics.WorkerBudget)
 	result.Metrics.Summarizer = cloneWorkerSummarizer(source.Metrics.Summarizer)
 	if result.Metrics.Tools == nil {
-		result.Metrics.Tools = map[string]contracts.ToolMetrics{}
+		result.Metrics.Tools = map[string]reporting.ToolMetrics{}
 	}
-	result.ToolCalls = make([]contracts.ToolCallRecord, 0, min(len(source.ToolCalls), MaxToolRecords))
+	result.ToolCalls = make([]reporting.ToolCallRecord, 0, min(len(source.ToolCalls), MaxToolRecords))
 	start := max(0, len(source.ToolCalls)-MaxToolRecords)
 	if start > 0 {
 		result.Truncated = true
@@ -120,7 +121,7 @@ func (p Policy) NormalizeExecutionReport(
 		}
 		result.ToolCalls = append(result.ToolCalls, call)
 	}
-	result.Errors = make([]contracts.ExecutionError, 0, min(len(source.Errors), MaxErrorRecords))
+	result.Errors = make([]reporting.ExecutionError, 0, min(len(source.Errors), MaxErrorRecords))
 	errorStart := max(0, len(source.Errors)-MaxErrorRecords)
 	if errorStart > 0 {
 		result.Truncated = true
@@ -139,17 +140,17 @@ func (p Policy) NormalizeExecutionReport(
 			result.Truncated = true
 			continue
 		}
-		return contracts.ExecutionReport{}, errors.New("execution report aggregate exceeds byte limit")
+		return reporting.ExecutionReport{}, errors.New("execution report aggregate exceeds byte limit")
 	}
 	if err := result.Validate(); err != nil {
-		return contracts.ExecutionReport{}, fmt.Errorf("normalize execution report: %w", err)
+		return reporting.ExecutionReport{}, fmt.Errorf("normalize execution report: %w", err)
 	}
 	return result, nil
 }
 
 func cloneWorkerSummarizer(
-	source *contracts.WorkerSummarizerMetrics,
-) *contracts.WorkerSummarizerMetrics {
+	source *reporting.WorkerSummarizerMetrics,
+) *reporting.WorkerSummarizerMetrics {
 	if source == nil {
 		return nil
 	}
@@ -161,7 +162,7 @@ func cloneWorkerSummarizer(
 	return &result
 }
 
-func (p Policy) normalizeError(source contracts.ExecutionError) contracts.ExecutionError {
+func (p Policy) normalizeError(source reporting.ExecutionError) reporting.ExecutionError {
 	result := source
 	result.Code = p.redactText(source.Code)
 	result.Message = truncateUTF8(p.redactText(source.Message), MaxErrorMessageBytes)
@@ -279,15 +280,15 @@ func isSensitiveKey(value string) bool {
 	return false
 }
 
-func cloneToolMetrics(source map[string]contracts.ToolMetrics) map[string]contracts.ToolMetrics {
-	result := make(map[string]contracts.ToolMetrics, len(source))
+func cloneToolMetrics(source map[string]reporting.ToolMetrics) map[string]reporting.ToolMetrics {
+	result := make(map[string]reporting.ToolMetrics, len(source))
 	for name, metrics := range source {
 		result[name] = metrics
 	}
 	return result
 }
 
-func cloneWorkerBudget(source *contracts.WorkerBudgetMetrics) *contracts.WorkerBudgetMetrics {
+func cloneWorkerBudget(source *reporting.WorkerBudgetMetrics) *reporting.WorkerBudgetMetrics {
 	if source == nil {
 		return nil
 	}

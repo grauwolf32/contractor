@@ -12,6 +12,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 const (
@@ -80,9 +83,9 @@ type MetricsSummary struct {
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {
-	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy,omitzero"`
-	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway,omitzero"`
-	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
+	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy,omitzero"`
+	LLMGateway  llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitzero"`
+	Credential  *llmgateway.LLMCredentialRef   `json:"credential,omitempty"`
 }
 
 func (c AllocationExecutionConfig) Validate() error {
@@ -143,7 +146,7 @@ type RuntimeAgentObservation struct {
 	SupportedSandboxProfiles  []string                         `json:"supportedSandboxProfiles"`
 	SupportedRuntimeAdapters  []string                         `json:"supportedRuntimeAdapters"`
 	WorkspaceCapabilities     *contracts.WorkspaceCapabilities `json:"workspaceCapabilities,omitempty"`
-	ObservedState             contracts.AgentObservedState     `json:"observedState"`
+	ObservedState             control.AgentObservedState       `json:"observedState"`
 	SlotState                 SlotState                        `json:"slotState"`
 	LastAcceptedHeartbeat     *time.Time                       `json:"lastAcceptedHeartbeat,omitempty"`
 	ConfirmedLeaseUntil       *time.Time                       `json:"confirmedLeaseUntil,omitempty"`
@@ -216,7 +219,7 @@ func (o RuntimeAgentObservation) Validate() error {
 		return err
 	}
 	switch o.ObservedState {
-	case contracts.AgentIdle, contracts.AgentAllocated, contracts.AgentDraining, contracts.AgentFenced:
+	case control.AgentIdle, control.AgentAllocated, control.AgentDraining, control.AgentFenced:
 	default:
 		return fmt.Errorf("invalid Runtime Agent observed state")
 	}
@@ -496,7 +499,7 @@ func (r *InMemoryRegistry) SetAllocationPhase(
 
 func (r *InMemoryRegistry) RecordAllocationReport(
 	allocationID string,
-	report contracts.AllocationFinalReport,
+	report reporting.AllocationFinalReport,
 ) error {
 	if report.AllocationID != allocationID || report.Validate() != nil {
 		return ErrInvalidRequest
@@ -533,7 +536,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),
 		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
 		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
-		SupportedRuntimeAdapters:  contracts.RuntimeAdapterCapabilityProjection(entry.registration),
+		SupportedRuntimeAdapters:  control.RuntimeAdapterCapabilityProjection(entry.registration),
 		WorkspaceCapabilities:     cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
@@ -612,14 +615,14 @@ func allocationObservation(
 }
 
 func slotState(entry *agentEntry) SlotState {
-	if entry.leaseExpired || entry.allocationLost || entry.registration.ObservedState == contracts.AgentFenced {
+	if entry.leaseExpired || entry.allocationLost || entry.registration.ObservedState == control.AgentFenced {
 		return SlotFenced
 	}
-	if entry.registration.ObservedState == contracts.AgentDraining {
+	if entry.registration.ObservedState == control.AgentDraining {
 		return SlotDraining
 	}
 	if entry.reconciliationRequired {
-		if entry.registration.ObservedState == contracts.AgentAllocated {
+		if entry.registration.ObservedState == control.AgentAllocated {
 			return SlotDraining
 		}
 		return SlotFenced
@@ -627,10 +630,10 @@ func slotState(entry *agentEntry) SlotState {
 	if entry.authoritativeAllocationID == nil {
 		return SlotIdle
 	}
-	if !entry.allocationActivated && entry.registration.ObservedState == contracts.AgentIdle {
+	if !entry.allocationActivated && entry.registration.ObservedState == control.AgentIdle {
 		return SlotReserved
 	}
-	if entry.registration.ObservedState == contracts.AgentAllocated && entry.registration.AllocationID != nil &&
+	if entry.registration.ObservedState == control.AgentAllocated && entry.registration.AllocationID != nil &&
 		*entry.registration.AllocationID == *entry.authoritativeAllocationID {
 		return SlotBusy
 	}
@@ -638,16 +641,16 @@ func slotState(entry *agentEntry) SlotState {
 }
 
 func observedAllocationPhase(entry *agentEntry, allocationID string) AllocationObservedPhase {
-	if entry.registration.ObservedState == contracts.AgentFenced {
+	if entry.registration.ObservedState == control.AgentFenced {
 		return AllocationObservedFenced
 	}
 	if entry.registration.AllocationID == nil || *entry.registration.AllocationID != allocationID {
 		return AllocationObservedAbsent
 	}
 	switch entry.registration.ObservedState {
-	case contracts.AgentAllocated:
+	case control.AgentAllocated:
 		return AllocationObservedPrepared
-	case contracts.AgentDraining:
+	case control.AgentDraining:
 		return AllocationObservedDraining
 	default:
 		return AllocationObservedAbsent
@@ -704,7 +707,7 @@ func validSafeReason(reason SafeReason) bool {
 	return true
 }
 
-func summarizeAllocationReport(report contracts.AllocationFinalReport) (MetricsSummary, bool) {
+func summarizeAllocationReport(report reporting.AllocationFinalReport) (MetricsSummary, bool) {
 	result := MetricsSummary{
 		ReportsComplete: report.Worker.Complete && report.Runtime.Complete,
 		ErrorCount:      int64(len(report.Worker.Errors)),

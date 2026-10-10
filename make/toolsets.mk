@@ -105,7 +105,7 @@ test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract 
 # former migration-only test names were removed when those fixtures moved.
 test-agent-skills-packaging:
 	go test -count=1 ./internal/agentskills/... -run '^(TestPseudoSkill|TestBundledDiscoveryPackagesEveryPseudoSkill)'
-	go test -count=1 ./internal/config/... -run '^(TestLoadValidatesBundledSkills|TestAgentTemplateSkill|TestWorkflowSkillUnion)'
+	go test -count=1 ./internal/config/... ./internal/configload/... -run '^(TestLoadValidatesBundledSkills|TestAgentTemplateSkill|TestWorkflowSkillUnion)'
 
 test-shared-memory-matrix: test-hardening-matrices
 

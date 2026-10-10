@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 // This black-box test pins the durable crash-window contract outside the
@@ -17,7 +18,7 @@ func TestManagedPublicationRecoversRenameBeforeSnapshotSwap(t *testing.T) {
 	operator := copyTree(t, "../../../testdata/configs")
 	managed := filepath.Join(t.TempDir(), "managed")
 	simulatedCrash := errors.New("simulated process crash")
-	manager, err := config.NewManager(config.ManagerOptions{
+	manager, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
 		AfterDurablePublish: func(config.ConfigurationResource) error { return simulatedCrash },
 	})
@@ -36,7 +37,7 @@ func TestManagedPublicationRecoversRenameBeforeSnapshotSwap(t *testing.T) {
 		t.Fatalf("pre-crash snapshot changed: %v", err)
 	}
 
-	restarted, err := config.NewManager(config.ManagerOptions{
+	restarted, err := configload.NewManager(config.ManagerOptions{
 		OperatorRoot: operator, ManagedRoot: managed, Descriptors: config.MVPDescriptors(),
 	})
 	if err != nil {

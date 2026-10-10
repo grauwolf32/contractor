@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
@@ -136,7 +137,7 @@ func TestManagerRejectsMalformedOrUnboundedGatewayResponsesWithoutSecrets(t *tes
 	t.Parallel()
 	const adminSecret = "sk-provider-secret-admin"
 	policies, refs := testPolicies()
-	baseRequest := func(gateway contracts.ResolvedLLMGatewayConfig) credentials.ManagerCreateRequest {
+	baseRequest := func(gateway llmgateway.ResolvedLLMGatewayConfig) credentials.ManagerCreateRequest {
 		return credentials.ManagerCreateRequest{
 			OperationID: "credop-malformed", CredentialID: "managed-malformed", LLMGateway: gateway,
 			Policy: credentials.GatewayPolicy{ModelPolicies: refs[:1]},
@@ -383,13 +384,13 @@ func testPolicies() (staticPolicies, []contracts.ModelPolicyRef) {
 
 func newTestManager(
 	t *testing.T,
-	gateway contracts.ResolvedLLMGatewayConfig,
+	gateway llmgateway.ResolvedLLMGatewayConfig,
 	adminSecret string,
 	policies staticPolicies,
 	options Options,
 ) *Manager {
 	t.Helper()
-	bindings := &AdminBindings{bindings: map[contracts.LLMGatewayConfigRef]exactBinding{
+	bindings := &AdminBindings{bindings: map[llmgateway.LLMGatewayConfigRef]exactBinding{
 		gateway.Ref: {managementURL: gateway.CredentialManager.ManagementURL, key: adminKey{value: adminSecret}},
 	}}
 	manager, err := NewManager(bindings, policies, options)

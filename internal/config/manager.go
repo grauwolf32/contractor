@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
@@ -56,10 +58,10 @@ type CredentialManagerPublication struct {
 }
 
 type LLMGatewayPublication struct {
-	Protocol          string                              `json:"protocol"`
-	URL               string                              `json:"url"`
-	CredentialManager *CredentialManagerPublication       `json:"credentialManager,omitempty"`
-	FailureSignatures *contracts.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
+	Protocol          string                               `json:"protocol"`
+	URL               string                               `json:"url"`
+	CredentialManager *CredentialManagerPublication        `json:"credentialManager,omitempty"`
+	FailureSignatures *llmgateway.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
 }
 
 type PublicationRequest struct {
@@ -81,8 +83,11 @@ type ManagerOptions struct {
 	OperatorRoot string
 	ManagedRoot  string
 	Descriptors  Descriptors
-	Logger       *slog.Logger
-	Now          func() time.Time
+	// OperatorRootChecks apply at startup and on every reload before a
+	// publication. internal/configload supplies the production set.
+	OperatorRootChecks []OperatorRootCheck
+	Logger             *slog.Logger
+	Now                func() time.Time
 
 	// AfterDurablePublish is a test seam for the publication-before-snapshot-swap
 	// crash window. Production callers leave it nil.
@@ -103,6 +108,7 @@ type Manager struct {
 	operatorRoot string
 	managedRoot  string
 	descriptors  Descriptors
+	rootChecks   []OperatorRootCheck
 	logger       *slog.Logger
 	now          func() time.Time
 	afterPublish func(ConfigurationResource) error
@@ -127,7 +133,8 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	if rootsOverlap(operatorRoot, managedRoot) {
 		return nil, fmt.Errorf("operator and managed configuration roots must not overlap")
 	}
-	snapshot, err := LoadUnion(operatorRoot, managedRoot, options.Descriptors)
+	rootChecks := slices.Clone(options.OperatorRootChecks)
+	snapshot, err := LoadUnion(operatorRoot, managedRoot, options.Descriptors, rootChecks...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +150,7 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 		operatorRoot: operatorRoot,
 		managedRoot:  managedRoot,
 		descriptors:  options.Descriptors,
+		rootChecks:   rootChecks,
 		logger:       logger,
 		now:          now,
 		afterPublish: options.AfterDurablePublish,
@@ -155,7 +163,9 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 // LoadUnionReadOnly applies the Server's root and union checks without creating
 // a missing managed root or its subtrees. Missing managed directories are
 // equivalent to the empty directories NewManager would create at startup.
-func LoadUnionReadOnly(operatorPath, managedPath string, descriptors Descriptors) (*Snapshot, error) {
+func LoadUnionReadOnly(
+	operatorPath, managedPath string, descriptors Descriptors, checks ...OperatorRootCheck,
+) (*Snapshot, error) {
 	operatorRoot, err := requireStrictRoot(operatorPath, false)
 	if err != nil {
 		return nil, fmt.Errorf("operator configuration root: %w", err)
@@ -190,7 +200,9 @@ func LoadUnionReadOnly(operatorPath, managedPath string, descriptors Descriptors
 	if managedExists {
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
-	return loadConfigurationRoots(roots, descriptors, loadOptions{allowMissingManagedSubtrees: true})
+	return loadConfigurationRoots(roots, descriptors, loadOptions{
+		allowMissingManagedSubtrees: true, operatorRootChecks: checks,
+	})
 }
 
 // rootLocation resolves where a possibly missing root is or would be created,
@@ -258,7 +270,7 @@ func (m *Manager) AuditProfiles() []ResolvedAuditProfile {
 	return m.Snapshot().AuditProfiles()
 }
 
-func (m *Manager) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (m *Manager) LLMGateway(raw string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	return m.Snapshot().LLMGateway(raw)
 }
 
@@ -296,7 +308,7 @@ func (m *Manager) Publish(
 	m.publicationMu.Lock()
 	defer m.publicationMu.Unlock()
 
-	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.descriptors)
+	loaded, err := LoadUnion(m.operatorRoot, m.managedRoot, m.descriptors, m.rootChecks...)
 	if err != nil {
 		return PublicationResult{}, fmt.Errorf("reload configuration roots before publication: %w", err)
 	}
@@ -352,7 +364,7 @@ type publicationCandidate struct {
 	selector      Selector
 	resource      ConfigurationResource
 	policy        *contracts.ResolvedModelPolicy
-	gateway       *contracts.ResolvedLLMGatewayConfig
+	gateway       *llmgateway.ResolvedLLMGatewayConfig
 	canonicalYAML []byte
 	requestDigest string
 	subtree       string

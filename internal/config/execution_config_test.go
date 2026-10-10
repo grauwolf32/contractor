@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
@@ -303,7 +303,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 		{"wrong Gateway", metadataLookup{
 			"selected-credential": credentialMetadata(
 				"selected-credential",
-				contracts.LLMGatewayConfigRef{
+				llmgateway.LLMGatewayConfigRef{
 					GatewayID: "other", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 				},
 			),
@@ -366,9 +366,9 @@ func (l metadataLookup) LookupLLMCredential(_ context.Context, id string) (Crede
 	return metadata, nil
 }
 
-func credentialMetadata(id string, gateway contracts.LLMGatewayConfigRef) CredentialMetadata {
+func credentialMetadata(id string, gateway llmgateway.LLMGatewayConfigRef) CredentialMetadata {
 	return CredentialMetadata{
-		Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway,
+		Ref: llmgateway.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway,
 	}
 }
 

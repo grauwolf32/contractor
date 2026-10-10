@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -217,7 +218,7 @@ func TestPostgresResumeWaitsForAllocationRelease(t *testing.T) {
 	pool := isolatedRunStorePool(t, ctx)
 	store, previous := failedResumeFixture(t, ctx, pool, "run-release-resume")
 	allocation := StageAllocation{
-		PerformanceCollectionPolicy: contracts.PerformanceCollectionUnsupported,
+		PerformanceCollectionPolicy: reporting.PerformanceCollectionUnsupported,
 		AllocationID:                "pending-release", StageExecutionID: previous.StageExecutionID, LogicalAgentName: "builder", Namespace: "builder",
 		AgentTemplateRef: contracts.AgentTemplateRef{TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)},
 		WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},

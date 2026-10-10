@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -380,8 +381,8 @@ func assertInvalidMetadataRunRequestsAreAtomic(
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM workflow_runs WHERE owner_id = $1`, ownerID).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	tooMany := make(map[string]string, contracts.MaxRunMetadataLabels+1)
-	for index := 0; index <= contracts.MaxRunMetadataLabels; index++ {
+	tooMany := make(map[string]string, runlabels.MaxRunMetadataLabels+1)
+	for index := 0; index <= runlabels.MaxRunMetadataLabels; index++ {
 		tooMany["extra."+strings.Repeat("x", index/10)+string(rune('a'+index%10))] = "value"
 	}
 	cases := []any{

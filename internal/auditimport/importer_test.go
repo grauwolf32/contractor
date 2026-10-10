@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -2083,7 +2084,7 @@ spec:
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := config.Load(root, config.MVPDescriptors())
+	snapshot, err := configload.Load(root, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

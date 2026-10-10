@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 )
 
 func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.T) {
@@ -21,7 +22,7 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 		// Even an optimistic remote claim cannot bypass exact storage/mode checks.
 		registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, "podman@1")
 		registration.SupportedToolsets = append(registration.SupportedToolsets,
-			contracts.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
+			control.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
 		registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
 			Storage: candidate.storage, Modes: []contracts.WorkspaceMode{candidate.mode},
 			Limits: contracts.WorkspaceLimits{MaxFiles: 100, MaxExpandedBytes: 1024,
@@ -31,7 +32,7 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 			t.Fatal(err)
 		}
-		for _, beat := range []contracts.AgentHeartbeat{heartbeat(candidate.id, 1, 0), heartbeat(candidate.id, 2, 1)} {
+		for _, beat := range []control.AgentHeartbeat{heartbeat(candidate.id, 1, 0), heartbeat(candidate.id, 2, 1)} {
 			if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, beat); err != nil {
 				t.Fatal(err)
 			}
@@ -88,7 +89,7 @@ func TestPodmanPlacementRequiresExactLocalDirectCapability(t *testing.T) {
 				registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, "podman@1")
 			}
 			if test.tool {
-				registration.SupportedToolsets = append(registration.SupportedToolsets, contracts.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
+				registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
 			}
 			registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{Storage: test.storage, Modes: []contracts.WorkspaceMode{test.mode}}
 			template := testTemplate(t)

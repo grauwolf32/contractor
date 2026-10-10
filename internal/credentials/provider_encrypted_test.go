@@ -12,6 +12,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestEncryptedProviderReturnsSafeMetadataAndDecryptsExactBinding(t *testing.T) {
@@ -39,7 +40,7 @@ func TestEncryptedProviderReturnsSafeMetadataAndDecryptsExactBinding(t *testing.
 		t.Fatal("safe credential metadata aliases the durable effective policy")
 	}
 	resolved, err := provider.ResolveLLMCredential(
-		t.Context(), contracts.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,
+		t.Context(), llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,
 	)
 	if err != nil || resolved.Reveal() != secret {
 		t.Fatalf("resolved credential = (%s, %v)", resolved, err)
@@ -47,12 +48,12 @@ func TestEncryptedProviderReturnsSafeMetadataAndDecryptsExactBinding(t *testing.
 	wrongGateway := record.LLMGateway
 	wrongGateway.Digest = "sha256:" + strings.Repeat("9", 64)
 	if _, err := provider.ResolveLLMCredential(
-		t.Context(), contracts.LLMCredentialRef{CredentialID: record.CredentialID}, wrongGateway,
+		t.Context(), llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}, wrongGateway,
 	); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("wrong Gateway error = %v", err)
 	}
 	if _, err := provider.ResolveLLMCredential(
-		t.Context(), contracts.LLMCredentialRef{CredentialID: "missing"}, record.LLMGateway,
+		t.Context(), llmgateway.LLMCredentialRef{CredentialID: "missing"}, record.LLMGateway,
 	); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing credential error = %v", err)
 	}
@@ -86,7 +87,7 @@ func TestEncryptedProviderFailsSafelyForStorageCryptoAndKeyErrors(t *testing.T) 
 				t.Fatal(err)
 			}
 			_, err = provider.ResolveLLMCredential(
-				t.Context(), contracts.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,
+				t.Context(), llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,
 			)
 			if err == nil || (test.want != nil && !errors.Is(err, test.want)) {
 				t.Fatalf("ResolveLLMCredential error = %v, want %v", err, test.want)
@@ -104,7 +105,7 @@ func TestCompositeProviderDetectsIdentityCollisionsBeforeResolution(t *testing.T
 	entry := func(token string) StaticEntry {
 		return StaticEntry{
 			Metadata: workflowconfig.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: "shared"}, LLMGateway: gateway,
+				Ref: llmgateway.LLMCredentialRef{CredentialID: "shared"}, LLMGateway: gateway,
 			},
 			Token: contracts.NewSecretString(token),
 		}
@@ -119,7 +120,7 @@ func TestCompositeProviderDetectsIdentityCollisionsBeforeResolution(t *testing.T
 		t.Fatalf("duplicate lookup error = %v", err)
 	}
 	if _, err := composite.ResolveLLMCredential(
-		t.Context(), contracts.LLMCredentialRef{CredentialID: "shared"}, gateway,
+		t.Context(), llmgateway.LLMCredentialRef{CredentialID: "shared"}, gateway,
 	); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate resolution error = %v", err)
 	} else if strings.Contains(err.Error(), "secret") {

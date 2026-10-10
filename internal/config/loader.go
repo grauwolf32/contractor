@@ -10,11 +10,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -24,7 +23,7 @@ type loader struct {
 	descriptors                 Descriptors
 	instructions                map[string]contracts.ResolvedInstructions
 	policies                    map[string]contracts.ResolvedModelPolicy
-	gateways                    map[string]contracts.ResolvedLLMGatewayConfig
+	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
 	executionConfigs            map[string]ResolvedExecutionConfigProfile
 	templates                   map[string]contracts.ResolvedAgentTemplate
 	workflows                   map[string]ResolvedWorkflow
@@ -43,18 +42,35 @@ type manifestFile struct {
 	source   ConfigurationSource
 }
 
+// OperatorRootCheck validates operator-owned content that lives beside the
+// catalog subtrees but is not a catalog manifest, such as bundled skill or
+// Audit standard packages. A load runs every check against each resolved
+// operator root after the root itself is accepted and before any manifest is
+// read; the first failure rejects the complete load as "<Subject>: <error>".
+// The owners of that content supply the checks through internal/configload, so
+// this package never learns their formats. Production loads go through
+// configload; calling the loaders here directly skips those checks.
+type OperatorRootCheck struct {
+	Subject string
+	Check   func(operatorRoot string) error
+}
+
 // loadOptions selects how strictly one load treats the filesystem.
 type loadOptions struct {
 	// allowMissingManagedSubtrees treats an absent managed subtree as empty.
 	// Only offline validation sets it: the Server creates every managed
 	// subtree at startup, so a later absence must fail the load.
 	allowMissingManagedSubtrees bool
+	operatorRootChecks          []OperatorRootCheck
 }
 
 // Load validates the complete configuration root and publishes one immutable
 // snapshot. On any error the returned Snapshot is nil.
-func Load(root string, descriptors Descriptors) (*Snapshot, error) {
-	return loadConfigurationRoots([]configurationRoot{{path: root, source: ConfigurationSourceOperator}}, descriptors, loadOptions{})
+func Load(root string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
+	return loadConfigurationRoots(
+		[]configurationRoot{{path: root, source: ConfigurationSourceOperator}},
+		descriptors, loadOptions{operatorRootChecks: checks},
+	)
 }
 
 // LoadUnion validates operator and managed roots as one namespace. Duplicate
@@ -62,11 +78,11 @@ func Load(root string, descriptors Descriptors) (*Snapshot, error) {
 // reject the complete snapshot; neither root has precedence. Every managed
 // subtree must exist, so a reload after one is removed or unmounted fails and
 // the caller keeps its current snapshot.
-func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors) (*Snapshot, error) {
+func LoadUnion(operatorRoot, managedRoot string, descriptors Descriptors, checks ...OperatorRootCheck) (*Snapshot, error) {
 	return loadConfigurationRoots([]configurationRoot{
 		{path: operatorRoot, source: ConfigurationSourceOperator},
 		{path: managedRoot, source: ConfigurationSourceManaged},
-	}, descriptors, loadOptions{})
+	}, descriptors, loadOptions{operatorRootChecks: checks})
 }
 
 func loadConfigurationRoots(
@@ -99,11 +115,10 @@ func loadConfigurationRoots(
 		if root.source != ConfigurationSourceOperator {
 			continue
 		}
-		if _, err := agentskills.DiscoverBundled(root.path); err != nil {
-			return nil, fmt.Errorf("bundled skills: %w", err)
-		}
-		if _, err := auditstandards.DiscoverBundled(root.path); err != nil {
-			return nil, fmt.Errorf("bundled Audit standards: %w", err)
+		for _, check := range options.operatorRootChecks {
+			if err := check.Check(root.path); err != nil {
+				return nil, fmt.Errorf("%s: %w", check.Subject, err)
+			}
 		}
 	}
 
@@ -113,7 +128,7 @@ func loadConfigurationRoots(
 		descriptors:                 normalizedDescriptors,
 		instructions:                make(map[string]contracts.ResolvedInstructions),
 		policies:                    make(map[string]contracts.ResolvedModelPolicy),
-		gateways:                    make(map[string]contracts.ResolvedLLMGatewayConfig),
+		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
 		executionConfigs:            make(map[string]ResolvedExecutionConfigProfile),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:                   make(map[string]ResolvedWorkflow),

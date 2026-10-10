@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -159,7 +160,7 @@ func (s *Scheduler) resumeFinalizing(
 	if reservations == nil && len(workflow.stage.Agents) > 0 {
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
-	var reports map[string]contracts.AllocationFinalReport
+	var reports map[string]reporting.AllocationFinalReport
 	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.now()) {
 		finalizeContext, cancelFinalize := context.WithDeadline(ctx, *execution.FinalizationDeadline)
 		var err error

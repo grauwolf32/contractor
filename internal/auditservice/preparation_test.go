@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 // The catalog fixture is a frozen copy of the profiles, Workflows and WSTG
@@ -18,7 +19,7 @@ const (
 
 func loadAuditServiceCatalog(t *testing.T) *config.Snapshot {
 	t.Helper()
-	snapshot, err := config.Load(auditServiceCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(auditServiceCatalogFixture, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

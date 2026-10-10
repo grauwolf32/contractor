@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
@@ -14,7 +15,7 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 	gateway := testGatewayRef("local")
 	provider, err := NewStaticProvider([]StaticEntry{{
 		Metadata: config.CredentialMetadata{
-			Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
+			Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			LLMGateway: gateway,
 			ModelPolicies: []contracts.ModelPolicyRef{{
 				PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
@@ -54,7 +55,7 @@ func TestStaticProviderResolvesOnlyExactCredentialGatewayBinding(t *testing.T) {
 		},
 		func() error {
 			_, currentErr := provider.ResolveLLMCredential(
-				t.Context(), contracts.LLMCredentialRef{CredentialID: "absent"}, gateway,
+				t.Context(), llmgateway.LLMCredentialRef{CredentialID: "absent"}, gateway,
 			)
 			return currentErr
 		},
@@ -70,7 +71,7 @@ func TestStaticProviderRejectsInvalidDevelopmentEntries(t *testing.T) {
 	gateway := testGatewayRef("local")
 	valid := StaticEntry{
 		Metadata: config.CredentialMetadata{
-			Ref: contracts.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway,
+			Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway,
 		},
 		Token: contracts.NewSecretString("secret"),
 	}
@@ -80,13 +81,13 @@ func TestStaticProviderRejectsInvalidDevelopmentEntries(t *testing.T) {
 	}{
 		{"invalid ID", []StaticEntry{{
 			Metadata: config.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: "two words"}, LLMGateway: gateway,
+				Ref: llmgateway.LLMCredentialRef{CredentialID: "two words"}, LLMGateway: gateway,
 			},
 			Token: contracts.NewSecretString("secret"),
 		}}},
 		{"invalid Gateway", []StaticEntry{{
 			Metadata: config.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: "development-worker"},
+				Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 			},
 			Token: contracts.NewSecretString("secret"),
 		}}},
@@ -105,8 +106,8 @@ func TestStaticProviderRejectsInvalidDevelopmentEntries(t *testing.T) {
 	}
 }
 
-func testGatewayRef(id string) contracts.LLMGatewayConfigRef {
-	return contracts.LLMGatewayConfigRef{
+func testGatewayRef(id string) llmgateway.LLMGatewayConfigRef {
+	return llmgateway.LLMGatewayConfigRef{
 		GatewayID: id, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -212,7 +212,7 @@ func (l *loader) resolveExecutionSelectionOverride(
 	if patch.credential.present {
 		credential := &ResolvedCredentialOverride{Clear: patch.credential.null}
 		if !patch.credential.null {
-			ref := contracts.LLMCredentialRef{CredentialID: patch.credential.value}
+			ref := llmgateway.LLMCredentialRef{CredentialID: patch.credential.value}
 			if err := ref.Validate(); err != nil {
 				return ResolvedExecutionSelectionOverride{}, fmt.Errorf("credential is invalid: %w", err)
 			}

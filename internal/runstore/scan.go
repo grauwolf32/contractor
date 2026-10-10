@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 const workflowRunColumns = `
@@ -91,7 +91,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig snapshot: %w", err)
 	}
 	if projectHTTPTarget != nil {
-		var decoded contracts.HTTPOriginTargetRef
+		var decoded runtimesettings.HTTPOriginTargetRef
 		if err := json.Unmarshal(projectHTTPTarget, &decoded); err != nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Project HTTP target snapshot: %w", err)
 		}

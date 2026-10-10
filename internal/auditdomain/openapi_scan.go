@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -129,7 +129,7 @@ func validateOpenAPIScanTask(value OpenAPIScanTask) error {
 		!value.Runnable && len(value.Gaps) == 0 {
 		return invalid(CodeInvalid, "scan")
 	}
-	if contracts.ValidateScanTestParameters(value.TestParameters) != nil {
+	if scan.ValidateScanTestParameters(value.TestParameters) != nil {
 		return invalid(CodeInvalid, "scan.test_parameters")
 	}
 	if value.Scanner == "sqlmap" {
@@ -138,7 +138,7 @@ func validateOpenAPIScanTask(value OpenAPIScanTask) error {
 			return invalid(CodeInvalid, "scan.request")
 		}
 	} else {
-		request := contracts.PreparedHTTPRequest{Method: "GET", URL: value.TargetURL, Headers: []contracts.HTTPRequestHeader{}}
+		request := scan.PreparedHTTPRequest{Method: "GET", URL: value.TargetURL, Headers: []scan.HTTPRequestHeader{}}
 		if value.RequestDigest != "" || len(value.TestParameters) != 0 ||
 			(value.TargetURL != "" || value.Runnable) && request.Validate() != nil ||
 			!slices.Contains(value.Gaps, "url_template_scan_only") {

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 const managedEvalWorkerSummary = "Managed Evals deterministic output retained"
@@ -143,7 +144,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if managedEvals {
 				stageManagedEvalConfiguration(t, root, target)
 			}
-			snapshot, err := config.Load(target, config.MVPDescriptors())
+			snapshot, err := configload.Load(target, config.MVPDescriptors())
 			if err != nil {
 				t.Fatal(err)
 			}

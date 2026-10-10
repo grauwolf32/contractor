@@ -9,14 +9,16 @@ import (
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
+	snapshot, err := configload.Load("../../testdata/configs-scan", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +65,7 @@ func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *
 			registry := &scanPlannerRegistry{t: t, inner: h.planners, store: claimedStore}
 			h.scheduler.store, h.scheduler.allocator, h.scheduler.planners = claimedStore, allocator, registry
 			credentialCalls := 0
-			h.scheduler.options.Credentials = credentialResolverFunc(func(context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef) (contracts.SecretString, error) {
+			h.scheduler.options.Credentials = credentialResolverFunc(func(context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef) (contracts.SecretString, error) {
 				credentialCalls++
 				return contracts.SecretString{}, errors.New("model-free scan must not resolve a gateway credential")
 			})

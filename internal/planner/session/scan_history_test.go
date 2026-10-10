@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -28,7 +29,7 @@ func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]r
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	t.Helper()
-	snapshot, err := config.Load("../../../testdata/configs-scan", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../../testdata/configs-scan", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

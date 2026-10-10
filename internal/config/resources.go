@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 type ConfigurationKind string
@@ -178,7 +179,7 @@ func modelPolicyResourceBody(policy contracts.ResolvedModelPolicy) map[string]an
 	return result
 }
 
-func llmGatewayResourceBody(gateway contracts.ResolvedLLMGatewayConfig) map[string]any {
+func llmGatewayResourceBody(gateway llmgateway.ResolvedLLMGatewayConfig) map[string]any {
 	result := map[string]any{"protocol": gateway.Protocol, "url": gateway.URL}
 	if gateway.CredentialManager != nil {
 		result["credentialManager"] = map[string]any{

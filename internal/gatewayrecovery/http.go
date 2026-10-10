@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/randomid"
 )
@@ -112,7 +112,7 @@ func (p *Participant) record(ctx context.Context, update Request) error {
 // Send performs one model request without a recovery authority. A failure is
 // classified exactly as Do classifies it and returned as a *FailureError.
 func Send(
-	request *http.Request, client *http.Client, maxResponseBytes int64, signatures contracts.GatewayFailureSignatures,
+	request *http.Request, client *http.Client, maxResponseBytes int64, signatures llmgateway.GatewayFailureSignatures,
 ) ([]byte, error) {
 	body, failure, _ := send(request, client, maxResponseBytes, signatures)
 	if failure != nil {
@@ -125,7 +125,7 @@ func Send(
 // was fully written separates an unreachable Gateway from one that received
 // the request and is still working on it.
 func send(
-	request *http.Request, client *http.Client, limit int64, signatures contracts.GatewayFailureSignatures,
+	request *http.Request, client *http.Client, limit int64, signatures llmgateway.GatewayFailureSignatures,
 ) ([]byte, *Failure, float64) {
 	var delivered atomic.Bool
 	trace := &httptrace.ClientTrace{WroteRequest: func(info httptrace.WroteRequestInfo) {
@@ -154,7 +154,7 @@ func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, 
 }
 
 func readResponse(
-	response *http.Response, sendErr error, delivered bool, limit int64, signatures contracts.GatewayFailureSignatures,
+	response *http.Response, sendErr error, delivered bool, limit int64, signatures llmgateway.GatewayFailureSignatures,
 ) ([]byte, *Failure, float64) {
 	if sendErr != nil {
 		var netError net.Error

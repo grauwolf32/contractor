@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -31,7 +33,7 @@ func (*deferredLeaseRegistry) SetWriteFence(string) error { return nil }
 func (*deferredLeaseRegistry) SetAllocationPhase(string, controlplane.AllocationAuthoritativePhase, *controlplane.SafeReason) error {
 	return nil
 }
-func (*deferredLeaseRegistry) RecordAllocationReport(string, contracts.AllocationFinalReport) error {
+func (*deferredLeaseRegistry) RecordAllocationReport(string, reporting.AllocationFinalReport) error {
 	return nil
 }
 func (*deferredLeaseRegistry) Release(string) error             { return nil }
@@ -42,20 +44,20 @@ type deferredLeaseRuntime struct {
 	workers *memoryWorkers
 }
 
-func (r *deferredLeaseRuntime) Prepare(ctx context.Context, reservation controlplane.Reservation, settings contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error) {
+func (r *deferredLeaseRuntime) Prepare(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.WorkerExecutionSettings) (contracts.WorkerHandle, error) {
 	if !r.now().Before(reservation.LeaseExpiresAt) {
 		return contracts.WorkerHandle{}, errors.New("Runtime rejected expired prepare lease")
 	}
-	handles, err := r.workers.PrepareAll(ctx, []controlplane.Reservation{reservation}, map[string]contracts.WorkerExecutionSettings{
+	handles, err := r.workers.PrepareAll(ctx, []controlplane.Reservation{reservation}, map[string]runtimesettings.WorkerExecutionSettings{
 		reservation.Grant.LogicalAgentName: settings,
 	})
 	return handles[reservation.Grant.LogicalAgentName], err
 }
-func (*deferredLeaseRuntime) Finalize(context.Context, controlplane.Reservation, string, time.Time) (contracts.AllocationFinalReport, error) {
-	return contracts.AllocationFinalReport{}, errors.New("unexpected Runtime finalize")
+func (*deferredLeaseRuntime) Finalize(context.Context, controlplane.Reservation, string, time.Time) (reporting.AllocationFinalReport, error) {
+	return reporting.AllocationFinalReport{}, errors.New("unexpected Runtime finalize")
 }
-func (*deferredLeaseRuntime) Abort(context.Context, controlplane.Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error) {
-	return contracts.AllocationFinalReport{}, errors.New("unexpected Runtime abort")
+func (*deferredLeaseRuntime) Abort(context.Context, controlplane.Reservation, string, contracts.TerminationError, time.Time) (reporting.AllocationFinalReport, error) {
+	return reporting.AllocationFinalReport{}, errors.New("unexpected Runtime abort")
 }
 func (*deferredLeaseRuntime) Release(context.Context, controlplane.Reservation) error {
 	return errors.New("unexpected Runtime release")
@@ -66,7 +68,7 @@ type deferredLeaseWorkers struct {
 	batch *controlplane.RuntimeBatchController
 }
 
-func (w deferredLeaseWorkers) PrepareAll(ctx context.Context, reservations []controlplane.Reservation, settings map[string]contracts.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
+func (w deferredLeaseWorkers) PrepareAll(ctx context.Context, reservations []controlplane.Reservation, settings map[string]runtimesettings.WorkerExecutionSettings) (map[string]contracts.WorkerHandle, error) {
 	return w.batch.PrepareAll(ctx, reservations, settings)
 }
 

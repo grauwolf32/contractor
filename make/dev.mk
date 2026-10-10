@@ -16,6 +16,7 @@ lint:
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
+	cd runtime && uv run lint-imports --no-cache --no-logo
 
 generate-public-client:
 	go generate ./internal/publicclient/generated

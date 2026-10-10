@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -17,7 +18,7 @@ const auditFixtureRevision = "audit-fixture-r1"
 func TestAuditProgramsResolveAsRunnableMVPProfiles(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
+	snapshot, err := configload.Load("../../configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

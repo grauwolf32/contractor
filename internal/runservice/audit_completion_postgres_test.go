@@ -15,7 +15,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -53,7 +56,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	manifest := writeExact(t, ctx, store, "audit-test", "manifest", "application/json", manifestBytes)
-	catalog, err := config.Load("../../testdata/configs", config.MVPDescriptors())
+	catalog, err := configload.Load("../../testdata/configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +102,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := config.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
+	manager, err := configload.NewManager(config.ManagerOptions{OperatorRoot: filepath.Join("..", "config", "testdata", "valid"), ManagedRoot: filepath.Join(t.TempDir(), "managed"), Descriptors: config.MVPDescriptors()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +198,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 		t.Fatal(err)
 	}
 	gateway := stage.ExecutionConfig.Agents["checker"].LLMGateway.Ref
-	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: contracts.ResolvedRuntimeConfigProvenance{Default: contracts.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: contracts.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []contracts.RuntimeLabelBindingProvenance{}, AgentLabels: []contracts.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
+	allocation := runstore.StageAllocation{AllocationID: "allocation", StageExecutionID: executionStage.StageExecutionID, LogicalAgentName: "checker", Namespace: "audit-check", AgentTemplateRef: agent.Template.Ref, WorkerRuntimeRef: agent.Template.Runtime, RuntimeAgentID: strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime", RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled, RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{ModelPolicy: stage.ExecutionConfig.Agents["checker"].ModelPolicy.Ref, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{}, Provenance: runtimesettings.ResolvedRuntimeConfigProvenance{Default: runtimesettings.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: runtimesettings.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, AgentLabels: []runtimesettings.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []runtimesettings.RuntimeCredentialRef{}, LLMGatewayConfig: &gateway}}}
 	if err := runs.RecordStageAllocation(ctx, allocation); persistencepostgres.SQLState(err) != "23514" {
 		t.Fatal("allocation downgrade accepted", err)
 	}

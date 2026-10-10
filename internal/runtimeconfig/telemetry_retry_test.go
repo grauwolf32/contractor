@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -26,7 +26,7 @@ func TestTelemetryRetryPublicationAndDetachedResolution(t *testing.T) {
 			t.Fatal(err)
 		}
 		telemetry := stored.Spec.Worker.Telemetry.Value
-		expected := contracts.DefaultTelemetryRetrySettings()
+		expected := runtimesettings.DefaultTelemetryRetrySettings()
 		if encoded != `{}` {
 			expected.InitialBackoffMilliseconds, expected.MaxBackoffMilliseconds = 17, 43
 		}

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(t *testing.T) {
@@ -29,7 +31,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	reserved := registry.SnapshotOperations()
 	if len(reserved.RuntimeAgents) != 1 || len(reserved.Allocations) != 1 ||
 		reserved.RuntimeAgents[0].SlotState != SlotReserved ||
-		reserved.RuntimeAgents[0].ObservedState != contracts.AgentIdle ||
+		reserved.RuntimeAgents[0].ObservedState != control.AgentIdle ||
 		reserved.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
 		*reserved.RuntimeAgents[0].AuthoritativeAllocationID != allocationID ||
 		reserved.RuntimeAgents[0].CurrentAllocationID != nil ||
@@ -46,9 +48,9 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationActive, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
-		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: contracts.AgentAllocated,
+		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentAllocated,
 		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
@@ -67,9 +69,9 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationAborting, &reason); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(contracts.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
-		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: contracts.AgentFenced,
+		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: control.AgentFenced,
 		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
@@ -77,7 +79,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	fenced := registry.SnapshotOperations()
 	agent := fenced.RuntimeAgents[0]
 	allocation := fenced.Allocations[0]
-	if agent.ObservedState != contracts.AgentFenced || agent.SlotState != SlotFenced ||
+	if agent.ObservedState != control.AgentFenced || agent.SlotState != SlotFenced ||
 		agent.CurrentAllocationID == nil || *agent.CurrentAllocationID != allocationID ||
 		agent.AuthoritativeAllocationID == nil || *agent.AuthoritativeAllocationID != allocationID ||
 		agent.ReconciliationReason == nil ||
@@ -95,7 +97,7 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 func TestOperationsSnapshotReflectsCompleteHeterogeneousAssignment(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	specialist := testRegistration("agent-a-specialist-operations")
-	specialist.SupportedToolsets = append(specialist.SupportedToolsets, contracts.ToolsetCapability{
+	specialist.SupportedToolsets = append(specialist.SupportedToolsets, control.ToolsetCapability{
 		Ref: "likec4@1", Tools: []string{"validate_likec4"},
 	})
 	registerReadyWith(t, registry, specialist)
@@ -145,28 +147,28 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	modelCalls, toolCalls, toolFailures := int64(2), int64(3), int64(1)
 	exhausted := "tool_calls"
 	now := time.Now().UTC()
-	report := contracts.AllocationFinalReport{
+	report := reporting.AllocationFinalReport{
 		ReportID: "allocation-final-report", AllocationID: allocationID,
 		StartedAt: now.Add(-time.Second), FinishedAt: now,
-		Worker: contracts.ExecutionReport{
+		Worker: reporting.ExecutionReport{
 			ReportID: "worker-report", Complete: true,
-			Metrics: contracts.ExecutionMetrics{
+			Metrics: reporting.ExecutionMetrics{
 				ModelCalls: &modelCalls,
-				Tools: map[string]contracts.ToolMetrics{
+				Tools: map[string]reporting.ToolMetrics{
 					"write_artifact": {Calls: &toolCalls, Failed: &toolFailures},
 				},
-				WorkerBudget: &contracts.WorkerBudgetMetrics{
+				WorkerBudget: &reporting.WorkerBudgetMetrics{
 					MaxModelCalls: 4, MaxToolCalls: 3, MaxTotalTokens: 100,
 					ObservedModelCalls: 2, ObservedToolCalls: 3, ObservedTotalTokens: 50,
 					Exhausted: &exhausted,
 				},
 			},
-			ToolCalls: []contracts.ToolCallRecord{},
-			Errors: []contracts.ExecutionError{{
+			ToolCalls: []reporting.ToolCallRecord{},
+			Errors: []reporting.ExecutionError{{
 				Code: "provider_error", Message: "must-not-appear-provider-body",
 			}},
 		},
-		Runtime: contracts.RuntimeReport{Complete: true},
+		Runtime: reporting.RuntimeReport{Complete: true},
 	}
 	if err := registry.RecordAllocationReport(allocationID, report); err != nil {
 		t.Fatal(err)
@@ -192,7 +194,7 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	overflow := report
 	overflow.ReportID = "allocation-final-overflow"
 	overflow.Worker.ReportID = "worker-overflow"
-	overflow.Worker.Metrics = contracts.ExecutionMetrics{Tools: map[string]contracts.ToolMetrics{
+	overflow.Worker.Metrics = reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{
 		"first": {Calls: &maximum}, "second": {Calls: &maximum},
 	}}
 	if err := registry.RecordAllocationReport(allocationID, overflow); !errors.Is(err, ErrInvalidRequest) {
@@ -249,7 +251,7 @@ func TestOperationsSnapshotIsStableOrderedAndMutationFree(t *testing.T) {
 	capable.SupportedToolsets[0].Tools = []string{"write_artifact", "read_artifact"}
 	registerReadyWith(t, registry, capable)
 	minimal := testRegistration("agent-a")
-	minimal.SupportedToolsets = []contracts.ToolsetCapability{}
+	minimal.SupportedToolsets = []control.ToolsetCapability{}
 	registerReadyWith(t, registry, minimal)
 	first := registry.SnapshotOperations()
 	second := registry.SnapshotOperations()
@@ -291,7 +293,7 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 				},
 			},
-			ObservedState: contracts.AgentIdle, SlotState: SlotIdle,
+			ObservedState: control.AgentIdle, SlotState: SlotIdle,
 		}
 	}
 	tests := []struct {

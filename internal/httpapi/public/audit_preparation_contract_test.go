@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -46,7 +47,7 @@ func TestPublicAuditPreparationContracts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) { validate(tc.Schema, tc.Value, tc.Valid) })
 	}
-	snapshot, err := config.Load(publicCatalogFixture, config.MVPDescriptors())
+	snapshot, err := configload.Load(publicCatalogFixture, config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

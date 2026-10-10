@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
@@ -54,7 +55,7 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	for _, overlay := range []string{"candidate/configs", "evaluation-configs/configs"} {
 		copyArchivedExecutionConfigs(t, directory, overlay)
 	}
-	snapshot, err := config.Load(directory, archivedExperimentDescriptors())
+	snapshot, err := configload.Load(directory, archivedExperimentDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

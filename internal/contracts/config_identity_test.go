@@ -48,7 +48,7 @@ func TestConfigIdentityCases(t *testing.T) {
 				t.Errorf("identifier %q: want valid=%v", value, group.valid)
 			}
 			// Private wire refs carry the grammar without the configuration bound.
-			if err := validateSelector("ref", value+"@1"); (err == nil) != group.valid {
+			if err := ValidateSelector("ref", value+"@1"); (err == nil) != group.valid {
 				t.Errorf("selector id %q: valid=%v, error=%v", value, group.valid, err)
 			}
 		}
@@ -61,7 +61,7 @@ func TestConfigIdentityCases(t *testing.T) {
 			if ValidVersion(value) != group.valid || ValidConfigVersion(value) != group.valid {
 				t.Errorf("version %q: want valid=%v", value, group.valid)
 			}
-			if err := validateSelector("ref", "a@"+value); (err == nil) != group.valid {
+			if err := ValidateSelector("ref", "a@"+value); (err == nil) != group.valid {
 				t.Errorf("selector version %q: valid=%v, error=%v", value, group.valid, err)
 			}
 		}

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -25,8 +25,8 @@ type AllocationReportEnvelope struct {
 	AllocationID                string
 	LogicalAgentName            string
 	ReportSchemaVersion         string
-	Report                      contracts.AllocationFinalReport
-	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	Report                      reporting.AllocationFinalReport
+	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
 	Secrets                     []string
 	ReceivedAt                  time.Time
 }
@@ -38,7 +38,7 @@ type PlannerReportEnvelope struct {
 	StartedAt           time.Time
 	FinishedAt          time.Time
 	ReportSchemaVersion string
-	Report              contracts.ExecutionReport
+	Report              reporting.ExecutionReport
 	Secrets             []string
 	ReceivedAt          time.Time
 }
@@ -56,7 +56,7 @@ type StoredPlannerReport struct {
 type StageMetricsRecord struct {
 	StageExecutionID     string
 	MetricsSchemaVersion string
-	Metrics              contracts.StageMetrics
+	Metrics              reporting.StageMetrics
 	Summary              Summary
 	UpdatedAt            time.Time
 	ExpiresAt            time.Time
@@ -139,19 +139,19 @@ ON CONFLICT DO NOTHING`,
 }
 
 func normalizeAllocationResources(
-	report *contracts.RuntimeReport,
-	policy contracts.PerformanceCollectionPolicy,
+	report *reporting.RuntimeReport,
+	policy reporting.PerformanceCollectionPolicy,
 ) {
-	if policy != contracts.PerformanceCollectionRequested {
+	if policy != reporting.PerformanceCollectionRequested {
 		report.Resources = nil
 		report.ResourcesError = nil
 		return
 	}
 	if report.ResourcesError != nil || (report.Resources != nil && report.Resources.Validate() != nil) {
-		reason := contracts.ResourceInvalidReport
-		report.Resources = &contracts.RuntimeResources{
-			Version: contracts.PerformanceMetricsVersion, Scope: "runtime_process",
-			Status: contracts.ResourceUnavailable, Reason: &reason,
+		reason := reporting.ResourceInvalidReport
+		report.Resources = &reporting.RuntimeResources{
+			Version: reporting.PerformanceMetricsVersion, Scope: "runtime_process",
+			Status: reporting.ResourceUnavailable, Reason: &reason,
 		}
 		report.ResourcesError = nil
 	}
@@ -267,7 +267,7 @@ func (r *Repository) RebuildStageMetrics(
 	if err := requireText("metricsSchemaVersion", schemaVersion); err != nil {
 		return StageMetricsRecord{}, err
 	}
-	var planner *contracts.ExecutionReport
+	var planner *reporting.ExecutionReport
 	plannerRow, err := r.plannerReportForStage(ctx, stageExecutionID)
 	if err == nil {
 		value := plannerRow.Report
@@ -279,7 +279,7 @@ func (r *Repository) RebuildStageMetrics(
 	if err != nil {
 		return StageMetricsRecord{}, err
 	}
-	allocations := make(map[string]contracts.AllocationFinalReport, len(allocationRows))
+	allocations := make(map[string]reporting.AllocationFinalReport, len(allocationRows))
 	for _, item := range allocationRows {
 		allocations[item.LogicalAgentName] = item.Report
 	}

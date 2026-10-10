@@ -17,6 +17,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -316,11 +317,11 @@ func integrationModelAccess(modelName, gatewayURL, token string) *planner.ModelA
 			Model: modelName, MaxOutputTokens: 8_192, MaxModelCalls: 8,
 			MaxTotalTokens: 10_000, MaxWorkerCalls: 8, Temperature: &temperature,
 		},
-		LLMGateway: contracts.ResolvedLLMGatewayConfig{
-			Ref:      contracts.LLMGatewayConfigRef{GatewayID: "integration-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
-			Protocol: contracts.OpenAICompatibleProtocol, URL: gatewayURL,
+		LLMGateway: llmgateway.ResolvedLLMGatewayConfig{
+			Ref:      llmgateway.LLMGatewayConfigRef{GatewayID: "integration-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+			Protocol: llmgateway.OpenAICompatibleProtocol, URL: gatewayURL,
 		},
-		Credential: &contracts.LLMCredentialRef{CredentialID: "integration-planner"},
+		Credential: &llmgateway.LLMCredentialRef{CredentialID: "integration-planner"},
 		Token:      contracts.NewSecretString(token),
 	}
 }

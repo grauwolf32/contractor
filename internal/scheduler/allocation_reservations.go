@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -207,7 +208,7 @@ func verifyReservations(
 		if resolved == nil || resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
 			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
 			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
-			(reservation.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested) !=
+			(reservation.PerformanceCollectionPolicy == reporting.PerformanceCollectionRequested) !=
 				(reservation.PerformanceMetrics != nil) ||
 			(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
 			!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{

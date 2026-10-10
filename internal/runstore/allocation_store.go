@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -259,7 +260,7 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 		if performanceCollectionPolicy == nil {
 			return nil, fmt.Errorf("decode persisted allocation performance collection policy: missing policy")
 		}
-		allocation.PerformanceCollectionPolicy = contracts.PerformanceCollectionPolicy(*performanceCollectionPolicy)
+		allocation.PerformanceCollectionPolicy = reporting.PerformanceCollectionPolicy(*performanceCollectionPolicy)
 		if allocation.PerformanceCollectionPolicy.ValidatePinned() != nil {
 			return nil, fmt.Errorf("decode persisted allocation performance collection policy")
 		}

@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +26,7 @@ func TestPlannerTrustedContentOptIn(t *testing.T) {
 			}))
 			defer server.Close()
 			registry, _ := NewBuiltinPlannerAdapterRegistry()
-			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: enabled, RunMetadataLabels: contracts.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
+			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: enabled, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +75,7 @@ func TestPlannerContentQueueRetainsLateSpansBeyondTwoMiB(t *testing.T) {
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
 		Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: true,
-		RunMetadataLabels: contracts.RunMetadataLabels{},
+		RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource:          PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "streamline@1"},
 	})
 	if err != nil {
@@ -122,7 +122,7 @@ func TestPlannerOTLPJSONAndPartialAcknowledgements(t *testing.T) {
 			}))
 			defer server.Close()
 			registry, _ := NewBuiltinPlannerAdapterRegistry()
-			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
+			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
 			if err != nil {
 				t.Fatal(err)
 			}

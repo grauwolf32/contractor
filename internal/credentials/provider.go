@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 )
 
@@ -19,8 +20,8 @@ type Resolver interface {
 	config.CredentialLookup
 	ResolveLLMCredential(
 		context.Context,
-		contracts.LLMCredentialRef,
-		contracts.LLMGatewayConfigRef,
+		llmgateway.LLMCredentialRef,
+		llmgateway.LLMGatewayConfigRef,
 	) (contracts.SecretString, error)
 }
 
@@ -83,8 +84,8 @@ func cloneCredentialMetadata(source config.CredentialMetadata) config.Credential
 
 func (p *StaticProvider) ResolveLLMCredential(
 	ctx context.Context,
-	ref contracts.LLMCredentialRef,
-	gateway contracts.LLMGatewayConfigRef,
+	ref llmgateway.LLMCredentialRef,
+	gateway llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	metadata, err := p.LookupLLMCredential(ctx, ref.CredentialID)
 	if err != nil || metadata.Ref != ref || metadata.LLMGateway != gateway {

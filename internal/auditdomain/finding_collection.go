@@ -12,7 +12,6 @@ import (
 
 const (
 	FindingCollectionSchema                  = "contractor.findings.collection.v1"
-	FindingCollectionMediaType               = "application/vnd.contractor.findings-collection+zip"
 	PackageKindFindingCollection PackageKind = "finding-collection"
 	FindingCollectionMemberID                = "collection"
 	MaximumCollectionEntries                 = 256

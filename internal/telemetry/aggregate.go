@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
 const MaxAttemptDiagnosticRecords = 128
@@ -19,7 +19,7 @@ const (
 )
 
 type AttemptDiagnostic struct {
-	Completion   *contracts.WorkerCompletionDiagnostics `json:"completion,omitempty"`
+	Completion   *reporting.WorkerCompletionDiagnostics `json:"completion,omitempty"`
 	Participant  AttemptDiagnosticParticipant           `json:"participant"`
 	LogicalAgent string                                 `json:"logicalAgent,omitempty"`
 	Code         string                                 `json:"code"`
@@ -52,13 +52,13 @@ type Summary struct {
 }
 
 func BuildStageMetrics(
-	planner *contracts.ExecutionReport,
-	allocations map[string]contracts.AllocationFinalReport,
-) contracts.StageMetrics {
-	result := contracts.StageMetrics{
+	planner *reporting.ExecutionReport,
+	allocations map[string]reporting.AllocationFinalReport,
+) reporting.StageMetrics {
+	result := reporting.StageMetrics{
 		Planner: planner,
-		Workers: make(map[string]contracts.ExecutionReport, len(allocations)),
-		Runtime: make(map[string]contracts.RuntimeReport, len(allocations)),
+		Workers: make(map[string]reporting.ExecutionReport, len(allocations)),
+		Runtime: make(map[string]reporting.RuntimeReport, len(allocations)),
 	}
 	for name, report := range allocations {
 		result.Workers[name] = report.Worker
@@ -67,7 +67,7 @@ func BuildStageMetrics(
 	return result
 }
 
-func Summarize(metrics contracts.StageMetrics) Summary {
+func Summarize(metrics reporting.StageMetrics) Summary {
 	result := Summary{ReportsComplete: true}
 	if metrics.Planner != nil {
 		addExecutionReport(&result, *metrics.Planner)
@@ -86,7 +86,7 @@ func Summarize(metrics contracts.StageMetrics) Summary {
 // error order within each report is preserved. If the public cap is exceeded,
 // the tail of that deterministic sequence is retained because report policy
 // itself also retains newest records.
-func ProjectAttemptDiagnostics(metrics contracts.StageMetrics) AttemptDiagnostics {
+func ProjectAttemptDiagnostics(metrics reporting.StageMetrics) AttemptDiagnostics {
 	result := AttemptDiagnostics{Items: make([]AttemptDiagnostic, 0)}
 	if metrics.Planner != nil {
 		appendAttemptDiagnostics(&result, AttemptDiagnosticPlanner, "", *metrics.Planner)
@@ -115,7 +115,7 @@ func appendAttemptDiagnostics(
 	target *AttemptDiagnostics,
 	participant AttemptDiagnosticParticipant,
 	logicalAgent string,
-	report contracts.ExecutionReport,
+	report reporting.ExecutionReport,
 ) {
 	target.Truncated = target.Truncated || report.Truncated
 	if source := report.Completion; source != nil && source.Validate() == nil {
@@ -166,7 +166,7 @@ func appendAttemptDiagnostics(
 	}
 }
 
-func addExecutionReport(summary *Summary, report contracts.ExecutionReport) {
+func addExecutionReport(summary *Summary, report reporting.ExecutionReport) {
 	summary.ReportsComplete = summary.ReportsComplete && report.Complete
 	addOptional(&summary.ModelCalls, report.Metrics.ModelCalls)
 	addOptional(&summary.InputTokens, report.Metrics.InputTokens)

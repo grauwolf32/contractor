@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/clone"
-	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 var bearerToken = regexp.MustCompile(`^[A-Za-z0-9._~+/-]+=*$`)
@@ -140,9 +140,9 @@ func (p *preparer) authenticate(op map[string]any, headers map[string]string, qu
 				reason = "authentication_collision"
 				continue
 			}
-			check := contracts.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []contracts.HTTPRequestHeader{}, Body: ""}
+			check := scan.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []scan.HTTPRequestHeader{}, Body: ""}
 			for _, name := range slices.Sorted(maps.Keys(h)) {
-				check.Headers = append(check.Headers, contracts.HTTPRequestHeader{Name: name, Value: h[name]})
+				check.Headers = append(check.Headers, scan.HTTPRequestHeader{Name: name, Value: h[name]})
 			}
 			if check.Validate() != nil {
 				reason = "invalid_authentication"

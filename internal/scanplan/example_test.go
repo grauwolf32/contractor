@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -16,13 +17,13 @@ func ExamplePrepareOperation() {
 	if err != nil {
 		panic(err)
 	}
-	artifact, err := contracts.MarshalHTTPRequestSet(set)
+	artifact, err := scan.MarshalHTTPRequestSet(set)
 	if err != nil {
 		panic(err)
 	}
-	// Persist artifact using contracts.HTTPRequestSetMediaType. The strict reader
+	// Persist artifact using scan.HTTPRequestSetMediaType. The strict reader
 	// verifies identities, ordering and coverage before a later planner uses it.
-	decoded, err := contracts.DecodeHTTPRequestSet(artifact)
+	decoded, err := scan.DecodeHTTPRequestSet(artifact)
 	if err != nil {
 		panic(err)
 	}

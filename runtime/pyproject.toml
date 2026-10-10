@@ -31,6 +31,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+  "import-linter>=2.15,<3",
   "jsonschema>=4.25,<5",
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
@@ -55,3 +56,124 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+
+# Architecture fitness check, run by `make lint` (`uv run lint-imports`).
+# The layer tables below are the single source of truth for the Runtime's
+# dependency direction. Layers are listed top to bottom: a module may import
+# its own layer or any layer below it ("a : b" siblings may import each
+# other, "a | b" siblings may not). Both contracts are exhaustive, so a new
+# top-level module or a new toolset fails until it is classified here. Each
+# ignore_imports entry is a known violation: keep a "reason; fix" comment on
+# it. An entry whose import no longer exists fails the check, so delete it
+# once fixed. Imports under `if TYPE_CHECKING:` are excluded.
+# See docs/development.md.
+[tool.importlinter]
+root_package = "contractor_runtime"
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "runtime-layers"
+name = "Runtime layers (top imports bottom, never the reverse)"
+type = "layers"
+containers = ["contractor_runtime"]
+exhaustive = true
+layers = [
+  # entry: process entry points and the private HTTP server
+  "__main__ : cli : server",
+  # orchestration: allocation lifecycle, control-plane client, lease and process state
+  "allocation : control_client : lease : state",
+  # composition: the toolset/worker factory registry and startup capability discovery
+  "capabilities : factories",
+  # agent loop
+  "worker",
+  # tools: concrete toolsets and their shared base (see the toolsets contract)
+  "toolsets",
+  # platform: infrastructure clients, workspace, sandbox, settings and protocol bindings
+  "a2a_server : adapters : agent_skills : artifacts : llm : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
+  # kernel: wire contracts and dependency-free helpers
+  "_https : backoff : contracts : digests : http_body : log : mtls : probe : redaction : strict_json : threads",
+]
+ignore_imports = [
+  # Platform modules use pure helpers that live under toolsets/common.
+  # Fix: move target_policy, process, lines, input_errors and the
+  # ToolCallCancelled signal out of toolsets/ into kernel modules.
+  "contractor_runtime.adapters.http_proxy -> contractor_runtime.toolsets.common.process",
+  "contractor_runtime.adapters.http_proxy -> contractor_runtime.toolsets.common.target_policy",
+  "contractor_runtime.agent_skills.runtime -> contractor_runtime.toolsets.common.metrics",
+  "contractor_runtime.projectfs.overlay -> contractor_runtime.toolsets.common.lines",
+  "contractor_runtime.settings -> contractor_runtime.toolsets.common.target_policy",
+  "contractor_runtime.telemetry.metrics -> contractor_runtime.toolsets.common.input_errors",
+  # audit_results implements the Worker completion protocol defined in the
+  # agent loop. Fix: move PreparedWorkerCompletion, the completion results and
+  # WorkerCompletionError below toolsets (contracts or toolsets.common).
+  "contractor_runtime.toolsets.audit_results.collector -> contractor_runtime.worker.completion",
+  "contractor_runtime.toolsets.audit_results.completion -> contractor_runtime.worker.completion",
+  "contractor_runtime.toolsets.audit_results.encoding -> contractor_runtime.worker.completion",
+  # Workspace toolsets build their observations with helpers that live in the
+  # agent loop. Fix: move WorkspaceToolObservation and the per-tool builders
+  # below toolsets; the Worker keeps only the observation reducer.
+  "contractor_runtime.toolsets.edit_files.tools -> contractor_runtime.worker.observations",
+  "contractor_runtime.toolsets.filesystem.tools -> contractor_runtime.worker.observations",
+  "contractor_runtime.toolsets.taint_annotations.tools -> contractor_runtime.worker.observations",
+  "contractor_runtime.toolsets.workspace_changes.tools -> contractor_runtime.worker.observations",
+]
+unmatched_ignore_imports_alerting = "error"
+broken_contract_guidance = """
+A lower layer imports a higher one, or a module is not classified.
+- Invert the dependency: pass the higher-level object in (Protocol, callback or
+  factory argument) instead of importing it.
+- Move the shared type or helper down into the lower layer (for example into
+  contracts or a kernel module).
+- If the dependency is genuinely intended, move the module to another layer in
+  runtime/pyproject.toml, or add an ignore_imports entry with a
+  "reason; fix" comment.
+An unlisted module must be added to one layer. "No matches for ignored import"
+means a known violation is gone: delete that ignore_imports entry.
+"""
+
+[[tool.importlinter.contracts]]
+id = "toolsets"
+name = "Toolsets are independent and share code only through toolsets.common"
+type = "layers"
+containers = ["contractor_runtime.toolsets"]
+exhaustive = true
+layers = [
+  # concrete toolsets: independent of each other ("|")
+  "audit_results | caido | code_analysis | code_execution | edit_files | filesystem | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  # shared tool base
+  "common",
+]
+ignore_imports = [
+  # audit_results validates CWE references with the security_findings
+  # classifier. Fix: move check_cwe_reference into toolsets.common.
+  "contractor_runtime.toolsets.audit_results.collector -> contractor_runtime.toolsets.security_findings.classification",
+  # edit_files and workspace_changes reuse the filesystem toolset's error type.
+  # Fix: move FilesystemToolError into toolsets.common.
+  "contractor_runtime.toolsets.edit_files.tools -> contractor_runtime.toolsets.filesystem.tools",
+  "contractor_runtime.toolsets.workspace_changes.tools -> contractor_runtime.toolsets.filesystem.tools",
+  # http and security_findings import each other (a module cycle): HTTP
+  # evidence and URL validation on one side, HTTP limits on the other.
+  # Fix: move the HTTP limits and the evidence/location model into
+  # toolsets.common.
+  "contractor_runtime.toolsets.http.tools -> contractor_runtime.toolsets.security_findings.http_evidence",
+  "contractor_runtime.toolsets.http.tools -> contractor_runtime.toolsets.security_findings.locations",
+  "contractor_runtime.toolsets.security_findings.http_evidence -> contractor_runtime.toolsets.http.limits",
+  "contractor_runtime.toolsets.security_findings.locations -> contractor_runtime.toolsets.http.limits",
+  # taint_annotations reuses code_analysis tree-sitter language support and
+  # its pinned-dependency check. Fix: move the language support into
+  # toolsets.common.
+  "contractor_runtime.toolsets.taint_annotations.languages -> contractor_runtime.toolsets.code_analysis.languages",
+  "contractor_runtime.toolsets.taint_annotations.tools -> contractor_runtime.toolsets.code_analysis.languages",
+  "contractor_runtime.toolsets.taint_annotations.tools -> contractor_runtime.toolsets.code_analysis.tools",
+]
+unmatched_ignore_imports_alerting = "error"
+broken_contract_guidance = """
+A toolset imports another toolset, toolsets.common imports a toolset, or a
+toolset package is not classified.
+- Move the shared code into toolsets.common (or below toolsets).
+- Add a new toolset to the concrete-toolsets layer in runtime/pyproject.toml.
+- If the coupling is genuinely intended, add an ignore_imports entry with a
+  "reason; fix" comment.
+"No matches for ignored import" means a known violation is gone: delete that
+ignore_imports entry.
+"""

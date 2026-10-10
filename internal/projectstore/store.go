@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -245,9 +246,9 @@ func scanProject(row scanner) (Project, error) {
 			return Project{}, errors.New("stored Project deletion state is invalid")
 		}
 		if targetURL != nil {
-			project.HTTPTarget = &contracts.HTTPOriginTargetRef{URL: *targetURL}
+			project.HTTPTarget = &runtimesettings.HTTPOriginTargetRef{URL: *targetURL}
 			if credentialID != nil && credentialKind != nil {
-				project.HTTPTarget.Credential = &contracts.RuntimeCredentialRef{
+				project.HTTPTarget.Credential = &runtimesettings.RuntimeCredentialRef{
 					CredentialID: *credentialID, Kind: contracts.RuntimeCredentialKind(*credentialKind),
 				}
 			}
@@ -259,7 +260,7 @@ func scanProject(row scanner) (Project, error) {
 	return project, err
 }
 
-func targetURL(target *contracts.HTTPOriginTargetRef) *string {
+func targetURL(target *runtimesettings.HTTPOriginTargetRef) *string {
 	if target == nil {
 		return nil
 	}
@@ -267,7 +268,7 @@ func targetURL(target *contracts.HTTPOriginTargetRef) *string {
 	return &value
 }
 
-func targetCredentialID(target *contracts.HTTPOriginTargetRef) *string {
+func targetCredentialID(target *runtimesettings.HTTPOriginTargetRef) *string {
 	if target == nil || target.Credential == nil {
 		return nil
 	}
@@ -275,7 +276,7 @@ func targetCredentialID(target *contracts.HTTPOriginTargetRef) *string {
 	return &value
 }
 
-func targetCredentialKind(target *contracts.HTTPOriginTargetRef) *string {
+func targetCredentialKind(target *runtimesettings.HTTPOriginTargetRef) *string {
 	if target == nil || target.Credential == nil {
 		return nil
 	}

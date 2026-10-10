@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -47,7 +48,7 @@ func (p resolutionFailingProvider) LookupLLMCredential(context.Context, string) 
 }
 
 func (p resolutionFailingProvider) ResolveLLMCredential(
-	context.Context, contracts.LLMCredentialRef, contracts.LLMGatewayConfigRef,
+	context.Context, llmgateway.LLMCredentialRef, llmgateway.LLMGatewayConfigRef,
 ) (contracts.SecretString, error) {
 	return contracts.SecretString{}, p.err
 }
@@ -55,7 +56,7 @@ func (p resolutionFailingProvider) ResolveLLMCredential(
 func TestCompositeProviderPreservesSafeProviderCauses(t *testing.T) {
 	const private = "private-token-sql"
 	gateway := testPinnedGatewayRef("1", strings.Repeat("1", 64))
-	ref := contracts.LLMCredentialRef{CredentialID: "credential"}
+	ref := llmgateway.LLMCredentialRef{CredentialID: "credential"}
 	development, err := NewStaticProvider(nil)
 	if err != nil {
 		t.Fatal(err)

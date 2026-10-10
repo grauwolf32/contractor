@@ -22,13 +22,24 @@ const (
 // set; an absent tool is local/artifact-only. ActiveCheckTools and
 // FindingProposalTools are closed Server-side effect classifications used by
 // Audit compatibility checks; model text and tool names are never trusted to
-// infer those effects at start time.
+// infer those effects at start time. RequiredWorkflowInputs names, per tool,
+// the ordinary Workflow input that the runtime toolset reads during allocation
+// preparation; ValidateWorkflowGraph requires it of every Workflow whose agent
+// selects that tool.
 type ToolsetDescriptor struct {
 	RequiredSandboxProfile string
 	Tools                  []string
 	InfrastructureChannels map[string][]ToolInfrastructureChannel
 	ActiveCheckTools       []string
 	FindingProposalTools   []string
+	RequiredWorkflowInputs map[string]WorkflowInputRequirement
+}
+
+// WorkflowInputRequirement is one Workflow input a selected tool depends on:
+// the Workflow must declare Input as required and accept MediaType exactly.
+type WorkflowInputRequirement struct {
+	Input     string
+	MediaType string
 }
 
 // SandboxProfileDescriptor describes authoring and binding-specific placement
@@ -77,6 +88,9 @@ func MVPDescriptors() Descriptors {
 			"security-findings@1": {
 				Tools:                []string{"finding", "list_findings"},
 				FindingProposalTools: []string{"finding"},
+				RequiredWorkflowInputs: map[string]WorkflowInputRequirement{
+					"list_findings": {Input: "findings", MediaType: contracts.FindingCollectionMediaType},
+				},
 			},
 			"security-findings-code@1": {
 				Tools:                []string{"finding"},
@@ -370,9 +384,38 @@ func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandbo
 	if err != nil {
 		return ToolsetDescriptor{}, err
 	}
+	inputs, err := normalizeWorkflowInputRequirements(raw, descriptor.RequiredWorkflowInputs, seen)
+	if err != nil {
+		return ToolsetDescriptor{}, err
+	}
 	return ToolsetDescriptor{
 		RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
 		Tools:                  tools, InfrastructureChannels: channels,
 		ActiveCheckTools: active, FindingProposalTools: findings,
+		RequiredWorkflowInputs: inputs,
 	}, nil
+}
+
+func normalizeWorkflowInputRequirements(
+	selector string,
+	requirements map[string]WorkflowInputRequirement,
+	exported map[string]struct{},
+) (map[string]WorkflowInputRequirement, error) {
+	if len(requirements) == 0 {
+		return nil, nil
+	}
+	result := make(map[string]WorkflowInputRequirement, len(requirements))
+	for tool, requirement := range requirements {
+		if _, exists := exported[tool]; !exists {
+			return nil, fmt.Errorf("Toolset descriptor %q requires a Workflow input for unknown tool %q", selector, tool)
+		}
+		if err := validateArtifactComponent("Toolset descriptor "+selector+" Workflow input", requirement.Input); err != nil {
+			return nil, err
+		}
+		if !contracts.ValidMediaType(requirement.MediaType) {
+			return nil, fmt.Errorf("Toolset descriptor %q requires non-canonical media type %q for tool %q", selector, requirement.MediaType, tool)
+		}
+		result[tool] = requirement
+	}
+	return result, nil
 }

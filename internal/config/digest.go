@@ -5,6 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -29,7 +30,7 @@ func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) 
 }
 
 func llmGatewayConfigDigest(
-	selector Selector, gateway contracts.ResolvedLLMGatewayConfig,
+	selector Selector, gateway llmgateway.ResolvedLLMGatewayConfig,
 ) (string, error) {
 	spec := map[string]any{
 		"protocol": gateway.Protocol,

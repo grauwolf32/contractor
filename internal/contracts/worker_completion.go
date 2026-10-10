@@ -80,54 +80,54 @@ type WorkerCompletion struct {
 
 func (c ToolObservationCount) validate() error {
 	if c.Failures > c.Calls {
-		return invalidf("Worker observation failures exceed calls")
+		return Invalidf("Worker observation failures exceed calls")
 	}
 	return nil
 }
 
 func (s WorkspaceObservationSummary) validate() error {
 	if s.FilesRead == nil || len(s.FilesRead) > MaxWorkerFilesRead {
-		return invalidf("Worker filesRead must be a non-null list of at most %d paths", MaxWorkerFilesRead)
+		return Invalidf("Worker filesRead must be a non-null list of at most %d paths", MaxWorkerFilesRead)
 	}
 	seen := make(map[string]struct{}, len(s.FilesRead))
 	for _, path := range s.FilesRead {
 		if path == "" {
-			return invalidf("Worker observed workspace path must not be empty")
+			return Invalidf("Worker observed workspace path must not be empty")
 		}
 		if err := validateWorkspaceTarget(path); err != nil {
-			return invalidf("Worker observed workspace path is invalid")
+			return Invalidf("Worker observed workspace path is invalid")
 		}
 		if _, exists := seen[path]; exists {
-			return invalidf("Worker filesRead paths must be unique")
+			return Invalidf("Worker filesRead paths must be unique")
 		}
 		seen[path] = struct{}{}
 	}
 	if uint64(len(s.FilesRead)) > s.ReadFiles {
-		return invalidf("Worker filesRead detail exceeds readFiles")
+		return Invalidf("Worker filesRead detail exceeds readFiles")
 	}
 	if s.FilesReadTruncated != (uint64(len(s.FilesRead)) < s.ReadFiles) {
-		return invalidf("Worker filesRead truncation is inconsistent")
+		return Invalidf("Worker filesRead truncation is inconsistent")
 	}
 	coverageComplete := s.ScopeComplete && s.DetailComplete
 	if coverageComplete != (s.UnreadFiles != nil) {
-		return invalidf("Worker unreadFiles completeness is inconsistent")
+		return Invalidf("Worker unreadFiles completeness is inconsistent")
 	}
 	if s.UnreadFiles != nil && *s.UnreadFiles > s.ScopedFiles {
-		return invalidf("Worker unreadFiles exceeds scopedFiles")
+		return Invalidf("Worker unreadFiles exceeds scopedFiles")
 	}
 	return nil
 }
 
 func (o WorkerObservations) validate() error {
 	if o.Profile != WorkerObservationProfileLeanV1 {
-		return invalidf("unknown Worker observation profile")
+		return Invalidf("unknown Worker observation profile")
 	}
 	if o.Tools == nil || len(o.Tools) > MaxWorkerObservationTools {
-		return invalidf("Worker observation tools must be a non-null bounded map")
+		return Invalidf("Worker observation tools must be a non-null bounded map")
 	}
 	for name, count := range o.Tools {
-		if len(name) > 128 || !idPattern.MatchString(name) {
-			return invalidf("Worker observation tool name is invalid")
+		if len(name) > 128 || !ValidIdentifier(name) {
+			return Invalidf("Worker observation tool name is invalid")
 		}
 		if err := count.validate(); err != nil {
 			return err
@@ -139,35 +139,35 @@ func (o WorkerObservations) validate() error {
 		}
 		if (!o.Workspace.ScopeComplete || !o.Workspace.DetailComplete ||
 			o.Workspace.FilesReadTruncated) && !o.Truncated {
-			return invalidf("Worker observation truncation is inconsistent")
+			return Invalidf("Worker observation truncation is inconsistent")
 		}
 	}
 	return nil
 }
 
 func (r WorkerResult) validate() error {
-	if err := validateWorkerSubtaskID(r.SubtaskID); err != nil {
+	if err := ValidateWorkerSubtaskID(r.SubtaskID); err != nil {
 		return err
 	}
 	if !utf8.ValidString(r.Result) || strings.TrimSpace(r.Result) == "" ||
 		len([]byte(r.Result)) > MaxWorkerResultBytes {
-		return invalidf("Worker result must contain 1..%d UTF-8 bytes", MaxWorkerResultBytes)
+		return Invalidf("Worker result must contain 1..%d UTF-8 bytes", MaxWorkerResultBytes)
 	}
 	if err := r.Observations.validate(); err != nil {
 		return err
 	}
 	if r.Artifacts == nil || len(r.Artifacts) > MaxWorkerResultArtifacts {
-		return invalidf("Worker result artifacts must be a non-null bounded map")
+		return Invalidf("Worker result artifacts must be a non-null bounded map")
 	}
 	for slot, ref := range r.Artifacts {
-		if err := validateOpaqueID("Worker result artifact slot", slot); err != nil {
+		if err := ValidateOpaqueID("Worker result artifact slot", slot); err != nil {
 			return err
 		}
 		if err := ref.ValidateExact(); err != nil {
 			return err
 		}
 		if isReservedWorkerResultBinding(ref.Namespace, ref.Name) {
-			return invalidf("Worker result artifact identifies a reserved binding")
+			return Invalidf("Worker result artifact identifies a reserved binding")
 		}
 	}
 	return nil
@@ -175,21 +175,21 @@ func (r WorkerResult) validate() error {
 
 func (f WorkerFailure) validate() error {
 	if !workerFailureCode.MatchString(f.Code) {
-		return invalidf("Worker failure code is invalid")
+		return Invalidf("Worker failure code is invalid")
 	}
 	if !utf8.ValidString(f.Message) || strings.TrimSpace(f.Message) == "" ||
 		len([]byte(f.Message)) > MaxWorkerFailureMessageBytes {
-		return invalidf("Worker failure message must contain 1..%d UTF-8 bytes", MaxWorkerFailureMessageBytes)
+		return Invalidf("Worker failure message must contain 1..%d UTF-8 bytes", MaxWorkerFailureMessageBytes)
 	}
 	return nil
 }
 
 func (c WorkerCompletion) Validate() error {
-	if err := validateAPIVersion(c.APIVersion); err != nil {
+	if err := ValidateAPIVersion(c.APIVersion); err != nil {
 		return err
 	}
 	if (c.Result == nil) == (c.Failure == nil) {
-		return invalidf("WorkerCompletion requires exactly one result or failure")
+		return Invalidf("WorkerCompletion requires exactly one result or failure")
 	}
 	if c.Result != nil {
 		if err := c.Result.validate(); err != nil {
@@ -198,27 +198,37 @@ func (c WorkerCompletion) Validate() error {
 	} else if err := c.Failure.validate(); err != nil {
 		return err
 	}
-	if !validBoundedOpaqueWorkerID(c.InvocationID) {
-		return invalidf("Worker invocationId is invalid")
+	if !ValidBoundedOpaqueWorkerID(c.InvocationID) {
+		return Invalidf("Worker invocationId is invalid")
 	}
 	if c.StateRevision == 0 {
-		return invalidf("Worker stateRevision must be positive")
+		return Invalidf("Worker stateRevision must be positive")
 	}
 	size, err := ResultJSONSize(c)
 	if err != nil || size > MaxWorkerCompletionBytes {
-		return invalidf("WorkerCompletion exceeds its bounded contract")
+		return Invalidf("WorkerCompletion exceeds its bounded contract")
 	}
 	return nil
 }
 
-func validateWorkerSubtaskID(value string) error {
+// ValidWorkerFailureCode reports whether value is a bounded snake_case Worker
+// failure code, as WorkerFailure and the Worker reports require.
+func ValidWorkerFailureCode(value string) bool {
+	return workerFailureCode.MatchString(value)
+}
+
+// ValidateWorkerSubtaskID checks the subtask ID shared by Stage requests,
+// Worker results and Worker State.
+func ValidateWorkerSubtaskID(value string) error {
 	if !workerSubtaskIDPattern.MatchString(value) {
-		return invalidf("subtaskId is invalid")
+		return Invalidf("subtaskId is invalid")
 	}
 	return nil
 }
 
-func validBoundedOpaqueWorkerID(value string) bool {
+// ValidBoundedOpaqueWorkerID reports whether value is a trimmed opaque Worker
+// identifier of 1 through 128 UTF-8 bytes without control separators.
+func ValidBoundedOpaqueWorkerID(value string) bool {
 	return utf8.ValidString(value) && value == strings.TrimSpace(value) &&
 		len([]byte(value)) >= 1 && len([]byte(value)) <= 128 &&
 		!strings.ContainsAny(value, "\r\n\t\x00")

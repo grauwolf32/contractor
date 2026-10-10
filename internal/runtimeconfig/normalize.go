@@ -15,6 +15,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
@@ -110,12 +112,12 @@ type caidoSource struct {
 }
 
 type GatewayResolver interface {
-	ResolveLLMGateway(context.Context, string) (contracts.ResolvedLLMGatewayConfig, error)
+	ResolveLLMGateway(context.Context, string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
-type GatewayResolverFunc func(context.Context, string) (contracts.ResolvedLLMGatewayConfig, error)
+type GatewayResolverFunc func(context.Context, string) (llmgateway.ResolvedLLMGatewayConfig, error)
 
-func (f GatewayResolverFunc) ResolveLLMGateway(ctx context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+func (f GatewayResolverFunc) ResolveLLMGateway(ctx context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 	return f(ctx, selector)
 }
 
@@ -190,7 +192,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 	if p.name == "" || len(p.authorCanonical) == 0 {
 		return Version{}, invalid("publication was not prepared")
 	}
-	resolved := make(map[string]contracts.LLMGatewayConfigRef, len(p.gatewaySelectors))
+	resolved := make(map[string]llmgateway.LLMGatewayConfigRef, len(p.gatewaySelectors))
 	paths := make([]string, 0, len(p.gatewaySelectors))
 	for path := range p.gatewaySelectors {
 		paths = append(paths, path)
@@ -277,7 +279,7 @@ func validateSource(source specSource, author bool) (map[string]string, map[stri
 	return selectors, canonical, operations, err
 }
 
-func materializeSource(source specSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef) (Spec, map[string]any, int, error) {
+func materializeSource(source specSource, author bool, resolved map[string]llmgateway.LLMGatewayConfigRef) (Spec, map[string]any, int, error) {
 	var result Spec
 	canonical := make(map[string]any)
 	operations := 0
@@ -318,7 +320,7 @@ func materializeSource(source specSource, author bool, resolved map[string]contr
 	return result, canonical, operations, nil
 }
 
-func materializeWorker(source workerSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef) (WorkerPatch, map[string]any, int, error) {
+func materializeWorker(source workerSource, author bool, resolved map[string]llmgateway.LLMGatewayConfigRef) (WorkerPatch, map[string]any, int, error) {
 	var result WorkerPatch
 	canonical := make(map[string]any)
 	operations := 0
@@ -344,7 +346,7 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 				}
 				value["gateway"] = selector
 			} else {
-				var ref contracts.LLMGatewayConfigRef
+				var ref llmgateway.LLMGatewayConfigRef
 				if resolved != nil {
 					ref = resolved[path]
 				} else if err := strictjson.Decode(source.LLMGateway.value.Gateway.value, &ref); err != nil {
@@ -353,7 +355,7 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 				if err := ref.ValidateRef(); err != nil {
 					return WorkerPatch{}, nil, 0, invalid("%s is invalid", path)
 				}
-				patch.Gateway = Field[contracts.LLMGatewayConfigRef]{Present: true, Value: ref}
+				patch.Gateway = Field[llmgateway.LLMGatewayConfigRef]{Present: true, Value: ref}
 				value["gateway"] = map[string]any{"gatewayId": ref.GatewayID, "version": ref.Version, "digest": ref.Digest}
 			}
 			operations++
@@ -453,7 +455,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 		if path != "spec.worker.telemetry" || value.Export.null {
 			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export is only supported as a Worker telemetry object", path)
 		}
-		export := contracts.DefaultTelemetryExportSettings()
+		export := runtimesettings.DefaultTelemetryExportSettings()
 		fields := []struct {
 			name   string
 			source optional[int]
@@ -477,7 +479,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 			if source.null {
 				return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export.retry cannot be null", path)
 			}
-			retry := contracts.DefaultTelemetryRetrySettings()
+			retry := runtimesettings.DefaultTelemetryRetrySettings()
 			for _, setting := range []struct {
 				source optional[int]
 				target *int
@@ -589,7 +591,7 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 	}
 	timeout := 0
 	if value.RequestTimeoutSeconds.present {
-		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > contracts.MaxCaidoRequestTimeoutSeconds {
+		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > runtimesettings.MaxCaidoRequestTimeoutSeconds {
 			return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.requestTimeoutSeconds must be from 1 through 120")
 		}
 		timeout = value.RequestTimeoutSeconds.value

@@ -14,7 +14,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -31,7 +33,7 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	}
 	managedCredentials := newFakeManagedCredentials()
 	managedCredentials.lookups["development-worker"] = config.CredentialMetadata{
-		Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
+		Ref:        llmgateway.LLMCredentialRef{CredentialID: "development-worker"},
 		LLMGateway: gateway.Ref, Unrestricted: true,
 	}
 	audits, err := auditservice.New(auditservice.Options{
@@ -230,7 +232,7 @@ spec:
 	if err := os.WriteFile(filepath.Join(targetRoot, "audit-profiles", "public_checklist.yaml"), profile, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := config.Load(targetRoot, config.MVPDescriptors())
+	snapshot, err := configload.Load(targetRoot, config.MVPDescriptors())
 	if err != nil {
 		t.Fatalf("load public Audit configuration: %v", err)
 	}
