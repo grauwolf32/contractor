@@ -724,7 +724,7 @@ func validatePlannerFact(fact planner.PlannerFact) error {
 		return true
 	}
 	validCall := strings.HasPrefix(fact.CallID, "dispatch-") && len(fact.CallID) <= 64
-	validWorker := strings.TrimSpace(fact.WorkerName) != "" && len(fact.WorkerName) <= 128
+	validWorker := contracts.ValidName(fact.WorkerName)
 	switch fact.Kind {
 	case planner.PlannerEventDispatchSelected:
 		if !validSubtask(fact.SubtaskID, false) || !validCall || !validWorker ||

@@ -270,6 +270,22 @@ agents:
 Planner, not a physical Runtime Agent or process identity. It becomes `name`
 in the normalized internal binding.
 
+**WFL-R84.** Stage names and logical Agent names use the shared name grammar
+`[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters (LIM-WFL-8), the public
+`ConfigId` schema in which the public API and Operations show them. The rule
+applies wherever a name is declared or referenced: `stages` keys,
+`entryStage` and `next` targets; `agents` keys, the Stage and Agent keys of a
+Workflow `executionConfig`, the `agents` keys of an ExecutionConfig document
+and of an escalation `executionConfig`, `scanPlan.tools[].worker`, and an
+AuditProfile `workerCompletion` Stage and Agent. WorkflowCatalog rejects any
+other name at load, a persisted Workflow or Stage snapshot carrying one is
+invalid on read, the ExecutionConfig manifest and Workflow transition schemas
+and the private AllocationSpec `logicalAgentName` use the same grammar,
+Control Plane rejects a placement binding outside it, and a Planner dispatch
+and the Run events that record it accept only such a Worker name. So every
+allocation Operations shows and every dispatch the Run detail shows has a
+valid logical Worker name.
+
 **WFL-R24.** `template` is an exact versioned selector
 ([CAT-R18 to CAT-R22](catalog.md)). It resolves to
 the digest-bearing `AgentTemplateRef` owned by
@@ -671,6 +687,8 @@ Limits ([registry](../platform/limits.md)):
   StageExecution (WFL-R46).
 - LIM-WFL-6 — slot `mediaTypes`: at least 1 unique entry (WFL-R54).
 - LIM-WFL-7 — ArtifactRefs bound per slot: at most 1 (WFL-R57).
+- LIM-WFL-8 — Stage and logical Agent names: at most 128 characters in the
+  shared name grammar (WFL-R84).
 - Used here, owned elsewhere: LIM-ART-2 (media type length), LIM-SCH-5
   (escalation `maxAttempts`), LIM-WSP-1 to LIM-WSP-3 (workspace sources and
   targets).

@@ -26,7 +26,7 @@
         "agents": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": {"pattern": "^[a-z][a-z0-9_-]*$"},
+          "propertyNames": {"$ref": "common.schema.json#/$defs/name"},
           "additionalProperties": {"$ref": "#/$defs/selection"}
         }
       }

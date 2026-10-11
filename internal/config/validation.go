@@ -69,6 +69,32 @@ func validateIdentifier(field, value string) error {
 	return nil
 }
 
+// validateWorkflowName applies the shared name grammar of contracts.ValidName
+// to a Stage or logical Agent name, wherever a Workflow, ExecutionConfig or
+// persisted snapshot declares or references one. The public API and
+// Operations show both as ConfigId values (WFL-R84), so the catalog accepts
+// no name they could not show.
+func validateWorkflowName(field, value string) error {
+	if !contracts.ValidName(value) {
+		return fmt.Errorf(
+			"%s %q must be 1 to %d ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit",
+			field, value, contracts.MaxNameLength,
+		)
+	}
+	return nil
+}
+
+// validateStageAgentNames checks every logical Agent name of one resolved
+// Stage; field names the Stage in the error.
+func validateStageAgentNames(field string, agents map[string]ResolvedAgentBinding) error {
+	for logicalName := range agents {
+		if err := validateWorkflowName(field+" logical Agent name", logicalName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateInstructionRef(raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("instruction ref is required")

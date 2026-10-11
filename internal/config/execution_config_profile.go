@@ -138,7 +138,7 @@ func stageExecutionConfigPatchFromParts(
 		}
 		result.Agents = make(map[string]ExecutionSelectionPatch, len(*agents))
 		for logicalName, sourceSelection := range *agents {
-			if err := validateMapKey(field+" logical Agent name", logicalName); err != nil {
+			if err := validateWorkflowName(field+" logical Agent name", logicalName); err != nil {
 				return StageExecutionConfigPatch{}, err
 			}
 			selection, err := executionSelectionFromYAML(

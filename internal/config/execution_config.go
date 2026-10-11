@@ -462,7 +462,7 @@ func executionConfigPatchFromYAML(source *workflowExecutionConfigSource) (Execut
 		result.Workers = &value
 	}
 	for stageName, sourceStage := range source.Stages {
-		if err = validateMapKey("executionConfig Stage name", stageName); err != nil {
+		if err = validateWorkflowName("executionConfig Stage name", stageName); err != nil {
 			return ExecutionConfigPatch{}, err
 		}
 		stage := StageExecutionConfigPatch{Agents: make(map[string]ExecutionSelectionPatch, len(sourceStage.Agents))}
@@ -476,7 +476,7 @@ func executionConfigPatchFromYAML(source *workflowExecutionConfigSource) (Execut
 			stage.Planner = &value
 		}
 		for logicalName, sourceSelection := range sourceStage.Agents {
-			if err = validateMapKey("executionConfig logical Agent name", logicalName); err != nil {
+			if err = validateWorkflowName("executionConfig logical Agent name", logicalName); err != nil {
 				return ExecutionConfigPatch{}, err
 			}
 			value, parseErr := executionSelectionFromYAML(

@@ -499,3 +499,23 @@ func (s *memoryStore) runEventKinds() []runstore.RunEventKind {
 	}
 	return result
 }
+
+// TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar holds a recorded
+// dispatch to the logical Agent name grammar (WFL-R84) the Run event store
+// applies, so the session never accepts a fact whose append must fail.
+func TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
+	fact := planner.PlannerFact{
+		Kind: planner.PlannerEventDispatchSelected, Key: "selected:dispatch-0001",
+		PlanRevision: 1, SubtaskID: "0", CallID: "dispatch-0001",
+	}
+	longest := strings.Repeat("a", contracts.MaxNameLength)
+	for name, valid := range map[string]bool{
+		"reviewer": true, "Tool_1.v2": true, longest: true,
+		"": false, " ": false, "_reviewer": false, "reviewer:1": false, "my reviewer": false, longest + "a": false,
+	} {
+		fact.WorkerName = name
+		if err := validatePlannerFact(fact); (err == nil) != valid {
+			t.Errorf("worker name %q: valid=%v, error=%v", name, valid, err)
+		}
+	}
+}

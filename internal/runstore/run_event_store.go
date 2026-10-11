@@ -19,7 +19,6 @@ const (
 	maxRunEventSubtasks                = 32
 	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
 	maxRunEventSubtaskInstructionBytes = 32 * 1024
-	maxRunEventWorkerNameBytes         = 128
 	maxRunEventFunctions               = 32
 )
 
@@ -236,13 +235,13 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 	case RunEventPlannerDispatchSelected:
 		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 ||
 			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-selected event has invalid fields")
 		}
 	case RunEventPlannerDispatchStarted:
 		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
 			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-started event has invalid fields")
 		}
 		if err := validatePlannerRunPlan(*data.Plan); err != nil {
@@ -256,7 +255,7 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 	case RunEventPlannerDispatchCompleted:
 		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
 			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) ||
+			!contracts.ValidName(data.WorkerName) ||
 			(data.Outcome != "succeeded" && data.Outcome != "failed") || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-completed event has invalid fields")
 		}
@@ -326,7 +325,7 @@ func validatePlannerRunPlan(plan plannerRunPlanProjection) error {
 	}
 	active := plan.ActiveDispatch
 	if running != 1 || active.SubtaskID != plan.CurrentSubtaskID ||
-		!validRunDispatchCallID(active.CallID) || !validRunWorkerName(active.WorkerName) ||
+		!validRunDispatchCallID(active.CallID) || !contracts.ValidName(active.WorkerName) ||
 		!plannerRunSubtaskHasStatus(plan, active.SubtaskID, "running") {
 		return invalidf("WorkflowRun Planner active dispatch is invalid")
 	}
@@ -396,10 +395,6 @@ func validRunDispatchCallID(value string) bool {
 		}
 	}
 	return true
-}
-
-func validRunWorkerName(value string) bool {
-	return validRunStableName(value, maxRunEventWorkerNameBytes)
 }
 
 func validRunStableName(value string, limit int) bool {

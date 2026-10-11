@@ -129,12 +129,14 @@ func (s AllocationSpec) Validate() error {
 	}
 	for field, value := range map[string]string{
 		"allocationId": s.AllocationID, "runId": s.RunID,
-		"stageExecutionId": s.StageExecutionID, "logicalAgentName": s.LogicalAgentName,
-		"namespace": s.Namespace,
+		"stageExecutionId": s.StageExecutionID, "namespace": s.Namespace,
 	} {
 		if err := contracts.ValidateOpaqueID(field, value); err != nil {
 			return err
 		}
+	}
+	if !contracts.ValidName(s.LogicalAgentName) {
+		return contracts.Invalidf("logicalAgentName must be a name of at most %d characters", contracts.MaxNameLength)
 	}
 	if contracts.ValidateArtifactName(s.Namespace) != nil || s.LeaseExpiresAt.IsZero() {
 		return contracts.Invalidf("allocation namespace or lease is invalid")

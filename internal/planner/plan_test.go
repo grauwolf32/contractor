@@ -2,6 +2,7 @@ package planner
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -267,5 +268,47 @@ func TestPlannerPlanTransitionValidationRejectsHistoryTampering(t *testing.T) {
 				t.Fatal("tampered transition was accepted")
 			}
 		})
+	}
+}
+
+// TestPlannerPlanClaimsOnlyValidLogicalWorkerNames holds a dispatch to the
+// logical Agent name grammar (WFL-R84) that the Run event store applies when
+// it appends the dispatch, so a claim cannot turn into a permanent append
+// failure.
+func TestPlannerPlanClaimsOnlyValidLogicalWorkerNames(t *testing.T) {
+	longest := strings.Repeat("a", contracts.MaxNameLength)
+	for _, name := range []string{"", " ", "my worker", "_worker", "worker:1", "worker/1", "é", longest + "a"} {
+		controller, err := NewPlannerPlanController("Review the project")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, planErr := controller.AddSubtask("First", "Run first"); planErr != nil {
+			t.Fatal(planErr)
+		}
+		before := controller.Snapshot()
+		if _, planErr := controller.ClaimCurrentSubtask("0", name); planErr == nil || planErr.Code != "planner_worker_invalid" {
+			t.Fatalf("ClaimCurrentSubtask(%q) error = %+v", name, planErr)
+		}
+		if after := controller.Snapshot(); !reflect.DeepEqual(before, after) {
+			t.Fatalf("rejected claim of %q mutated plan: before=%+v after=%+v", name, before, after)
+		}
+	}
+	controller, err := NewPlannerPlanController("Review the project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, planErr := controller.AddSubtask("First", "Run first"); planErr != nil {
+		t.Fatal(planErr)
+	}
+	if _, planErr := controller.ClaimCurrentSubtask("0", longest); planErr != nil {
+		t.Fatalf("ClaimCurrentSubtask(longest name) error = %+v", planErr)
+	}
+	projection := controller.Snapshot().Projection()
+	if err := projection.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	projection.ActiveDispatch.WorkerName = "worker:1"
+	if err := projection.Validate(); err == nil {
+		t.Fatal("Planner projection with an invalid logical Worker name was accepted")
 	}
 }
