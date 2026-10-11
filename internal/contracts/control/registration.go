@@ -46,7 +46,7 @@ func (r AgentRegistration) Validate() error {
 	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if err := contracts.ValidateOpaqueID("instanceId", r.InstanceID); err != nil {
+	if err := contracts.ValidateResourceID("instanceId", r.InstanceID); err != nil {
 		return err
 	}
 	if len(r.SoftwareVersion) == 0 || len(r.SoftwareVersion) > 128 ||
@@ -61,10 +61,6 @@ func (r AgentRegistration) Validate() error {
 	}
 	if err := contracts.ValidateURL("a2aUrl", r.A2AURL); err != nil {
 		return err
-	}
-	if len(r.SupportedRuntimes) > 128 || len(r.SupportedToolsets) > 128 ||
-		len(r.SupportedSandboxProfiles) > 128 {
-		return contracts.Invalidf("Runtime capability collection exceeds its bound")
 	}
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
 		return err

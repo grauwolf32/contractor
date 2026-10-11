@@ -316,7 +316,7 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 			agent.SupportedToolsets[0].Tools = []string{"read_artifact", "read_artifact"}
 		}},
 		{"oversized-tool-list", func(agent *RuntimeAgentObservation) {
-			agent.SupportedToolsets[0].Tools = make([]string, maximumRuntimeToolsPerToolset+1)
+			agent.SupportedToolsets[0].Tools = make([]string, control.MaxToolsetCapabilityTools+1)
 			for index := range agent.SupportedToolsets[0].Tools {
 				agent.SupportedToolsets[0].Tools[index] = fmt.Sprintf("tool_%d", index)
 			}

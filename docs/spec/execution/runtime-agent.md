@@ -239,6 +239,11 @@ shape is defined in [Control Plane](control-plane.md#runtime-agent-registration)
 advertises a Toolset ref only under the complete-contract rule of
 [Toolsets](../tools/toolsets.md).
 
+**RTA-R112.** A snapshot whose Toolset capabilities fall outside the
+registration bounds of [CTL-R148](control-plane.md) fails startup readiness
+with a safe discovery error, because Control Plane would reject every
+registration of it (FAIL-CTL-1).
+
 **RTA-R7.** The Runtime enables every installed built-in adapter by
 default. An immutable startup allowlist may narrow that installed surface with
 repeated `--runtime-adapter <ref>` flags or the comma-separated

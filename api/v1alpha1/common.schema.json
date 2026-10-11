@@ -5,6 +5,9 @@
     "apiVersion": {"const": "contractor/v1alpha1"},
     "opaqueId": {"type": "string", "minLength": 1, "pattern": "\\S"},
     "selector": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+    "capabilityRef": {"$ref": "#/$defs/selector", "maxLength": 256},
+    "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
+    "resourceId": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$", "not": {"pattern": "[^A-Za-z0-9_.:-]"}},
     "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "mediaType": {
       "type": "string",

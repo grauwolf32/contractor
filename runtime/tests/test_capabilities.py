@@ -370,6 +370,32 @@ def test_missing_core_capability_stops_registration_with_safe_error(tmp_path: Pa
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "tools",
+    [
+        ["server:tool"],
+        ["a" * 129],
+        [f"tool_{index:03d}" for index in range(257)],
+    ],
+)
+def test_unregistrable_toolset_capability_stops_startup(tools: list[str]) -> None:
+    # A tool name or count the Server could not show in Operations would make
+    # every registration fail permanently, so discovery refuses the snapshot.
+    with pytest.raises(CapabilityDiscoveryError) as failure:
+        CapabilitySnapshot.create(
+            runtimes=["adk@1"],
+            toolsets={"run-artifacts@1": tools},
+            sandbox_profiles=["local-workdir@1"],
+        )
+    assert str(failure.value) == "invalid Toolset capability snapshot"
+    largest = CapabilitySnapshot.create(
+        runtimes=["adk@1"],
+        toolsets={"run-artifacts@1": [f"tool_{index:03d}" for index in range(256)]},
+        sandbox_profiles=["local-workdir@1"],
+    )
+    assert len(largest.toolsets[0].tools) == 256
+
+
 def test_runtime_adapter_probe_timeout_is_omitted(tmp_path: Path) -> None:
     factories = FactoryRegistry(
         worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},

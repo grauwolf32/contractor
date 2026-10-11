@@ -10,6 +10,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
@@ -83,6 +85,14 @@ class CapabilitySnapshot:
             tools = tuple(sorted(set(toolsets[ref])))
             if tools:
                 normalized_toolsets.append(ToolsetCapabilitySnapshot(ref=ref, tools=tools))
+        # The Server permanently rejects a registration whose Toolset
+        # capabilities Operations could not show, so such a snapshot stops
+        # startup instead of retrying registration.
+        try:
+            for capability in normalized_toolsets:
+                ToolsetCapability(ref=capability.ref, tools=list(capability.tools))
+        except ValidationError:
+            raise CapabilityDiscoveryError("invalid Toolset capability snapshot") from None
         return cls(
             runtimes=normalized_runtimes,
             toolsets=tuple(normalized_toolsets),

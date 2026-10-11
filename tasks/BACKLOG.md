@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-42 open tasks: 3 in progress, 25 pending, 14 deferred. 782 finished: 779 completed, 3 archived.
+41 open tasks: 3 in progress, 24 pending, 14 deferred. 783 finished: 780 completed, 3 archived.
 
 ## In progress
 
@@ -69,12 +69,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 
-### Public API and wire contracts (`api-contracts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V367-007](v367-007-runtime-capability-grammar.yml) | defect | P1 | — | Validate Runtime Agent toolset capabilities at registration with one grammar |
-
 ### PostgreSQL persistence and schema (`persistence`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -130,6 +124,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 49 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 29 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 1 | 1 | 16 | 8 | 6 |
+| Public API and wire contracts (`api-contracts`) | 0 | 1 | 16 | 8 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 12 | 24 | 3 |
 | Quality, CI and process (`quality`) | 3 | 1 | 14 | 61 | 15 |
