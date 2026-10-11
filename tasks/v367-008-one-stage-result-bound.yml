@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V60-026
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A StageResult the Planner accepts is never rejected by the Scheduler for its size, because both use one size rule."
