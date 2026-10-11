@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V370-030
+title: "Cache catalog fingerprints and decoded Workflow snapshots"
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: defect
+priority: P3
+status: completed
+implementation_commit: "f4a4b308413371097106f971f2250752b060546f"
+depends_on: []
+languages: [go]
+goal: "A paged catalog read does not marshal the catalog; a Run step reuses its decoded snapshot."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config I1, I2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    GET /v1/workflows clones, marshals and hashes the whole catalog per page
+    for a fingerprint (workflow_handlers.go:30-31,
+    catalog_discovery.go:66-73); the Scheduler decodes and revalidates the
+    whole Workflow snapshot on every Run step (scheduler/workflow.go:26-40).
+  specification:
+    - docs/spec/configuration/catalog.md#CAT-R67
+    - docs/spec/execution/scheduler.md#SCH-R163
+  decision: >-
+    Re-verified on d1951cb: listWorkflows called Config.Workflows() (a deep
+    copy of every Workflow) and catalogSourceFingerprint (json.Marshal plus
+    SHA-256) per page, and listConfigurations encoded every resource of the
+    kind per page; executeRun and executeCancelling called
+    decodeExecutableWorkflow on every step. Catalog guarantee: newSnapshot
+    encodes the sorted Workflow list once (the AgentTemplate usage index
+    already did and now reuses that encoding) and each configuration kind
+    once, so the fingerprints are unchanged byte for byte; WorkflowDiscovery
+    binary-searches the cursor, filters on identity and presentation and
+    copies only the page it returns, and ConfigurationDiscovery returns
+    resources and fingerprint from one snapshot (two Manager calls could
+    straddle a publication). The fingerprints are computed eagerly, not
+    lazily, because Manager.reconcile compares snapshots with
+    reflect.DeepEqual. One page of a 2.07 MB catalog allocated 2.24 MB before
+    and about 25 KB after (TestWorkflowCatalogPageDoesNotCopyOrEncodeTheCatalog).
+    Configuration resources are still built per request; they are small
+    projections without instruction text. Scheduler guarantee: decoded
+    snapshots are kept by (run_id, schema version, Workflow name and version,
+    SHA-256 of the stored text), at most 64 Runs and 64 MiB of stored text
+    (LIM-SCH-15: two per possible lane, every lane at LIM-CAT-4), least
+    recently used first out; a failed decode is never kept and every step
+    gets a deep copy (ResolvedWorkflow.Clone), so no step's edits reach a
+    later one. Alternatives rejected: handing out the cached value itself
+    (relies on every Scheduler and Planner path staying read-only; the copy
+    costs far less than a decode); keying by run_id alone (tests and future
+    tooling may replace a snapshot; the digest makes reuse exact); a lazy
+    fingerprint (breaks the DeepEqual reconciliation); caching decode
+    failures (a failed Run ends anyway and must not keep memory). Not
+    changed, explicitly: the eval binding list (eval_handlers.go) still copies
+    every Workflow to list selectors, and the Audit profile list
+    (auditservice.Profiles) copies every profile per page; neither encodes
+    the catalog for a fingerprint, and both belong to the eval and Audit
+    owners. Reopen if a catalog grows beyond a few hundred Workflows or a
+    profiler shows either list. Evidence: go test ./internal/config (full
+    package); scheduler -run over the cache tests (also with -race), the
+    decode, retry, escalation, cancellation, recovery, multi-Stage and
+    multi-lane tests; httpapi/public -run over the catalog discovery, query,
+    OpenAPI conformance and configuration projection tests and, with
+    -tags integration, TestPostgresPublicPagedListsAcceptTheLargestPage.
+    Each new regression fails without its fix.
+scope:
+  in:
+    - "Fingerprint once per snapshot; cache decoded snapshots by (run_id, digest)."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "A paged catalog read does not marshal the catalog; a Run step reuses its decoded snapshot."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/scheduler"
+    covers: [A1]
