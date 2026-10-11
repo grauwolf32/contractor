@@ -565,7 +565,7 @@ its owning requirement.
 | `LIM-RUN-4` | 1–63 ASCII bytes | WorkflowRun metadata-label key | Server create-Run validation and label storage; Runtime validates the wire bounds | [RUN-R62](../execution/runs.md) |
 | `LIM-RUN-5` | at most 256 bytes of UTF-8 after JSON decoding | WorkflowRun metadata-label value | Server create-Run validation and label storage; Runtime validates the wire bounds | [RUN-R63](../execution/runs.md) |
 | `LIM-RUN-6` | exactly 1 value per (run_id, key) | Stored WorkflowRun metadata labels | PostgreSQL label storage | [RUN-R72](../execution/runs.md) |
-| `LIM-RUN-7` | at most 1 PostgreSQL query per related collection, independent of the number of Stages | One Run detail read (allocations, metrics, Planner plans, Planner sessions) | Server Run detail handler and its batch readers | [RUN-R89](../execution/runs.md) |
+| `LIM-RUN-7` | at most 1 PostgreSQL query per related collection, independent of the number of Stages | One Run detail read (allocations, metrics, Planner plans, Planner sessions) | Server Run detail reader (`runservice`) and its batch readers | [RUN-R89](../execution/runs.md) |
 | `LIM-RUN-8` | at most 4,096 bytes | AttemptDiagnostics entry message | Server Run status projection | [RUN-R91](../execution/runs.md) |
 | `LIM-RUN-9` | at most the newest 128 entries | AttemptDiagnostics entries returned in Run status | Server Run status projection | [RUN-R92](../execution/runs.md) |
 | `LIM-SCH-1` | at most 1 active StageExecution | WorkflowRun | Workflow Scheduler (Run claim and atomic progression transaction) | [SCH-R114](../execution/scheduler.md) |

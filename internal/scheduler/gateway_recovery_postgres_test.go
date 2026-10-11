@@ -82,7 +82,7 @@ func TestGatewayRecoveryAcrossLanesPreservesQueueAndIndependentRoutes(t *testing
 	if err != nil || queued.State != runstore.RunPending || queued.StartedAt != nil {
 		t.Fatalf("queued Run was admitted: %+v %v", queued, err)
 	}
-	status, err := f.service.Status(t.Context(), "queued")
+	status, err := gatewayrecovery.ReadStatus(t.Context(), f.pool, "queued")
 	if err != nil || status == nil || status.Code != "model_unavailable" {
 		t.Fatalf("denied pending Run lost its current blocked route: %+v %v", status, err)
 	}
@@ -208,7 +208,7 @@ SELECT automatic_until,next_probe_at FROM gateway_recovery_routes WHERE route_ke
 	if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{newRoute}); err != nil || !allowed {
 		t.Fatalf("admit next Stage route = %v, %v", allowed, err)
 	}
-	if status, err := service.Status(ctx, "run-1"); err != nil || status != nil {
+	if status, err := gatewayrecovery.ReadStatus(ctx, pool, "run-1"); err != nil || status != nil {
 		t.Fatalf("old blocked route leaked into next Stage status: %+v %v", status, err)
 	}
 	if err := service.Retry(ctx, "user-1", "run-1"); !gatewayrecovery.IsUnavailable(err) {
@@ -251,7 +251,7 @@ func TestGatewayRecoveryAdmissionReplacesEarlierCandidateRoutes(t *testing.T) {
 	participant := f.run(t, "blocking", f.route)
 	recoveryUpdate(t, participant, "outage", "failed")
 	f.run(t, "candidate", f.route)
-	if status, err := f.service.Status(t.Context(), "candidate"); err != nil || status == nil {
+	if status, err := gatewayrecovery.ReadStatus(t.Context(), f.pool, "candidate"); err != nil || status == nil {
 		t.Fatalf("denied pending admission has no blocked route: %+v %v", status, err)
 	}
 	other := f.route
@@ -259,7 +259,7 @@ func TestGatewayRecoveryAdmissionReplacesEarlierCandidateRoutes(t *testing.T) {
 	if allowed, err := f.service.Admit(t.Context(), "candidate", []gatewayrecovery.Route{other}); err != nil || !allowed {
 		t.Fatalf("replacement candidate was not admitted: %t %v", allowed, err)
 	}
-	if status, err := f.service.Status(t.Context(), "candidate"); err != nil || status != nil {
+	if status, err := gatewayrecovery.ReadStatus(t.Context(), f.pool, "candidate"); err != nil || status != nil {
 		t.Fatalf("earlier candidate's blocked route leaked into status: %+v %v", status, err)
 	}
 	var count int
@@ -357,7 +357,7 @@ func TestGatewayRecoveryAutomaticWindowManualRetryAndCancellation(t *testing.T) 
 	if decision.Allowed || !decision.RequiresRetry {
 		t.Fatalf("exhausted window: %+v", decision)
 	}
-	status, err := f.service.Status(t.Context(), "waiting")
+	status, err := gatewayrecovery.ReadStatus(t.Context(), f.pool, "waiting")
 	if err != nil || status == nil || !status.RequiresRetry || status.NextRetryAt != nil {
 		t.Fatalf("public status: %+v %v", status, err)
 	}

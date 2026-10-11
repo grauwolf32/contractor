@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -69,13 +70,17 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure finding collection publisher: %w", err)
 	}
 	runStore := runstore.NewPostgresStore(pool)
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool))
+	if err != nil {
+		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		GatewayRecovery: workflows.gatewayRecovery,
 		Authentication:  authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
 		TrustedPeers:           trustedPeers,
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runStore, RunQueue: runStore, RunLifecycle: runStore, RunDeletion: rundeletion.New(pool), RunCreator: audits.runs, Artifacts: catalogs.artifacts,
+		Runs: runStore, RunDetails: runDetails, RunQueue: runStore, RunLifecycle: runStore, RunDeletion: rundeletion.New(pool), RunCreator: audits.runs, Artifacts: catalogs.artifacts,
 		Credentials: credentialSet.provider, ManagedCredentials: credentialSet.lifecycle,
 		RuntimeConfigs: control.runtimeConfigurations, RuntimeCredentials: credentialSet.runtime,
 		GitKeys:                credentialSet.gitKeys,
@@ -87,8 +92,6 @@ func configureHTTP(
 		EvalNotifier:           evals.coordinator,
 		FindingProposals:       catalogs.findings,
 		FindingCollections:     collectionPublisher,
-		Metrics:                telemetry.NewRepository(pool),
-		PlannerPlans:           workflows.planners.sessions,
 		Operations:             control.registry,
 		Performance:            performanceReader,
 		AllocationResources:    telemetry.NewRepository(pool),

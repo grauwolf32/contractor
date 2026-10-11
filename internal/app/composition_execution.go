@@ -28,7 +28,6 @@ import (
 )
 
 type plannerServices struct {
-	sessions *plannersession.Service
 	registry *planner.Registry
 }
 
@@ -37,7 +36,6 @@ type workflowServices struct {
 	scheduler       *scheduler.Scheduler
 	projectDeletion *projectlifecycle.Controller
 	settings        *settingsstore.PostgresStore
-	planners        plannerServices
 }
 
 func configurePlanners(
@@ -108,7 +106,7 @@ func configurePlanners(
 	if err != nil {
 		return plannerServices{}, err
 	}
-	return plannerServices{sessions: plannerSessions, registry: plannerRegistry}, nil
+	return plannerServices{registry: plannerRegistry}, nil
 }
 
 func configureWorkflows(
@@ -189,5 +187,5 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)
 	}
-	return workflowServices{gatewayRecovery: recovery, scheduler: workflowScheduler, projectDeletion: projectDeletionController, settings: schedulerSettings, planners: planners}, nil
+	return workflowServices{gatewayRecovery: recovery, scheduler: workflowScheduler, projectDeletion: projectDeletionController, settings: schedulerSettings}, nil
 }

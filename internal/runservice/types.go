@@ -1,6 +1,7 @@
 // Package runservice owns WorkflowRun creation orchestration shared by the
-// public API and the trusted Audit Controller. It is the only layer that may
-// request an Audit-managed publication mode.
+// public API and the trusted Audit Controller, and the public Run detail read
+// from one database snapshot. It is the only layer that may request an
+// Audit-managed publication mode.
 package runservice
 
 import (

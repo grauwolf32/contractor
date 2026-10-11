@@ -24,12 +24,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -58,13 +60,16 @@ type handlerFixture struct {
 	metrics             *fakeMetricsReader
 	plans               *fakePlannerPlanReader
 	allocationResources *fakeAllocationResourceReader
-	credentials         *fakeManagedCredentials
-	runtimeConfigs      *fakeRuntimeConfigManagement
-	runtimeCredentials  *fakeRuntimeCredentialManagement
-	runtimePrincipals   *fakeRuntimeAgentPrincipalManagement
-	projects            *fakeProjectStore
-	operations          *fakeOperationsReader
-	settings            *fakeSchedulerSettings
+	// detailStores are the readers GET /v1/runs/{runID} uses; a test may
+	// replace one before it sends a request.
+	detailStores       *runservice.RunDetailStores
+	credentials        *fakeManagedCredentials
+	runtimeConfigs     *fakeRuntimeConfigManagement
+	runtimeCredentials *fakeRuntimeCredentialManagement
+	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
+	projects           *fakeProjectStore
+	operations         *fakeOperationsReader
+	settings           *fakeSchedulerSettings
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -735,6 +740,21 @@ func newHandlerFixtureWithAuth(
 	runs.projects = projects
 	operations := newFakeOperationsReader()
 	settings := newFakeSchedulerSettings()
+	detailStores := &runservice.RunDetailStores{
+		Runs: runs, Deletion: runs, Artifacts: service, Plans: plans, Metrics: metrics,
+		Resources: allocationResources,
+		Recovery: func(context.Context, string) (*gatewayrecovery.Status, error) {
+			return nil, nil
+		},
+	}
+	runDetails, err := runservice.NewRunDetailReader(func(
+		_ context.Context, fn func(runservice.RunDetailStores) error,
+	) error {
+		return fn(*detailStores)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
 		Runs: runs, Operations: operations,
@@ -752,14 +772,12 @@ func newHandlerFixtureWithAuth(
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projects,
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, RunDeletion: runs, Artifacts: service,
+		Runs:                   runs, RunDetails: runDetails, RunQueue: runs, RunLifecycle: runs, RunDeletion: runs, Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
 		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 		}),
 		AllocationResources:     allocationResources,
-		Metrics:                 metrics,
-		PlannerPlans:            plans,
 		BearerToken:             contracts.NewSecretString(testBearerToken),
 		NewID:                   func(prefix string) (string, error) { return prefix + "fixed", nil },
 		NewRequestID:            func() (string, error) { return "request-fixed", nil },
@@ -783,9 +801,9 @@ func newHandlerFixtureWithAuth(
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
-		allocationResources: allocationResources,
-		credentials:         managedCredentials,
-		runtimeConfigs:      runtimeConfigs, runtimeCredentials: runtimeCredentials,
+		allocationResources: allocationResources, detailStores: detailStores,
+		credentials:    managedCredentials,
+		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
 		runtimePrincipals: runtimePrincipals,
 		projects:          projects,
 		operations:        operations,

@@ -22,9 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
-	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -33,14 +31,14 @@ import (
 )
 
 type RunReader interface {
-	ResumableStage(context.Context, string, string) (*string, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
-	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
-	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
-	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
-	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
-	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
+}
+
+// RunDetailReader reads a Run detail, its event cursor included, from one
+// snapshot (API-R48).
+type RunDetailReader interface {
+	Read(context.Context, string, string) (runservice.RunDetail, error)
 }
 
 type RunQueue interface {
@@ -55,17 +53,8 @@ type RunLifecycle interface {
 }
 
 type RunDeletion interface {
-	RunDeletionBlocker(context.Context, string, string) (*rundeletion.Reason, error)
 	DeletableRuns(context.Context, string, []string) (map[string]bool, error)
 	DeleteReleasedTerminalRun(context.Context, string, string) error
-}
-
-type PlannerPlanReader interface {
-	LoadPlans(context.Context, []planner.SessionIdentity) (map[string]planner.PlannerPlanProjection, error)
-}
-
-type MetricsReader interface {
-	GetStageMetricsBatch(context.Context, []string) (map[string]telemetry.StageMetricsRecord, error)
 }
 
 type OperationsReader interface {
@@ -81,9 +70,6 @@ type AllocationResourceReader interface {
 	ListAllocationResourceHistory(
 		context.Context, telemetry.AllocationResourceHistoryParams,
 	) ([]telemetry.AllocationResourceSummary, error)
-	ListStageAllocationResources(
-		context.Context, string, []string,
-	) (map[string][]telemetry.AllocationResourceSummary, error)
 }
 
 type OperationsInvalidator interface {
@@ -237,12 +223,11 @@ type Dependencies struct {
 	FindingProposals        FindingProposalManagement
 	FindingCollections      FindingCollectionManagement
 	Runs                    RunReader
+	RunDetails              RunDetailReader
 	RunQueue                RunQueue
 	RunLifecycle            RunLifecycle
 	RunDeletion             RunDeletion
 	RunCreator              RunCreationService
-	PlannerPlans            PlannerPlanReader
-	Metrics                 MetricsReader
 	Operations              OperationsReader
 	Performance             PerformanceReader
 	AllocationResources     AllocationResourceReader
