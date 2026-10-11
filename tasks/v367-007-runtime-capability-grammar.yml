@@ -26,6 +26,39 @@ context:
     Reproduced by the audit's overlay test. V323-001 (1dcadfc5) meant to
     remove the controlplane copy of the grammar but operationsConfigIDPattern
     remains.
+  decision: >-
+    Scope widened to what A1's property needs. The Operations snapshot also
+    rejected registration values other than tools: a capability ref longer
+    than 256 characters and an instanceId or reported allocationId outside
+    the public ResourceId grammar, which registration and heartbeat accepted
+    as any non-blank string. So registration and heartbeat now bound all of
+    them, and spec CTL-R148 / LIM-CTL-9 record the rule. One Go definition
+    each: contracts.ValidName (the public ConfigId grammar, at most 128
+    characters, used for tool names and for the logical Worker names
+    Operations shows, so operationsConfigIDPattern is gone), contracts.ValidResourceID
+    (replacing operationsResourceIDPattern), and control.MaxRuntimeCapabilityRefs,
+    MaxRuntimeCapabilityRefLength, MaxToolsetCapabilityTools,
+    ValidRuntimeCapabilityRef and ValidateToolsetCapability, which both
+    registration and Operations call. Sibling paths fixed: the private
+    registration and heartbeat schemas, the Runtime models, the Server's
+    Toolset descriptor registry (every selectable tool name now has the same
+    grammar), and Runtime discovery, which now fails startup with a safe
+    error (RTA-R112) instead of building a registration the Server always
+    rejects. The shared cases are also checked against the public
+    RuntimeAgentObservation schema. Ruled out: AgentTemplate selections and
+    AllocationSpec tool lists (each selected tool must be a descriptor export
+    and within the registered capability, TLS-R19/R20); Server-issued
+    allocationIds in AllocationSpec, finalize/abort/release and
+    HeartbeatResponse (randomid values, never Runtime input to Operations);
+    the UI Operations decoder (it already applies the public schema bounds,
+    which the shared cases now pin). Left open: Workflow agent names are only
+    checked as non-blank without a slash (config validateMapKey) although
+    Operations shows them as logicalWorker in the ConfigId grammar; the
+    Runtime retries a permanently rejected registration forever
+    (control_client.register_until_stopped); six other Go copies of the
+    ResourceId pattern (auditstore, runstore, evalstore, auditservice,
+    httpapi/public request and events) and auth's principal ID copy of the
+    ConfigId pattern still exist.
 scope:
   in:
     - "The tool-count bound and the tool-name grammar move to contracts (control or core) and are enforced by registration validation in Go, by the registration JSON Schema and by the Python model; controlplane uses the shared rule and its own copy is removed."
@@ -44,3 +77,7 @@ tests:
     covers: [A1]
   - command: make test-wire-cross-language
     covers: [A2]
+  - command: "go test ./internal/config ./internal/httpapi/public -run 'TestToolsetDescriptorToolNamesGoldenCases|TestPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases'"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py"
+    covers: [A1, A2]

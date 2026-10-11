@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -28,7 +29,7 @@ type RuntimeAgentPrincipalProjection struct {
 }
 
 func (p RuntimeAgentPrincipalProjection) Validate() error {
-	if len(p.RequiredRuntimeAdapters) > maximumRuntimeCapabilityRefs ||
+	if len(p.RequiredRuntimeAdapters) > control.MaxRuntimeCapabilityRefs ||
 		len(p.MissingRuntimeAdapters) > len(p.RequiredRuntimeAdapters) ||
 		!validUniqueCapabilityRefs(p.RequiredRuntimeAdapters) ||
 		!validUniqueCapabilityRefs(p.MissingRuntimeAdapters) {

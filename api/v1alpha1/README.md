@@ -31,6 +31,10 @@ including non-ASCII text and floating-point temperatures and ratios.
 `agent-card-secret-scan-cases.json` holds the WorkerHandle Agent Card secret
 scan both implementations apply: the trusted path table, the Runtime's card and
 the cases each must accept or reject.
+`runtime-capability-cases.json` holds the registration and heartbeat values
+Operations shows: the tool-name and identity grammars and the capability
+bounds that Go registration, the registration and heartbeat schemas, the
+Runtime models and the public `RuntimeAgentObservation` schema share.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required

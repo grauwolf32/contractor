@@ -341,8 +341,10 @@ func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandbo
 	seen := make(map[string]struct{}, len(descriptor.Tools))
 	tools := append([]string(nil), descriptor.Tools...)
 	for _, tool := range tools {
-		if err := validateIdentifier("Toolset tool", tool); err != nil {
-			return ToolsetDescriptor{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
+		// Runtime Agents advertise and Operations shows exported tools in the
+		// shared name grammar, so a descriptor cannot export another name.
+		if !contracts.ValidName(tool) {
+			return ToolsetDescriptor{}, fmt.Errorf("invalid Toolset descriptor %q: tool %q is not a name of at most %d characters", raw, tool, contracts.MaxNameLength)
 		}
 		if _, exists := seen[tool]; exists {
 			return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q exports duplicate tool %q", raw, tool)

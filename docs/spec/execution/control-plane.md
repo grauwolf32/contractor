@@ -456,6 +456,20 @@ and resolved settings that require neither.
 sorted unique exact refs (LIM-CTL-3); the complete registration request remains
 subject to the private registration body bound.
 
+**CTL-R148.** Registration and heartbeat validation bound every value that
+Operations shows, so Control Plane rejects a registration Operations could not
+show when it arrives (FAIL-CTL-1) instead of failing every Operations list
+afterwards. `supportedRuntimes`, `supportedToolsets` and
+`supportedSandboxProfiles` each hold at most 128 exact refs of at most 256
+characters; a Toolset capability holds 1 to 256 unique tool names in the
+shared name grammar `[A-Za-z0-9][A-Za-z0-9_.-]*` of at most 128 characters;
+`instance_id` and a reported `allocation_id` use the resource identifier
+grammar `[A-Za-z0-9][A-Za-z0-9_.:-]*` of at most 256 characters (LIM-CTL-9).
+Go registration validation, the private schemas, the Runtime models and the
+public `RuntimeAgentObservation` schema read these rules from one set of shared
+cases, and the Server's Toolset descriptor registry exports only tool names in
+the same grammar.
+
 **CTL-R34.** The computed snapshot is frozen for the lifetime of
 `instance_id` and reused byte-for-byte across registration retries and Control
 Plane reconnects. Control Plane rejects a registration retry that reuses the
@@ -1202,6 +1216,8 @@ The private live-state route is
   declared Stage Agent name (CTL-R105).
 - [LIM-CTL-8](../platform/limits.md): 15-second allocation resource sampling
   interval requested in `AllocationSpec` (CTL-R133).
+- [LIM-CTL-9](../platform/limits.md): Runtime capability and identity bounds
+  of one registration (CTL-R148).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,
   CTL-R50).

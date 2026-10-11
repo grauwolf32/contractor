@@ -773,6 +773,120 @@ def test_shared_config_identity_cases_match_runtime_and_schemas() -> None:
     assert not manifest_accepts("a", longest_version + "1")
 
 
+def test_golden_runtime_capability_cases_match_models_and_schemas() -> None:
+    # Registration and heartbeat values the Server shows in Operations: the
+    # Runtime models and the private schemas accept or reject each case alike.
+    cases = json.loads((FIXTURES / "runtime-capability-cases.json").read_text(encoding="utf-8"))
+    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_text(encoding="utf-8"))
+        for path in schema_root.glob("*.schema.json")
+    }
+    registry = Registry().with_resources(
+        [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
+    )
+    validators = {
+        AgentRegistration: Draft202012Validator(
+            schemas["agent-registration.schema.json"], registry=registry
+        ),
+        AgentHeartbeat: Draft202012Validator(
+            schemas["agent-heartbeat.schema.json"], registry=registry
+        ),
+    }
+    fixtures = {
+        AgentRegistration: "agent-registration.json",
+        AgentHeartbeat: "agent-heartbeat.json",
+    }
+
+    def check(label: str, valid: bool, model: type[BaseModel], changes: dict[str, Any]) -> None:
+        candidate = json.loads((FIXTURES / "valid" / fixtures[model]).read_text(encoding="utf-8"))
+        candidate.update(changes)
+        try:
+            model.model_validate_json(json.dumps(candidate))
+            accepted = True
+        except ValidationError:
+            accepted = False
+        assert accepted is valid, f"{label}: model"
+        assert (not list(validators[model].iter_errors(candidate))) is valid, f"{label}: schema"
+
+    def tools(values: list[str]) -> dict[str, Any]:
+        return {"supportedToolsets": [{"ref": "run-artifacts@1", "tools": values}]}
+
+    def numbered(count: int, template: str) -> list[str]:
+        return [template.format(index) for index in range(count)]
+
+    tool_bound = cases["toolName"]["maxLength"]
+    for valid, values in (
+        (True, ["a" * tool_bound, *cases["toolName"]["valid"]]),
+        (False, ["a" * (tool_bound + 1), *cases["toolName"]["invalid"]]),
+    ):
+        for tool in values:
+            check(f"tool {tool!r}", valid, AgentRegistration, tools([tool]))
+    most_tools = cases["toolsPerToolset"]["maxItems"]
+    check("most tools", True, AgentRegistration, tools(numbered(most_tools, "tool_{:03d}")))
+    check(
+        "too many tools", False, AgentRegistration, tools(numbered(most_tools + 1, "tool_{:03d}"))
+    )
+
+    longest_ref = "a" * (cases["capabilityRefs"]["maxLength"] - 2) + "@1"
+    most_refs = cases["capabilityRefs"]["maxItems"]
+    for field in ("supportedRuntimes", "supportedSandboxProfiles", "supportedToolsets"):
+
+        def refs(values: list[str], field: str = field) -> dict[str, Any]:
+            if field == "supportedToolsets":
+                return {field: [{"ref": ref, "tools": ["read_artifact"]} for ref in values]}
+            return {field: values}
+
+        check(f"{field} longest ref", True, AgentRegistration, refs([longest_ref]))
+        check(f"{field} oversized ref", False, AgentRegistration, refs(["a" + longest_ref]))
+        check(
+            f"{field} most refs",
+            True,
+            AgentRegistration,
+            refs(numbered(most_refs, "ref-{:03d}@1")),
+        )
+        check(
+            f"{field} too many refs",
+            False,
+            AgentRegistration,
+            refs(numbered(most_refs + 1, "ref-{:03d}@1")),
+        )
+
+    identity_bound = cases["identity"]["maxLength"]
+    for valid, values in (
+        (True, ["a" * identity_bound, *cases["identity"]["valid"]]),
+        (False, ["a" * (identity_bound + 1), *cases["identity"]["invalid"]]),
+    ):
+        for identity in values:
+            check(
+                f"registration instanceId {identity!r}",
+                valid,
+                AgentRegistration,
+                {"instanceId": identity},
+            )
+            check(
+                f"registration allocationId {identity!r}",
+                valid,
+                AgentRegistration,
+                {
+                    "observedState": "allocated",
+                    "allocationId": identity,
+                },
+            )
+            check(
+                f"heartbeat instanceId {identity!r}",
+                valid,
+                AgentHeartbeat,
+                {"instanceId": identity},
+            )
+            check(
+                f"heartbeat allocationId {identity!r}",
+                valid,
+                AgentHeartbeat,
+                {"allocationId": identity},
+            )
+
+
 def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
     assert "run_metadata_labels" in AllocationSpec.model_fields
     for model in (

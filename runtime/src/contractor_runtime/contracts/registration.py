@@ -12,6 +12,9 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     _RUNTIME_AGENT_ID_PATTERN,
+    MAX_RUNTIME_CAPABILITY_REFS,
+    MAX_TOOLSET_CAPABILITY_TOOLS,
+    TOOL_NAME_PATTERN,
     VERSION_PATTERN,
     AgentObservedState,
     ReconciliationAction,
@@ -19,8 +22,9 @@ from contractor_runtime.contracts.base import (
     VersionedWireModel,
     WireModel,
     _require_aware_datetime,
+    _require_capability_ref,
+    _require_resource_id,
     _require_runtime_label,
-    _require_selector,
     _require_sorted_unique,
     _require_text,
     _require_url,
@@ -34,11 +38,16 @@ class ToolsetCapability(WireModel):
 
     @model_validator(mode="after")
     def validate_capability(self) -> Self:
-        _require_selector("ref", self.ref)
-        if not self.tools or len(self.tools) != len(set(self.tools)):
-            raise ValueError("tools must be non-empty and unique")
+        _require_capability_ref("ref", self.ref)
+        if (
+            not self.tools
+            or len(self.tools) > MAX_TOOLSET_CAPABILITY_TOOLS
+            or len(self.tools) != len(set(self.tools))
+        ):
+            raise ValueError(f"tools must be 1 to {MAX_TOOLSET_CAPABILITY_TOOLS} unique tool names")
         for tool in self.tools:
-            _require_text("tool", tool)
+            if TOOL_NAME_PATTERN.fullmatch(tool) is None:
+                raise ValueError("tools must use the shared tool name grammar")
         return self
 
 
@@ -49,7 +58,7 @@ def _validate_observed_allocation(state: AgentObservedState, allocation_id: str 
         return
     if state is AgentObservedState.FENCED and allocation_id is None:
         return
-    _require_text("allocationId", allocation_id or "")
+    _require_resource_id("allocationId", allocation_id or "")
 
 
 class AgentRegistrationResponse(VersionedWireModel):
@@ -96,12 +105,14 @@ def _validate_capability_refs(
 ) -> None:
     if not runtimes or not sandboxes:
         raise ValueError("runtime and sandbox capability lists must not be empty")
+    if max(len(runtimes), len(toolsets), len(sandboxes)) > MAX_RUNTIME_CAPABILITY_REFS:
+        raise ValueError("Runtime capability collection exceeds its bound")
     if len(runtimes) != len(set(runtimes)) or len(sandboxes) != len(set(sandboxes)):
         raise ValueError("capability refs must be unique")
     for value in runtimes:
-        _require_selector("supportedRuntimes", value)
+        _require_capability_ref("supportedRuntimes", value)
     for value in sandboxes:
-        _require_selector("supportedSandboxProfiles", value)
+        _require_capability_ref("supportedSandboxProfiles", value)
     refs = [item.ref for item in toolsets]
     if len(refs) != len(set(refs)):
         raise ValueError("toolset capability refs must be unique")
@@ -116,7 +127,7 @@ class AgentHeartbeat(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_heartbeat(self) -> Self:
-        _require_text("instanceId", self.instance_id)
+        _require_resource_id("instanceId", self.instance_id)
         _validate_observed_allocation(self.observed_state, self.allocation_id)
         return self
 
@@ -142,7 +153,7 @@ class AgentRegistration(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_registration(self) -> Self:
-        _require_text("instanceId", self.instance_id)
+        _require_resource_id("instanceId", self.instance_id)
         _require_aware_datetime("startedAt", self.started_at)
         _require_url("controlUrl", self.control_url)
         _require_url("a2aUrl", self.a2a_url)
@@ -156,10 +167,6 @@ class AgentRegistration(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_runtime_capabilities(self) -> Self:
-        if len(self.supported_runtimes) > 128 or len(self.supported_toolsets) > 128:
-            raise ValueError("Runtime capability collection exceeds its bound")
-        if len(self.supported_sandbox_profiles) > 128:
-            raise ValueError("Runtime capability collection exceeds its bound")
         for label in self.initial_labels:
             _require_runtime_label("initialLabels", label)
         _require_sorted_unique("initialLabels", self.initial_labels, maximum=32)
