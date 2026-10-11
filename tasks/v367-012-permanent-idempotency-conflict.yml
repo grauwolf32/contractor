@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: MVP-006
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "Reusing an Idempotency-Key with a different body is a permanent error to every client, and the Go client never retries what the Server marked not retryable."
