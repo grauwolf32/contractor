@@ -125,6 +125,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, config.ErrPublicationConflict):
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
+	case errors.Is(err, config.ErrConfigurationDrift):
+		// Permanent until an operator restores the roots or restarts (CAT-R74).
+		h.writeError(w, http.StatusConflict, "configuration_drift",
+			"configuration roots changed outside the publication manager; restore them or restart the Server", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
 	case errors.Is(err, errRequestTooLarge):
@@ -147,7 +151,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, auditstore.ErrProjectDeleting),
 		errors.Is(err, artifacts.ErrScopeDeleting):
 		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
-	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
+	case errors.Is(err, artifacts.ErrArtifactFrozen):
+		// A frozen binding never advances, so no re-read can make a retry succeed.
+		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
+	case errors.Is(err, artifacts.ErrArtifactConflict),
 		errors.Is(err, projectstore.ErrConflict),
 		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict),
 		errors.Is(err, findingintake.ErrConflict):

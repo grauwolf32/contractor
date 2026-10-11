@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -350,9 +353,9 @@ func TestManagerPublishFailsWhenManagedSubtreeIsMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := validPolicyPublication("missing-subtree")
-	if _, err := manager.Publish(t.Context(), request); err == nil ||
+	if _, err := manager.Publish(t.Context(), request); !errors.Is(err, ErrConfigurationDrift) ||
 		!strings.Contains(err.Error(), "configuration subtree workflows") {
-		t.Fatalf("Publish with a missing managed subtree = %v, want a reload error", err)
+		t.Fatalf("Publish with a missing managed subtree = %v, want a drift reload error", err)
 	}
 	if manager.Snapshot() != current {
 		t.Fatal("failed reload replaced the current snapshot")
@@ -479,11 +482,179 @@ metadata: {name: external, version: "1"}
 spec: {model: external-model}
 `))
 	request := validPolicyPublication("after-external-change")
-	if _, err := manager.Publish(t.Context(), request); err == nil {
-		t.Fatal("publication accepted uncoordinated filesystem drift")
+	if _, err := manager.Publish(t.Context(), request); !errors.Is(err, ErrConfigurationDrift) {
+		t.Fatalf("publication after uncoordinated filesystem drift = %v", err)
 	}
 	if _, err := manager.Configuration(ConfigurationModelPolicies, "external@1"); !errors.Is(err, ErrConfigurationNotFound) {
 		t.Fatalf("external change leaked into current snapshot: %v", err)
+	}
+}
+
+// Operator-root drift is permanent for every publication until the roots
+// match the loaded snapshot again; then publication resumes without a restart
+// (CAT-R74, FAIL-CAT-2).
+func TestManagerRefusesOperatorRootDriftUntilRestored(t *testing.T) {
+	operator := copyCoreFixture(t)
+	spare := filepath.Join(operator, "model-policies", "spare.yaml")
+	spareManifest := []byte("apiVersion: contractor/v1alpha1\nkind: ModelPolicy\n" +
+		"metadata: {name: spare, version: \"1\"}\nspec: {model: spare-model}\n")
+	writeFile(t, spare, spareManifest)
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, operator, managed, ManagerOptions{})
+	before := manager.Snapshot()
+	policyPath := filepath.Join(operator, "model-policies", "worker.yaml")
+	original := readFile(t, policyPath)
+	added := filepath.Join(operator, "model-policies", "operator-added.yaml")
+	remove := func(t *testing.T, path string) {
+		t.Helper()
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, test := range []struct {
+		name           string
+		drift, restore func(*testing.T)
+	}{
+		{
+			// The edited union is still valid but differs from the snapshot.
+			name: "in-place-edit",
+			drift: func(t *testing.T) {
+				writeFile(t, policyPath, bytes.Replace(original, []byte("temperature: 0.1"), []byte("temperature: 0.7"), 1))
+			},
+			restore: func(t *testing.T) { writeFile(t, policyPath, original) },
+		},
+		{
+			name: "added-manifest",
+			drift: func(t *testing.T) {
+				writeFile(t, added, []byte("apiVersion: contractor/v1alpha1\nkind: ModelPolicy\n"+
+					"metadata: {name: operator-added, version: \"1\"}\nspec: {model: added-model}\n"))
+			},
+			restore: func(t *testing.T) { remove(t, added) },
+		},
+		{
+			name:    "removed-manifest",
+			drift:   func(t *testing.T) { remove(t, spare) },
+			restore: func(t *testing.T) { writeFile(t, spare, spareManifest) },
+		},
+		{
+			// Removing a referenced manifest leaves a union that no longer loads.
+			name:    "removed-referenced-manifest",
+			drift:   func(t *testing.T) { remove(t, policyPath) },
+			restore: func(t *testing.T) { writeFile(t, policyPath, original) },
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.drift(t)
+			defer test.restore(t)
+			for attempt := range 2 {
+				_, err := manager.Publish(t.Context(), validPolicyPublication(fmt.Sprintf("drift-%s-%d", test.name, attempt)))
+				if !errors.Is(err, ErrConfigurationDrift) {
+					t.Fatalf("publication attempt %d during drift = %v", attempt, err)
+				}
+			}
+			if manager.Snapshot() != before {
+				t.Fatal("drift changed the current snapshot")
+			}
+			if entries, err := os.ReadDir(filepath.Join(managed, "model-policies")); err != nil || len(entries) != 0 {
+				t.Fatalf("drift published a manifest: %v, error %v", entries, err)
+			}
+		})
+	}
+
+	result, err := manager.Publish(t.Context(), validPolicyPublication("after-restore"))
+	if err != nil || result.Replayed {
+		t.Fatalf("publication after restoring the roots = %+v, error %v", result, err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); err != nil {
+		t.Fatalf("restored manager did not publish: %v", err)
+	}
+}
+
+// A publication that fails after its durable link leaves the version in the
+// managed root but not in the snapshot. The next publication adopts it as a
+// restart would, instead of reporting drift, and binds the original key.
+func TestManagerRecoversPartialPublicationWithoutRestart(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	crash := errors.New("simulated failure after the durable link")
+	failures := 1
+	manager := newTestManager(t, operator, managed, ManagerOptions{
+		AfterDurablePublish: func(ConfigurationResource) error {
+			if failures == 0 {
+				return nil
+			}
+			failures--
+			return crash
+		},
+	})
+	partial := validPolicyPublication("partial")
+	if _, err := manager.Publish(t.Context(), partial); !errors.Is(err, crash) {
+		t.Fatalf("partial publication error = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("failed publication changed the snapshot: %v", err)
+	}
+
+	next := validPolicyPublication("next")
+	next.Name = "next-policy"
+	if result, err := manager.Publish(t.Context(), next); err != nil || result.Replayed {
+		t.Fatalf("publication after a partial publication = %+v, error %v", result, err)
+	}
+	for _, selector := range []string{"ui-worker@2", "next-policy@2"} {
+		if _, err := manager.Configuration(ConfigurationModelPolicies, selector); err != nil {
+			t.Fatalf("%s after recovery: %v", selector, err)
+		}
+	}
+	reused := validPolicyPublication("partial")
+	reused.ModelPolicy = &ModelPolicyPublication{Model: "another-model"}
+	if _, err := manager.Publish(t.Context(), reused); !errors.Is(err, contracts.ErrIdempotencyConflict) {
+		t.Fatalf("recovered key reused for another body = %v", err)
+	}
+	if replayed, err := manager.Publish(t.Context(), partial); err != nil || !replayed.Replayed {
+		t.Fatalf("recovered key replay = %+v, error %v", replayed, err)
+	}
+
+	restarted := newTestManager(t, operator, managed, ManagerOptions{})
+	if !snapshotsEqual(restarted.Snapshot(), manager.Snapshot()) {
+		t.Fatal("recovered snapshot differs from a restart's startup load")
+	}
+}
+
+// A failed publication whose manifest is gone before the next publication is
+// dropped rather than adopted or reported as drift.
+func TestManagerDropsFailedPublicationThatLeftNoManifest(t *testing.T) {
+	operator := copyCoreFixture(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	crash := errors.New("simulated failure after the durable link")
+	failed := false
+	manager := newTestManager(t, operator, managed, ManagerOptions{
+		AfterDurablePublish: func(ConfigurationResource) error {
+			if failed {
+				return nil
+			}
+			failed = true
+			return crash
+		},
+	})
+	if _, err := manager.Publish(t.Context(), validPolicyPublication("lost")); !errors.Is(err, crash) {
+		t.Fatalf("failed publication error = %v", err)
+	}
+	if err := os.Remove(filepath.Join(managed, "model-policies", "ui-worker@2.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	next := validPolicyPublication("after-loss")
+	next.Name = "next-policy"
+	if _, err := manager.Publish(t.Context(), next); err != nil {
+		t.Fatalf("publication after a lost manifest = %v", err)
+	}
+	if _, err := manager.Configuration(ConfigurationModelPolicies, "ui-worker@2"); !errors.Is(err, ErrConfigurationNotFound) {
+		t.Fatalf("absent manifest was adopted: %v", err)
+	}
+	// The key of a publication that left nothing durable is not bound.
+	other := validPolicyPublication("lost")
+	other.Name = "other-policy"
+	if _, err := manager.Publish(t.Context(), other); err != nil {
+		t.Fatalf("unbound key reuse = %v", err)
 	}
 }
 
@@ -514,3 +685,27 @@ func validPolicyPublication(key string) PublicationRequest {
 
 func intPointer(value int) *int           { return &value }
 func floatPointer(value float64) *float64 { return &value }
+
+// A reload that no longer yields a valid set is drift; an operating-system
+// failure that may not be a change to the roots stays unclassified.
+func TestReloadFailureClassification(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		err   error
+		drift bool
+	}{
+		{"invalid manifest", errors.New("model-policies/worker.yaml: spec.model is required"), true},
+		{"missing file", &fs.PathError{Op: "lstat", Path: "instructions/a.md", Err: unix.ENOENT}, true},
+		{"replaced directory", &fs.PathError{Op: "open", Path: "workflows", Err: unix.ENOTDIR}, true},
+		{"I/O failure", &fs.PathError{Op: "read", Path: "workflows/a.yaml", Err: unix.EIO}, false},
+		{"descriptor exhaustion", &fs.PathError{Op: "open", Path: "workflows", Err: unix.EMFILE}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := classifyReloadFailure(test.err)
+			if errors.Is(err, ErrConfigurationDrift) != test.drift || !errors.Is(err, test.err) ||
+				!strings.HasPrefix(err.Error(), "reload configuration roots before publication: ") {
+				t.Fatalf("classifyReloadFailure(%v) = %v, drift %t", test.err, err, errors.Is(err, ErrConfigurationDrift))
+			}
+		})
+	}
+}

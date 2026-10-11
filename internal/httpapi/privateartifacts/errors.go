@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -42,7 +43,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_corrupt", "artifact content failed integrity verification", false)
 	case errors.Is(err, artifacts.ErrBlobMissing):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_missing", "artifact content is unavailable", false)
-	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen):
+	case errors.Is(err, artifacts.ErrArtifactFrozen):
+		// A frozen binding never advances, so no re-read can make a retry succeed.
+		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
+	case errors.Is(err, artifacts.ErrArtifactConflict):
 		h.writeError(w, http.StatusConflict, "artifact_conflict", "artifact revision precondition did not match", true)
 	case errors.Is(err, findingintake.ErrConflict):
 		h.writeError(w, http.StatusConflict, "finding_submission_conflict", "finding submission identity already has different content", false)
@@ -58,6 +62,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)
 	case errors.Is(err, findingintake.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "request does not satisfy the finding intake contract", false)
+	case persistencepostgres.IsTransactionConflict(err):
+		h.writeError(w, http.StatusServiceUnavailable, "storage_transaction_conflict", "database transaction conflicted; retry the request", true)
 	default:
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "artifact operation could not be processed", true)
 	}

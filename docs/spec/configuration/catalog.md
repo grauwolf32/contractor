@@ -490,6 +490,20 @@ identical identity and body returns that published version; the same identity
 with different normalized content conflicts
 ([FAIL-CAT-2](../platform/failure-model.md)).
 
+**CAT-R74.** Before each publication the Server reloads both roots and
+compares the union with its current snapshot. The union may differ only by
+managed versions whose durable link this Server made without swapping its
+snapshot, because a later publication step failed, and by the identical version
+the request retries; the Server adopts those exactly as the startup load would
+(CAT-R58) and binds each recovered publication's `Idempotency-Key`. Any other
+difference is configuration drift: an edited, added or removed operator-root
+file, or a managed file the Server did not write. Drift fails the publication
+with `409 configuration_drift`, `retryable` false, and publishes nothing
+([FAIL-CAT-2](../platform/failure-model.md)). Publication resumes without a
+restart once the roots match the loaded snapshot again; restoring the changed
+files is the recovery for an in-place edit, which CAT-R44 forbids. A restart
+instead loads and validates the roots as they are (CAT-R24).
+
 **CAT-R60.** Loss of the PostgreSQL audit record cannot remove or
 reinterpret the YAML version.
 
@@ -563,7 +577,7 @@ Registry entries owned by this document:
   configuration set (CAT-R24, CAT-R15,
   CAT-R32).
 - [FAIL-CAT-2](../platform/failure-model.md): managed publication of a
-  configuration version (CAT-R58, CAT-R59).
+  configuration version (CAT-R58, CAT-R59, CAT-R74).
 - [LIFE-CAT-1](../platform/lifecycle.md): published configuration version
   (CAT-R48).
 - [LIFE-CAT-2](../platform/lifecycle.md): instruction resource and other
@@ -575,7 +589,8 @@ Errors owned by this document ([errors](../platform/errors.md)): reusing a
 catalog cursor with another query, kind or catalog snapshot is a bounded `400`
 (CAT-R68); publishing an existing identity with different
 normalized content is an immutable-definition conflict (CAT-R44,
-CAT-R59).
+CAT-R59); a publication against configuration roots that changed outside the
+Server is the permanent `409 configuration_drift` (CAT-R74).
 
 ## Security
 

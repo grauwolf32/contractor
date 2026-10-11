@@ -553,6 +553,10 @@ requires the opaque revision returned by a read or write.
 **ART-R59.** A stale expected revision returns `ArtifactConflict`
 (FAIL-ART-1). Same-binding conflicts are returned to the caller;
 infrastructure never silently overwrites or semantically merges the winner.
+A write to a frozen binding instead returns `artifact_frozen` (HTTP 409,
+`retryable` false) on the public and private Artifact APIs, whatever its
+precondition: a frozen binding never advances, so neither a re-read nor a
+retry can make the write succeed.
 
 **ART-R60.** CAS is also the response-loss contract. If a create
 or update committed but its response was lost, repeating the already-consumed
@@ -980,6 +984,7 @@ Errors ([registry](../platform/errors.md)):
 
 - `ArtifactConflict` — a stale or already-consumed CAS precondition; no new
   version is created (ART-R59, ART-R60).
+- `artifact_frozen` — a write to a frozen binding; permanent (ART-R59).
 - `context_artifact_missing` is owned by [Scheduler](../execution/scheduler.md).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):
