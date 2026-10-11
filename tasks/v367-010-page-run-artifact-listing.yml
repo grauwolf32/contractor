@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V48-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "list_artifacts answers with a bounded page on a Run of any size, and hidden bindings are filtered by the Server before the limit applies."

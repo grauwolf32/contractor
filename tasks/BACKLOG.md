@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-46 open tasks: 3 in progress, 29 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
+46 open tasks: 4 in progress, 28 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V367-010](v367-010-page-run-artifact-listing.yml) | projects-artifacts | defect | P2 | Page the private Artifact list and the list_artifacts tool |
 
 ## Pending
 
@@ -47,7 +48,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V367-004](v367-004-retry-transient-output-publication.yml) | defect | P1 | — | Retry Project output publication after transient database failures |
-| [V367-010](v367-010-page-run-artifact-listing.yml) | defect | P2 | — | Page the private Artifact list and the list_artifacts tool |
 
 ### Audits (`audits`)
 
