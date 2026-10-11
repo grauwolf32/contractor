@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V368-001
+title: "Bound and resume Audit report finalization"
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+priority: P1
+status: completed
+implementation_commit: f6a874b7cfe0a5c122c2646927cac82451436549
+depends_on: []
+languages: [go]
+goal: "A PostgreSQL test with 10,000 items and 2,000 findings finalizes under an injected per-attempt budget that a single unbounded pass would exceed, and a forced timeout resumes instead of restarting."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits G6, I1, F5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Finalize reads up to 100,001 items (auditstore/read.go:189), up to 500
+    coverage pages (auditimport/report.go:221) and up to 100,001 findings
+    (findings_sql.go:26), then one ReadProjectExact per finding
+    (report.go:406), all under the shared OperationTimeout of 10 s
+    (auditcontroller/types.go:23). A timeout is not permanent
+    (settlement.go:66-71), so a large Audit rebuilds its whole report from
+    scratch every tick and can stay in finalizing forever. Neither limit is
+    in platform/limits.md.
+  specification:
+    - docs/spec/audits/review-and-reports.md#REV-R194
+    - docs/spec/audits/review-and-reports.md#REV-R196
+    - docs/spec/audits/review-and-reports.md#REV-R197
+    - docs/spec/audits/audits.md#AUD-R223
+    - docs/spec/findings/findings.md#FND-R158
+  decision: >-
+    Guarantee: one Finalize attempt records at most 32 pages of report
+    entries (200 entries a page; a findings page ends with the finding whose
+    report projection brings its projections to 8 MiB) in
+    audit_report_pages under the live claim and the Audit revision, and
+    returns; a page commits on its own, so a timeout or failure keeps every
+    recorded page and the next attempt resumes after the last one. Assembly
+    reads the recorded entries once (bounded by the 64 MiB report bound) and
+    produces the same report bytes as one json.Marshal of the full lists.
+    Evidence: TestImporterFinalizesLargeAuditUnderPageBudgetAndResumes
+    builds 10,000 items and 2,000 findings on PostgreSQL in 27 pages under a
+    4-page budget, times one attempt out with a forced deadline after two
+    pages, reads every page exactly once and re-encodes the published items
+    and finding sections byte for byte; it fails when resume or the budget
+    is removed. Finding intake stores the proposal's canonical report
+    projection in finding_proposal_receipts.report_projection (text, so
+    octet_length bounds findings pages without detoasting); finalization
+    reads no proposal artifact. The column cannot be backfilled in SQL for
+    filesystem blob payloads, so migration 000050 requires a database
+    without receipts, as every database recreated for the V367-001 baseline
+    is. Pages belong to one Audit revision: a revision change while
+    finalizing makes them stale and the report is rebuilt, the same window
+    the report commit's revision CAS already had; a trigger discards them on
+    every exit from finalizing. Finalize's own budget is this work budget;
+    time stays bounded by the Controller operation timeout per attempt,
+    because pages commit individually. A lost candidate response is
+    recognized by the frozen candidate pinned to the attempt's revision, so
+    the human-acceptance replay keeps working although the build is gone. A
+    report over 100,000 findings now fails the Audit permanently instead of
+    returning a retryable error forever. Alternatives: batched exact
+    artifact reads with recorded fragments (keeps O(findings) artifact
+    reads), process-local progress (lost on restart or claim move), one
+    bounded single pass (still restarts after a timeout). Reopen if
+    assembling a maximal report cannot finish within the operation timeout
+    (then record the written artifacts as progress or add a finalize
+    timeout), or if triage during finalizing starves large builds (then key
+    item pages independently of finding revisions).
+scope:
+  in:
+    - "Store the finding projection the report needs at intake, read items, coverage and findings in bounded batches, give Finalize its own budget and make it resumable from recorded progress."
+    - "Record the item and finding limits in docs/spec/platform/limits.md."
+  out:
+    - "The report format and content."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL test with 10,000 items and 2,000 findings finalizes under an injected per-attempt budget that a single unbounded pass would exceed, and a forced timeout resumes instead of restarting."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditimport ./internal/auditcontroller ./internal/auditstore"
+    covers: [A1]
