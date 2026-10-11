@@ -2,11 +2,77 @@ package auditstore
 
 // SQL statements for report_review.go.
 
+// reportReviewSelectionCTE locks the pending report-acceptance review of the
+// Audit row in the named CTE while that row is in waiting_review. A report
+// review can be decided only there, so every other way out of that state
+// closes it: owner transitions and owner or Project deletion use this CTE,
+// while a decision or ExpireReportReview records its own outcome. A report
+// review starts with dispatch closed and every item settled, so the
+// Controller's deadline pause and item-review activation never leave
+// waiting_review while one is pending. The statement changes at most that one
+// Audit, adds reportReviewExpiryEvents after its own event and follows its
+// changed CTE with reportReviewClosureCTE.
+func reportReviewSelectionCTE(audit string) string {
+	return `report_review AS MATERIALIZED (
+    SELECT review.request_id, review.audit_id, review.revision
+      FROM ` + audit + ` AS leaving
+      JOIN audit_review_requests AS review
+        ON review.audit_id = leaving.audit_id AND review.subject_kind = 'audit-report'
+     WHERE leaving.state = 'waiting_review' AND review.state = 'pending'
+     FOR UPDATE OF review
+)`
+}
+
+// reportReviewExpiryEvents records one review.expired event per review that
+// reportReviewSelectionCTE locked, at the revision reportReviewClosureCTE
+// gives it.
+var reportReviewExpiryEvents = auditEventsFrom(
+	"report_review AS review", "review.request_id",
+	"'review.expired'", "review.request_id", "review.revision + 1",
+	"jsonb_build_object('subjectKind', 'audit-report', 'kind', 'report-acceptance')",
+)
+
+// reportReviewClosureCTE expires the reviews reportReviewSelectionCTE locked
+// for the Audit the changed CTE returns.
+const reportReviewClosureCTE = `expired_report_review AS (
+    UPDATE audit_review_requests AS review
+       SET state = 'expired', revision = review.revision + 1,
+           updated_at = GREATEST(clock_timestamp(), review.updated_at + interval '1 microsecond')
+      FROM report_review, changed
+     WHERE review.request_id = report_review.request_id
+       AND review.audit_id = changed.audit_id AND review.state = 'pending'
+)`
+
+// reportProposedEvents record the report-acceptance review a proposal opens.
+var reportProposedEvents = auditEvents(auditEvent(
+	"'review.requested'", "$7::text", "1",
+	"jsonb_build_object('subjectKind', 'audit-report', 'subjectId', audit.audit_id, 'kind', 'report-acceptance')",
+))
+
+// reportReviewExpiredEvents record a report review that expired undecided.
+var reportReviewExpiredEvents = auditEvents(auditEvent(
+	"'review.expired'", "gate.request_id", "NULL",
+	"jsonb_build_object('subjectKind', 'audit-report', 'kind', 'report-acceptance', 'terminalState', 'failed')",
+))
+
+// reportAcceptedEvents record an accepted report candidate like a committed
+// report.
+var reportAcceptedEvents = auditEvents(auditEvent(
+	"'audit.report_committed'", "audit.audit_id", "audit.revision",
+	"jsonb_build_object('requestDigest', $4::text)",
+))
+
+// reportRejectedEvents record the terminal transition of a rejected report.
+var reportRejectedEvents = auditEvents(auditEvent(
+	"'audit.state_changed'", "audit.audit_id", "audit.revision",
+	"jsonb_build_object('from', 'waiting_review', 'to', 'failed')",
+))
+
 // proposeReportSQL freezes report links $9/$10 of round $5 on a 30-day
 // report-acceptance review request $7 under the live controller claim ($1-$3). The Audit at
 // revision $4 must be finalizing with round $5 closed at revision $6, no
 // outstanding Runs, all items settled, all executions collected and no report
-// links; it moves to waiting_review and appends review.requested. The caller
+// links; it moves to waiting_review and records review.requested. The caller
 // completes the trailing SELECT. Used by PostgresStore.ProposeReport.
 var proposeReportSQL = `
 WITH live_claim AS MATERIALIZED (
@@ -55,22 +121,12 @@ WITH live_claim AS MATERIALIZED (
     RETURNING request_id, audit_id
 ), changed AS (
     UPDATE audits AS audit
-       SET state = 'waiting_review', revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+       SET state = 'waiting_review',
+           ` + reportProposedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM inserted_request AS candidate
      WHERE audit.audit_id = candidate.audit_id
-    RETURNING audit.*
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1, 'review.requested', $7,
-           1, jsonb_build_object(
-               'subjectKind', 'audit-report', 'subjectId', audit_id,
-               'kind', 'report-acceptance'
-           )
-      FROM changed
+    RETURNING audit.*, ` + reportProposedEvents.appended() + `
 )
 SELECT `
 
@@ -88,7 +144,7 @@ WITH live_claim AS MATERIALIZED (
        AND claim.expires_at > clock_timestamp()
      FOR UPDATE OF claim
 ), gate AS MATERIALIZED (
-    SELECT audit.audit_id, audit.next_event_sequence, review.request_id,
+    SELECT audit.audit_id, review.request_id,
            review.state AS review_state
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
@@ -113,24 +169,12 @@ WITH live_claim AS MATERIALIZED (
        SET state = 'failed', dispatch_state = 'closed', hold_state = 'released',
            stop_reason_code = 'report_acceptance_expired',
            stop_reason_message = 'The exact Audit report was not accepted before its review expired.',
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + reportReviewExpiredEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),
            finished_at = clock_timestamp()
       FROM gate
      WHERE audit.audit_id = gate.audit_id
-    RETURNING audit.audit_id, audit.next_event_sequence, gate.request_id
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, summary
-    )
-    SELECT audit_id, next_event_sequence - 1, 'review.expired', request_id,
-           jsonb_build_object(
-               'subjectKind', 'audit-report',
-               'kind', 'report-acceptance',
-               'terminalState', 'failed'
-           )
-      FROM terminal
+    RETURNING audit.audit_id, ` + reportReviewExpiredEvents.appended() + `
 )
 SELECT EXISTS (SELECT 1 FROM terminal)`
 
@@ -178,18 +222,12 @@ WITH link_input AS MATERIALIZED (
            stop_reason_message = CASE WHEN audit.stop_reason_code = 'round_complete'
                                       THEN NULL ELSE audit.stop_reason_message END,
            finished_at = clock_timestamp(),
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + reportAcceptedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM gate
      WHERE audit.audit_id = gate.audit_id
        AND (SELECT count(*) FROM inserted_links) = 2
-    RETURNING audit.*
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT audit_id, next_event_sequence - 1, 'audit.report_committed', audit_id, revision,
-           jsonb_build_object('requestDigest', $4::text)
-      FROM changed
+    RETURNING audit.*, ` + reportAcceptedEvents.appended() + `
 )
 SELECT `
 
@@ -215,16 +253,10 @@ WITH gate AS MATERIALIZED (
            stop_reason_code = 'report_rejected',
            stop_reason_message = 'The exact proposed Audit report was rejected by its owner.',
            finished_at = clock_timestamp(),
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + reportRejectedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM gate
      WHERE audit.audit_id = gate.audit_id
-    RETURNING audit.*
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
-    SELECT audit_id, next_event_sequence - 1, 'audit.state_changed', audit_id, revision,
-           jsonb_build_object('from', 'waiting_review', 'to', 'failed')
-      FROM changed
+    RETURNING audit.*, ` + reportRejectedEvents.appended() + `
 )
 SELECT `

@@ -1,5 +1,18 @@
 package auditstore
 
+// collectionEvents record the collected execution $4 with disposition $6 and
+// one review.expired event per stale finding review, in request order.
+var collectionEvents = auditEvents(
+	auditEvent("'execution.collected'", "$4::text", "NULL",
+		"jsonb_build_object('disposition', $6::text)"),
+	auditEventsFrom("stale_finding_reviews AS stale", "stale.request_id",
+		"'review.expired'", "stale.request_id", "NULL",
+		`jsonb_build_object(
+               'subjectKind', 'finding', 'findingId', stale.finding_id,
+               'kind', 'finding-triage'
+           )`),
+)
+
 // collectAuditExecutionSQL is one atomic statement. live_claim and execution_gate
 // lock the authority rows; member/finding validation gates advanced_audit and its
 // evidence budget. Every receipt, settlement, coverage, association, link and
@@ -71,7 +84,7 @@ WITH collection_input AS MATERIALIZED (
 ), stale_finding_reviews AS MATERIALIZED (
     -- Each associated finding gets a new assessment and revision below, so a
     -- pending triage request for its earlier revision can never be decided.
-    -- The locked rows fix how many review.expired events this statement adds.
+    -- The locked rows are the review.expired events of collectionEvents.
     SELECT request.request_id, request.finding_id
       FROM audit_review_requests AS request
       JOIN execution_gate AS gate ON gate.audit_id = request.audit_id
@@ -84,23 +97,18 @@ WITH collection_input AS MATERIALIZED (
                ON contribution.audit_id = $1 AND contribution.receipt_id = input.receipt_id
        )
      FOR UPDATE OF request
-), stale_review_count AS MATERIALIZED (
-    SELECT count(*)::bigint AS expired FROM stale_finding_reviews
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET retained_evidence_bytes = audit.retained_evidence_bytes + $12,
-           revision = audit.revision + 1 + stale.expired,
-           next_event_sequence = audit.next_event_sequence + 1 + stale.expired,
+           ` + collectionEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM execution_gate, member_validation, finding_validation,
-           stale_review_count AS stale
+      FROM execution_gate, member_validation, finding_validation
      WHERE audit.audit_id = execution_gate.audit_id
        AND member_validation.stored_count = jsonb_array_length($10::jsonb)
        AND member_validation.matched_count = member_validation.stored_count
        AND finding_validation.input_count = finding_validation.matched_count
        AND audit.retained_evidence_bytes + $12 <= audit.max_evidence_bytes
-    RETURNING audit.audit_id, audit.max_item_run_attempts,
-              audit.next_event_sequence - 1 - stale.expired AS collected_sequence
+    RETURNING audit.audit_id, audit.max_item_run_attempts, ` + collectionEvents.appended() + `
 ), inserted_receipt AS (
     -- Collecting records the receipt on the execution and moves it to
     -- 'collected' in one row update.
@@ -228,28 +236,12 @@ WITH collection_input AS MATERIALIZED (
            link.artifact_digest, link.media_type, link.size_bytes,
            link.source_provenance, link.display_ref
       FROM inserted_receipt AS receipt CROSS JOIN link_input AS link
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT receipt.audit_id, advanced.collected_sequence,
-           'execution.collected', receipt.execution_id,
-           jsonb_build_object('disposition', receipt.disposition)
-      FROM inserted_receipt AS receipt JOIN advanced_audit AS advanced USING (audit_id)
 ), expired_finding_reviews AS (
     UPDATE audit_review_requests AS request
        SET state = 'expired', revision = request.revision + 1,
            updated_at = GREATEST(clock_timestamp(), request.updated_at + interval '1 microsecond')
       FROM stale_finding_reviews AS stale, advanced_audit
      WHERE request.request_id = stale.request_id AND request.state = 'pending'
-), expired_review_events AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT advanced.audit_id,
-           advanced.collected_sequence + row_number() OVER (ORDER BY stale.request_id),
-           'review.expired', stale.request_id,
-           jsonb_build_object(
-               'subjectKind', 'finding', 'findingId', stale.finding_id,
-               'kind', 'finding-triage'
-           )
-      FROM stale_finding_reviews AS stale CROSS JOIN advanced_audit AS advanced
 )
 SELECT ` + prefixedReceiptColumns("inserted_receipt") + `
   FROM inserted_receipt`

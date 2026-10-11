@@ -30,43 +30,7 @@ func (s *PostgresStore) Transition(
 		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
 	}
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
-	audit, err := scanAudit(s.db.QueryRow(ctx, `
-WITH target AS MATERIALIZED (
-    SELECT audit.audit_id, audit.state
-      FROM audits AS audit
-     WHERE audit.audit_id = $2 AND audit.owner_id = $1
-     FOR UPDATE OF audit
-), `+reportReviewSelectionCTEs("target")+`, changed AS (
-    UPDATE audits AS audit
-       SET state = $5,
-           paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
-           revision = audit.revision + 1 + report_review_count.expired,
-           dispatch_state = CASE WHEN $5 = 'cancelling' THEN 'closed' ELSE dispatch_state END,
-           stop_reason_code = $6,
-           stop_reason_message = $7,
-           updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
-           next_event_sequence = audit.next_event_sequence + 1 + report_review_count.expired
-      FROM target, report_review_count
-     WHERE audit.audit_id = target.audit_id
-       AND audit.revision = $3 AND audit.state = $4
-    RETURNING audit.*
-), `+reportReviewClosureCTEs+`, idempotency_row AS (
-    INSERT INTO audit_idempotency (
-        owner_id, operation, idempotency_key, request_digest,
-        audit_id, resource_id, response_snapshot
-    )
-    SELECT $1, 'audit.transition', $8, $9, audit_id, audit_id, $10::jsonb
-      FROM changed
-), event_row AS (
-    INSERT INTO audit_events (
-        audit_id, sequence_number, kind, entity_id, entity_revision, summary
-    )
-    SELECT audit_id, next_event_sequence - 1 - report_review_count.expired,
-           'audit.state_changed', audit_id, revision,
-           jsonb_build_object('from', $4::text, 'to', $5::text)
-      FROM changed CROSS JOIN report_review_count
-)
-SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+	audit, err := scanAudit(s.db.QueryRow(ctx, transitionSQL+prefixedAuditColumns("changed")+` FROM changed`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
 		params.IdempotencyKey, params.RequestDigest, response,

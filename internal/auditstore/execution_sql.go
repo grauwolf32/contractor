@@ -2,10 +2,16 @@ package auditstore
 
 // SQL statements for execution.go.
 
+// runBoundEvents record Run $5 bound to the eligible execution.
+var runBoundEvents = auditEvents(auditEvent(
+	"'execution.run_bound'", "eligible.execution_id", "NULL",
+	"jsonb_build_object('runId', $5::text)",
+))
+
 // bindRunSQL binds initializing child Run $5 to intent execution $4 under the
 // live controller claim ($1-$3), gated on an active, open-dispatch Audit before
 // its deadline and an active Project. It takes one reserved Run slot, records
-// Run provenance, marks the execution submitted and appends
+// Run provenance, marks the execution submitted and records
 // execution.run_bound; the caller completes the trailing SELECT.
 // Used by PostgresStore.BindRun.
 var bindRunSQL = `
@@ -49,15 +55,14 @@ WITH live_claim AS MATERIALIZED (
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET submitted_run_count = audit.submitted_run_count + 1,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + runBoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
      FROM eligible
      WHERE audit.audit_id = eligible.audit_id
        AND audit.submitted_run_count < audit.reserved_run_count
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
-    RETURNING audit.audit_id, audit.next_event_sequence
+    RETURNING audit.audit_id, ` + runBoundEvents.appended() + `
 ), changed AS (
     UPDATE audit_executions AS execution
        SET run_id = $5, run_provenance = eligible.run_provenance,
@@ -65,19 +70,24 @@ WITH live_claim AS MATERIALIZED (
       FROM eligible JOIN advanced_audit USING (audit_id)
      WHERE execution.execution_id = eligible.execution_id
     RETURNING execution.*
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT changed.audit_id, advanced_audit.next_event_sequence - 1,
-           'execution.run_bound', changed.execution_id,
-           jsonb_build_object('runId', $5::text)
-      FROM changed JOIN advanced_audit USING (audit_id)
 )
 SELECT `
+
+// terminalObservedEvents record the terminal outcome observed for the changed
+// execution.
+var terminalObservedEvents = auditEvents(auditEvent(
+	"'execution.terminal_observed'", "changed.execution_id", "NULL",
+	`jsonb_build_object(
+               'outcome', changed.terminal_outcome,
+               'generation', changed.terminal_run_generation,
+               'sequence', changed.terminal_run_sequence
+           )`,
+))
 
 // observeTerminalSQL records that Run $5 of submitted execution $4 finished at
 // event generation $6 and last sequence $7, under the live controller claim
 // ($1-$3). It moves the execution and its submitted items to collecting, stores
-// the terminal outcome, decrements outstanding_run_count and appends
+// the terminal outcome, decrements outstanding_run_count and records
 // execution.terminal_observed; the caller completes the trailing SELECT.
 // Used by PostgresStore.ObserveTerminal.
 var observeTerminalSQL = `
@@ -130,30 +140,25 @@ WITH live_claim AS MATERIALIZED (
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + terminalObservedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM changed
      WHERE audit.audit_id = changed.audit_id
-    RETURNING audit.audit_id, audit.next_event_sequence
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT changed.audit_id, advanced_audit.next_event_sequence - 1,
-           'execution.terminal_observed', changed.execution_id,
-           jsonb_build_object(
-               'outcome', changed.terminal_outcome,
-               'generation', changed.terminal_run_generation,
-               'sequence', changed.terminal_run_sequence
-           )
-      FROM changed JOIN advanced_audit USING (audit_id)
+    RETURNING audit.audit_id, ` + terminalObservedEvents.appended() + `
 )
 SELECT `
+
+// submissionFailedEvents record an execution whose Run was never submitted.
+var submissionFailedEvents = auditEvents(auditEvent(
+	"'execution.terminal_observed'", "changed.execution_id", "NULL",
+	"jsonb_build_object('outcome', 'submission-failed')",
+))
 
 // observeSubmissionFailureSQL closes intent execution $4 that never got a Run,
 // under the live controller claim ($1-$3): the execution and its submitted
 // items move to collecting with outcome submission-failed,
 // outstanding_run_count is decremented and execution.terminal_observed is
-// appended. The caller completes the trailing SELECT.
+// recorded. The caller completes the trailing SELECT.
 // Used by PostgresStore.ObserveSubmissionFailure.
 var observeSubmissionFailureSQL = `
 WITH live_claim AS MATERIALIZED (
@@ -193,17 +198,10 @@ WITH live_claim AS MATERIALIZED (
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,
-           revision = audit.revision + 1,
-           next_event_sequence = audit.next_event_sequence + 1,
+           ` + submissionFailedEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM changed
      WHERE audit.audit_id = changed.audit_id
-    RETURNING audit.audit_id, audit.next_event_sequence
-), event_row AS (
-    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, summary)
-    SELECT changed.audit_id, advanced_audit.next_event_sequence - 1,
-           'execution.terminal_observed', changed.execution_id,
-           jsonb_build_object('outcome', 'submission-failed')
-      FROM changed JOIN advanced_audit USING (audit_id)
+    RETURNING audit.audit_id, ` + submissionFailedEvents.appended() + `
 )
 SELECT `

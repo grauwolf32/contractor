@@ -322,6 +322,16 @@ func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 	if err != nil || audit.Phase != auditdomain.AuditPhaseInventory || audit.CurrentRoundID != nil || !reflect.DeepEqual(audit.BaselineSnapshot, current.BaselineSnapshot) {
 		t.Fatalf("inventory transition: %+v %v", audit, err)
 	}
+	// Preparation records its events through the dense Audit event sequence.
+	var events, first, last, preparation int64
+	if err := f.pool.QueryRow(f.ctx, `
+SELECT count(*), COALESCE(min(sequence_number), 0), COALESCE(max(sequence_number), 0),
+       count(*) FILTER (WHERE kind IN ('audit.preparation_started', 'audit.preparation_completed'))
+  FROM audit_events WHERE audit_id = $1`, audit.AuditID).Scan(&events, &first, &last, &preparation); err != nil ||
+		events != int64(audit.EventSequence) || first != 1 || last != events || preparation != 2 {
+		t.Fatalf("preparation events = %d numbered %d..%d with %d preparation events (%v), want 1..%d",
+			events, first, last, preparation, err, audit.EventSequence)
+	}
 }
 
 func TestPostgresAuditPreparationConcurrentIntentAndReceipt(t *testing.T) {
