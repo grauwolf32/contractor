@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 3 in progress, 89 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
+105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
 
 ## In progress
 
@@ -140,7 +140,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V368-002](v368-002-strict-wire-decoding.yml) | defect | P1 | — | Reject wire messages that omit required fields in Go |
 | [V368-005](v368-005-honest-error-retryability.yml) | defect | P1 | — | Make Artifact and configuration errors report the right retryability |
-| [V368-007](v368-007-strict-json-everywhere.yml) | defect | P1 | — | Decode every untrusted JSON body strictly |
 | [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
 | [V368-013](v368-013-run-detail-cursor-snapshot.yml) | defect | P1 | — | Read the Run detail and its event cursor in one snapshot |
 | [V368-024](v368-024-resource-id-grammar.yml) | defect | P2 | — | Use one ResourceId and ConfigId grammar in every Go package |
@@ -224,6 +223,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 16 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 15 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |
