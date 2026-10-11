@@ -12,7 +12,6 @@
 package strictjson
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -59,9 +58,9 @@ func Decode(data []byte, target any) error {
 	if err != nil && !errors.Is(err, errSyntax) {
 		return err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if decodeErr := decoder.Decode(target); decodeErr != nil {
+	// The scan has already rejected unknown members and trailing data, so
+	// json.Unmarshal decodes in place instead of a Decoder copying the input.
+	if decodeErr := json.Unmarshal(data, target); decodeErr != nil {
 		return decodeErr
 	}
 	if err != nil {

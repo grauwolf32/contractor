@@ -421,6 +421,13 @@ Server-side projection tools load the complete snapshot, validate its
 allocation, invocation and subtask correlation, run one fixed projection and
 return only that projection.
 
+**PLN-R114.** Each changed State revision is decoded and validated once:
+`WorkerStateReader` returns a snapshot it decoded with the strict private
+decoder ([CTL-R149](control-plane.md)) and validated for that read alone, and
+the projection service keeps it without copying or validating it again. An
+unchanged revision is revalidated with `If-None-Match` and served from that
+snapshot. Projections only read the snapshot.
+
 **PLN-R48.** Projection tools accept no state key, JSONPath,
 expression, field list or arbitrary aggregation program.
 

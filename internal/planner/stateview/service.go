@@ -222,14 +222,20 @@ func (s *Service) GetWorkspaceCoverage(
 	if err != nil {
 		return WorkspaceCoverage{}, err
 	}
-	discovered, read, matched, modified := workspaceSets(workspace)
 	result := WorkspaceCoverage{
 		ScopedFiles: uint64(len(workspace.ScopePaths)), ScopeComplete: workspace.ScopeComplete,
-		DiscoveredFiles: uint64(len(discovered)), ReadFiles: uint64(len(read)),
-		MatchedFiles: uint64(len(matched)), ModifiedFiles: uint64(len(modified)),
 		DetailComplete: workspace.DetailComplete,
 	}
+	// Interaction paths are unique (AgentStateSnapshot.Validate), so counting
+	// interactions counts paths.
+	for _, item := range workspace.Interactions {
+		result.DiscoveredFiles += countIf(item.DiscoveryCalls > 0)
+		result.ReadFiles += countIf(item.ReadCalls > 0)
+		result.MatchedFiles += countIf(item.MatchCalls > 0)
+		result.ModifiedFiles += countIf(item.MutationCalls > 0)
+	}
 	if workspace.ScopeComplete && workspace.DetailComplete {
+		read := readPaths(workspace)
 		unread := uint64(0)
 		for _, path := range workspace.ScopePaths {
 			if _, observed := read[path]; !observed {
@@ -276,7 +282,7 @@ func (s *Service) ListUnreadFiles(
 	if !workspace.ScopeComplete || !workspace.DetailComplete {
 		return FilePage{}, projectionError(CodeWorkspaceIncomplete, false)
 	}
-	_, read, _, _ := workspaceSets(workspace)
+	read := readPaths(workspace)
 	files := make([]string, 0, len(workspace.ScopePaths))
 	for _, path := range workspace.ScopePaths {
 		if _, observed := read[path]; !observed {
@@ -383,11 +389,9 @@ func (s *Service) load(
 	case read.NotModified && read.Snapshot == nil && hasCache && read.ETag == cached.etag:
 		snapshot = cached.snapshot
 	case !read.NotModified && read.Snapshot != nil:
-		cloned, cloneErr := cloneSnapshot(*read.Snapshot)
-		if cloneErr != nil {
-			return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
-		}
-		snapshot = cloned
+		// The reader hands over a snapshot it decoded and validated for this
+		// read alone; projections only read it, so it is cached as is.
+		snapshot = *read.Snapshot
 	default:
 		return reporting.AgentStateSnapshot{}, completionSelector{}, projectionError(CodeUnavailable, true)
 	}
@@ -410,28 +414,22 @@ func correlates(snapshot reporting.AgentStateSnapshot, selector completionSelect
 		invocation.InvocationID == selector.InvocationID && invocation.SubtaskID == selector.SubtaskID
 }
 
-func workspaceSets(
-	workspace reporting.WorkerStateWorkspace,
-) (map[string]struct{}, map[string]struct{}, map[string]struct{}, map[string]struct{}) {
-	discovered := map[string]struct{}{}
-	read := map[string]struct{}{}
-	matched := map[string]struct{}{}
-	modified := map[string]struct{}{}
+func countIf(condition bool) uint64 {
+	if condition {
+		return 1
+	}
+	return 0
+}
+
+// readPaths returns the paths the Worker read.
+func readPaths(workspace reporting.WorkerStateWorkspace) map[string]struct{} {
+	read := make(map[string]struct{}, len(workspace.Interactions))
 	for _, item := range workspace.Interactions {
-		if item.DiscoveryCalls > 0 {
-			discovered[item.Path] = struct{}{}
-		}
 		if item.ReadCalls > 0 {
 			read[item.Path] = struct{}{}
 		}
-		if item.MatchCalls > 0 {
-			matched[item.Path] = struct{}{}
-		}
-		if item.MutationCalls > 0 {
-			modified[item.Path] = struct{}{}
-		}
 	}
-	return discovered, read, matched, modified
+	return read
 }
 
 func (s *Service) page(
@@ -555,16 +553,6 @@ func hmacDigest(key, value []byte) []byte {
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write(value)
 	return mac.Sum(nil)
-}
-
-// cloneSnapshot leaves the size bound to AgentStateSnapshot.Validate inside
-// DecodeStrict; json.Marshal escapes HTML and would overcount it.
-func cloneSnapshot(input reporting.AgentStateSnapshot) (reporting.AgentStateSnapshot, error) {
-	encoded, err := json.Marshal(input)
-	if err != nil {
-		return reporting.AgentStateSnapshot{}, errors.New("Worker State snapshot cannot be cloned")
-	}
-	return contracts.DecodeStrict[reporting.AgentStateSnapshot](encoded)
 }
 
 func projectionError(code string, retryable bool) *Error {
