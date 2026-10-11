@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V323-001
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "A registration that Operations could not show is rejected when it arrives, and the capability bounds live in one place shared by Go, Python and the schemas."
