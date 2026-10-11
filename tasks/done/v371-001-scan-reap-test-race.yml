@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: defect
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: "424fb693698b0a4abc5d08be20bfa57128a71e57"
 depends_on: []
 languages: [python]
 goal: "test_cancellation_and_close_reap_process_group waits for the forked child to be gone or a zombie and never fails because the host reaped it while the test read its /proc entry."
