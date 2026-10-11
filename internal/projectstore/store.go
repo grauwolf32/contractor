@@ -66,7 +66,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 		return Project{}, false, fmt.Errorf("resolve Project idempotency: %w", err)
 	}
 	if existingDigest != params.RequestDigest {
-		return Project{}, false, ErrConflict
+		return Project{}, false, fmt.Errorf("%w: Project creation key", contracts.ErrIdempotencyConflict)
 	}
 	project, err = s.Get(ctx, params.OwnerID, existingID)
 	return project, false, err

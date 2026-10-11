@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -157,7 +158,7 @@ SELECT audit_id, request_digest
 		return Audit{}, false, fmt.Errorf("resolve Audit idempotency: %w", err)
 	}
 	if storedDigest != digest {
-		return Audit{}, true, ErrConflict
+		return Audit{}, true, fmt.Errorf("%w: Audit %s key", contracts.ErrIdempotencyConflict, operation)
 	}
 	audit, err := s.Get(ctx, ownerID, auditID)
 	return audit, true, err

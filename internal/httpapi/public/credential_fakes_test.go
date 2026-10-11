@@ -72,7 +72,7 @@ func (f *fakeManagedCredentials) Create(
 	defer f.mu.Unlock()
 	if previous, exists := f.created[request.IdempotencyKey]; exists {
 		if previous != request.CredentialID {
-			return credentials.CreateResult{}, credentials.ErrConflict
+			return credentials.CreateResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.CreateResult{Credential: f.records[previous], Replayed: true}, nil
 	}
@@ -114,7 +114,7 @@ func (f *fakeManagedCredentials) Delete(
 	}
 	if previous, exists := f.deleted[request.IdempotencyKey]; exists {
 		if previous != request.CredentialID {
-			return credentials.DeleteResult{}, credentials.ErrConflict
+			return credentials.DeleteResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.DeleteResult{Replayed: true}, nil
 	}

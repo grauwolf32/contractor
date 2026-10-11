@@ -314,7 +314,7 @@ func (m *Manager) Publish(
 	}
 	if previous, exists := m.idempotency[request.IdempotencyKey]; exists {
 		if previous.requestDigest != candidate.requestDigest {
-			return PublicationResult{}, fmt.Errorf("%w: Idempotency-Key was already used for another publication", ErrPublicationConflict)
+			return PublicationResult{}, fmt.Errorf("%w: Idempotency-Key was already used for another publication", contracts.ErrIdempotencyConflict)
 		}
 		existing, existingErr := loaded.Configuration(request.Kind, candidate.selector.String())
 		if existingErr != nil || existing.Source != ConfigurationSourceManaged ||

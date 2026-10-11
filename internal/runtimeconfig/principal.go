@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -704,7 +705,7 @@ WHERE idempotency_key_digest = $1`, keyDigest).Scan(
 		return PrincipalMutationResult{}, false, errors.New("get Runtime Agent management replay")
 	}
 	if storedRequest != requestDigest || storedKind != kind || storedResource != runtimeAgentID {
-		return PrincipalMutationResult{}, false, ErrConflict
+		return PrincipalMutationResult{}, false, fmt.Errorf("%w: Runtime Agent management key", contracts.ErrIdempotencyConflict)
 	}
 	var wire principalMutationResultWire
 	if err := json.Unmarshal([]byte(resultText), &wire); err != nil || (wire.Principal == nil) == !wire.Deleted {

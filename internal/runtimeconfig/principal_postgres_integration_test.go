@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -249,6 +250,13 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 	if err != nil || !replayedMutation.Replayed || replayedMutation.Principal == nil ||
 		replayedMutation.Principal.LabelRevision != 2 {
 		t.Fatalf("label response-loss replay = (%+v, %v)", replayedMutation, err)
+	}
+	// The same key with other labels is a different request: permanent, and
+	// the replayed result stays the original one.
+	if _, err := service.ReplaceLabelsIdempotent(
+		ctx, principalID, 1, []string{"agent-route"}, successful.key, "operator", now.Add(time.Minute),
+	); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) {
+		t.Fatalf("label key reused with another request error = %v", err)
 	}
 	if _, err := service.ReplaceLabelsIdempotent(
 		ctx, principalID, 1, []string{}, "principal-stale", "operator", now.Add(2*time.Minute),

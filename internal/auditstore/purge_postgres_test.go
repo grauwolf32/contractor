@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -318,6 +319,13 @@ func drainDeletedAuditForPurge(
 	})
 	if err != nil || !changed || cancelling.State != AuditCancelling {
 		t.Fatalf("request Audit deletion = (%+v, %t, %v)", cancelling, changed, err)
+	}
+	// The deletion key reused with another request digest is permanent.
+	if _, changed, err := f.store.RequestDelete(f.ctx, DeleteParams{
+		OwnerID: current.OwnerID, AuditID: current.AuditID, ExpectedRevision: current.Revision,
+		IdempotencyKey: "purge-delete", RequestDigest: testDigest("b"),
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) || changed {
+		t.Fatalf("Audit deletion idempotency drift = (%t, %v)", changed, err)
 	}
 	if _, err := f.store.TransitionClaimed(f.ctx, ClaimedTransitionParams{
 		Claim: f.claim, ExpectedRevision: cancelling.Revision,

@@ -101,14 +101,13 @@ func waitForRetry(ctx context.Context, attempt int) error {
 	}
 }
 
+// retryableResponse decides a Server error response by its envelope alone:
+// the Server marks every error retryable or not, and retryable false wins on
+// any status, including 502, 503 and 504. Only a response without the API
+// version header (an intermediary) is classified by status, in IsTransient.
 func retryableResponse(response *http.Response) bool {
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusNotFound {
-		return false
-	}
-	if transientStatus(response.StatusCode) {
-		return true
-	}
-	if response.StatusCode < http.StatusBadRequest {
+	if response.StatusCode < http.StatusBadRequest ||
+		response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusNotFound {
 		return false
 	}
 	data, err := io.ReadAll(response.Body)
@@ -127,7 +126,9 @@ func transientStatus(status int) bool {
 }
 
 // IsTransient reports whether another poll can recover from a public call
-// error. A caller must still stop when its own context expires.
+// error. A Server error is transient only when it is marked retryable; an
+// intermediary's error is transient by status. A caller must still stop when
+// its own context expires.
 func IsTransient(err error) bool {
 	var compatibility *CompatibilityError
 	if errors.As(err, &compatibility) {
@@ -142,7 +143,7 @@ func IsTransient(err error) bool {
 		if apiError.Status == http.StatusUnauthorized || apiError.Status == http.StatusNotFound {
 			return false
 		}
-		return apiError.Retryable || transientStatus(apiError.Status)
+		return apiError.Retryable
 	}
 	var urlError *url.Error
 	if errors.As(err, &urlError) {

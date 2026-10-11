@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -59,7 +60,7 @@ SELECT request_id, request_digest
 		)
 		if err == nil {
 			if storedDigest != params.RequestDigest {
-				return auditstore.ErrConflict
+				return fmt.Errorf("%w: finding review key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
@@ -158,7 +159,7 @@ SELECT decision_id, request_id, finding_id, request_digest
 		)
 		if err == nil {
 			if storedDigest != params.RequestDigest || requestID != params.RequestID {
-				return auditstore.ErrConflict
+				return fmt.Errorf("%w: finding decision key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil

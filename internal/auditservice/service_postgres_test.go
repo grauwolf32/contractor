@@ -274,6 +274,16 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		approved.Request.State != ReviewDecided {
 		t.Fatalf("approve manual item = (%+v, %v)", approved, err)
 	}
+	if _, err := service.DecideActionReview(ctx, DecideActionReviewParams{
+		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID,
+		RequestID: reviews[0].RequestID, ExpectedRequestRevision: reviews[0].Revision,
+		DecisionID: "decision-manual-approve", Action: ReviewApprove,
+		Rationale:      "The owner approved this exact checklist action.",
+		IdempotencyKey: "decision-manual-approve",
+		RequestDigest:  serviceTestDigest("decision-manual-approve-changed"),
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("action decision key reused with another request = %v", err)
+	}
 	approvedItems, err := service.ListItems(ctx, auditstore.ListItemsParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
 	})
@@ -973,6 +983,13 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		request.Request.State != ReviewPending {
 		t.Fatalf("create finding review = (%+v, %v)", request, err)
 	}
+	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
+		RequestID: "review-first-1", IdempotencyKey: "review-first-1",
+		RequestDigest: serviceTestDigest("review-first-1-changed"),
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("finding review key reused with another request = %v", err)
+	}
 	severity := SeverityHigh
 	decisionParams := DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
@@ -1002,6 +1019,12 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	replayed, err := service.DecideFinding(ctx, decisionParams)
 	if err != nil || !replayed.Replayed || replayed.Decision.DecisionID != "decision-first-1" {
 		t.Fatalf("decision replay = (%+v, %v)", replayed, err)
+	}
+	changedDecision := decisionParams
+	changedDecision.RequestDigest = serviceTestDigest("decision-first-1-changed")
+	if _, err := service.DecideFinding(ctx, changedDecision); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("decision key reused with another request = %v", err)
 	}
 	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -419,6 +420,7 @@ func safeRuntimeCredentialStoreError(err error) error {
 	}
 	switch {
 	case errors.Is(err, ErrRuntimeCredentialInvalid), errors.Is(err, ErrRuntimeCredentialConflict),
+		errors.Is(err, contracts.ErrIdempotencyConflict),
 		errors.Is(err, ErrRuntimeCredentialNotFound), errors.Is(err, ErrRuntimeCredentialInUse),
 		errors.Is(err, ErrKeyUnavailable), errors.Is(err, ErrCrypto),
 		errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):

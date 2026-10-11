@@ -309,10 +309,10 @@ existing Run and does not repeat label or Skill resolution, input forks or
 Scheduler notification (FAIL-RUN-1). Skill replay behaviour is specified in
 [Skills](../tools/skills.md).
 
-**RUN-R21.** Reusing the key with a different digest is a
-conflict, including a changed label key or value when Workflow inputs and
-executionConfig are otherwise equal. The original Run is unchanged
-(FAIL-RUN-1).
+**RUN-R21.** Reusing the key with a different digest is the
+permanent `idempotency_conflict` (API-R69), including a changed label key or
+value when Workflow inputs and executionConfig are otherwise equal. The
+original Run is unchanged (FAIL-RUN-1).
 
 Rationale: losing the successful HTTP response cannot create a second
 WorkflowRun or semantic execution.

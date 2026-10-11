@@ -6400,6 +6400,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
+      description: Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
       schema:
         type: string
         minLength: 1
@@ -6666,7 +6667,7 @@ components:
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error409:
-      description: Immutable identity, idempotency body, or CAS state conflicts
+      description: An immutable identity or CAS state conflict (`conflict` or a resource-specific code, retryable as marked), or an Idempotency-Key already bound to a different request (`idempotency_conflict`, retryable false)
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error412:

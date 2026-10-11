@@ -7222,6 +7222,7 @@ type ListOwnerAuditsParams struct {
 
 // DeleteAuditParams defines parameters for DeleteAudit.
 type DeleteAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7234,6 +7235,7 @@ type DeleteAuditParams struct {
 
 // CancelAuditParams defines parameters for CancelAudit.
 type CancelAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7294,6 +7296,7 @@ type ListAuditFindingProvenanceParams struct {
 
 // CreateAuditFindingReviewParams defines parameters for CreateAuditFindingReview.
 type CreateAuditFindingReviewParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7315,6 +7318,7 @@ type ListAuditItemsParams struct {
 
 // PauseAuditParams defines parameters for PauseAudit.
 type PauseAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7327,6 +7331,7 @@ type PauseAuditParams struct {
 
 // ResumeAuditParams defines parameters for ResumeAudit.
 type ResumeAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7350,6 +7355,7 @@ type ListAuditReviewsParams struct {
 
 // DecideAuditReviewParams defines parameters for DecideAuditReview.
 type DecideAuditReviewParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7362,6 +7368,7 @@ type DecideAuditReviewParams struct {
 
 // StartAuditParams defines parameters for StartAudit.
 type StartAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7404,6 +7411,7 @@ type ListConfigurationsParams struct {
 
 // PublishConfigurationParams defines parameters for PublishConfiguration.
 type PublishConfigurationParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7441,12 +7449,14 @@ type ListEvalExperimentsParamsControlMode string
 
 // DeleteEvalExperimentParams defines parameters for DeleteEvalExperiment.
 type DeleteEvalExperimentParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 }
 
 // UpdateEvalDraftParams defines parameters for UpdateEvalDraft.
 type UpdateEvalDraftParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 }
@@ -7473,6 +7483,7 @@ type GetEvalChartParamsSort string
 
 // CommandEvalExperimentParams defines parameters for CommandEvalExperiment.
 type CommandEvalExperimentParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 }
@@ -7497,6 +7508,7 @@ type ListEvalMembersParamsFilter string
 
 // AssessEvalMemberParams defines parameters for AssessEvalMember.
 type AssessEvalMemberParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
@@ -7508,6 +7520,7 @@ type ListEvalMemberExecutionsParams struct {
 
 // IngestEvalResultParams defines parameters for IngestEvalResult.
 type IngestEvalResultParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
@@ -7518,6 +7531,7 @@ type ReviewEvalMemberParams struct {
 
 // SubmitEvalMemberParams defines parameters for SubmitEvalMember.
 type SubmitEvalMemberParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
@@ -7554,6 +7568,7 @@ type GetEvalReportParamsFormat string
 
 // SelectEvalRecordsParams defines parameters for SelectEvalRecords.
 type SelectEvalRecordsParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 }
@@ -7613,6 +7628,7 @@ type ListCredentialsParams struct {
 
 // CreateCredentialParams defines parameters for CreateCredential.
 type CreateCredentialParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7624,6 +7640,7 @@ type CreateCredentialParams struct {
 
 // DeleteCredentialParams defines parameters for DeleteCredential.
 type DeleteCredentialParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7648,6 +7665,7 @@ type ListRuntimeAgentPrincipalsParams struct {
 
 // DeleteRuntimeAgentPrincipalParams defines parameters for DeleteRuntimeAgentPrincipal.
 type DeleteRuntimeAgentPrincipalParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7660,6 +7678,7 @@ type DeleteRuntimeAgentPrincipalParams struct {
 
 // ReplaceRuntimeAgentPrincipalLabelsParams defines parameters for ReplaceRuntimeAgentPrincipalLabels.
 type ReplaceRuntimeAgentPrincipalLabelsParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7684,6 +7703,7 @@ type ListRuntimeConfigsParams struct {
 
 // PublishRuntimeConfigParams defines parameters for PublishRuntimeConfig.
 type PublishRuntimeConfigParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7701,6 +7721,7 @@ type ListRuntimeCredentialsParams struct {
 
 // CreateRuntimeCredentialParams defines parameters for CreateRuntimeCredential.
 type CreateRuntimeCredentialParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7730,6 +7751,7 @@ type ListRuntimeLabelsParams struct {
 
 // DeleteRuntimeLabelParams defines parameters for DeleteRuntimeLabel.
 type DeleteRuntimeLabelParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 
@@ -7742,6 +7764,7 @@ type DeleteRuntimeLabelParams struct {
 
 // PutRuntimeLabelParams defines parameters for PutRuntimeLabel.
 type PutRuntimeLabelParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey                    `json:"Idempotency-Key"`
 	IfMatch        *IfMatch                          `json:"If-Match,omitempty"`
 	IfNoneMatch    *PutRuntimeLabelParamsIfNoneMatch `json:"If-None-Match,omitempty"`
@@ -7776,6 +7799,7 @@ type ListProjectsParams struct {
 
 // CreateProjectParams defines parameters for CreateProject.
 type CreateProjectParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7887,6 +7911,7 @@ type ListProjectAuditsParams struct {
 
 // CreateAuditParams defines parameters for CreateAudit.
 type CreateAuditParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7904,6 +7929,7 @@ type ListEvalDatasetsParams struct {
 
 // ImportEvalDatasetParams defines parameters for ImportEvalDataset.
 type ImportEvalDatasetParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
@@ -7915,6 +7941,7 @@ type ListEvalCasesParams struct {
 
 // CreateEvalExperimentParams defines parameters for CreateEvalExperiment.
 type CreateEvalExperimentParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
@@ -7931,6 +7958,7 @@ type ListProjectRunsParams struct {
 
 // CreateProjectRunParams defines parameters for CreateProjectRun.
 type CreateProjectRunParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7987,6 +8015,7 @@ type ListRunsParams struct {
 
 // CreateRunParams defines parameters for CreateRun.
 type CreateRunParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.

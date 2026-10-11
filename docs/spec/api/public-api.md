@@ -298,6 +298,18 @@ ownership and CAS requirements ([Runs](../execution/runs.md),
 RuntimeConfig, label and Agent-label administrative commands require their own
 idempotency keys, revision preconditions where specified, and an audit actor.
 
+**API-R69.** Every operation that binds an `Idempotency-Key` (the OpenAPI
+`IdempotencyKey` parameter) treats the key as bound to its exact request:
+repeating that request with the key replays the original result, and sending
+a different request with it is `409 idempotency_conflict` with `retryable`
+false. The outcome is permanent: the original result is unchanged, and only
+a new key can carry the changed request (FAIL-RUN-1). It is distinct from an
+optimistic revision or identity conflict, which keeps its own code and
+retryability. Managed Eval mutations report the same outcome as
+`eval_idempotency_conflict`, also with `retryable` false. The bundled Go
+client never retries a response marked `retryable` false, whatever its
+status.
+
 **API-R28.** RuntimeCredential deletion is the one exception: its durable
 tombstone makes it idempotent by credential ID, so it accepts but neither
 requires nor binds an idempotency key. Its replay response and key-format
@@ -567,6 +579,7 @@ Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
 - LIFE-API-3 — typed Operations invalidations (API-R59).
 
 Errors ([registry](../platform/errors.md)): `request_too_large` (API-R4),
+`idempotency_conflict` (API-R69),
 `artifact_too_large` (API-R5), the non-disclosing `404` (API-R25),
 `resync_required` (API-R58, API-R59) and WebSocket close status `1013`
 (API-R64). `eval_limit_exceeded` is owned by Managed Evals

@@ -61,7 +61,8 @@ func TestCredentialLifecycleCreatesAndReplaysWithoutExposingToken(t *testing.T) 
 	}
 	conflicting := request
 	conflicting.Label = "different"
-	if _, err := fixture.service.Create(ctx, conflicting); !errors.Is(err, ErrConflict) {
+	if _, err := fixture.service.Create(ctx, conflicting); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) {
 		t.Fatalf("idempotency conflict error = %v", err)
 	}
 
@@ -270,6 +271,12 @@ WHERE credential_id = $1 AND operation_kind = 'delete' AND phase = 'completed'`,
 	replayed, err := fixture.service.Delete(ctx, deletion)
 	if err != nil || !replayed.Replayed || manager.deleteCalls() != 1 {
 		t.Fatalf("delete replay = (%+v, %v), calls=%d", replayed, err, manager.deleteCalls())
+	}
+	reused := deletion
+	reused.CredentialID = "managed-other"
+	if _, err := fixture.service.Delete(ctx, reused); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) || manager.deleteCalls() != 1 {
+		t.Fatalf("delete key reused for another credential = %v, calls=%d", err, manager.deleteCalls())
 	}
 }
 

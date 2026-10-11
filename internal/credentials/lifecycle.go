@@ -36,6 +36,8 @@ var (
 	ErrCreateAbandoned = fmt.Errorf(
 		"%w: credential create operation was abandoned because its request is no longer valid", ErrConflict,
 	)
+	errCreateKeyReused = fmt.Errorf("%w: LLM credential create key", contracts.ErrIdempotencyConflict)
+	errDeleteKeyReused = fmt.Errorf("%w: LLM credential delete key", contracts.ErrIdempotencyConflict)
 )
 
 type CredentialInUseError struct {
@@ -248,11 +250,14 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 	}
 	if prepared != nil {
 		if prepared.RequestHash != requestHash || prepared.CredentialID != normalized.CredentialID {
-			return CreateResult{}, ErrConflict
+			return CreateResult{}, errCreateKeyReused
 		}
 		storedRequest, err := decodeCreateOperation(*prepared)
-		if err != nil || !createOperationRequestsEqual(storedRequest, normalized) {
+		if err != nil {
 			return CreateResult{}, ErrConflict
+		}
+		if !createOperationRequestsEqual(storedRequest, normalized) {
+			return CreateResult{}, errCreateKeyReused
 		}
 		record, err := s.executeCreate(ctx, *prepared, storedRequest, true)
 		return CreateResult{Credential: record}, err
@@ -261,7 +266,7 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationCreate, request.IdempotencyKey)
 	if err == nil {
 		if existing.RequestHash != requestHash || existing.CredentialID != normalized.CredentialID {
-			return CreateResult{}, ErrConflict
+			return CreateResult{}, errCreateKeyReused
 		}
 		if existing.Phase == OperationAbandoned {
 			return CreateResult{}, ErrCreateAbandoned
@@ -319,11 +324,14 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	}
 	if prepared != nil {
 		if prepared.RequestHash != requestHash || prepared.CredentialID != request.CredentialID {
-			return DeleteResult{}, ErrConflict
+			return DeleteResult{}, errDeleteKeyReused
 		}
 		storedRequest, err := decodeDeleteOperation(*prepared)
-		if err != nil || storedRequest.ActorID != request.ActorID {
+		if err != nil {
 			return DeleteResult{}, ErrConflict
+		}
+		if storedRequest.ActorID != request.ActorID {
+			return DeleteResult{}, errDeleteKeyReused
 		}
 		err = s.executeDelete(ctx, *prepared, storedRequest)
 		if err == nil {
@@ -335,7 +343,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationDelete, request.IdempotencyKey)
 	if err == nil {
 		if existing.RequestHash != requestHash || existing.CredentialID != request.CredentialID {
-			return DeleteResult{}, ErrConflict
+			return DeleteResult{}, errDeleteKeyReused
 		}
 		// A completed delete operation is the credential's tombstone.
 		if existing.Phase != OperationCompleted {

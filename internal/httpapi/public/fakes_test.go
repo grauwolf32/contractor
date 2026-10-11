@@ -102,7 +102,7 @@ func (f *fakeProjectStore) Create(
 	claimKey := params.OwnerID + "\x00" + params.IdempotencyKey
 	if claim, exists := f.claims[claimKey]; exists {
 		if claim.digest != params.RequestDigest {
-			return projectstore.Project{}, false, projectstore.ErrConflict
+			return projectstore.Project{}, false, contracts.ErrIdempotencyConflict
 		}
 		return f.projects[claim.projectID], false, nil
 	}
@@ -1139,7 +1139,7 @@ func (f *fakeRunStore) CreateRunIdempotent(
 	key := params.OwnerID + "\x00" + params.IdempotencyKey
 	if existing, ok := f.idempotencyClaims[key]; ok {
 		if existing.digest != params.RequestDigest {
-			return runstore.WorkflowRun{}, false, runstore.ErrConflict
+			return runstore.WorkflowRun{}, false, contracts.ErrIdempotencyConflict
 		}
 		run, err := f.GetRun(ctx, existing.runID)
 		return run, false, err
@@ -1178,7 +1178,7 @@ func (f *fakeRunStore) LookupRunIdempotency(
 		return runstore.WorkflowRun{}, false, nil
 	}
 	if existing.digest != requestDigest {
-		return runstore.WorkflowRun{}, false, runstore.ErrConflict
+		return runstore.WorkflowRun{}, false, contracts.ErrIdempotencyConflict
 	}
 	run, err := f.GetRun(ctx, existing.runID)
 	return run, err == nil, err

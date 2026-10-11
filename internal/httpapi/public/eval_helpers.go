@@ -21,10 +21,13 @@ const (
 func (h *handler) evalError(w http.ResponseWriter, err error) {
 	var d *evaldomain.Error
 	if errors.As(err, &d) {
+		// No Eval failure is retryable as sent. eval_idempotency_conflict is
+		// permanent for its key: its recovery is to resend the request the
+		// key is bound to, not this one (FAIL-RUN-1, idempotency_conflict).
 		writeJSON(w, d.Status, errorResponse{
 			Code:      d.Code,
 			Message:   d.Message,
-			Retryable: d.Recovery == "retry_same_request",
+			Retryable: false,
 			RequestID: requestid.FromResponse(w),
 			Details:   map[string]string{"kind": "eval", "recovery": d.Recovery},
 		})

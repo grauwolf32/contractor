@@ -283,7 +283,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 		return WorkflowRun{}, false, fmt.Errorf("read idempotent WorkflowRun: %w", err)
 	}
 	if existingDigest != params.RequestDigest {
-		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", contracts.ErrIdempotencyConflict)
 	}
 	existing, err := s.GetRun(ctx, existingRunID)
 	if err != nil {
@@ -294,8 +294,8 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 
 // LookupRunIdempotency resolves an already committed public create-Run claim
 // without consulting mutable Workflow dependencies such as managed
-// credentials. A digest mismatch is the same fail-closed key reuse conflict as
-// CreateRunIdempotent.
+// credentials. A digest mismatch is the same permanent
+// contracts.ErrIdempotencyConflict as in CreateRunIdempotent.
 func (s *PostgresStore) LookupRunIdempotency(
 	ctx context.Context,
 	ownerID string,
@@ -324,7 +324,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`, ownerID, idempotencyKey,
 		return WorkflowRun{}, false, fmt.Errorf("lookup idempotent WorkflowRun: %w", err)
 	}
 	if storedDigest != requestDigest {
-		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", ErrConflict)
+		return WorkflowRun{}, false, fmt.Errorf("reuse public idempotency key: %w", contracts.ErrIdempotencyConflict)
 	}
 	run, err := s.GetRun(ctx, runID)
 	if err != nil {
