@@ -735,6 +735,16 @@ revalidates both.
 - standard version, selected level, and requirement/asset selection rules;
 - limits and human-interaction policy.
 
+**AUD-R225.** Start stages its content-named artifacts before that
+transaction: the retained standard copies (AUD-R56), the task packages and the
+first worklist are written frozen into the Audit namespace while the draft row
+is held against purge, so a purge either removes what was staged or has
+already removed the Audit. The start transaction then writes only rows and
+accepts the staging only for the same draft revision. A start whose
+transaction does not commit leaves the staging behind; a retry of the same
+draft revision finds every artifact already written and writes none again, and
+Audit deletion purges the namespace with everything staged in it.
+
 **AUD-R96.** Draft input bindings may be edited with Audit revision CAS.
 
 **AUD-R97.** After start, the baseline is immutable. Changing target,
@@ -1223,6 +1233,10 @@ response, package content or model transcript.
 **AUD-R205.** Start and resume require `If-Match` and `Idempotency-Key` and
 accept an optional JSON object with only `deadlineSeconds`.
 
+**AUD-R226.** A start response, first or replayed, carries the Audit, its
+current Round and only that Round's items, so it holds at most LIM-AUD-26
+items however many items earlier Rounds hold.
+
 **AUD-R206.** `deadlineSeconds` must be an integer from zero through 31,536,000
 (LIM-AUD-23); explicit `null` is invalid. An absent body and `{}` both omit the
 override.
@@ -1247,7 +1261,9 @@ history, newest sequence first, in pages of at most 200 events (LIM-AUD-24).
 
 **AUD-R211.** The first read fixes `throughSequence`; signed cursors bind
 owner, Audit, that immutable prefix and the next exclusive sequence boundary.
-`total` counts the frozen prefix, before pagination.
+`total` counts the frozen prefix, before pagination. Because events are
+numbered without gaps (AUD-R223) it equals `throughSequence`, so a page reads
+only its own events and reading N events costs O(N).
 
 **AUD-R212.** New events do not invalidate continuations: refresh begins a new
 prefix.

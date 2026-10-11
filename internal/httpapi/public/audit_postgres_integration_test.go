@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -167,6 +168,22 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	}
 	if page.Items[0].Details == nil || page.Items[0].Details.Objective == "" || !json.Valid(page.Items[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the worker task: %s", coverageResponse.Body.String())
+	}
+	if current, err := audits.Get(ctx, project.OwnerID, draft.AuditID); err != nil || page.AuditRevision != current.Revision {
+		t.Fatalf("coverage page revision = %d, Audit = (%+v, %v)", page.AuditRevision, current, err)
+	}
+	for _, pin := range []struct {
+		revision uint64
+		status   int
+	}{{page.AuditRevision, http.StatusOK}, {page.AuditRevision - 1, http.StatusConflict}} {
+		pinned := auditAuthenticatedRequest(http.MethodGet,
+			"/v1/audits/"+draft.AuditID+"/coverage?auditRevision="+strconv.FormatUint(pin.revision, 10), nil)
+		pinned.SetPathValue("auditId", draft.AuditID)
+		pinnedResponse := httptest.NewRecorder()
+		h.listAuditCoverage(pinnedResponse, pinned)
+		if pinnedResponse.Code != pin.status {
+			t.Fatalf("coverage pinned to revision %d = %d %s", pin.revision, pinnedResponse.Code, pinnedResponse.Body.String())
+		}
 	}
 
 	t.Run("paused Resume and terminal rejection", func(t *testing.T) {

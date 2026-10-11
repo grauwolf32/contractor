@@ -153,6 +153,19 @@ func TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth(t 
 	if err != nil || !inserted || accepted.ExpectedItemCount != 2 || !accepted.Manifest.Ref.SameExact(second.Manifest.Ref) {
 		t.Fatalf("expanded next-Round acceptance = (%+v, %t, %v)", accepted, inserted, err)
 	}
+	// A start replay carries the current Round and only its items, however
+	// many items earlier Rounds hold (V368-023).
+	laterReplay, err := service.Start(ctx, start)
+	if err != nil || !laterReplay.Replayed || laterReplay.Round.RoundID != accepted.RoundID ||
+		len(laterReplay.Items) != len(second.Items) {
+		t.Fatalf("later-Round start replay = (Round %q with %d items, %v), want %q with %d",
+			laterReplay.Round.RoundID, len(laterReplay.Items), err, accepted.RoundID, len(second.Items))
+	}
+	for _, item := range laterReplay.Items {
+		if item.RoundID != accepted.RoundID {
+			t.Fatalf("later-Round start replay carries item %s of Round %s", item.ItemID, item.RoundID)
+		}
+	}
 	seenSources := make(map[string]bool, len(second.Items))
 	for _, item := range second.Items {
 		if len(item.ProposalSources) != 1 || item.ProposalSources[0].ProposedCheckOrdinal != 0 ||

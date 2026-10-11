@@ -322,6 +322,13 @@ and report acceptance use the exact-subject review ledger below (AUD-R85).
 **REV-R27.** A decision is accepted only through the owner-authenticated
 Audit API with CAS and idempotency (FAIL-REV-1).
 
+**REV-R200.** Every review decision, a finding verdict as much as an item or
+report action, accepts exactly the public `Idempotency-Key` grammar
+(`[A-Za-z0-9][A-Za-z0-9._:-]*`, at most 128 characters). A decision that the
+review ledger's stored constraints refuse is invalid, `400 invalid_request`
+for the API and the service's invalid-argument error for trusted callers,
+never an internal error, and nothing is written.
+
 **REV-R28.** Model text or an artifact claiming "approved" has no
 authority.
 
@@ -835,9 +842,13 @@ and records a receipt.
 **REV-R145.** Binding keys include the Audit identity and version; a
 collision never overwrites another result.
 
-**REV-R146.** Imported results, external evidence and generated
-reports are created as frozen bindings in the Server-derived, reserved
-`audit-*` Project namespace.
+**REV-R146.** Every Audit-managed binding is created frozen in the
+Server-derived, reserved `audit-*` Project namespace: imported results and
+external evidence through the trusted import, and Server-generated material
+(task packages, worklists, execution manifests and task sets, inventories,
+retained standards, direct-verification contracts and reports) through the
+one trusted Audit writer. A generic Project artifact write never creates or
+advances a binding under the reserved prefix.
 
 **REV-R147.** Such a binding may exist briefly as recovery staging
 before its receipt or report-link transaction commits; this is why generic
@@ -847,9 +858,11 @@ Project routes hide the entire reserved prefix (ART-R26).
 expose only exact bindings that have a committed `AuditArtifactLink`;
 database-internal staging is not an acceptance signal.
 
-**REV-R149.** Crash replay accepts an existing binding only when its
-bytes, media type, size, exact source Run revision and import lineage all
-match (FAIL-REV-8).
+**REV-R149.** Crash replay accepts an existing binding only when it is
+frozen and its bytes, media type and size match and, for an imported binding,
+its exact source Run revision and import lineage match as well. Any other
+existing binding is a permanent integrity failure, never overwritten
+(FAIL-REV-8).
 
 **REV-R150.** Workers see only exact RunScope inputs and have no Audit
 or Project Artifact authority.
@@ -996,9 +1009,13 @@ revision pins.
 
 **REV-R190.** Refresh explicitly starts a new context.
 
-**REV-R172.** Coverage links also pin the summary revision; the UI
-checks it before and after collecting the current-round coverage pages and
-rejects mixed revisions.
+**REV-R172.** Coverage links also pin the summary revision. Every coverage
+page is read at one Audit revision and reports it as `auditRevision`; an
+optional `auditRevision` pins a page, and the current Round it defaults to, to
+that revision, and signed continuation cursors bind the Round and revision, so
+a page whose Audit changes returns 409 (FAIL-REV-12). The UI pins every page
+of a batch to the revision it read before the batch and rejects mixed
+revisions.
 
 **REV-R173.** Finding detail identifies the exact first and contributing
 proposals, the current assessment and decision, and the duplicate target.

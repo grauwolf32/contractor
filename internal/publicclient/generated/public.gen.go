@@ -2852,8 +2852,10 @@ type AuditCoverageDetails struct {
 
 // AuditCoveragePage defines model for AuditCoveragePage.
 type AuditCoveragePage struct {
-	Items []AuditCoverageRow `json:"items"`
-	Page  PageInfo           `json:"page"`
+	// AuditRevision The Audit revision every row of this page was read at.
+	AuditRevision int                `json:"auditRevision"`
+	Items         []AuditCoverageRow `json:"items"`
+	Page          PageInfo           `json:"page"`
 }
 
 // AuditCoverageRow defines model for AuditCoverageRow.
@@ -7257,6 +7259,9 @@ type ListAuditCoverageParams struct {
 	Limit  *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Round  *ResourceId `form:"round,omitempty" json:"round,omitempty"`
+
+	// AuditRevision Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409.
+	AuditRevision *int `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
 }
 
 // ListAuditEventsParams defines parameters for ListAuditEvents.
@@ -17664,6 +17669,18 @@ func NewListAuditCoverageRequest(server string, auditId AuditId, params *ListAud
 		if params.Round != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "round", *params.Round, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditRevision != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditRevision", *params.AuditRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -29975,6 +29992,11 @@ type ListAuditCoverageResponse404Headers struct {
 	XRequestID RequestId
 }
 
+// ListAuditCoverageResponse409Headers the declared response headers of an HTTP 409 response for ListAuditCoverage
+type ListAuditCoverageResponse409Headers struct {
+	XRequestID RequestId
+}
+
 // ListAuditCoverageResponse500Headers the declared response headers of an HTTP 500 response for ListAuditCoverage
 type ListAuditCoverageResponse500Headers struct {
 	XRequestID RequestId
@@ -29996,6 +30018,8 @@ type ListAuditCoverageResponse struct {
 	JSON401 *Unauthorized
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
@@ -30008,6 +30032,8 @@ type ListAuditCoverageResponse struct {
 	Headers401 *ListAuditCoverageResponse401Headers
 	// Headers404 the parsed response headers for an HTTP 404 response
 	Headers404 *ListAuditCoverageResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListAuditCoverageResponse409Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListAuditCoverageResponse500Headers
 	// Headers503 the parsed response headers for an HTTP 503 response
@@ -30032,6 +30058,11 @@ func (r ListAuditCoverageResponse) GetJSON401() *Unauthorized {
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
 func (r ListAuditCoverageResponse) GetJSON404() *NotFound {
 	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListAuditCoverageResponse) GetJSON409() *Conflict {
+	return r.JSON409
 }
 
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
@@ -52450,6 +52481,13 @@ func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageRespo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -52528,6 +52566,16 @@ func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageRespo
 			headers.XRequestID = value
 		}
 		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListAuditCoverageResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
 	case rsp.StatusCode == 500:
 		var headers ListAuditCoverageResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {

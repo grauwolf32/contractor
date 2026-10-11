@@ -184,7 +184,7 @@ type AuditManagement interface {
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
-	ListCoverage(context.Context, string, string, string, int, int) ([]auditstore.CoverageRow, error)
+	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
 	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
 	CreateFindingReview(context.Context, auditservice.CreateFindingReviewParams) (auditservice.FindingReviewResult, error)

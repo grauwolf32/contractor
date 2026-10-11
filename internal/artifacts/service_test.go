@@ -164,6 +164,13 @@ func TestProjectScopeIsDistinctAndDoesNotUseRunReservedNamespaces(t *testing.T) 
 	); err != nil {
 		t.Fatalf("Project outputs namespace should be an ordinary writable binding: %v", err)
 	}
+	writes := repository.writeCalls
+	if _, err := project.Write(
+		context.Background(), ArtifactRef{Namespace: "audit-example", Name: "task"},
+		Payload{MediaType: "application/zip", Data: []byte("task")}, nil,
+	); !errors.Is(err, ErrReservedNamespace) || repository.writeCalls != writes {
+		t.Fatalf("generic Audit namespace write = (%v, calls %d -> %d)", err, writes, repository.writeCalls)
+	}
 }
 
 func TestTrustedOperationsRequireExactRefs(t *testing.T) {

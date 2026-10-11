@@ -1,13 +1,11 @@
 package auditimport
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -29,6 +27,9 @@ func NewArtifactAccess(service *artifacts.Service) (*ServiceArtifactAccess, erro
 	return &ServiceArtifactAccess{service: service}, nil
 }
 
+// ReadProjectExact reads expected through the one exact read
+// (artifacts.ScopedStore.ReadExact). Digest-only descriptors of rounds and
+// executions pin the bytes; complete ones also pin media type and size.
 func (a *ServiceArtifactAccess) ReadProjectExact(
 	ctx context.Context, projectID string, expected auditstore.ExactArtifact,
 ) ([]byte, error) {
@@ -36,14 +37,9 @@ func (a *ServiceArtifactAccess) ReadProjectExact(
 	if err != nil {
 		return nil, err
 	}
-	read, err := store.Read(ctx, expected.Ref)
+	read, err := store.ReadExact(ctx, expected)
 	if err != nil {
 		return nil, err
-	}
-	if read.Ref.Revision == nil || expected.Ref.Revision == nil ||
-		*read.Ref.Revision != *expected.Ref.Revision || auditdomain.DigestBytes(read.Payload.Data) != expected.Digest ||
-		expected.MediaType != "" && (read.Payload.MediaType != expected.MediaType || int64(len(read.Payload.Data)) != expected.SizeBytes) {
-		return nil, artifacts.ErrArtifactIntegrity
 	}
 	return append([]byte(nil), read.Payload.Data...), nil
 }
@@ -59,14 +55,11 @@ func (a *ServiceArtifactAccess) ReadRunBinding(
 	if err != nil {
 		return auditstore.ExactArtifact{}, nil, false, err
 	}
-	read, err := store.Read(ctx, metadata.Ref)
+	read, err := store.ReadExact(ctx, metadata.Exact())
 	if err != nil {
 		return auditstore.ExactArtifact{}, nil, false, err
 	}
-	if auditdomain.DigestBytes(read.Payload.Data) != metadata.Digest || read.Payload.MediaType != metadata.MediaType {
-		return auditstore.ExactArtifact{}, nil, false, artifacts.ErrArtifactIntegrity
-	}
-	return exactFromMetadata(metadata), append([]byte(nil), read.Payload.Data...), metadata.Frozen, nil
+	return metadata.Exact(), append([]byte(nil), read.Payload.Data...), metadata.Frozen, nil
 }
 
 func (a *ServiceArtifactAccess) ReadRunExact(
@@ -83,14 +76,11 @@ func (a *ServiceArtifactAccess) ReadRunExact(
 	if err != nil {
 		return auditstore.ExactArtifact{}, nil, err
 	}
-	read, err := store.Read(ctx, metadata.Ref)
+	read, err := store.ReadExact(ctx, metadata.Exact())
 	if err != nil {
 		return auditstore.ExactArtifact{}, nil, err
 	}
-	if auditdomain.DigestBytes(read.Payload.Data) != metadata.Digest || read.Payload.MediaType != metadata.MediaType {
-		return auditstore.ExactArtifact{}, nil, artifacts.ErrArtifactIntegrity
-	}
-	return exactFromMetadata(metadata), append([]byte(nil), read.Payload.Data...), nil
+	return metadata.Exact(), append([]byte(nil), read.Payload.Data...), nil
 }
 
 func (a *ServiceArtifactAccess) RetainRunExact(
@@ -122,7 +112,10 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 	if metadataErr != nil {
 		return auditstore.ExactArtifact{}, metadataErr
 	}
-	if metadata.Digest != source.Digest || metadata.MediaType != source.MediaType || metadata.Size != source.SizeBytes {
+	// Crash replay: the retained binding must hold the source's content.
+	expected := source
+	expected.Ref = metadata.Ref
+	if err := expected.Verify(metadata.Exact()); err != nil {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained binding collision", artifacts.ErrArtifactIntegrity)
 	}
 	lineage, lineageErr := store.ListLineage(ctx, metadata.Ref, artifacts.LineagePageQuery{Limit: 2})
@@ -135,9 +128,12 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 		!lineage[0].Source.SameExact(source.Ref) || !lineage[0].Target.SameExact(metadata.Ref) {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained lineage collision", artifacts.ErrArtifactIntegrity)
 	}
-	return exactFromMetadata(metadata), nil
+	return metadata.Exact(), nil
 }
 
+// PutImmutableProject writes a content-named report or retained scan package
+// as a frozen Audit artifact. WriteAuditArtifact recovers a lost
+// acknowledgement; another payload under the name is an integrity failure.
 func (a *ServiceArtifactAccess) PutImmutableProject(
 	ctx context.Context,
 	projectID string,
@@ -145,35 +141,8 @@ func (a *ServiceArtifactAccess) PutImmutableProject(
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
 	written, err := a.service.WriteAuditArtifact(ctx, projectID, target, payload)
-	if err == nil {
-		return auditstore.ExactArtifact{
-			Ref: written.Ref, Digest: auditdomain.DigestBytes(payload.Data),
-			MediaType: written.MediaType, SizeBytes: written.Size,
-		}, nil
-	}
-	if !errors.Is(err, artifacts.ErrArtifactConflict) {
-		return auditstore.ExactArtifact{}, err
-	}
-	store, err := a.service.Project(projectID)
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	read, readErr := store.Read(ctx, target)
-	if readErr != nil {
-		return auditstore.ExactArtifact{}, readErr
-	}
-	if read.Payload.MediaType != payload.MediaType || !bytes.Equal(read.Payload.Data, payload.Data) {
-		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit immutable binding collision", artifacts.ErrArtifactIntegrity)
-	}
-	return auditstore.ExactArtifact{
-		Ref: read.Ref, Digest: auditdomain.DigestBytes(read.Payload.Data),
-		MediaType: read.Payload.MediaType, SizeBytes: int64(len(read.Payload.Data)),
-	}, nil
-}
-
-func exactFromMetadata(value artifacts.Metadata) auditstore.ExactArtifact {
-	return auditstore.ExactArtifact{
-		Ref: value.Ref, Digest: value.Digest,
-		MediaType: value.MediaType, SizeBytes: value.Size,
-	}
+	return contracts.ExactContent(written.Ref, written.MediaType, payload.Data), nil
 }

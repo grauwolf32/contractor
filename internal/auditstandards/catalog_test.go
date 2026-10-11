@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func validationCode(err error) string {
@@ -164,6 +165,24 @@ func TestCatalogCreateOnlySeedResolvePinAndDisclosure(t *testing.T) {
 	retained, err := project.Read(context.Background(), pinned[0].Retained.Artifact)
 	if err != nil || !bytes.Equal(retained.Payload.Data, resolved.Package.Payload()) {
 		t.Fatalf("retained package = (%+v, %v)", retained, err)
+	}
+	projectScope, _ := artifacts.ProjectScope("project")
+	if !repository.frozen[artifactKey(projectScope, pinned[0].Retained.Artifact)] {
+		t.Fatal("retained package binding is not frozen")
+	}
+	writes := repository.writes
+	replayed, err := catalog.Pin(context.Background(), "owner", "project", "audit-fixed", []Reference{ref})
+	if err != nil || len(replayed) != 1 || !reflect.DeepEqual(replayed[0].Retained, pinned[0].Retained) ||
+		repository.writes != writes {
+		t.Fatalf("pin replay = (%+v, %v), writes %d -> %d", replayed, err, writes, repository.writes)
+	}
+	if _, err := service.WriteAuditArtifact(context.Background(), "project",
+		artifacts.ArtifactRef{Namespace: "audit-collision", Name: pinned[0].Retained.Artifact.Name},
+		artifacts.Payload{MediaType: MediaType, Data: []byte("other package")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Pin(context.Background(), "owner", "project", "audit-collision", []Reference{ref}); !errors.Is(err, ErrDrift) {
+		t.Fatalf("retained package collision = %v, want drift", err)
 	}
 
 	full := Projection(resolved, true)
@@ -332,26 +351,38 @@ func rawArchive(t *testing.T, name string, data []byte) []byte {
 	return buffer.Bytes()
 }
 
+// memoryRepository applies the store's write precondition and creates Audit
+// bindings frozen, as PostgreSQL does.
 type memoryRepository struct {
 	mu              sync.Mutex
 	bindings        map[string]artifacts.ReadResult
+	frozen          map[string]bool
 	writes          int
 	readExistingErr error
 }
 
 func newMemoryRepository() *memoryRepository {
-	return &memoryRepository{bindings: map[string]artifacts.ReadResult{}}
+	return &memoryRepository{bindings: map[string]artifacts.ReadResult{}, frozen: map[string]bool{}}
 }
 
 func (r *memoryRepository) Write(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
 	payload artifacts.Payload, expected *string) (artifacts.WriteResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.writeLocked(scope, ref, payload, expected, false)
+}
+
+func (r *memoryRepository) writeLocked(scope artifacts.Scope, ref artifacts.ArtifactRef,
+	payload artifacts.Payload, expected *string, frozen bool) (artifacts.WriteResult, error) {
 	key := artifactKey(scope, ref)
-	current, exists := r.bindings[key]
-	if expected == nil && exists || expected != nil && (!exists || current.Ref.Revision == nil || *current.Ref.Revision != *expected) {
-		return artifacts.WriteResult{}, artifacts.ErrArtifactConflict
+	var head *artifacts.Metadata
+	if current, exists := r.bindings[key]; exists {
+		head = &artifacts.Metadata{Ref: current.Ref, Frozen: r.frozen[key]}
 	}
+	if err := artifacts.WritePrecondition(ref, head, expected); err != nil {
+		return artifacts.WriteResult{}, err
+	}
+	r.frozen[key] = frozen
 	r.writes++
 	revision := fmt.Sprintf("revision-%d", r.writes)
 	now := time.Unix(int64(r.writes), 0).UTC()
@@ -364,9 +395,26 @@ func (r *memoryRepository) Write(_ context.Context, scope artifacts.Scope, ref a
 		BindingCreatedAt: now, RevisionCreatedAt: now}, nil
 }
 
-func (r *memoryRepository) WriteAuditArtifact(ctx context.Context, scope artifacts.Scope,
+func (r *memoryRepository) WriteAuditArtifact(_ context.Context, scope artifacts.Scope,
 	ref artifacts.ArtifactRef, payload artifacts.Payload) (artifacts.WriteResult, error) {
-	return r.Write(ctx, scope, ref, payload, nil)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.writeLocked(scope, ref, payload, nil, true)
+}
+
+func (r *memoryRepository) Metadata(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.Metadata, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	key := artifactKey(scope, ref)
+	result, exists := r.bindings[key]
+	if !exists || ref.Revision != nil && *ref.Revision != *result.Ref.Revision {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	return artifacts.Metadata{
+		Ref: result.Ref, MediaType: result.Payload.MediaType, Size: int64(len(result.Payload.Data)),
+		Digest: contentdigest.Bytes(result.Payload.Data), Current: true, Frozen: r.frozen[key],
+		CreatedAt: result.RevisionCreatedAt,
+	}, nil
 }
 
 func (r *memoryRepository) Read(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.ReadResult, error) {

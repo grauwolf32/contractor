@@ -3708,6 +3708,8 @@ export interface components {
         AuditCoveragePage: {
             items: components["schemas"]["AuditCoverageRow"][];
             page: components["schemas"]["PageInfo"];
+            /** @description The Audit revision every row of this page was read at. */
+            auditRevision: number;
         };
         /** @enum {unknown} */
         AuditItemApprovalKind: "none" | "active-check-approval" | "requirement-applicability";
@@ -9145,6 +9147,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 round?: components["schemas"]["ResourceId"];
+                /** @description Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409. */
+                auditRevision?: number;
             };
             header?: never;
             path: {
@@ -9168,6 +9172,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

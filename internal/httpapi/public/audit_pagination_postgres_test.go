@@ -275,12 +275,9 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	written, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
-		artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
+	written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(ctx, projectID,
+		contracts.ArtifactRef{Namespace: "audit-proposals", Name: document.ClientKey},
+		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
 	}

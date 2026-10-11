@@ -295,9 +295,7 @@ func verifyExactProjectArtifact(
 	if err != nil {
 		return artifacts.Metadata{}, err
 	}
-	if metadata.Ref.Revision == nil || descriptor.Ref.Revision == nil ||
-		*metadata.Ref.Revision != *descriptor.Ref.Revision || metadata.Digest != descriptor.Digest ||
-		metadata.MediaType != descriptor.MediaType || metadata.Size != descriptor.SizeBytes {
+	if !descriptor.HasMetadata() || descriptor.Verify(metadata.Exact()) != nil {
 		return artifacts.Metadata{}, fmt.Errorf("%w: pinned Audit artifact failed integrity validation", ErrInvalid)
 	}
 	return metadata, nil

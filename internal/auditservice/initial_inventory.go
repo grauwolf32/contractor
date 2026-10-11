@@ -124,12 +124,12 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		if !exists {
 			return artifacts.ReadResult{}, fmt.Errorf("%w: inventory %s output is not accepted", ErrInvalid, name)
 		}
-		read, err := project.Read(ctx, exact.Ref)
+		if !exact.HasMetadata() {
+			return artifacts.ReadResult{}, artifacts.ErrArtifactIntegrity
+		}
+		read, err := project.ReadExact(ctx, exact)
 		if err != nil {
 			return artifacts.ReadResult{}, err
-		}
-		if !read.Ref.SameExact(exact.Ref) || read.Payload.MediaType != exact.MediaType || int64(len(read.Payload.Data)) != exact.SizeBytes || auditdomain.DigestBytes(read.Payload.Data) != exact.Digest {
-			return artifacts.ReadResult{}, artifacts.ErrArtifactIntegrity
 		}
 		sources[name] = exact
 		return read, nil
@@ -176,11 +176,12 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
-	tasks, manifest, err := writeTaskPackages(ctx, project, namespace, profile, selection, inventory, prepared)
+	writer := auditArtifactWriter{service: service, projectID: audit.ProjectID}
+	tasks, manifest, err := writeTaskPackages(ctx, writer, namespace, profile, selection, inventory, prepared)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
-	worklist, err := writeRoundPackage(ctx, project, namespace, 1, inventory, manifest)
+	worklist, err := writeRoundPackage(ctx, writer, namespace, 1, inventory, manifest)
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}
@@ -197,7 +198,7 @@ func (s *Service) prepareInitialInventory(ctx context.Context, claim auditstore.
 	if int64(len(encoded)) > audit.Limits.MaxEvidenceBytes-audit.RetainedEvidenceBytes {
 		return auditstore.AcceptInitialRoundParams{}, errInitialInventoryEvidenceBudget
 	}
-	metadata, err := writeImmutableArtifact(ctx, project, contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("initial-inventory", auditdomain.DigestBytes(encoded))}, artifacts.Payload{MediaType: "application/json", Data: encoded})
+	metadata, err := writer.write(ctx, contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("initial-inventory", auditdomain.DigestBytes(encoded))}, artifacts.Payload{MediaType: "application/json", Data: encoded})
 	if err != nil {
 		return auditstore.AcceptInitialRoundParams{}, err
 	}

@@ -4,25 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
 // WriteAuditArtifact creates a frozen Project binding for trusted
-// Controller-generated material. It deliberately has no update path.
+// Controller-generated material. It deliberately has no update path; replay
+// of an existing binding belongs to Service.WriteAuditArtifact.
 func (r *PostgresRepository) WriteAuditArtifact(
 	ctx context.Context,
 	projectScope Scope,
 	target ArtifactRef,
 	payload Payload,
-) (WriteResult, error) {
+) (_ WriteResult, err error) {
 	if err := validateScope(projectScope); err != nil || projectScope.kind != ScopeProject {
 		return WriteResult{}, ErrInvalidScope
 	}
-	if target.Revision != nil || !strings.HasPrefix(target.Namespace, "audit-") {
+	if target.Revision != nil || !artifactpolicy.IsAuditManagedProjectNamespace(target.Namespace) {
 		return WriteResult{}, ErrInvalidName
 	}
 	if err := validateRef(target); err != nil {
@@ -48,6 +49,14 @@ func (r *PostgresRepository) WriteAuditArtifact(
 	if err != nil {
 		return WriteResult{}, err
 	}
+	defer func() {
+		// As in Write, a definitely refused write never published its fresh
+		// candidate; an unclassified statement failure may have.
+		if err != nil && payload.prepared == nil && (errors.Is(err, ErrArtifactConflict) ||
+			errors.Is(err, ErrScopeDeleting) || errors.Is(err, ErrInvalidScope)) {
+			discardUnpublishedBlob(ctx, blob)
+		}
+	}()
 	digest := blob.Digest
 	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
 	if err != nil {

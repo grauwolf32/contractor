@@ -819,8 +819,9 @@ entire normalized filter, finding and review filters, `auditRevision` and
 `asOf`, revision pins, signed continuation cursors and the revision fence that
 returns 409 on concurrent changes), the clearing of incompatible cursors and
 revision pins on a filter change, the explicit new context on refresh, and the
-summary-revision pin of Coverage links that the UI checks before and after
-collecting the current-round coverage pages, rejecting mixed revisions, are
+summary-revision pin of Coverage links that the UI checks before collecting
+the current-round coverage pages and the Server enforces on every page,
+rejecting mixed revisions, are
 specified in [Review and reports](../audits/review-and-reports.md) (REV-R171,
 REV-R172).
 

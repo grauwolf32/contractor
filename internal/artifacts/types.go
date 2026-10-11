@@ -58,6 +58,12 @@ type ReadResult struct {
 	RevisionCreatedAt time.Time
 }
 
+// Exact describes the bytes of this read as the shared exact-content
+// descriptor.
+func (r ReadResult) Exact() contracts.ExactArtifact {
+	return contracts.ExactContent(r.Ref, r.Payload.MediaType, r.Payload.Data)
+}
+
 type WriteResult struct {
 	Ref               ArtifactRef
 	MediaType         string
@@ -86,6 +92,13 @@ type Metadata struct {
 	Current   bool      `json:"current"`
 	Frozen    bool      `json:"frozen"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// Exact describes this revision as the shared exact-content descriptor.
+func (m Metadata) Exact() contracts.ExactArtifact {
+	return contracts.ExactArtifact{
+		Ref: m.Ref.Clone(), Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.Size,
+	}
 }
 
 type BindingPageQuery struct {

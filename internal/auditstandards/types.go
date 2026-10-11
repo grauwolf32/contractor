@@ -132,11 +132,21 @@ func (p Package) Reference() Reference { return p.Document.Standard.Reference() 
 
 func (p Package) Payload() []byte { return append([]byte(nil), p.payload...) }
 
+// ExactPackage is an exact standard package in the wire shape of the public
+// AuditStandardExactPackage, which names its ref "artifact". Exact returns the
+// shared descriptor every check uses.
 type ExactPackage struct {
 	Artifact  contracts.ArtifactRef `json:"artifact"`
 	Digest    string                `json:"digest"`
 	MediaType string                `json:"mediaType"`
 	SizeBytes int64                 `json:"sizeBytes"`
+}
+
+// Exact returns the package as the shared exact-content descriptor.
+func (p ExactPackage) Exact() contracts.ExactArtifact {
+	return contracts.ExactArtifact{
+		Ref: p.Artifact.Clone(), Digest: p.Digest, MediaType: p.MediaType, SizeBytes: p.SizeBytes,
+	}
 }
 
 type ResolvedPackage struct {

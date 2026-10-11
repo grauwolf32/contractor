@@ -182,8 +182,9 @@ type auditCoverageResponse struct {
 }
 
 type auditCoveragePageResponse struct {
-	Items []auditCoverageResponse `json:"items"`
-	Page  pageInfoResponse        `json:"page"`
+	Items         []auditCoverageResponse `json:"items"`
+	Page          pageInfoResponse        `json:"page"`
+	AuditRevision uint64                  `json:"auditRevision"`
 }
 
 type auditReportResponse struct {
