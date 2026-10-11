@@ -2,7 +2,6 @@ package runservice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -71,9 +70,15 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if len(skillRefs) > 0 && !s.skillInitializationAvailable {
 				return fmt.Errorf("%w: Run Skill initialization is unavailable", ErrNotConfigured)
 			}
-			workflowSnapshot, encodeErr := json.Marshal(workflow)
+			// The stored snapshot is the bounded encoding the Scheduler
+			// measures again; an oversized one is rejected before acceptance
+			// (CAT-R76).
+			workflowSnapshot, encodeErr := config.EncodeResolvedWorkflowSnapshot(workflow)
+			if errors.Is(encodeErr, config.ErrWorkflowSnapshotTooLarge) {
+				return fmt.Errorf("%w: %v", ErrInvalid, encodeErr)
+			}
 			if encodeErr != nil {
-				return fmt.Errorf("encode resolved Workflow: %w", encodeErr)
+				return encodeErr
 			}
 
 			var projectTarget *runtimesettings.HTTPOriginTargetRef

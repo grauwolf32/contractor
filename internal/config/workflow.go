@@ -74,6 +74,11 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	if _, err := WorkflowSkillRefs(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
+	// A Run without execution overrides stores exactly this snapshot, so it
+	// must fit its bound (CAT-R76); ResolveRunWorkflow measures overrides.
+	if _, err := EncodeResolvedWorkflowSnapshot(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	return workflow, nil
 }
 

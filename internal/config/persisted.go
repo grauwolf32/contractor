@@ -1,10 +1,40 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
+
+// MaxWorkflowSnapshotBytes is LIM-CAT-4: the largest Workflow snapshot a Run
+// may store, counted in bytes of the encoding EncodeResolvedWorkflowSnapshot
+// produces (CAT-R76).
+const MaxWorkflowSnapshotBytes = 2 << 20
+
+// ErrWorkflowSnapshotTooLarge classifies a resolved Workflow whose snapshot
+// exceeds MaxWorkflowSnapshotBytes. It is a permanent validation failure.
+var ErrWorkflowSnapshotTooLarge = errors.New("Workflow snapshot exceeds its size limit")
+
+// EncodeResolvedWorkflowSnapshot returns the snapshot a Run stores for
+// workflow. The catalog, Run creation, the Run store and the Scheduler all
+// measure this encoding, never the text PostgreSQL returns for the stored
+// jsonb, so a snapshot accepted when its Run is created stays executable
+// (CAT-R76).
+func EncodeResolvedWorkflowSnapshot(workflow ResolvedWorkflow) ([]byte, error) {
+	data, err := json.Marshal(workflow)
+	if err != nil {
+		return nil, fmt.Errorf("encode Workflow %s@%s snapshot: %w", workflow.Ref.Name, workflow.Ref.Version, err)
+	}
+	if len(data) > MaxWorkflowSnapshotBytes {
+		return nil, fmt.Errorf(
+			"%w: Workflow %s@%s snapshot has %d bytes, more than %d",
+			ErrWorkflowSnapshotTooLarge, workflow.Ref.Name, workflow.Ref.Version, len(data), MaxWorkflowSnapshotBytes,
+		)
+	}
+	return data, nil
+}
 
 // DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
 // Every Stage must retain its explicit Worker session mode. Authoring defaults

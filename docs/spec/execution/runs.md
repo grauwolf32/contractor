@@ -332,7 +332,10 @@ dependency-resolved Workflow snapshot specified by
 [CAT-R33](../configuration/catalog.md), including each Stage's explicit Worker
 session mode ([Workflows](../configuration/workflows.md)). What execution
 configuration the snapshot holds, and that it never holds secret bytes, is
-specified in [AgentTemplates](../configuration/agent-templates.md).
+specified in [AgentTemplates](../configuration/agent-templates.md). The
+snapshot's size bound and where it is measured are specified in
+[CAT-R76](../configuration/catalog.md); an oversized snapshot is rejected
+before the Run exists.
 
 **RUN-R24.** The durable Run snapshot, rather than later configuration edits
 or UI state, is the execution authority for its Run, within the Runtime-label

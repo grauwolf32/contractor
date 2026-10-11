@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -604,6 +605,11 @@ func validateCreateRun(params CreateRunParams) error {
 		if err := validateResourceID("projectID", *params.ProjectID); err != nil {
 			return err
 		}
+	}
+	// Callers store config.EncodeResolvedWorkflowSnapshot's encoding, the
+	// measure of the snapshot bound (LIM-CAT-4, CAT-R76).
+	if len(params.WorkflowSnapshot) > config.MaxWorkflowSnapshotBytes {
+		return invalidf("workflowSnapshot exceeds %d bytes", config.MaxWorkflowSnapshotBytes)
 	}
 	if err := validateJSONObject("workflowSnapshot", params.WorkflowSnapshot); err != nil {
 		return err
