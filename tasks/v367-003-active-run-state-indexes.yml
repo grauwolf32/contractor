@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V367-003
+title: "Rebuild the workflow_runs partial indexes for all five active Run states"
+milestone: hub-audit-2026-10
+epic: persistence
+kind: defect
+introduced_by: V65-003
+priority: P1
+status: pending
+depends_on: []
+languages: [go, sql]
+goal: "The queue and credential-reference reads use their partial indexes again, and the active Run state set has one source that SQL literals are tested against."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), execution state G1 / F1"
+  specification:
+    - docs/spec/execution/runs.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    Four partial indexes on workflow_runs are defined for state IN
+    ('initializing','running','cancelling') in 000001_baseline.sql
+    (workflow_runs_owner_nonterminal_queue_idx,
+    workflow_runs_runtime_llm_credentials_idx,
+    workflow_runs_runtime_credentials_idx,
+    workflow_runs_project_http_target_credential_idx), while the queries that
+    should use them filter on five states including pending and waiting
+    (runstore/queue_store_sql.go:22, runstore/store_sql.go:14,
+    credentials/runtime_repository.go:235). A five-state predicate does not
+    imply the three-state index predicate, so PostgreSQL cannot use the
+    index: the polled Queue page and credential deletion checks scan the
+    owner's whole Run history. fae981a0 (V65-001/V65-003) added pending and
+    waiting without updating the indexes. The active set is written as a
+    literal in 15+ places (runstore, credentials, projectlifecycle,
+    gatewayrecovery, memory, auditstore, evalstore, scheduler) with no shared
+    definition; workflow_runs_scheduler_idx appears superseded by
+    workflow_runs_admission_idx.
+scope:
+  in:
+    - "Migration 000002 recreates the four indexes with the five active states."
+    - "One Go definition of active and terminal Run states (runstore or a kernel package) and a test that compares it with the OpenAPI WorkflowRunState/NonTerminalWorkflowRunState enums, the workflow_runs state CHECK, every active-state IN (...) literal in Go SQL and every partial-index predicate on workflow_runs."
+    - "Drop workflow_runs_scheduler_idx only if EXPLAIN shows no query uses it; otherwise keep it and record why."
+  out:
+    - "Query semantics and result order."
+    - "Moving Run state transitions into one owner (separate hub audit item)."
+acceptance_criteria:
+  - id: A1
+    text: "EXPLAIN on a populated test schema shows the Queue list and both credential-reference reads use their partial indexes."
+  - id: A2
+    text: "The state-set test fails if an active-state literal or an index predicate lists a different set than the Go definition."
+tests:
+  - command: make lint
+    covers: [A2]
+  - command: "go test -tags integration ./internal/runstore ./internal/credentials ./internal/persistence/postgres"
+    covers: [A1, A2]

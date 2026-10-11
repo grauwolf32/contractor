@@ -1,0 +1,37 @@
+schema_version: "1.0"
+id: V367-011
+title: "Regenerate the Go public client and check its freshness in make lint"
+milestone: hub-audit-2026-10
+epic: api-contracts
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "The CLI's generated client always matches the committed OpenAPI document, and a stale client fails make lint as a stale UI client already does."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), public API G2 / F2"
+  specification:
+    - docs/spec/api/public-api.md
+  finding: >-
+    Regenerating internal/publicclient/generated with the pinned
+    oapi-codegen v2.8.0 from the committed YAML adds 1,805 lines; the client
+    lacks ListAuditEvents, ListOwnerAudits, ListOwnerFindings and
+    ListOwnerReviews and differs in Eval selector types. The last
+    regeneration was be4b7338 (2026-10-04); cc167827 and 99e91963 changed the
+    OpenAPI without it. make/dev.mk:27-28 only generates; there is no
+    counterpart of ui-generate-check (make/ui.mk:16-17).
+scope:
+  in:
+    - "Regenerate the client; add a generate-public-client-check target that regenerates to a temporary path and compares, and run it from make lint."
+    - "Pin oapi-codegen so generation works offline (go.mod tool directive or the existing pin), if it does not already."
+  out:
+    - "Hand-written publicclient code beyond what the regenerated types require."
+acceptance_criteria:
+  - id: A1
+    text: "make lint fails when the OpenAPI document changes without regenerating the Go client, and passes after regeneration."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/publicclient/... ./internal/cli"
+    covers: [A1]

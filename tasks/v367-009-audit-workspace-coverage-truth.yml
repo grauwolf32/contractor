@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V367-009
+title: "Count excluded items as gaps and ignore expired reviews in the Audit workspace"
+milestone: hub-audit-2026-10
+epic: audits
+kind: defect
+introduced_by: V37-010
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "The Audit workspace and the Audit report classify coverage from one table, and the waiting-decisions count shows only reviews that can still be decided."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq), audit G1, G2 / F3"
+  specification:
+    - docs/spec/audits/review-and-reports.md
+  finding: >-
+    auditservice/workspace_sql.go:14 counts coverage_status 'excluded' as a
+    completed check and :16 does not count it as a gap, so an item rejected
+    by its owner (auditstore/item_review_decision_sql.go:10-18 sets excluded
+    and gap human-approval-rejected) shows as done with 0 follow-ups, while
+    the report for the same data writes completed-with-gaps
+    (auditimport/report.go:499-501). AUD-R178 requires a visible gap.
+    workspace_sql.go:20 counts audit_review_requests in state pending
+    without checking expires_at; finding-triage requests expire only
+    lazily (finding_review.go:85, review_write.go:72-79), so terminal Audits
+    show waiting decisions forever. The workspace test covers 6 of 10
+    coverage statuses (service_postgres_test.go:180-183).
+scope:
+  in:
+    - "One coverage-status classification (completed, gap, unchecked) in auditdomain used by the workspace SQL (generated literal list or parameter) and by the report."
+    - "The pending-review count excludes expired requests."
+    - "Sibling: other read models that count pending reviews or coverage buckets."
+  out:
+    - "Review expiry semantics and the report format."
+acceptance_criteria:
+  - id: A1
+    text: "A PostgreSQL workspace test covers all 10 coverage statuses and agrees with the report's classification for each."
+  - id: A2
+    text: "An expired pending request is not counted as waiting."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditservice ./internal/auditimport ./internal/auditdomain"
+    covers: [A1, A2]

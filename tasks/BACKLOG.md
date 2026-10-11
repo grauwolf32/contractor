@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-34 open tasks: 3 in progress, 17 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
+46 open tasks: 3 in progress, 29 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
 
 ## In progress
 
@@ -17,11 +17,37 @@ the epics are in [epics.yml](epics.yml).
 
 ## Pending
 
+### Run execution core (`execution-core`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-006](v367-006-release-gateway-probe-on-stage-end.yml) | defect | P1 | — | Release the model gateway recovery probe when its Stage ends |
+| [V367-013](v367-013-replace-placement-after-paused-admission.yml) | defect | P2 | — | Re-place a Stage whose admission was deferred by a paused owner queue |
+
+### Planners and the Worker model boundary (`planner-worker`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-008](v367-008-one-stage-result-bound.yml) | defect | P2 | — | Check StageResult bounds once in StageContentResult.Validate |
+
+### Runtime labels, configuration and credentials (`runtime-config`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-005](v367-005-classify-credential-lookup-failures.yml) | defect | P1 | — | Keep the failure class of credential lookups during Workflow resolution |
+
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-004](v367-004-retry-transient-output-publication.yml) | defect | P1 | — | Retry Project output publication after transient database failures |
+| [V367-010](v367-010-page-run-artifact-listing.yml) | defect | P2 | — | Page the private Artifact list and the list_artifacts tool |
 
 ### Audits (`audits`)
 
@@ -41,12 +67,28 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
+| [V367-009](v367-009-audit-workspace-coverage-truth.yml) | defect | P2 | — | Count excluded items as gaps and ignore expired reviews in the Audit workspace |
 
 ### Evaluations (`evals`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
+
+### Public API and wire contracts (`api-contracts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-002](v367-002-one-page-fetch-bound.yml) | defect | P1 | — | Accept the documented limit=200 on every paged public list |
+| [V367-007](v367-007-runtime-capability-grammar.yml) | defect | P1 | — | Validate Runtime Agent toolset capabilities at registration with one grammar |
+| [V367-011](v367-011-check-public-client-freshness.yml) | defect | P2 | — | Regenerate the Go public client and check its freshness in make lint |
+| [V367-012](v367-012-permanent-idempotency-conflict.yml) | defect | P2 | — | Report a reused idempotency key as a permanent conflict and honour retryable in the CLI client |
+
+### PostgreSQL persistence and schema (`persistence`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V367-003](v367-003-active-run-state-indexes.yml) | defect | P1 | — | Rebuild the workflow_runs partial indexes for all five active Run states |
 
 ### Quality, CI and process (`quality`)
 
@@ -80,10 +122,10 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 0 | 36 | 37 | 5 | 60 |
-| Planners and the Worker model boundary (`planner-worker`) | 0 | 23 | 30 | 7 | 38 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 9 | 2 | 34 |
-| Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 10 |
+| Run execution core (`execution-core`) | 2 | 36 | 39 | 5 | 62 |
+| Planners and the Worker model boundary (`planner-worker`) | 1 | 23 | 31 | 7 | 41 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 10 | 2 | 35 |
+| Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 13 | 12 | 2 | 17 |
@@ -91,12 +133,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 0 | 7 | 2 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 0 | 13 | 8 | 5 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 27 | 24 | 2 | 30 |
-| Audits (`audits`) | 18 | 49 | 58 | 9 | 70 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 27 | 26 | 2 | 32 |
+| Audits (`audits`) | 19 | 49 | 59 | 9 | 70 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
-| Web UI (`ui`) | 0 | 19 | 49 | 10 | 45 |
+| Web UI (`ui`) | 0 | 19 | 49 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 29 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 0 | 1 | 12 | 8 | 5 |
-| PostgreSQL persistence and schema (`persistence`) | 1 | 0 | 11 | 24 | 3 |
+| Public API and wire contracts (`api-contracts`) | 4 | 1 | 16 | 8 | 6 |
+| PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 12 | 24 | 3 |
 | Quality, CI and process (`quality`) | 3 | 1 | 14 | 61 | 15 |
