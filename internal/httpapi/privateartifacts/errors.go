@@ -48,6 +48,9 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict):
 		h.writeError(w, http.StatusConflict, "artifact_conflict", "artifact revision precondition did not match", true)
+	case errors.Is(err, artifacts.ErrRunRevisionLimit):
+		// The Run never regains revisions, so no retry can succeed (ART-R114).
+		h.writeError(w, http.StatusConflict, "artifact_limit_exceeded", "the Run has reached its artifact revision limit", false)
 	case errors.Is(err, findingintake.ErrConflict):
 		h.writeError(w, http.StatusConflict, "finding_submission_conflict", "finding submission identity already has different content", false)
 	case errors.Is(err, findingintake.ErrAccessDenied), errors.Is(err, findingintake.ErrToolNotSelected):

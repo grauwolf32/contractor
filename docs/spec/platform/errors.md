@@ -97,7 +97,7 @@ owned by [Worker](../execution/worker.md).
 | `memory_invalid` | Invalid name, tags, UTF-8 or request shape | no |
 | `memory_not_found` | Requested current note does not exist | no |
 | `memory_too_large` | Resulting canonical note exceeds 32 KiB (LIM-MEM-1) | no |
-| `memory_namespace_full` | A create would exceed 128 active notes (LIM-MEM-8) | no |
+| `memory_namespace_full` | A create would exceed 128 active notes (LIM-MEM-8), or the Run has used up its Artifact revision limit (LIM-ART-6) | no |
 | `memory_changed` | Hidden Artifact CAS conflict or ambiguous newer value | yes, after re-read |
 | `memory_forbidden` | Tool/Worker/Stage capability or write fence rejects it | no |
 | `memory_unavailable` | Bounded infrastructure failure | yes |
@@ -267,7 +267,9 @@ other codes and their retryability are owned by
 ### Related limits and failure outcomes
 
 - The bounds named in `memory_too_large` and `memory_namespace_full` are
-  LIM-MEM-1 and LIM-MEM-8, owned by [Memory](../tools/memory.md); the bounds
+  LIM-MEM-1 and LIM-MEM-8, owned by [Memory](../tools/memory.md), and the Run
+  revision limit LIM-ART-6, owned by
+  [Artifact store](../artifacts/artifact-store.md); the bounds
   behind `skill_limit_exceeded` are owned by [Skills](../tools/skills.md).
 - The failure outcomes of the Planner Gateway model request (FAIL-PLN-1) are
   registered by [Planners](../execution/planners.md); those of Skill source
@@ -301,6 +303,7 @@ requirement that defines the code.
 | `allocation_not_found` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_preparation_failed` | — | not specified | Allocation preparation failed, including a confirmed local Podman engine preparation failure. Retry follows the existing preparation retry classification. | [EXE-R115](../tools/code-execution.md) |
 | `artifact_frozen` | 409 | no | A write targets a frozen binding, which never advances, so neither a re-read nor a retry can succeed; returned on the public and private Artifact APIs whatever the write precondition. | [ART-R59](../artifacts/artifact-store.md) |
+| `artifact_limit_exceeded` | 409 | no | A RunScope write would exceed the Run revision limit (LIM-ART-6); nothing is stored and the Run never regains revisions, so no retry can succeed. Returned on the private Artifact API. | [ART-R114](../artifacts/artifact-store.md) |
 | `artifact_too_large` | 413 | no | An Artifact exceeds its 64 MiB limit (LIM-ART-4); rejected in the same way as an oversized request body | [API-R5](../api/public-api.md) |
 | `assessment_unsupported` | — | no | Reason code of audit_profile_unsupported emitted for the unsupported finding-candidate inventory entry point. | [AUD-R89](../audits/audits.md) |
 | `audit_digest_mismatch` | 422 (POST /v1/finding-collections package codec failure); none in list_findings | not specified | Reused bounded Audit package codec error for finding collection decoding (digest mismatch); in `list_findings` the tool transport maps it to its existing error envelope without source bytes, and `POST /v1/finding-collections` keeps it as a bounded 422 package codec failure | [findings](../findings/findings.md) |
@@ -379,7 +382,7 @@ requirement that defines the code.
 | `memory_changed` | — | yes, after re-read | Hidden Artifact CAS conflict or ambiguous newer value; retryable after re-read | [ERR-R3](errors.md), [MEM-R67](../tools/memory.md) |
 | `memory_forbidden` | — | no | Tool/Worker/Stage capability or write fence rejects the memory operation | [ERR-R3](errors.md), [MEM-R63](../tools/memory.md) |
 | `memory_invalid` | — | no | Invalid memory note name, tags, UTF-8 or request shape | [ERR-R3](errors.md), [MEM-R74](../tools/memory.md) |
-| `memory_namespace_full` | — | no | A create would exceed 128 active notes (LIM-MEM-8) | [ERR-R3](errors.md), [MEM-R45](../tools/memory.md) |
+| `memory_namespace_full` | — | no | A create would exceed 128 active notes (LIM-MEM-8), or any note write after the Run used up its Artifact revision limit (LIM-ART-6) | [ERR-R3](errors.md), [MEM-R45](../tools/memory.md), [MEM-R98](../tools/memory.md) |
 | `memory_not_found` | — | no | Requested current memory note does not exist | [ERR-R3](errors.md), [MEM-R40](../tools/memory.md) |
 | `memory_too_large` | — | no | Resulting canonical memory note exceeds 32 KiB (LIM-MEM-1) | [ERR-R3](errors.md), [MEM-R25](../tools/memory.md) |
 | `memory_unavailable` | — | yes | Bounded memory infrastructure failure | [ERR-R3](errors.md), [MEM-R72](../tools/memory.md) |

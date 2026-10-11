@@ -13,6 +13,7 @@ const (
 	SQLStateDeadlockDetected          = "40P01"
 	SQLStateInsufficientPrivilege     = "42501"
 	SQLStateTooManyConnections        = "53300"
+	SQLStateProgramLimitExceeded      = "54000"
 	SQLStateLockNotAvailable          = "55P03"
 	SQLStateQueryCanceled             = "57014"
 )

@@ -738,6 +738,9 @@ def _mapped_client_error(error: Exception) -> MemoryToolError:
         "artifact_access_denied",
     }:
         return MemoryToolError("memory_forbidden")
+    if isinstance(error, ArtifactAPIError) and error.code == "artifact_limit_exceeded":
+        # The Run can store no further Artifact revision, so no note write succeeds.
+        return MemoryToolError("memory_namespace_full")
     return MemoryToolError("memory_unavailable")
 
 

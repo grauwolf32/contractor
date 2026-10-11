@@ -570,6 +570,24 @@ concurrent writes of identical content to different bindings, must both observe
 the committed scope or blob after a uniqueness wait rather than return a false
 CAS conflict (FAIL-ART-5).
 
+**ART-R114.** One RunScope holds at most 50,000 binding revisions outside the
+Scheduler-managed `outputs` Namespace (LIM-ART-6). The Run's bindings,
+retained revisions, candidate versions and owned lineage edges all hang off
+these revisions, so the limit bounds them too. PostgreSQL counts every
+inserted revision against its RunScope under the scope row lock, whichever
+write path inserts it, so concurrent writers of one Run cannot exceed the
+limit together. A write that would exceed it stores nothing and returns
+`artifact_limit_exceeded` (HTTP 409, `retryable` false) on the private
+Artifact API; revisions are never given back while the Run exists, so no
+retry can succeed (FAIL-ART-1). The Scheduler's `outputs` revisions do not
+count, so a Run that used up its limit still binds its declared outputs.
+MemoryTools report the exhausted limit as `memory_namespace_full`
+([Memory](../tools/memory.md)).
+
+Rationale: Run deletion purges the whole RunScope in one transaction
+(DEL-R22); without a bound on the Run, a large enough Run could never be
+deleted within the purge budget.
+
 How long an old revision remains resolvable to its immutable internal version
 is owned by [Retention and deletion](retention-and-deletion.md).
 
@@ -979,12 +997,16 @@ Limits ([registry](../platform/limits.md)):
   (ART-R65).
 - LIM-ART-5 — private list `cursor` and `nextCursor`: 1 through 512 base64url
   characters (ART-R48).
+- LIM-ART-6 — binding revisions of one RunScope outside `outputs`: at most
+  50,000 (ART-R114).
 
 Errors ([registry](../platform/errors.md)):
 
 - `ArtifactConflict` — a stale or already-consumed CAS precondition; no new
   version is created (ART-R59, ART-R60).
 - `artifact_frozen` — a write to a frozen binding; permanent (ART-R59).
+- `artifact_limit_exceeded` — a write beyond the Run revision limit; nothing
+  is stored; permanent (ART-R114).
 - `context_artifact_missing` is owned by [Scheduler](../execution/scheduler.md).
 
 Failure outcomes ([failure model](../platform/failure-model.md)):

@@ -193,6 +193,20 @@ durable state (LIFE-DEL-1, LIFE-DEL-3), including:
   publication receipts and create-idempotency records;
 - the WorkflowRun row itself.
 
+**DEL-R59.** The purge removes a scope in purge batches of at most 1,000
+binding revisions taken in key order (LIM-DEL-2). Each batch first removes
+the lineage edges into or out of its revisions and the bindings whose current
+revision it holds, then the revisions. Their versions and blobs are then
+locked in one global order and the unreferenced ones deleted, at most one
+batch of them per statement. A Run purge stays the one transaction of DEL-R22:
+the Run revision limit (LIM-ART-6) bounds its batches. An Audit namespace
+purge likewise runs inside its Audit deletion transaction
+([review-and-reports](../audits/review-and-reports.md)).
+
+Rationale: a statement per batch keeps every statement and lock set bounded,
+and each batch's key range starts behind the rows earlier batches deleted, so
+the work grows linearly with the scope instead of rereading it per batch.
+
 **DEL-R23.** The same transaction advances the revision of every affected
 owner Audit: the managed execution's Audit, native proposal-receipt Audits and
 destination Audits retaining imported proposals. Each affected Audit,
@@ -320,8 +334,20 @@ is specified in [managed-evals](../evals/managed-evals.md).
    Runs that were already terminal when deletion began;
 4. purge every binding, retained revision, pin and lineage edge in the
    complete ProjectScope, then garbage-collect only globally unreferenced
-   versions and blobs (DEL-R9, LIFE-DEL-4);
+   versions and blobs (DEL-R9, LIFE-DEL-4), one purge batch per transaction
+   (DEL-R60);
 5. remove Project create-idempotency data and the Project row.
+
+**DEL-R60.** A ProjectScope has no revision limit, so Project deletion
+purges it in transactions of at most one purge batch each (LIM-DEL-2). Every
+such transaction rechecks the deletion claim and that no Project Run or Audit
+remains, purges the Project's native private eval storage, which is a no-op
+after the first time, and only then removes one batch and collects the
+versions and blobs that batch left unreferenced. The transaction that finds
+the scope empty removes the scope and the Project row. A committed batch
+stays purged: a deleting Project without Runs and Audits admits no Artifact
+write (DEL-R40), and a failed transaction leaves the earlier batches purged
+and the Project `deleting` (DEL-R47).
 
 **DEL-R45.** Before its Run purge and ProjectScope purge, Project deletion
 runs an Audit cancellation and drain phase. Audit deletion itself, including
@@ -344,9 +370,9 @@ crash at every phase. After a Server restart the durable phase is resumed and
 no Run is recreated (FAIL-DEL-3).
 
 **DEL-R48.** Claim bookkeeping and the cancellation and drain phases use the
-controller operation budget; each Run purge and the final ProjectScope purge
-use a separate, longer purge budget, and a purge claim's lease grows by the
-same amount.
+controller operation budget; each Run purge and each ProjectScope purge
+transaction use a separate, longer purge budget, and a purge claim's lease
+grows by the same amount.
 
 **DEL-R49.** A failed attempt defers or releases its claim with a fresh
 bounded budget. When cancellation or release fails, the Project stays
@@ -401,6 +427,10 @@ flowchart TD
 
 - [LIM-DEL-1](../platform/limits.md): one revision advance per affected Audit
   per successful Run deletion (DEL-R23).
+- [LIM-DEL-2](../platform/limits.md): 1,000 binding revisions per purge batch,
+  one batch per ProjectScope purge transaction (DEL-R59, DEL-R60).
+- [LIM-ART-6](../platform/limits.md): the Run revision limit that bounds one
+  Run purge transaction (DEL-R59).
 - [FAIL-DEL-1](../platform/failure-model.md): terminal Run hard deletion
   (DEL-R20, DEL-R21, DEL-R24).
 - [FAIL-DEL-2](../platform/failure-model.md): the Project DELETE request

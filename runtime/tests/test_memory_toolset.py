@@ -435,6 +435,7 @@ def test_http_ambiguity_preserves_reconciliation_authority_and_cancellation(
         (403, "artifact_access_denied", "memory_forbidden"),
         (503, "allocation_write_fenced", "memory_forbidden"),
         (409, "artifact_conflict", "memory_changed"),
+        (409, "artifact_limit_exceeded", "memory_namespace_full"),
         (400, "invalid_request", "memory_unavailable"),
     ],
 )

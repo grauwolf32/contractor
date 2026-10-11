@@ -14,8 +14,9 @@ import (
 )
 
 // The private API keeps the retryability of the store's answer: a frozen
-// binding is permanent (ART-R59) and a definite transaction conflict is the
-// retryable 503 the public API returns (FAIL-ART-1).
+// binding (ART-R59) and an exhausted Run revision limit (ART-R114) are
+// permanent, and a definite transaction conflict is the retryable 503 the
+// public API returns (FAIL-ART-1).
 func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 	for _, test := range []struct {
 		name      string
@@ -25,6 +26,8 @@ func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 		retryable bool
 	}{
 		{"frozen binding", artifacts.ErrArtifactFrozen, http.StatusConflict, "artifact_frozen", false},
+		{"Run revision limit", fmt.Errorf("write artifact: %w", artifacts.ErrRunRevisionLimit),
+			http.StatusConflict, "artifact_limit_exceeded", false},
 		{"stale revision", &artifacts.ConflictError{Ref: artifacts.ArtifactRef{Namespace: "builder", Name: "report"}},
 			http.StatusConflict, "artifact_conflict", true},
 		{"serialization failure", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: "40001"}),
