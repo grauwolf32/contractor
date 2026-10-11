@@ -16,7 +16,7 @@ VALUES (sha256('fixture'::bytea),'fixture'::bytea,7)`); err != nil {
 	for _, length := range []int{255, 256} {
 		_, err := pool.Exec(t.Context(), `INSERT INTO artifact_versions(version_id,blob_sha256,media_type)
 VALUES ($1,sha256('fixture'::bytea),$2)`, strings.Repeat("v", length), "text/"+strings.Repeat("a", length-5))
-		if length == 255 && err != nil || length == 256 && postgres.SQLState(err) != "23514" {
+		if length == 255 && err != nil || length == 256 && postgres.SQLState(err) != postgres.SQLStateCheckViolation {
 			t.Fatalf("media type length %d: %v", length, err)
 		}
 	}

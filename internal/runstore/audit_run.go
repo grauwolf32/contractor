@@ -57,10 +57,10 @@ FROM inserted_run`,
 		params.AuditExecutionID, params.AuditSubmissionKey, encodedMetadataLabels,
 	))
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, err)

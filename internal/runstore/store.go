@@ -199,10 +199,10 @@ FROM inserted_run`,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "55000" {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
@@ -259,7 +259,7 @@ FROM inserted_run`,
 	if err == nil {
 		return result, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

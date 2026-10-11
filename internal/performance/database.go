@@ -2,7 +2,6 @@ package performance
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -131,13 +130,10 @@ func (s *DatabaseStore) ReadSize(ctx context.Context) (DatabaseSize, Reason) {
 }
 
 func databaseReason(err error) Reason {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	switch postgres.Classify(err) {
+	case postgres.ClassTimeout, postgres.ClassCancelled:
 		return BudgetExceeded
-	}
-	switch postgres.SQLState(err) {
-	case postgres.SQLStateQueryCanceled, postgres.SQLStateLockNotAvailable:
-		return BudgetExceeded
-	case postgres.SQLStateInsufficientPrivilege:
+	case postgres.ClassPermissionDenied:
 		return PermissionDenied
 	default:
 		return DatabaseUnavailable

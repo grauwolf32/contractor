@@ -184,7 +184,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, thawErr := pool.Exec(ctx, `UPDATE artifact_bindings SET frozen=false WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs'`, before.RunID)
-	if persistencepostgres.SQLState(thawErr) != "23514" {
+	if persistencepostgres.SQLState(thawErr) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("old receipt permitted a later thaw: %v", thawErr)
 	}
 	next, err := store.GetStageExecution(ctx, target)

@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -91,7 +92,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	appendEvent(202)
 	_, err = pool.Exec(ctx, `UPDATE audit_events SET created_at='2026-10-07T10:00:00Z' WHERE audit_id='audit-events'`)
 	var constraint *pgconn.PgError
-	if !errors.As(err, &constraint) || constraint.Code != "23514" {
+	if !errors.As(err, &constraint) || constraint.Code != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("event immutability = %v", err)
 	}
 	cursor := url.QueryEscape(*first.Page.NextCursor)

@@ -310,7 +310,7 @@ func TestPostgresAuditPreparationIdentityAndReplay(t *testing.T) {
 		`UPDATE audit_executions SET workflow_role='another-role'`,
 		`UPDATE audit_executions SET preparation_snapshot='{"inputs":{},"parameters":{}}'`,
 	} {
-		if _, err := f.pool.Exec(f.ctx, query); persistencepostgres.SQLState(err) != "23514" {
+		if _, err := f.pool.Exec(f.ctx, query); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 			t.Fatalf("immutable data changed: %s: %v", query, err)
 		}
 	}

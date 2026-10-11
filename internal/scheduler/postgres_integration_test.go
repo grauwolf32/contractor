@@ -539,7 +539,7 @@ CREATE FUNCTION reject_test_project_output_publication()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.lineage_kind = 'project_output_publish' THEN
-        RAISE EXCEPTION 'forced publication failure' USING ERRCODE = 'P0001';
+        RAISE EXCEPTION 'forced publication failure' USING ERRCODE = 'raise_exception';
     END IF;
     RETURN NEW;
 END;
@@ -1130,7 +1130,7 @@ func TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `
 UPDATE stage_executions SET escalation_ordinal = 2
-WHERE stage_execution_id = 'stage-escalation-2'`); persistencepostgres.SQLState(err) != "23514" {
+WHERE stage_execution_id = 'stage-escalation-2'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("escalation identity rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	duplicateID, duplicatePrevious := "stage-escalation-duplicate", targetID

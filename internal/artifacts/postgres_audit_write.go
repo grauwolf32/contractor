@@ -58,10 +58,10 @@ func (r *PostgresRepository) WriteAuditArtifact(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrInvalidScope)
 		default:
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", err)
@@ -80,12 +80,12 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		return WriteResult{}, &ConflictError{Ref: target}
 	}
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return WriteResult{}, fmt.Errorf("write Audit artifact: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return WriteResult{}, fmt.Errorf("write Audit artifact: %w", ErrInvalidScope)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			return WriteResult{}, &ConflictError{Ref: target}
 		default:
 			return WriteResult{}, fmt.Errorf("write Audit artifact %s/%s: %w", target.Namespace, target.Name, err)

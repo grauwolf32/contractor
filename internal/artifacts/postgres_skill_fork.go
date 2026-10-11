@@ -37,7 +37,7 @@ func (r *PostgresRepository) ForkSkill(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, targetScope.kind, targetScope.id); err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return ForkResult{}, ErrInvalidScope
 		}
 		return ForkResult{}, fmt.Errorf("create Run Skill scope: %w", err)
@@ -58,7 +58,7 @@ ON CONFLICT DO NOTHING`, targetScope.kind, targetScope.id); err != nil {
 		&existingTargetRevision, &existingSourceRevision, &mediaType, &size,
 	)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return ForkResult{}, ErrInvalidScope
 		}
 		return ForkResult{}, fmt.Errorf("fork Run Skill %q: %w", name, err)

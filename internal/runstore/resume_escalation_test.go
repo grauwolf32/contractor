@@ -66,7 +66,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 				_ = tx.Rollback(ctx)
 				t.Fatal(err)
 			}
-			if err := tx.Commit(ctx); persistencepostgres.SQLState(err) != "23503" {
+			if err := tx.Commit(ctx); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
 				t.Fatalf("missing receipt accepted: %v", err)
 			}
 			if _, err := store.GetStageExecution(ctx, "forged-manual"); !errors.Is(err, ErrNotFound) {
@@ -92,7 +92,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			if err != nil || !reflect.DeepEqual(previous, unchanged) {
 				t.Fatalf("source changed: %v", err)
 			}
-			if _, err := pool.Exec(ctx, `UPDATE stage_executions SET resume_source_execution_id=NULL WHERE stage_execution_id=$1`, next.StageExecutionID); persistencepostgres.SQLState(err) != "23514" {
+			if _, err := pool.Exec(ctx, `UPDATE stage_executions SET resume_source_execution_id=NULL WHERE stage_execution_id=$1`, next.StageExecutionID); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 				t.Fatalf("manual identity rewrite: %v", err)
 			}
 			failResumeStage(t, ctx, store, runID, next.StageExecutionID)

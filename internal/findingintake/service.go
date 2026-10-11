@@ -349,7 +349,7 @@ func insertReceipt(
 		evidenceJSON, string(canonical.reportProjection),
 	)
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return ErrConflict
 		}
 		return fmt.Errorf("insert finding proposal receipt: %w", err)

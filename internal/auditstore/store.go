@@ -116,13 +116,13 @@ func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParam
 	if err == nil {
 		return audit, true, nil
 	}
-	switch persistencepostgres.SQLState(err) {
-	case "55000":
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassDeleting:
 		return Audit{}, false, ErrProjectDeleting
-	case persistencepostgres.SQLStateForeignKeyViolation:
+	case persistencepostgres.ClassReferenceViolation:
 		return Audit{}, false, ErrNotFound
 	}
-	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
+	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.Classify(err) != persistencepostgres.ClassDuplicate {
 		return Audit{}, false, fmt.Errorf("create Audit: %w", err)
 	}
 	return s.replayAudit(ctx, params.OwnerID, "audit.create", params.IdempotencyKey, params.RequestDigest)

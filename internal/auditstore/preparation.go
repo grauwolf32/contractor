@@ -150,10 +150,10 @@ func (s *PostgresStore) StartPreparation(ctx context.Context, p StartPreparation
 	if err == nil {
 		return result, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, false, ErrProjectDeleting
 	}
-	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		if replay, found, replayErr := s.lookupAuditReplay(ctx, p.OwnerID, "audit.start", p.IdempotencyKey, p.RequestDigest); replayErr != nil || found {
 			return replay, false, replayErr
 		}
@@ -177,7 +177,7 @@ func (s *PostgresStore) CompletePreparation(ctx context.Context, claim Controlle
 	if err == nil {
 		return audit, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Audit{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

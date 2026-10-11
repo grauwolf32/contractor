@@ -77,10 +77,10 @@ INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		discardFreshCandidate()
-		if persistencepostgres.SQLState(err) == "55000" {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassReferenceViolation {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
 		}
 		return WriteResult{}, fmt.Errorf("create artifact scope: %w", err)
@@ -100,14 +100,14 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			discardFreshCandidate()
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			discardFreshCandidate()
 			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}

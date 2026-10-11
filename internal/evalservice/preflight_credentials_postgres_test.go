@@ -80,7 +80,7 @@ func TestPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T) {
 	coordinator := h.coordinator(t, "review-runtime-failure")
 	_, err = coordinator.RunOnce(ctx)
 	var database *pgconn.PgError
-	if !errors.As(err, &database) || database.Code != "42P01" {
+	if !errors.As(err, &database) || database.Code != pg.SQLStateUndefinedTable {
 		t.Fatalf("lost database failure: %v", err)
 	}
 	if _, err = h.pool.Exec(ctx, `ALTER TABLE review_unavailable_credentials RENAME TO runtime_credentials`); err != nil {

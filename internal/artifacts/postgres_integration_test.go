@@ -179,7 +179,7 @@ WHERE (scope_kind, scope_id, namespace, name, revision) IN (
 INSERT INTO artifact_bindings (
     scope_kind, scope_id, namespace, name, current_revision
 ) VALUES ('run', 'run-fork', 'illegal', 'cross-binding', $1)`, *fork.TargetRef.Revision)
-	if persistencepostgres.SQLState(err) != "23503" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
 		t.Fatalf("cross-binding revision SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
@@ -190,21 +190,21 @@ SELECT scope_kind, scope_id, namespace, name, revision, version_id
 FROM artifact_binding_revisions
 WHERE scope_kind = 'run' AND scope_id = 'run-fork'
   AND namespace = 'inputs' AND name = 'source' AND revision = $1`, *fork.TargetRef.Revision)
-	if persistencepostgres.SQLState(err) != "23505" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
 		t.Fatalf("revision reuse SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
 INSERT INTO artifact_blobs (sha256, payload, size_bytes)
 VALUES (decode(repeat('00', 32), 'hex'), 'bad digest'::bytea, 10)`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("invalid blob digest SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE artifact_blobs SET payload = 'changed'::bytea`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("blob mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `DELETE FROM artifact_blobs`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("blob deletion SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 }
@@ -721,7 +721,7 @@ func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testin
 	}
 	if _, err := pool.Exec(ctx, `
 DELETE FROM artifact_binding_revisions
-WHERE scope_kind = 'run' AND scope_id = $1`, runID); persistencepostgres.SQLState(err) != "23514" {
+WHERE scope_kind = 'run' AND scope_id = $1`, runID); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("lifecycle purge bypass leaked after rollback: SQLSTATE=%q error=%v",
 			persistencepostgres.SQLState(err), err)
 	}

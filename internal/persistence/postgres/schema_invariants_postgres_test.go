@@ -112,11 +112,11 @@ SELECT count(*), min(max_concurrent_runs), min(revision)::text FROM scheduler_se
 			rows, maxConcurrentRuns, revision)
 	}
 	_, err := pool.Exec(ctx, `DELETE FROM scheduler_settings`)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision) VALUES (true, 2, 1)`)
-	assertSQLState(t, err, "23505")
+	assertSQLState(t, err, SQLStateUniqueViolation)
 	_, err = pool.Exec(ctx, `INSERT INTO scheduler_settings (singleton, max_concurrent_runs, revision) VALUES (false, 2, 1)`)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 }
 
 // TestPostgresRunMetadataLabelsAreBoundedIndexedAndImmutable checks that the
@@ -151,13 +151,13 @@ INSERT INTO workflow_runs (
 		"non-string value": `{"team":1}`,
 		"long value":       `{"team":"` + strings.Repeat("x", 257) + `"}`,
 	} {
-		assertSQLState(t, insert("run-"+strings.ReplaceAll(name, " ", "-"), labels), "23514")
+		assertSQLState(t, insert("run-"+strings.ReplaceAll(name, " ", "-"), labels), SQLStateCheckViolation)
 	}
 	if err := insert("run-labelled", `{"team":"red","tier":"gold"}`); err != nil {
 		t.Fatalf("insert labelled Run: %v", err)
 	}
 	_, err := pool.Exec(ctx, `UPDATE workflow_runs SET metadata_labels = '{}' WHERE run_id = 'run-labelled'`)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 	var definition string
 	if err := pool.QueryRow(ctx, `
 SELECT indexdef FROM pg_indexes

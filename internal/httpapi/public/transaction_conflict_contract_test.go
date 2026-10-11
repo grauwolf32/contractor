@@ -9,6 +9,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
@@ -29,7 +30,7 @@ func TestTransactionConflictResponsesConformToOpenAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build contract router: %v", err)
 	}
-	for _, code := range []string{"40001", "40P01"} {
+	for _, code := range []string{persistencepostgres.SQLStateSerializationFailure, persistencepostgres.SQLStateDeadlockDetected} {
 		conflict := &pgconn.PgError{Code: code}
 		fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 			newTestAuthentication(t), mustTestOrigins(t), false, nil,

@@ -14,7 +14,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/persistence/migrations"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -124,8 +123,7 @@ func VerifyMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	applied, err := readAppliedMigrations(ctx, pool)
 	if err != nil {
-		var postgresError *pgconn.PgError
-		if errors.As(err, &postgresError) && postgresError.Code == "42P01" {
+		if SQLState(err) == SQLStateUndefinedTable {
 			return fmt.Errorf("%w: migration ledger contractor_schema_migrations is absent", ErrMigrationsPending)
 		}
 		return err

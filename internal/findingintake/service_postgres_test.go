@@ -344,7 +344,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET workflow_name = 'forged' WHERE receipt_id = $1`, firstReceipt.ReceiptID); persistencepostgres.SQLState(err) != "23514" {
+	if _, err := pool.Exec(ctx, `UPDATE finding_proposal_receipts SET workflow_name = 'forged' WHERE receipt_id = $1`, firstReceipt.ReceiptID); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("receipt provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	hold, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{

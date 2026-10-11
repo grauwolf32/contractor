@@ -112,14 +112,14 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 UPDATE stage_allocations
 SET runtime_agent_label_revision = runtime_agent_label_revision + 1
 WHERE allocation_id = 'allocation-1'`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("allocation Runtime provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
 UPDATE stage_allocations
 SET performance_collection_policy = 'requested'
 WHERE allocation_id = 'allocation-1'`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("allocation performance policy rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	reportFinished := time.Now().UTC()
@@ -161,7 +161,7 @@ WHERE allocation_id = 'allocation-1'`)
 	if _, err := pool.Exec(ctx, `
 UPDATE allocation_execution_reports
 SET report = jsonb_set(report, '{worker,complete}', 'false')
-WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23514" {
+WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("execution report rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
@@ -379,7 +379,7 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 UPDATE stage_executions
 SET candidate_stage_result = jsonb_set(candidate_stage_result, '{summary}', '"rewritten"')
 WHERE stage_execution_id = 'stage-lifecycle'`)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("candidate rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 }
@@ -417,13 +417,13 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 	_, err = pool.Exec(ctx, `
 UPDATE workflow_runs SET metadata_labels = metadata_labels || '{"eval.leg":"b"}'
 WHERE run_id = $1`, created.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("direct metadata-label update SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
 UPDATE workflow_runs SET metadata_labels = metadata_labels - 'eval.leg'
 WHERE run_id = $1`, created.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("direct metadata-label delete SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	for labels, valid := range map[string]bool{
@@ -491,21 +491,21 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	}
 
 	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET project_id = 'project-two' WHERE run_id = $1`, projectRun.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("Project membership mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	_, err = pool.Exec(ctx, `
 UPDATE workflow_runs
 SET project_http_target_snapshot = '{"url":"https://other.example.test"}'::jsonb
 WHERE run_id = $1`, projectRun.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("Project HTTP target mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	foreignParams := testRunParams("run-foreign-project-member")
 	foreignParams.OwnerID = "user-2"
 	foreignParams.ProjectID = &projectID
 	_, err = store.CreateRun(ctx, foreignParams)
-	if persistencepostgres.SQLState(err) != "23503" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
 		t.Fatalf("foreign Project membership SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 }
@@ -1025,7 +1025,7 @@ func TestPostgresOwnerQueueControlSerializesWithStageAdmission(t *testing.T) {
 UPDATE owner_queue_controls
 SET revision = revision + 1,
     updated_at = updated_at + interval '1 second'
-WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != "23514" {
+WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("owner Queue no-op rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
@@ -1306,7 +1306,7 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		t.Fatalf("started Skill Run = (%+v, %v)", started, err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET skill_snapshot = '[]'::jsonb WHERE run_id = $1`, run.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("terminal Skill snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
@@ -1446,7 +1446,7 @@ func TestPostgresIntegrationRunCancellationIsDurableAndIdempotent(t *testing.T) 
 UPDATE workflow_runs
 SET run_cancellation = jsonb_set(run_cancellation, '{reason}', '"rewritten"')
 WHERE run_id = $1`, first.RunID)
-	if persistencepostgres.SQLState(err) != "23514" {
+	if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("cancellation rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 
@@ -1553,7 +1553,7 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 	if _, err := pool.Exec(ctx, `
 UPDATE workflow_runs
 SET runtime_config_snapshot = jsonb_set(runtime_config_snapshot, '{default,bindingRevision}', '99')
-WHERE run_id = 'run-runtime-label-old'`); persistencepostgres.SQLState(err) != "23514" {
+WHERE run_id = 'run-runtime-label-old'`); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("RuntimeConfig snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	newTx, err := pool.Begin(ctx)

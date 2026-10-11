@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -31,9 +33,11 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 		{"invalid", fmt.Errorf("%w: %s", credentials.ErrInvalid, secret), false, "credential_invalid"},
 		{"crypto", credentials.ErrCrypto, false, "credential_unreadable"},
 		{"deadline", context.DeadlineExceeded, true, "context_ended"},
-		{"connection", fmt.Errorf("query %s: %w", secret, &pgconn.PgError{Code: "08006"}), true, "storage_unavailable"},
-		{"serialization", &pgconn.PgError{Code: "40001"}, true, "storage_unavailable"},
-		{"constraint", &pgconn.PgError{Code: "23505"}, false, "configuration_unavailable"},
+		{"connection", fmt.Errorf("query %s: %w", secret, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}), true, "storage_unavailable"},
+		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, true, "storage_unavailable"},
+		{"lock-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}, true, "storage_unavailable"},
+		{"lost-connection", fmt.Errorf("query %s: %w", secret, io.ErrUnexpectedEOF), true, "storage_unavailable"},
+		{"constraint", &pgconn.PgError{Code: persistencepostgres.SQLStateUniqueViolation}, false, "configuration_unavailable"},
 		{"unclassified", errors.New(secret), false, "configuration_unavailable"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -92,9 +96,9 @@ func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
 		err   error
 		cause string
 	}{
-		{"serialization", &pgconn.PgError{Code: "40001", Message: secret}, "storage_unavailable"},
-		{"deadlock", &pgconn.PgError{Code: "40P01", Message: secret}, "storage_unavailable"},
-		{"connection", &pgconn.PgError{Code: "08006", Message: secret}, "storage_unavailable"},
+		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: secret}, "storage_unavailable"},
+		{"deadlock", &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected, Message: secret}, "storage_unavailable"},
+		{"connection", &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure, Message: secret}, "storage_unavailable"},
 		{"shutdown", context.Canceled, "context_ended"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

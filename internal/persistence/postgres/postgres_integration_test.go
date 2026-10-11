@@ -98,7 +98,7 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code
 ) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'bogus', 'test')`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -107,7 +107,7 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code
 ) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'succeeded', 'test')`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -119,7 +119,7 @@ INSERT INTO workflow_runs (
     'run-invalid-runtime-snapshot', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}',
     jsonb_set($1::jsonb, '{llmCredentialIds}', '[null]'::jsonb), 'initializing', 'test'
 )`, builtInRunRuntimeSnapshot)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
@@ -141,7 +141,7 @@ INSERT INTO stage_executions (
     'invalid-terminal-stage', 'run-for-stage', 'build', 1,
     'v1', '{}', 'v1', '{}', 'succeeded', 'test', clock_timestamp()
 )`)
-	assertSQLState(t, err, "23514")
+	assertSQLState(t, err, SQLStateCheckViolation)
 }
 
 func isolatedPools(

@@ -93,10 +93,13 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		result = PublishedCollection{Artifact: exact, SnapshotAt: value.SnapshotAt, EntryCount: len(value.Entries)}
 		return nil
 	})
-	if postgres.IsTransactionConflict(err) {
-		return PublishedCollection{}, ErrConflict
+	if err != nil {
+		// A transaction conflict that outlasts the retries stays one: the
+		// caller reports it as the retryable storage_transaction_conflict
+		// (PER-R16).
+		return PublishedCollection{}, err
 	}
-	return result, err
+	return result, nil
 }
 
 func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, requestDigest string) (PublishedCollection, bool, error) {
