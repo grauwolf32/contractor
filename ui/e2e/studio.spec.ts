@@ -499,7 +499,7 @@ for (const width of [1440, 390, 320]) {
       await page
         .getByRole("button", { name: "Load draft", exact: true })
         .click();
-      if (file.startsWith("audit-profiles/")) {
+      if (expected.kind === "AuditProfile") {
         await page
           .locator(".studio-node-select")
           .filter({ hasText: "trace" })
