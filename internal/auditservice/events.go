@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -42,7 +43,7 @@ type EventPage struct {
 func (s *Service) ListEventsPage(ctx context.Context, p EventListParams) (EventPage, error) {
 	var result EventPage
 	if !validReviewIdentity(p.OwnerID, 256) || !validReviewIdentity(p.AuditID, 256) ||
-		p.Limit < 1 || p.Limit > auditstore.MaxPageSize+1 ||
+		!pagelimit.ValidFetch(p.Limit) ||
 		(p.ThroughSequence == nil) != (p.BeforeSequence == nil) ||
 		(p.ThroughSequence != nil && (*p.ThroughSequence > math.MaxInt64 ||
 			*p.BeforeSequence == 0 || *p.BeforeSequence > *p.ThroughSequence)) {

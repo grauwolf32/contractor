@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	MaxFindingPageSize         = 200
 	MaxReviewRationale         = 64 << 10
 	defaultReviewTTL           = 7 * 24 * time.Hour
 	maximumReviewTTL           = 30 * 24 * time.Hour
@@ -17,9 +16,6 @@ const (
 	ApplicabilityReviewKind    = "requirement-applicability"
 	ReportAcceptanceReviewKind = "report-acceptance"
 )
-
-// Public lists fetch one extra row to determine whether to issue a cursor.
-const maxFindingListRows = MaxFindingPageSize + 1
 
 func (kind ReviewSubjectKind) Valid() bool {
 	return kind == ReviewSubjectFinding || kind == ReviewSubjectItemAction ||

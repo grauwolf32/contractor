@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) getOperationsSnapshot(w http.ResponseWriter, r *http.Request) {
@@ -49,13 +50,13 @@ func (h *handler) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	items := make([]controlplane.RuntimeAgentObservation, 0, min(limit+1, len(snapshot.RuntimeAgents)))
+	items := make([]controlplane.RuntimeAgentObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.RuntimeAgents)))
 	for _, item := range snapshot.RuntimeAgents {
 		if item.InstanceID <= after {
 			continue
 		}
 		items = append(items, item)
-		if len(items) == limit+1 {
+		if len(items) == pagelimit.FetchRows(limit) {
 			break
 		}
 	}
@@ -90,13 +91,13 @@ func (h *handler) listAllocations(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	items := make([]controlplane.AllocationObservation, 0, min(limit+1, len(snapshot.Allocations)))
+	items := make([]controlplane.AllocationObservation, 0, min(pagelimit.FetchRows(limit), len(snapshot.Allocations)))
 	for _, item := range snapshot.Allocations {
 		if item.AllocationID <= after {
 			continue
 		}
 		items = append(items, item)
-		if len(items) == limit+1 {
+		if len(items) == pagelimit.FetchRows(limit) {
 			break
 		}
 	}

@@ -11,7 +11,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -58,7 +60,7 @@ SELECT request_id, request_digest
 		)
 		if err == nil {
 			if storedDigest != params.RequestDigest {
-				return auditstore.ErrConflict
+				return fmt.Errorf("%w: finding review key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
@@ -157,7 +159,7 @@ SELECT decision_id, request_id, finding_id, request_digest
 		)
 		if err == nil {
 			if storedDigest != params.RequestDigest || requestID != params.RequestID {
-				return auditstore.ErrConflict
+				return fmt.Errorf("%w: finding decision key", contracts.ErrIdempotencyConflict)
 			}
 			replayed = true
 			return nil
@@ -802,7 +804,7 @@ func appendAuditReviewEvent(
 
 func validateFindingList(params FindingListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		params.Limit < 1 || params.Limit > maxFindingListRows ||
+		!pagelimit.ValidFetch(params.Limit) ||
 		(params.AfterCreatedAt == nil) != (params.AfterFindingID == "") ||
 		(params.State != nil && !params.State.Valid()) ||
 		(params.Severity != nil && !params.Severity.Valid()) {
@@ -819,7 +821,7 @@ func validateFindingList(params FindingListParams) error {
 
 func validateReviewList(params ReviewListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		params.Limit < 1 || params.Limit > maxFindingListRows ||
+		!pagelimit.ValidFetch(params.Limit) ||
 		(params.AfterCreatedAt == nil) != (params.AfterRequestID == "") ||
 		(params.State != nil && !params.State.Valid()) ||
 		(params.FindingID != nil && !validReviewIdentity(*params.FindingID, 256)) {
@@ -830,8 +832,7 @@ func validateReviewList(params ReviewListParams) error {
 
 func validateProvenanceList(params ProvenanceListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		!validReviewIdentity(params.FindingID, 256) || params.Limit < 1 ||
-		params.Limit > maxFindingListRows ||
+		!validReviewIdentity(params.FindingID, 256) || !pagelimit.ValidFetch(params.Limit) ||
 		(params.AfterCreatedAt == nil) != (params.AfterRecordID == "") {
 		return auditstore.ErrInvalid
 	}

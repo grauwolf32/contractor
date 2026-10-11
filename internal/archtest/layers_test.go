@@ -34,6 +34,8 @@ var layers = []layerSpec{
 			"internal/documentnumber",
 			"internal/httpapi/httpx",
 			"internal/mtlstest",
+			// The public list page bound shared by handlers, stores and the CLI.
+			"internal/pagelimit",
 			"internal/profiling",
 			"internal/publicclient/generated",
 			"internal/randomid",

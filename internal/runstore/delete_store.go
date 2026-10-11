@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -48,7 +49,7 @@ func (s *PostgresStore) LockRunForDeletion(
 }
 
 // ReadRunDeletionGates reads the same gates as LockRunForDeletion, without a
-// lock, for at most MaxRunPageRows of the owner's Runs. Runs that do not exist
+// lock, for at most one public page (pagelimit.MaxRows) of the owner's Runs. Runs that do not exist
 // or belong to another owner are absent from the result. The answer is
 // advisory; deletion repeats the read under the lock.
 func (s *PostgresStore) ReadRunDeletionGates(
@@ -57,8 +58,8 @@ func (s *PostgresStore) ReadRunDeletionGates(
 	if err := validateOpaque("ownerID", ownerID); err != nil {
 		return nil, err
 	}
-	if len(runIDs) > MaxRunPageRows {
-		return nil, invalidf("at most %d Runs can be inspected for deletion at once", MaxRunPageRows)
+	if len(runIDs) > pagelimit.MaxRows {
+		return nil, invalidf("at most %d Runs can be inspected for deletion at once", pagelimit.MaxRows)
 	}
 	for _, runID := range runIDs {
 		if err := validateOpaque("runID", runID); err != nil {

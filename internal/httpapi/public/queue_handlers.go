@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -142,7 +143,7 @@ func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	}
 	params := runstore.ListRunQueueParams{
 		OwnerID: principalUserID(r.Context()), State: state,
-		Membership: membership, Limit: limit + 1,
+		Membership: membership, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])

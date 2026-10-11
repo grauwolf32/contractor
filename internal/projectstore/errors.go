@@ -5,9 +5,11 @@ package projectstore
 import "errors"
 
 var (
-	ErrInvalid      = errors.New("projectstore invalid argument")
-	ErrNotFound     = errors.New("projectstore resource not found")
-	ErrConflict     = errors.New("projectstore identity or idempotency conflict")
+	ErrInvalid  = errors.New("projectstore invalid argument")
+	ErrNotFound = errors.New("projectstore resource not found")
+	// ErrConflict is an identity conflict; a reused creation key is
+	// contracts.ErrIdempotencyConflict.
+	ErrConflict     = errors.New("projectstore identity conflict")
 	ErrPrecondition = errors.New("projectstore revision precondition failed")
 	ErrDeleting     = errors.New("projectstore Project is deleting")
 )

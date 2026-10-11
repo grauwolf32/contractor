@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 type findingProposalPageResponse struct {
@@ -89,7 +90,7 @@ func (h *handler) listFindingProposals(
 		h.handleError(w, err)
 		return
 	}
-	query := findingintake.ListQuery{Limit: limit + 1}
+	query := findingintake.ListQuery{Limit: pagelimit.FetchRows(limit)}
 	if len(cursor) != 0 {
 		after, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {

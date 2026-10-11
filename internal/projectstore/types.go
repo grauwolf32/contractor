@@ -9,7 +9,6 @@ import (
 const (
 	MaxNameBytes        = 160
 	MaxDescriptionBytes = 4096
-	MaxPageSize         = 200
 )
 
 type Kind string

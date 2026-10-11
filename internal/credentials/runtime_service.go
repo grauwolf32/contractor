@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -323,7 +324,9 @@ func (s *RuntimeCredentialService) creationReplayWithRepository(
 		return RuntimeCredentialCreateResult{}, false, err
 	}
 	if creation.CredentialID != credentialID || creation.Kind != kind || !hmac.Equal(creation.RequestMAC, requestMAC) {
-		return RuntimeCredentialCreateResult{}, false, ErrRuntimeCredentialConflict
+		return RuntimeCredentialCreateResult{}, false, fmt.Errorf(
+			"%w: Runtime credential create key", contracts.ErrIdempotencyConflict,
+		)
 	}
 	record, err := repository.GetAnyRecord(ctx, creation.CredentialID)
 	if err != nil || record.Metadata.Kind != creation.Kind {

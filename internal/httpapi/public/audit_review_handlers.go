@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 type findingPageResponse struct {
@@ -51,7 +52,7 @@ func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := auditservice.FindingListParams{
-		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: limit + 1,
+		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit),
 	}
 	stateValue, verdictValue, severityValue := "", "", ""
 	if values, ok := query["state"]; ok {
@@ -182,7 +183,7 @@ func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := auditservice.ReviewListParams{
-		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: limit + 1,
+		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit),
 	}
 	findingValue, stateValue := "", ""
 	if values, ok := query["finding"]; ok {
@@ -335,7 +336,7 @@ func (h *handler) listAuditFindingProvenance(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	params := auditservice.ProvenanceListParams{
-		OwnerID: ownerID, AuditID: auditID, FindingID: findingID, Limit: limit + 1,
+		OwnerID: ownerID, AuditID: auditID, FindingID: findingID, Limit: pagelimit.FetchRows(limit),
 		AuditRevision: &audit.Revision, FindingRevision: &finding.Revision,
 	}
 	if len(cursor) != 0 {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) listAuditEvents(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +18,7 @@ func (h *handler) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	p := auditservice.EventListParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: limit + 1}
+	p := auditservice.EventListParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit)}
 	kind := "audit-events:" + strconv.Quote(p.OwnerID) + ":" + strconv.Quote(p.AuditID)
 	position, err := h.decodePageCursor(cursor, kind, 2)
 	if err == nil && len(position) != 0 {

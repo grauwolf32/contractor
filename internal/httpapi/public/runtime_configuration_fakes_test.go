@@ -2,12 +2,15 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -26,6 +29,10 @@ func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManageme
 func (f *fakeRuntimeAgentPrincipalManagement) List(
 	_ context.Context, after string, limit int,
 ) ([]controlplane.RuntimeAgentPrincipalProjection, bool, error) {
+	// The real service takes the page size and reads the look-ahead row itself.
+	if !pagelimit.ValidPage(limit) {
+		return nil, false, fmt.Errorf("%w: fake principal page of %d rows", runtimeconfig.ErrInvalid, limit)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.principals))
@@ -118,10 +125,13 @@ type fakeRuntimeConfigManagement struct {
 	bindings     map[string]runtimeconfig.Binding
 	publications map[string]runtimeconfig.PublishResult
 	mutations    map[string]runtimeconfig.BindingMutationResult
-	publishErr   error
-	createErr    error
-	rebindErr    error
-	deleteErr    error
+	// mutationRequests binds each key to its request, as the real store's
+	// request digest does.
+	mutationRequests map[string]string
+	publishErr       error
+	createErr        error
+	rebindErr        error
+	deleteErr        error
 }
 
 func newFakeRuntimeConfigManagement(resolver runtimeconfig.GatewayResolver) *fakeRuntimeConfigManagement {
@@ -159,7 +169,7 @@ func (f *fakeRuntimeConfigManagement) Publish(
 	}
 	if replay, ok := f.publications[key]; ok {
 		if replay.Version.Ref.Name != prepared.Name() || replay.Version.Ref.Version != prepared.Version() {
-			return runtimeconfig.PublishResult{}, runtimeconfig.ErrConflict
+			return runtimeconfig.PublishResult{}, contracts.ErrIdempotencyConflict
 		}
 		replay.Replayed = true
 		return replay, nil
@@ -187,6 +197,9 @@ func (f *fakeRuntimeConfigManagement) Publish(
 func (f *fakeRuntimeConfigManagement) ListVersions(
 	_ context.Context, afterName, afterVersion string, limit int,
 ) ([]runtimeconfig.Version, error) {
+	if err := fakePageFetch(limit, runtimeconfig.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]runtimeconfig.Version, 0, len(f.versions))
@@ -217,6 +230,9 @@ func (f *fakeRuntimeConfigManagement) GetVersion(_ context.Context, name, versio
 func (f *fakeRuntimeConfigManagement) ListBindings(
 	_ context.Context, after string, limit int,
 ) ([]runtimeconfig.Binding, error) {
+	if err := fakePageFetch(limit, runtimeconfig.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]runtimeconfig.Binding, 0, len(f.bindings))
@@ -250,9 +266,8 @@ func (f *fakeRuntimeConfigManagement) CreateBinding(
 	if f.createErr != nil {
 		return runtimeconfig.BindingMutationResult{}, f.createErr
 	}
-	if replay, ok := f.mutations[key]; ok {
-		replay.Replayed = true
-		return replay, nil
+	if replay, ok, err := f.replayMutation(key, fmt.Sprint("create", label, ref)); ok || err != nil {
+		return replay, err
 	}
 	if _, ok := f.bindings[label]; ok {
 		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrPrecondition
@@ -265,7 +280,7 @@ func (f *fakeRuntimeConfigManagement) CreateBinding(
 	}
 	f.bindings[label] = binding
 	result := runtimeconfig.BindingMutationResult{Binding: &binding}
-	f.mutations[key] = result
+	f.recordMutation(key, fmt.Sprint("create", label, ref), result)
 	return result, nil
 }
 
@@ -277,9 +292,8 @@ func (f *fakeRuntimeConfigManagement) Rebind(
 	if f.rebindErr != nil {
 		return runtimeconfig.BindingMutationResult{}, f.rebindErr
 	}
-	if replay, ok := f.mutations[key]; ok {
-		replay.Replayed = true
-		return replay, nil
+	if replay, ok, err := f.replayMutation(key, fmt.Sprint("rebind", label, expected, ref)); ok || err != nil {
+		return replay, err
 	}
 	binding, ok := f.bindings[label]
 	if !ok {
@@ -298,7 +312,7 @@ func (f *fakeRuntimeConfigManagement) Rebind(
 		f.bindings[label] = binding
 	}
 	result := runtimeconfig.BindingMutationResult{Binding: &binding}
-	f.mutations[key] = result
+	f.recordMutation(key, fmt.Sprint("rebind", label, expected, ref), result)
 	return result, nil
 }
 
@@ -310,9 +324,8 @@ func (f *fakeRuntimeConfigManagement) DeleteBinding(
 	if f.deleteErr != nil {
 		return runtimeconfig.BindingMutationResult{}, f.deleteErr
 	}
-	if replay, ok := f.mutations[key]; ok {
-		replay.Replayed = true
-		return replay, nil
+	if replay, ok, err := f.replayMutation(key, fmt.Sprint("delete", label, expected)); ok || err != nil {
+		return replay, err
 	}
 	if label == runtimeconfig.DefaultLabel {
 		return runtimeconfig.BindingMutationResult{}, runtimeconfig.ErrReserved
@@ -326,8 +339,34 @@ func (f *fakeRuntimeConfigManagement) DeleteBinding(
 	}
 	delete(f.bindings, label)
 	result := runtimeconfig.BindingMutationResult{Deleted: true}
-	f.mutations[key] = result
+	f.recordMutation(key, fmt.Sprint("delete", label, expected), result)
 	return result, nil
+}
+
+// replayMutation replays a key bound to the same request and rejects a key
+// bound to another one, as runtimeconfig.ManagementService does.
+func (f *fakeRuntimeConfigManagement) replayMutation(
+	key, request string,
+) (runtimeconfig.BindingMutationResult, bool, error) {
+	replay, ok := f.mutations[key]
+	if !ok {
+		return runtimeconfig.BindingMutationResult{}, false, nil
+	}
+	if f.mutationRequests[key] != request {
+		return runtimeconfig.BindingMutationResult{}, false, contracts.ErrIdempotencyConflict
+	}
+	replay.Replayed = true
+	return replay, true, nil
+}
+
+func (f *fakeRuntimeConfigManagement) recordMutation(
+	key, request string, result runtimeconfig.BindingMutationResult,
+) {
+	if f.mutationRequests == nil {
+		f.mutationRequests = make(map[string]string)
+	}
+	f.mutations[key] = result
+	f.mutationRequests[key] = request
 }
 
 type fakeRuntimeCredentialManagement struct {
@@ -351,6 +390,9 @@ func newFakeRuntimeCredentialManagement() *fakeRuntimeCredentialManagement {
 func (f *fakeRuntimeCredentialManagement) List(
 	_ context.Context, after string, limit int,
 ) ([]credentials.RuntimeCredentialMetadata, error) {
+	if err := fakePageFetch(limit, credentials.ErrRuntimeCredentialInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]credentials.RuntimeCredentialMetadata, 0, len(f.records))
@@ -383,7 +425,7 @@ func (f *fakeRuntimeCredentialManagement) Create(
 	defer f.mu.Unlock()
 	if replay, ok := f.creations[request.IdempotencyKey]; ok {
 		if replay.CredentialID != request.CredentialID || replay.Kind != request.Material.Kind() {
-			return credentials.RuntimeCredentialCreateResult{}, credentials.ErrRuntimeCredentialConflict
+			return credentials.RuntimeCredentialCreateResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.RuntimeCredentialCreateResult{Credential: replay, Replayed: true}, nil
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func parseAuditStates(value string) ([]auditstore.AuditState, error) {
@@ -64,7 +65,7 @@ func (h *handler) listOwnerFindings(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	params := auditservice.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: limit + 1}
+	params := auditservice.OwnerFindingListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
 		h.handleError(w, err)
@@ -135,7 +136,7 @@ func (h *handler) listOwnerReviews(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	params := auditservice.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: limit + 1}
+	params := auditservice.OwnerReviewListParams{OwnerID: principalUserID(r.Context()), Limit: pagelimit.FetchRows(limit)}
 	params.AuditStates, err = parseAuditStates(query.Get("auditState"))
 	if err != nil {
 		h.handleError(w, err)

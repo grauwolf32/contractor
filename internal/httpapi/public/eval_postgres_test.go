@@ -478,7 +478,12 @@ func TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS(t *testing.T) {
 	if !bytes.Equal(first.Body.Bytes(), replay.Body.Bytes()) {
 		t.Fatal("command receipt replay was re-rendered from current state")
 	}
-	h.request(t, "POST", path, body, "prepare", `"2"`, 409)
+	// The same key with another precondition is another request: permanent,
+	// so neither the Server nor a client retries it.
+	reused := apiDecode[errorResponse](t, h.request(t, "POST", path, body, "prepare", `"2"`, 409))
+	if reused.Code != "eval_idempotency_conflict" || reused.Retryable {
+		t.Fatalf("reused Eval command key = %+v, want eval_idempotency_conflict, retryable false", reused)
+	}
 }
 
 func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T) {

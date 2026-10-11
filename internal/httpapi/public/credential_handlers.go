@@ -7,6 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) listCredentials(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +28,7 @@ func (h *handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		after = cursor[0]
 	}
-	records, err := h.dependencies.ManagedCredentials.ListCredentials(r.Context(), after, limit+1)
+	records, err := h.dependencies.ManagedCredentials.ListCredentials(r.Context(), after, pagelimit.FetchRows(limit))
 	if err != nil {
 		h.handleError(w, err)
 		return

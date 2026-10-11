@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -65,7 +66,7 @@ WHERE owner_id = $1 AND request_idempotency_key = $2`,
 		return Project{}, false, fmt.Errorf("resolve Project idempotency: %w", err)
 	}
 	if existingDigest != params.RequestDigest {
-		return Project{}, false, ErrConflict
+		return Project{}, false, fmt.Errorf("%w: Project creation key", contracts.ErrIdempotencyConflict)
 	}
 	project, err = s.Get(ctx, params.OwnerID, existingID)
 	return project, false, err
@@ -325,7 +326,7 @@ func validateList(params ListParams) error {
 	if params.Kind != nil && !params.Kind.Valid() {
 		return invalid("Project kind filter is invalid")
 	}
-	if params.Limit < 1 || params.Limit > MaxPageSize {
+	if !pagelimit.ValidFetch(params.Limit) {
 		return invalid("Project page limit is invalid")
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeProjectID == "") {

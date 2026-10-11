@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -311,7 +312,7 @@ func (i *Importer) retainFindingProposals(
 	if err != nil {
 		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
 	}
-	query := findingintake.ListQuery{Limit: 200}
+	query := findingintake.ListQuery{Limit: pagelimit.MaxRows}
 	var standards retainedStandardIndex
 	for {
 		receipts, err := i.findings.ListAuditCollection(

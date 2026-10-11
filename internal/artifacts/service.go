@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 // Service owns validation and creates scope-bound views over one Repository.
@@ -318,7 +319,7 @@ func (s ScopedStore) ListLineage(
 }
 
 func validateBindingPageQuery(query BindingPageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	if query.Namespace != nil {
@@ -351,7 +352,7 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 }
 
 func validateVersionPageQuery(query VersionPageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	if (query.BeforeCreatedAt == nil) != (query.BeforeRevision == "") {
@@ -367,7 +368,7 @@ func validateVersionPageQuery(query VersionPageQuery) error {
 }
 
 func validateLineagePageQuery(query LineagePageQuery) error {
-	if query.Limit < 1 || query.Limit > 201 {
+	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	present := query.BeforeCreatedAt != nil

@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 var (
@@ -140,8 +141,8 @@ func validateList(params ListParams) error {
 		}
 	}
 	// HTTP pages fetch one extra row to determine whether a cursor is needed.
-	if params.Limit < 1 || params.Limit > MaxPageSize+1 {
-		return invalidf("page row limit must be between 1 and %d", MaxPageSize+1)
+	if !pagelimit.ValidFetch(params.Limit) {
+		return invalidf("page row limit must be between 1 and %d", pagelimit.MaxFetchRows)
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeAuditID == "") {
 		return invalidf("Audit keyset is incomplete")
@@ -175,8 +176,8 @@ func validateListItems(params ListItemsParams) error {
 			return err
 		}
 	}
-	if params.Limit < 1 || params.Limit > MaxPageSize {
-		return invalidf("item page limit must be between 1 and %d", MaxPageSize)
+	if !pagelimit.ValidFetch(params.Limit) {
+		return invalidf("item page limit must be between 1 and %d", pagelimit.MaxFetchRows)
 	}
 	keysetPresent := params.AfterRoundOrdinal != nil || params.AfterItemOrdinal != nil || params.AfterItemID != ""
 	if keysetPresent && (params.AfterRoundOrdinal == nil || params.AfterItemOrdinal == nil || params.AfterItemID == "") {

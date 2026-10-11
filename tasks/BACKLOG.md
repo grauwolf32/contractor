@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-46 open tasks: 3 in progress, 29 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
+43 open tasks: 3 in progress, 26 pending, 14 deferred. 781 finished: 778 completed, 3 archived.
 
 ## In progress
 
@@ -79,10 +79,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V367-002](v367-002-one-page-fetch-bound.yml) | defect | P1 | — | Accept the documented limit=200 on every paged public list |
 | [V367-007](v367-007-runtime-capability-grammar.yml) | defect | P1 | — | Validate Runtime Agent toolset capabilities at registration with one grammar |
-| [V367-011](v367-011-check-public-client-freshness.yml) | defect | P2 | — | Regenerate the Go public client and check its freshness in make lint |
-| [V367-012](v367-012-permanent-idempotency-conflict.yml) | defect | P2 | — | Report a reused idempotency key as a permanent conflict and honour retryable in the CLI client |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -139,6 +136,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 49 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 8 | 29 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 4 | 1 | 16 | 8 | 6 |
+| Public API and wire contracts (`api-contracts`) | 1 | 1 | 16 | 8 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 2 | 0 | 12 | 24 | 3 |
 | Quality, CI and process (`quality`) | 3 | 1 | 14 | 61 | 15 |

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -102,7 +103,8 @@ func TestManagerPublicationIdempotencyAndConflicts(t *testing.T) {
 
 	different := request
 	different.Name = "another-policy"
-	if _, err := manager.Publish(t.Context(), different); !errors.Is(err, ErrPublicationConflict) {
+	if _, err := manager.Publish(t.Context(), different); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrPublicationConflict) {
 		t.Fatalf("same key with another request error = %v", err)
 	}
 

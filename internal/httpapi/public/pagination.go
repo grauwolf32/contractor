@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const (
 	defaultPageLimit = 50
-	maxPageLimit     = 200
 	maxCursorBytes   = 512
 	pageCursorV1     = 1
 )
@@ -52,8 +53,8 @@ func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	limit := defaultPageLimit
 	if entries, present := values["limit"]; present {
 		parsed, parseErr := strconv.Atoi(entries[0])
-		if parseErr != nil || parsed < 1 || parsed > maxPageLimit {
-			return nil, 0, "", fmt.Errorf("%w: limit must be between 1 and %d", errInvalidRequest, maxPageLimit)
+		if parseErr != nil || !pagelimit.ValidPage(parsed) {
+			return nil, 0, "", fmt.Errorf("%w: limit must be between 1 and %d", errInvalidRequest, pagelimit.MaxRows)
 		}
 		limit = parsed
 	}
@@ -67,7 +68,7 @@ func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	return values, limit, cursor, nil
 }
 
-// paginate trims rows fetched with limit+1 to one page. When the fetch
+// paginate trims rows fetched with pagelimit.FetchRows(limit) to one page. When the fetch
 // returned a row beyond limit, the page reports hasMore with a cursor of the
 // given kind positioned at the last kept row.
 func paginate[T any](

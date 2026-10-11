@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const ReportSchema = "contractor.audit.report.v1"
@@ -379,12 +380,12 @@ func (i *Importer) allCoverage(
 	result := make([]auditstore.CoverageRow, 0)
 	after := -1
 	for {
-		page, err := i.store.ListCoverage(ctx, auditID, roundID, after, auditstore.MaxPageSize)
+		page, err := i.store.ListCoverage(ctx, auditID, roundID, after, pagelimit.MaxRows)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, page...)
-		if len(page) < auditstore.MaxPageSize {
+		if len(page) < pagelimit.MaxRows {
 			return result, nil
 		}
 		after = page[len(page)-1].Ordinal

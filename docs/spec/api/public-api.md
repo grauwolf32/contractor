@@ -155,6 +155,12 @@ separate and are not made public by including them in this specification.
 Regenerating a client from an incompatible document does not make the change
 backward compatible.
 
+**API-R68.** The Go client bundled with the CLI is generated from the
+committed contract by a pinned oapi-codegen version that builds without
+network access, and is never hand-edited. Its freshness check regenerates it
+into a temporary file and fails `make lint` when the result differs from the
+committed client; the UI client follows the same rule (UI-R19).
+
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the
@@ -292,6 +298,18 @@ ownership and CAS requirements ([Runs](../execution/runs.md),
 RuntimeConfig, label and Agent-label administrative commands require their own
 idempotency keys, revision preconditions where specified, and an audit actor.
 
+**API-R69.** Every operation that binds an `Idempotency-Key` (the OpenAPI
+`IdempotencyKey` parameter) treats the key as bound to its exact request:
+repeating that request with the key replays the original result, and sending
+a different request with it is `409 idempotency_conflict` with `retryable`
+false. The outcome is permanent: the original result is unchanged, and only
+a new key can carry the changed request (FAIL-RUN-1). It is distinct from an
+optimistic revision or identity conflict, which keeps its own code and
+retryability. Managed Eval mutations report the same outcome as
+`eval_idempotency_conflict`, also with `retryable` false. The bundled Go
+client never retries a response marked `retryable` false, whatever its
+status.
+
 **API-R28.** RuntimeCredential deletion is the one exception: its durable
 tombstone makes it idempotent by credential ID, so it accepts but neither
 requires nor binds an idempotency key. Its replay response and key-format
@@ -315,6 +333,16 @@ table only indexes:
 | Audit routes | Audits, [AUD-R198 to AUD-R205](../audits/audits.md) |
 
 ### Collections and pagination
+
+**API-R67.** Every paged collection that takes the shared `limit` query
+parameter (OpenAPI `#/components/parameters/Limit`) accepts a page of 1 to
+200 items and defaults to 50 (LIM-API-18); any other `limit` is
+`400 invalid_request`. Server reads one row beyond the requested page to
+decide `page.hasMore` and the continuation cursor, so every store behind such
+a collection accepts a read of 201 rows. Server, its stores and the CLI take
+both numbers from one definition. Collections with their own bound declare
+it instead: Managed Eval lists (LIM-EVM-15) and allocation history
+(LIM-OPS-28).
 
 Filtering and keyset pagination are specified for each collection by its
 owner, which this table only indexes:
@@ -525,6 +553,8 @@ Limits ([registry](../platform/limits.md)):
 - LIM-API-15 — unanswered connection closed after 60 seconds (API-R65).
 - LIM-API-16 — UI reconnect initial delay: 500 ms (API-R66).
 - LIM-API-17 — UI reconnect maximum delay: 30 seconds (API-R66).
+- LIM-API-18 — page of a collection with the shared `limit` parameter: 200
+  items, default 50 (API-R67).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter
@@ -549,6 +579,7 @@ Entity lifecycle ([lifecycle](../platform/lifecycle.md)):
 - LIFE-API-3 — typed Operations invalidations (API-R59).
 
 Errors ([registry](../platform/errors.md)): `request_too_large` (API-R4),
+`idempotency_conflict` (API-R69),
 `artifact_too_large` (API-R5), the non-disclosing `404` (API-R25),
 `resync_required` (API-R58, API-R59) and WebSocket close status `1013`
 (API-R64). `eval_limit_exceeded` is owned by Managed Evals

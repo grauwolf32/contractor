@@ -8,9 +8,11 @@ import (
 )
 
 var (
-	ErrInvalid         = errors.New("auditstore invalid argument")
-	ErrNotFound        = errors.New("auditstore resource not found")
-	ErrConflict        = errors.New("auditstore identity or idempotency conflict")
+	ErrInvalid  = errors.New("auditstore invalid argument")
+	ErrNotFound = errors.New("auditstore resource not found")
+	// ErrConflict is an identity, state or internal submission-replay conflict;
+	// a reused public Idempotency-Key is contracts.ErrIdempotencyConflict.
+	ErrConflict        = errors.New("auditstore identity or submission conflict")
 	ErrPrecondition    = errors.New("auditstore revision or state precondition failed")
 	ErrProjectDeleting = errors.New("auditstore Project is deleting")
 	ErrClaimLost       = errors.New("auditstore Controller claim is stale")

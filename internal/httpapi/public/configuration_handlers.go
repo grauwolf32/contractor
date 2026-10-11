@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +62,7 @@ func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		items = append(items, resource)
-		if len(items) == limit+1 {
+		if len(items) == pagelimit.FetchRows(limit) {
 			break
 		}
 	}

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -217,7 +219,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}
 	driftedCreate := create
 	driftedCreate.RequestDigest = testDigest("0")
-	if _, inserted, err := store.CreateDraft(ctx, driftedCreate); !errors.Is(err, ErrConflict) || inserted {
+	if _, inserted, err := store.CreateDraft(ctx, driftedCreate); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) || inserted {
 		t.Fatalf("Audit create idempotency drift = (%t, %v)", inserted, err)
 	}
 	if _, err := store.Get(ctx, "foreign-owner", create.AuditID); !errors.Is(err, ErrNotFound) {
@@ -286,7 +289,8 @@ SELECT count(*) FROM audit_artifact_links
 	}
 	driftedStart := startParams
 	driftedStart.RequestDigest = testDigest("0")
-	if _, inserted, err = store.MaterializeRound(ctx, driftedStart); !errors.Is(err, ErrConflict) || inserted {
+	if _, inserted, err = store.MaterializeRound(ctx, driftedStart); !errors.Is(err, contracts.ErrIdempotencyConflict) ||
+		errors.Is(err, ErrConflict) || inserted {
 		t.Fatalf("Audit start idempotency drift = (%t, %v)", inserted, err)
 	}
 	paused, changed, err := store.Transition(ctx, TransitionParams{
@@ -297,6 +301,14 @@ SELECT count(*) FROM audit_artifact_links
 	})
 	if err != nil || !changed || paused.State != AuditPaused || paused.StopReason == nil || paused.StopReason.Code != "owner_paused" {
 		t.Fatalf("pause Audit = (%+v, %t, %v)", paused, changed, err)
+	}
+	if _, changed, err := store.Transition(ctx, TransitionParams{
+		OwnerID: create.OwnerID, AuditID: create.AuditID,
+		ExpectedRevision: started.Revision, ExpectedState: AuditActive, TargetState: AuditPaused,
+		Reason:         &StopReason{Code: "owner_paused", Message: "paused by test"},
+		IdempotencyKey: "audit-pause", RequestDigest: testDigest("e"),
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) || changed {
+		t.Fatalf("Audit pause idempotency drift = (%t, %v)", changed, err)
 	}
 	if _, _, err := store.Transition(ctx, TransitionParams{
 		OwnerID: create.OwnerID, AuditID: create.AuditID,
@@ -311,6 +323,12 @@ SELECT count(*) FROM audit_artifact_links
 	})
 	if err != nil || !changed || resumed.State != AuditActive || resumed.StopReason != nil {
 		t.Fatalf("resume Audit = (%+v, %t, %v)", resumed, changed, err)
+	}
+	if _, changed, err := store.Resume(ctx, ResumeParams{
+		OwnerID: create.OwnerID, AuditID: create.AuditID, ExpectedRevision: paused.Revision,
+		DeadlineAt: paused.DeadlineAt, IdempotencyKey: "audit-resume", RequestDigest: testDigest("f"),
+	}); !errors.Is(err, contracts.ErrIdempotencyConflict) || errors.Is(err, ErrConflict) || changed {
+		t.Fatalf("Audit resume idempotency drift = (%t, %v)", changed, err)
 	}
 
 	type claimResult struct {
@@ -745,7 +763,7 @@ SELECT finding.state, finding.revision,
 	if snapshot.Audit.Revision != snapshot.Audit.EventSequence {
 		t.Fatalf("Audit projection revision = %d, event sequence = %d", snapshot.Audit.Revision, snapshot.Audit.EventSequence)
 	}
-	events, err := recoveredStore.ListEvents(ctx, create.AuditID, 0, MaxPageSize)
+	events, err := recoveredStore.ListEvents(ctx, create.AuditID, 0, pagelimit.MaxRows)
 	if err != nil || len(events) < 13 {
 		t.Fatalf("Audit event stream = (%+v, %v)", events, err)
 	}

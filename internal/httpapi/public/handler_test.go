@@ -105,9 +105,7 @@ func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
 	changed.Header.Set("Idempotency-Key", "create-payment-project")
 	changedResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(changedResponse, changed)
-	if changedResponse.Code != http.StatusConflict {
-		t.Fatalf("changed Project replay = %d %s", changedResponse.Code, changedResponse.Body.String())
-	}
+	assertIdempotencyConflict(t, changedResponse)
 
 	update := authenticatedRequest(
 		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"description":"Current"}`)),
@@ -1243,7 +1241,8 @@ func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
 	changed.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
 	conflict := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflict, changed)
-	if conflict.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.unit.calls != 1 {
+	assertIdempotencyConflict(t, conflict)
+	if len(fixture.runs.runs) != 1 || fixture.unit.calls != 1 {
 		t.Fatalf("changed metadata label replay = %d transactions=%d body=%s", conflict.Code, fixture.unit.calls, conflict.Body.String())
 	}
 }
@@ -1317,9 +1316,7 @@ func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
 	conflict := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(different))
 	conflictResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
-	if conflictResponse.Code != http.StatusConflict {
-		t.Fatalf("idempotency key reuse = %d %s", conflictResponse.Code, conflictResponse.Body.String())
-	}
+	assertIdempotencyConflict(t, conflictResponse)
 }
 
 func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T) {
@@ -1493,7 +1490,8 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	)
 	conflictResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
-	if conflictResponse.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.repository.writes != 2 {
+	assertIdempotencyConflict(t, conflictResponse)
+	if len(fixture.runs.runs) != 1 || fixture.repository.writes != 2 {
 		t.Fatalf(
 			"selector conflict = status:%d runs:%d writes:%d body:%s",
 			conflictResponse.Code, len(fixture.runs.runs), fixture.repository.writes,
@@ -2048,6 +2046,21 @@ func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
 			header.Get("Content-Disposition") != "attachment" {
 			t.Fatalf("%s = status %d, headers %v", path, response.Code, header)
 		}
+	}
+}
+
+// assertIdempotencyConflict requires the permanent outcome of an
+// Idempotency-Key reused with a different request: 409 idempotency_conflict,
+// retryable false (FAIL-RUN-1).
+func assertIdempotencyConflict(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	var body errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error response: %v; body %q", err, response.Body.String())
+	}
+	if response.Code != http.StatusConflict || body.Code != "idempotency_conflict" || body.Retryable {
+		t.Fatalf("reused Idempotency-Key = %d %+v, want 409 idempotency_conflict, retryable false",
+			response.Code, body)
 	}
 }
 
