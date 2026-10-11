@@ -46329,7 +46329,7 @@ type GetRunRepeatDraftResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
+	JSON503 *CredentialRecoveryRequired
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetRunRepeatDraftResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -46377,7 +46377,7 @@ func (r GetRunRepeatDraftResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r GetRunRepeatDraftResponse) GetJSON503() *StorageTransactionConflict {
+func (r GetRunRepeatDraftResponse) GetJSON503() *CredentialRecoveryRequired {
 	return r.JSON503
 }
 
@@ -72499,7 +72499,7 @@ func ParseGetRunRepeatDraftResponse(rsp *http.Response) (*GetRunRepeatDraftRespo
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
+		var dest CredentialRecoveryRequired
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
