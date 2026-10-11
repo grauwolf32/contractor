@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 3 in progress, 68 pending, 14 deferred. 811 finished: 808 completed, 3 archived.
+84 open tasks: 3 in progress, 67 pending, 14 deferred. 812 finished: 809 completed, 3 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
 | [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
@@ -176,7 +175,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 7 | 36 | 44 | 9 | 62 |
+| Run execution core (`execution-core`) | 6 | 36 | 44 | 9 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 36 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
