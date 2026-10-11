@@ -119,7 +119,7 @@ sequenceDiagram
         Note over S: Tail from the cursor captured after authorization, no older history
     end
     DB--)S: Notification, visible only after the source transaction commits
-    S->>DB: Catch up from the last delivered sequence, also periodically
+    S->>DB: Catch up the Run once for all of its subscriptions, also periodically
     S-->>C: New events in order
     C->>S: unsubscribe frame
     S->>S: Stop the subscription pump
@@ -484,9 +484,27 @@ authoritative aggregate.
 
 **API-R55.** The insert trigger of `workflow_run_events` emits a PostgreSQL
 notification that becomes visible only if the source transaction commits. That
-notification is only a coalescible wake-up hint: each subscription also
-performs bounded periodic catch-up from its last delivered sequence, so a lost
-or duplicated notification cannot create a gap (FAIL-API-3).
+notification is only a coalescible wake-up hint: Server also catches up
+periodically from the last delivered sequence of each subscription
+(API-R72), so a lost or duplicated notification cannot create a gap
+(FAIL-API-3).
+
+**API-R72.** Server reads the committed events of one Run once per catch-up
+for all of that Run's subscriptions, from the lowest last delivered sequence
+among them, and delivers to each subscription only the events after its own
+sequence. A notification of the Run, a new subscription to it and a change of
+the notification listener's state each trigger a catch-up. Without a trigger,
+Server catches up every second (LIM-API-21) while it has no established
+notification listener and every 15 seconds (LIM-API-22) while it has one, so
+idle subscriptions to one Run cost one read per interval however many there
+are. When the listener is established every subscribed Run catches up at once,
+because commits made before the listener took effect were never notified; when
+it stops, every subscribed Run catches up at once and returns to the
+one-second interval.
+
+Rationale: while the listener is established every commit wakes its Run, so
+the periodic catch-up only bounds how long a lost notification can delay
+delivery, for example while a broken listener connection is not yet detected.
 
 #### Operations stream
 
@@ -543,7 +561,7 @@ jitter: UI reconnect starts at 500 ms (LIM-API-16) and doubles up to 30 seconds
 | [`contractor-public-v1.yaml`](../../../api/openapi/contractor-public-v1.yaml) | Public `/v1` resources, error envelope, mutation headers and the WebSocket upgrade | API-R1, API-R44 |
 | [`contractor-events-v1.schema.json`](../../../api/events/contractor-events-v1.schema.json) | Live event message contract | API-R41, API-R44 |
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | Browser authentication | API-R14 to API-R24 |
-| `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66 |
+| `GET /v1/events/ws`, subprotocol `contractor.events.v1` | Live event WebSocket | API-R30 to API-R66, API-R72 |
 | Request headers `Content-Type`, `Idempotency-Key`, `If-Match`, `X-CSRF-Token`, `Origin` | Mutation headers and browser checks | API-R10, API-R23, API-R27 |
 | Response headers `X-Request-ID`, `ETag`, `Content-Disposition` | Browser-readable response headers | API-R11 |
 
@@ -580,6 +598,10 @@ Limits ([registry](../platform/limits.md)):
   grammar (API-R70).
 - LIM-API-20 — `ConfigId` and `ArtifactName`: 1 to 128 characters in the
   shared name grammar (API-R70).
+- LIM-API-21 — Run stream catch-up without an established notification
+  listener: every second (API-R72).
+- LIM-API-22 — Run stream catch-up while the notification listener is
+  established: every 15 seconds (API-R72).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter
@@ -592,7 +614,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-API-1 — an oversized public request body (API-R4, API-R5).
 - FAIL-API-2 — a cookie-authenticated non-safe request without a valid
   `Origin` and `X-CSRF-Token` (API-R23).
-- FAIL-API-3 — the `workflow_run_events` notification (API-R55).
+- FAIL-API-3 — the `workflow_run_events` notification (API-R55, API-R72).
 - FAIL-API-4 — live event delivery to a client (API-R60, API-R63 to API-R66).
 - FAIL-API-5 — an `operations` subscription cursor (API-R58, API-R59).
 
@@ -635,7 +657,8 @@ invalidations are process-local hints, not an audit log (API-R56).
 
 These properties follow from the cited requirements, which are authoritative.
 The owning tests are the live event contract tests in
-[`internal/httpapi/public/events/events_test.go`](../../../internal/httpapi/public/events/events_test.go)
+[`internal/httpapi/public/events/events_test.go`](../../../internal/httpapi/public/events/events_test.go),
+[`internal/httpapi/public/events/run_poller_test.go`](../../../internal/httpapi/public/events/run_poller_test.go)
 and
 [`internal/httpapi/public/event_handlers_test.go`](../../../internal/httpapi/public/event_handlers_test.go).
 
@@ -655,3 +678,11 @@ and
 5. Prompts, model responses, reasoning, tool payloads, provider bodies and
    credentials never appear in a Planner event frame (API-R52); test
    `TestProtocolAndQueueBoundsRejectUnknownOrUnsafeData`.
+6. Idle subscriptions to one Run, however many, cost one event read per
+   catch-up interval, and the 15-second interval applies only while the
+   notification listener is established (API-R72); tests
+   `TestIdleRunSubscriptionsShareOneCatchUpRead` and
+   `TestRunCatchUpFollowsTheNotificationListener`.
+7. Subscriptions to one Run from different cursors each receive exactly the
+   events after their own cursor (API-R49, API-R72); test
+   `TestRunSubscriptionsFromDifferentCursorsShareOnePoller`.

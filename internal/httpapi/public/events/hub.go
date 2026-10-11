@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -35,10 +36,16 @@ type OperationsSource interface {
 	SubscribeOperations() (<-chan struct{}, func())
 }
 
+// RunNotificationSource delivers the Run ID of every committed Run event to
+// its consumer. Listen calls ready once every later commit is notified and
+// returns when notifications stop.
 type RunNotificationSource interface {
-	Listen(context.Context, func(string)) error
+	Listen(ctx context.Context, ready func(), consume func(runID string)) error
 }
 
+// Options configure a Hub. CatchUpInterval is how often a stream catches up
+// without a wake-up; while the Run notification listener is established, Run
+// streams use the longer safety interval instead (LIM-API-21, LIM-API-22).
 type Options struct {
 	Context              context.Context
 	Authentication       *auth.Service
@@ -52,6 +59,8 @@ type Options struct {
 	PingInterval         time.Duration
 	PongTimeout          time.Duration
 	WriteTimeout         time.Duration
+
+	clock clock
 }
 
 type Hub struct {
@@ -64,17 +73,20 @@ type Hub struct {
 	notifications  RunNotificationSource
 	logger         *slog.Logger
 	catchUp        time.Duration
+	clock          clock
 	sessionCheck   time.Duration
 	pingInterval   time.Duration
 	pongTimeout    time.Duration
 	writeTimeout   time.Duration
+	// listening reports an established Run notification listener.
+	listening atomic.Bool
 
 	mu             sync.Mutex
 	closed         bool
 	sessionSockets map[auth.SessionHandle]map[*socketSlot]struct{}
-	runWatchers    map[string]map[uint64]chan struct{}
-	nextRunWatcher uint64
+	runPollers     map[string]*runPoller
 	background     sync.WaitGroup
+	pollers        sync.WaitGroup
 	active         sync.WaitGroup
 }
 
@@ -99,6 +111,9 @@ func NewHub(options Options) (*Hub, error) {
 	if options.CatchUpInterval == 0 {
 		options.CatchUpInterval = time.Second
 	}
+	if options.clock == nil {
+		options.clock = realClock{}
+	}
 	if options.SessionCheckInterval == 0 {
 		options.SessionCheckInterval = time.Second
 	}
@@ -111,7 +126,8 @@ func NewHub(options Options) (*Hub, error) {
 	if options.WriteTimeout == 0 {
 		options.WriteTimeout = 10 * time.Second
 	}
-	if options.CatchUpInterval <= 0 || options.SessionCheckInterval <= 0 ||
+	if options.CatchUpInterval <= 0 || options.CatchUpInterval > runSafetyCatchUpInterval ||
+		options.SessionCheckInterval <= 0 ||
 		options.PingInterval <= 0 || options.PongTimeout <= options.PingInterval ||
 		options.WriteTimeout <= 0 {
 		return nil, errors.New("WebSocket event durations are invalid")
@@ -121,11 +137,12 @@ func NewHub(options Options) (*Hub, error) {
 		ctx: ctx, cancel: cancel, authentication: options.Authentication,
 		origins: options.Origins, runs: options.Runs, operations: options.Operations,
 		notifications: options.RunNotifications, logger: options.Logger,
-		catchUp: options.CatchUpInterval, sessionCheck: options.SessionCheckInterval,
+		catchUp: options.CatchUpInterval, clock: options.clock,
+		sessionCheck: options.SessionCheckInterval,
 		pingInterval: options.PingInterval, pongTimeout: options.PongTimeout,
 		writeTimeout:   options.WriteTimeout,
 		sessionSockets: make(map[auth.SessionHandle]map[*socketSlot]struct{}),
-		runWatchers:    make(map[string]map[uint64]chan struct{}),
+		runPollers:     make(map[string]*runPoller),
 	}
 	hub.startBackground()
 	return hub, nil
@@ -135,6 +152,7 @@ func (h *Hub) Close() {
 	h.cancel()
 	h.closeAll(websocket.CloseGoingAway, "Server shutting down")
 	h.background.Wait()
+	h.pollers.Wait()
 	h.active.Wait()
 }
 
@@ -265,22 +283,24 @@ func (h *Hub) startBackground() {
 	}()
 }
 
+// listenRunNotifications keeps the Run notification listener established and
+// records while it is, which selects the catch-up interval of every Run
+// poller (API-R72).
 func (h *Hub) listenRunNotifications() {
 	defer h.background.Done()
 	for h.ctx.Err() == nil {
-		err := h.notifications.Listen(h.ctx, h.notifyRun)
+		err := h.notifications.Listen(h.ctx, func() { h.setListening(true) }, h.notifyRun)
+		h.setListening(false)
 		if h.ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			h.logger.Warn("WorkflowRun event notification listener will retry")
 		}
-		timer := time.NewTimer(time.Second)
 		select {
 		case <-h.ctx.Done():
-			timer.Stop()
 			return
-		case <-timer.C:
+		case <-h.clock.After(runListenerRetryDelay):
 		}
 	}
 }
@@ -314,12 +334,9 @@ func (h *Hub) closeAll(code int, reason string) {
 			}
 		}
 	}
-	for runID, watchers := range h.runWatchers {
-		for id, watcher := range watchers {
-			delete(watchers, id)
-			close(watcher)
-		}
-		delete(h.runWatchers, runID)
+	for runID, poller := range h.runPollers {
+		poller.cancel()
+		delete(h.runPollers, runID)
 	}
 	h.mu.Unlock()
 	for _, current := range sockets {
@@ -327,51 +344,72 @@ func (h *Hub) closeAll(code int, reason string) {
 	}
 }
 
-func (h *Hub) subscribeRun(runID string) (<-chan struct{}, func()) {
+// setListening records whether Run notifications are in effect and wakes
+// every Run poller when that changes. A commit made before the listener took
+// effect was never notified, so every Run catches up once the listener is
+// established; and a poller waiting out the safety interval must fall back
+// to the catch-up interval at once when the listener stops.
+func (h *Hub) setListening(listening bool) {
+	if h.listening.Swap(listening) == listening {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, poller := range h.runPollers {
+		poller.signal()
+	}
+}
+
+// runCatchUpInterval is how long a Run poller waits without a wake-up: the
+// safety interval while notifications are in effect, otherwise the catch-up
+// interval.
+func (h *Hub) runCatchUpInterval() time.Duration {
+	if h.listening.Load() {
+		return runSafetyCatchUpInterval
+	}
+	return h.catchUp
+}
+
+// attachRun hands a subscription that has sent its subscribed frame to the
+// one poller of its Run, starting the poller for the Run's first
+// subscription. It reports false once the Hub is closed.
+func (h *Hub) attachRun(runID string, subscriber *runSubscriber) (*runPoller, bool) {
 	h.mu.Lock()
 	if h.closed {
-		closed := make(chan struct{})
-		close(closed)
 		h.mu.Unlock()
-		return closed, func() {}
+		return nil, false
 	}
-	h.nextRunWatcher++
-	id := h.nextRunWatcher
-	updates := make(chan struct{}, 1)
-	watchers := h.runWatchers[runID]
-	if watchers == nil {
-		watchers = make(map[uint64]chan struct{})
-		h.runWatchers[runID] = watchers
+	poller := h.runPollers[runID]
+	if poller == nil {
+		poller = newRunPoller(h, runID)
+		h.runPollers[runID] = poller
+		h.pollers.Add(1)
+		go poller.run()
 	}
-	watchers[id] = updates
+	poller.refs++
 	h.mu.Unlock()
-	var once sync.Once
-	cancel := func() {
-		once.Do(func() {
-			h.mu.Lock()
-			if watchers := h.runWatchers[runID]; watchers != nil {
-				if watcher, ok := watchers[id]; ok {
-					delete(watchers, id)
-					close(watcher)
-				}
-				if len(watchers) == 0 {
-					delete(h.runWatchers, runID)
-				}
-			}
-			h.mu.Unlock()
-		})
+	poller.add(subscriber)
+	return poller, true
+}
+
+// detachRun removes a subscription from its poller; after it returns the
+// poller enqueues no further frame for it. The last detach stops the poller.
+func (h *Hub) detachRun(poller *runPoller, subscriber *runSubscriber) {
+	poller.remove(subscriber)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	poller.refs--
+	if poller.refs == 0 && h.runPollers[poller.runID] == poller {
+		delete(h.runPollers, poller.runID)
+		poller.cancel()
 	}
-	return updates, cancel
 }
 
 func (h *Hub) notifyRun(runID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for _, watcher := range h.runWatchers[runID] {
-		select {
-		case watcher <- struct{}{}:
-		default:
-		}
+	if poller := h.runPollers[runID]; poller != nil {
+		poller.signal()
 	}
 }
 

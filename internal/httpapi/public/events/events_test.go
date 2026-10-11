@@ -111,7 +111,7 @@ type eventHarness struct {
 	server     *httptest.Server
 }
 
-func newEventHarness(t *testing.T) *eventHarness {
+func newEventHarness(t *testing.T, configure ...func(*Options)) *eventHarness {
 	t.Helper()
 	password := []byte("correct horse battery staple")
 	hash, err := auth.HashPassword(password)
@@ -139,11 +139,15 @@ func newEventHarness(t *testing.T) *eventHarness {
 		t.Fatal(err)
 	}
 	runs := newFakeRunRepository()
-	hub, err := NewHub(Options{
+	options := Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
 		Runs: runs, Operations: operations,
 		CatchUpInterval: 10 * time.Millisecond, SessionCheckInterval: 10 * time.Millisecond,
-	})
+	}
+	for _, change := range configure {
+		change(&options)
+	}
+	hub, err := NewHub(options)
 	if err != nil {
 		t.Fatal(err)
 	}
