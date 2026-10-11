@@ -133,6 +133,11 @@ func (s *Snapshot) ResolveRunWorkflow(
 	if err := ValidateWorkflowGraph(workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
+	// Run overrides can enlarge the catalog's snapshot past its bound; the
+	// check precedes every credential lookup (CAT-R76).
+	if _, err := EncodeResolvedWorkflowSnapshot(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	if err := validateRunCredentials(ctx, workflow, credentials); err != nil {
 		return ResolvedWorkflow{}, err
 	}

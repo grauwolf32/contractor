@@ -142,7 +142,7 @@ func (s *PostgresStore) GetRunCreationIntent(
 	}
 	var result RunCreationIntent
 	execution, err := scanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, audit.profile_snapshot #> ARRAY['workflows', execution.workflow_role], `+prefixedExecutionColumns("execution")+`
+SELECT audit.owner_id, audit.project_id, `+profileRoleSQL("#>", "execution.workflow_role")+`, `+prefixedExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)

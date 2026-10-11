@@ -21,7 +21,7 @@ WITH project_gate AS MATERIALIZED (
      WHERE audit.owner_id = $1 AND audit.audit_id = $2 AND audit.revision = $3
        AND audit.state = 'draft' AND audit.phase = 'not-started' AND audit.current_round_id IS NULL
        AND $7 <= audit.max_evidence_bytes
-       AND EXISTS (SELECT 1 FROM jsonb_each(audit.profile_snapshot->'workflows') AS role WHERE role.value->>'kind' = 'prepare')
+       AND EXISTS (SELECT 1 FROM jsonb_each(` + profileWorkflowsSQL + `) AS role WHERE ` + prepareRoleSQL + `)
     RETURNING audit.*, ` + preparationStartedEvents.appended() + `
 ), link_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($6::jsonb) AS link(
@@ -62,8 +62,8 @@ WITH live_claim AS MATERIALIZED (
        AND audit.phase = 'preparing' AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
        AND NOT EXISTS (
-           SELECT 1 FROM jsonb_each(audit.profile_snapshot->'workflows') AS role
-            WHERE role.value->>'kind' = 'prepare' AND NOT EXISTS (
+           SELECT 1 FROM jsonb_each(` + profileWorkflowsSQL + `) AS role
+            WHERE ` + prepareRoleSQL + ` AND NOT EXISTS (
                 SELECT 1 FROM audit_executions AS execution
                  WHERE execution.audit_id = audit.audit_id AND execution.workflow_role = role.key
                    AND execution.role = 'prepare' AND execution.collection_disposition = 'accepted-result'
@@ -75,17 +75,17 @@ SELECT ` + prefixedAuditColumns("changed") + ` FROM changed`
 
 // listPreparationRolesSQL derives bounded role status independently of Round history.
 const listPreparationRolesSQL = `
-SELECT role.key, COALESCE(attempts.count, 0), (role.value->>'maxRunAttempts')::integer,
+SELECT role.key, COALESCE(attempts.count, 0), ` + roleMaxRunAttemptsSQL + `,
        latest.execution_id,
        CASE WHEN latest.collection_disposition = 'accepted-result' THEN 'accepted'
             WHEN latest.execution_id IS NULL THEN 'pending'
             WHEN latest.state = 'collected' AND (
-                attempts.count >= (role.value->>'maxRunAttempts')::integer
+                attempts.count >= ` + roleMaxRunAttemptsSQL + `
                 OR latest.collection_disposition IN ('collection-contract-invalid', 'execution-cancelled')
                 OR latest.collection_error_code = 'evidence-budget-exhausted'
             ) THEN 'failed'
             ELSE 'running' END
-  FROM audits AS audit CROSS JOIN LATERAL jsonb_each(audit.profile_snapshot->'workflows') AS role
+  FROM audits AS audit CROSS JOIN LATERAL jsonb_each(` + profileWorkflowsSQL + `) AS role
   LEFT JOIN LATERAL (
       SELECT count(*)::integer FROM audit_executions AS execution
        WHERE execution.audit_id = audit.audit_id AND execution.role = 'prepare' AND execution.workflow_role = role.key
@@ -95,4 +95,4 @@ SELECT role.key, COALESCE(attempts.count, 0), (role.value->>'maxRunAttempts')::i
        WHERE execution.audit_id = audit.audit_id AND execution.role = 'prepare' AND execution.workflow_role = role.key
        ORDER BY role_attempt DESC LIMIT 1
   ) AS latest ON true
- WHERE audit.audit_id = $1 AND role.value->>'kind' = 'prepare' ORDER BY role.key`
+ WHERE audit.audit_id = $1 AND ` + prepareRoleSQL + ` ORDER BY role.key`

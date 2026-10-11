@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -27,11 +28,12 @@ func (s *PostgresStore) ListHeldAuditIDsByLLMCredential(
 	if err := validateText("credentialID", credentialID, 128, true); err != nil || limit < 1 || limit > 128 {
 		return nil, invalidf("Audit credential hold query is invalid")
 	}
+	// An Audit baseline repeats the RunSnapshot credential members.
 	rows, err := s.db.Query(ctx, `
 SELECT audit_id
   FROM audits
  WHERE hold_state = 'held'
-   AND (baseline_snapshot->'llmCredentialIds') ? $1
+   AND (baseline_snapshot->'`+runtimeconfig.LLMCredentialIDsMember+`') ? $1
  ORDER BY created_at, audit_id
  LIMIT $2`, credentialID, limit)
 	if err != nil {

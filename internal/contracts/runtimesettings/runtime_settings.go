@@ -275,6 +275,17 @@ type HTTPOriginTargetRef struct {
 	Credential *RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
+// JSON members of HTTPOriginTargetRef, RuntimeCredentialRef and
+// ResolvedRuntimeConfigProvenance that credential deletion checks read from
+// stored Run and allocation snapshots. Renaming a tag must rename its
+// constant; internal/persistence pins both.
+const (
+	CredentialMember            = "credential"
+	CredentialIDMember          = "credentialId"
+	LLMCredentialMember         = "llmCredential"
+	RuntimeCredentialRefsMember = "runtimeCredentialRefs"
+)
+
 // Clone returns a copy that shares no credential with t. A nil target stays
 // nil.
 func (t *HTTPOriginTargetRef) Clone() *HTTPOriginTargetRef {

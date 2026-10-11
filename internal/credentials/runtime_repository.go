@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -244,11 +245,12 @@ LIMIT $2`, credentialID, limit)
 	if runRows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
 	}
+	// An Audit baseline repeats the RunSnapshot credential members.
 	auditRows, err := r.db.Query(ctx, `
 SELECT audit_id
 FROM audits
 WHERE hold_state = 'held'
-  AND (baseline_snapshot->'runtimeCredentialIds') ? $1
+  AND (baseline_snapshot->'`+runtimeconfig.RuntimeCredentialIDsMember+`') ? $1
 ORDER BY created_at, audit_id
 LIMIT $2`, credentialID, limit)
 	if err != nil {

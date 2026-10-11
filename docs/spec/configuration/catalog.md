@@ -382,6 +382,26 @@ digest exists; Workflow `presentation` metadata does not add one
 reinterpret a Run and never re-resolves the authoring selector strings while
 executing it.
 
+**CAT-R76.** A Run's Workflow snapshot is at most 2 MiB
+([LIM-CAT-4](../platform/limits.md)), counted in bytes of the Server's JSON
+encoding of the resolved Workflow (CAT-R33), never in the text PostgreSQL
+returns for the stored `jsonb`, which spaces separators and expands numbers.
+WorkflowCatalog rejects a Workflow whose snapshot without Run overrides exceeds
+the bound, so the configuration set does not load (CAT-R24). Run Workflow
+resolution measures the snapshot after the Run's `executionConfig` overrides
+and before any credential lookup, so Run creation, eval preflight and the
+repeat draft reject an oversized snapshot before a Run exists; `POST /v1/runs`
+answers the permanent `400 invalid_request` and stores nothing. Audit-managed
+Run creation measures its pinned Workflow again, and the Run store refuses to
+insert a larger snapshot. The Scheduler measures a stored snapshot the same way
+after decoding it, so every snapshot accepted at creation stays executable; a
+stored snapshot over the bound fails its Run as `unsupported_workflow_shape`
+([SCH-R102](../execution/scheduler.md)).
+
+Rationale: the bound was once checked only on the Scheduler's read, after
+`202`, and against the longer `jsonb` text; one measure at every point keeps
+acceptance and execution consistent.
+
 **CAT-R78.** Every reader of a persisted Workflow snapshot decodes it strictly
 and applies the complete Workflow graph validation WorkflowCatalog applies at
 load; a snapshot that fails it is invalid on read. The check belongs to the
@@ -416,9 +436,11 @@ configuration resource.
 **CAT-R42.** Apart from the per-file read bound of CAT-R77, no separate
 maximum size applies to an instruction
 resource: it is an operator-authored file under the configuration root, loaded
-once at startup, and its only content rule is non-empty strict UTF-8. Its
-practical bound is the Planner budget that must carry the rendered text
-([Planners](../execution/planners.md)).
+once at startup, and its only content rule is non-empty strict UTF-8. Every
+Workflow that embeds it must still fit its snapshot bound (CAT-R76), and the
+Planner budget must carry the rendered text
+([Planners](../execution/planners.md)); together they bound a used instruction
+in practice.
 
 **CAT-R43.** WorkflowCatalog does not read the instruction file
 again while creating or executing a Run. The complete resolved instruction
@@ -595,7 +617,10 @@ grammar (CAT-R18) and never implies latest-version selection.
 **CAT-R67.** Filtering precedes the bounded keyset pagination
 ([Public API](../api/public-api.md)). A continuation cursor is bound to the
 normalized query, the exact-name filter and a SHA-256 fingerprint of the
-immutable catalog source used to build that result.
+immutable catalog source used to build that result. The Server computes each
+fingerprint once, when it builds a configuration snapshot at load or
+publication, and takes a page's resources from that same snapshot; a page read
+neither copies nor encodes the whole catalog.
 
 **CAT-R68.** Reusing a cursor with another query, kind or catalog
 snapshot is a bounded `400`; the client restarts from the first page.

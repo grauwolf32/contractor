@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
@@ -177,7 +178,7 @@ SELECT b.label
 FROM runtime_label_bindings b
 JOIN runtime_config_versions c
   ON (c.name, c.version, c.digest) = (b.config_name, b.config_version, b.config_digest)
-WHERE c.canonical_document::jsonb #>> '{spec,worker,llmGateway,credential}' = $1
+WHERE c.canonical_document::jsonb #>> '`+runtimeconfig.WorkerLLMGatewayCredentialPath+`' = $1
 ORDER BY b.label
 LIMIT $2`, credentialID, limit)
 	if err != nil {

@@ -15,8 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-const maxWorkflowSnapshotBytes = 2 * 1024 * 1024
-
 type executableWorkflow struct {
 	workflow  workflowconfig.ResolvedWorkflow
 	stageName string
@@ -24,13 +22,18 @@ type executableWorkflow struct {
 }
 
 func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, error) {
-	if run.WorkflowSchemaVersion != contracts.APIVersion || len(run.WorkflowSnapshot) == 0 ||
-		len(run.WorkflowSnapshot) > maxWorkflowSnapshotBytes {
-		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot version or size is invalid", ErrUnsupportedWorkflow)
+	if run.WorkflowSchemaVersion != contracts.APIVersion || len(run.WorkflowSnapshot) == 0 {
+		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot version is invalid or the snapshot is empty", ErrUnsupportedWorkflow)
 	}
 	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		return executableWorkflow{}, fmt.Errorf("%w: decode Workflow snapshot: %v", ErrUnsupportedWorkflow, err)
+	}
+	// PostgreSQL returns jsonb text with its own spacing and number format,
+	// so the bound is measured on the snapshot's encoding, exactly as Run
+	// creation measured it (CAT-R76).
+	if _, err := workflowconfig.EncodeResolvedWorkflowSnapshot(workflow); err != nil {
+		return executableWorkflow{}, fmt.Errorf("%w: %v", ErrUnsupportedWorkflow, err)
 	}
 	if workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion ||
 		strings.TrimSpace(workflow.EntryStage) == "" {

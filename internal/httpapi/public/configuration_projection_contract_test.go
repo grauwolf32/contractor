@@ -33,10 +33,11 @@ func TestPublicConfigurationProjectionContracts(t *testing.T) {
 			config.ConfigurationLLMGateways, config.ConfigurationModelPolicies,
 		} {
 			t.Run(string(kind), func(t *testing.T) {
-				resources, err := fixture.configs.Configurations(kind)
+				discovery, err := fixture.configs.ConfigurationDiscovery(kind)
 				if err != nil {
 					t.Fatal(err)
 				}
+				resources := discovery.Resources
 				list := newPublicContractRequest(http.MethodGet, "/v1/configurations/"+string(kind)+"?limit=200", nil)
 				if response := serveAndValidatePublicContract(t, router, fixture.handler, list, true); response.Code != http.StatusOK {
 					t.Fatalf("catalog status = %d: %s", response.Code, response.Body.String())

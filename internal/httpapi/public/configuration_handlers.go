@@ -30,17 +30,15 @@ func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	resources, err := h.dependencies.Config.Configurations(kind)
+	// Resources and their fingerprint come from one snapshot, which encoded
+	// them once (CAT-R67).
+	discovery, err := h.dependencies.Config.ConfigurationDiscovery(kind)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	sourceFingerprint, err := catalogSourceFingerprint(resources)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	cursorKind := catalogPageCursorKind("configurations:"+string(kind), query, sourceFingerprint)
+	resources := discovery.Resources
+	cursorKind := catalogPageCursorKind("configurations:"+string(kind), query, discovery.SourceFingerprint)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
 		h.handleError(w, err)

@@ -193,6 +193,16 @@ the Workflow graph, and no Planner tool can select escalation.
 belongs to the Control Plane ([Control Plane](control-plane.md)). Planner never
 chooses, observes or changes physical placement.
 
+**SCH-R167.** A Run's Workflow snapshot is immutable, so the Scheduler decodes
+and validates it ([CAT-R35, CAT-R76](../configuration/catalog.md)) once per Run
+and snapshot digest and reuses the validated snapshot on later steps of that
+Run. The reuse is keyed by the Run identity, the Workflow identity and schema
+version the Run records and the SHA-256 digest of the stored snapshot text; any
+difference decodes and validates the snapshot again, and a snapshot that fails
+validation is never kept. Every step works on its own copy. The Scheduler keeps
+at most LIM-SCH-16 decoded snapshots and evicts the least recently used Run, so
+an evicted Run is decoded again on its next step.
+
 ### StageExecution identity and scope
 
 **SCH-R5.** Each StageExecution records at least:
@@ -1255,6 +1265,8 @@ Limits ([registry](../platform/limits.md)):
   `next` or `fail` (SCH-R81).
 - LIM-SCH-14 — terminal facts per `aborting` StageExecution: exactly 1
   StageTermination and no accepted StageResult (SCH-R43).
+- LIM-SCH-16 — decoded Workflow snapshots kept per Server process: at most 64
+  Runs and 64 MiB of stored snapshot text (SCH-R167).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 3 in progress, 54 pending, 14 deferred. 826 finished: 823 completed, 3 archived.
+68 open tasks: 3 in progress, 51 pending, 14 deferred. 829 finished: 826 completed, 3 archived.
 
 ## In progress
 
@@ -49,10 +49,8 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
 | [V369-006](v369-006-toolset-parity-fixture.yml) | chore | P2 | — | Extend the toolset parity fixture to the whole descriptor |
 | [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
-| [V370-030](v370-030-catalog-hot-paths.yml) | defect | P3 | — | Cache catalog fingerprints and decoded Workflow snapshots |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -113,7 +111,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-026](v368-026-run-snapshot-json-paths.yml) | defect | P2 | — | Pin the JSON paths SQL reads from Go-encoded snapshots |
 | [V368-029](v368-029-dbtx-error-recovery.yml) | defect | P3 | — | Do not continue on a DBTX after a failed statement inside a transaction |
 | [V369-001](v369-001-table-ownership-test.yml) | chore | P1 | — | Assign every table an owner package and test SQL against it |
 | [V369-005](v369-005-sql-placement-concatenation.yml) | chore | P2 | — | Make the SQL placement check see concatenated statements |
@@ -167,7 +164,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 4 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 2 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 22 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
@@ -175,5 +172,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 7 | 1 | 24 | 16 | 6 |
-| PostgreSQL persistence and schema (`persistence`) | 10 | 0 | 17 | 29 | 3 |
+| PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 5 | 1 | 16 | 65 | 15 |

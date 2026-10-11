@@ -10,9 +10,11 @@ lease that enforces it, the standby Server, detection of lease-session loss and
 its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
 durable Runtime Agent principal. It owns the one classification of a failed
-PostgreSQL call into an outcome class. It also indexes the PostgreSQL state and
-the transaction and serialization rules that domain documents own, so each can
-be found from here while it is stated only in its owner.
+PostgreSQL call into an outcome class and how SQL names the members of
+`jsonb` documents the Server encodes from Go types. It also indexes the
+PostgreSQL state and the transaction and serialization rules that domain
+documents own, so each can be found from here while it is stated only in its
+owner.
 
 It leaves to other documents:
 
@@ -183,6 +185,21 @@ not transaction-mode pooling.
 **PER-R10.** Behind a session pooler, the pooler's own client keepalive
 settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 
+### JSON documents encoded from Go types
+
+**PER-R17.** SQL that reads a member of a document the Server encodes from a
+Go type and stores in a `jsonb` column (Workflow, Stage, Run, allocation,
+Project-target, Audit profile and baseline snapshots and canonical
+RuntimeConfig documents) takes the member name from a constant declared beside
+the Go type, so a query and its encoding cannot be renamed apart. Migrations,
+which cannot use the constants, are pinned by a unit test that encodes each
+type, resolves every path SQL reads in it and requires the migrations to read
+the same members.
+
+Rationale: credential deletion checks find references by these members; a
+renamed member would make them find none and let an in-use credential be
+deleted, and only database tests would notice.
+
 ### Related rules owned elsewhere
 
 - Active-active Server replicas: [OPS-R5](../operations/operations.md).
@@ -331,6 +348,10 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     database failure, including a lock timeout and a lost connection
     (PER-R13); test `TestCredentialFailuresClassifyRetryabilityAndLogSafeCause`
     in [`internal/scheduler/credential_failure_test.go`](../../../internal/scheduler/credential_failure_test.go).
+12. Every JSON path SQL reads from a Go-encoded document resolves in a value
+    encoded from its Go type, and the migrations read the same members
+    (PER-R17); test `TestSQLReadsTheJSONMembersItsGoTypesEncode` in
+    [`internal/persistence/snapshot_json_paths_test.go`](../../../internal/persistence/snapshot_json_paths_test.go).
 
 ## Non-goals
 

@@ -182,9 +182,9 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 			return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Project HTTP target is invalid", ErrInvalid)
 		}
 	}
-	workflowSnapshot, err := json.Marshal(params.Workflow)
+	workflowSnapshot, err := config.EncodeResolvedWorkflowSnapshot(params.Workflow)
 	if err != nil {
-		return AuditCreateParams{}, nil, fmt.Errorf("%w: encode pinned Workflow", ErrInvalid)
+		return AuditCreateParams{}, nil, fmt.Errorf("%w: pinned Workflow snapshot: %v", ErrInvalid, err)
 	}
 	workflow, err := config.DecodeResolvedWorkflowSnapshot(workflowSnapshot)
 	if err != nil {

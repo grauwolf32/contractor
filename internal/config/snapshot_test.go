@@ -81,9 +81,9 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		ConfigurationAgentTemplates, ConfigurationExecutionConfigs,
 		ConfigurationModelPolicies, ConfigurationLLMGateways,
 	} {
-		resources, err := snapshot.Configurations(kind)
-		record("Configurations", string(kind), resources, err)
-		for _, resource := range resources {
+		discovery, err := snapshot.ConfigurationDiscovery(kind)
+		record("ConfigurationDiscovery", string(kind), discovery, err)
+		for _, resource := range discovery.Resources {
 			selector := resource.Ref.Name + "@" + resource.Ref.Version
 			selectors[kind] = append(selectors[kind], selector)
 			value, err := snapshot.Configuration(kind, selector)
@@ -112,6 +112,11 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		gateway, err := snapshot.LLMGateway(selector)
 		record("LLMGateway", selector, gateway, err)
 	}
+	// The Workflow discovery view keeps its sorted Workflows unexported;
+	// callers read them only through Page, which must return detached copies.
+	workflowDiscovery, err := snapshot.WorkflowDiscovery()
+	record("WorkflowDiscovery", "", workflowDiscovery.Page("", math.MaxInt,
+		func(WorkflowRef, WorkflowPresentation) bool { return true }), err)
 	credentials := developmentCredentialLookup(t, snapshot)
 	workflows := snapshot.Workflows()
 	record("Workflows", "", workflows, nil)

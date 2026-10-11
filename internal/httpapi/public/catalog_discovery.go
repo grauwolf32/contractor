@@ -1,9 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -61,15 +58,6 @@ func foldCatalogText(value string) string {
 	// Caser owns mutable transform state, so create one per operation instead
 	// of sharing it between concurrent HTTP requests.
 	return cases.Fold().String(norm.NFC.String(value))
-}
-
-func catalogSourceFingerprint(source any) (string, error) {
-	encoded, err := json.Marshal(source)
-	if err != nil {
-		return "", fmt.Errorf("fingerprint catalog source: %w", err)
-	}
-	digest := sha256.Sum256(encoded)
-	return hex.EncodeToString(digest[:]), nil
 }
 
 func catalogPageCursorKind(base string, query catalogQuery, sourceFingerprint string) string {
