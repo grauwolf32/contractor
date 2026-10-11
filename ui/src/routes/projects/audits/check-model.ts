@@ -17,7 +17,7 @@ import {
   type ItemKind,
 } from "../../../app/vocabulary";
 import { httpOperation } from "../../decisions/text";
-import { statusGroup, type Group } from "./assessments";
+import { isConcludedStatus, statusGroup, type Group } from "./assessments";
 import type { AuditCollectionQuery } from "./collections";
 import {
   isOpaqueSubject,
@@ -329,16 +329,8 @@ export function issueSummary(findings: readonly AuditFinding[]): string[] {
 }
 
 /** Concluded coverage: what the Server counts as completed work. */
-const CONCLUDED = new Set([
-  "satisfied",
-  "violated",
-  "traced-complete",
-  "not-applicable",
-  "excluded",
-]);
-
 export function isConcluded(entry: CheckEntry): boolean {
-  return CONCLUDED.has(entry.row.coverage.status);
+  return isConcludedStatus(entry.row.coverage.status);
 }
 
 /** One legend entry: a status, its tone, how many items have it. */
@@ -405,11 +397,12 @@ export function workCounts(workspace: AuditWorkspace): WorkCounts {
 
 /**
  * Legend of a check whose items are not listed: concluded work (met, traced,
- * excluded), issues found, work that needs follow-up and unchecked work.
+ * not applicable), issues found, work that needs follow-up (including
+ * excluded items) and unchecked work.
  */
 export function countLegend(counts: WorkCounts): LegendEntry[] {
   return [
-    // Done also holds not applicable and excluded work: no one filter.
+    // Done also holds not applicable work: no one filter.
     { label: "Done", tone: "done", group: "all", count: counts.done },
     {
       label: "Issues found",

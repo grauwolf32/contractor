@@ -285,6 +285,14 @@ separate count.
 
 **REV-R23.** A zero denominator is `N/A`, never 100%.
 
+**REV-R193.** Every coverage state is in exactly one progress bucket:
+completed (`satisfied`, `violated`, `traced-complete`, `not-applicable`), gap
+(`inconclusive`, `blocked`, `traced-partial`, `unmapped`, `excluded`) or
+unchecked (`not-tested`). An item the owner rejected is `excluded`, so it is a
+gap and never completed work (AUD-R178). A selected item outside the completed
+bucket makes the report conclude `completed-with-gaps`, and the Audit
+workspace counts the current round by the same buckets (UI-R144).
+
 When a limit prevents more hypotheses or executions, the retention of counts,
 omission reasons and coverage gaps is specified in [execution](execution.md)
 (AUX-R87); the report includes those limits (REV-R79).

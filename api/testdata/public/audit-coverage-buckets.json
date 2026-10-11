@@ -1,0 +1,7 @@
+{
+  "description": "Progress bucket of every Audit coverage status. Each status is in exactly one of completed, gap and unchecked; issue is the part of completed with an issue found. Go auditdomain (Audit workspace counts and report conclusion), the public AuditCoverageStatus enum and the UI result groups must agree with it.",
+  "completed": ["satisfied", "violated", "not-applicable", "traced-complete"],
+  "issue": ["violated"],
+  "gap": ["inconclusive", "blocked", "excluded", "traced-partial", "unmapped"],
+  "unchecked": ["not-tested"]
+}

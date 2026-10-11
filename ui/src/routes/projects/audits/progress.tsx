@@ -82,8 +82,8 @@ export function StopReasonBanner({ audit }: { audit: Audit }) {
  * The check's progress header: how much is done, one segment per item in
  * list order with a legend, the lifecycle controls, what waits for the user
  * and the time limit. Counts come from the Server's workspace snapshot when
- * it has one; done counts concluded work (met, traced, issues found, not
- * applicable and excluded), never accepted issues or an approved report. A
+ * it has one; done counts concluded work (met, traced, issues found and not
+ * applicable), never accepted issues or an approved report. A
  * list pinned to another revision than the snapshot is counted from its own
  * rows, so the header never mixes revisions (S19).
  */
