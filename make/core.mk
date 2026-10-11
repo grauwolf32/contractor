@@ -35,6 +35,9 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py -k 'golden or digest or resolved_skills'
 	go test ./internal/contracts/reporting ./internal/controlplane -run '^TestShared(WorkerCompletionDiagnostics|CompletionDiagnosticsDecideRuntimeResponses)$$'
 	cd runtime && uv run pytest tests/test_audit_completion_diagnostics.py -k 'test_shared'
+	go test ./internal/contracts -run '^TestSharedRequiredMember(sMatchSchemas|CasesAreRejected)$$'
+	cd runtime && uv run pytest tests/test_contracts.py -k 'test_shared_required_member_cases_are_rejected'
+	go test ./internal/planner/a2a -run '^TestSharedWorkerResultCasesPassTheA2ADecodePath$$'
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

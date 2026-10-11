@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -36,11 +37,17 @@ type typeInfo struct {
 type structInfo struct {
 	byName  map[string]int
 	members []member
+	// required holds the indexes of the members an object must set.
+	required []int
+	// tagErr reports a malformed strictjson tag; decoding the struct fails.
+	tagErr error
 }
 
 type member struct {
-	name string
-	info *typeInfo
+	name     string
+	info     *typeInfo
+	required bool
+	nullable bool
 }
 
 var (
@@ -114,8 +121,17 @@ func buildStruct(t reflect.Type, building map[reflect.Type]*typeInfo) *structInf
 	fields := structFields(t)
 	result := &structInfo{byName: make(map[string]int, len(fields)), members: make([]member, len(fields))}
 	for index, field := range fields {
-		result.members[index] = member{name: field.name, info: buildInfo(field.typ, building)}
+		result.members[index] = member{
+			name: field.name, info: buildInfo(field.typ, building),
+			required: field.required, nullable: field.nullable,
+		}
 		result.byName[field.name] = index
+		if field.required {
+			result.required = append(result.required, index)
+		}
+		if field.tagErr != nil && result.tagErr == nil {
+			result.tagErr = fmt.Errorf("strictjson: %s: %w", t, field.tagErr)
+		}
 	}
 	return result
 }
@@ -126,6 +142,25 @@ type structField struct {
 	typ    reflect.Type
 	tagged bool
 	index  []int
+	// required and nullable come from the field's strictjson tag.
+	required bool
+	nullable bool
+	tagErr   error
+}
+
+// parseStrictTag reads a strictjson struct tag: "required" makes the member
+// mandatory and non-null, "required,nullable" mandatory but possibly null.
+func parseStrictTag(name, tag string) (required, nullable bool, err error) {
+	switch tag {
+	case "":
+		return false, false, nil
+	case "required":
+		return true, false, nil
+	case "required,nullable":
+		return true, true, nil
+	default:
+		return false, false, fmt.Errorf("member %q has an invalid strictjson tag %q", name, tag)
+	}
 }
 
 // structFields returns the members encoding/json decodes into struct type t.
@@ -181,6 +216,7 @@ func structFields(t reflect.Type) []structField {
 					if field.name == "" {
 						field.name = sf.Name
 					}
+					field.required, field.nullable, field.tagErr = parseStrictTag(field.name, sf.Tag.Get("strictjson"))
 					fields = append(fields, field)
 					if count[outer.typ] > 1 {
 						// Two embeddings of one type at a level annihilate each

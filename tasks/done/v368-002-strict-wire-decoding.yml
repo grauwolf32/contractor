@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V368-002
+title: "Reject wire messages that omit required fields in Go"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: completed
+implementation_commit: "80c76602fb2a45522a6cf4a5e74e8a02989d417c"
+depends_on: []
+languages: [go, python]
+goal: "Every schema's required field, when omitted from a valid golden fixture, is rejected by Go, Python and the schema alike (generated negative cases)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G1, F2; V367-008 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  specification: "docs/spec/execution/control-plane.md#CTL-R149"
+  finding: >-
+    Go decodes WorkerCompletion and StageContentResult with missing required
+    scalars as zero values: a failure without retryable becomes
+    retryable=false, a result without summarized or observations without
+    truncated pass (contracts/worker_completion.go:55-79, 187-212;
+    stage_content.go:83-114), while the JSON Schema and Python reject them.
+    StageContentRequest.Validate also accepts nil parameters and artifacts.
+    About 80 bool/int fields are affected; ten hand-written UnmarshalJSON
+    methods in reporting/agent_state.go (437-690) repeat the pattern.
+  siblings: >-
+    Re-verified on 4146eea: 46 generated omission cases were accepted by Go
+    (Worker completion, StageContentRequest/Result error, reports, Runtime
+    report, registration, heartbeat, abort reason, RuntimeSettings telemetry,
+    artifact results, AllocationSpec toolsets). Fixed: every member the
+    schemas require in every context of all 21 fixture types (308 members,
+    five of them nullable), an explicit null for those members (the same
+    zero-value hole: "retryable": null), a null map value or array item where
+    a struct with required members is expected, and the Python report models
+    whose defaults accepted omitted toolCalls, errors, truncated, tools and
+    failureCodes. Decode paths: registration and heartbeat (already
+    DecodePrivateStrict), prepare/finalize/abort responses (postJSON now uses
+    DecodePrivate), Worker State reads and the A2A WorkerCompletion (from
+    DecodeStrict to DecodePrivateStrict). Ruled out: the Runtime error
+    envelope and the gateway-recovery and finding-proposal requests have no
+    api/v1alpha1 schema; Server-to-Runtime messages are decoded by Go only in
+    tests, but carry the tags so Go rejects the same cases; members required
+    only in some contexts (ArtifactRef.revision, the summarizer policy limits)
+    or only in oneOf/if-then branches stay with Validate. Not fixed here: an
+    explicit null for an optional member is accepted by Go and Python but
+    rejected by the schema, and a null scalar map value (counters) decodes to
+    0 in Go.
+  decision: >-
+    The table is the struct tags, not a generated file: strictjson.Decode
+    already scans every value against the target's reflect.Type (V368-007),
+    so it checks presence in the same pass, and the hand-written presence
+    decoders disappear instead of being regenerated. Tags apply to every
+    strict decode of a tagged type, not only the private wire: Go never omits
+    a required member (the pin test forbids omitempty on one) and the public
+    ArtifactRef schema requires the same members, so persisted snapshots and
+    public requests are unaffected; the cross-language mTLS lifecycle test
+    and the PostgreSQL telemetry tests confirm it. A runtime check of a
+    generated required table keyed by Go type was rejected because it needs a
+    second scan and a hand-kept mapping from schema definitions to Go types;
+    schema-to-Go code generation (audit F2's long form) was rejected because
+    it loses if/then, oneOf and the null-versus-absent distinction.
+    RuntimeReport keeps its isolation rules: a malformed adapter entry or
+    resources block is discarded and the report marked incomplete, so the
+    shared test checks discard rather than rejection there, while omitted
+    complete or adapters now fail the report like a malformed
+    ExecutionReport does (OBS-R37 placeholder). DecodePrivate classifies a
+    missing or wrong apiVersion as a version error before member errors,
+    matching codec.py. Reversal: when the schemas become the source of Go
+    types (or encoding/json/v2 gains required-field support), generate the
+    tags and keep TestSharedRequiredMembersMatchSchemas as the check.
+scope:
+  in:
+    - "One strict private decoder that rejects duplicate keys and checks required fields against a table derived from the schemas' required lists, used by every Runtime-to-Server and A2A decode path."
+    - "StageContentRequest rejects nil parameters and artifacts like the schema."
+  out:
+    - "Field names and the schemas themselves."
+acceptance_criteria:
+  - id: A1
+    text: "Every schema's required field, when omitted from a valid golden fixture, is rejected by Go, Python and the schema alike (generated negative cases)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/contracts/... ./internal/controlplane ./internal/planner/..."
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

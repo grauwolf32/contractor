@@ -10,9 +10,9 @@ import (
 )
 
 type AgentTemplateRef struct {
-	TemplateID string `json:"templateId"`
-	Version    string `json:"version"`
-	Digest     string `json:"digest"`
+	TemplateID string `json:"templateId" strictjson:"required"`
+	Version    string `json:"version" strictjson:"required"`
+	Digest     string `json:"digest" strictjson:"required"`
 }
 
 func (r AgentTemplateRef) ValidateRef() error {
@@ -23,8 +23,8 @@ func (r AgentTemplateRef) ValidateRef() error {
 }
 
 type WorkerRuntimeRef struct {
-	RuntimeID string `json:"runtimeId"`
-	Version   string `json:"version"`
+	RuntimeID string `json:"runtimeId" strictjson:"required"`
+	Version   string `json:"version" strictjson:"required"`
 }
 
 func (r WorkerRuntimeRef) ValidateRef() error {
@@ -32,9 +32,9 @@ func (r WorkerRuntimeRef) ValidateRef() error {
 }
 
 type ModelPolicyRef struct {
-	PolicyID string `json:"policyId"`
-	Version  string `json:"version"`
-	Digest   string `json:"digest"`
+	PolicyID string `json:"policyId" strictjson:"required"`
+	Version  string `json:"version" strictjson:"required"`
+	Digest   string `json:"digest" strictjson:"required"`
 }
 
 func (r ModelPolicyRef) ValidateRef() error {
@@ -45,24 +45,24 @@ func (r ModelPolicyRef) ValidateRef() error {
 }
 
 type ToolsetRef struct {
-	ToolsetID string `json:"toolsetId"`
-	Version   string `json:"version"`
+	ToolsetID string `json:"toolsetId" strictjson:"required"`
+	Version   string `json:"version" strictjson:"required"`
 }
 
 type SandboxProfileRef struct {
-	SandboxProfileID string `json:"sandboxProfileId"`
-	Version          string `json:"version"`
+	SandboxProfileID string `json:"sandboxProfileId" strictjson:"required"`
+	Version          string `json:"version" strictjson:"required"`
 }
 
 type ResolvedInstructions struct {
-	Ref    string `json:"ref"`
-	Digest string `json:"digest"`
-	Text   string `json:"text"`
+	Ref    string `json:"ref" strictjson:"required"`
+	Digest string `json:"digest" strictjson:"required"`
+	Text   string `json:"text" strictjson:"required"`
 }
 
 type ResolvedModelPolicy struct {
-	Ref                 ModelPolicyRef `json:"ref"`
-	Model               string         `json:"model"`
+	Ref                 ModelPolicyRef `json:"ref" strictjson:"required"`
+	Model               string         `json:"model" strictjson:"required"`
 	ContextWindowTokens int            `json:"contextWindowTokens,omitempty"`
 	MaxOutputTokens     int            `json:"maxOutputTokens,omitempty"`
 	MaxModelCalls       int            `json:"maxModelCalls,omitempty"`
@@ -132,8 +132,8 @@ func IsNativeSkillToolName(name string) bool {
 }
 
 type ToolsetSelection struct {
-	Ref   ToolsetRef `json:"ref"`
-	Tools []string   `json:"tools"`
+	Ref   ToolsetRef `json:"ref" strictjson:"required"`
+	Tools []string   `json:"tools" strictjson:"required"`
 }
 
 // WorkerSummarizerConfig is an immutable, template-owned terminal
@@ -142,8 +142,8 @@ type ToolsetSelection struct {
 // budget remains a pointer so strict decoding distinguishes omission from zero.
 type WorkerSummarizerConfig struct {
 	Instructions       *ResolvedInstructions `json:"instructions,omitempty"`
-	ModelPolicy        ResolvedModelPolicy   `json:"modelPolicy"`
-	ContextWindowRatio float64               `json:"contextWindowRatio"`
+	ModelPolicy        ResolvedModelPolicy   `json:"modelPolicy" strictjson:"required"`
+	ContextWindowRatio float64               `json:"contextWindowRatio" strictjson:"required"`
 	CumulativeBudget   *int                  `json:"cumulativeBudget,omitempty"`
 }
 
@@ -152,16 +152,16 @@ func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error
 }
 
 type ResolvedAgentTemplate struct {
-	Ref            AgentTemplateRef        `json:"ref"`
-	Description    string                  `json:"description"`
-	Runtime        WorkerRuntimeRef        `json:"runtime"`
+	Ref            AgentTemplateRef        `json:"ref" strictjson:"required"`
+	Description    string                  `json:"description" strictjson:"required"`
+	Runtime        WorkerRuntimeRef        `json:"runtime" strictjson:"required"`
 	Instructions   ResolvedInstructions    `json:"instructions,omitzero"`
 	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy,omitzero"`
 	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
 	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
-	Toolsets       []ToolsetSelection      `json:"toolsets"`
+	Toolsets       []ToolsetSelection      `json:"toolsets" strictjson:"required"`
 	Skills         []ArtifactRef           `json:"skills,omitempty"`
-	SandboxProfile SandboxProfileRef       `json:"sandboxProfile"`
+	SandboxProfile SandboxProfileRef       `json:"sandboxProfile" strictjson:"required"`
 }
 
 func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }

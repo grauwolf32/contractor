@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 3 in progress, 57 pending, 14 deferred. 823 finished: 820 completed, 3 archived.
+71 open tasks: 3 in progress, 54 pending, 14 deferred. 826 finished: 823 completed, 3 archived.
 
 ## In progress
 
@@ -25,13 +25,6 @@ the epics are in [epics.yml](epics.yml).
 | [V370-001](v370-001-run-stage-transition-owner.yml) | chore | P1 | V369-001 | Give Run and Stage state transitions one owner |
 | [V370-011](v370-011-scheduler-controlplane-surface.yml) | chore | P3 | — | Slim the Scheduler and Control Plane surfaces |
 | [V370-012](v370-012-runstore-runtimeconfig-cleanup.yml) | chore | P3 | — | Merge Run creation paths and split the Runtime principal registry |
-
-### Planners and the Worker model boundary (`planner-worker`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-025](v368-025-a2a-numbers-and-duplicates.yml) | defect | P2 | V368-002 | Decode A2A Worker results without float64 and with duplicate detection |
-| [V370-026](v370-026-worker-state-read-cost.yml) | defect | P3 | V368-002 | Cut the CPU cost of reading Worker State |
 
 ### Shared Memory tools (`memory`)
 
@@ -108,7 +101,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-002](v368-002-strict-wire-decoding.yml) | defect | P1 | — | Reject wire messages that omit required fields in Go |
 | [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
@@ -166,7 +158,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
+| Planners and the Worker model boundary (`planner-worker`) | 0 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 37 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -182,6 +174,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 0 | 19 | 51 | 10 | 48 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 8 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 7 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 10 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 5 | 1 | 16 | 65 | 15 |

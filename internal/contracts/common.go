@@ -121,8 +121,9 @@ type Validatable interface {
 }
 
 // DecodeStrict decodes one JSON value with strictjson.Decode, so duplicate
-// keys, case aliases, unknown members and trailing data are rejected, and runs
-// its semantic validation.
+// keys, case aliases, unknown members, omitted or null required members and
+// trailing data are rejected, and runs its semantic validation. Its errors
+// keep their detail; private input uses DecodePrivateStrict instead.
 func DecodeStrict[T Validatable](data []byte) (T, error) {
 	var value T
 	if err := strictjson.Decode(data, &value); errors.Is(err, strictjson.ErrTrailingData) {

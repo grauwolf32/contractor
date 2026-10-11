@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V368-025
+title: "Decode A2A Worker results without float64 and with duplicate detection"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+priority: P2
+status: completed
+implementation_commit: "0cfc7a2d4d3ff691377dbd23a6d945c1b17efb98"
+depends_on: [V368-002]
+languages: [go]
+goal: "The shared uint64_max and duplicate-key cases pass through the real A2A decode path."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G3; file:line as of 02bbdcbf, re-verify on current main"
+  specification: "docs/spec/execution/worker.md#WRK-R164"
+  finding: >-
+    The A2A SDK delivers DataPart as any with float64 numbers (a2a-go v2.5.0
+    core.go:686, 738) and the client re-encodes it
+    (planner/a2a/client.go:485-491): stateRevision 2^53+1 becomes 2^53,
+    2^64-1 is rejected though the shared fixture accepts it, and duplicate
+    keys vanish. Contradicts result_limits.go:80.
+  siblings: >-
+    Re-verified on 4146eea: the Go side behaves as reported. It is also half
+    of the story: an A2A DataPart is a google.protobuf.Value, and the Python
+    Runtime builds it with ParseDict(payload, Value()), so a2a-python's
+    MessageToDict renders every WorkerCompletion integer as a double
+    ("stateRevision": 7.0) and rounds integers above 2^53 before they leave
+    the Runtime. The re-encode was what turned those doubles back into
+    integer literals; a raw decode alone would have rejected every real
+    completion. The only other A2A payload, StageContentRequest, carries no
+    numbers. The SendMessage, terminal Task and polled GetTask responses all
+    go through the one decode.
+  decision: >-
+    The bounded transport records the body of the latest A2A response under
+    the invocation's context, and the Invoker decodes the selected message's
+    DataPart from those bytes with DecodePrivateStrict, reading the JSON-RPC
+    envelope with encoding/json as the SDK does so both select the same
+    message. Integer literals keep their digits and duplicate keys are
+    rejected. Numbers written as integral doubles (7.0, 1e3) are mapped to
+    their exact integer digits first, because that is how a protobuf Value
+    carries integers; fractional values and values outside uint64 still fail.
+    Evidence: the shared uint64_max case and three duplicate-key placements
+    pass through the official Go SDK server and the real Invoker, 2^53+1 keeps
+    its value, and the body a2a-python produces for the success fixture
+    decodes to the fixture. Alternatives: replacing the SDK transport (out of
+    scope), a Raw part (a protocol change on both sides), and dropping the
+    double mapping (breaks the Runtime). Known limit, stated in WRK-R164:
+    integers above 2^53 cannot cross the DataPart exactly while the Runtime
+    encodes it as a Value; bounding WorkerCompletion integers to 2^53-1 in the
+    schema, Go and Python (as MaxResourceInteger does for resources) is a
+    contract change left to a follow-up. Reversal: drop the double mapping
+    when the Runtime stops sending numbers as protobuf doubles, and the
+    capture when the SDK exposes a DataPart's raw bytes.
+scope:
+  in:
+    - "Decode the raw DataPart bytes with the strict private decoder."
+  out:
+    - "The A2A transport."
+acceptance_criteria:
+  - id: A1
+    text: "The shared uint64_max and duplicate-key cases pass through the real A2A decode path."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/planner/a2a ./internal/contracts"
+    covers: [A1]

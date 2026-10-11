@@ -22,9 +22,9 @@ const (
 )
 
 type LLMGatewayConfigRef struct {
-	GatewayID string `json:"gatewayId"`
-	Version   string `json:"version"`
-	Digest    string `json:"digest"`
+	GatewayID string `json:"gatewayId" strictjson:"required"`
+	Version   string `json:"version" strictjson:"required"`
+	Digest    string `json:"digest" strictjson:"required"`
 }
 
 func (r LLMGatewayConfigRef) ValidateRef() error {
@@ -37,7 +37,7 @@ func (r LLMGatewayConfigRef) ValidateRef() error {
 // LLMCredentialRef is deliberately non-secret. The token is resolved only at
 // the final model-client or allocation-preparation boundary.
 type LLMCredentialRef struct {
-	CredentialID string `json:"credentialId"`
+	CredentialID string `json:"credentialId" strictjson:"required"`
 }
 
 func (r LLMCredentialRef) Validate() error {
@@ -45,8 +45,8 @@ func (r LLMCredentialRef) Validate() error {
 }
 
 type LLMGatewayCredentialManager struct {
-	Implementation string `json:"implementation"`
-	ManagementURL  string `json:"managementUrl"`
+	Implementation string `json:"implementation" strictjson:"required"`
+	ManagementURL  string `json:"managementUrl" strictjson:"required"`
 }
 
 // GatewayFailureSignature names one exact provider response that means the
@@ -55,7 +55,7 @@ type LLMGatewayCredentialManager struct {
 // arbitrary 4xx carrying request-specific text can never become a transient
 // availability failure.
 type GatewayFailureSignature struct {
-	Status int `json:"status"`
+	Status int `json:"status" strictjson:"required"`
 	// MessageEquals matches the whole error message (or bare error string).
 	MessageEquals string `json:"messageEquals,omitempty"`
 	// LiteLLMWrapped matches the same upstream message inside LiteLLM's
@@ -149,9 +149,9 @@ func (s GatewayFailureSignature) validate() error {
 // ResolvedLLMGatewayConfig is a complete immutable non-secret Gateway body.
 // Credentials are selected beside this value and never embedded in it.
 type ResolvedLLMGatewayConfig struct {
-	Ref               LLMGatewayConfigRef          `json:"ref"`
-	Protocol          string                       `json:"protocol"`
-	URL               string                       `json:"url"`
+	Ref               LLMGatewayConfigRef          `json:"ref" strictjson:"required"`
+	Protocol          string                       `json:"protocol" strictjson:"required"`
+	URL               string                       `json:"url" strictjson:"required"`
 	CredentialManager *LLMGatewayCredentialManager `json:"credentialManager,omitempty"`
 	// FailureSignatures is present only when the Gateway declares its own set,
 	// which keeps the digest of existing declarations stable; readers use

@@ -82,7 +82,9 @@ type WorkerInvoker interface {
 // WorkerStateReader is the framework-neutral live-State boundary used only by
 // modeled Planner projections. Implementations own physical Runtime routing;
 // callers supply a previously validated WorkerHandle and an optional strong
-// ETag, never a model-selected URL or allocation identity.
+// ETag, never a model-selected URL or allocation identity. A returned Snapshot
+// has passed AgentStateSnapshot.Validate and belongs to the caller: the reader
+// keeps no reference to it.
 type WorkerStateReader interface {
 	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (WorkerStateReadResult, error)
 }

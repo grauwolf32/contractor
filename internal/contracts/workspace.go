@@ -43,10 +43,10 @@ func (s WorkspaceStorage) Validate() error {
 }
 
 type WorkspaceLimits struct {
-	MaxFiles            int   `json:"maxFiles"`
-	MaxExpandedBytes    int64 `json:"maxExpandedBytes"`
-	MaxManagedTextBytes int64 `json:"maxManagedTextBytes"`
-	MaxFileBytes        int64 `json:"maxFileBytes"`
+	MaxFiles            int   `json:"maxFiles" strictjson:"required"`
+	MaxExpandedBytes    int64 `json:"maxExpandedBytes" strictjson:"required"`
+	MaxManagedTextBytes int64 `json:"maxManagedTextBytes" strictjson:"required"`
+	MaxFileBytes        int64 `json:"maxFileBytes" strictjson:"required"`
 }
 
 func (l WorkspaceLimits) Validate() error {
@@ -58,9 +58,9 @@ func (l WorkspaceLimits) Validate() error {
 }
 
 type WorkspaceCapabilities struct {
-	Storage WorkspaceStorage `json:"storage"`
-	Modes   []WorkspaceMode  `json:"modes"`
-	Limits  WorkspaceLimits  `json:"limits"`
+	Storage WorkspaceStorage `json:"storage" strictjson:"required"`
+	Modes   []WorkspaceMode  `json:"modes" strictjson:"required"`
+	Limits  WorkspaceLimits  `json:"limits" strictjson:"required"`
 }
 
 func (c WorkspaceCapabilities) Validate() error {
@@ -84,22 +84,22 @@ func (c WorkspaceCapabilities) Validate() error {
 }
 
 type AllocationWorkspaceSource struct {
-	Artifact ArtifactRef `json:"artifact"`
-	Target   string      `json:"target"`
+	Artifact ArtifactRef `json:"artifact" strictjson:"required"`
+	Target   string      `json:"target" strictjson:"required"`
 }
 
 type AllocationWorkspaceState struct {
-	Artifact ArtifactRef `json:"artifact"`
+	Artifact ArtifactRef `json:"artifact" strictjson:"required"`
 }
 
 type AllocationWorkspaceExport struct {
-	State string `json:"state"`
-	Diff  string `json:"diff"`
+	State string `json:"state" strictjson:"required"`
+	Diff  string `json:"diff" strictjson:"required"`
 }
 
 type AllocationWorkspaceSpec struct {
-	Mode    WorkspaceMode               `json:"mode"`
-	Sources []AllocationWorkspaceSource `json:"sources"`
+	Mode    WorkspaceMode               `json:"mode" strictjson:"required"`
+	Sources []AllocationWorkspaceSource `json:"sources" strictjson:"required"`
 	State   *AllocationWorkspaceState   `json:"state,omitempty"`
 	Export  *AllocationWorkspaceExport  `json:"export,omitempty"`
 }

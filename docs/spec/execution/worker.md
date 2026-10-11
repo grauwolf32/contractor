@@ -466,6 +466,17 @@ Card ([Runtime Agent](runtime-agent.md)) and each request advertise the latter
 as the accepted output mode. A missing or different response media type fails
 closed before payload decoding.
 
+**WRK-R164.** The Planner decodes the terminal `WorkerCompletion` from the
+bytes of the A2A response that carried it with the strict private decoder
+([CTL-R149](control-plane.md)), never from the A2A SDK's generic value: a
+duplicate key anywhere in it is rejected and an integer keeps its exact
+digits. An A2A DataPart is a `google.protobuf.Value`, whose numbers are
+doubles, and the Runtime renders every integer that way (`7.0`); a number
+written as an integral double therefore counts as that integer, while a
+fractional number or one outside the member's range is rejected. Integers
+above 2^53 cannot cross this DataPart exactly: the Runtime's encoding rounds
+them to the nearest double before the Planner reads them.
+
 **WRK-R39.** For Streamline and Router,
 `execute_current_subtask` returns the bounded model-facing portion of
 `WorkerResult`. A `WorkerFailure` becomes that tool's existing closed tool

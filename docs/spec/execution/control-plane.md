@@ -306,6 +306,25 @@ no legacy registration fallback.
 parity checks use this single catalog, and strict Go/Python DTOs, JSON schemas
 and fixtures must change together.
 
+**CTL-R149.** The Server decodes every private message it receives
+(registration, heartbeat, lifecycle responses, Worker State and the
+`WorkerCompletion` a Worker returns over A2A) with one strict decoder. Besides
+duplicate keys, case aliases, unknown members and trailing data, it rejects a
+message that omits a member its schema requires wherever the Go type is used,
+or sets such a member to null where the schema does not allow null, instead of
+reading the member's zero value. The Go types declare these members, and a
+test holds the declarations to the schemas' `required` lists; a member required
+only in some branches or places stays with semantic validation. The generated
+cases in
+[`required-member-cases.json`](../../../api/testdata/v1alpha1/required-member-cases.json)
+omit, and set to null, every required member of every valid fixture, and the
+schema, the Server and the Runtime reject each. The only exceptions are the
+isolated parts of a `RuntimeReport`: malformed adapter metrics
+([OBS-R36](../platform/observability.md)) and a malformed resources block
+(CTL-R136) are discarded as incomplete telemetry instead of failing the report.
+Like the Runtime codec, the decoder classifies a missing or wrong `apiVersion`
+as a version error before any member error.
+
 **CTL-R9.** The document version does not collapse
 independently versioned Toolsets, completion contracts, workspace packages,
 Audit package formats or A2A envelopes; their own versions remain explicit.
