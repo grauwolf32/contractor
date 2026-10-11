@@ -599,8 +599,9 @@ and enters its write-fenced transition; the export rules are specified in
 
 ### Operation budgets
 
-The separate process budgets for HTTP requests, Scheduler operations, stored
-terminal deadlines and batch cleanup are specified in
+The separate process budgets for HTTP requests, Scheduler store operations,
+the claim lease, stored terminal deadlines and Runtime batch preparation and
+cleanup are specified in
 [OPS-R15, OPS-R16](../operations/operations.md).
 
 **SCH-R63.** Finalize and abort use the earlier of the caller deadline and the
@@ -610,9 +611,10 @@ phases (FAIL-SCH-8, FAIL-SCH-7).
 **SCH-R64.** Recovery and repeated requests reuse the saved operation ID and
 deadline, including after a restart or a process-setting change.
 
-**SCH-R65.** Each release batch has one cleanup deadline. Failed-prepare
-cleanup shares one deadline across abort and release, and a failed release
-retains the allocation grant.
+**SCH-R65.** Each release batch has one cleanup deadline and each prepare
+batch one prepare deadline; the Scheduler store-operation budget caps neither.
+Failed-prepare cleanup shares one deadline across abort and release, and a
+failed release retains the allocation grant.
 
 **SCH-R66.** Inner requests may end earlier, but cannot extend the enclosing
 operation or relinquish unconfirmed resource ownership. Physical workspace

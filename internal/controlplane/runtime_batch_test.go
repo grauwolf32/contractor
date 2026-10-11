@@ -43,7 +43,9 @@ func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
 		t.Fatalf("replayed pinned reservation = (%+v, %v)", replayed, err)
 	}
 	runtime := &recordingRuntime{}
-	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
+		Now: clock.Now, PrepareTimeout: time.Minute, CleanupTimeout: time.Minute,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +75,7 @@ func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
 		Now:            time.Now,
 		NewID:          func(prefix string) (string, error) { return prefix + "cleanup", nil },
+		PrepareTimeout: time.Minute,
 		CleanupTimeout: time.Second,
 	})
 	if err != nil {
@@ -116,7 +119,7 @@ func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			runtime := &recordingRuntime{}
 			registry := &recordingAllocationRegistry{}
-			controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{})
+			controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{PrepareTimeout: time.Minute, CleanupTimeout: time.Minute})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -134,7 +137,7 @@ func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
 func TestFinalizeAllFencesBeforeRuntimeAndReleaseRetainsFailedGrant(t *testing.T) {
 	runtime := &recordingRuntime{releaseFailure: map[string]error{"allocation_2": errors.New("unavailable")}}
 	registry := &recordingAllocationRegistry{}
-	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{})
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{PrepareTimeout: time.Minute, CleanupTimeout: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +185,9 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	}
 	allocationID := reservations[0].Grant.AllocationID
 	runtime := &recordingRuntime{releaseFailure: map[string]error{allocationID: errors.New("Runtime unreachable")}}
-	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
+		Now: clock.Now, PrepareTimeout: time.Minute, CleanupTimeout: time.Minute,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +264,9 @@ func TestFailedPrepareCleanupReleasesExpiredGrantAfterRuntimeFailure(t *testing.
 	allocationID := reservations[0].Grant.AllocationID
 	clock.Advance(61 * time.Second)
 	runtime := &recordingRuntime{releaseFailure: map[string]error{allocationID: errors.New("Runtime unreachable")}}
-	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{Now: clock.Now})
+	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
+		Now: clock.Now, PrepareTimeout: time.Minute, CleanupTimeout: time.Minute,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +336,7 @@ func TestRuntimeBatchTerminalCallsFanOutWithoutSiblingDeadlineStarvation(t *test
 			test.configure(runtime)
 			registry := &recordingAllocationRegistry{}
 			controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
-				CleanupTimeout: 100 * time.Millisecond,
+				PrepareTimeout: time.Minute, CleanupTimeout: 100 * time.Millisecond,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -356,7 +363,7 @@ func TestFailedPrepareCleanupDoesNotHideHealthySibling(t *testing.T) {
 	runtime := &recordingRuntime{blockAbort: map[string]bool{"allocation_1": true}}
 	registry := &recordingAllocationRegistry{}
 	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
-		CleanupTimeout: 50 * time.Millisecond,
+		PrepareTimeout: time.Minute, CleanupTimeout: 50 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatal(err)

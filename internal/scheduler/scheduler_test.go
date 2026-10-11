@@ -1903,7 +1903,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	}
 	idSequence := 0
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
+		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeTransport: RuntimeTransportSettings{
 			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,

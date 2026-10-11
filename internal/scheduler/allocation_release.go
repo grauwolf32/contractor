@@ -45,9 +45,10 @@ func (s *Scheduler) releaseTerminalOwned(
 			failures = append(failures, err)
 		}
 	}
-	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-	releaseErr := s.workers.ReleaseAll(releaseContext, reservations)
-	cancelRelease()
+	// The batch has its own cleanup deadline, owned by the WorkerController
+	// (runtimeLifecycle.cleanupTimeout, SCH-R65). The store-operation budget
+	// bounds only the durable markers around it and must not cut the batch.
+	releaseErr := s.workers.ReleaseAll(context.Background(), reservations)
 	if releaseErr != nil {
 		s.options.Logger.Warn(
 			"terminal allocation release was incomplete",

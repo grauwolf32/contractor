@@ -170,6 +170,10 @@ type Allocator interface {
 	PollAllocationLosses() []controlplane.AllocationLoss
 }
 
+// WorkerController owns the Runtime batch budgets: PrepareAll bounds one
+// prepare batch and ReleaseAll one release batch by their own deadlines, while
+// FinalizeAll and AbortAll honour the stored terminal deadline. Callers pass
+// cancellation only and never wrap a batch in the store-operation budget.
 type WorkerController interface {
 	PrepareAll(
 		context.Context,
@@ -240,14 +244,25 @@ type realClock struct{}
 func (realClock) Now() time.Time                                { return time.Now() }
 func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
 
+// Options carries the resolved ServerConfig budgets; each duration below
+// names its ServerConfig path and is required (OPS-R15).
 type Options struct {
-	GatewayRecovery        *gatewayrecovery.Service
-	PollInterval           time.Duration
-	ClaimDuration          time.Duration
-	OperationTimeout       time.Duration
-	PlannerTimeout         time.Duration
-	FinalizationTimeout    time.Duration
-	AbortTimeout           time.Duration
+	GatewayRecovery *gatewayrecovery.Service
+	// PollInterval is scheduler.pollInterval: the lane refill and terminal
+	// release recovery period, and the upper bound of the claim renewal period.
+	PollInterval time.Duration
+	// ClaimDuration is scheduler.claimDuration, the Run claim lease.
+	ClaimDuration time.Duration
+	// OperationTimeout is scheduler.operationTimeout: one store operation
+	// (claim, renewal, read, transition or commit). Runtime batches carry
+	// their own budgets in the WorkerController.
+	OperationTimeout time.Duration
+	// PlannerTimeout is plannerTimeout: the Stage deadline from admission.
+	PlannerTimeout      time.Duration
+	FinalizationTimeout time.Duration
+	AbortTimeout        time.Duration
+	// LeaseScanInterval is scheduler.leaseScanInterval, the period of the
+	// allocation-loss scan.
 	LeaseScanInterval      time.Duration
 	RuntimeTransport       RuntimeTransportSettings
 	Credentials            CredentialResolver

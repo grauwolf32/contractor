@@ -37,23 +37,23 @@ func (a lostRuntimeReleaseAllocator) GetReservation(allocationID string) (contro
 	return a.registry.GetReservation(allocationID)
 }
 
-func TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased(t *testing.T) {
-	h := newSchedulerHarness(t)
-	execution := h.persistedExecution(t, runstore.StageSucceeded)
-	h.store.stages = []runstore.StageExecution{execution}
-	h.store.run.State = runstore.RunSucceeded
-	now := h.clock.now
-	var elapsed time.Duration
-	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{
-		Now:          func() time.Time { return now },
-		MonotonicNow: func() time.Duration { return elapsed },
-	})
+// registerTerminalReleaseGrant reserves the harness Stage's single Agent on a
+// real Registry and records the matching durable allocation row, as placement
+// does before a Stage can reach terminal release.
+func registerTerminalReleaseGrant(
+	t *testing.T,
+	h *schedulerHarness,
+	execution runstore.StageExecution,
+	options controlplane.RegistryOptions,
+) (*controlplane.InMemoryRegistry, controlplane.Reservation) {
+	t.Helper()
+	registry, err := controlplane.NewRegistry(options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	registration := control.AgentRegistration{
 		APIVersion: contracts.APIVersion, InstanceID: "unreachable-runtime", SoftwareVersion: "0.1.0",
-		StartedAt: now, ControlURL: "https://unreachable.example:9443", A2AURL: "https://unreachable.example:9444",
+		StartedAt: options.Now(), ControlURL: "https://unreachable.example:9443", A2AURL: "https://unreachable.example:9444",
 		InitialLabels: []string{}, SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
 		SupportedRuntimes: []string{"adk@1"},
 		SupportedToolsets: []control.ToolsetCapability{{
@@ -93,8 +93,22 @@ func TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased(t *testin
 		RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
 		AgentTemplateRef:       reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
 	}}
+	return registry, reservation
+}
+
+func TestTerminalReleaseRecoveryMarksExpiredUnreachableRuntimeReleased(t *testing.T) {
+	h := newSchedulerHarness(t)
+	execution := h.persistedExecution(t, runstore.StageSucceeded)
+	h.store.stages = []runstore.StageExecution{execution}
+	h.store.run.State = runstore.RunSucceeded
+	now := h.clock.now
+	var elapsed time.Duration
+	registry, reservation := registerTerminalReleaseGrant(t, h, execution, controlplane.RegistryOptions{
+		Now:          func() time.Time { return now },
+		MonotonicNow: func() time.Duration { return elapsed },
+	})
 	runtime := &unavailableReleaseRuntime{}
-	batch, err := controlplane.NewRuntimeBatchController(runtime, registry, controlplane.RuntimeBatchOptions{})
+	batch, err := controlplane.NewRuntimeBatchController(runtime, registry, testRuntimeBatchOptions())
 	if err != nil {
 		t.Fatal(err)
 	}

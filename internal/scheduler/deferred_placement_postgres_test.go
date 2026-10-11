@@ -194,7 +194,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	}
 	sequence := 0
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
-		PollInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
+		PollInterval: time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
 		RuntimeTransport: testSchedulerRuntimeTransport(), Credentials: credentialProvider, Clock: clock,
 		Settings: settingsstore.NewPostgresStore(pool), GatewayRecovery: recovery,

@@ -2,11 +2,13 @@ package controlplane
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 )
 
 type deadlineRuntime struct {
@@ -50,7 +52,7 @@ func TestTerminalCallsUseSavedOrEarlierCallerDeadlineIndependentlyOfCleanup(t *t
 				ctx, cancel := context.WithDeadline(context.Background(), parent)
 				defer cancel()
 				runtime := &deadlineRuntime{t: t, want: want, terminal: deadline}
-				controller, err := NewRuntimeBatchController(runtime, &recordingAllocationRegistry{}, RuntimeBatchOptions{CleanupTimeout: time.Nanosecond})
+				controller, err := NewRuntimeBatchController(runtime, &recordingAllocationRegistry{}, RuntimeBatchOptions{PrepareTimeout: time.Minute, CleanupTimeout: time.Nanosecond})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -80,7 +82,7 @@ func TestFailedPrepareAbortAndReleaseShareOneAbsoluteDeadline(t *testing.T) {
 	deadline := now.Add(time.Second)
 	runtime := &deadlineRuntime{t: t, want: deadline, terminal: deadline}
 	controller, err := NewRuntimeBatchController(runtime, &recordingAllocationRegistry{}, RuntimeBatchOptions{
-		CleanupTimeout: time.Second, Now: func() time.Time { return now },
+		PrepareTimeout: time.Minute, CleanupTimeout: time.Second, Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -94,5 +96,81 @@ func TestFailedPrepareAbortAndReleaseShareOneAbsoluteDeadline(t *testing.T) {
 	}
 	if len(runtime.aborted) != 2 || len(runtime.released) != 2 {
 		t.Fatal("incomplete cleanup")
+	}
+}
+
+type batchBudgetRuntime struct {
+	recordingRuntime
+	deadlineMu       sync.Mutex
+	prepareDeadlines []time.Time
+	releaseDeadlines []time.Time
+}
+
+func (r *batchBudgetRuntime) Prepare(ctx context.Context, reservation Reservation, settings runtimesettings.WorkerExecutionSettings) (contracts.WorkerHandle, error) {
+	deadline, _ := ctx.Deadline()
+	r.deadlineMu.Lock()
+	r.prepareDeadlines = append(r.prepareDeadlines, deadline)
+	r.deadlineMu.Unlock()
+	return r.recordingRuntime.Prepare(ctx, reservation, settings)
+}
+
+func (r *batchBudgetRuntime) Release(ctx context.Context, reservation Reservation) error {
+	deadline, _ := ctx.Deadline()
+	r.deadlineMu.Lock()
+	r.releaseDeadlines = append(r.releaseDeadlines, deadline)
+	r.deadlineMu.Unlock()
+	return r.recordingRuntime.Release(ctx, reservation)
+}
+
+// Each Runtime batch has one deadline from its own configured budget
+// (SCH-R65): a prepare batch from prepareTimeout, a release batch from
+// cleanupTimeout, whatever the other budget is.
+func TestRuntimeBatchesShareOneDeadlineFromTheirOwnBudget(t *testing.T) {
+	const prepareTimeout, cleanupTimeout = 2 * time.Hour, 3 * time.Hour
+	runtime := &batchBudgetRuntime{}
+	controller, err := NewRuntimeBatchController(runtime, &recordingAllocationRegistry{}, RuntimeBatchOptions{
+		PrepareTimeout: prepareTimeout, CleanupTimeout: cleanupTimeout,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := testTemplate(t)
+	lease := time.Now().Add(time.Minute)
+	reservations := []Reservation{
+		testReservation("allocation_1", "first", "https://first.example", "https://first.example", template, lease),
+		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
+	}
+	before := time.Now()
+	if _, err := controller.PrepareAll(context.Background(), reservations,
+		testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second")); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.ReleaseAll(context.Background(), reservations); err != nil {
+		t.Fatal(err)
+	}
+	after := time.Now()
+	for name, batch := range map[string]struct {
+		deadlines []time.Time
+		budget    time.Duration
+	}{
+		"prepare": {runtime.prepareDeadlines, prepareTimeout},
+		"release": {runtime.releaseDeadlines, cleanupTimeout},
+	} {
+		if len(batch.deadlines) != 2 || !batch.deadlines[0].Equal(batch.deadlines[1]) ||
+			batch.deadlines[0].Before(before.Add(batch.budget)) || batch.deadlines[0].After(after.Add(batch.budget)) {
+			t.Fatalf("%s deadlines = %v; want one shared deadline %v after the batch started", name, batch.deadlines, batch.budget)
+		}
+	}
+}
+
+func TestRuntimeBatchControllerRequiresBothBudgets(t *testing.T) {
+	for _, options := range []RuntimeBatchOptions{
+		{CleanupTimeout: time.Minute},
+		{PrepareTimeout: time.Minute},
+		{PrepareTimeout: -time.Second, CleanupTimeout: time.Minute},
+	} {
+		if _, err := NewRuntimeBatchController(&recordingRuntime{}, &recordingAllocationRegistry{}, options); err == nil {
+			t.Fatalf("budgets %+v accepted", options)
+		}
 	}
 }
