@@ -4816,7 +4816,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
 
   /v1/runs/{runId}/retry-gateway:
     parameters:

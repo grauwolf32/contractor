@@ -51,6 +51,11 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				ctx, normalized.Workflow, normalized.ExecutionConfig, s.llmCredentials,
 			)
 			if resolveErr != nil {
+				// A credential lookup outage keeps its cause so the caller can
+				// answer the retryable recovery or storage outcome.
+				if errors.Is(resolveErr, config.ErrCredentialLookup) {
+					return resolveErr
+				}
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
 			}
 			if err := contracts.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {

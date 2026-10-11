@@ -423,7 +423,14 @@ func (s *Service) validateProfileDependencies(
 	for _, role := range roles {
 		workflow := profile.Workflows[role].Workflow
 		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, llmCredentials); err != nil {
-			return nil, nil, nil, err
+			// A lookup outage keeps its cause: recovery and transaction
+			// conflicts stay retryable and reach the start replay check.
+			if errors.Is(err, config.ErrCredentialLookup) {
+				return nil, nil, nil, err
+			}
+			return nil, nil, nil, fmt.Errorf(
+				"%w: Audit Workflow role %q credential selection is not runnable: %v", ErrInvalid, role, err,
+			)
 		}
 		ids, err := config.ResolvedWorkflowCredentialIDs(workflow)
 		if err != nil {
