@@ -6,6 +6,10 @@ package runstore
 // that reference LLM credential $1: non-terminal Runs whose Workflow snapshot
 // (any credentialId field) or runtime config llmCredentialIds pins it, plus
 // Runs holding a not-yet-released Stage allocation configured with it.
+// The jsonb_path_query_array test is the expression of
+// workflow_runs_workflow_credentials_idx: a superset of the exact
+// jsonb_path_exists test, which it narrows to indexed candidates, so both
+// arms are index scans over active Runs.
 // Used by PostgresStore.ListNonTerminalRunIDsByCredential.
 var listNonTerminalRunIDsByCredentialSQL = `
 WITH credential_runs AS (
@@ -13,11 +17,14 @@ WITH credential_runs AS (
     FROM workflow_runs
     WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
       AND (
-          jsonb_path_exists(
-              workflow_snapshot,
-              '$.**.credentialId ? (@ == $credential)',
-              jsonb_build_object('credential', to_jsonb($1::text)),
-              true
+          (
+              jsonb_path_query_array(workflow_snapshot, '$.**.credentialId.**', '{}', true) ? $1
+              AND jsonb_path_exists(
+                  workflow_snapshot,
+                  '$.**.credentialId ? (@ == $credential)',
+                  jsonb_build_object('credential', to_jsonb($1::text)),
+                  true
+              )
           )
           OR (runtime_config_snapshot->'llmCredentialIds') ? $1
       )

@@ -432,7 +432,9 @@ FAIL-EVM-2).
 and allowed only when no non-terminal WorkflowRun, active RuntimeConfig label
 binding or live allocation snapshot pins or references that credential.
 Otherwise it returns `credential_in_use` with the safe referencing Run IDs and
-label names and performs no side effect.
+label names and performs no side effect. The Run check reads only the
+non-terminal Runs that pin the credential, through indexes restricted to
+those states, never the Run history.
 
 **RCF-R49.** Under a credential lock, Server first asks the bound Gateway
 credential manager to delete `remote_key_id` (`already absent` counts as
@@ -918,7 +920,8 @@ Gateway.
 
 **RCF-R128.** An immutable RuntimeConfig version or an encrypted credential
 cannot be deleted while an active label binding, a non-terminal Run snapshot or
-a live allocation pins or references it (LIFE-RCF-3, LIFE-RCF-5).
+a live allocation pins or references it (LIFE-RCF-3, LIFE-RCF-5). The Run
+check of a credential has the bound of RCF-R48.
 
 **RCF-R129.** Removing a label binding first requires removing that label from
 every Runtime Agent. Existing Run snapshots do not depend on the mutable

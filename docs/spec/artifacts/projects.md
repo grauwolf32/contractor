@@ -611,6 +611,8 @@ placement and another Server process can change which Run advances next.
 
 **PRJ-R93.** The owner-scoped `/v1/queue` endpoint uses stable
 oldest-first keyset pagination and never exposes foreign Projects or Runs.
+Each page reads the owner's nonterminal Runs through an index restricted to
+those states, never the owner's whole Run history.
 
 **PRJ-R94.** Live invalidation may reuse the existing Run event
 channel; polling remains a correct fallback.
