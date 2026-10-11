@@ -1,5 +1,4 @@
 package: publicapi
-output: public.gen.go
 generate:
   models: true
   client: true

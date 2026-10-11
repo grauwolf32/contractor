@@ -155,6 +155,12 @@ separate and are not made public by including them in this specification.
 Regenerating a client from an incompatible document does not make the change
 backward compatible.
 
+**API-R68.** The Go client bundled with the CLI is generated from the
+committed contract by a pinned oapi-codegen version that builds without
+network access, and is never hand-edited. Its freshness check regenerates it
+into a temporary file and fails `make lint` when the result differs from the
+committed client; the UI client follows the same rule (UI-R19).
+
 The UI's supported-version check and the rule that additive changes within a
 supported version need no coordinated release are in UI
 ([UI-R5 to UI-R7](../ui/ui.md)). The public Runtime-label field name and the

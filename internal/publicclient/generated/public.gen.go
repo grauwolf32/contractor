@@ -317,19 +317,19 @@ func (e DecideAuditFindingDuplicateRequestVerdict) Valid() bool {
 
 // Defines values for DecideAuditFindingOtherRequestVerdict.
 const (
-	FalsePositive DecideAuditFindingOtherRequestVerdict = "false_positive"
-	NeedsEvidence DecideAuditFindingOtherRequestVerdict = "needs_evidence"
-	Reopen        DecideAuditFindingOtherRequestVerdict = "reopen"
+	DecideAuditFindingOtherRequestVerdictFalsePositive DecideAuditFindingOtherRequestVerdict = "false_positive"
+	DecideAuditFindingOtherRequestVerdictNeedsEvidence DecideAuditFindingOtherRequestVerdict = "needs_evidence"
+	DecideAuditFindingOtherRequestVerdictReopen        DecideAuditFindingOtherRequestVerdict = "reopen"
 )
 
 // Valid indicates whether the value is a known member of the DecideAuditFindingOtherRequestVerdict enum.
 func (e DecideAuditFindingOtherRequestVerdict) Valid() bool {
 	switch e {
-	case FalsePositive:
+	case DecideAuditFindingOtherRequestVerdictFalsePositive:
 		return true
-	case NeedsEvidence:
+	case DecideAuditFindingOtherRequestVerdictNeedsEvidence:
 		return true
-	case Reopen:
+	case DecideAuditFindingOtherRequestVerdictReopen:
 		return true
 	default:
 		return false
@@ -338,13 +338,13 @@ func (e DecideAuditFindingOtherRequestVerdict) Valid() bool {
 
 // Defines values for DecideAuditFindingTruePositiveRequestVerdict.
 const (
-	TruePositive DecideAuditFindingTruePositiveRequestVerdict = "true_positive"
+	DecideAuditFindingTruePositiveRequestVerdictTruePositive DecideAuditFindingTruePositiveRequestVerdict = "true_positive"
 )
 
 // Valid indicates whether the value is a known member of the DecideAuditFindingTruePositiveRequestVerdict enum.
 func (e DecideAuditFindingTruePositiveRequestVerdict) Valid() bool {
 	switch e {
-	case TruePositive:
+	case DecideAuditFindingTruePositiveRequestVerdictTruePositive:
 		return true
 	default:
 		return false
@@ -1146,6 +1146,21 @@ func (e EvalMeasureScopeKind) Valid() bool {
 	case EvalMeasureScopePropertiesKindAudit:
 		return true
 	case EvalMeasureScopePropertiesKindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMediaRange0.
+const (
+	EvalMediaRange0Asterisk EvalMediaRange0 = "*/*"
+)
+
+// Valid indicates whether the value is a known member of the EvalMediaRange0 enum.
+func (e EvalMediaRange0) Valid() bool {
+	switch e {
+	case EvalMediaRange0Asterisk:
 		return true
 	default:
 		return false
@@ -2421,6 +2436,27 @@ func (e ConnectEventsWebSocketParamsSecWebSocketProtocol) Valid() bool {
 	}
 }
 
+// Defines values for ListOwnerFindingsParamsVerdict.
+const (
+	ListOwnerFindingsParamsVerdictFalsePositive ListOwnerFindingsParamsVerdict = "false_positive"
+	ListOwnerFindingsParamsVerdictTruePositive  ListOwnerFindingsParamsVerdict = "true_positive"
+	ListOwnerFindingsParamsVerdictUnreviewed    ListOwnerFindingsParamsVerdict = "unreviewed"
+)
+
+// Valid indicates whether the value is a known member of the ListOwnerFindingsParamsVerdict enum.
+func (e ListOwnerFindingsParamsVerdict) Valid() bool {
+	switch e {
+	case ListOwnerFindingsParamsVerdictFalsePositive:
+		return true
+	case ListOwnerFindingsParamsVerdictTruePositive:
+		return true
+	case ListOwnerFindingsParamsVerdictUnreviewed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PutRuntimeLabelParamsIfNoneMatch.
 const (
 	PutRuntimeLabelParamsIfNoneMatchAsterisk PutRuntimeLabelParamsIfNoneMatch = "*"
@@ -2460,6 +2496,27 @@ const (
 func (e ImportProjectGitArtifactParamsIfNoneMatch) Valid() bool {
 	switch e {
 	case ImportProjectGitArtifactParamsIfNoneMatchAsterisk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOwnerReviewsParamsState.
+const (
+	Decided ListOwnerReviewsParamsState = "decided"
+	Expired ListOwnerReviewsParamsState = "expired"
+	Pending ListOwnerReviewsParamsState = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListOwnerReviewsParamsState enum.
+func (e ListOwnerReviewsParamsState) Valid() bool {
+	switch e {
+	case Decided:
+		return true
+	case Expired:
+		return true
+	case Pending:
 		return true
 	default:
 		return false
@@ -2817,6 +2874,48 @@ type AuditCoverageStatus = interface{}
 
 // AuditDispatchState defines model for AuditDispatchState.
 type AuditDispatchState = interface{}
+
+// AuditEvent defines model for AuditEvent.
+type AuditEvent struct {
+	AuditId        ResourceId        `json:"auditId"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	EntityId       ResourceId        `json:"entityId"`
+	EntityRevision *int              `json:"entityRevision,omitempty"`
+	Kind           string            `json:"kind"`
+	Sequence       int               `json:"sequence"`
+	Summary        AuditEventSummary `json:"summary"`
+}
+
+// AuditEventPage defines model for AuditEventPage.
+type AuditEventPage struct {
+	Items           []AuditEvent `json:"items"`
+	Page            PageInfo     `json:"page"`
+	ThroughSequence int          `json:"throughSequence"`
+	Total           int          `json:"total"`
+}
+
+// AuditEventSummary defines model for AuditEventSummary.
+type AuditEventSummary struct {
+	Action       *AuditReviewAction          `json:"action,omitempty"`
+	Count        *int                        `json:"count,omitempty"`
+	Disposition  *AuditCollectionDisposition `json:"disposition,omitempty"`
+	FindingId    *ResourceId                 `json:"findingId,omitempty"`
+	From         *string                     `json:"from,omitempty"`
+	Items        *int                        `json:"items,omitempty"`
+	Kind         interface{}                 `json:"kind,omitempty"`
+	Members      *int                        `json:"members,omitempty"`
+	Outcome      *AuditTerminalOutcome       `json:"outcome,omitempty"`
+	Reviews      *int                        `json:"reviews,omitempty"`
+	Role         *AuditExecutionRole         `json:"role,omitempty"`
+	Round        *int                        `json:"round,omitempty"`
+	RunId        *ResourceId                 `json:"runId,omitempty"`
+	State        *string                     `json:"state,omitempty"`
+	SubjectId    *ResourceId                 `json:"subjectId,omitempty"`
+	SubjectKind  *AuditReviewSubjectKind     `json:"subjectKind,omitempty"`
+	To           *string                     `json:"to,omitempty"`
+	Verdict      interface{}                 `json:"verdict,omitempty"`
+	WorkflowRole *ResourceId                 `json:"workflowRole,omitempty"`
+}
 
 // AuditExactArtifact defines model for AuditExactArtifact.
 type AuditExactArtifact struct {
@@ -4033,14 +4132,16 @@ type EvalBudgets struct {
 type EvalCapabilities struct {
 	Bindings *[]EvalBindingCapability `json:"bindings,omitempty"`
 	Checks   []struct {
-		Available            bool                      `json:"available"`
-		Evaluator            EvalSelector              `json:"evaluator"`
+		Available bool `json:"available"`
+
+		// Evaluator Portable capability, evaluator or import-version identity; distinct from a published configuration selector.
+		Evaluator            EvalVersionedId           `json:"evaluator"`
 		ImplementationSha256 EvalDigest                `json:"implementationSha256"`
 		Reason               nullable.Nullable[string] `json:"reason"`
 	} `json:"checks"`
 	ControlModes   []EvalCapabilitiesControlModes   `json:"controlModes"`
 	ExecutionKinds []EvalCapabilitiesExecutionKinds `json:"executionKinds"`
-	ImportVersions []EvalSelector                   `json:"importVersions"`
+	ImportVersions []EvalVersionedId                `json:"importVersions"`
 	Page           *EvalPage                        `json:"page,omitempty"`
 	Schemas        *[]string                        `json:"schemas,omitempty"`
 }
@@ -4056,7 +4157,7 @@ type EvalCase struct {
 	Id       EvalId                  `json:"id"`
 	Inputs   map[string]EvalArtifact `json:"inputs"`
 	Outputs  map[string]EvalOutput   `json:"outputs"`
-	Requires []EvalSelector          `json:"requires"`
+	Requires []EvalVersionedId       `json:"requires"`
 	Source   *EvalSource             `json:"source,omitempty"`
 	Task     EvalTask                `json:"task"`
 }
@@ -4127,8 +4228,10 @@ type EvalChart3 struct {
 
 // EvalCheck defines model for EvalCheck.
 type EvalCheck struct {
-	AllowNotApplicable   *bool              `json:"allowNotApplicable,omitempty"`
-	Evaluator            EvalSelector       `json:"evaluator"`
+	AllowNotApplicable *bool `json:"allowNotApplicable,omitempty"`
+
+	// Evaluator Portable capability, evaluator or import-version identity; distinct from a published configuration selector.
+	Evaluator            EvalVersionedId    `json:"evaluator"`
 	Id                   EvalId             `json:"id"`
 	ImplementationSha256 *EvalDigest        `json:"implementationSha256,omitempty"`
 	Parameters           *map[string]string `json:"parameters,omitempty"`
@@ -4148,7 +4251,8 @@ type EvalCheckRequest struct {
 
 // EvalCheckResult defines model for EvalCheckResult.
 type EvalCheckResult struct {
-	Evaluator            EvalSelector          `json:"evaluator"`
+	// Evaluator Portable capability, evaluator or import-version identity; distinct from a published configuration selector.
+	Evaluator            EvalVersionedId       `json:"evaluator"`
 	EvidenceRefs         []EvalId              `json:"evidenceRefs"`
 	Id                   EvalId                `json:"id"`
 	ImplementationSha256 EvalDigest            `json:"implementationSha256"`
@@ -4563,6 +4667,14 @@ type EvalMeasureScopeKind string
 // EvalMedia defines model for EvalMedia.
 type EvalMedia = string
 
+// EvalMediaRange defines model for EvalMediaRange.
+type EvalMediaRange struct {
+	union json.RawMessage
+}
+
+// EvalMediaRange0 defines model for EvalMediaRange.0.
+type EvalMediaRange0 string
+
 // EvalMember defines model for EvalMember.
 type EvalMember struct {
 	BindingSha256 EvalDigest                `json:"bindingSha256"`
@@ -4629,8 +4741,8 @@ type EvalOrderKind string
 
 // EvalOutput defines model for EvalOutput.
 type EvalOutput struct {
-	MediaTypes []EvalMedia `json:"mediaTypes"`
-	Required   bool        `json:"required"`
+	MediaTypes []EvalMediaRange `json:"mediaTypes"`
+	Required   bool             `json:"required"`
 }
 
 // EvalPage defines model for EvalPage.
@@ -4914,6 +5026,9 @@ type EvalVariant struct {
 
 // EvalVariantKind defines model for EvalVariant.Kind.
 type EvalVariantKind string
+
+// EvalVersionedId Portable capability, evaluator or import-version identity; distinct from a published configuration selector.
+type EvalVersionedId = string
 
 // EventCursor defines model for EventCursor.
 type EventCursor struct {
@@ -5371,11 +5486,23 @@ type OutputPublication struct {
 	Target       *ExactArtifactRef `json:"target,omitempty"`
 }
 
+// OwnerFindingPage defines model for OwnerFindingPage.
+type OwnerFindingPage struct {
+	Items []AuditFinding `json:"items"`
+	Page  PageInfo       `json:"page"`
+}
+
 // OwnerQueueControl defines model for OwnerQueueControl.
 type OwnerQueueControl struct {
 	Paused    bool       `json:"paused"`
 	Revision  string     `json:"revision"`
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// OwnerReviewPage defines model for OwnerReviewPage.
+type OwnerReviewPage struct {
+	Items []AuditReviewRequest `json:"items"`
+	Page  PageInfo             `json:"page"`
 }
 
 // PageInfo defines model for PageInfo.
@@ -7083,6 +7210,16 @@ type ListAuditProfilesParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// ListOwnerAuditsParams defines parameters for ListOwnerAudits.
+type ListOwnerAuditsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// State Comma-separated Audit states; omitted means every state.
+	State   *string   `form:"state,omitempty" json:"state,omitempty"`
+	Profile *Selector `form:"profile,omitempty" json:"profile,omitempty"`
+}
+
 // DeleteAuditParams defines parameters for DeleteAudit.
 type DeleteAuditParams struct {
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
@@ -7112,6 +7249,12 @@ type ListAuditCoverageParams struct {
 	Limit  *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Round  *ResourceId `form:"round,omitempty" json:"round,omitempty"`
+}
+
+// ListAuditEventsParams defines parameters for ListAuditEvents.
+type ListAuditEventsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ImportAuditFindingProposalParams defines parameters for ImportAuditFindingProposal.
@@ -7432,6 +7575,21 @@ type PublishFindingCollectionParams struct {
 	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
+
+// ListOwnerFindingsParams defines parameters for ListOwnerFindings.
+type ListOwnerFindingsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// AuditState Comma-separated Audit states.
+	AuditState *string                         `form:"auditState,omitempty" json:"auditState,omitempty"`
+	State      *AuditFindingState              `form:"state,omitempty" json:"state,omitempty"`
+	Verdict    *ListOwnerFindingsParamsVerdict `form:"verdict,omitempty" json:"verdict,omitempty"`
+	Severity   *AuditFindingSeverity           `form:"severity,omitempty" json:"severity,omitempty"`
+}
+
+// ListOwnerFindingsParamsVerdict defines parameters for ListOwnerFindings.
+type ListOwnerFindingsParamsVerdict string
 
 // ListAllocationResourceHistoryParams defines parameters for ListAllocationResourceHistory.
 type ListAllocationResourceHistoryParams struct {
@@ -7800,6 +7958,19 @@ type PutOwnerQueueControlParams struct {
 	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
+
+// ListOwnerReviewsParams defines parameters for ListOwnerReviews.
+type ListOwnerReviewsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// AuditState Comma-separated Audit states.
+	AuditState *string                      `form:"auditState,omitempty" json:"auditState,omitempty"`
+	State      *ListOwnerReviewsParamsState `form:"state,omitempty" json:"state,omitempty"`
+}
+
+// ListOwnerReviewsParamsState defines parameters for ListOwnerReviews.
+type ListOwnerReviewsParamsState string
 
 // ListRunsParams defines parameters for ListRuns.
 type ListRunsParams struct {
@@ -10698,6 +10869,68 @@ func (t *EvalCreateExperiment) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsEvalMediaRange0 returns the union data inside the EvalMediaRange as a EvalMediaRange0
+func (t EvalMediaRange) AsEvalMediaRange0() (EvalMediaRange0, error) {
+	var body EvalMediaRange0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEvalMediaRange0 overwrites any union data inside the EvalMediaRange as the provided EvalMediaRange0
+func (t *EvalMediaRange) FromEvalMediaRange0(v EvalMediaRange0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEvalMediaRange0 performs a merge with any union data inside the EvalMediaRange, using the provided EvalMediaRange0
+func (t *EvalMediaRange) MergeEvalMediaRange0(v EvalMediaRange0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEvalMedia returns the union data inside the EvalMediaRange as a EvalMedia
+func (t EvalMediaRange) AsEvalMedia() (EvalMedia, error) {
+	var body EvalMedia
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEvalMedia overwrites any union data inside the EvalMediaRange as the provided EvalMedia
+func (t *EvalMediaRange) FromEvalMedia(v EvalMedia) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEvalMedia performs a merge with any union data inside the EvalMediaRange, using the provided EvalMedia
+func (t *EvalMediaRange) MergeEvalMedia(v EvalMedia) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EvalMediaRange) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EvalMediaRange) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsFindingHTTPAttempt0 returns the union data inside the FindingHTTPAttempt as a FindingHTTPAttempt0
 func (t FindingHTTPAttempt) AsFindingHTTPAttempt0() (FindingHTTPAttempt0, error) {
 	var body FindingHTTPAttempt0
@@ -12229,6 +12462,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audit-standards/{scheme}/versions/{version} (the `GetAuditStandard` operationId).
 	GetAuditStandard(ctx context.Context, scheme string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListOwnerAudits List checks across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Corresponds with GET /v1/audits (the `ListOwnerAudits` operationId).
+	ListOwnerAudits(ctx context.Context, params *ListOwnerAuditsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteAudit Begin or replay durable Audit deletion
 	//
 	// Corresponds with DELETE /v1/audits/{auditId} (the `DeleteAudit` operationId).
@@ -12248,6 +12488,19 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
 	ListAuditCoverage(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAuditEvents Read the immutable event history of an owned Audit
+	//
+	// Newest sequence first, independent of timestamps. The first page freezes
+	// throughSequence; signed continuations bind owner, Audit and that immutable
+	// prefix. New events do not invalidate older pages and appear on refresh.
+	// total counts the entire frozen prefix, before the cursor. Events are
+	// retained until Audit purge. Summaries expose only bounded structured
+	// fields; free-form messages, rationale and nested stored data are omitted.
+	// This HTTP history uses polling; it does not extend the Run WebSocket.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/events (the `ListAuditEvents` operationId).
+	ListAuditEvents(ctx context.Context, auditId AuditId, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ImportAuditFindingProposalWithBody Retain one exact ordinary-Run proposal in a compatible owned Audit
 	//
@@ -12624,6 +12877,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
 	PublishFindingCollection(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListOwnerFindings List findings across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
+	ListOwnerFindings(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAllocationResourceHistory Read terminal allocation resource summaries
 	//
@@ -13068,6 +13328,13 @@ type ClientInterface interface {
 	// Corresponds with PUT /v1/queue/control (the `PutOwnerQueueControl` operationId).
 	PutOwnerQueueControl(ctx context.Context, params *PutOwnerQueueControlParams, body PutOwnerQueueControlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListOwnerReviews List review requests across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Corresponds with GET /v1/reviews (the `ListOwnerReviews` operationId).
+	ListOwnerReviews(ctx context.Context, params *ListOwnerReviewsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRuns List Runs owned by the authenticated principal
 	//
 	// Corresponds with GET /v1/runs (the `ListRuns` operationId).
@@ -13479,6 +13746,23 @@ func (c *Client) GetAuditStandard(ctx context.Context, scheme string, version st
 	return c.Client.Do(req)
 }
 
+// ListOwnerAudits List checks across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Corresponds with GET /v1/audits (the `ListOwnerAudits` operationId).
+func (c *Client) ListOwnerAudits(ctx context.Context, params *ListOwnerAuditsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOwnerAuditsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // DeleteAudit Begin or replay durable Audit deletion
 //
 // Corresponds with DELETE /v1/audits/{auditId} (the `DeleteAudit` operationId).
@@ -13529,6 +13813,29 @@ func (c *Client) CancelAudit(ctx context.Context, auditId AuditId, params *Cance
 // Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
 func (c *Client) ListAuditCoverage(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAuditCoverageRequest(c.Server, auditId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAuditEvents Read the immutable event history of an owned Audit
+//
+// Newest sequence first, independent of timestamps. The first page freezes
+// throughSequence; signed continuations bind owner, Audit and that immutable
+// prefix. New events do not invalidate older pages and appear on refresh.
+// total counts the entire frozen prefix, before the cursor. Events are
+// retained until Audit purge. Summaries expose only bounded structured
+// fields; free-form messages, rationale and nested stored data are omitted.
+// This HTTP history uses polling; it does not extend the Run WebSocket.
+//
+// Corresponds with GET /v1/audits/{auditId}/events (the `ListAuditEvents` operationId).
+func (c *Client) ListAuditEvents(ctx context.Context, auditId AuditId, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuditEventsRequest(c.Server, auditId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14485,6 +14792,23 @@ func (c *Client) PublishFindingCollectionWithBody(ctx context.Context, params *P
 // Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
 func (c *Client) PublishFindingCollection(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPublishFindingCollectionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListOwnerFindings List findings across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
+func (c *Client) ListOwnerFindings(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOwnerFindingsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -15588,6 +15912,23 @@ func (c *Client) PutOwnerQueueControlWithBody(ctx context.Context, params *PutOw
 // Corresponds with PUT /v1/queue/control (the `PutOwnerQueueControl` operationId).
 func (c *Client) PutOwnerQueueControl(ctx context.Context, params *PutOwnerQueueControlParams, body PutOwnerQueueControlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutOwnerQueueControlRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListOwnerReviews List review requests across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Corresponds with GET /v1/reviews (the `ListOwnerReviews` operationId).
+func (c *Client) ListOwnerReviews(ctx context.Context, params *ListOwnerReviewsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOwnerReviewsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -16941,6 +17282,96 @@ func NewGetAuditStandardRequest(server string, scheme string, version string) (*
 	return req, nil
 }
 
+// NewListOwnerAuditsRequest constructs an http.Request for the ListOwnerAudits method
+func NewListOwnerAuditsRequest(server string, params *ListOwnerAuditsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Profile != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "profile", *params.Profile, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteAuditRequest constructs an http.Request for the DeleteAudit method
 func NewDeleteAuditRequest(server string, auditId AuditId, params *DeleteAuditParams) (*http.Request, error) {
 	var err error
@@ -17193,6 +17624,79 @@ func NewListAuditCoverageRequest(server string, auditId AuditId, params *ListAud
 		if params.Round != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "round", *params.Round, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAuditEventsRequest constructs an http.Request for the ListAuditEvents method
+func NewListAuditEventsRequest(server string, auditId AuditId, params *ListAuditEventsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -20447,6 +20951,120 @@ func NewPublishFindingCollectionRequestWithBody(server string, params *PublishFi
 			req.Header.Set("X-CSRF-Token", headerParam1)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewListOwnerFindingsRequest constructs an http.Request for the ListOwnerFindings method
+func NewListOwnerFindingsRequest(server string, params *ListOwnerFindingsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/findings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditState", *params.AuditState, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Verdict != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "verdict", *params.Verdict, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Severity != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "severity", *params.Severity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -24065,6 +24683,96 @@ func NewPutOwnerQueueControlRequestWithBody(server string, params *PutOwnerQueue
 	return req, nil
 }
 
+// NewListOwnerReviewsRequest constructs an http.Request for the ListOwnerReviews method
+func NewListOwnerReviewsRequest(server string, params *ListOwnerReviewsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/reviews")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditState", *params.AuditState, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRunsRequest constructs an http.Request for the ListRuns method
 func NewListRunsRequest(server string, params *ListRunsParams) (*http.Request, error) {
 	var err error
@@ -25716,6 +26424,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audit-standards/{scheme}/versions/{version} (the `GetAuditStandard` operationId).
 	GetAuditStandardWithResponse(ctx context.Context, scheme string, version string, reqEditors ...RequestEditorFn) (*GetAuditStandardResponse, error)
 
+	// ListOwnerAuditsWithResponse List checks across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits (the `ListOwnerAudits` operationId).
+	ListOwnerAuditsWithResponse(ctx context.Context, params *ListOwnerAuditsParams, reqEditors ...RequestEditorFn) (*ListOwnerAuditsResponse, error)
+
 	// DeleteAuditWithResponse Begin or replay durable Audit deletion
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -25743,6 +26460,21 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
 	ListAuditCoverageWithResponse(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*ListAuditCoverageResponse, error)
+
+	// ListAuditEventsWithResponse Read the immutable event history of an owned Audit
+	//
+	// Newest sequence first, independent of timestamps. The first page freezes
+	// throughSequence; signed continuations bind owner, Audit and that immutable
+	// prefix. New events do not invalidate older pages and appear on refresh.
+	// total counts the entire frozen prefix, before the cursor. Events are
+	// retained until Audit purge. Summaries expose only bounded structured
+	// fields; free-form messages, rationale and nested stored data are omitted.
+	// This HTTP history uses polling; it does not extend the Run WebSocket.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/events (the `ListAuditEvents` operationId).
+	ListAuditEventsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*ListAuditEventsResponse, error)
 
 	// ImportAuditFindingProposalWithBodyWithResponse Retain one exact ordinary-Run proposal in a compatible owned Audit
 	//
@@ -26175,6 +26907,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
 	PublishFindingCollectionWithResponse(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishFindingCollectionResponse, error)
+
+	// ListOwnerFindingsWithResponse List findings across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
+	ListOwnerFindingsWithResponse(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*ListOwnerFindingsResponse, error)
 
 	// ListAllocationResourceHistoryWithResponse Read terminal allocation resource summaries
 	//
@@ -26692,6 +27433,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /v1/queue/control (the `PutOwnerQueueControl` operationId).
 	PutOwnerQueueControlWithResponse(ctx context.Context, params *PutOwnerQueueControlParams, body PutOwnerQueueControlJSONRequestBody, reqEditors ...RequestEditorFn) (*PutOwnerQueueControlResponse, error)
+
+	// ListOwnerReviewsWithResponse List review requests across the owner’s active Projects
+	//
+	// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/reviews (the `ListOwnerReviews` operationId).
+	ListOwnerReviewsWithResponse(ctx context.Context, params *ListOwnerReviewsParams, reqEditors ...RequestEditorFn) (*ListOwnerReviewsResponse, error)
 
 	// ListRunsWithResponse List Runs owned by the authenticated principal
 	//
@@ -28603,6 +29353,113 @@ func (r GetAuditStandardResponse) ContentType() string {
 	return ""
 }
 
+// ListOwnerAuditsResponse200Headers the declared response headers of an HTTP 200 response for ListOwnerAudits
+type ListOwnerAuditsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListOwnerAuditsResponse400Headers the declared response headers of an HTTP 400 response for ListOwnerAudits
+type ListOwnerAuditsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerAuditsResponse401Headers the declared response headers of an HTTP 401 response for ListOwnerAudits
+type ListOwnerAuditsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListOwnerAuditsResponse500Headers the declared response headers of an HTTP 500 response for ListOwnerAudits
+type ListOwnerAuditsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerAuditsResponse503Headers the declared response headers of an HTTP 503 response for ListOwnerAudits
+type ListOwnerAuditsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListOwnerAuditsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListOwnerAuditsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListOwnerAuditsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListOwnerAuditsResponse401Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListOwnerAuditsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListOwnerAuditsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListOwnerAuditsResponse) GetJSON200() *AuditPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListOwnerAuditsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListOwnerAuditsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListOwnerAuditsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListOwnerAuditsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListOwnerAuditsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOwnerAuditsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOwnerAuditsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOwnerAuditsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // DeleteAuditResponse202Headers the declared response headers of an HTTP 202 response for DeleteAudit
 type DeleteAuditResponse202Headers struct {
 	CacheControl        string
@@ -29170,6 +30027,127 @@ func (r ListAuditCoverageResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAuditCoverageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListAuditEventsResponse200Headers the declared response headers of an HTTP 200 response for ListAuditEvents
+type ListAuditEventsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListAuditEventsResponse400Headers the declared response headers of an HTTP 400 response for ListAuditEvents
+type ListAuditEventsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditEventsResponse401Headers the declared response headers of an HTTP 401 response for ListAuditEvents
+type ListAuditEventsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListAuditEventsResponse404Headers the declared response headers of an HTTP 404 response for ListAuditEvents
+type ListAuditEventsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditEventsResponse500Headers the declared response headers of an HTTP 500 response for ListAuditEvents
+type ListAuditEventsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditEventsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditEvents
+type ListAuditEventsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListAuditEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditEventPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListAuditEventsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListAuditEventsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListAuditEventsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListAuditEventsResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListAuditEventsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditEventsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAuditEventsResponse) GetJSON200() *AuditEventPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAuditEventsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAuditEventsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAuditEventsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListAuditEventsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditEventsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAuditEventsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuditEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuditEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAuditEventsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -35952,6 +36930,113 @@ func (r PublishFindingCollectionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PublishFindingCollectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListOwnerFindingsResponse200Headers the declared response headers of an HTTP 200 response for ListOwnerFindings
+type ListOwnerFindingsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListOwnerFindingsResponse400Headers the declared response headers of an HTTP 400 response for ListOwnerFindings
+type ListOwnerFindingsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerFindingsResponse401Headers the declared response headers of an HTTP 401 response for ListOwnerFindings
+type ListOwnerFindingsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListOwnerFindingsResponse500Headers the declared response headers of an HTTP 500 response for ListOwnerFindings
+type ListOwnerFindingsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerFindingsResponse503Headers the declared response headers of an HTTP 503 response for ListOwnerFindings
+type ListOwnerFindingsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListOwnerFindingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *OwnerFindingPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListOwnerFindingsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListOwnerFindingsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListOwnerFindingsResponse401Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListOwnerFindingsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListOwnerFindingsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListOwnerFindingsResponse) GetJSON200() *OwnerFindingPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListOwnerFindingsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListOwnerFindingsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListOwnerFindingsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListOwnerFindingsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListOwnerFindingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOwnerFindingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOwnerFindingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOwnerFindingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -43187,6 +44272,113 @@ func (r PutOwnerQueueControlResponse) ContentType() string {
 	return ""
 }
 
+// ListOwnerReviewsResponse200Headers the declared response headers of an HTTP 200 response for ListOwnerReviews
+type ListOwnerReviewsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListOwnerReviewsResponse400Headers the declared response headers of an HTTP 400 response for ListOwnerReviews
+type ListOwnerReviewsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerReviewsResponse401Headers the declared response headers of an HTTP 401 response for ListOwnerReviews
+type ListOwnerReviewsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListOwnerReviewsResponse500Headers the declared response headers of an HTTP 500 response for ListOwnerReviews
+type ListOwnerReviewsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListOwnerReviewsResponse503Headers the declared response headers of an HTTP 503 response for ListOwnerReviews
+type ListOwnerReviewsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListOwnerReviewsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *OwnerReviewPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListOwnerReviewsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListOwnerReviewsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListOwnerReviewsResponse401Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListOwnerReviewsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListOwnerReviewsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListOwnerReviewsResponse) GetJSON200() *OwnerReviewPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListOwnerReviewsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListOwnerReviewsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListOwnerReviewsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListOwnerReviewsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListOwnerReviewsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListOwnerReviewsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListOwnerReviewsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListOwnerReviewsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListRunsResponse200Headers the declared response headers of an HTTP 200 response for ListRuns
 type ListRunsResponse200Headers struct {
 	XRequestID RequestId
@@ -46267,6 +47459,21 @@ func (c *ClientWithResponses) GetAuditStandardWithResponse(ctx context.Context, 
 	return ParseGetAuditStandardResponse(rsp)
 }
 
+// ListOwnerAuditsWithResponse List checks across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits (the `ListOwnerAudits` operationId).
+func (c *ClientWithResponses) ListOwnerAuditsWithResponse(ctx context.Context, params *ListOwnerAuditsParams, reqEditors ...RequestEditorFn) (*ListOwnerAuditsResponse, error) {
+	rsp, err := c.ListOwnerAudits(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOwnerAuditsResponse(rsp)
+}
+
 // DeleteAuditWithResponse Begin or replay durable Audit deletion
 //
 // Returns a wrapper object for the known response body format(s).
@@ -46317,6 +47524,27 @@ func (c *ClientWithResponses) ListAuditCoverageWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseListAuditCoverageResponse(rsp)
+}
+
+// ListAuditEventsWithResponse Read the immutable event history of an owned Audit
+//
+// Newest sequence first, independent of timestamps. The first page freezes
+// throughSequence; signed continuations bind owner, Audit and that immutable
+// prefix. New events do not invalidate older pages and appear on refresh.
+// total counts the entire frozen prefix, before the cursor. Events are
+// retained until Audit purge. Summaries expose only bounded structured
+// fields; free-form messages, rationale and nested stored data are omitted.
+// This HTTP history uses polling; it does not extend the Run WebSocket.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/events (the `ListAuditEvents` operationId).
+func (c *ClientWithResponses) ListAuditEventsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditEventsParams, reqEditors ...RequestEditorFn) (*ListAuditEventsResponse, error) {
+	rsp, err := c.ListAuditEvents(ctx, auditId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuditEventsResponse(rsp)
 }
 
 // ImportAuditFindingProposalWithBodyWithResponse Retain one exact ordinary-Run proposal in a compatible owned Audit
@@ -47097,6 +48325,21 @@ func (c *ClientWithResponses) PublishFindingCollectionWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParsePublishFindingCollectionResponse(rsp)
+}
+
+// ListOwnerFindingsWithResponse List findings across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/findings (the `ListOwnerFindings` operationId).
+func (c *ClientWithResponses) ListOwnerFindingsWithResponse(ctx context.Context, params *ListOwnerFindingsParams, reqEditors ...RequestEditorFn) (*ListOwnerFindingsResponse, error) {
+	rsp, err := c.ListOwnerFindings(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOwnerFindingsResponse(rsp)
 }
 
 // ListAllocationResourceHistoryWithResponse Read terminal allocation resource summaries
@@ -48010,6 +49253,21 @@ func (c *ClientWithResponses) PutOwnerQueueControlWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParsePutOwnerQueueControlResponse(rsp)
+}
+
+// ListOwnerReviewsWithResponse List review requests across the owner’s active Projects
+//
+// Live newest-first keyset pagination by creation time and identity. Only the authenticated owner's active regular Projects are included; evaluation workspaces are excluded. Cursors bind the owner, endpoint and filters. These are live lists, not a revision-pinned cross-project snapshot.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/reviews (the `ListOwnerReviews` operationId).
+func (c *ClientWithResponses) ListOwnerReviewsWithResponse(ctx context.Context, params *ListOwnerReviewsParams, reqEditors ...RequestEditorFn) (*ListOwnerReviewsResponse, error) {
+	rsp, err := c.ListOwnerReviews(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListOwnerReviewsResponse(rsp)
 }
 
 // ListRunsWithResponse List Runs owned by the authenticated principal
@@ -50410,6 +51668,134 @@ func ParseGetAuditStandardResponse(rsp *http.Response) (*GetAuditStandardRespons
 	return response, nil
 }
 
+// ParseListOwnerAuditsResponse parses an HTTP response from a ListOwnerAuditsWithResponse call
+func ParseListOwnerAuditsResponse(rsp *http.Response) (*ListOwnerAuditsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOwnerAuditsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListOwnerAuditsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListOwnerAuditsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListOwnerAuditsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListOwnerAuditsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListOwnerAuditsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseDeleteAuditResponse parses an HTTP response from a DeleteAuditWithResponse call
 func ParseDeleteAuditResponse(rsp *http.Response) (*DeleteAuditResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -51114,6 +52500,151 @@ func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageRespo
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ListAuditCoverageResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListAuditEventsResponse parses an HTTP response from a ListAuditEventsWithResponse call
+func ParseListAuditEventsResponse(rsp *http.Response) (*ListAuditEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuditEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditEventPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListAuditEventsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListAuditEventsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListAuditEventsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListAuditEventsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListAuditEventsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditEventsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -59585,6 +61116,134 @@ func ParsePublishFindingCollectionResponse(rsp *http.Response) (*PublishFindingC
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PublishFindingCollectionResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListOwnerFindingsResponse parses an HTTP response from a ListOwnerFindingsWithResponse call
+func ParseListOwnerFindingsResponse(rsp *http.Response) (*ListOwnerFindingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOwnerFindingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OwnerFindingPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListOwnerFindingsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListOwnerFindingsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListOwnerFindingsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListOwnerFindingsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListOwnerFindingsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -68377,6 +70036,134 @@ func ParsePutOwnerQueueControlResponse(rsp *http.Response) (*PutOwnerQueueContro
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutOwnerQueueControlResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListOwnerReviewsResponse parses an HTTP response from a ListOwnerReviewsWithResponse call
+func ParseListOwnerReviewsResponse(rsp *http.Response) (*ListOwnerReviewsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListOwnerReviewsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OwnerReviewPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListOwnerReviewsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListOwnerReviewsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListOwnerReviewsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListOwnerReviewsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListOwnerReviewsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
