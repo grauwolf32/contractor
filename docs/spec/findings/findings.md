@@ -481,6 +481,14 @@ new submission is rejected (FAIL-FND-1).
 allocation write-authorization critical section that ordinary private
 artifact writes use.
 
+**FND-R158.** The intake transaction also stores the receipt's report
+projection: the canonical JSON of the proposal's title, description, subject,
+hypothesis, standard references, severity suggestion, limitations, locations
+and HTTP exchange, validated by the same rules as the proposal and bounded by
+the proposal document size. It is immutable with the receipt, and Audit
+reports read it instead of the proposal artifact
+([review and reports](../audits/review-and-reports.md), REV-R195).
+
 ```mermaid
 sequenceDiagram
     participant M as Model

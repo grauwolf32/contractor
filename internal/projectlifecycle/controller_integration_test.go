@@ -522,13 +522,14 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES ('receipt-decided', 'proposal-decided', 'allocation-decided', 'runtime-decided',
           'instance-decided', 'stage-decided', 'worker', 'invocation-decided',
           'submission-decided', 'candidate-decided', $1, 'deleted-run-decided', $2, $3,
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $1,
-          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb)`,
+          $4::jsonb, $1, 'application/json', 128, '[]'::jsonb,
+          '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
 UPDATE finding_proposal_receipts

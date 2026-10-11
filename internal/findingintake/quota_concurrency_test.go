@@ -48,7 +48,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 )
 SELECT 'filler-' || n, 'filler-proposal-' || n, 'filler-allocation', 'runtime',
        'instance', 'stage', 'worker', 'filler-invocation', 'filler-' || n,
@@ -56,7 +56,8 @@ SELECT 'filler-' || n, 'filler-proposal-' || n, 'filler-allocation', 'runtime',
        'filler', '1', 'contractor/v1alpha1', '{"name":"filler","version":"1"}'::jsonb,
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'filler', 'name', 'filler-' || n, 'revision', 'r1'),
-       'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb
+       'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb,
+       '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
   FROM generate_series(1, $4::integer) AS n`,
 		runID, ownerID, projectID, maxProposalsPerRun-1); err != nil {
 		t.Fatal(err)

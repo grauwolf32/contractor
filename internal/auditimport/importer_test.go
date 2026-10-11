@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -815,15 +816,11 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		Digest: auditdomain.DigestBytes([]byte("task")), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
 	}
 	disposition := auditstore.FinalExcluded
-	item := auditstore.Item{
-		ItemID: "item-report", AuditID: "audit-report", RoundID: roundID,
+	const auditID = "audit-report"
+	item := auditstore.ReportItem{
+		ItemID: "item-report", RoundID: roundID,
 		ItemKey: "check-report", Ordinal: 0, Kind: "checklist", SubjectKey: "check-report",
-		Task: task, WorkflowRole: "check", State: auditstore.ItemSettled,
-		FinalDisposition: &disposition,
-	}
-	coverage := auditstore.CoverageRow{
-		AuditID: item.AuditID, RoundID: roundID, ItemID: item.ItemID,
-		Ordinal: 0, ItemKey: item.ItemKey, SubjectKey: item.SubjectKey,
+		Task: task, State: auditstore.ItemSettled, FinalDisposition: &disposition,
 		Coverage: auditstore.Coverage{
 			Status: auditstore.CoverageExcluded, Requested: []string{"source"},
 			Completed: []string{}, Gaps: []string{"policy-excluded"},
@@ -849,22 +846,25 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		Digest: auditdomain.DigestBytes(proposalBytes), MediaType: "application/json", SizeBytes: int64(len(proposalBytes)),
 	}
 	analystSeverity := "high"
+	projection := auditdomain.ProjectFindingReport(proposalDocument)
 	store := &fakeImportStore{
-		items: []auditstore.Item{item}, coverage: []auditstore.CoverageRow{coverage},
-		counts: auditstore.CollectionDispositionCounts{ExecutionFailed: 1},
+		reportItems: []auditstore.ReportItem{item},
+		counts:      auditstore.CollectionDispositionCounts{ExecutionFailed: 1},
 		findings: []auditstore.ReportFinding{
 			{FindingID: "finding-confirmed", State: "confirmed", FirstProposal: proposalArtifact,
-				Revision: 3, Decision: &auditstore.ReportFindingDecision{
+				Revision: 3, CreatedAt: time.Unix(80, 0), Projection: projection,
+				Decision: &auditstore.ReportFindingDecision{
 					DecisionID: "decision-report", ActorID: "owner-report", Verdict: "true_positive",
 					Severity: &analystSeverity, Rationale: "Confirmed against retained evidence.",
 					SubjectRevision: 2, SubjectDigest: auditdomain.DigestBytes([]byte("finding-subject")), CreatedAt: time.Unix(90, 0),
 				}},
-			{FindingID: "finding-proposed", State: "proposed", FirstProposal: proposalArtifact, Revision: 1},
+			{FindingID: "finding-proposed", State: "proposed", FirstProposal: proposalArtifact, Revision: 1,
+				CreatedAt: time.Unix(85, 0), Projection: projection},
 		},
 	}
-	artifactAccess := &fakeImportArtifacts{
-		project: map[string][]byte{refKey(proposalArtifact.Ref): proposalBytes}, writes: map[string][]byte{},
-	}
+	// Report finalization reads the projection stored at intake, never the
+	// proposal artifact.
+	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
 	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
@@ -872,14 +872,14 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 	manifestRevision := "round-manifest"
 	snapshot := auditstore.ReconcileSnapshot{
 		Audit: auditstore.Audit{
-			AuditID: item.AuditID, ProjectID: "project-report",
+			AuditID: auditID, ProjectID: "project-report",
 			Profile:          auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
 			ProfileSnapshot:  profileSnapshot,
 			BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inventory":{"gaps":[]}}`),
 			State:            auditstore.AuditFinalizing, Revision: 7, UpdatedAt: time.Unix(100, 0),
 		},
 		Round: &auditstore.Round{
-			RoundID: roundID, AuditID: item.AuditID, Ordinal: 1,
+			RoundID: roundID, AuditID: auditID, Ordinal: 1,
 			Manifest: auditstore.ExactArtifact{
 				Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "round", Revision: &manifestRevision},
 				Digest: auditdomain.DigestBytes([]byte("round")),
@@ -888,7 +888,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		},
 	}
 	store.rounds = []auditstore.Round{*snapshot.Round}
-	claim := auditstore.ControllerClaim{AuditID: item.AuditID, HolderID: "holder", Epoch: 2}
+	claim := auditstore.ControllerClaim{AuditID: auditID, HolderID: "holder", Epoch: 2}
 	worked, err := importer.Finalize(context.Background(), claim, snapshot)
 	if err != nil || !worked || store.committed.Machine.Artifact.Ref.Revision == nil ||
 		store.committed.Summary.Artifact.Ref.Revision == nil {
@@ -938,8 +938,7 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 	auditID := "audit-rounds"
 	disposition := auditstore.FinalAccepted
 	rounds := make([]auditstore.Round, 0, 2)
-	var items []auditstore.Item
-	var coverage []auditstore.CoverageRow
+	var items []auditstore.ReportItem
 	for roundOrdinal, count := range []int{1, 2} {
 		roundID := fmt.Sprintf("round-%d", roundOrdinal+1)
 		manifestRevision := roundID + "-manifest"
@@ -954,19 +953,14 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 		for ordinal := range count {
 			itemID := fmt.Sprintf("item-%s-%d", roundID, ordinal)
 			taskRevision := itemID + "-task"
-			item := auditstore.Item{
-				ItemID: itemID, AuditID: auditID, RoundID: roundID,
+			items = append(items, auditstore.ReportItem{
+				ItemID: itemID, RoundID: roundID,
 				ItemKey: itemID, Ordinal: ordinal, Kind: "checklist", SubjectKey: itemID,
 				Task: auditstore.ExactArtifact{
 					Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "task", Revision: &taskRevision},
 					Digest: auditdomain.DigestBytes([]byte(itemID)), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
 				},
-				WorkflowRole: "check", State: auditstore.ItemSettled, FinalDisposition: &disposition,
-			}
-			items = append(items, item)
-			coverage = append(coverage, auditstore.CoverageRow{
-				AuditID: auditID, RoundID: roundID, ItemID: itemID, Ordinal: ordinal,
-				ItemKey: itemID, SubjectKey: itemID,
+				State: auditstore.ItemSettled, FinalDisposition: &disposition,
 				Coverage: auditstore.Coverage{
 					Status: auditstore.CoverageSatisfied, Requested: []string{"source"},
 					Completed: []string{"source"}, Gaps: []string{},
@@ -974,7 +968,7 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 			})
 		}
 	}
-	store := &fakeImportStore{rounds: rounds, items: items, coverage: coverage}
+	store := &fakeImportStore{rounds: rounds, reportItems: items}
 	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
 	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
@@ -1026,7 +1020,7 @@ func TestMarkdownSummaryEscapesDynamicFields(t *testing.T) {
 		StopReason: &reportStopReason{Code: "test", Message: "<script>alert(1)</script>\n# heading [link](https://example.test)"},
 		Baseline:   reportBaseline{InventoryGaps: []string{"*emphasis* | `code`"}},
 	}
-	summary := humanSummary(report)
+	summary := humanSummary(report, reportFindingCounts{})
 	for _, expected := range []string{
 		"# Audit audit\\_test\n\n",
 		"&lt;script&gt;alert(1)&lt;/script&gt; \\# heading \\[link\\](https://example.test)",
@@ -1049,7 +1043,7 @@ func TestHumanSummaryBoundsMaximalInventoryGaps(t *testing.T) {
 	summary := humanSummary(machineReport{
 		AuditID:  "audit-large-inventory",
 		Baseline: reportBaseline{InventoryGaps: gaps},
-	})
+	}, reportFindingCounts{})
 	if len(summary) > auditstore.MaxSummaryBytes ||
 		!strings.Contains(summary, "- … and 512 more inventory gaps (see report.json)\n") ||
 		!strings.HasSuffix(summary, "Completion describes the bounded Audit process; it is not a security or compliance certification.\n") {
@@ -1177,12 +1171,13 @@ func TestChecklistCoverageDoesNotClaimConclusiveViolationAcrossGaps(t *testing.T
 }
 
 func TestReportCoverageCountsOperationStatesWithoutClaimingPartialCompletion(t *testing.T) {
-	rows := []auditstore.CoverageRow{
-		{Coverage: auditstore.Coverage{Status: auditstore.CoverageTracedComplete}},
-		{Coverage: auditstore.Coverage{Status: auditstore.CoverageTracedPartial}},
-		{Coverage: auditstore.Coverage{Status: auditstore.CoverageUnmapped}},
+	var counts auditstore.ReportCoverageCounts
+	for _, status := range []auditstore.CoverageStatus{
+		auditstore.CoverageTracedComplete, auditstore.CoverageTracedPartial, auditstore.CoverageUnmapped,
+	} {
+		counts.Add(status)
 	}
-	summary := summarizeCoverage(rows)
+	summary := summarizeCoverage(counts, 3)
 	if summary.Counts.TracedComplete != 1 || summary.Counts.TracedPartial != 1 || summary.Counts.Unmapped != 1 ||
 		summary.ApplicableDenominator != 3 || summary.AssessedApplicable != 1 ||
 		summary.AssessedPercent == nil || *summary.AssessedPercent < 33 || *summary.AssessedPercent > 34 ||
@@ -1216,7 +1211,9 @@ func TestReportConclusionClassifiesEveryCoverageStatusLikeTheWorkspace(t *testin
 		t.Fatalf("report coverage table lists %d statuses, want %d", len(listed), len(statuses))
 	}
 	for _, test := range statuses {
-		summary := summarizeCoverage([]auditstore.CoverageRow{{Coverage: auditstore.Coverage{Status: test.status}}})
+		var counts auditstore.ReportCoverageCounts
+		counts.Add(test.status)
+		summary := summarizeCoverage(counts, 1)
 		counted := 0
 		for _, entry := range summary.Counts.byStatus() {
 			counted += entry.count
@@ -1536,14 +1533,21 @@ type fakeImportStore struct {
 	selectedItems []auditstore.Item
 	collected     auditstore.CollectParams
 	rounds        []auditstore.Round
-	items         []auditstore.Item
-	coverage      []auditstore.CoverageRow
+	reportItems   []auditstore.ReportItem
 	findings      []auditstore.ReportFinding
+	pages         []fakeReportPage
 	counts        auditstore.CollectionDispositionCounts
 	committed     auditstore.CommitReportParams
 	proposed      auditstore.ProposeReportParams
 	// collectErr, when set, rejects a Collect call before it is recorded.
 	collectErr func(auditstore.CollectParams) error
+}
+
+// fakeReportPage is one recorded report page of the in-memory store.
+type fakeReportPage struct {
+	revision uint64
+	page     auditstore.ReportPage
+	content  []byte
 }
 
 func (f *fakeImportStore) GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error) {
@@ -1568,26 +1572,117 @@ func (f *fakeImportStore) ListItemsByIDs(_ context.Context, auditID string, item
 	}
 	return result, nil
 }
-func (f *fakeImportStore) ListItems(context.Context, string) ([]auditstore.Item, error) {
-	return append([]auditstore.Item{}, f.items...), nil
-}
 func (f *fakeImportStore) ListRounds(context.Context, string) ([]auditstore.Round, error) {
 	return append([]auditstore.Round{}, f.rounds...), nil
 }
-func (f *fakeImportStore) ListCoverage(_ context.Context, _, roundID string, after, limit int) ([]auditstore.CoverageRow, error) {
-	result := make([]auditstore.CoverageRow, 0, limit)
-	for _, row := range f.coverage {
-		if row.RoundID == roundID && row.Ordinal > after && len(result) < limit {
-			result = append(result, row)
+func (f *fakeImportStore) ListReportItems(_ context.Context, _, roundID string, after, limit int) ([]auditstore.ReportItem, error) {
+	if after < -1 || limit < 1 || limit > auditstore.MaxReportPageRows+1 {
+		return nil, auditstore.ErrInvalid
+	}
+	result := make([]auditstore.ReportItem, 0, limit)
+	for _, item := range f.reportItems {
+		if item.RoundID == roundID && item.Ordinal > after {
+			result = append(result, item)
 		}
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].Ordinal < result[right].Ordinal })
+	return result[:min(len(result), limit)], nil
+}
+
+// ListReportFindings pages like PostgresStore: one state in creation order,
+// at most Limit findings, and the first finding whose canonical projection
+// would take the page past ProjectionBytes starts the next page.
+func (f *fakeImportStore) ListReportFindings(
+	_ context.Context, params auditstore.ReportFindingPageParams,
+) ([]auditstore.ReportFinding, bool, error) {
+	if params.Limit < 1 || params.Limit > auditstore.MaxReportPageRows || params.ProjectionBytes < 1 {
+		return nil, false, auditstore.ErrInvalid
+	}
+	selected := make([]auditstore.ReportFinding, 0)
+	for _, finding := range f.findings {
+		after := params.After == nil || finding.CreatedAt.After(params.After.CreatedAt) ||
+			finding.CreatedAt.Equal(params.After.CreatedAt) && finding.FindingID > params.After.FindingID
+		if finding.State == string(params.Section) && after {
+			selected = append(selected, finding)
+		}
+	}
+	sort.Slice(selected, func(left, right int) bool {
+		if !selected[left].CreatedAt.Equal(selected[right].CreatedAt) {
+			return selected[left].CreatedAt.Before(selected[right].CreatedAt)
+		}
+		return selected[left].FindingID < selected[right].FindingID
+	})
+	result := make([]auditstore.ReportFinding, 0, params.Limit)
+	bytes := 0
+	for index, finding := range selected {
+		encoded, err := auditdomain.EncodeFindingReportProjection(finding.Projection)
+		if err != nil {
+			return nil, false, err
+		}
+		if index == params.Limit || bytes >= params.ProjectionBytes {
+			return result, true, nil
+		}
+		bytes += len(encoded)
+		result = append(result, finding)
+	}
+	return result, false, nil
+}
+
+// RecordReportPage keeps PostgresStore's page contract: the shared request
+// validation, contiguous ordinals and discarding other revisions' pages.
+func (f *fakeImportStore) RecordReportPage(_ context.Context, params auditstore.RecordReportPageParams) error {
+	if err := auditstore.ValidateRecordReportPage(params); err != nil {
+		return err
+	}
+	kept := f.pages[:0]
+	for _, page := range f.pages {
+		if page.revision == params.ExpectedAuditRevision {
+			kept = append(kept, page)
+		}
+	}
+	f.pages = kept
+	if params.Page.Ordinal != len(f.pages) {
+		return auditstore.ErrPrecondition
+	}
+	page := params.Page
+	page.ContentBytes = len(params.Content)
+	f.pages = append(f.pages, fakeReportPage{
+		revision: params.ExpectedAuditRevision, page: page, content: append([]byte(nil), params.Content...),
+	})
+	return nil
+}
+func (f *fakeImportStore) ListReportPages(_ context.Context, _ string, revision uint64) ([]auditstore.ReportPage, error) {
+	result := make([]auditstore.ReportPage, 0, len(f.pages))
+	for _, page := range f.pages {
+		if page.revision == revision {
+			result = append(result, page.page)
+		}
+	}
+	return result, nil
+}
+func (f *fakeImportStore) ReadReportSections(
+	_ context.Context, _ string, revision uint64,
+) (map[auditstore.ReportSection]auditstore.ReportSectionContent, error) {
+	result := make(map[auditstore.ReportSection]auditstore.ReportSectionContent)
+	for _, page := range f.pages {
+		if page.revision != revision {
+			continue
+		}
+		section := result[page.page.Section]
+		section.Section = page.page.Section
+		section.EntryCount += page.page.EntryCount
+		if len(page.content) != 0 {
+			if len(section.Content) != 0 {
+				section.Content = append(section.Content, ',')
+			}
+			section.Content = append(section.Content, page.content...)
+		}
+		result[page.page.Section] = section
 	}
 	return result, nil
 }
 func (f *fakeImportStore) CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error) {
 	return f.counts, nil
-}
-func (f *fakeImportStore) ListReportFindings(context.Context, string) ([]auditstore.ReportFinding, error) {
-	return append([]auditstore.ReportFinding{}, f.findings...), nil
 }
 
 // Collect enforces the production request contract, so a collection shape
@@ -1604,14 +1699,20 @@ func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectPa
 	f.collected = params
 	return auditstore.CollectionReceipt{}, true, nil
 }
+func (f *fakeImportStore) GetReportCandidate(context.Context, string) (auditstore.ReportCandidate, error) {
+	return auditstore.ReportCandidate{}, auditstore.ErrNotFound
+}
+
+// CommitReport and ProposeReport move the Audit out of finalizing, which
+// discards its report pages as the PostgreSQL trigger does.
 func (f *fakeImportStore) CommitReport(_ context.Context, params auditstore.CommitReportParams) (auditstore.Audit, error) {
-	f.committed = params
+	f.committed, f.pages = params, nil
 	return auditstore.Audit{State: auditstore.AuditCompleted}, nil
 }
 func (f *fakeImportStore) ProposeReport(
 	_ context.Context, params auditstore.ProposeReportParams,
 ) (auditstore.Audit, bool, error) {
-	f.proposed = params
+	f.proposed, f.pages = params, nil
 	return auditstore.Audit{State: auditstore.AuditWaitingReview}, true, nil
 }
 

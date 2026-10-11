@@ -330,14 +330,15 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES (
     $1, $1 || '-proposal', $1 || '-allocation', 'runtime-agent', 'runtime-instance',
     'stage-execution', 'worker', 'invocation', $1 || '-submission', 'candidate', $2,
     $3, $4, $5, $6, $7, 'check',
     'audit-check', '1', 'contractor/v1alpha1',
     '{"name":"audit-check","version":"1"}'::jsonb, $8,
-    $9::jsonb, $10, 'application/json', $11, '[]'::jsonb
+    $9::jsonb, $10, 'application/json', $11, '[]'::jsonb,
+    '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`,
 		receiptID, testDigest("d"), *f.execution.RunID, f.audit.OwnerID, f.project.ProjectID,
 		f.execution.ExecutionID, f.audit.AuditID, testDigest("e"),

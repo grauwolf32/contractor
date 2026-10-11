@@ -1155,6 +1155,12 @@ submitted -> collecting -> ready | settled`.
 **AUD-R189.** Zero items yields an explicit empty-inventory reason; it never
 proves compliance.
 
+**AUD-R223.** An Audit holds at most its pinned `maxItemsTotal` items across
+all Rounds, 1 to 100,000 (LIM-AUD-25), and at most `maxItemsPerRound` items
+in one Round, 1 to 10,000 and never more than `maxItemsTotal` (LIM-AUD-26).
+Profile validation and the Audit store reject larger limits; how many items a
+Round actually admits is bounded further by LIM-AUX-10.
+
 How terminal observation, collection and settlement move items between these
 states is specified in [execution](execution.md).
 
@@ -1348,6 +1354,10 @@ Registry entries owned by this document:
   AUD-R206).
 - [LIM-AUD-24](../platform/limits.md): at most 200 events per page
   (AUD-R210).
+- [LIM-AUD-25](../platform/limits.md): at most 100,000 items per Audit
+  (AUD-R223).
+- [LIM-AUD-26](../platform/limits.md): at most 10,000 items per Round
+  (AUD-R223).
 - [FAIL-AUD-1](../platform/failure-model.md): reading persisted
   profile and baseline snapshots at start, recovery and resume
   (AUD-R22, AUD-R61).

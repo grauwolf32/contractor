@@ -231,6 +231,17 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		firstReceipt.Origin.RunID != runID || firstReceipt.Origin.InvocationID != firstInput.InvocationID {
 		t.Fatalf("trusted receipt origin = %+v", firstReceipt.Origin)
 	}
+	// Intake stores the proposal's canonical report projection, so Audit
+	// reports never read the proposal artifact back.
+	wantProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(firstInput.Proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storedProjection string
+	if err := pool.QueryRow(ctx, `SELECT report_projection FROM finding_proposal_receipts WHERE receipt_id = $1`,
+		firstReceipt.ReceiptID).Scan(&storedProjection); err != nil || storedProjection != string(wantProjection) {
+		t.Fatalf("stored report projection = %q, %v; want %q", storedProjection, err, wantProjection)
+	}
 	changed := firstInput
 	changed.Proposal.Title = "Changed after acceptance"
 	if _, _, err := service.Submit(ctx, grant, changed); !errors.Is(err, ErrConflict) {

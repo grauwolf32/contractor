@@ -200,14 +200,15 @@ INSERT INTO finding_proposal_receipts (
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
-    proposal_size_bytes, evidence
+    proposal_size_bytes, evidence, report_projection
 ) VALUES (
     $1, 'proposal-one', 'allocation-one', 'runtime-one', 'instance-one',
     'stage-one', 'worker', 'invocation-one', 'submission-one', 'candidate-one', $2,
     'run-source-one', $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,
-    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb
+    $6::jsonb, $7, 'application/json', $8, '[]'::jsonb,
+    '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
 		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes); err != nil {
 		t.Fatal(err)

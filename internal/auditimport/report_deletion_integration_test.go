@@ -91,7 +91,11 @@ func TestImporterReportFinalizationSurvivesRunDeletion(t *testing.T) {
 						t.Fatal("retry changed immutable report bytes")
 					}
 				}
-				var report machineReport
+				var report struct {
+					GeneratedFrom       time.Time                              `json:"generatedFrom"`
+					AttemptDispositions auditstore.CollectionDispositionCounts `json:"attemptDispositions"`
+					Items               []reportItem                           `json:"items"`
+				}
 				mustCompletion(t, json.Unmarshal(hooked.writes[0].data, &report))
 				if !report.GeneratedFrom.Equal(snapshot.Audit.UpdatedAt) || report.AttemptDispositions.ExecutionFailed != 1 || len(report.Items) != 2 {
 					t.Fatal("retained report lost its timestamp, receipt or item facts after source deletion")
