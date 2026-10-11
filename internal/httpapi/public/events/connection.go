@@ -235,14 +235,25 @@ func (s *socket) sendFrame(frame any) bool {
 }
 
 func (s *socket) sendEncoded(encoded []byte) bool {
-	if s.ctx.Err() != nil {
-		return false
-	}
-	if !s.queue.enqueue(encoded) {
+	queued, full := s.offer(encoded)
+	if full {
 		s.stop(websocket.CloseTryAgainLater, "slow consumer")
-		return false
 	}
-	return true
+	return queued
+}
+
+// offer enqueues a frame without blocking and without closing the socket. It
+// reports whether the frame was queued, and full when the queue of a socket
+// that is not closing rejected it: the socket is then a slow consumer that
+// must be closed with status 1013 (API-R64).
+func (s *socket) offer(encoded []byte) (queued, full bool) {
+	if s.ctx.Err() != nil {
+		return false, false
+	}
+	if s.queue.enqueue(encoded) {
+		return true, false
+	}
+	return false, s.ctx.Err() == nil
 }
 
 func (s *socket) sendError(subscriptionID, code, message string, retryable bool) bool {
