@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 3 in progress, 89 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
+105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
 
 ## In progress
 
@@ -38,12 +38,6 @@ the epics are in [epics.yml](epics.yml).
 | [V368-025](v368-025-a2a-numbers-and-duplicates.yml) | defect | P2 | V368-002 | Decode A2A Worker results without float64 and with duplicate detection |
 | [V368-027](v368-027-unknown-diagnostic-phase.yml) | defect | P3 | — | Decide whether unknown Worker diagnostic kinds are dropped or rejected |
 | [V370-026](v370-026-worker-state-read-cost.yml) | defect | P3 | V368-002 | Cut the CPU cost of reading Worker State |
-
-### Runtime labels, configuration and credentials (`runtime-config`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V368-021](v368-021-secretstring-marshal.yml) | defect | P2 | — | Stop SecretString from marshalling its plaintext |
 
 ### Shared Memory tools (`memory`)
 
@@ -209,7 +203,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 9 | 36 | 44 | 9 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 3 | 23 | 34 | 7 | 41 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 35 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
