@@ -132,18 +132,22 @@ func (r *PostgresRepository) writeConflict(
 	target ArtifactRef,
 	expectedRevision *string,
 ) error {
-	var frozen bool
+	var revision string
+	current := &Metadata{Ref: ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &revision}}
 	err := r.db.QueryRow(ctx, `
-SELECT frozen
+SELECT current_revision, frozen
 FROM artifact_bindings
 WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4`,
 		scope.kind, scope.id, target.Namespace, target.Name,
-	).Scan(&frozen)
-	if err == nil && frozen {
-		return ErrArtifactFrozen
-	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	).Scan(&revision, &current.Frozen)
+	if errors.Is(err, pgx.ErrNoRows) {
+		current = nil
+	} else if err != nil {
 		return fmt.Errorf("inspect artifact write conflict: %w", err)
 	}
+	if refusal := WritePrecondition(target, current, expectedRevision); refusal != nil {
+		return refusal
+	}
+	// The binding moved after the write was refused; the write still lost.
 	return &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 }

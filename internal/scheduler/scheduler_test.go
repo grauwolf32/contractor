@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -2050,9 +2051,11 @@ func (i *memoryRunSkillInitializer) InitializeRunSkills(
 		i.transientFailures--
 		return i.store.run, errors.New("transient Skill fork failure")
 	}
-	i.store.run.State = runstore.RunRunning
-	i.store.run.StateReason = runstore.Reason{Code: "initialized"}
-	return i.store.run, nil
+	// Initialization commits pending, as the production initializer does.
+	return i.store.TransitionRun(
+		context.Background(), runID, runstore.RunInitializing, runstore.RunPending,
+		runstore.Reason{Code: "initialized"},
+	)
 }
 
 func (s *memorySchedulerStore) ClaimRunnableRun(
@@ -2109,6 +2112,9 @@ func (s *memorySchedulerStore) TransitionRun(
 	next runstore.WorkflowRunState,
 	reason runstore.Reason,
 ) (runstore.WorkflowRun, error) {
+	if err := runstore.ValidateRunTransition(expected, next); err != nil {
+		return runstore.WorkflowRun{}, err
+	}
 	if runID != s.run.RunID || s.run.State != expected {
 		return runstore.WorkflowRun{}, runstore.ErrConflict
 	}
@@ -2159,12 +2165,16 @@ func (s *memorySchedulerStore) GetStageExecution(
 	return runstore.StageExecution{}, runstore.ErrNotFound
 }
 
-// RecordStageAllocation enforces the table's identity and per-Stage agent
-// uniqueness. Placement is the only writer of a row, so unlike the idempotent
-// PostgreSQL store this fake rejects a second write of the same allocation.
+// RecordStageAllocation validates the row as the store does and enforces the
+// table's identity and per-Stage agent uniqueness. Placement is the only
+// writer of a row, so unlike the idempotent PostgreSQL store this fake rejects
+// a second write of the same allocation.
 func (s *memorySchedulerStore) RecordStageAllocation(
 	_ context.Context, allocation runstore.StageAllocation,
 ) error {
+	if err := allocation.Validate(); err != nil {
+		return err
+	}
 	for _, current := range s.allocations {
 		if current.AllocationID == allocation.AllocationID {
 			return errDuplicateAllocationWrite
@@ -2284,10 +2294,40 @@ type memoryAtomicPersistence struct {
 	queuePaused bool
 }
 
+// runIn is the Run-state check each PostgresPersistence commit point makes
+// under its Run row lock, with the same state set.
+func (p *memoryAtomicPersistence) runIn(runID string, states []runstore.WorkflowRunState) bool {
+	return runID == p.store.run.RunID && slices.Contains(states, p.store.run.State)
+}
+
+// endStage mirrors gatewayrecovery.EndStage in the commit that ends a Stage:
+// a Run waiting for its model route returns to running.
+func (p *memoryAtomicPersistence) endStage() {
+	if p.store.run.State == runstore.RunWaiting {
+		p.store.run.State = runstore.RunRunning
+		p.store.run.StateReason = runstore.Reason{Code: "gateway_recovered"}
+	}
+}
+
+// checkTerminalTransition applies the store's transition rule to the terminal
+// Run transition of a progression commit, from the Run state after endStage.
+// A transition the store rejects fails the whole commit before anything
+// changes, as its transaction rolls back.
+func (p *memoryAtomicPersistence) checkTerminalTransition(value StageProgression) error {
+	if value.TerminalRunState == "" {
+		return nil
+	}
+	from := p.store.run.State
+	if from == runstore.RunWaiting {
+		from = runstore.RunRunning
+	}
+	return runstore.ValidateRunTransition(from, value.TerminalRunState)
+}
+
 func (p *memoryAtomicPersistence) CreateStageWithContext(
 	_ context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
 ) (runstore.StageExecution, error) {
-	if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunPending {
+	if !p.runIn(params.RunID, stageCreationRunStates) {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
 	if p.queuePaused {
@@ -2311,7 +2351,7 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 	_ context.Context, params runstore.EnterFinalizingParams,
 ) error {
-	if p.store.run.State != runstore.RunRunning {
+	if !p.runIn(p.store.run.RunID, finalizationRunStates) {
 		return runstore.ErrConflict
 	}
 	for _, reservation := range p.allocator.cached {
@@ -2338,10 +2378,10 @@ func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 
 func (p *memoryAtomicPersistence) EnterAbortingWithTermination(
 	ctx context.Context,
-	_ string,
+	runID string,
 	params runstore.EnterAbortingParams,
 ) error {
-	if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunCancelling {
+	if !p.runIn(runID, abortRunStates) {
 		return runstore.ErrConflict
 	}
 	for _, reservation := range p.allocator.cached {
@@ -2358,11 +2398,14 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 	if err := validateResultProgression(value); err != nil {
 		return err
 	}
-	if p.store.run.State != runstore.RunRunning {
+	if !p.runIn(value.RunID, progressionRunStates) {
 		return runstore.ErrConflict
 	}
 	if value.Progression.NextStage != nil && p.queuePaused {
 		return runstore.ErrQueuePaused
+	}
+	if err := p.checkTerminalTransition(value.Progression); err != nil {
+		return err
 	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID != value.StageExecutionID ||
@@ -2382,6 +2425,7 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 				}
 			}
 		}
+		p.endStage()
 		p.commitProgression(value.Progression)
 		p.events.add("accept")
 		return nil
@@ -2396,11 +2440,14 @@ func (p *memoryAtomicPersistence) CommitTerminationProgression(
 	if err := validateTerminationProgression(value); err != nil {
 		return err
 	}
-	if value.RunID != p.store.run.RunID || p.store.run.State != runstore.RunRunning {
+	if !p.runIn(value.RunID, progressionRunStates) {
 		return runstore.ErrConflict
 	}
 	if value.Progression.NextStage != nil && p.queuePaused {
 		return runstore.ErrQueuePaused
+	}
+	if err := p.checkTerminalTransition(value.Progression); err != nil {
+		return err
 	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == value.StageExecutionID &&
@@ -2408,6 +2455,7 @@ func (p *memoryAtomicPersistence) CommitTerminationProgression(
 			terminal := runstore.StageExecutionState(p.store.stages[index].Termination.Outcome)
 			p.store.stages[index].State = terminal
 			p.stageStates = append(p.stageStates, runstore.StageAborting, terminal)
+			p.endStage()
 			p.commitProgression(value.Progression)
 			p.events.add("commit_termination")
 			return nil
@@ -2456,7 +2504,7 @@ func (p *memoryAtomicPersistence) AcceptResultDuringCancellation(
 	stageExecutionID string,
 	result contracts.StageContentResult,
 ) error {
-	if runID != p.store.run.RunID || p.store.run.State != runstore.RunCancelling {
+	if !p.runIn(runID, []runstore.WorkflowRunState{runstore.RunCancelling}) {
 		return runstore.ErrConflict
 	}
 	for index := range p.store.stages {
@@ -2486,6 +2534,9 @@ func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
 	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
 		return runstore.ErrConflict
 	}
+	if err := runstore.ValidateRunTransition(expectedRunState, nextRunState); err != nil {
+		return err
+	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == stageExecutionID &&
 			p.store.stages[index].State == runstore.StageAborting {
@@ -2512,6 +2563,9 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 ) error {
 	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
 		return runstore.ErrConflict
+	}
+	if err := runstore.ValidateRunTransition(expectedRunState, nextRunState); err != nil {
+		return err
 	}
 	for _, stage := range p.store.stages {
 		if stage.State == runstore.StageFinalizing && stage.CandidateResult == nil {
@@ -3082,7 +3136,7 @@ func (p *memoryAtomicPersistence) DiscardUnadmittedPlacement(
 }
 
 func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID string) (runstore.StageExecution, error) {
-	if p.store.run.RunID != runID || p.store.run.State == runstore.RunCancelling {
+	if !p.runIn(runID, progressionRunStates) {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
 	for i := range p.store.stages {

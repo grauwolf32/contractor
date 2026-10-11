@@ -15,7 +15,7 @@ import (
 func (p *PostgresPersistence) AdmitStage(ctx context.Context, runID, stageID string) (runstore.StageExecution, error) {
 	var stage runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, runID, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting); err != nil {
+		if err := lockRunState(ctx, tx, runID, progressionRunStates...); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, stageID, runID); err != nil {

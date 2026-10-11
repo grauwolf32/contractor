@@ -166,19 +166,10 @@ func importScope(service *artifacts.Service, request ImportRequest) (artifacts.S
 func checkImportPrecondition(ctx context.Context, store artifacts.ScopedStore, target artifacts.ArtifactRef, expected *string) error {
 	metadata, err := store.Metadata(ctx, target)
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		if expected == nil {
-			return nil
-		}
-		return &artifacts.ConflictError{Ref: target, ExpectedRevision: expected}
+		return artifacts.WritePrecondition(target, nil, expected)
 	}
 	if err != nil {
 		return err
 	}
-	if metadata.Frozen {
-		return artifacts.ErrArtifactFrozen
-	}
-	if expected == nil || metadata.Ref.Revision == nil || *expected != *metadata.Ref.Revision {
-		return &artifacts.ConflictError{Ref: target, ExpectedRevision: expected}
-	}
-	return nil
+	return artifacts.WritePrecondition(target, &metadata, expected)
 }

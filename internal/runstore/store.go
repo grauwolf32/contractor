@@ -445,7 +445,7 @@ func (s *PostgresStore) TransitionRun(
 	if err := validateOpaque("runID", runID); err != nil {
 		return WorkflowRun{}, err
 	}
-	if err := validateRunTransition(expected, next); err != nil {
+	if err := ValidateRunTransition(expected, next); err != nil {
 		return WorkflowRun{}, err
 	}
 	if err := validateReason(reason); err != nil {
@@ -655,7 +655,11 @@ func validateIdempotencyKey(value string) error {
 	return nil
 }
 
-func validateRunTransition(expected, next WorkflowRunState) error {
+// ValidateRunTransition is the transition rule TransitionRun applies before
+// its compare-and-set: it returns ErrInvalid for an edge TransitionRun must
+// not perform. Test doubles of TransitionRun apply it too, so they reject
+// what the store rejects.
+func ValidateRunTransition(expected, next WorkflowRunState) error {
 	allowed := map[WorkflowRunState]map[WorkflowRunState]bool{
 		RunInitializing: {RunPending: true, RunRunning: true, RunFailed: true},
 		RunPending:      {RunRunning: true, RunFailed: true},

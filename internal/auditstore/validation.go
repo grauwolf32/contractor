@@ -294,7 +294,12 @@ func ownerTransitionAllowed(from, to AuditState) bool {
 	return false
 }
 
-func validateClaimedTransition(params ClaimedTransitionParams) error {
+// ValidateClaimedTransition is the check TransitionClaimed applies before its
+// compare-and-set: it returns ErrInvalid for a claim identity, revision or
+// transition the store refuses (transitionAllowed, without draft to active,
+// which only the start of preparation performs). Test doubles of
+// TransitionClaimed apply it too, so they reject what the store rejects.
+func ValidateClaimedTransition(params ClaimedTransitionParams) error {
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
 	}

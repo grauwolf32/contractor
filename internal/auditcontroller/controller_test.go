@@ -851,10 +851,19 @@ func (s *fakeControllerStore) TransitionRound(_ context.Context, params auditsto
 	return s.round, nil
 }
 
+// TransitionClaimed applies the store's transition rule and claim fence: an
+// invalid transition is ErrInvalid, a claim that is no longer held is
+// ErrClaimLost, and a stale state or revision is ErrPrecondition.
 func (s *fakeControllerStore) TransitionClaimed(_ context.Context, params auditstore.ClaimedTransitionParams) (auditstore.Audit, error) {
+	if err := auditstore.ValidateClaimedTransition(params); err != nil {
+		return auditstore.Audit{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if params.Claim.Epoch != s.epoch || s.audit.State != params.ExpectedState || s.audit.Revision != params.ExpectedRevision {
+	if !s.held || params.Claim.Epoch != s.epoch {
+		return auditstore.Audit{}, auditstore.ErrClaimLost
+	}
+	if s.audit.State != params.ExpectedState || s.audit.Revision != params.ExpectedRevision {
 		return auditstore.Audit{}, auditstore.ErrPrecondition
 	}
 	s.audit.State = params.TargetState

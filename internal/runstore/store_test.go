@@ -20,7 +20,7 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 		{RunCancelling, RunCancelled},
 	}
 	for _, transition := range valid {
-		if err := validateRunTransition(transition[0], transition[1]); err != nil {
+		if err := ValidateRunTransition(transition[0], transition[1]); err != nil {
 			t.Errorf("valid transition %s -> %s: %v", transition[0], transition[1], err)
 		}
 	}
@@ -29,7 +29,7 @@ func TestWorkflowRunTransitionValidation(t *testing.T) {
 		{RunRunning, RunCancelled}, {RunSucceeded, RunRunning},
 		{RunCancelling, RunSucceeded}, {"unknown", RunRunning},
 	} {
-		if err := validateRunTransition(transition[0], transition[1]); !errors.Is(err, ErrInvalid) {
+		if err := ValidateRunTransition(transition[0], transition[1]); !errors.Is(err, ErrInvalid) {
 			t.Errorf("invalid transition %s -> %s error = %v", transition[0], transition[1], err)
 		}
 	}

@@ -419,9 +419,8 @@ func (f *fakeArtifactRepository) Write(
 	defer f.mu.Unlock()
 	f.writes++
 	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
-	current, exists := f.current[key]
-	if !exists && expected != nil || exists && (expected == nil || current.Ref.Revision == nil || *current.Ref.Revision != *expected) {
-		return artifacts.WriteResult{}, artifacts.ErrArtifactConflict
+	if err := artifacts.WritePrecondition(ref, f.headLocked(key), expected); err != nil {
+		return artifacts.WriteResult{}, err
 	}
 	f.next++
 	revision := fmt.Sprintf("revision-%d", f.next)
@@ -437,6 +436,17 @@ func (f *fakeArtifactRepository) Write(
 	}
 	f.created[key][revision] = time.Unix(int64(f.next), 0).UTC()
 	return artifacts.WriteResult{Ref: exact, MediaType: payload.MediaType, Size: int64(len(payload.Data))}, nil
+}
+
+// headLocked is the binding's current revision and frozen flag, nil when the
+// binding does not exist: what artifacts.WritePrecondition compares a write
+// with, as PostgresRepository does.
+func (f *fakeArtifactRepository) headLocked(key artifactKey) *artifacts.Metadata {
+	current, exists := f.current[key]
+	if !exists {
+		return nil
+	}
+	return &artifacts.Metadata{Ref: current.Ref, Frozen: f.frozen[key]}
 }
 
 func (f *fakeArtifactRepository) Read(
@@ -532,7 +542,7 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	scope artifacts.Scope,
 	slot string,
 	source artifacts.ArtifactRef,
-	_ *string,
+	expected *string,
 ) (artifacts.ForkResult, error) {
 	read, err := f.Read(ctx, scope, source)
 	if err != nil {
@@ -540,14 +550,23 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	key := artifactKey{scope.Kind(), scope.ID(), "outputs", slot}
+	if err := artifacts.WritePrecondition(
+		artifacts.ArtifactRef{Namespace: "outputs", Name: slot}, f.headLocked(key), expected,
+	); err != nil {
+		return artifacts.ForkResult{}, err
+	}
 	f.next++
 	revision := fmt.Sprintf("revision-%d", f.next)
 	target := artifacts.ArtifactRef{Namespace: "outputs", Name: slot, Revision: &revision}
-	key := artifactKey{scope.Kind(), scope.ID(), target.Namespace, target.Name}
 	stored := artifacts.ReadResult{Ref: target, Payload: read.Payload}
 	f.current[key] = stored
-	f.historical[key] = map[string]artifacts.ReadResult{revision: stored}
-	f.created[key] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
+	if f.historical[key] == nil {
+		f.historical[key] = make(map[string]artifacts.ReadResult)
+		f.created[key] = make(map[string]time.Time)
+	}
+	f.historical[key][revision] = stored
+	f.created[key][revision] = time.Unix(int64(f.next), 0).UTC()
 	f.lineage = append(f.lineage, artifacts.LineageEdge{
 		Kind:          artifacts.LineageOutputBind,
 		SourceScope:   scope.Kind(),
@@ -1220,6 +1239,9 @@ func (f *fakeRunStore) TransitionRun(
 	next runstore.WorkflowRunState,
 	reason runstore.Reason,
 ) (runstore.WorkflowRun, error) {
+	if err := runstore.ValidateRunTransition(expected, next); err != nil {
+		return runstore.WorkflowRun{}, err
+	}
 	run, ok := f.runs[runID]
 	if !ok {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
