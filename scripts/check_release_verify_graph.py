@@ -380,13 +380,15 @@ def check_family_entry_points() -> None:
 
 @dataclass(frozen=True)
 class GoTest:
-    """One go test invocation: where it comes from, tags, packages, -run."""
+    """One go test invocation: where it comes from, tags, packages, -run, and
+    the NAME=value assignments that prefix it."""
 
     source: str
     tags: frozenset[str]
     packages: tuple[str, ...]
     run: str | None
     race: bool = False
+    environment: frozenset[str] = frozenset()
 
 
 def parse_go_test(command: str, source: str) -> GoTest | None:
@@ -394,6 +396,7 @@ def parse_go_test(command: str, source: str) -> GoTest | None:
         return None
     tokens = shlex.split(command)
     start = next(index for index in range(len(tokens)) if tokens[index : index + 2] == ["go", "test"])
+    environment = frozenset(token for token in tokens[:start] if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token))
     arguments = tokens[start + 2 :]
     tags: frozenset[str] = frozenset()
     run = None
@@ -405,7 +408,7 @@ def parse_go_test(command: str, source: str) -> GoTest | None:
         elif token.startswith("-run="):
             run = token.removeprefix("-run=")
     packages = tuple(token for token in arguments if token.startswith("./"))
-    return GoTest(source, tags, packages, run, "-race" in arguments)
+    return GoTest(source, tags, packages, run, "-race" in arguments, environment)
 
 
 def load_script(relative: str):
@@ -640,11 +643,18 @@ def race_constrained_packages() -> dict[str, frozenset[str]]:
             if tag is None:
                 continue
             package = "./" + path.parent.relative_to(ROOT).as_posix()
-            names = re.findall(r"(!?)\b([A-Za-z_][A-Za-z0-9_.]*)\b", tag.group(1))
-            tags.setdefault(package, set()).update(name for negated, name in names if not negated and name != "race")
-            if any(name == "race" for _, name in names):
+            tags.setdefault(package, set()).update(needed_tags(tag.group(1)))
+            if any(name == "race" for _, name in TAG_TERM.findall(tag.group(1))):
                 constrained[package] = frozenset()
     return {package: frozenset(tags[package]) for package in constrained}
+
+
+TAG_TERM = re.compile(r"(!?)\b([A-Za-z_][A-Za-z0-9_.]*)\b")
+
+
+def needed_tags(constraint: str) -> set[str]:
+    """The -tags a //go:build constraint needs, apart from the race detector."""
+    return {name for negated, name in TAG_TERM.findall(constraint) if not negated and name != "race"}
 
 
 def check_non_race_passes(
@@ -667,6 +677,69 @@ def check_non_race_passes(
             "packages with race-constrained tests have no complete release pass without -race "
             f"(tags {[sorted(constrained[package]) for package in missing]}): {missing}"
         )
+
+
+# Tests that read this variable use the PostgreSQL blob backend unless it
+# selects the filesystem one; the release gate must run them both ways.
+ARTIFACT_BACKEND_READ = re.compile(r'os\.Getenv\(\s*"CONTRACTOR_TEST_ARTIFACT_BACKEND"\s*\)')
+FILESYSTEM_BACKEND = "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem"
+
+
+def artifact_backend_packages() -> dict[str, frozenset[str]]:
+    """Packages whose tests read their blob backend from the environment, and
+    the build tags of the files that read it."""
+    found: dict[str, set[str]] = {}
+    for source_root in GO_SOURCE_ROOTS:
+        for path in (ROOT / source_root).rglob("*_test.go"):
+            source = path.read_text()
+            if ARTIFACT_BACKEND_READ.search(source) is None:
+                continue
+            tags = found.setdefault("./" + path.parent.relative_to(ROOT).as_posix(), set())
+            tag = BUILD_TAG.search(source.split("\npackage ", 1)[0])
+            if tag is not None:
+                tags.update(needed_tags(tag.group(1)))
+    return {package: frozenset(tags) for package, tags in found.items()}
+
+
+def check_artifact_backend_matrix(
+    switching: dict[str, frozenset[str]], release: list[GoTest], inventory: Inventory
+) -> int:
+    """Each package that switches its blob backend runs whole, with the tags its
+    switching files need, on the filesystem backend in some release pass."""
+    if not switching:
+        raise SystemExit(
+            "no Go test reads CONTRACTOR_TEST_ARTIFACT_BACKEND; the filesystem blob backend runs in no release pass"
+        )
+    missing = [
+        package
+        for package, tags in sorted(switching.items())
+        if not any(
+            FILESYSTEM_BACKEND in test.environment
+            and test.run is None
+            and tags <= test.tags
+            and set(inventory.packages(test.tags, (package,))) <= set(inventory.packages(test.tags, test.packages))
+            for test in release
+        )
+    ]
+    if missing:
+        raise SystemExit(
+            f"release-verify runs no complete {FILESYSTEM_BACKEND} pass "
+            f"(tags {[sorted(switching[package]) for package in missing]}) of: {missing}"
+        )
+    return len(switching)
+
+
+# Checks the lint stage keeps, and the subject that fails each when it breaks.
+LINT_STAGE_CHECKS = (
+    ("config validate --root ./configs", "the shipped configuration catalog"),
+    ("scripts/check_database_erd.py", "the database ERD against the migrations"),
+)
+
+
+def check_lint_stage(commands: list[str]) -> None:
+    missing = [subject for marker, subject in LINT_STAGE_CHECKS if not any(marker in command for command in commands)]
+    if missing:
+        raise SystemExit(f"release-verify-lint no longer checks {' or '.join(missing)}")
 
 
 GO_SOURCE_ROOTS = ("cmd", "internal", "tests", "tools")
@@ -792,10 +865,13 @@ if __name__ == "__main__":
     named = check_selected_tests_exist(release + [test for tests in opt_in.values() for test in tests], inventory)
     tagged = check_e2e_reachable(e2e_tagged_tests(inventory), release, opt_in, inventory)
     check_non_race_passes(race_constrained_packages(), release, inventory)
+    backends = check_artifact_backend_matrix(artifact_backend_packages(), release, inventory)
+    check_lint_stage(dry_run("release-verify-lint"))
     count = check_integration_graph()
     check_database_tests_fail_closed()
     print(
         f"release graph: {len(stages)} stages in CI order, {raced} race packages, 19 process tests, "
         f"6 fixture tests, {named} existing -run selections, {tagged} tagged e2e tests "
-        f"({len(OPT_IN_E2E_TESTS)} opt-in) and {count} integration tests covered"
+        f"({len(OPT_IN_E2E_TESTS)} opt-in), {count} integration tests, {backends} packages on the "
+        "filesystem blob backend, and the catalog and ERD checks covered"
     )

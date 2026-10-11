@@ -16,6 +16,7 @@ lint: generate-public-client-check
 	python3 scripts/check_release_verify_graph.py
 	cd runtime && uv run python ../scripts/check_tasks.py
 	python3 scripts/check_spec.py
+	python3 scripts/check_database_erd.py
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
@@ -49,7 +50,8 @@ verify-architecture:
 	npx --yes likec4@1.56.0 validate docs/spec
 
 # Regenerates docs/spec/database-erd.html from a scratch database migrated to
-# the current schema; see scripts/erd/README.md.
+# the current schema; see scripts/erd/README.md. make lint fails while the page
+# lags the migrations (scripts/check_database_erd.py).
 docs-erd:
 	npm ci --prefix scripts/erd --no-audit --no-fund
 	python3 scripts/erd/build_erd.py

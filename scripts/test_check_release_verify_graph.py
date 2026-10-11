@@ -247,6 +247,69 @@ class NonRacePassTest(unittest.TestCase):
             self.check(guard.GoTest("x", frozenset({"integration"}), ("./internal/findingintake",), "Budget"))
 
 
+class ArtifactBackendMatrixTest(unittest.TestCase):
+    SWITCHING = {"./internal/artifacts": frozenset(), "./internal/findingintake": frozenset({"integration"})}
+    PACKAGES = ("./internal/artifacts", "./internal/findingintake")
+
+    def check(self, *tests: guard.GoTest, switching=None) -> int:
+        return guard.check_artifact_backend_matrix(
+            self.SWITCHING if switching is None else switching, list(tests), IdentityInventory()
+        )
+
+    def filesystem_pass(self, **changes) -> guard.GoTest:
+        fields = {
+            "source": "x", "tags": frozenset({"integration"}), "packages": self.PACKAGES, "run": None,
+            "environment": frozenset({guard.FILESYSTEM_BACKEND}),
+        }
+        return guard.GoTest(**{**fields, **changes})
+
+    def test_parsed_command_carries_its_environment(self) -> None:
+        test = guard.parse_go_test(
+            "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags=integration -count=1 ./internal/artifacts", "x"
+        )
+        self.assertEqual(test.environment, frozenset({guard.FILESYSTEM_BACKEND}))
+        self.assertEqual(guard.parse_go_test("go test ./internal/artifacts", "x").environment, frozenset())
+
+    def test_complete_filesystem_pass_passes(self) -> None:
+        self.assertEqual(self.check(self.filesystem_pass()), 2)
+        self.assertEqual(self.check(self.filesystem_pass(race=True)), 2)
+
+    def test_pass_on_the_default_backend_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "no complete CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem pass"):
+            self.check(self.filesystem_pass(environment=frozenset()))
+        with self.assertRaisesRegex(SystemExit, "no complete"):
+            self.check(self.filesystem_pass(environment=frozenset({"CONTRACTOR_TEST_ARTIFACT_BACKEND=postgres"})))
+
+    def test_partial_pass_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "internal/artifacts"):
+            self.check(self.filesystem_pass(run="TestPostgresIntegration64MiB"))
+        with self.assertRaisesRegex(SystemExit, r"\['./internal/findingintake'\]"):
+            self.check(self.filesystem_pass(tags=frozenset()))
+        with self.assertRaisesRegex(SystemExit, r"\['./internal/findingintake'\]"):
+            self.check(self.filesystem_pass(packages=("./internal/artifacts",)))
+
+    def test_lost_backend_switch_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "no Go test reads"):
+            self.check(self.filesystem_pass(), switching={})
+
+
+class LintStageTest(unittest.TestCase):
+    COMMANDS = [
+        "test -z \"$(gofmt -l cmd internal tests)\"",
+        "python3 scripts/check_database_erd.py",
+        "go run ./cmd/contractor-server config validate --root ./configs",
+    ]
+
+    def test_complete_lint_stage_passes(self) -> None:
+        guard.check_lint_stage(self.COMMANDS)
+
+    def test_lost_catalog_or_erd_check_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "shipped configuration catalog"):
+            guard.check_lint_stage(self.COMMANDS[:2])
+        with self.assertRaisesRegex(SystemExit, "database ERD"):
+            guard.check_lint_stage([self.COMMANDS[0], self.COMMANDS[2]])
+
+
 M = guard.MODULE
 
 

@@ -23,3 +23,9 @@ drops the database. It needs `psql`, Go and Node.js.
 After a migration adds, drops or renames a table, update `meta.json`; the
 build fails and names every table it cannot describe, and every flag or
 description that no longer matches the schema.
+
+Regenerate the page with every migration. `make lint` runs
+[`scripts/check_database_erd.py`](../check_database_erd.py), which needs no
+database: it fails when the page's `schemaVersion` is not the newest migration
+or when its tables differ from those the migrations leave after their
+`CREATE TABLE`, `DROP TABLE` and `ALTER TABLE ... RENAME TO` statements.
