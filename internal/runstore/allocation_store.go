@@ -16,47 +16,7 @@ import (
 )
 
 func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation StageAllocation) error {
-	for field, value := range map[string]string{
-		"allocationID":           allocation.AllocationID,
-		"stageExecutionID":       allocation.StageExecutionID,
-		"logicalAgentName":       allocation.LogicalAgentName,
-		"runtimeAgentID":         allocation.RuntimeAgentID,
-		"runtimeAgentInstanceID": allocation.RuntimeAgentInstanceID,
-	} {
-		if err := validateOpaque(field, value); err != nil {
-			return err
-		}
-	}
-	if err := validateNamespace(allocation.Namespace); err != nil {
-		return err
-	}
-	if !contracts.ValidRuntimeAgentID(allocation.RuntimeAgentID) ||
-		allocation.RuntimeAgentLabelRevision == 0 || allocation.RuntimeConfiguration == nil ||
-		allocation.RuntimeConfigurationSchemaVersion != AllocationRuntimeConfigurationSchemaVersion {
-		return invalidf("Runtime Agent principal and configuration are required")
-	}
-	if err := allocation.RuntimeConfiguration.Validate(); err != nil {
-		return invalidf("allocation Runtime configuration is invalid: %v", err)
-	}
-	if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (allocation.RuntimeConfiguration.ModelPolicy == (contracts.ModelPolicyRef{})) {
-		return invalidf("allocation model policy does not match Worker runtime")
-	}
-	if err := allocation.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
-		return invalidf("allocation performance collection policy is invalid")
-	}
-	if err := validateOpaque("AgentTemplate templateID", allocation.AgentTemplateRef.TemplateID); err != nil {
-		return err
-	}
-	if err := validateOpaque("AgentTemplate version", allocation.AgentTemplateRef.Version); err != nil {
-		return err
-	}
-	if !contentdigest.Valid(allocation.AgentTemplateRef.Digest) {
-		return invalidf("AgentTemplate digest is invalid")
-	}
-	if err := validateOpaque("WorkerRuntime runtimeID", allocation.WorkerRuntimeRef.RuntimeID); err != nil {
-		return err
-	}
-	if err := validateOpaque("WorkerRuntime version", allocation.WorkerRuntimeRef.Version); err != nil {
+	if err := allocation.Validate(); err != nil {
 		return err
 	}
 	templateRef, err := json.Marshal(allocation.AgentTemplateRef)
@@ -73,9 +33,6 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	}
 	var completion []byte
 	if allocation.CompletionContract != nil {
-		if err := allocation.CompletionContract.Validate(); err != nil || allocation.CompletionContract.ResultArtifact.Namespace != allocation.Namespace {
-			return invalidf("invalid allocation completion contract")
-		}
 		completion, err = json.Marshal(allocation.CompletionContract)
 		if err != nil {
 			return err
@@ -125,6 +82,62 @@ RETURNING allocation_id`,
 	}
 	if insertedID != allocation.AllocationID {
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, ErrConflict)
+	}
+	return nil
+}
+
+// Validate is the check RecordStageAllocation applies before it writes a row:
+// it returns ErrInvalid for an allocation the store refuses. Test doubles of
+// RecordStageAllocation apply it too, so they reject what the store rejects.
+func (allocation StageAllocation) Validate() error {
+	for field, value := range map[string]string{
+		"allocationID":           allocation.AllocationID,
+		"stageExecutionID":       allocation.StageExecutionID,
+		"logicalAgentName":       allocation.LogicalAgentName,
+		"runtimeAgentID":         allocation.RuntimeAgentID,
+		"runtimeAgentInstanceID": allocation.RuntimeAgentInstanceID,
+	} {
+		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if err := validateNamespace(allocation.Namespace); err != nil {
+		return err
+	}
+	if !contracts.ValidRuntimeAgentID(allocation.RuntimeAgentID) ||
+		allocation.RuntimeAgentLabelRevision == 0 || allocation.RuntimeConfiguration == nil ||
+		allocation.RuntimeConfigurationSchemaVersion != AllocationRuntimeConfigurationSchemaVersion {
+		return invalidf("Runtime Agent principal and configuration are required")
+	}
+	if err := allocation.RuntimeConfiguration.Validate(); err != nil {
+		return invalidf("allocation Runtime configuration is invalid: %v", err)
+	}
+	if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (allocation.RuntimeConfiguration.ModelPolicy == (contracts.ModelPolicyRef{})) {
+		return invalidf("allocation model policy does not match Worker runtime")
+	}
+	if err := allocation.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
+		return invalidf("allocation performance collection policy is invalid")
+	}
+	if err := validateOpaque("AgentTemplate templateID", allocation.AgentTemplateRef.TemplateID); err != nil {
+		return err
+	}
+	if err := validateOpaque("AgentTemplate version", allocation.AgentTemplateRef.Version); err != nil {
+		return err
+	}
+	if !contentdigest.Valid(allocation.AgentTemplateRef.Digest) {
+		return invalidf("AgentTemplate digest is invalid")
+	}
+	if err := validateOpaque("WorkerRuntime runtimeID", allocation.WorkerRuntimeRef.RuntimeID); err != nil {
+		return err
+	}
+	if err := validateOpaque("WorkerRuntime version", allocation.WorkerRuntimeRef.Version); err != nil {
+		return err
+	}
+	if allocation.CompletionContract != nil {
+		if err := allocation.CompletionContract.Validate(); err != nil ||
+			allocation.CompletionContract.ResultArtifact.Namespace != allocation.Namespace {
+			return invalidf("invalid allocation completion contract")
+		}
 	}
 	return nil
 }

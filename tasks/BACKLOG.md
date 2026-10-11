@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-101 open tasks: 3 in progress, 84 pending, 14 deferred. 795 finished: 792 completed, 3 archived.
+99 open tasks: 3 in progress, 82 pending, 14 deferred. 797 finished: 794 completed, 3 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-011](v368-011-run-transitions-match-spec.yml) | defect | P1 | V368-010 | Allow only the Run transitions the spec defines |
 | [V368-017](v368-017-registration-permanent-failure.yml) | defect | P1 | — | Stop retrying a Runtime registration the Server rejected permanently |
 | [V368-019](v368-019-release-budget-timeouts.yml) | defect | P2 | — | Give each Scheduler timeout its own operation |
 | [V368-034](v368-034-gateway-recovery-followups.yml) | chore | P3 | — | Share the gateway recovery participant protocol and index the probe holder |
@@ -170,7 +169,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V368-010](v368-010-fakes-match-stores.yml) | defect | P1 | — | Make test fakes enforce the same rules as the real stores |
 | [V368-033](v368-033-test-fidelity-followups.yml) | chore | P3 | — | Close test gaps the fix batch left |
 | [V369-003](v369-003-release-gate-coverage.yml) | chore | P1 | — | Add the missing checks to the release gate |
 | [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
@@ -202,8 +200,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 9 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 41 |
+| Run execution core (`execution-core`) | 8 | 36 | 44 | 9 | 62 |
+| Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -221,4 +219,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 13 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |
+| Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |

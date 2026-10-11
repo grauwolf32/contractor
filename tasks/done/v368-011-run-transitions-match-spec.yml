@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V368-011
+title: "Allow only the Run transitions the spec defines"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V65-002
+priority: P1
+status: completed
+implementation_commit: 4599cee8fd9df068c769dd5e0df5694816e705dd
+depends_on: [V368-010]
+languages: [go]
+goal: "A test compares the Go transition table with the spec's table edge by edge."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state G2, F2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    runstore/store.go:663-665 accepts initializing->running and
+    waiting->succeeded, which RUN-R26/RUN-R28 (execution/runs.md:110-140,
+    352, 364) do not define; store_test.go:18 pins the first as valid and
+    43+ test calls use it.
+  siblings: >-
+    The memory and public test doubles of TransitionRun call
+    ValidateRunTransition since V368-010, so they lost the two edges with the
+    store; the parity tests in scheduler and httpapi/public compare every
+    edge with PostgreSQL. The memory Skill initializer already commits pending
+    (V368-010). Production callers use only specified edges: initialization
+    commits initializing -> pending (runservice, app/run_skill_initializer),
+    admission pending -> running (scheduler/admission.go), terminal commits
+    move running, pending or waiting to failed and cancelling to cancelled,
+    and success is committed from running after gatewayrecovery.EndStage ends
+    any wait. Not changed here: gatewayrecovery writes running <-> waiting in
+    its own SQL; those edges are in the table, and moving their writes into
+    runstore is a separate task.
+  decision: >-
+    runLifecycle holds all fifteen edges of the state diagram in
+    docs/spec/execution/runs.md with the operation that performs each:
+    TransitionRun takes the ten that record only a reason, while
+    RequestRunCancellation (the four edges into cancelling, which need the
+    WorkflowRunCancellation, RUN-R40) and ResumeFailedRun (failed -> pending,
+    with its receipt and new attempt, RUN-R46) own the others, so
+    ValidateRunTransition refuses them for TransitionRun. The alternative,
+    letting TransitionRun take every specified edge, would let it enter
+    cancelling without a cancellation record, which the
+    workflow_run_cancellation_shape CHECK rejects as an unclassified
+    database error, or leave failed without a continuation receipt.
+    TestRunLifecycleMatchesSpecification parses the mermaid state diagram and
+    compares edge sets both ways, checks that ValidateRunTransition accepts
+    exactly the TransitionRun edges, and that cancellation leaves exactly the
+    declared cancellable states. The specification already matched; it is
+    unchanged. Tests move Runs initializing -> pending -> running
+    (admitTestRun in runstore, an explicit initialization step elsewhere);
+    the lifecycle and Planner session tests that pin Run event sequences
+    count the extra lifecycle event. introduced_by: V65-002 introduced
+    pending and waiting and left initializing -> running and added waiting
+    -> succeeded in the table (fae981a0, outside this shallow clone; from the
+    task records).
+scope:
+  in:
+    - "Transition table equal to the spec; test helpers move Runs through pending; the unit test pins the spec table."
+  out:
+    - "Production transitions (none uses the extra edges)."
+acceptance_criteria:
+  - id: A1
+    text: "A test compares the Go transition table with the spec's table edge by edge."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/runstore ./internal/scheduler ./internal/runservice"
+    covers: [A1]

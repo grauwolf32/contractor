@@ -38,7 +38,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 	var created runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
-		if err := lockRunState(ctx, tx, params.RunID, runstore.RunPending, runstore.RunRunning); err != nil {
+		if err := lockRunState(ctx, tx, params.RunID, stageCreationRunStates...); err != nil {
 			return err
 		}
 		if err := store.LockRunQueueAdmission(ctx, params.RunID); err != nil {
@@ -81,7 +81,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		}
 		// A Runtime Agent may deliver its result while the Run waits for a
 		// model gateway on another route; the result commit clears the wait.
-		if err := lockRunState(ctx, tx, execution.RunID, runstore.RunRunning, runstore.RunWaiting); err != nil {
+		if err := lockRunState(ctx, tx, execution.RunID, finalizationRunStates...); err != nil {
 			return err
 		}
 		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
@@ -110,7 +110,7 @@ func (p *PostgresPersistence) EnterAbortingWithTermination(
 	params runstore.EnterAbortingParams,
 ) error {
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunForAborting(ctx, tx, runID); err != nil {
+		if err := lockRunState(ctx, tx, runID, abortRunStates...); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, params.StageExecutionID, runID); err != nil {
@@ -118,24 +118,6 @@ func (p *PostgresPersistence) EnterAbortingWithTermination(
 		}
 		return runstore.NewPostgresStore(tx).EnterAborting(ctx, params)
 	})
-}
-
-func lockRunForAborting(ctx context.Context, tx pgx.Tx, runID string) error {
-	var actual runstore.WorkflowRunState
-	err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).Scan(&actual)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("lock WorkflowRun %q: %w", runID, runstore.ErrNotFound)
-	}
-	if err != nil {
-		return fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
-	}
-	if actual != runstore.RunRunning && actual != runstore.RunPending && actual != runstore.RunWaiting && actual != runstore.RunCancelling {
-		return &runstore.StateConflictError{
-			Resource: "WorkflowRun", ID: runID,
-			Expected: string(runstore.RunRunning) + " or " + string(runstore.RunCancelling),
-		}
-	}
-	return nil
 }
 
 func (p *PostgresPersistence) CommitResultProgression(
@@ -147,7 +129,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
-		if err := lockRunState(ctx, tx, value.RunID, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting); err != nil {
+		if err := lockRunState(ctx, tx, value.RunID, progressionRunStates...); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, value.StageExecutionID, value.RunID); err != nil {
@@ -222,7 +204,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		return err
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, value.RunID, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting); err != nil {
+		if err := lockRunState(ctx, tx, value.RunID, progressionRunStates...); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, value.StageExecutionID, value.RunID); err != nil {
@@ -395,6 +377,24 @@ WHERE run_id = $1 AND state = 'finalizing'`, runID); err != nil {
 		return gatewayrecovery.EndStage(ctx, tx, runID)
 	})
 }
+
+// The WorkflowRun states each commit point accepts under its Run row lock.
+// The memory test doubles of these commit points enforce the same sets.
+var (
+	// A Stage starts only after initialization committed and never while the
+	// Run is cancelling (RUN-R26, RUN-R42).
+	stageCreationRunStates = []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning}
+	// A Runtime may deliver its result while the Run waits for a model route
+	// on another call; the result commit ends the wait.
+	finalizationRunStates = []runstore.WorkflowRunState{runstore.RunRunning, runstore.RunWaiting}
+	// Admission and result or termination progression move an initialized
+	// Run that is not cancelling; cancellation has its own commit points.
+	progressionRunStates = []runstore.WorkflowRunState{runstore.RunPending, runstore.RunRunning, runstore.RunWaiting}
+	// A Stage abort may also start for a cancelling Run (RUN-R42).
+	abortRunStates = []runstore.WorkflowRunState{
+		runstore.RunPending, runstore.RunRunning, runstore.RunWaiting, runstore.RunCancelling,
+	}
+)
 
 func lockRunState(
 	ctx context.Context,

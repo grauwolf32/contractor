@@ -11,25 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// TestWorkflowRunTransitionValidation pins the edges TransitionRun performs
+// (RUN-R26 to RUN-R46); TestRunLifecycleMatchesSpecification compares the
+// whole table with the specification.
 func TestWorkflowRunTransitionValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := [][2]WorkflowRunState{
-		{RunInitializing, RunRunning}, {RunInitializing, RunFailed},
-		{RunRunning, RunSucceeded}, {RunRunning, RunFailed},
+		{RunInitializing, RunPending}, {RunPending, RunRunning},
+		{RunRunning, RunWaiting}, {RunWaiting, RunRunning}, {RunRunning, RunSucceeded},
+		{RunInitializing, RunFailed}, {RunPending, RunFailed}, {RunRunning, RunFailed}, {RunWaiting, RunFailed},
 		{RunCancelling, RunCancelled},
 	}
 	for _, transition := range valid {
-		if err := validateRunTransition(transition[0], transition[1]); err != nil {
+		if err := ValidateRunTransition(transition[0], transition[1]); err != nil {
 			t.Errorf("valid transition %s -> %s: %v", transition[0], transition[1], err)
 		}
 	}
 	for _, transition := range [][2]WorkflowRunState{
-		{RunInitializing, RunCancelling}, {RunRunning, RunCancelling},
+		// Initialization commits pending and only admission sets running
+		// (RUN-R28); success is committed from running (RUN-R35).
+		{RunInitializing, RunRunning}, {RunWaiting, RunSucceeded}, {RunPending, RunSucceeded},
+		// Cancellation and manual continuation record their own evidence.
+		{RunInitializing, RunCancelling}, {RunRunning, RunCancelling}, {RunFailed, RunPending},
 		{RunRunning, RunCancelled}, {RunSucceeded, RunRunning},
 		{RunCancelling, RunSucceeded}, {"unknown", RunRunning},
 	} {
-		if err := validateRunTransition(transition[0], transition[1]); !errors.Is(err, ErrInvalid) {
+		if err := ValidateRunTransition(transition[0], transition[1]); !errors.Is(err, ErrInvalid) {
 			t.Errorf("invalid transition %s -> %s error = %v", transition[0], transition[1], err)
 		}
 	}
@@ -275,7 +283,7 @@ func TestTypedConflictAndNoWorkResults(t *testing.T) {
 
 	store := NewPostgresStore(stubDB{row: stubRow{err: pgx.ErrNoRows}})
 	_, err := store.TransitionRun(
-		context.Background(), "run-1", RunInitializing, RunRunning, Reason{Code: "ready"},
+		context.Background(), "run-1", RunInitializing, RunPending, Reason{Code: "ready"},
 	)
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("TransitionRun error = %v, want ErrConflict", err)

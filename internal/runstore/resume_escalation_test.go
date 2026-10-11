@@ -22,7 +22,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 			store := NewPostgresStore(pool)
 			runID := "review-resume"
 			run := createTestRun(t, ctx, store, runID)
-			if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+			if _, err := admitTestRun(ctx, store, runID); err != nil {
 				t.Fatal(err)
 			}
 			var ordinal *int

@@ -37,7 +37,11 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 	if run.State != RunInitializing || run.WorkflowSnapshot == nil {
 		t.Fatalf("created Run = %+v", run)
 	}
-	run, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"})
+	run, err := store.TransitionRun(ctx, run.RunID, RunInitializing, RunPending, Reason{Code: "initialized"})
+	if err != nil || run.State != RunPending || run.StartedAt != nil {
+		t.Fatalf("initialized Run = (%+v, %v)", run, err)
+	}
+	run, err = store.TransitionRun(ctx, run.RunID, RunPending, RunRunning, Reason{Code: "admitted"})
 	if err != nil {
 		t.Fatalf("start Run: %v", err)
 	}
@@ -207,10 +211,10 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		string(session.State) != `{"step": 1}` && string(session.State) != `{"step":1}` {
 		t.Fatalf("Planner session = (%+v, %v)", session, err)
 	}
-	plannerRunEvents, err := store.ListRunEvents(ctx, run.RunID, 4, 10)
+	plannerRunEvents, err := store.ListRunEvents(ctx, run.RunID, 5, 10)
 	if err != nil || len(plannerRunEvents) != 2 ||
-		plannerRunEvents[0].EventID != "event-started" || plannerRunEvents[0].SequenceNumber != 5 ||
-		plannerRunEvents[1].EventID != "event-1" || plannerRunEvents[1].SequenceNumber != 6 {
+		plannerRunEvents[0].EventID != "event-started" || plannerRunEvents[0].SequenceNumber != 6 ||
+		plannerRunEvents[1].EventID != "event-1" || plannerRunEvents[1].SequenceNumber != 7 {
 		t.Fatalf("Planner Run events = (%+v, %v)", plannerRunEvents, err)
 	}
 	gap := requestRunEvent
@@ -226,18 +230,19 @@ WHERE allocation_id = 'allocation-1'`); persistencepostgres.SQLState(err) != "23
 		t.Fatalf("Planner sequence gap error = %v, want conflict", err)
 	}
 	cursor, err := store.GetRunEventCursor(ctx, run.RunID)
-	if err != nil || cursor.Sequence != 6 || cursor.Generation == "" {
+	if err != nil || cursor.Sequence != 7 || cursor.Generation == "" {
 		t.Fatalf("Run event cursor = (%+v, %v)", cursor, err)
 	}
 	runEvents, err := store.ListRunEvents(ctx, run.RunID, 0, 10)
-	if err != nil || len(runEvents) != 6 || runEvents[0].Kind != RunEventLifecycleChanged ||
+	if err != nil || len(runEvents) != 7 || runEvents[0].Kind != RunEventLifecycleChanged ||
 		runEvents[1].Kind != RunEventLifecycleChanged || runEvents[2].Kind != RunEventLifecycleChanged ||
-		runEvents[3].Kind != RunEventLifecycleChanged || runEvents[4].Kind != RunEventPlannerStarted ||
-		runEvents[5].Kind != RunEventPlannerRequestRecorded {
+		runEvents[3].Kind != RunEventLifecycleChanged || runEvents[4].Kind != RunEventLifecycleChanged ||
+		runEvents[5].Kind != RunEventPlannerStarted || runEvents[6].Kind != RunEventPlannerRequestRecorded {
 		t.Fatalf("Run events = (%+v, %v)", runEvents, err)
 	}
 	wantLifecycle := []lifecycleRunEventData{
 		{RunID: run.RunID, Resource: "run", State: string(RunInitializing)},
+		{RunID: run.RunID, Resource: "run", State: string(RunPending)},
 		{RunID: run.RunID, Resource: "run", State: string(RunRunning)},
 		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StagePreparing)},
 		{RunID: run.RunID, Resource: "stageExecution", StageExecutionID: execution.StageExecutionID, State: string(StageRunning)},
@@ -553,9 +558,7 @@ func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T
 	if _, err := store.CreateRun(ctx, foreignParams); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.TransitionRun(
-		ctx, standalone.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, standalone.RunID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.RequestRunCancellation(ctx, evaluationRun.RunID, WorkflowRunCancellation{
@@ -644,9 +647,7 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 	}
 	newer := create("run-filter-newer", "user-1", "b")
 	_ = create("run-filter-foreign", "user-2", "a")
-	if _, err := store.TransitionRun(
-		ctx, newer.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, newer.RunID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -728,9 +729,7 @@ func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *tes
 		t.Fatal(err)
 	}
 	active := createTestRun(t, ctx, store, "run-lifecycle-active")
-	if _, err := store.TransitionRun(
-		ctx, active.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, active.RunID); err != nil {
 		t.Fatal(err)
 	}
 	terminalNew := createTestRun(t, ctx, store, "run-lifecycle-terminal-new")
@@ -828,7 +827,7 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			_, err := store.TransitionRun(ctx, "run-race", RunInitializing, RunRunning, Reason{Code: "ready"})
+			_, err := store.TransitionRun(ctx, "run-race", RunInitializing, RunPending, Reason{Code: "ready"})
 			switch {
 			case err == nil:
 				atomic.AddInt32(&transitions, 1)
@@ -930,7 +929,7 @@ func TestPostgresStageAdmissionPreservesInitialQueueControlRevision(t *testing.T
 			if _, err := store.CreateRun(ctx, params); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "ready"}); err != nil {
+			if _, err := admitTestRun(ctx, store, runID); err != nil {
 				t.Fatal(err)
 			}
 			initial, err := store.GetOwnerQueueControl(ctx, test.owner)
@@ -1031,9 +1030,7 @@ WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != "23514" {
 	}
 
 	run := createTestRun(t, ctx, store, "run-queue-control")
-	if _, err := store.TransitionRun(
-		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "ready"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1129,9 +1126,7 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	store := NewPostgresStore(pool)
 
 	first := createTestRun(t, ctx, store, "run-capacity-waiting")
-	if _, err := store.TransitionRun(
-		ctx, first.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, first.RunID); err != nil {
 		t.Fatal(err)
 	}
 	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute)
@@ -1232,7 +1227,7 @@ WHERE run_id = $1`, runID, deferredClaimYield.Microseconds()); err != nil {
 	}
 
 	blocked := createTestRun(t, ctx, store, "run-blocked-running")
-	if _, err := store.TransitionRun(ctx, blocked.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"}); err != nil {
+	if _, err := admitTestRun(ctx, store, blocked.RunID); err != nil {
 		t.Fatal(err)
 	}
 	claimAndDefer("claim-blocked-1", blocked.RunID)
@@ -1304,9 +1299,9 @@ func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 		t.Fatalf("complete Skill snapshot: %v", err)
 	}
 	started, err := store.TransitionRun(
-		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+		ctx, run.RunID, RunInitializing, RunPending, Reason{Code: "initialized"},
 	)
-	if err != nil || started.State != RunRunning || started.SkillSnapshot[0].Artifact == nil ||
+	if err != nil || started.State != RunPending || started.SkillSnapshot[0].Artifact == nil ||
 		*started.SkillSnapshot[0].Artifact.Revision != runRevision {
 		t.Fatalf("started Skill Run = (%+v, %v)", started, err)
 	}
@@ -1456,7 +1451,7 @@ WHERE run_id = $1`, first.RunID)
 	}
 
 	succeeded := createTestRun(t, ctx, store, "run-succeeded-before-cancel")
-	succeeded, err = store.TransitionRun(ctx, succeeded.RunID, RunInitializing, RunRunning, Reason{Code: "ready"})
+	succeeded, err = admitTestRun(ctx, store, succeeded.RunID)
 	if err == nil {
 		succeeded, err = store.TransitionRun(ctx, succeeded.RunID, RunRunning, RunSucceeded, Reason{Code: "completed"})
 	}
@@ -1608,9 +1603,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 	pool := isolatedRunStorePool(t, ctx)
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, "run-live-allocation-credential")
-	if _, err := store.TransitionRun(
-		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "ready"},
-	); err != nil {
+	if _, err := admitTestRun(ctx, store, run.RunID); err != nil {
 		t.Fatal(err)
 	}
 	execution, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
@@ -1696,6 +1689,15 @@ func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runI
 		t.Fatalf("create test Run %q: %v", runID, err)
 	}
 	return run
+}
+
+// admitTestRun moves a created Run through initialization, which commits
+// pending, and admission, which sets running (RUN-R28).
+func admitTestRun(ctx context.Context, store *PostgresStore, runID string) (WorkflowRun, error) {
+	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunPending, Reason{Code: "initialized"}); err != nil {
+		return WorkflowRun{}, err
+	}
+	return store.TransitionRun(ctx, runID, RunPending, RunRunning, Reason{Code: "admitted"})
 }
 
 func testRunParams(runID string) CreateRunParams {

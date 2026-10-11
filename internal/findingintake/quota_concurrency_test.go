@@ -178,8 +178,14 @@ func quotaSubmissionGrant(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "quota_test_started"}); err != nil {
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "quota_test_started"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
 		t.Fatal(err)
 	}
 	stageID, allocationID := runID+"-stage", runID+"-allocation"

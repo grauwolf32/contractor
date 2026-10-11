@@ -214,7 +214,12 @@ func createPrivateArtifactRun(t *testing.T, ctx context.Context, pool *pgxpool.P
 		t.Fatalf("create WorkflowRun: %v", err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "initialized"},
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatalf("start WorkflowRun: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatalf("start WorkflowRun: %v", err)
 	}

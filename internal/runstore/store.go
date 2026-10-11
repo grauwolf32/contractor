@@ -445,7 +445,7 @@ func (s *PostgresStore) TransitionRun(
 	if err := validateOpaque("runID", runID); err != nil {
 		return WorkflowRun{}, err
 	}
-	if err := validateRunTransition(expected, next); err != nil {
+	if err := ValidateRunTransition(expected, next); err != nil {
 		return WorkflowRun{}, err
 	}
 	if err := validateReason(reason); err != nil {
@@ -655,15 +655,51 @@ func validateIdempotencyKey(value string) error {
 	return nil
 }
 
-func validateRunTransition(expected, next WorkflowRunState) error {
-	allowed := map[WorkflowRunState]map[WorkflowRunState]bool{
-		RunInitializing: {RunPending: true, RunRunning: true, RunFailed: true},
-		RunPending:      {RunRunning: true, RunFailed: true},
-		RunWaiting:      {RunRunning: true, RunSucceeded: true, RunFailed: true},
-		RunRunning:      {RunWaiting: true, RunSucceeded: true, RunFailed: true},
-		RunCancelling:   {RunCancelled: true},
-	}
-	if !allowed[expected][next] {
+// runTransitionOperation names the store operation that performs an edge of
+// the WorkflowRun lifecycle.
+type runTransitionOperation string
+
+const (
+	// TransitionRun performs the edges that record only a reason.
+	transitionByTransitionRun runTransitionOperation = "TransitionRun"
+	// RequestRunCancellation records the WorkflowRunCancellation that
+	// cancelling and cancelled require (RUN-R40, RUN-R41).
+	transitionByCancellation runTransitionOperation = "RequestRunCancellation"
+	// ResumeFailedRun records the continuation receipt and the new attempt
+	// with the one transition out of failed (RUN-R46).
+	transitionByContinuation runTransitionOperation = "ResumeFailedRun"
+)
+
+// runLifecycle is the WorkflowRun lifecycle of docs/spec/execution/runs.md,
+// edge by edge, with the operation that performs each edge;
+// TestRunLifecycleMatchesSpecification holds it to the specification's state
+// diagram. Initialization commits pending and only admission sets running
+// (RUN-R26, RUN-R28), and success is committed from running (RUN-R35).
+var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
+	{RunInitializing, RunPending}:    transitionByTransitionRun,
+	{RunPending, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunWaiting}:         transitionByTransitionRun,
+	{RunWaiting, RunRunning}:         transitionByTransitionRun,
+	{RunRunning, RunSucceeded}:       transitionByTransitionRun,
+	{RunInitializing, RunFailed}:     transitionByTransitionRun,
+	{RunPending, RunFailed}:          transitionByTransitionRun,
+	{RunRunning, RunFailed}:          transitionByTransitionRun,
+	{RunWaiting, RunFailed}:          transitionByTransitionRun,
+	{RunCancelling, RunCancelled}:    transitionByTransitionRun,
+	{RunInitializing, RunCancelling}: transitionByCancellation,
+	{RunPending, RunCancelling}:      transitionByCancellation,
+	{RunRunning, RunCancelling}:      transitionByCancellation,
+	{RunWaiting, RunCancelling}:      transitionByCancellation,
+	{RunFailed, RunPending}:          transitionByContinuation,
+}
+
+// ValidateRunTransition is the transition rule TransitionRun applies before
+// its compare-and-set: it returns ErrInvalid for an edge TransitionRun must
+// not perform, either because the lifecycle has no such edge or because
+// cancellation or manual continuation owns it. Test doubles of TransitionRun
+// apply it too, so they reject what the store rejects.
+func ValidateRunTransition(expected, next WorkflowRunState) error {
+	if runLifecycle[[2]WorkflowRunState{expected, next}] != transitionByTransitionRun {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
 	}
 	return nil

@@ -97,7 +97,7 @@ func (s *PostgresStore) TransitionClaimed(
 	ctx context.Context,
 	params ClaimedTransitionParams,
 ) (Audit, error) {
-	if err := validateClaimedTransition(params); err != nil {
+	if err := ValidateClaimedTransition(params); err != nil {
 		return Audit{}, err
 	}
 	var reasonCode, reasonMessage *string

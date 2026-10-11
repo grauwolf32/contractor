@@ -249,7 +249,14 @@ func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
 		t.Fatalf("pinned deletion had side effects: manager=%d operations=%d",
 			manager.deleteCalls(), countOperations(t, ctx, pool, OperationDelete))
 	}
-	if _, err := runs.TransitionRun(ctx, "run-pinned", runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "started"}); err != nil {
+	if _, err := runs.TransitionRun(
+		ctx, "run-pinned", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "started"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, "run-pinned", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runs.TransitionRun(ctx, "run-pinned", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "finished"}); err != nil {

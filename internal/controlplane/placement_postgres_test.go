@@ -580,7 +580,12 @@ func newPlacementFixture(
 		t.Fatal(err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, runID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "ready"},
+		ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

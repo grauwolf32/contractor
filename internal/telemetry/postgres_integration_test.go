@@ -311,8 +311,12 @@ func createTelemetryRun(t *testing.T, ctx context.Context, store *runstore.Postg
 		t.Fatal(err)
 	}
 	if _, err := store.TransitionRun(
-		ctx, "run-telemetry", runstore.RunInitializing, runstore.RunRunning,
-		runstore.Reason{Code: "initialized"},
+		ctx, "run-telemetry", runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-telemetry", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
 	); err != nil {
 		t.Fatal(err)
 	}

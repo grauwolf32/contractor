@@ -27,7 +27,14 @@ func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = runs.TransitionRun(t.Context(), planner, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "fixture"}); err != nil {
+		if _, err = runs.TransitionRun(
+			t.Context(), planner, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "fixture"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = runs.TransitionRun(
+			t.Context(), planner, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+		); err != nil {
 			t.Fatal(err)
 		}
 		_, err = runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
@@ -95,7 +102,14 @@ func TestEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = runs.TransitionRun(t.Context(), ref.ID, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "fixture"}); err != nil {
+		if _, err = runs.TransitionRun(
+			t.Context(), ref.ID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "fixture"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = runs.TransitionRun(
+			t.Context(), ref.ID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"},
+		); err != nil {
 			t.Fatal(err)
 		}
 	}

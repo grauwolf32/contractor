@@ -22,7 +22,7 @@ func failedResumeFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	t.Helper()
 	store := NewPostgresStore(pool)
 	run := createTestRun(t, ctx, store, runID)
-	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+	if _, err := admitTestRun(ctx, store, runID); err != nil {
 		t.Fatal(err)
 	}
 	stageID := runID + "-stage"
@@ -253,7 +253,7 @@ func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 	for _, missing := range []bool{true, false} {
 		runID := fmt.Sprintf("run-resume-context-%t", missing)
 		run := createTestRun(t, ctx, store, runID)
-		if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+		if _, err := admitTestRun(ctx, store, runID); err != nil {
 			t.Fatal(err)
 		}
 		scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
