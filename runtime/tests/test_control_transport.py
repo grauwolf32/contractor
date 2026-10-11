@@ -58,6 +58,50 @@ def test_transport_closes_connection_and_preserves_http_status(
     asyncio.run(scenario())
 
 
+_ENVELOPE = (
+    b'{"code":"invalid_runtime_labels","message":"server-message-must-not-escape",'
+    b'"retryable":false,"requestId":"request_1"}'
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "envelope"),
+    [
+        (_ENVELOPE, ("invalid_runtime_labels", False, "request_1")),
+        (
+            b'{"code":"conflict","message":"m","retryable":true,"requestId":"request-2"}',
+            ("conflict", True, "request-2"),
+        ),
+        # Anything but the exact strict envelope is classified by status alone.
+        (_ENVELOPE.replace(b'{"code"', b'{"code":"conflict","code"'), None),
+        (_ENVELOPE.replace(b"false", b'"false"'), None),
+        (_ENVELOPE.replace(b"invalid_runtime_labels", b"Invalid Labels"), None),
+        (_ENVELOPE.replace(b"}", b',"extra":1}'), None),
+        (_ENVELOPE.replace(b"server-message-must-not-escape", b" "), None),
+        (_ENVELOPE.replace(b"request_1", b"request 1"), None),
+        (b"<html>Bad Gateway</html>", None),
+        (b"", None),
+    ],
+)
+def test_transport_attaches_only_a_strict_private_error_envelope(
+    body: bytes, envelope: tuple[str, bool, str] | None, connection: FakeConnection
+) -> None:
+    async def scenario() -> None:
+        reader, _ = connection()
+        reader.feed_data(
+            f"HTTP/1.1 400 Bad Request\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body
+        )
+        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        with pytest.raises(ControlHTTPError) as error:
+            await transport.post_json("/private/v1/agents/register", {})
+        attached = (error.value.code, error.value.retryable, error.value.request_id)
+        assert attached == (envelope or (None, None, None))
+        assert error.value.status_code == 400
+        assert "server-message-must-not-escape" not in str(error.value)
+
+    asyncio.run(scenario())
+
+
 def test_role_is_verified_before_writing_request(
     connection: FakeConnection, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -12,7 +12,12 @@ from collections.abc import Callable, Sequence
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.capabilities import discover_capabilities
-from contractor_runtime.control_client import ControlClient, ControlTransport, MTLSJSONTransport
+from contractor_runtime.control_client import (
+    ControlClient,
+    ControlTransport,
+    MTLSJSONTransport,
+    RegistrationRejectedError,
+)
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
@@ -205,7 +210,10 @@ async def _serve(
                 task.cancel()
         for task in (registration_task, heartbeat_task, stop_task):
             if task is not None:
-                with contextlib.suppress(asyncio.CancelledError):
+                # A failure, such as a permanent registration rejection, was
+                # already raised from the main wait path; awaiting it again
+                # must not skip the listener cleanup below.
+                with contextlib.suppress(asyncio.CancelledError, Exception):
                     await task
         if watchdog_task is not None:
             # Any watchdog failure was already raised from the main wait path;
@@ -274,7 +282,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         asyncio.run(serve(settings))
     except KeyboardInterrupt:
         logger.info("runtime agent interrupted")
-    except WorkRootLockError as error:
+    except (WorkRootLockError, RegistrationRejectedError) as error:
+        # Both messages are built from safe, bounded fields for the operator.
         logger.error("runtime agent failed: %s", error)
         raise SystemExit(1) from None
     except Exception as error:

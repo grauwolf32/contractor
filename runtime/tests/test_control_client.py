@@ -12,12 +12,14 @@ from typing import Any
 
 import pytest
 
+from contractor_runtime._https import decode_private_error
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.control_client import (
     ControlClient,
     ControlClientError,
     ControlHTTPError,
     MTLSJSONTransport,
+    RegistrationRejectedError,
 )
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import runtime_agent_client_context
@@ -378,6 +380,111 @@ def test_retry_logging_does_not_include_exception_message(
         asyncio.run(scenario())
     assert "recognizable-private-token" not in caplog.text
     assert "RuntimeError" in caplog.text
+
+
+def server_rejection(status: int, body: bytes) -> ControlHTTPError:
+    """The error MTLSJSONTransport raises for one non-2xx Server response."""
+
+    return ControlHTTPError(status, decode_private_error(body))
+
+
+def private_error(code: str, *, retryable: bool) -> bytes:
+    """The Server's private error envelope (controlplane writePrivateError)."""
+
+    return json.dumps(
+        {
+            "code": code,
+            "message": "server-message-must-not-escape",
+            "retryable": retryable,
+            "requestId": "request-1",
+        }
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "reason"),
+    [
+        (400, private_error("invalid_request", retryable=False), "HTTP 400 invalid_request"),
+        (
+            400,
+            private_error("invalid_runtime_labels", retryable=False),
+            "HTTP 400 invalid_runtime_labels",
+        ),
+        # The Server's flag decides over the status class.
+        (503, private_error("internal_error", retryable=False), "HTTP 503 internal_error"),
+        (404, b"not found", "HTTP 404)"),
+        (403, b"", "HTTP 403)"),
+    ],
+)
+def test_permanent_registration_rejection_stops_without_retrying(
+    status: int,
+    body: bytes,
+    reason: str,
+    caplog: pytest.LogCaptureFixture,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        delays: list[float] = []
+
+        async def record_sleep(delay: float) -> None:
+            delays.append(delay)
+
+        state = RuntimeState(instance_id="runtime-rejected", capabilities=runtime_capabilities)
+        transport = FakeTransport([server_rejection(status, body), registration_response()])
+        client = ControlClient(make_settings(), state, transport, sleep=record_sleep)
+        with pytest.raises(RegistrationRejectedError) as rejected:
+            await client.register_until_stopped(asyncio.Event())
+        assert reason in str(rejected.value)
+        assert "server-message-must-not-escape" not in str(rejected.value)
+        assert rejected.value.status_code == status
+        assert len(transport.requests) == 1
+        assert delays == []
+        assert (await state.snapshot()).process_state is ProcessState.STARTING
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(scenario())
+    assert "server-message-must-not-escape" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "logged"),
+    [
+        (503, private_error("internal_error", retryable=True), "HTTP 503 internal_error"),
+        (409, private_error("conflict", retryable=True), "HTTP 409 conflict"),
+        # The Server's flag decides over the status class.
+        (400, private_error("invalid_request", retryable=True), "HTTP 400 invalid_request"),
+        (502, b"<html>bad gateway</html>", "HTTP 502 without an error code"),
+        (429, b"", "HTTP 429 without an error code"),
+        (408, b"", "HTTP 408 without an error code"),
+    ],
+)
+def test_retryable_registration_rejection_backs_off_and_registers(
+    status: int,
+    body: bytes,
+    logged: str,
+    caplog: pytest.LogCaptureFixture,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        delays: list[float] = []
+
+        async def record_sleep(delay: float) -> None:
+            delays.append(delay)
+
+        state = RuntimeState(instance_id="runtime-retried", capabilities=runtime_capabilities)
+        transport = FakeTransport([server_rejection(status, body), registration_response()])
+        client = ControlClient(
+            make_settings(), state, transport, sleep=record_sleep, jitter=lambda: 0.0
+        )
+        assert await client.register_until_stopped(asyncio.Event()) is True
+        assert len(transport.requests) == 2
+        assert delays == [0.375]
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(scenario())
+    assert logged in caplog.text
+    assert "server-message-must-not-escape" not in caplog.text
 
 
 def test_inflight_heartbeat_cancels_cleanly() -> None:
