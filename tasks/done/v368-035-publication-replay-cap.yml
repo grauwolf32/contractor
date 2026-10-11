@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V368-035
+title: "Bound replays of a terminal commit that keeps failing on publication"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V367-004
+priority: P3
+status: completed
+implementation_commit: "9ef406d9aa0589b76f4f5b16aa1087fc105fedc8"
+depends_on: []
+languages: [go]
+goal: "After N transient failures the Run finishes with a recorded publication failure."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-004 accepted risk; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    V367-004 replays a terminal commit after transient publication failures
+    with no attempt limit; each replay is bounded by the operation budget
+    and runs once per claim, but a permanently transient condition keeps the
+    Stage finalizing.
+  decision: >-
+    Re-verified on fc7e526: publishOneProjectOutput aborts the terminal
+    transaction on a transient failure and nothing counts the aborts, and
+    PRJ-R58 and FAIL-PRJ-4 said "until it commits". The aborted transaction
+    keeps nothing, so the count is a store operation of its own: the
+    PostgreSQL persistence marks the abort with errTransientOutputPublication,
+    and the Scheduler, after CommitResultProgression returns it, increments
+    stage_executions.output_publication_failures (migration 000070) under a
+    fresh terminal operation budget. The count belongs to the finalizing
+    StageExecution whose commit is replayed, not to the Run: a manual
+    continuation is a new StageExecution and starts from zero, and the row
+    lock the terminal transaction already holds keeps the count stable while
+    it decides. It grows only while that Stage is finalizing and leaves
+    updated_at alone (recovery ordering keys on it; the count is not a
+    lifecycle change). Bound LIM-PRJ-4 = 5: once five aborts are counted the
+    next replay attempts no publication at all, records one bounded failed
+    result (publication_attempts_exhausted) per present output and commits
+    the Run's success, as PRJ-R58 requires of publication failures. Skipping
+    the attempt, rather than recording a sixth transient failure as failed,
+    guarantees termination even when the failure leaves the transaction
+    unusable (lost connection, operation deadline). Not counted: an abort the
+    database cannot record (it is down, so nothing could commit anyway, and an
+    outage does not exhaust the bound) and claim loss (the fresh operation
+    context is cancelled too; the next owner replays). A lost acknowledgement
+    of the count is not retried, so each abort counts at most once.
+    Alternatives rejected: a counter on workflow_runs (survives a manual
+    continuation and turns into a stale bound), a 1:1 side table (AGENTS 3.7),
+    counting inside the terminal transaction through a savepoint (cannot count
+    an abort that leaves the transaction unusable) and counting every attempt
+    before it starts (an extra write on every successful Project Run). Five
+    replays are paced by one per Run claim, about one poll interval each; a
+    lock or statement timeout makes each take its database timeout. Reopen if
+    a transient condition is seen to outlast five replays while publication
+    would later have succeeded, by pacing the replays rather than raising the
+    bound. The Project output can still be published by hand (PRJ-R60).
+    introduced_by: V367-004 (88fd2697) introduced the unbounded replay and
+    recorded it as an accepted risk.
+scope:
+  in:
+    - "A durable attempt counter (migration) and a terminal outcome after the bound, as PRJ-R58 states."
+  out:
+    - "Single-failure replay."
+acceptance_criteria:
+  - id: A1
+    text: "After N transient failures the Run finishes with a recorded publication failure."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/scheduler"
+    covers: [A1]
+verification:
+  - "TestPostgresSchedulerBoundsTerminalCommitReplaysAfterTransientPublicationFailures (real PostgreSQL, five injected 40P01/55P03/57014 faults through the Scheduler) checks one count per abort, then a succeeded Run with one publication_attempts_exhausted result, no Project output and no publication attempt after the faults. It fails when the count is not recorded (counted failures 0) and when the exhaustion branch is removed (the output is published on the sixth attempt)."
+  - "TestPostgresStageOutputPublicationFailuresCountOnlyWhileFinalizing (runstore, real PostgreSQL) checks the count grows only while the StageExecution is finalizing and only under its Run, rejects blank IDs, and changes neither updated_at nor the Run event cursor."
+  - "CONTRACTOR_TEST_DATABASE_URL set to a disposable PostgreSQL 17 database: go test -count=1 -tags integration ./internal/scheduler ./internal/runstore passed; go test -count=1 ./internal/persistence/... ./internal/runstore passed (the migration applies and the schema invariants hold)."
+  - "Lint subset instead of the full make lint (the coordinator runs it after merging): gofmt -l, go build ./..., go vet (with and without -tags integration) and staticcheck -checks U1000 -tests -tags=e2e,integration on scheduler and runstore, go test ./internal/archtest ./internal/persistence, scripts/check_spec.py and scripts/check_tasks.py passed."
+  - "docs/spec/database-erd.html was not regenerated; it needs make docs-erd after the merge for the new column."
