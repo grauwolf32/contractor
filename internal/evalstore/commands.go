@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -17,7 +18,7 @@ type CommandParams struct {
 }
 
 func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
-	if !resourceID.MatchString(p.CommandID) {
+	if !contracts.ValidResourceID(p.CommandID) {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	if err := evaldomain.Validate("Command", bytesOf(p.Command)); err != nil {
@@ -45,7 +46,7 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 			}
 		}
 		if p.Command.Kind == "duplicate" {
-			if !resourceID.MatchString(p.DuplicateID) || evaldomain.Validate("Id", bytesOf(p.DuplicatePortableID)) != nil || e.Draft.Kind() != "Draft" {
+			if !contracts.ValidResourceID(p.DuplicateID) || evaldomain.Validate("Id", bytesOf(p.DuplicatePortableID)) != nil || e.Draft.Kind() != "Draft" {
 				return nil, evaldomain.Failure("eval_invalid")
 			}
 			// Copy authoring intent only: no member, receipt, clock or frozen plan is reused.

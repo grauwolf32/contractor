@@ -292,3 +292,46 @@ func TestOperationsCapabilityRulesAreTheRegistrationRules(t *testing.T) {
 		t.Fatal("shared Runtime capability bounds differ from the shared cases")
 	}
 }
+
+// TestPlacementReservesExactlyTheLogicalWorkersOperationsShows is the
+// regression for a logical Agent name such as "my worker": the catalog and
+// placement accepted it while the Operations snapshot rejected the allocation,
+// which failed every Operations allocation list. Placement now reserves
+// exactly the names the catalog accepts and Operations shows (WFL-R84).
+func TestPlacementReservesExactlyTheLogicalWorkersOperationsShows(t *testing.T) {
+	t.Parallel()
+	cases := readRuntimeCapabilityCases(t)
+	binding := testBinding(t, "builder", "builder", testTemplate(t))
+	longest := strings.Repeat("a", cases.ToolName.MaxLength)
+	for _, group := range []struct {
+		values []string
+		valid  bool
+	}{
+		{append([]string{longest}, cases.ToolName.Valid...), true},
+		{append([]string{longest + "a"}, cases.ToolName.Invalid...), false},
+	} {
+		for _, name := range group.values {
+			registry := newTestRegistry(t, newTestClock())
+			registerReady(t, registry, "agent-names")
+			candidate := binding
+			candidate.LogicalAgentName = name
+			_, err := registry.ReserveAll(ReservationRequest{
+				RunID: "run-names", StageExecutionID: "stage-names", Bindings: []BindingRequirement{candidate},
+			})
+			snapshot := registry.SnapshotOperations()
+			if validateErr := snapshot.Validate(); validateErr != nil {
+				t.Fatalf("logical Worker %q: Operations snapshot is invalid: %v", name, validateErr)
+			}
+			if group.valid {
+				if err != nil || len(snapshot.Allocations) != 1 || snapshot.Allocations[0].LogicalWorker != name {
+					t.Errorf("logical Worker %q: ReserveAll error = %v, allocations = %+v", name, err, snapshot.Allocations)
+				}
+				continue
+			}
+			if !errors.Is(err, ErrInvalidRequest) || len(snapshot.Allocations) != 0 {
+				t.Errorf("logical Worker %q: ReserveAll error = %v, allocations = %+v; want ErrInvalidRequest and none",
+					name, err, snapshot.Allocations)
+			}
+		}
+	}
+}

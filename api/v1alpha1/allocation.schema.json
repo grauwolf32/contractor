@@ -439,7 +439,7 @@
           "$ref": "common.schema.json#/$defs/opaqueId"
         },
         "logicalAgentName": {
-          "$ref": "common.schema.json#/$defs/opaqueId"
+          "$ref": "common.schema.json#/$defs/name"
         },
         "namespace": {
           "type": "string",

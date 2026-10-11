@@ -709,30 +709,18 @@ func validatePlannerFact(fact planner.PlannerFact) error {
 	if !validPlannerFactKey(fact.Key) {
 		return fmt.Errorf("Planner fact key is invalid")
 	}
-	validSubtask := func(value string, allowEmpty bool) bool {
-		if value == "" {
-			return allowEmpty
-		}
-		if len(value) > 2 {
-			return false
-		}
-		for _, current := range value {
-			if current < '0' || current > '9' {
-				return false
-			}
-		}
-		return true
-	}
-	validCall := strings.HasPrefix(fact.CallID, "dispatch-") && len(fact.CallID) <= 64
-	validWorker := strings.TrimSpace(fact.WorkerName) != "" && len(fact.WorkerName) <= 128
+	// The Run event store applies the same rules when it appends the fact.
+	validCall := runstore.ValidPlannerDispatchCallID(fact.CallID)
+	validWorker := contracts.ValidName(fact.WorkerName)
 	switch fact.Kind {
 	case planner.PlannerEventDispatchSelected:
-		if !validSubtask(fact.SubtaskID, false) || !validCall || !validWorker ||
+		if !runstore.ValidPlannerSubtaskID(fact.SubtaskID) || !validCall || !validWorker ||
 			fact.Outcome != "" || fact.Code != "" {
 			return fmt.Errorf("dispatch-selected Planner fact is invalid")
 		}
 	case planner.PlannerEventCurrentChanged:
-		if !validSubtask(fact.SubtaskID, true) || fact.CallID != "" || fact.WorkerName != "" ||
+		if (fact.SubtaskID != "" && !runstore.ValidPlannerSubtaskID(fact.SubtaskID)) ||
+			fact.CallID != "" || fact.WorkerName != "" ||
 			fact.Outcome != "" || fact.Code != "" {
 			return fmt.Errorf("current-changed Planner fact is invalid")
 		}

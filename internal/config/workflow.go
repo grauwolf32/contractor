@@ -37,7 +37,7 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	if spec.Stages == nil || len(*spec.Stages) == 0 {
 		return ResolvedWorkflow{}, fmt.Errorf("spec.stages must be a non-empty mapping")
 	}
-	if err := validateMapKey("spec.entryStage", spec.EntryStage); err != nil {
+	if err := validateWorkflowName("spec.entryStage", spec.EntryStage); err != nil {
 		return ResolvedWorkflow{}, err
 	}
 	if _, ok := (*spec.Stages)[spec.EntryStage]; !ok {
@@ -46,7 +46,7 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 
 	stages := make(map[string]ResolvedStage, len(*spec.Stages))
 	for name, source := range *spec.Stages {
-		if err := validateMapKey("Stage name", name); err != nil {
+		if err := validateWorkflowName("Stage name", name); err != nil {
 			return ResolvedWorkflow{}, err
 		}
 		stage, stageErr := l.resolveStage(name, source, outputs, *spec.Stages)
@@ -339,7 +339,7 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 	}
 	result := make(map[string]ResolvedAgentBinding, len(source))
 	for logicalName, binding := range source {
-		if err := validateMapKey("logical Agent name", logicalName); err != nil {
+		if err := validateWorkflowName("logical Agent name", logicalName); err != nil {
 			return nil, err
 		}
 		selector, err := ParseSelector(binding.Template)
@@ -691,7 +691,7 @@ func (l *loader) resolveTransitionAction(
 	switch {
 	case source.Next != nil:
 		action = TransitionAction{Kind: TransitionNext, NextStage: *source.Next}
-		if err := validateMapKey(field+".next", action.NextStage); err != nil {
+		if err := validateWorkflowName(field+".next", action.NextStage); err != nil {
 			return TransitionAction{}, err
 		}
 		if _, ok := stages[action.NextStage]; !ok {
@@ -812,6 +812,12 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	sort.Strings(names)
 	for _, name := range names {
 		stage := workflow.Stages[name]
+		if err := validateWorkflowName("Stage name", name); err != nil {
+			return err
+		}
+		if err := validateStageAgentNames(fmt.Sprintf("Stage %q", name), stage.Agents); err != nil {
+			return err
+		}
 		if err := stage.Session.Validate(); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}

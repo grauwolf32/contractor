@@ -15,11 +15,10 @@ import (
 
 const (
 	maxRunEventDataBytes               = 2 * 1024 * 1024
-	maxRunEventIdentityBytes           = 256
+	maxRunEventTokenBytes              = 128
 	maxRunEventSubtasks                = 32
 	maxRunEventSubtaskObjectiveBytes   = 8 * 1024
 	maxRunEventSubtaskInstructionBytes = 32 * 1024
-	maxRunEventWorkerNameBytes         = 128
 	maxRunEventFunctions               = 32
 )
 
@@ -90,8 +89,7 @@ func decodeLifecycleRunEventData(data json.RawMessage) (lifecycleRunEventData, e
 }
 
 func validateLifecycleRunEventData(data lifecycleRunEventData) error {
-	if !validRunStableName(data.RunID, maxRunEventIdentityBytes) ||
-		!validRunStableName(data.State, 128) {
+	if !contracts.ValidResourceID(data.RunID) || !validRunEventToken(data.State) {
 		return invalidf("WorkflowRun lifecycle event identity or state is invalid")
 	}
 	switch data.Resource {
@@ -100,7 +98,7 @@ func validateLifecycleRunEventData(data lifecycleRunEventData) error {
 			return invalidf("WorkflowRun lifecycle event has an unexpected StageExecution identity")
 		}
 	case "stageExecution":
-		if !validRunStableName(data.StageExecutionID, maxRunEventIdentityBytes) {
+		if !contracts.ValidResourceID(data.StageExecutionID) {
 			return invalidf("StageExecution lifecycle event identity is invalid")
 		}
 	default:
@@ -191,7 +189,7 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 		"sessionId":        data.SessionID,
 		"invocationId":     data.InvocationID,
 	} {
-		if !validRunStableName(value, maxRunEventIdentityBytes) {
+		if !contracts.ValidResourceID(value) {
 			return invalidf("WorkflowRun Planner event %s is invalid", name)
 		}
 	}
@@ -229,20 +227,20 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 		}
 	case RunEventPlannerCurrentChanged:
 		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 ||
-			!validRunSubtaskID(data.SubtaskID, true) || data.CallID != "" ||
+			(data.SubtaskID != "" && !ValidPlannerSubtaskID(data.SubtaskID)) || data.CallID != "" ||
 			data.WorkerName != "" || data.Outcome != "" || data.Code != "" {
 			return invalidf("WorkflowRun Planner current-changed event has invalid fields")
 		}
 	case RunEventPlannerDispatchSelected:
 		if !noPlanOrActivity() || data.PlanRevision == nil || *data.PlanRevision == 0 ||
-			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-selected event has invalid fields")
 		}
 	case RunEventPlannerDispatchStarted:
 		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
-			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) || data.Outcome != "" || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-started event has invalid fields")
 		}
 		if err := validatePlannerRunPlan(*data.Plan); err != nil {
@@ -255,8 +253,8 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 		}
 	case RunEventPlannerDispatchCompleted:
 		if data.Plan == nil || data.PlanRevision != nil || data.Activity != nil ||
-			!validRunSubtaskID(data.SubtaskID, false) || !validRunDispatchCallID(data.CallID) ||
-			!validRunWorkerName(data.WorkerName) ||
+			!ValidPlannerSubtaskID(data.SubtaskID) || !ValidPlannerDispatchCallID(data.CallID) ||
+			!contracts.ValidName(data.WorkerName) ||
 			(data.Outcome != "succeeded" && data.Outcome != "failed") || data.Code != "" {
 			return invalidf("WorkflowRun Planner dispatch-completed event has invalid fields")
 		}
@@ -282,7 +280,7 @@ func validatePlannerRunEventData(kind RunEventKind, data plannerRunEventData) er
 	case RunEventPlannerFailed:
 		if data.Plan != nil || data.PlanRevision != nil || data.SubtaskID != "" ||
 			data.CallID != "" || data.WorkerName != "" || data.Activity != nil ||
-			data.Outcome != "failure" || !validRunStableName(data.Code, 128) {
+			data.Outcome != "failure" || !validRunEventToken(data.Code) {
 			return invalidf("WorkflowRun Planner failed event has invalid fields")
 		}
 	default:
@@ -326,7 +324,7 @@ func validatePlannerRunPlan(plan plannerRunPlanProjection) error {
 	}
 	active := plan.ActiveDispatch
 	if running != 1 || active.SubtaskID != plan.CurrentSubtaskID ||
-		!validRunDispatchCallID(active.CallID) || !validRunWorkerName(active.WorkerName) ||
+		!ValidPlannerDispatchCallID(active.CallID) || !contracts.ValidName(active.WorkerName) ||
 		!plannerRunSubtaskHasStatus(plan, active.SubtaskID, "running") {
 		return invalidf("WorkflowRun Planner active dispatch is invalid")
 	}
@@ -359,7 +357,7 @@ func validatePlannerRunActivity(activity plannerRunActivity) error {
 			return invalidf("WorkflowRun Planner activity function list is too large")
 		}
 		for _, value := range values {
-			if !validRunStableName(value, 128) {
+			if !validRunEventToken(value) {
 				return invalidf("WorkflowRun Planner activity function name is invalid")
 			}
 		}
@@ -367,11 +365,12 @@ func validatePlannerRunActivity(activity plannerRunActivity) error {
 	return nil
 }
 
-func validRunSubtaskID(value string, allowEmpty bool) bool {
-	if value == "" {
-		return allowEmpty
-	}
-	if len(value) > 2 || len(value) > 1 && value[0] == '0' {
+// ValidPlannerSubtaskID reports whether value identifies a Planner subtask: its
+// decimal position in the plan, one or two digits without a leading zero, as
+// the public PlannerSubtask id states. The Planner session applies it before
+// it records a fact, so no fact it accepts can fail its append.
+func ValidPlannerSubtaskID(value string) bool {
+	if value == "" || len(value) > 2 || len(value) > 1 && value[0] == '0' {
 		return false
 	}
 	for _, current := range value {
@@ -382,7 +381,10 @@ func validRunSubtaskID(value string, allowEmpty bool) bool {
 	return true
 }
 
-func validRunDispatchCallID(value string) bool {
+// ValidPlannerDispatchCallID reports whether value is a Server-generated
+// Planner dispatch call ID: "dispatch-" and at least four digits, at most 64
+// bytes, as the public PlannerDispatch callId states.
+func ValidPlannerDispatchCallID(value string) bool {
 	if !strings.HasPrefix(value, "dispatch-") || len(value) > 64 {
 		return false
 	}
@@ -398,22 +400,11 @@ func validRunDispatchCallID(value string) bool {
 	return true
 }
 
-func validRunWorkerName(value string) bool {
-	return validRunStableName(value, maxRunEventWorkerNameBytes)
-}
-
-func validRunStableName(value string, limit int) bool {
-	if strings.TrimSpace(value) == "" || len(value) > limit {
-		return false
-	}
-	for _, current := range value {
-		if current >= 'a' && current <= 'z' || current >= 'A' && current <= 'Z' ||
-			current >= '0' && current <= '9' || strings.ContainsRune("._:-", current) {
-			continue
-		}
-		return false
-	}
-	return true
+// validRunEventToken applies the public SafeIdentifier grammar, the ResourceId
+// grammar of contracts.ValidResourceID, to a Run event state, code or function
+// name, which the store bounds more tightly.
+func validRunEventToken(value string) bool {
+	return len(value) <= maxRunEventTokenBytes && contracts.ValidResourceID(value)
 }
 
 func plannerRunSubtaskHasStatus(plan plannerRunPlanProjection, id, status string) bool {

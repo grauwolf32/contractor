@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"math"
-	"regexp"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
 )
-
-var eventResourceID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 
 type EventListParams struct {
 	OwnerID, AuditID string
@@ -120,7 +118,7 @@ func safeEventSummary(raw json.RawMessage) map[string]any {
 			}
 		case "runId", "subjectId", "findingId", "workflowRole":
 			var text string
-			if json.Unmarshal(value, &text) == nil && eventResourceID.MatchString(text) {
+			if json.Unmarshal(value, &text) == nil && contracts.ValidResourceID(text) {
 				result[key] = text
 			}
 		default:

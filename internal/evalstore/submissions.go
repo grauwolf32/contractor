@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -194,7 +195,7 @@ func (s *Store) PutSuboperation(ctx context.Context, scope Scope, id, member str
 	if _, err := evaldomain.StrictJSON(op.Request); err != nil {
 		return err
 	}
-	if !resourceID.MatchString(op.Key) {
+	if !contracts.ValidResourceID(op.Key) {
 		return evaldomain.Failure("eval_invalid")
 	}
 	e, err := s.recovery(ctx, scope, id, claim)

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
@@ -33,8 +34,7 @@ type AttemptDiagnostics struct {
 }
 
 var (
-	diagnosticCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	diagnosticURLPattern  = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"']+`)
+	diagnosticURLPattern = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 )
 
 // Summary is the aggregate telemetry projection exposed through the public API.
@@ -146,7 +146,7 @@ func appendAttemptDiagnostics(
 	}
 	for _, source := range report.Errors {
 		code := source.Code
-		if !diagnosticCodePattern.MatchString(code) {
+		if !contracts.ValidName(code) {
 			code = "execution_error"
 		}
 		message := diagnosticURLPattern.ReplaceAllString(source.Message, "[REDACTED_URL]")

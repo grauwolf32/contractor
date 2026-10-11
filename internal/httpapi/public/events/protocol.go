@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -24,7 +25,6 @@ const (
 	maximumSubscriptions    = 32
 )
 
-var safeIdentifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 var subscriptionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
 
 type Stream struct {
@@ -182,7 +182,7 @@ func decodeStream(data json.RawMessage) (Stream, error) {
 	case StreamRun:
 		var id string
 		if len(source.ID) == 0 || decodeClosedJSON(source.ID, &id, true) != nil ||
-			!safeIdentifierPattern.MatchString(id) {
+			!contracts.ValidResourceID(id) {
 			return Stream{}, errors.New("invalid Run stream")
 		}
 		return Stream{Kind: StreamRun, ID: id}, nil
@@ -197,7 +197,7 @@ func decodeStream(data json.RawMessage) (Stream, error) {
 }
 
 func parseCursor(cursor Cursor) (uint64, error) {
-	if !safeIdentifierPattern.MatchString(cursor.Generation) || len(cursor.Sequence) == 0 ||
+	if !contracts.ValidResourceID(cursor.Generation) || len(cursor.Sequence) == 0 ||
 		len(cursor.Sequence) > 20 || len(cursor.Sequence) > 1 && cursor.Sequence[0] == '0' {
 		return 0, errors.New("invalid cursor")
 	}

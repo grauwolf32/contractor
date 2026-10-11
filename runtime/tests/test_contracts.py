@@ -792,10 +792,12 @@ def test_golden_runtime_capability_cases_match_models_and_schemas() -> None:
         AgentHeartbeat: Draft202012Validator(
             schemas["agent-heartbeat.schema.json"], registry=registry
         ),
+        AllocationSpec: Draft202012Validator(schemas["allocation.schema.json"], registry=registry),
     }
     fixtures = {
         AgentRegistration: "agent-registration.json",
         AgentHeartbeat: "agent-heartbeat.json",
+        AllocationSpec: "allocation-spec.json",
     }
 
     def check(label: str, valid: bool, model: type[BaseModel], changes: dict[str, Any]) -> None:
@@ -822,6 +824,8 @@ def test_golden_runtime_capability_cases_match_models_and_schemas() -> None:
     ):
         for tool in values:
             check(f"tool {tool!r}", valid, AgentRegistration, tools([tool]))
+            # Logical Agent names use the same grammar: Operations shows them.
+            check(f"logicalAgentName {tool!r}", valid, AllocationSpec, {"logicalAgentName": tool})
     most_tools = cases["toolsPerToolset"]["maxItems"]
     check("most tools", True, AgentRegistration, tools(numbered(most_tools, "tool_{:03d}")))
     check(

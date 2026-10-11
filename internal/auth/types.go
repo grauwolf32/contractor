@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"regexp"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 var (
@@ -17,8 +19,7 @@ var (
 	ErrInvalidOrigin      = errors.New("invalid browser origin")
 	ErrInvalidCSRF        = errors.New("invalid CSRF token")
 
-	principalIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
-	usernamePattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
+	usernamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
 )
 
 const (
@@ -33,7 +34,7 @@ type Principal struct {
 }
 
 func NewPrincipal(userID, username string) (Principal, error) {
-	if !principalIDPattern.MatchString(userID) || !usernamePattern.MatchString(username) {
+	if !contracts.ValidName(userID) || !usernamePattern.MatchString(username) {
 		return Principal{}, ErrInvalidBootstrap
 	}
 	return Principal{

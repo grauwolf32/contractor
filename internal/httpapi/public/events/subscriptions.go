@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -40,7 +41,7 @@ func (s *socket) pumpRun(ctx context.Context, current *subscription, after *Curs
 		return
 	}
 	latest, err := s.hub.runs.GetRunEventCursor(ctx, current.stream.ID)
-	if err != nil || latest.Sequence < 0 || !safeIdentifierPattern.MatchString(latest.Generation) {
+	if err != nil || latest.Sequence < 0 || !contracts.ValidResourceID(latest.Generation) {
 		if ctx.Err() == nil {
 			s.sendError(current.id, "overloaded", "Run stream is temporarily unavailable", true)
 		}
@@ -132,7 +133,7 @@ func (s *socket) pumpOperations(ctx context.Context, current *subscription, afte
 	updates, cancelUpdates := s.hub.operations.SubscribeOperations()
 	defer cancelUpdates()
 	snapshot := s.hub.operations.SnapshotOperations()
-	if !safeIdentifierPattern.MatchString(snapshot.Cursor.Generation) {
+	if !contracts.ValidResourceID(snapshot.Cursor.Generation) {
 		s.sendError(current.id, "overloaded", "Operations stream is temporarily unavailable", true)
 		return
 	}

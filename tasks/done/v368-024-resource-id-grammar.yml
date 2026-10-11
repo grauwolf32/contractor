@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V368-024
+title: "Use one ResourceId and ConfigId grammar in every Go package"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P2
+status: completed
+implementation_commit: "88e0e1cdeb9f07f6484f3057af2f5f8aad574ebb"
+depends_on: []
+languages: [go]
+goal: "A test finds no Go regexp equal to the ResourceId or ConfigId grammar outside contracts; an invalid run_id is rejected at write."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-007 follow-up; exec-state G5, G6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Six Go copies of the ResourceId pattern remain (auditstore, runstore,
+    evalstore, auditservice, httpapi/public request and events) and auth
+    keeps its own ConfigId copy. runstore accepts any non-blank run_id on
+    write (types.go:605) while ListNonTerminalRunIDsByCredential fails on
+    the first ID outside credentialRunIDPattern (store.go:99-101), blocking
+    credential deletion forever (lifecycle.go:368-372). planner/session
+    validatePlannerFact (service.go:712-726) accepts IDs runstore later
+    rejects (run_event_store.go:370-399).
+  decision: >-
+    Re-verified on fc7e526: the new source scan
+    (internal/contracts TestPublicIdentifierGrammarsHaveOneGoDefinition)
+    reported nine copies, the six named plus projectstore, auth's principal
+    ID and telemetry's diagnostic code (the public AttemptDiagnostic.code is
+    a ConfigId); all now call contracts.ValidResourceID or
+    contracts.ValidName, and contracts validates Artifact names with
+    ValidName instead of the second pattern ArtifactNamePattern. The scan
+    flags a string literal whose regular expression accepts exactly a
+    bounded public grammar (ResourceId up to 256, ConfigId up to 128), seen
+    through reordered classes and groups; it cannot see an unbounded pattern
+    paired with a separate length check. Patterns with the same characters
+    but another bound are other rules and stay: idempotency, request,
+    operation and subscription keys of up to 128 characters (credentials,
+    credentials/litellm, projectstore, auditstore, findingintake, requestid,
+    live events), Audit identifiers of up to 160 bytes (duplicated in
+    auditdomain and auditpriority), usernames and CLI context names of up to
+    64, and unbounded localpki leaf file names; reopen one when it is meant
+    to be a public ResourceId or ConfigId. Write validation (API-R70):
+    runstore checks Run, Project, StageExecution, previous execution,
+    allocation and Runtime instance identities with ValidResourceID and
+    Stage and logical Agent names with ValidName when they are written, so
+    ListNonTerminalRunIDsByCredential can no longer meet a stored ID it
+    rejects (PostgreSQL regression test); owner IDs stay opaque in the store
+    because authentication already bounds principal IDs. The Run event
+    store replaced its hand-written grammar, which accepted leading
+    punctuation, with the ResourceId grammar of the public SafeIdentifier
+    (state, code and function names keep their 128-character bound). The
+    Planner session now applies the store's exported
+    ValidPlannerSubtaskID and ValidPlannerDispatchCallID (alternative:
+    moving them to contracts; rejected because they are the Run event
+    store's rule and the session already depends on the store). Out of
+    scope: the private AllocationSpec allocationId, runId and
+    stageExecutionId stay opaqueId on the private wire, since they are
+    Server-generated randomid values that the Runtime never reports to
+    Operations.
+scope:
+  in:
+    - "contracts.ValidResourceID and contracts.ValidName used everywhere, including write validation in runstore and planner session."
+  out:
+    - "The grammar itself."
+acceptance_criteria:
+  - id: A1
+    text: "A test finds no Go regexp equal to the ResourceId or ConfigId grammar outside contracts; an invalid run_id is rejected at write."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/contracts ./internal/runstore ./internal/planner/session ./internal/auditstore ./internal/evalstore ./internal/httpapi/..."
+    covers: [A1]

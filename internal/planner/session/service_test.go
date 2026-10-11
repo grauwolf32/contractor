@@ -499,3 +499,57 @@ func (s *memoryStore) runEventKinds() []runstore.RunEventKind {
 	}
 	return result
 }
+
+// TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar holds a recorded
+// dispatch to the logical Agent name grammar (WFL-R84) the Run event store
+// applies, so the session never accepts a fact whose append must fail.
+func TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
+	fact := planner.PlannerFact{
+		Kind: planner.PlannerEventDispatchSelected, Key: "selected:dispatch-0001",
+		PlanRevision: 1, SubtaskID: "0", CallID: "dispatch-0001",
+	}
+	longest := strings.Repeat("a", contracts.MaxNameLength)
+	for name, valid := range map[string]bool{
+		"reviewer": true, "Tool_1.v2": true, longest: true,
+		"": false, " ": false, "_reviewer": false, "reviewer:1": false, "my reviewer": false, longest + "a": false,
+	} {
+		fact.WorkerName = name
+		if err := validatePlannerFact(fact); (err == nil) != valid {
+			t.Errorf("worker name %q: valid=%v, error=%v", name, valid, err)
+		}
+	}
+}
+
+// TestPlannerFactIDsUseTheRunEventGrammar is the regression for facts whose
+// subtask or call ID the session accepted while the Run event store rejected
+// the append ("01", "dispatch-x"), which failed the Planner permanently.
+func TestPlannerFactIDsUseTheRunEventGrammar(t *testing.T) {
+	selected := planner.PlannerFact{
+		Kind: planner.PlannerEventDispatchSelected, Key: "selected:dispatch-0001",
+		PlanRevision: 1, SubtaskID: "0", CallID: "dispatch-0001", WorkerName: "reviewer",
+	}
+	if err := validatePlannerFact(selected); err != nil {
+		t.Fatalf("valid dispatch fact: %v", err)
+	}
+	for _, subtaskID := range []string{"", "01", "00", "100", "1a", " 1"} {
+		fact := selected
+		fact.SubtaskID = subtaskID
+		if err := validatePlannerFact(fact); err == nil {
+			t.Errorf("dispatch fact with subtask ID %q was accepted", subtaskID)
+		}
+	}
+	for _, callID := range []string{"", "dispatch-", "dispatch-x", "dispatch-001", "dispatch-0001a", "call-0001"} {
+		fact := selected
+		fact.CallID = callID
+		if err := validatePlannerFact(fact); err == nil {
+			t.Errorf("dispatch fact with call ID %q was accepted", callID)
+		}
+	}
+	current := planner.PlannerFact{Kind: planner.PlannerEventCurrentChanged, Key: "current:2", PlanRevision: 2}
+	for subtaskID, valid := range map[string]bool{"": true, "0": true, "31": true, "01": false, "x": false} {
+		current.SubtaskID = subtaskID
+		if err := validatePlannerFact(current); (err == nil) != valid {
+			t.Errorf("current-changed subtask ID %q: valid=%v, error=%v", subtaskID, valid, err)
+		}
+	}
+}

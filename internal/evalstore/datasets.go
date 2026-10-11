@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -13,7 +14,7 @@ type DatasetRevision struct {
 }
 
 func (s *Store) PutDataset(ctx context.Context, scope Scope, revision string, document evaldomain.Frozen, id evaldomain.MutationIdentity) (Receipt, error) {
-	if document.Kind() != "DatasetInput" || !resourceID.MatchString(revision) {
+	if document.Kind() != "DatasetInput" || !contracts.ValidResourceID(revision) {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	var input evaldomain.DatasetInput

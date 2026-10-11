@@ -15,7 +15,6 @@ const (
 	MaxPlannerGlobalObjectiveBytes    = 64 * 1024
 	MaxPlannerSubtaskObjectiveBytes   = 8 * 1024
 	MaxPlannerSubtaskInstructionBytes = 32 * 1024
-	maxPlannerLogicalWorkerNameBytes  = 128
 )
 
 type PlannerSubtaskStatus string
@@ -169,7 +168,7 @@ func (c *PlannerPlanController) ClaimCurrentSubtask(
 			"planner_subtask_stale", "subtask_id does not identify the current pending subtask",
 		)
 	}
-	if strings.TrimSpace(workerName) == "" || len(workerName) > maxPlannerLogicalWorkerNameBytes {
+	if !contracts.ValidName(workerName) {
 		return PlannerDispatchClaim{}, planError(
 			"planner_worker_invalid", "Logical Worker name is invalid",
 		)
@@ -353,8 +352,7 @@ func (p PlannerPlanProjection) Validate() error {
 		p.Subtasks[currentIndex].Status != PlannerSubtaskRunning ||
 		p.ActiveDispatch.SubtaskID != p.CurrentSubtaskID ||
 		strings.TrimSpace(p.ActiveDispatch.CallID) == "" ||
-		strings.TrimSpace(p.ActiveDispatch.WorkerName) == "" ||
-		len(p.ActiveDispatch.WorkerName) > maxPlannerLogicalWorkerNameBytes {
+		!contracts.ValidName(p.ActiveDispatch.WorkerName) {
 		return fmt.Errorf("Planner active dispatch is invalid")
 	}
 	return nil

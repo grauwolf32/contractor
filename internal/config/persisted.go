@@ -18,6 +18,12 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 		return ResolvedWorkflow{}, err
 	}
 	for name, stage := range workflow.Stages {
+		if err := validateWorkflowName("persisted Workflow Stage name", name); err != nil {
+			return ResolvedWorkflow{}, err
+		}
+		if err := validateStageAgentNames(fmt.Sprintf("persisted Workflow Stage %q", name), stage.Agents); err != nil {
+			return ResolvedWorkflow{}, err
+		}
 		if err := stage.Session.Validate(); err != nil {
 			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
 		}
@@ -41,6 +47,9 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	var stage ResolvedStage
 	if err := strictjson.Decode(data, &stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	if err := validateStageAgentNames("persisted Stage", stage.Agents); err != nil {
 		return ResolvedStage{}, err
 	}
 	if err := stage.Session.Validate(); err != nil {

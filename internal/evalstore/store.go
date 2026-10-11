@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +22,6 @@ var (
 	ErrTransaction = errors.New("evalstore requires a caller-owned transaction")
 	ErrClaimLost   = errors.New("evalstore controller claim is stale")
 	ErrDrain       = errors.New("evalstore has unresolved operations or execution dependencies")
-	resourceID     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 )
 
 type Store struct {
@@ -109,7 +108,7 @@ func normalize(err error) error {
 }
 
 func validScope(scope Scope) bool {
-	return scope.OwnerID != "" && len(scope.OwnerID) <= 256 && resourceID.MatchString(scope.ProjectID)
+	return scope.OwnerID != "" && len(scope.OwnerID) <= 256 && contracts.ValidResourceID(scope.ProjectID)
 }
 
 func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, error) {

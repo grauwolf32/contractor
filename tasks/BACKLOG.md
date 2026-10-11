@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-97 open tasks: 3 in progress, 80 pending, 14 deferred. 799 finished: 796 completed, 3 archived.
+95 open tasks: 3 in progress, 78 pending, 14 deferred. 801 finished: 798 completed, 3 archived.
 
 ## In progress
 
@@ -66,7 +66,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
-| [V368-016](v368-016-worker-agent-name-grammar.yml) | defect | P1 | — | Validate Workflow agent names with the grammar Operations shows |
 | [V368-030](v368-030-llm-gateway-clone.yml) | defect | P3 | — | Deep-copy LLMGateway configuration in snapshot accessors |
 | [V369-006](v369-006-toolset-parity-fixture.yml) | chore | P2 | — | Extend the toolset parity fixture to the whole descriptor |
 | [V370-006](v370-006-config-model-split.yml) | chore | P2 | — | Separate the configuration data model from the catalog loader |
@@ -137,7 +136,6 @@ the epics are in [epics.yml](epics.yml).
 | [V368-007](v368-007-strict-json-everywhere.yml) | defect | P1 | — | Decode every untrusted JSON body strictly |
 | [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
 | [V368-013](v368-013-run-detail-cursor-snapshot.yml) | defect | P1 | — | Read the Run detail and its event cursor in one snapshot |
-| [V368-024](v368-024-resource-id-grammar.yml) | defect | P2 | — | Use one ResourceId and ConfigId grammar in every Go package |
 | [V368-032](v368-032-remove-legacy-digest-paths.yml) | chore | P3 | — | Remove backward-compatibility digest code |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
@@ -208,13 +206,13 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 26 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 13 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 12 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |

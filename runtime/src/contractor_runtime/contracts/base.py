@@ -29,11 +29,11 @@ ARTIFACT_LIST_CURSOR_PATTERN = re.compile(rf"[A-Za-z0-9_-]{{1,{MAX_ARTIFACT_LIST
 MEDIA_TYPE_PATTERN = re.compile(
     r"(?=.{3,255}\Z)[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*"
 )
-# Runtime Agent registration values that Operations shows. Tool names use the
+# Values that Operations shows. Tool names and logical Agent names use the
 # public ConfigId grammar, instance and allocation IDs the public ResourceId
 # grammar; api/testdata/v1alpha1/runtime-capability-cases.json pins them and
 # the capability bounds to the Go contracts and the schemas.
-TOOL_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 MAX_RESOURCE_ID_LENGTH = 256
 RESOURCE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
 MAX_RUNTIME_CAPABILITY_REFS = 128
