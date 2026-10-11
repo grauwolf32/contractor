@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 3 in progress, 70 pending, 14 deferred. 809 finished: 806 completed, 3 archived.
+86 open tasks: 3 in progress, 69 pending, 14 deferred. 810 finished: 807 completed, 3 archived.
 
 ## In progress
 
@@ -147,7 +147,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
-| [V368-033](v368-033-test-fidelity-followups.yml) | chore | P3 | — | Close test gaps the fix batch left |
 | [V369-003](v369-003-release-gate-coverage.yml) | chore | P1 | — | Add the missing checks to the release gate |
 | [V369-007](v369-007-unused-export-lint.yml) | chore | P3 | V370-008 | Fail lint on exported identifiers used only by tests |
 | [V370-008](v370-008-remove-test-only-exports.yml) | chore | P3 | — | Remove exported surface that only tests use |
@@ -180,7 +179,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 7 | 36 | 44 | 9 | 62 |
 | Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 42 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 36 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 11 | 2 | 37 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 12 | 4 | 15 |
@@ -197,4 +196,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
 | Public API and wire contracts (`api-contracts`) | 10 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
-| Quality, CI and process (`quality`) | 7 | 1 | 15 | 65 | 15 |
+| Quality, CI and process (`quality`) | 6 | 1 | 15 | 65 | 15 |
