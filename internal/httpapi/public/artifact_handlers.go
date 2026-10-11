@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +229,7 @@ func (h *handler) listArtifactBindings(
 	}
 	pageQuery := artifacts.BindingPageQuery{
 		Namespace: namespace, ExcludeNamespace: excludeNamespace,
-		ExcludeNamespacePrefix: excludeNamespacePrefix, Limit: limit + 1,
+		ExcludeNamespacePrefix: excludeNamespacePrefix, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		pageQuery.AfterNamespace, pageQuery.AfterName = cursor[0], cursor[1]
@@ -283,7 +284,7 @@ func (h *handler) listArtifactVersionsFromStore(
 		h.handleError(w, err)
 		return
 	}
-	pageQuery := artifacts.VersionPageQuery{Limit: limit + 1}
+	pageQuery := artifacts.VersionPageQuery{Limit: pagelimit.FetchRows(limit)}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
@@ -356,7 +357,7 @@ func (h *handler) listArtifactLineageFromStore(
 	}
 	pageQuery := artifacts.LineagePageQuery{
 		ExcludeKind: artifacts.LineageAuditImport,
-		Limit:       limit + 1,
+		Limit:       pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[1])

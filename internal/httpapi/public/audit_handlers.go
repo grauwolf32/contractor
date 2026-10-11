@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
@@ -37,14 +38,14 @@ func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
 		right := profiles[j].Profile.Ref.Name + "@" + profiles[j].Profile.Ref.Version
 		return left < right
 	})
-	items := make([]auditProfileResponse, 0, min(limit+1, len(profiles)))
+	items := make([]auditProfileResponse, 0, min(pagelimit.FetchRows(limit), len(profiles)))
 	for _, profile := range profiles {
 		selector := profile.Profile.Ref.Name + "@" + profile.Profile.Ref.Version
 		if selector <= after {
 			continue
 		}
 		items = append(items, auditProfileReadModel(profile, false))
-		if len(items) == limit+1 {
+		if len(items) == pagelimit.FetchRows(limit) {
 			break
 		}
 	}
@@ -190,7 +191,7 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	}
 	params := auditstore.ListParams{
 		OwnerID: principalUserID(r.Context()), State: state, States: states, VisibleProjects: projectID == "",
-		ProfileName: profileName, ProfileVersion: profileVersion, Limit: limit + 1,
+		ProfileName: profileName, ProfileVersion: profileVersion, Limit: pagelimit.FetchRows(limit),
 	}
 	if projectID != "" {
 		params.ProjectID = &projectID
@@ -428,7 +429,7 @@ func (h *handler) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	}
 	params := auditstore.ListItemsParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, RoundID: roundID,
-		State: state, SubjectKey: subject, Limit: limit + 1,
+		State: state, SubjectKey: subject, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		roundOrdinal, roundErr := strconv.Atoi(cursor[0])
@@ -524,7 +525,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	coverage, err := h.dependencies.Audits.ListCoverage(r.Context(), ownerID, auditID, roundID, after, limit+1)
+	coverage, err := h.dependencies.Audits.ListCoverage(r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit))
 	if err != nil {
 		h.handleError(w, err)
 		return

@@ -7,10 +7,10 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 const (
-	MaxPageSize                    = 200
 	MaxClaimBatch                  = 100
 	MaxReconcileRows               = 200
 	MaxSnapshotBytes               = 16 << 20
@@ -24,7 +24,7 @@ const (
 	MaxExecutionIntentBytes        = 64 << 20
 	MaxCollectionBytes             = 16 << 20
 	MaxRetainedRefsBytes           = 8 << 20
-	MaxAttemptProjection           = MaxPageSize * 10
+	MaxAttemptProjection           = pagelimit.MaxRows * 10
 	MaxAuditRoleExecutionsPerRound = 256
 	ItemOriginSchema               = "contractor.audit.item-origin.v1"
 )

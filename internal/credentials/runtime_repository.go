@@ -5,11 +5,10 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-const maximumRuntimeCredentialPageSize = 200
 
 type RuntimeCredentialRepository struct{ db persistencepostgres.DBTX }
 
@@ -103,7 +102,7 @@ WHERE c.credential_id = $1`, credentialID))
 func (r *RuntimeCredentialRepository) ListActiveMetadata(
 	ctx context.Context, afterCredentialID string, limit int,
 ) ([]RuntimeCredentialMetadata, error) {
-	if limit < 1 || limit > maximumRuntimeCredentialPageSize ||
+	if !pagelimit.ValidFetch(limit) ||
 		(afterCredentialID != "" && validateRuntimeCredentialID(afterCredentialID) != nil) {
 		return nil, runtimeInvalid("Runtime credential page is invalid")
 	}

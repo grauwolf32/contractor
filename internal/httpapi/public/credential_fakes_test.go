@@ -33,6 +33,9 @@ func newFakeManagedCredentials() *fakeManagedCredentials {
 func (f *fakeManagedCredentials) ListCredentials(
 	_ context.Context, after string, limit int,
 ) ([]credentials.Record, error) {
+	if err := fakePageFetch(limit, credentials.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.records))

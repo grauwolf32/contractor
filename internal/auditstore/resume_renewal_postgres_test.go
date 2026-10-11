@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -180,7 +181,7 @@ SELECT request_id, subject_id, state, revision, expires_at, idempotency_key
 			t.Errorf("item %s state = %s, want awaiting review", item.ItemID, item.State)
 		}
 	}
-	events, err := store.ListEvents(ctx, audit.AuditID, audit.EventSequence, MaxPageSize)
+	events, err := store.ListEvents(ctx, audit.AuditID, audit.EventSequence, pagelimit.MaxRows)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -76,7 +77,7 @@ INSERT INTO stage_allocations (
 	if err != nil || fmt.Sprint(deletable) != fmt.Sprint(wantDeletable) {
 		t.Fatalf("DeletableRuns = (%v, %v), want %v", deletable, err, wantDeletable)
 	}
-	oversized := make([]string, runstore.MaxRunPageRows+1)
+	oversized := make([]string, pagelimit.MaxRows+1)
 	for index := range oversized {
 		oversized[index] = fmt.Sprintf("run-%d", index)
 	}

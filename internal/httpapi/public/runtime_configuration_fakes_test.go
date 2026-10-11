@@ -2,12 +2,14 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -26,6 +28,10 @@ func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManageme
 func (f *fakeRuntimeAgentPrincipalManagement) List(
 	_ context.Context, after string, limit int,
 ) ([]controlplane.RuntimeAgentPrincipalProjection, bool, error) {
+	// The real service takes the page size and reads the look-ahead row itself.
+	if !pagelimit.ValidPage(limit) {
+		return nil, false, fmt.Errorf("%w: fake principal page of %d rows", runtimeconfig.ErrInvalid, limit)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.principals))
@@ -187,6 +193,9 @@ func (f *fakeRuntimeConfigManagement) Publish(
 func (f *fakeRuntimeConfigManagement) ListVersions(
 	_ context.Context, afterName, afterVersion string, limit int,
 ) ([]runtimeconfig.Version, error) {
+	if err := fakePageFetch(limit, runtimeconfig.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]runtimeconfig.Version, 0, len(f.versions))
@@ -217,6 +226,9 @@ func (f *fakeRuntimeConfigManagement) GetVersion(_ context.Context, name, versio
 func (f *fakeRuntimeConfigManagement) ListBindings(
 	_ context.Context, after string, limit int,
 ) ([]runtimeconfig.Binding, error) {
+	if err := fakePageFetch(limit, runtimeconfig.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]runtimeconfig.Binding, 0, len(f.bindings))
@@ -351,6 +363,9 @@ func newFakeRuntimeCredentialManagement() *fakeRuntimeCredentialManagement {
 func (f *fakeRuntimeCredentialManagement) List(
 	_ context.Context, after string, limit int,
 ) ([]credentials.RuntimeCredentialMetadata, error) {
+	if err := fakePageFetch(limit, credentials.ErrRuntimeCredentialInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	items := make([]credentials.RuntimeCredentialMetadata, 0, len(f.records))

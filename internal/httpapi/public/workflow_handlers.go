@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -58,7 +59,7 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		items = append(items, workflowSummaryReadModel(workflow))
-		if len(items) == limit+1 {
+		if len(items) == pagelimit.FetchRows(limit) {
 			break
 		}
 	}

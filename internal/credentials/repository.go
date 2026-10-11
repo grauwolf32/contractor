@@ -14,6 +14,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +23,8 @@ import (
 const (
 	maximumOperationRequestBytes = 64 * 1024
 	maximumGatewayPolicyBytes    = 64 * 1024
-	maximumCredentialPageSize    = 201
+	// Recovery reads prepared operations in batches until none remain.
+	maximumPreparedOperationBatch = 200
 )
 
 var (
@@ -91,7 +93,7 @@ func (r *Repository) ListCredentials(
 			return nil, err
 		}
 	}
-	if limit < 1 || limit > maximumCredentialPageSize {
+	if !pagelimit.ValidFetch(limit) {
 		return nil, fmt.Errorf("%w: credential page limit is invalid", ErrInvalid)
 	}
 	rows, err := r.db.Query(ctx, `
@@ -299,7 +301,7 @@ SELECT EXISTS (
 }
 
 func (r *Repository) ListPreparedOperations(ctx context.Context, limit int) ([]Operation, error) {
-	if limit < 1 || limit > maximumCredentialPageSize {
+	if limit < 1 || limit > maximumPreparedOperationBatch {
 		return nil, fmt.Errorf("%w: operation page limit is invalid", ErrInvalid)
 	}
 	rows, err := r.db.Query(ctx, `

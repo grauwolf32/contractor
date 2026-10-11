@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -313,7 +314,7 @@ func (s *PostgresStore) ListItemAttempts(
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
-	if len(itemIDs) == 0 || len(itemIDs) > MaxPageSize {
+	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
 		return nil, invalidf("Audit attempt item selection is invalid")
 	}
 	seen := make(map[string]struct{}, len(itemIDs))
@@ -450,7 +451,7 @@ func (s *PostgresStore) ListEvents(
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
-	if after > math.MaxInt64 || limit < 1 || limit > MaxPageSize {
+	if after > math.MaxInt64 || !pagelimit.ValidFetch(limit) {
 		return nil, invalidf("event page limit is invalid")
 	}
 	rows, err := s.db.Query(ctx, `
@@ -498,7 +499,7 @@ func (s *PostgresStore) ListCoverage(
 	if err := validateID("roundID", roundID); err != nil {
 		return nil, err
 	}
-	if afterOrdinal < -1 || limit < 1 || limit > MaxPageSize {
+	if afterOrdinal < -1 || !pagelimit.ValidFetch(limit) {
 		return nil, invalidf("coverage page is invalid")
 	}
 	rows, err := s.db.Query(ctx, listCoverageSQL, auditID, roundID, afterOrdinal, limit)

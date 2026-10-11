@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 func TestRunArtifactsByNamespaceReadsEveryMetadataPage(t *testing.T) {
@@ -15,7 +16,7 @@ func TestRunArtifactsByNamespaceReadsEveryMetadataPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const outputs = 2*maxPageLimit + 1
+	const outputs = 2*pagelimit.MaxRows + 1
 	want := make(map[string]string, outputs)
 	for index := range outputs {
 		name := fmt.Sprintf("slot-%03d", index)

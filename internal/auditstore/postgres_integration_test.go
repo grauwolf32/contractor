@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -745,7 +746,7 @@ SELECT finding.state, finding.revision,
 	if snapshot.Audit.Revision != snapshot.Audit.EventSequence {
 		t.Fatalf("Audit projection revision = %d, event sequence = %d", snapshot.Audit.Revision, snapshot.Audit.EventSequence)
 	}
-	events, err := recoveredStore.ListEvents(ctx, create.AuditID, 0, MaxPageSize)
+	events, err := recoveredStore.ListEvents(ctx, create.AuditID, 0, pagelimit.MaxRows)
 	if err != nil || len(events) < 13 {
 		t.Fatalf("Audit event stream = (%+v, %v)", events, err)
 	}

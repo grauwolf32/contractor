@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -425,7 +426,7 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 	if err != nil {
 		t.Fatal(err)
 	}
-	events, err := audits.ListEvents(ctx, auditID, 0, auditstore.MaxPageSize)
+	events, err := audits.ListEvents(ctx, auditID, 0, pagelimit.MaxRows)
 	if err != nil {
 		t.Fatal(err)
 	}

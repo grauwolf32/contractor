@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -85,7 +86,7 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 	}
 	params := runstore.ListRunsParams{
 		OwnerID: principalUserID(r.Context()), State: state, Lifecycle: lifecycle,
-		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: limit + 1,
+		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
@@ -778,7 +779,7 @@ func (h *handler) runArtifactsByNamespace(
 		return nil, err
 	}
 	result := make(map[string]contracts.ArtifactRef)
-	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: maxPageLimit}
+	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: pagelimit.MaxRows}
 	for {
 		page, err := store.ListMetadata(r.Context(), query)
 		if err != nil {

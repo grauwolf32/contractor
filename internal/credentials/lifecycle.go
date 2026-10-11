@@ -192,7 +192,7 @@ func (s *Service) Recover(ctx context.Context) error {
 	defer s.lifecycleMu.Unlock()
 	s.ready.Store(false)
 	for {
-		operations, err := s.repository.ListPreparedOperations(ctx, maximumCredentialPageSize)
+		operations, err := s.repository.ListPreparedOperations(ctx, maximumPreparedOperationBatch)
 		if err != nil {
 			return err
 		}

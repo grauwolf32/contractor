@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -348,10 +349,6 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	return result, nil
 }
 
-// MaxRunPageRows bounds one ListRuns page, including the extra row a caller
-// reads to build a continuation cursor, and one ReadRunDeletionGates batch.
-const MaxRunPageRows = 201
-
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
 // Callers request one extra row when they need to construct a continuation
 // cursor; the repository does not attach transport pagination semantics.
@@ -374,8 +371,8 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		selectorKeys[index] = selector.Key
 		selectorValues[index] = selector.Value
 	}
-	if params.Limit < 1 || params.Limit > MaxRunPageRows {
-		return nil, invalidf("Run page limit must be between 1 and %d", MaxRunPageRows)
+	if !pagelimit.ValidFetch(params.Limit) {
+		return nil, invalidf("Run page limit must be between 1 and %d", pagelimit.MaxFetchRows)
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeRunID == "") {
 		return nil, invalidf("Run page keyset is incomplete")

@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -22,6 +23,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
+
+// fakePageFetch applies the bound every real store behind a public list
+// applies to one page read, with that store's invalid sentinel, so a handler
+// that reads more than pagelimit.MaxFetchRows fails against fakes as it does
+// against PostgreSQL.
+func fakePageFetch(limit int, invalid error) error {
+	if !pagelimit.ValidFetch(limit) {
+		return fmt.Errorf("%w: fake page read of %d rows exceeds %d", invalid, limit, pagelimit.MaxFetchRows)
+	}
+	return nil
+}
 
 type fakeAllocationResourceReader struct {
 	items   []telemetry.AllocationResourceSummary
@@ -129,6 +141,9 @@ func (f *fakeProjectStore) Get(
 func (f *fakeProjectStore) List(
 	_ context.Context, params projectstore.ListParams,
 ) ([]projectstore.Project, error) {
+	if err := fakePageFetch(params.Limit, projectstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	projects := make([]projectstore.Project, 0)
@@ -564,6 +579,9 @@ func (f *fakeArtifactRepository) Metadata(
 func (f *fakeArtifactRepository) ListMetadata(
 	_ context.Context, scope artifacts.Scope, query artifacts.BindingPageQuery,
 ) ([]artifacts.Metadata, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -596,6 +614,9 @@ func (f *fakeArtifactRepository) ListVersions(
 	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
 	query artifacts.VersionPageQuery,
 ) ([]artifacts.Metadata, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -631,6 +652,9 @@ func (f *fakeArtifactRepository) ListLineage(
 	_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
 	query artifacts.LineagePageQuery,
 ) ([]artifacts.LineageEdge, error) {
+	if err := fakePageFetch(query.Limit, artifacts.ErrInvalidName); err != nil {
+		return nil, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -880,6 +904,9 @@ func (f *fakeRunStore) ListRunOutputPublications(
 func (f *fakeRunStore) ListRuns(
 	_ context.Context, params runstore.ListRunsParams,
 ) ([]runstore.WorkflowRunSummary, error) {
+	if err := fakePageFetch(params.Limit, runstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	selectors, err := runstore.NormalizeRunMetadataLabelSelectors(params.MetadataLabelSelectors)
 	if err != nil {
 		return nil, err
@@ -929,6 +956,9 @@ func (f *fakeRunStore) ListRuns(
 func (f *fakeRunStore) DeletableRuns(
 	_ context.Context, ownerID string, runIDs []string,
 ) (map[string]bool, error) {
+	if len(runIDs) > pagelimit.MaxRows {
+		return nil, fmt.Errorf("%w: fake inspects at most one page of Runs", runstore.ErrInvalid)
+	}
 	result := make(map[string]bool, len(runIDs))
 	for _, runID := range runIDs {
 		run, ok := f.runs[runID]
@@ -1014,6 +1044,9 @@ func (f *fakeRunStore) DeleteReleasedTerminalRun(
 func (f *fakeRunStore) ListRunQueue(
 	ctx context.Context, params runstore.ListRunQueueParams,
 ) ([]runstore.WorkflowRunQueueItem, error) {
+	if err := fakePageFetch(params.Limit, runstore.ErrInvalid); err != nil {
+		return nil, err
+	}
 	result := make([]runstore.WorkflowRunQueueItem, 0)
 	for _, run := range f.runs {
 		if run.OwnerID != params.OwnerID ||

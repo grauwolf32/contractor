@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
 // ListRunQueue returns only non-terminal Runs in deterministic oldest-first
@@ -93,8 +95,8 @@ func validateRunQueueParams(params ListRunQueueParams) error {
 	if params.Membership != nil && !params.Membership.Valid() {
 		return invalidf("WorkflowRun queue membership is invalid")
 	}
-	if params.Limit < 1 || params.Limit > 201 {
-		return invalidf("WorkflowRun queue page limit must be between 1 and 201")
+	if !pagelimit.ValidFetch(params.Limit) {
+		return invalidf("WorkflowRun queue page limit must be between 1 and %d", pagelimit.MaxFetchRows)
 	}
 	if (params.AfterCreatedAt == nil) != (params.AfterRunID == "") {
 		return invalidf("WorkflowRun queue keyset is incomplete")

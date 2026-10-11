@@ -316,6 +316,16 @@ table only indexes:
 
 ### Collections and pagination
 
+**API-R67.** Every paged collection that takes the shared `limit` query
+parameter (OpenAPI `#/components/parameters/Limit`) accepts a page of 1 to
+200 items and defaults to 50 (LIM-API-18); any other `limit` is
+`400 invalid_request`. Server reads one row beyond the requested page to
+decide `page.hasMore` and the continuation cursor, so every store behind such
+a collection accepts a read of 201 rows. Server, its stores and the CLI take
+both numbers from one definition. Collections with their own bound declare
+it instead: Managed Eval lists (LIM-EVM-15) and allocation history
+(LIM-OPS-28).
+
 Filtering and keyset pagination are specified for each collection by its
 owner, which this table only indexes:
 
@@ -525,6 +535,8 @@ Limits ([registry](../platform/limits.md)):
 - LIM-API-15 — unanswered connection closed after 60 seconds (API-R65).
 - LIM-API-16 — UI reconnect initial delay: 500 ms (API-R66).
 - LIM-API-17 — UI reconnect maximum delay: 30 seconds (API-R66).
+- LIM-API-18 — page of a collection with the shared `limit` parameter: 200
+  items, default 50 (API-R67).
 
 The generic Artifact payload limit is [LIM-ART-4](../platform/limits.md)
 ([ART-R65](../artifacts/artifact-store.md)); the login body and login limiter

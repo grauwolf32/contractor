@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -86,7 +87,7 @@ func (h *handler) listProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params := projectstore.ListParams{
-		OwnerID: principalUserID(r.Context()), Kind: kind, Limit: limit + 1,
+		OwnerID: principalUserID(r.Context()), Kind: kind, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])

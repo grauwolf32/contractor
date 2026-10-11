@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -325,7 +326,7 @@ func validateList(params ListParams) error {
 	if params.Kind != nil && !params.Kind.Valid() {
 		return invalid("Project kind filter is invalid")
 	}
-	if params.Limit < 1 || params.Limit > MaxPageSize {
+	if !pagelimit.ValidFetch(params.Limit) {
 		return invalid("Project page limit is invalid")
 	}
 	if (params.BeforeCreatedAt == nil) != (params.BeforeProjectID == "") {

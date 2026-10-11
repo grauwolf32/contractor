@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -168,7 +169,7 @@ SELECT request_id, state, revision FROM audit_review_requests
 			if len(seen) != 2 {
 				t.Fatalf("item reviews = %+v, want two", seen)
 			}
-			events, err := store.ListEvents(ctx, audit.AuditID, 0, MaxPageSize)
+			events, err := store.ListEvents(ctx, audit.AuditID, 0, pagelimit.MaxRows)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -143,9 +143,10 @@ func (d *Deleter) RunDeletionBlocker(ctx context.Context, ownerID, runID string)
 	return reason, nil
 }
 
-// DeletableRuns reports, for at most runstore.MaxRunPageRows of the owner's
-// Runs, which ones RunDeletionBlocker would report as deletable. A Run that
-// does not exist or belongs to another owner is reported as not deletable.
+// DeletableRuns reports, for at most one public page (pagelimit.MaxRows) of
+// the owner's Runs, which ones RunDeletionBlocker would report as deletable.
+// A Run that does not exist or belongs to another owner is reported as not
+// deletable.
 func (d *Deleter) DeletableRuns(ctx context.Context, ownerID string, runIDs []string) (map[string]bool, error) {
 	blockers, err := d.blockers(ctx, ownerID, runIDs)
 	if err != nil {

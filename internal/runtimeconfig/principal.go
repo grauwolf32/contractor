@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -78,7 +79,7 @@ func (r *PrincipalRepository) List(
 			return nil, err
 		}
 	}
-	if limit < 1 || limit > 201 {
+	if !pagelimit.ValidFetch(limit) {
 		return nil, invalid("Runtime Agent principal page is invalid")
 	}
 	rows, err := r.db.Query(ctx, principalSelect+`
@@ -391,7 +392,7 @@ func (s *PrincipalService) List(
 func (s *PrincipalService) ListWithRequiredRuntimeAdapters(
 	ctx context.Context, afterRuntimeAgentID string, pageLimit int,
 ) ([]PrincipalAdapterRow, bool, error) {
-	if pageLimit < 1 || pageLimit > 200 {
+	if !pagelimit.ValidPage(pageLimit) {
 		return nil, false, invalid("Runtime Agent principal page is invalid")
 	}
 	var rows []PrincipalAdapterRow
@@ -409,10 +410,10 @@ func (s *PrincipalService) ListWithRequiredRuntimeAdapters(
 func listPrincipalAdapterPage(
 	ctx context.Context, db persistencepostgres.DBTX, afterRuntimeAgentID string, pageLimit int,
 ) ([]PrincipalAdapterRow, bool, error) {
-	if pageLimit < 1 || pageLimit > 200 {
+	if !pagelimit.ValidPage(pageLimit) {
 		return nil, false, invalid("Runtime Agent principal page is invalid")
 	}
-	principals, err := NewPrincipalRepository(db).List(ctx, afterRuntimeAgentID, pageLimit+1)
+	principals, err := NewPrincipalRepository(db).List(ctx, afterRuntimeAgentID, pagelimit.FetchRows(pageLimit))
 	if err != nil {
 		return nil, false, err
 	}
