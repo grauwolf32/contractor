@@ -15,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -93,16 +92,13 @@ func normalize(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return evaldomain.Failure("eval_not_found")
 	}
-	var p *pgconn.PgError
-	if errors.As(err, &p) {
-		switch p.Code {
-		case pg.SQLStateUniqueViolation:
-			return evaldomain.Failure("eval_member_conflict")
-		case pg.SQLStateForeignKeyViolation:
-			return evaldomain.Failure("eval_not_ready")
-		case "55000":
-			return evaldomain.Failure("eval_project_deleting")
-		}
+	switch pg.Classify(err) {
+	case pg.ClassDuplicate:
+		return evaldomain.Failure("eval_member_conflict")
+	case pg.ClassReferenceViolation:
+		return evaldomain.Failure("eval_not_ready")
+	case pg.ClassDeleting:
+		return evaldomain.Failure("eval_project_deleting")
 	}
 	return err
 }

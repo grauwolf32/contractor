@@ -74,8 +74,8 @@ RETURNING allocation_id`,
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, ErrConflict)
 	}
 	if err != nil {
-		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
+		failure := persistencepostgres.Classify(err)
+		if failure == persistencepostgres.ClassReferenceViolation {
 			return fmt.Errorf("record Stage allocation for execution %q: %w", allocation.StageExecutionID, ErrNotFound)
 		}
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, err)

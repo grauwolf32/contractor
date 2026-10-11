@@ -38,7 +38,7 @@ func (s *PostgresStore) ProposeReport(
 	if err == nil {
 		return audit, true, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUniqueViolation {
+	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.Classify(err) != persistencepostgres.ClassDuplicate {
 		return Audit{}, false, fmt.Errorf("propose Audit report: %w", err)
 	}
 	candidate, replayErr := s.GetReportCandidate(ctx, params.Claim.AuditID)

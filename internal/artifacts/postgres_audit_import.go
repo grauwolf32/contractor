@@ -44,10 +44,10 @@ func (r *PostgresRepository) ImportAuditArtifact(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrInvalidScope)
 		default:
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", err)
@@ -62,12 +62,12 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		projectScope.kind, projectScope.id, targetRef.Namespace, targetRef.Name, targetRevision,
 	).Scan(&sourceExists, &targetCreated, &mediaType, &size)
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case "55000":
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDeleting:
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", ErrScopeDeleting)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", ErrInvalidScope)
-		case persistencepostgres.SQLStateUniqueViolation:
+		case persistencepostgres.ClassDuplicate:
 			return ForkResult{}, &ConflictError{Ref: targetRef}
 		default:
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", err)

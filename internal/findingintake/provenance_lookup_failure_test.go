@@ -41,7 +41,7 @@ func TestPostgresFindingSubmissionKeepsProvenanceLookupFailure(t *testing.T) {
 	}
 	_, _, err = service.Submit(ctx, grant, input)
 	if errors.Is(err, ErrAccessDenied) || errors.Is(err, ErrToolNotSelected) ||
-		persistencepostgres.SQLState(err) != "42P01" {
+		persistencepostgres.SQLState(err) != persistencepostgres.SQLStateUndefinedTable {
 		t.Fatalf("Run lookup failure = %v, want the undefined-table cause", err)
 	}
 	if _, err := pool.Exec(ctx, `ALTER TABLE lookup_unavailable_runs RENAME TO workflow_runs`); err != nil {

@@ -59,11 +59,11 @@ func (s *PostgresStore) AppendPlannerEvent(ctx context.Context, params AppendPla
 		params.SchedulerClaimID,
 	).Scan(&sessionExists, &appended)
 	if err != nil {
-		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		failure := persistencepostgres.Classify(err)
+		if failure == persistencepostgres.ClassDuplicate {
 			return fmt.Errorf("append Planner event %q: %w", params.RunEvent.EventID, ErrConflict)
 		}
-		if sqlState == persistencepostgres.SQLStateForeignKeyViolation || errors.Is(err, pgx.ErrNoRows) {
+		if failure == persistencepostgres.ClassReferenceViolation || errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("append Planner event for session %q: %w", params.SessionID, ErrNotFound)
 		}
 		return fmt.Errorf("append Planner event %q: %w", params.RunEvent.EventID, err)

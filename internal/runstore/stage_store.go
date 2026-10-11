@@ -51,11 +51,11 @@ RETURNING `+stageExecutionColumns,
 		params.StageContextSchemaVersion, encodedContext,
 	))
 	if err != nil {
-		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		failure := persistencepostgres.Classify(err)
+		if failure == persistencepostgres.ClassDuplicate {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
-		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
+		if failure == persistencepostgres.ClassReferenceViolation {
 			return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, ErrNotFound)
 		}
 		return StageExecution{}, fmt.Errorf("create StageExecution %q: %w", params.StageExecutionID, err)
@@ -178,7 +178,7 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 		return &StateConflictError{Resource: "StageExecution", ID: params.StageExecutionID, Expected: string(StagePreparing)}
 	}
 	if err != nil {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
 		}
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)

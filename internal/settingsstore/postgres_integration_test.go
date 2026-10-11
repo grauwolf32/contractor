@@ -44,7 +44,7 @@ func TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed(t *testing.T) {
 		`UPDATE scheduler_settings SET revision = 18446744073709551616 WHERE singleton = true`,
 		`DELETE FROM scheduler_settings WHERE singleton = true`,
 	} {
-		if _, err := pool.Exec(ctx, statement); persistencepostgres.SQLState(err) != "23514" {
+		if _, err := pool.Exec(ctx, statement); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 			t.Fatalf("invalid direct mutation %q: error = %v", statement, err)
 		}
 	}

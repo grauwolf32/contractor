@@ -38,11 +38,11 @@ func (s *PostgresStore) Collect(
 	if err == nil {
 		return receipt, true, nil
 	}
-	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == "23514" {
+	failure := persistencepostgres.Classify(err)
+	if failure == persistencepostgres.ClassRejected {
 		return CollectionReceipt{}, false, ErrPrecondition
 	}
-	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if failure == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupReceiptReplay(
 			ctx, params.Claim.AuditID, params.ExecutionID, params.RequestDigest,
 		); replayErr != nil || found {
@@ -53,7 +53,7 @@ func (s *PostgresStore) Collect(
 		} else if !live {
 			return CollectionReceipt{}, false, ErrClaimLost
 		}
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		if failure == persistencepostgres.ClassDuplicate {
 			return CollectionReceipt{}, false, ErrConflict
 		}
 		if exceeded, budgetErr := s.evidenceBudgetExceeded(

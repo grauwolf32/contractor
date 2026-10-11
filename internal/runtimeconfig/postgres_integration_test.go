@@ -222,9 +222,9 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 		t.Fatalf("delete default error = %v", err)
 	}
 	_, err = pool.Exec(ctx, `DELETE FROM runtime_label_bindings WHERE label = 'default'`)
-	assertRuntimeConfigSQLState(t, err, "23514")
+	assertRuntimeConfigSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `UPDATE runtime_config_versions SET actor_id = 'changed' WHERE name = 'debug' AND version = '1'`)
-	assertRuntimeConfigSQLState(t, err, "23514")
+	assertRuntimeConfigSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 }
 
 func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T) {

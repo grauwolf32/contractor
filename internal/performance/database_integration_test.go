@@ -191,7 +191,7 @@ func TestPostgresDiagnosticBudgetsAndRecovery(t *testing.T) {
 			if maintenance {
 				want = 1500 * time.Millisecond
 			}
-			if postgres.SQLState(err) != "57014" || time.Since(start) < want-100*time.Millisecond || time.Since(start) > want+500*time.Millisecond {
+			if postgres.SQLState(err) != postgres.SQLStateQueryCanceled || time.Since(start) < want-100*time.Millisecond || time.Since(start) > want+500*time.Millisecond {
 				t.Fatalf("statement budget: %v %s", err, time.Since(start))
 			}
 			assertDiagnosticReusable(t, store)
@@ -220,7 +220,7 @@ func TestPostgresDiagnosticBudgetsAndRecovery(t *testing.T) {
 	if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 		t.Fatal(rollbackErr)
 	}
-	if postgres.SQLState(err) != "55P03" || time.Since(start) > 400*time.Millisecond {
+	if postgres.SQLState(err) != postgres.SQLStateLockNotAvailable || time.Since(start) > 400*time.Millisecond {
 		t.Fatalf("lock budget: %v %s", err, time.Since(start))
 	}
 	assertDiagnosticReusable(t, store)
@@ -290,7 +290,7 @@ func TestPostgresDisabledStatisticsAndIndependentSizeFailure(t *testing.T) {
 	}
 	// Shadow only the size function inside this isolated schema/connection.
 	// No pg_catalog function or cluster-wide setting is changed.
-	if _, err = working.Exec(ctx, `CREATE FUNCTION pg_database_size(name) RETURNS bigint LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture size denied' USING ERRCODE='42501'; END $$`); err != nil {
+	if _, err = working.Exec(ctx, `CREATE FUNCTION pg_database_size(name) RETURNS bigint LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture size denied' USING ERRCODE='insufficient_privilege'; END $$`); err != nil {
 		t.Fatal(err)
 	}
 	var schema string
@@ -407,7 +407,7 @@ func TestPostgresHistoryIdempotencyTTLBoundsAndPlans(t *testing.T) {
 		`INSERT INTO performance_minutes VALUES ('bad',$1::timestamptz,1,61,'x',$1::timestamptz+interval '168 hours')`,
 		`INSERT INTO performance_minutes VALUES ('bad',$1::timestamptz,1,0,'x',$1::timestamptz+interval '169 hours')`,
 	} {
-		if _, err := working.Exec(ctx, query, now); postgres.SQLState(err) != "23514" {
+		if _, err := working.Exec(ctx, query, now); postgres.SQLState(err) != postgres.SQLStateCheckViolation {
 			t.Fatalf("missing DB bound: %v", err)
 		}
 	}

@@ -33,14 +33,14 @@ func (s *PostgresStore) CreateExecutionIntent(
 	if err == nil {
 		return execution, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	failure := persistencepostgres.Classify(err)
+	if failure == persistencepostgres.ClassDeleting {
 		return Execution{}, false, ErrProjectDeleting
 	}
-	if params.Role == ExecutionPrepare && persistencepostgres.SQLState(err) == "23514" {
+	if params.Role == ExecutionPrepare && failure == persistencepostgres.ClassRejected {
 		return Execution{}, false, ErrPrecondition
 	}
-	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if failure == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupExecutionReplay(
 			ctx, params.Claim.AuditID, params.SubmissionKey, params.RequestDigest,
 		); replayErr != nil || found {
@@ -51,7 +51,7 @@ func (s *PostgresStore) CreateExecutionIntent(
 		} else if !live {
 			return Execution{}, false, ErrClaimLost
 		}
-		if sqlState == persistencepostgres.SQLStateUniqueViolation {
+		if failure == persistencepostgres.ClassDuplicate {
 			return Execution{}, false, ErrConflict
 		}
 		return Execution{}, false, ErrPrecondition
@@ -112,11 +112,11 @@ func (s *PostgresStore) BindRun(ctx context.Context, params BindRunParams) (Exec
 	if err == nil {
 		return execution, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Execution{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return Execution{}, ErrConflict
 		}
 		return Execution{}, fmt.Errorf("bind Audit execution Run: %w", err)

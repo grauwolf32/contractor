@@ -1,0 +1,94 @@
+schema_version: "1.0"
+id: V368-003
+title: "Classify database failures in one place"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+priority: P1
+status: completed
+implementation_commit: eb5136675e8352bc6d7350dcea3a334010c41ba9
+depends_on: []
+languages: [go]
+goal: "No five-character SQLSTATE literal remains outside sqlstate.go (test), and a table test maps each SQLSTATE class to one outcome."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), persistence G5, G7, D 3.1, F4; scheduler transientStorageError; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The same SQLSTATE means different things by package: 23514 is ErrInvalid
+    in persistence (sqlstate.go:27-29), ErrConflict in telemetry
+    (repository.go:560) and ErrPrecondition in auditstore; 23503 is
+    ErrInvalid, ErrNotFound or eval_not_ready. Audit start replays only
+    40001, not 40P01 (auditservice/start.go:65-66); collection publication
+    returns 409 instead of 503 after exhausted retries
+    (findingintake/collection_publication.go:96);
+    scheduler/execution_preparation.go transientStorageError differs from
+    IsTransientFailure on 55P03 and 08xxx. SQLSTATE 55000 (Project deleting)
+    is a literal in 25 places.
+  siblings: >-
+    Re-scanned on the integration branch after the first-round merges: every
+    SQLState()/PgError comparison in production code (artifacts writes,
+    forks and Audit imports; auditstore create, transition, round,
+    preparation, collection, execution, deletion and review writes; runstore
+    Run, Stage, allocation, Planner event, transition and publication
+    writes; evalstore normalize; findingintake receipts; telemetry report
+    writes; performance diagnostics; the public error diagnostics;
+    migrate.go) now compares Classify results or named constants inside
+    persistence/postgres. The merged branches had added literals in
+    auditstore/event_allocation_postgres_test.go (P0004, the Audit event
+    allocator's assert_failure, now SQLStateAssertFailure) and
+    httpapi/privateartifacts/error_retryability_test.go; three tests raised
+    errors with SQL ERRCODE codes (app run creation recovery, scheduler
+    publication failure, performance size probe) and now name the condition.
+    Every InTxWithRetry caller (Run creation unit of work, Run continuation,
+    Audit purge, item-review renewal, Audit resume, Project purge, Run
+    deletion, Eval record ingestion, finding-collection publication) returns
+    the exhausted conflict unchanged, and the public and private error
+    writers map IsTransactionConflict to 503 storage_transaction_conflict;
+    the Eval error writer falls through to the same mapping. Report writes
+    are only logged by the Scheduler, so keeping a CHECK rejection invalid
+    changes no retry.
+  decision: >-
+    Guarantee: persistence/postgres.Classify is the one classification of a
+    failed database call (PER-R13 to PER-R16). Each named SQLSTATE constant
+    has an explicit outcome, every other code takes its class's outcome,
+    and a cancelled or expired context wins over any PostgreSQL condition.
+    IsTransactionConflict, IsTransientFailure and ConstraintError derive
+    from it; packages derive their domain errors from the class, so a
+    permanent class can map to a domain's invalid, precondition or
+    not-found error but never to its retryable conflict. Business
+    rejections are told apart from CHECK constraints by the constraint
+    name, which PostgreSQL always sets for a CHECK and no schema trigger
+    sets (81 trigger rejections raise check_violation without one); the
+    alternative, a private SQLSTATE class for trigger rejections, would
+    rewrite every trigger in the baseline for no further distinction.
+    55000 means a deleting Project because no Server statement uses DDL,
+    currval/lastval or replication, where PostgreSQL raises its own 55000;
+    the migrated-schema test detects a fence that stops raising it. The
+    public diagnostics keep their finer log labels (serialization versus
+    deadlock, lock wait versus cancelled statement) through the named
+    constants; they never decide status or retry. Evidence:
+    TestClassifyMapsEverySQLStateClassToOneOutcome,
+    TestClassifyPostgreSQLConditionsOnTheMigratedSchema and
+    TestSQLStateLiteralsLiveOnlyInTheClassifier; the regression tests
+    TestReportWriteKeepsDatabaseRejectionsPermanent,
+    TestFindingCollectionPublicationKeepsExhaustedTransactionConflicts,
+    TestAuditStartReplaysTheWinnerAfterADeadlockAbort and the lock-timeout
+    and lost-connection cases of
+    TestCredentialFailuresClassifyRetryabilityAndLogSafeCause each fail with
+    the previous code. Reversal condition: a schema trigger that must name a
+    constraint, or a Server statement that can raise PostgreSQL's own 55000,
+    needs its own SQLSTATE class instead. introduced_by is not recorded: the
+    divergent copies predate this shallow clone and came from several tasks.
+scope:
+  in:
+    - "One Classify function in persistence/postgres with named constants (including 55000) and business rejections from triggers distinguished by constraint or own SQLSTATE class; all callers use it."
+    - "Exhausted transaction retries surface as 503 storage_transaction_conflict everywhere."
+  out:
+    - "Which conditions are permanent versus retryable as documented in failure-model.md."
+acceptance_criteria:
+  - id: A1
+    text: "No five-character SQLSTATE literal remains outside sqlstate.go (test), and a table test maps each SQLSTATE class to one outcome."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/persistence/... ./internal/auditservice ./internal/findingintake ./internal/telemetry ./internal/scheduler"
+    covers: [A1]

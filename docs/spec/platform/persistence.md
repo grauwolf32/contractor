@@ -9,9 +9,10 @@ active Server per PostgreSQL database, the session-level PostgreSQL advisory
 lease that enforces it, the standby Server, detection of lease-session loss and
 its time bounds, the connection pooling that the lease needs, and what must
 not stand in for that lease: an unfenced shared `runtime_agents` table or a
-durable Runtime Agent principal. It also indexes the PostgreSQL state and the
-transaction and serialization rules that domain documents own, so each can be
-found from here while it is stated only in its owner.
+durable Runtime Agent principal. It owns the one classification of a failed
+PostgreSQL call into an outcome class. It also indexes the PostgreSQL state and
+the transaction and serialization rules that domain documents own, so each can
+be found from here while it is stated only in its owner.
 
 It leaves to other documents:
 
@@ -198,6 +199,55 @@ settings bound how long a vanished Server keeps the lease (LIFE-PER-1).
 | No database or network operation while holding the in-memory Runtime Registry lock | [CTL-R87](../execution/control-plane.md) |
 | One database serialization boundary for the owner queue pause and normal Stage admission | [SCH-R156](../execution/scheduler.md) |
 
+### Database failure classification
+
+**PER-R13.** The Server classifies a failed database call in one place, into
+exactly one outcome class, and every component derives its domain error and
+its retry decision from that class, never from an SQLSTATE itself. A
+cancelled or expired caller context takes precedence over any PostgreSQL
+condition in the same error. Each SQLSTATE class, and each code listed here,
+maps to one class:
+
+| Condition | SQLSTATE | Outcome class | Retryability |
+| --- | --- | --- | --- |
+| Unique or exclusion violation | 23505, 23P01 | duplicate | permanent for the request; the caller replays the existing row or reports a conflict |
+| Foreign-key violation, also raised by a trigger that requires a parent row | 23503 | reference violation | permanent |
+| Not-null violation, a violation of a named CHECK constraint, any other integrity constraint violation or data exception | 23502, 23514 naming a constraint, other class 23, class 22 | invalid | permanent |
+| Business-rule rejection raised by a trigger | 23514 naming no constraint | rejected | permanent for the state the statement observed |
+| Write to a Project that is being deleted, rejected by a deletion fence | 55000 | deleting | permanent |
+| Missing database privilege | 42501 | permission denied | permanent |
+| Serialization failure or deadlock | 40001, 40P01 | transaction conflict | retryable: nothing committed, and the whole transaction may be replayed |
+| Lock wait or statement timeout, statement cancellation, expired caller deadline | 55P03, 57014 | timeout | retryable by an idempotent callee; ambiguous at commit |
+| Connection exception, insufficient resources, operator intervention, system error, any other transaction rollback, a lost or refused connection | classes 08, 53, 58, other class 57, other class 40 | unavailable | retryable by an idempotent callee; ambiguous at commit |
+| Cancelled caller context | — | cancelled | not retried |
+| Any other SQLSTATE, such as a syntax, undefined-object, PL/pgSQL or internal error | all other classes | internal | permanent |
+
+A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
+conflict, a timeout or an unavailable database in this table.
+
+**PER-R14.** A schema trigger reports a business-rule rejection as
+`check_violation` (23514) without naming a constraint, and a deletion fence
+reports a deleting Project as `object_not_in_prerequisite_state` (55000). A
+CHECK constraint violation always names its constraint; that is what separates
+rejected from invalid. An assertion of the schema's own invariants, such as
+the Audit event allocator's, raises `assert_failure` (P0004) and is internal.
+
+Rationale: PostgreSQL raises its own 55000 conditions only for DDL, for
+`currval` and `lastval` before a value exists and for replication. No Server
+statement does any of these outside migrations, so 55000 means deleting. The
+classification test on the migrated schema detects a fence that stops raising
+55000; reopen this rule if a Server statement starts using one of those
+features.
+
+**PER-R15.** A permanent class is never reported as a retryable conflict. A
+domain that maps duplicate to its conflict error maps invalid and rejected to
+its invalid, precondition or not-found error, never to that conflict.
+
+**PER-R16.** A transaction conflict that outlasts the bounded transaction
+retries of its operation stays a transaction conflict. The public API reports
+it as the retryable `503 storage_transaction_conflict`; it never becomes a
+`409 conflict` or a `500 internal_error`.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -227,7 +277,9 @@ Lifecycle ([lifecycle](lifecycle.md)):
 Errors ([registry](errors.md)): `/readyz` returns `503` on a standby Server
 until it acquires the advisory lease (PER-R3). The `/readyz` `503` for an
 unusable working DB connection path is owned by
-[Operations](../operations/operations.md).
+[Operations](../operations/operations.md). A transaction conflict that
+outlasts its retries is the retryable `503 storage_transaction_conflict`
+(PER-R16).
 
 ## Invariants
 
@@ -252,6 +304,33 @@ unusable working DB connection path is owned by
 5. The lease session carries the keepalive values of PER-R6; test
    `TestPostgresControlPlaneLeaseSessionDetectsVanishedHolder` in
    [`internal/app/single_active_postgres_test.go`](../../../internal/app/single_active_postgres_test.go).
+6. Every SQLSTATE class maps to one outcome class (PER-R13); test
+   `TestClassifyMapsEverySQLStateClassToOneOutcome` in
+   [`internal/persistence/postgres/sqlstate_test.go`](../../../internal/persistence/postgres/sqlstate_test.go).
+   No other Go source spells an SQLSTATE, neither as a Go string nor in an
+   `ERRCODE` or `SQLSTATE` clause of SQL embedded in Go, which names the
+   condition instead; test `TestSQLStateLiteralsLiveOnlyInTheClassifier` in
+   [`internal/persistence/sqlstate_literal_test.go`](../../../internal/persistence/sqlstate_literal_test.go).
+7. What PostgreSQL and the schema's triggers report on the migrated schema
+   lands in the documented class, including rejected versus invalid
+   (PER-R13, PER-R14); test
+   `TestClassifyPostgreSQLConditionsOnTheMigratedSchema` in
+   [`internal/persistence/postgres/sqlstate_postgres_test.go`](../../../internal/persistence/postgres/sqlstate_postgres_test.go).
+8. A CHECK rejection of a telemetry report stays a permanent invalid report
+   (PER-R15); test `TestReportWriteKeepsDatabaseRejectionsPermanent` in
+   [`internal/telemetry/write_classification_postgres_test.go`](../../../internal/telemetry/write_classification_postgres_test.go).
+9. A publication whose serialization failures outlast its retries keeps the
+   transaction conflict (PER-R16); test
+   `TestFindingCollectionPublicationKeepsExhaustedTransactionConflicts` in
+   [`internal/auditservice/finding_collection_conflict_postgres_test.go`](../../../internal/auditservice/finding_collection_conflict_postgres_test.go).
+10. Audit start re-reads idempotency after a deadlock abort as after a
+    serialization failure, because both are transaction conflicts (PER-R13);
+    test `TestAuditStartReplaysTheWinnerAfterADeadlockAbort` in
+    [`internal/auditservice/start_conflict_postgres_test.go`](../../../internal/auditservice/start_conflict_postgres_test.go).
+11. Stage preparation retries a credential lookup after any transient
+    database failure, including a lock timeout and a lost connection
+    (PER-R13); test `TestCredentialFailuresClassifyRetryabilityAndLogSafeCause`
+    in [`internal/scheduler/credential_failure_test.go`](../../../internal/scheduler/credential_failure_test.go).
 
 ## Non-goals
 

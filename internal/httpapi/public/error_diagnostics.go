@@ -64,9 +64,12 @@ func diagnosticCause(err error) string {
 			return "storage_lock_unavailable"
 		case persistencepostgres.SQLStateQueryCanceled:
 			return "storage_query_cancelled"
-		case persistencepostgres.SQLStateNotNullViolation, persistencepostgres.SQLStateForeignKeyViolation, persistencepostgres.SQLStateUniqueViolation, persistencepostgres.SQLStateCheckViolation, persistencepostgres.SQLStateExclusionViolation:
+		}
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDuplicate, persistencepostgres.ClassReferenceViolation,
+			persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected:
 			return "storage_constraint_failed"
-		case "53300", "57P01", "57P02", "57P03", "08000", "08001", "08003", "08004", "08006", "08007", "08P01":
+		case persistencepostgres.ClassUnavailable:
 			return "storage_unavailable"
 		default:
 			return "storage_failed"

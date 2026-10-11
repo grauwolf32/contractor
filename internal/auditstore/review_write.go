@@ -100,7 +100,7 @@ RETURNING request_id, revision`, auditID, findingID)
 }
 
 func reviewWriteError(err error) error {
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		return ErrConflict
 	}
 	return err

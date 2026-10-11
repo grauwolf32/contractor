@@ -51,7 +51,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				func(tx pgx.Tx) (config.CredentialLookup, error) {
 					attempts++
 					if name == "exhausted-deadlock" {
-						return nil, &pgconn.PgError{Code: "40P01", Message: "injected deadlock"}
+						return nil, &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected, Message: "injected deadlock"}
 					}
 					if name == "concurrent-binding-rebind" && attempts == 1 {
 						// Establish REPEATABLE READ, then commit a rebind on a
@@ -138,7 +138,7 @@ func installRunCreationAbortAfterRepeatRequest(t *testing.T, ctx context.Context
 BEGIN
   IF NEW.scope_kind='run' AND NEW.namespace='contractor-system' AND NEW.name='repeat-request' THEN
     IF nextval('abort_after_repeat_request_sequence')=1 THEN
-      RAISE EXCEPTION 'injected definite abort after writes' USING ERRCODE='40001';
+      RAISE EXCEPTION 'injected definite abort after writes' USING ERRCODE='serialization_failure';
     END IF;
   END IF;
   RETURN NEW;

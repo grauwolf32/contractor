@@ -110,7 +110,7 @@ FROM llm_credentials WHERE credential_id = $1`, record.CredentialID).Scan(
 		t.Fatalf("duplicate reservation error = %v", err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE llm_credentials SET label = 'changed' WHERE credential_id = $1`, record.CredentialID)
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 
 	other, _ := sealedTestRecord(t, "managed-other", "sk-other")
 	other.RemoteKeyID = record.RemoteKeyID
@@ -164,15 +164,15 @@ FROM llm_credentials WHERE credential_id = $1`, record.CredentialID).Scan(
 	}
 	_, err = pool.Exec(ctx, `UPDATE credential_operations SET phase = 'abandoned' WHERE operation_id = $1`,
 		deleteOperation.OperationID)
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	if err := repository.CompleteOperation(ctx, deleteOperation.OperationID, completedAt); !errors.Is(err, ErrConflict) {
 		t.Fatalf("active/tombstone coexistence error = %v", err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE credential_operations SET request_hash = $2 WHERE operation_id = $1`,
 		operation.OperationID, "sha256:"+strings.Repeat("e", 64))
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `DELETE FROM credential_operations WHERE operation_id = $1`, operation.OperationID)
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		txRepository := NewRepository(tx)
@@ -200,9 +200,9 @@ FROM llm_credentials WHERE credential_id = $1`, record.CredentialID).Scan(
 		t.Fatalf("reuse active insert error = %v", err)
 	}
 	_, err = pool.Exec(ctx, `UPDATE credential_operations SET request = '{}' WHERE operation_id = $1`, deleteOperation.OperationID)
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 	_, err = pool.Exec(ctx, `DELETE FROM credential_operations WHERE operation_id = $1`, deleteOperation.OperationID)
-	assertCredentialSQLState(t, err, "23514")
+	assertCredentialSQLState(t, err, persistencepostgres.SQLStateCheckViolation)
 }
 
 // reserveTestCredential stores the prepared create operation that reserves a

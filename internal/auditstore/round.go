@@ -96,10 +96,10 @@ func (s *PostgresStore) MaterializeRound(
 	if err == nil {
 		return audit, true, nil
 	}
-	switch persistencepostgres.SQLState(err) {
-	case "55000":
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassDeleting:
 		return Audit{}, false, ErrProjectDeleting
-	case persistencepostgres.SQLStateUniqueViolation:
+	case persistencepostgres.ClassDuplicate:
 		return s.replayAudit(ctx, params.OwnerID, "audit.start", params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -172,10 +172,10 @@ func (s *PostgresStore) AcceptNextRound(
 	if err == nil {
 		return round, true, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Round{}, false, ErrProjectDeleting
 	}
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate || errors.Is(err, pgx.ErrNoRows) {
 		if replay, found, replayErr := s.lookupAcceptedRoundReplay(ctx, params); replayErr != nil || found {
 			return replay, false, replayErr
 		}
@@ -184,7 +184,7 @@ func (s *PostgresStore) AcceptNextRound(
 		} else if !live {
 			return Round{}, false, ErrClaimLost
 		}
-		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return Round{}, false, ErrConflict
 		}
 		return Round{}, false, ErrPrecondition
@@ -256,7 +256,7 @@ func (s *PostgresStore) TransitionRound(
 	if err == nil {
 		return round, nil
 	}
-	if persistencepostgres.SQLState(err) == "55000" {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
 		return Round{}, ErrProjectDeleting
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

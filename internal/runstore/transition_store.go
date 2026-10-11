@@ -31,13 +31,13 @@ RETURNING `+stageTransitionDecisionColumns,
 		params.EscalationOrdinal, params.EscalationExhausted,
 	))
 	if err != nil {
-		switch persistencepostgres.SQLState(err) {
-		case persistencepostgres.SQLStateUniqueViolation:
+		switch persistencepostgres.Classify(err) {
+		case persistencepostgres.ClassDuplicate:
 			return StageTransitionDecision{}, fmt.Errorf(
 				"record transition decision for StageExecution %q: %w",
 				params.SourceExecutionID, ErrConflict,
 			)
-		case persistencepostgres.SQLStateForeignKeyViolation:
+		case persistencepostgres.ClassReferenceViolation:
 			return StageTransitionDecision{}, fmt.Errorf(
 				"record transition decision for StageExecution %q: %w",
 				params.SourceExecutionID, ErrNotFound,

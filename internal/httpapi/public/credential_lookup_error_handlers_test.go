@@ -19,7 +19,7 @@ import (
 
 func TestCredentialLookupOutagesRemainRetryableAcrossRuntimeMutations(t *testing.T) {
 	transient := persistencepostgres.WrapError("validate RuntimeConfig credential", &pgconn.PgError{
-		Code: "57014", Message: "private-database-canary",
+		Code: persistencepostgres.SQLStateQueryCanceled, Message: "private-database-canary",
 	})
 	for _, operation := range []string{"publish", "label-create", "label-rebind", "run-create"} {
 		t.Run(operation, func(t *testing.T) {

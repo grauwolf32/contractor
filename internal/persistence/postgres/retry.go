@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -43,13 +42,5 @@ func retryTransaction(ctx context.Context, attempt func() error) error {
 // IsTransactionConflict identifies server-confirmed transaction aborts. An
 // unclassified transport/commit error must never be assumed rolled back.
 func IsTransactionConflict(err error) bool {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	switch SQLState(err) {
-	case SQLStateSerializationFailure, SQLStateDeadlockDetected:
-		return true
-	default:
-		return false
-	}
+	return Classify(err) == ClassTransactionConflict
 }

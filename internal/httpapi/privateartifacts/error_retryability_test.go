@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // The private API keeps the retryability of the store's answer: a frozen
@@ -27,11 +28,11 @@ func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 		{"frozen binding", artifacts.ErrArtifactFrozen, http.StatusConflict, "artifact_frozen", false},
 		{"stale revision", &artifacts.ConflictError{Ref: artifacts.ArtifactRef{Namespace: "builder", Name: "report"}},
 			http.StatusConflict, "artifact_conflict", true},
-		{"serialization failure", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: "40001"}),
+		{"serialization failure", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}),
 			http.StatusServiceUnavailable, "storage_transaction_conflict", true},
-		{"deadlock", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: "40P01"}),
+		{"deadlock", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected}),
 			http.StatusServiceUnavailable, "storage_transaction_conflict", true},
-		{"other storage failure", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: "53300"}),
+		{"other storage failure", fmt.Errorf("write artifact: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateTooManyConnections}),
 			http.StatusInternalServerError, "internal_error", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {

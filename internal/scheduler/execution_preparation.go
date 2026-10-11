@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -17,7 +16,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Allocation configuration is materialized only at preparation time. These
@@ -418,23 +416,8 @@ func classifyCredentialError(err error) (bool, string) {
 	case errors.Is(err, credentials.ErrCrypto), errors.Is(err, credentials.ErrKeyUnavailable):
 		return false, "credential_unreadable"
 	}
-	if transientStorageError(err) {
+	if persistencepostgres.IsTransientFailure(err) {
 		return true, "storage_unavailable"
 	}
 	return false, "configuration_unavailable"
-}
-
-// transientStorageError recognizes connection, resource and serialization
-// failures reported by PostgreSQL or its transport.
-func transientStorageError(err error) bool {
-	if state := persistencepostgres.SQLState(err); state != "" {
-		switch state[:2] {
-		case "08", "40", "53", "57", "58":
-			return true
-		}
-		return false
-	}
-	var connectErr *pgconn.ConnectError
-	var netErr net.Error
-	return errors.As(err, &connectErr) || errors.As(err, &netErr) || pgconn.Timeout(err)
 }

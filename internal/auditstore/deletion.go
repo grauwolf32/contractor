@@ -33,7 +33,7 @@ func (s *PostgresStore) RequestDelete(
 	if err == nil {
 		return audit, true, nil
 	}
-	if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		return s.replayAudit(ctx, params.OwnerID, string(MutationDelete), params.IdempotencyKey, params.RequestDigest)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

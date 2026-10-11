@@ -109,7 +109,7 @@ SELECT last_event_sequence FROM changed`
 		var last int64
 		err := pool.QueryRow(ctx, appendSQL, audit.AuditID, broken.reserved, broken.events).Scan(&last)
 		var postgresError *pgconn.PgError
-		if !errors.As(err, &postgresError) || postgresError.Code != "P0004" {
+		if !errors.As(err, &postgresError) || postgresError.Code != persistencepostgres.SQLStateAssertFailure {
 			t.Errorf("%s = (%d, %v), want SQLSTATE P0004", broken.name, last, err)
 		}
 	}
@@ -117,7 +117,7 @@ SELECT last_event_sequence FROM changed`
 	err = pool.QueryRow(ctx, `SELECT contractor_append_audit_events($1, $2::jsonb)`,
 		audit.AuditID, "["+event+"]").Scan(&direct)
 	var postgresError *pgconn.PgError
-	if !errors.As(err, &postgresError) || postgresError.Code != "P0004" {
+	if !errors.As(err, &postgresError) || postgresError.Code != persistencepostgres.SQLStateAssertFailure {
 		t.Errorf("unreserved direct append = (%d, %v), want SQLSTATE P0004", direct, err)
 	}
 	var last int64

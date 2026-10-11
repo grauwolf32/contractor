@@ -157,7 +157,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 		},
 		AuditExecutionID: execution.ExecutionID, AuditSubmissionKey: execution.SubmissionKey,
-	}); persistencepostgres.SQLState(err) != "23514" {
+	}); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 		t.Fatalf("unbound Audit-managed Run error = %v", err)
 	}
 	if _, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-orphan-must-rollback"); !errors.Is(err, runstore.ErrNotFound) {
