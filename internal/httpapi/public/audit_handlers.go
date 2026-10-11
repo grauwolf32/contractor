@@ -279,7 +279,7 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditRequestDigest("", auditID, revision, seconds)
+	digest := auditRequestDigest("start", auditID, revision, seconds)
 	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
