@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-46 open tasks: 3 in progress, 29 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
+46 open tasks: 4 in progress, 28 pending, 14 deferred. 778 finished: 775 completed, 3 archived.
 
 ## In progress
 
@@ -14,6 +14,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
+| [V367-009](v367-009-audit-workspace-coverage-truth.yml) | audits | defect | P2 | Count excluded items as gaps and ignore expired reviews in the Audit workspace |
 
 ## Pending
 
@@ -67,7 +68,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show Audit ranking progress, top-N selection and deferred checklist reasons |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-008 | Publish a runnable prioritized custom-checklist Audit profile and guide |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010 | Verify contextual checklist prioritization across process and browser boundaries |
-| [V367-009](v367-009-audit-workspace-coverage-truth.yml) | defect | P2 | — | Count excluded items as gaps and ignore expired reviews in the Audit workspace |
 
 ### Evaluations (`evals`)
 

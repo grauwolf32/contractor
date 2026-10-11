@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V37-010
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The Audit workspace and the Audit report classify coverage from one table, and the waiting-decisions count shows only reviews that can still be decided."
