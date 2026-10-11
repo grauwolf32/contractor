@@ -11,6 +11,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -81,7 +82,7 @@ func padArtifactCopySnapshotToBound(t *testing.T, root string) {
 		if err := os.WriteFile(instruction, []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := config.Load(root, config.MVPDescriptors())
+		snapshot, err := configload.Load(root, config.MVPDescriptors())
 		if err != nil {
 			t.Fatal(err)
 		}
