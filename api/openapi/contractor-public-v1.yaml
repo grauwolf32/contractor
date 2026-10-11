@@ -4216,6 +4216,7 @@ paths:
           in: query
           required: false
           schema: {$ref: '#/components/schemas/ResourceId'}
+        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409.'}
       responses:
         '200':
           description: Stable coverage page
@@ -4228,6 +4229,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
@@ -11903,10 +11905,11 @@ components:
     AuditCoveragePage:
       type: object
       additionalProperties: false
-      required: [items, page]
+      required: [items, page, auditRevision]
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+        auditRevision: {type: integer, minimum: 1, description: The Audit revision every row of this page was read at.}
     AuditItemApprovalKind: {enum: [none, active-check-approval, requirement-applicability]}
     AuditReportSummaryArtifact:
       type: object

@@ -178,21 +178,44 @@ func (s *Service) GetRound(
 	return store.GetRound(ctx, auditID, roundID)
 }
 
+// CoveragePage is one page of a Round's coverage rows, all read at
+// AuditRevision.
+type CoveragePage struct {
+	Rows          []auditstore.CoverageRow
+	AuditRevision uint64
+}
+
+// ListCoverage reads one coverage page of roundID. The page belongs to one
+// Audit revision, auditRevision when it is set: an Audit that holds another
+// revision before or after the rows and their details are read is
+// auditstore.ErrConflict, as for finding and review pages.
 func (s *Service) ListCoverage(
 	ctx context.Context,
 	ownerID, auditID, roundID string,
 	afterOrdinal, limit int,
-) ([]auditstore.CoverageRow, error) {
+	auditRevision *uint64,
+) (CoveragePage, error) {
 	store := auditstore.NewPostgresStore(s.pool)
 	audit, err := store.Get(ctx, ownerID, auditID)
 	if err != nil {
-		return nil, err
+		return CoveragePage{}, err
+	}
+	if auditRevision != nil && *auditRevision != audit.Revision {
+		return CoveragePage{}, auditstore.ErrConflict
 	}
 	rows, err := store.ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
-	if err != nil || audit.State == auditstore.AuditDeleting {
-		return rows, err
+	if err != nil {
+		return CoveragePage{}, err
 	}
-	return s.describeCoverage(ctx, audit.ProjectID, rows)
+	if audit.State != auditstore.AuditDeleting {
+		if rows, err = s.describeCoverage(ctx, audit.ProjectID, rows); err != nil {
+			return CoveragePage{}, err
+		}
+	}
+	if err := s.checkPageRevision(ctx, ownerID, auditID, audit.Revision); err != nil {
+		return CoveragePage{}, err
+	}
+	return CoveragePage{Rows: rows, AuditRevision: audit.Revision}, nil
 }
 
 func (s *Service) GetReport(

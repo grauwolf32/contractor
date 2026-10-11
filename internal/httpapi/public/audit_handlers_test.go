@@ -742,12 +742,12 @@ func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) 
 }
 
 func (f *fakeAuditManagement) ListCoverage(
-	_ context.Context, _, _, _ string, _ int, limit int,
-) ([]auditstore.CoverageRow, error) {
+	_ context.Context, _, _, _ string, _ int, limit int, _ *uint64,
+) (auditservice.CoveragePage, error) {
 	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
+		return auditservice.CoveragePage{}, err
 	}
-	return nil, f.err
+	return auditservice.CoveragePage{}, f.err
 }
 
 func (f *fakeAuditManagement) GetReport(

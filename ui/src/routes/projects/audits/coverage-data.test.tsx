@@ -75,10 +75,36 @@ function response(value: unknown, revision?: number): Response {
   });
 }
 
+/** The Server's answer to a coverage page read at another revision. */
+function revisionConflict(): Response {
+  return new Response(
+    JSON.stringify({
+      code: "conflict",
+      message: "resource state changed; retry with the current revision",
+      retryable: true,
+      requestId: "request_conflict",
+    }),
+    {
+      status: 409,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Contractor-API-Version": "contractor.public.v1",
+      },
+    },
+  );
+}
+
 function fixture(initialPath = "/coverage") {
   let current = auditAt("active", 1);
-  const loadCoverage = vi.fn<(url: URL) => Promise<Response>>(async () =>
-    response({ items: [coverage(current)], page: { hasMore: false } }),
+  // Like the Server, read every page at its pinned revision or answer 409.
+  const loadCoverage = vi.fn<(url: URL) => Promise<Response>>(async (url) =>
+    url.searchParams.get("auditRevision") === String(current.revision)
+      ? response({
+          items: [coverage(current)],
+          page: { hasMore: false },
+          auditRevision: current.revision,
+        })
+      : revisionConflict(),
   );
   const api = new PublicAPI(
     {
@@ -216,14 +242,20 @@ describe("Audit coverage completion", () => {
     }
   });
 
+  it("pins every coverage page to the revision its batch starts from", async () => {
+    const { result, loadCoverage } = fixture();
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    expect(loadCoverage).toHaveBeenCalledTimes(1);
+    const url = loadCoverage.mock.calls[0]?.[0];
+    expect(url?.searchParams.get("auditRevision")).toBe("1");
+    expect(url?.searchParams.get("round")).toBe("round_example");
+  });
+
   it("retries one unpinned first batch after a revision straddle", async () => {
     const { result, loadCoverage, setServerRevision } = fixture();
     loadCoverage.mockImplementationOnce(async () => {
       setServerRevision("active", 2);
-      return response({
-        items: [coverage(auditAt("active", 1))],
-        page: { hasMore: false },
-      });
+      return revisionConflict();
     });
     await waitFor(() =>
       expect(result.current.query.items[0]?.coverage.rationale).toBe(
@@ -239,18 +271,14 @@ describe("Audit coverage completion", () => {
     await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
     loadCoverage.mockImplementationOnce(async (url) => {
       expect(url.searchParams.get("round")).toBe("round_example");
+      expect(url.searchParams.get("auditRevision")).toBe("2");
       setServerRevision("completed", 3);
-      return response({
-        items: [coverage(auditAt("completed", 2))],
-        page: { hasMore: false },
-      });
+      return revisionConflict();
     });
-    loadCoverage.mockImplementationOnce(async () => {
+    loadCoverage.mockImplementationOnce(async (url) => {
+      expect(url.searchParams.get("auditRevision")).toBe("3");
       setServerRevision("completed", 4);
-      return response({
-        items: [coverage(auditAt("completed", 3))],
-        page: { hasMore: false },
-      });
+      return revisionConflict();
     });
     update("completed", 2);
     await waitFor(() =>
@@ -280,10 +308,12 @@ describe("Audit coverage completion", () => {
       "/coverage?auditRevision=1",
     );
     loadCoverage.mockImplementation(async (url) => {
+      expect(url.searchParams.get("auditRevision")).toBe("1");
       const page = Number(url.searchParams.get("cursor") ?? "0");
       return response({
         items: [coverage(auditAt("active", 1))],
         page: { hasMore: true, nextCursor: String(page + 1) },
+        auditRevision: 1,
       });
     });
     await waitFor(() => expect(result.current.query.truncated).toBe(true));

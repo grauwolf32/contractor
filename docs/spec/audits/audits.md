@@ -735,6 +735,16 @@ revalidates both.
 - standard version, selected level, and requirement/asset selection rules;
 - limits and human-interaction policy.
 
+**AUD-R225.** Start stages its content-named artifacts before that
+transaction: the retained standard copies (AUD-R56), the task packages and the
+first worklist are written frozen into the Audit namespace while the draft row
+is held against purge, so a purge either removes what was staged or has
+already removed the Audit. The start transaction then writes only rows and
+accepts the staging only for the same draft revision. A start whose
+transaction does not commit leaves the staging behind; a retry of the same
+draft revision finds every artifact already written and writes none again, and
+Audit deletion purges the namespace with everything staged in it.
+
 **AUD-R96.** Draft input bindings may be edited with Audit revision CAS.
 
 **AUD-R97.** After start, the baseline is immutable. Changing target,
@@ -1247,7 +1257,9 @@ history, newest sequence first, in pages of at most 200 events (LIM-AUD-24).
 
 **AUD-R211.** The first read fixes `throughSequence`; signed cursors bind
 owner, Audit, that immutable prefix and the next exclusive sequence boundary.
-`total` counts the frozen prefix, before pagination.
+`total` counts the frozen prefix, before pagination. Because events are
+numbered without gaps (AUD-R223) it equals `throughSequence`, so a page reads
+only its own events and reading N events costs O(N).
 
 **AUD-R212.** New events do not invalidate continuations: refresh begins a new
 prefix.

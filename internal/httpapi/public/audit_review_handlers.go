@@ -85,7 +85,7 @@ func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 		params.Severity, severityValue = &value, values[0]
 	}
 	cursorKind := "audit-findings:" + params.OwnerID + ":" + params.AuditID + ":" + stateValue + ":" + verdictValue + ":" + severityValue
-	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"))
+	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"), 3)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -198,7 +198,7 @@ func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 		params.State, stateValue = &value, values[0]
 	}
 	cursorKind := "audit-reviews:" + params.OwnerID + ":" + params.AuditID + ":" + findingValue + ":" + stateValue
-	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"))
+	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"), 3)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -395,7 +395,10 @@ func reviewRequestDigest(kind string, identity ...any) string {
 
 // Continuations bind owner, filters and Audit revision. A caller may also pin
 // its first page to a summary revision; incompatible cursors are never reused.
-func (h *handler) decodeAuditPageCursor(value, kind, expected string) ([]string, *uint64, error) {
+// decodeAuditPageCursor decodes a continuation of parts values whose last
+// value is the Audit revision every page of the listing is pinned to. An
+// explicit auditRevision must name the same revision.
+func (h *handler) decodeAuditPageCursor(value, kind, expected string, parts int) ([]string, *uint64, error) {
 	var revision *uint64
 	if expected != "" {
 		parsed, err := strconv.ParseUint(expected, 10, 64)
@@ -404,12 +407,12 @@ func (h *handler) decodeAuditPageCursor(value, kind, expected string) ([]string,
 		}
 		revision = &parsed
 	}
-	cursor, err := h.decodePageCursor(value, kind, 3)
+	cursor, err := h.decodePageCursor(value, kind, parts)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(cursor) != 0 {
-		parsed, err := strconv.ParseUint(cursor[2], 10, 64)
+		parsed, err := strconv.ParseUint(cursor[parts-1], 10, 64)
 		if err != nil || parsed == 0 || (revision != nil && *revision != parsed) {
 			return nil, nil, errInvalidRequest
 		}

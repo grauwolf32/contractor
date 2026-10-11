@@ -170,9 +170,22 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || deleting.Audit.State != auditstore.AuditCancelling || deleting.Audit.DeletionRequestedAt == nil {
 		t.Fatalf("delete intent = (%+v, %v)", deleting, err)
 	}
-	coverage, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10)
+	coveragePage, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, nil)
+	coverage := coveragePage.Rows
 	if err != nil || len(coverage) != 1 || coverage[0].Ordinal != 0 || coverage[0].Coverage.Status != auditstore.CoverageNotTested {
 		t.Fatalf("initial coverage = (%+v, %v)", coverage, err)
+	}
+	if current, err := service.Get(ctx, project.OwnerID, draft.AuditID); err != nil || coveragePage.AuditRevision != current.Revision {
+		t.Fatalf("coverage page revision = %d, Audit = (%+v, %v)", coveragePage.AuditRevision, current, err)
+	}
+	pinned := coveragePage.AuditRevision
+	if page, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, &pinned); err != nil ||
+		page.AuditRevision != pinned || len(page.Rows) != 1 {
+		t.Fatalf("pinned coverage = (%+v, %v)", page, err)
+	}
+	stale := pinned - 1
+	if _, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10, &stale); !errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("stale coverage pin = %v", err)
 	}
 	if coverage[0].Details == nil || coverage[0].Details.Objective == "" || !json.Valid(coverage[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the retained task: %+v", coverage[0].Details)
@@ -246,7 +259,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		t.Fatalf("foreign owner item list = %v", err)
 	}
 	if _, err := service.ListCoverage(
-		ctx, "other-owner", draft.AuditID, started.Round.RoundID, -1, 10,
+		ctx, "other-owner", draft.AuditID, started.Round.RoundID, -1, 10, nil,
 	); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign owner coverage = %v", err)
 	}
@@ -446,9 +459,10 @@ UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 se
 		*rejectedItems[0].FinalDisposition != auditstore.FinalExcluded {
 		t.Fatalf("rejected exact item = (%+v, %v)", rejectedItems, err)
 	}
-	rejectedCoverage, err := service.ListCoverage(
-		ctx, project.OwnerID, rejectedDraft.AuditID, rejectedStarted.Round.RoundID, -1, 10,
+	rejectedPage, err := service.ListCoverage(
+		ctx, project.OwnerID, rejectedDraft.AuditID, rejectedStarted.Round.RoundID, -1, 10, nil,
 	)
+	rejectedCoverage := rejectedPage.Rows
 	if err != nil || len(rejectedCoverage) != 1 ||
 		rejectedCoverage[0].Coverage.Status != auditstore.CoverageExcluded {
 		t.Fatalf("rejected item coverage = (%+v, %v)", rejectedCoverage, err)
@@ -523,10 +537,11 @@ SELECT count(*)
 		*notApplicableItems[0].FinalDisposition != auditstore.FinalNotApplicable {
 		t.Fatalf("not-applicable item = (%+v, %v)", notApplicableItems, err)
 	}
-	notApplicableCoverage, err := service.ListCoverage(
+	notApplicablePage, err := service.ListCoverage(
 		ctx, project.OwnerID, notApplicableDraft.AuditID,
-		notApplicableStarted.Round.RoundID, -1, 10,
+		notApplicableStarted.Round.RoundID, -1, 10, nil,
 	)
+	notApplicableCoverage := notApplicablePage.Rows
 	if err != nil || len(notApplicableCoverage) != 1 ||
 		notApplicableCoverage[0].Coverage.Status != auditstore.CoverageNotApplicable ||
 		notApplicableCoverage[0].Coverage.Rationale != rationale {

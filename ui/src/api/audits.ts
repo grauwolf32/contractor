@@ -551,13 +551,19 @@ export async function listAuditItems(
   return { items: structuredClone(page.items), page: page.page };
 }
 
+/**
+ * One coverage page, read at one Audit revision. With `auditRevision` the
+ * Server reads the page at exactly that revision or answers 409.
+ */
 export async function listAuditCoverage(
   api: PublicAPI,
   auditId: string,
-  request: PageRequest & { round?: string } = {},
+  request: PageRequest & { round?: string; auditRevision?: number } = {},
 ): Promise<AuditCoveragePage> {
   requireAuditID(auditId);
   if (request.round !== undefined) requireAuditID(request.round);
+  if (request.auditRevision !== undefined)
+    requireAuditRevision(request.auditRevision);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/coverage", {
       params: {
@@ -565,13 +571,21 @@ export async function listAuditCoverage(
         query: {
           limit: AUDIT_PAGE_SIZE,
           ...(request.round === undefined ? {} : { round: request.round }),
+          ...(request.auditRevision === undefined
+            ? {}
+            : { auditRevision: request.auditRevision }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
         },
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return { items: structuredClone(page.items), page: page.page };
+  const value = requireData(result);
+  const page = safePage(value, result.response.status);
+  return {
+    items: structuredClone(page.items),
+    page: page.page,
+    auditRevision: value.auditRevision,
+  };
 }
 
 interface ReportReadQueue {

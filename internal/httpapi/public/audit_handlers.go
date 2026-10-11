@@ -490,7 +490,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round")
+	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -507,14 +507,24 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	} else if audit.CurrentRoundID != nil {
 		roundID = *audit.CurrentRoundID
 	}
-	if roundID == "" {
-		writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: []auditCoverageResponse{}, Page: pageInfoResponse{}})
-		return
-	}
 	cursorKind := "audit-coverage:" + auditID + ":" + roundID
-	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
+	cursor, revision, err := h.decodeAuditPageCursor(encodedCursor, cursorKind, query.Get("auditRevision"), 2)
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	// The page, and the current Round it was chosen from, belong to one
+	// revision: the pinned one, or the one just read.
+	if revision == nil {
+		revision = &audit.Revision
+	} else if *revision != audit.Revision {
+		h.handleError(w, auditstore.ErrConflict)
+		return
+	}
+	if roundID == "" {
+		writeJSON(w, http.StatusOK, auditCoveragePageResponse{
+			Items: []auditCoverageResponse{}, Page: pageInfoResponse{}, AuditRevision: audit.Revision,
+		})
 		return
 	}
 	after := -1
@@ -525,13 +535,15 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	coverage, err := h.dependencies.Audits.ListCoverage(r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit))
+	result, err := h.dependencies.Audits.ListCoverage(
+		r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit), revision,
+	)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	coverage, page, err := paginate(h, coverage, limit, cursorKind, func(last auditstore.CoverageRow) []string {
-		return []string{strconv.Itoa(last.Ordinal)}
+	coverage, page, err := paginate(h, result.Rows, limit, cursorKind, func(last auditstore.CoverageRow) []string {
+		return []string{strconv.Itoa(last.Ordinal), strconv.FormatUint(result.AuditRevision, 10)}
 	})
 	if err != nil {
 		h.handleError(w, err)
@@ -545,7 +557,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
 		}
 	}
-	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page})
+	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page, AuditRevision: result.AuditRevision})
 }
 
 func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {

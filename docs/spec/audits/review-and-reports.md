@@ -993,9 +993,13 @@ revision pins.
 
 **REV-R190.** Refresh explicitly starts a new context.
 
-**REV-R172.** Coverage links also pin the summary revision; the UI
-checks it before and after collecting the current-round coverage pages and
-rejects mixed revisions.
+**REV-R172.** Coverage links also pin the summary revision. Every coverage
+page is read at one Audit revision and reports it as `auditRevision`; an
+optional `auditRevision` pins a page, and the current Round it defaults to, to
+that revision, and signed continuation cursors bind the Round and revision, so
+a page whose Audit changes returns 409 (FAIL-REV-12). The UI pins every page
+of a batch to the revision it read before the batch and rejects mixed
+revisions.
 
 **REV-R173.** Finding detail identifies the exact first and contributing
 proposals, the current assessment and decision, and the duplicate target.
