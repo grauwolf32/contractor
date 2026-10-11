@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -219,4 +222,146 @@ func bindingWriteRefusals(t *testing.T, ctx context.Context, repository artifact
 		refusals = append(refusals, refused())
 	}
 	return refusals
+}
+
+// TestFakeRuntimeAgentPrincipalKeysMatchPostgres drives the fake and the real
+// principal manager on PostgreSQL through the same keyed label replacements
+// and deletions. Both remember the key of a committed mutation and replay its
+// result for the same request, refuse the key for another request or
+// operation as a permanent idempotency conflict, and forget the key of a
+// refused mutation.
+func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	principalID := strings.Repeat("c", 64)
+	fake := newFakeRuntimeAgentPrincipalManagement()
+	fake.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
+		Principal: runtimeconfig.RuntimeAgentPrincipal{RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1},
+	}
+	checkPrincipalKeyMemory(t, ctx, "fake", fake, principalID)
+
+	pool := isolatedPublicPool(t, ctx)
+	// A Runtime Agent label must select Worker settings.
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: parityRuntimeCredentials{},
+		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := publisher.Publish(ctx, []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"parity-telemetry","version":"1"},
+  "spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces"}}}
+}`), "parity-telemetry", "operator-parity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC()
+	if _, err := runtimeconfig.NewRepository(pool).CreateBinding(
+		ctx, "parity-label", published.Version.Ref, "operator-parity", at,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, err := runtimeconfig.NewPrincipalRepository(pool).Insert(ctx, runtimeconfig.RuntimeAgentPrincipal{
+		RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
+		CreatedBy: "operator-parity", CreatedAt: at, UpdatedBy: "operator-parity", UpdatedAt: at,
+	}); err != nil || !inserted {
+		t.Fatalf("insert principal = (%t, %v)", inserted, err)
+	}
+	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+		Pool: pool, DeletionGuard: registry,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations, err := controlplane.NewPrincipalOperations(service, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkPrincipalKeyMemory(t, ctx, "PostgreSQL", operations, principalID)
+}
+
+// parityRuntimeCredentials serves the publication of a RuntimeConfig that
+// references no Runtime credential.
+type parityRuntimeCredentials struct{}
+
+func (parityRuntimeCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return errors.New("the principal parity RuntimeConfig references no Runtime credential")
+}
+
+func (parityRuntimeCredentials) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
+}
+
+// checkPrincipalKeyMemory runs the keyed mutation table against a principal
+// that starts unlabelled at revision 1 and may carry the label parity-label.
+func checkPrincipalKeyMemory(
+	t *testing.T, ctx context.Context, name string, manager RuntimeAgentPrincipalManagement, principalID string,
+) {
+	t.Helper()
+	type outcome struct {
+		err      error
+		replayed bool
+		revision uint64
+		labels   []string
+	}
+	at := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
+	labelled, unlabelled := []string{"parity-label"}, []string{}
+	replace := func(expected uint64, labels []string, key string) outcome {
+		principal, replayed, err := manager.ReplaceLabels(ctx, principalID, expected, labels, key, "operator-parity", at)
+		return outcome{err, replayed, principal.Principal.LabelRevision, principal.Principal.Labels}
+	}
+	remove := func(expected uint64, key string) outcome {
+		replayed, err := manager.Delete(ctx, principalID, expected, key, "operator-parity", at)
+		return outcome{err: err, replayed: replayed}
+	}
+	for _, step := range []struct {
+		name string
+		run  func() outcome
+		want outcome
+	}{
+		{"label the principal", func() outcome { return replace(1, labelled, "label") },
+			outcome{revision: 2, labels: labelled}},
+		{"repeat the labelling", func() outcome { return replace(1, labelled, "label") },
+			outcome{replayed: true, revision: 2, labels: labelled}},
+		{"reuse the key for other labels", func() outcome { return replace(1, unlabelled, "label") },
+			outcome{err: contracts.ErrIdempotencyConflict}},
+		{"reuse the key for a deletion", func() outcome { return remove(2, "label") },
+			outcome{err: contracts.ErrIdempotencyConflict}},
+		{"delete the labelled principal", func() outcome { return remove(2, "delete") },
+			outcome{err: runtimeconfig.ErrPrincipalInUse}},
+		{"clear the labels", func() outcome { return replace(2, unlabelled, "clear") },
+			outcome{revision: 3, labels: unlabelled}},
+		{"repeat the labelling after a newer change", func() outcome { return replace(1, labelled, "label") },
+			outcome{replayed: true, revision: 2, labels: labelled}},
+		{"delete at a stale revision under the refused key", func() outcome { return remove(2, "delete") },
+			outcome{err: runtimeconfig.ErrPrecondition}},
+		{"delete under the refused key", func() outcome { return remove(3, "delete") },
+			outcome{}},
+		{"repeat the deletion", func() outcome { return remove(3, "delete") },
+			outcome{replayed: true}},
+		{"repeat the labelling of the deleted principal", func() outcome { return replace(1, labelled, "label") },
+			outcome{err: runtimeconfig.ErrNotFound}},
+		{"delete the deleted principal", func() outcome { return remove(3, "delete-again") },
+			outcome{err: runtimeconfig.ErrNotFound}},
+	} {
+		got := step.run()
+		if step.want.err != nil {
+			if !errors.Is(got.err, step.want.err) || got.replayed {
+				t.Errorf("%s: %s = (%v, replayed %t), want %v", name, step.name, got.err, got.replayed, step.want.err)
+			}
+			continue
+		}
+		if got.err != nil || got.replayed != step.want.replayed || got.revision != step.want.revision ||
+			!slices.Equal(got.labels, step.want.labels) {
+			t.Errorf("%s: %s = (%v, replayed %t, revision %d, labels %v), want (replayed %t, revision %d, labels %v)",
+				name, step.name, got.err, got.replayed, got.revision, got.labels,
+				step.want.replayed, step.want.revision, step.want.labels)
+		}
+	}
 }
