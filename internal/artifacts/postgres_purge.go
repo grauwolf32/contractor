@@ -312,7 +312,9 @@ RETURNING backend, object_key`, blobDigests)
 			return err
 		}
 		if kind == BlobFilesystem && key != nil {
-			deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key})
+			if err := deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key}); err != nil {
+				return err
+			}
 		}
 	}
 	if err := deleted.Err(); err != nil {

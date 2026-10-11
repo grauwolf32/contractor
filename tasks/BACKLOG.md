@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 3 in progress, 71 pending, 14 deferred. 808 finished: 805 completed, 3 archived.
+87 open tasks: 3 in progress, 70 pending, 14 deferred. 809 finished: 806 completed, 3 archived.
 
 ## In progress
 
@@ -71,7 +71,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-022](v368-022-artifact-request-validation.yml) | defect | P2 | — | Tighten Artifact namespace and revision validation |
-| [V368-028](v368-028-blob-runtime-context.yml) | defect | P3 | — | Fail loudly when a filesystem blob operation has no blob runtime |
 | [V370-016](v370-016-simplify-artifacts.yml) | chore | P3 | — | Simplify the Artifact service and Runtime client |
 | [V370-024](v370-024-artifact-purge-bound.yml) | defect | P2 | — | Bound Artifact purge and the number of bindings per Run |
 | [V370-025](v370-025-artifact-read-efficiency.yml) | defect | P3 | — | Avoid full Artifact materialization and unindexed listing filters |
@@ -190,7 +189,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 13 | 13 | 8 | 11 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 27 | 31 | 3 | 33 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 27 | 31 | 3 | 33 |
 | Audits (`audits`) | 24 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |

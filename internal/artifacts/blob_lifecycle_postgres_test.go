@@ -1,10 +1,15 @@
 package artifacts_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -65,6 +70,119 @@ func TestFilesystemRegistryAndCommitCleanup(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("committed unlink: %v", err)
 	}
+}
+
+// A context without the installed blob runtime, such as a fresh
+// context.Background(), cannot open or unlink filesystem objects. Reads and
+// deletion fail as logged internal errors instead of reporting corrupt content
+// or silently orphaning the file, and nothing is deleted until a context with
+// the runtime retries.
+func TestFilesystemBlobWithoutRuntimeFailsLoudly(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	installed := WithBlobRuntime(ctx, NewBlobRuntime(files, nil))
+	createArtifactRun(t, installed, pool, "runtimeless-run", true)
+	run, _ := NewService(NewPostgresRepository(pool)).Run("runtimeless-run")
+	written, err := run.Write(installed, ArtifactRef{Namespace: "scratch", Name: "content"}, Payload{MediaType: "text/plain", Data: []byte("filesystem bytes")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key string
+	if err := pool.QueryRow(ctx, `SELECT object_key FROM artifact_blobs`).Scan(&key); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureDefaultLogger(t)
+	runtimeless := context.Background()
+	loud := func(operation string, err error) {
+		t.Helper()
+		if !errors.Is(err, ErrBlobRuntimeMissing) || errors.Is(err, ErrArtifactIntegrity) ||
+			errors.Is(err, ErrBlobMissing) || errors.Is(err, ErrBlobIO) {
+			t.Fatalf("%s without blob runtime = %v, want an internal missing-runtime error", operation, err)
+		}
+	}
+	_, err = run.Read(runtimeless, written.Ref)
+	loud("read", err)
+	scope, _ := RunScope("runtimeless-run")
+	_, err = NewPostgresRepository(pool).ReadExactBatch(runtimeless, []ExactReadRequest{{Scope: scope, Ref: written.Ref}})
+	loud("exact batch read", err)
+	prepared, err := PreparePayload(installed, Payload{MediaType: "text/plain", Data: []byte("prepared bytes")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = run.Write(runtimeless, ArtifactRef{Namespace: "scratch", Name: "prepared"}, prepared, nil)
+	loud("write of a prepared filesystem payload", err)
+	// Without a runtime a write can only offer inline bytes; the registry's
+	// backend guard rejects them on a filesystem installation.
+	_, err = run.Write(runtimeless, ArtifactRef{Namespace: "scratch", Name: "inline"}, Payload{MediaType: "text/plain", Data: []byte("inline bytes")}, nil)
+	if postgres.SQLState(err) != postgres.SQLStateCheckViolation {
+		t.Fatalf("inline write without blob runtime = %v, want the backend guard rejection", err)
+	}
+	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "runtimeless-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	err = rundeletion.New(pool).DeleteReleasedTerminalRun(runtimeless, "user-1", "runtimeless-run")
+	loud("Run deletion", err)
+	for _, operation := range []string{"operation=read", "operation=check", "operation=delete"} {
+		if !strings.Contains(logs.String(), operation) {
+			t.Fatalf("missing runtime was not logged for %s: %q", operation, logs.String())
+		}
+	}
+	// The failed deletion rolled back: the binding still reads its bytes.
+	read, err := run.Read(installed, written.Ref)
+	if err != nil || string(read.Payload.Data) != "filesystem bytes" {
+		t.Fatalf("read with runtime after failed deletion = (%q, %v)", read.Payload.Data, err)
+	}
+	if _, err := os.Stat(filepath.Join(path, key)); err != nil {
+		t.Fatalf("failed deletion touched the file: %v", err)
+	}
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(installed, "user-1", "runtimeless-run"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(path, key)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("committed unlink: %v", err)
+	}
+}
+
+// captureDefaultLogger routes slog.Default to a buffer for one sequential test
+// and restores the default logger and the log package output afterwards.
+func captureDefaultLogger(t *testing.T) *syncBuffer {
+	t.Helper()
+	previous, writer, flags := slog.Default(), log.Writer(), log.Flags()
+	output := &syncBuffer{}
+	slog.SetDefault(slog.New(slog.NewTextHandler(output, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previous)
+		log.SetOutput(writer)
+		log.SetFlags(flags)
+	})
+	return output
+}
+
+type syncBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *syncBuffer) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(data)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
 }
 
 func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
