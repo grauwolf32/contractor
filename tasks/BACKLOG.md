@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
+104 open tasks: 3 in progress, 87 pending, 14 deferred. 792 finished: 789 completed, 3 archived.
 
 ## In progress
 
@@ -67,7 +67,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V368-004](v368-004-enforce-config-identity-immutability.yml) | defect | P1 | — | Detect in-place changes of published configuration identities |
 | [V368-014](v368-014-snapshot-size-on-write.yml) | defect | P1 | — | Reject oversized Workflow snapshots when the Run is created |
 | [V368-016](v368-016-worker-agent-name-grammar.yml) | defect | P1 | — | Validate Workflow agent names with the grammar Operations shows |
 | [V368-030](v368-030-llm-gateway-clone.yml) | defect | P3 | — | Deep-copy LLMGateway configuration in snapshot accessors |
@@ -216,7 +215,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 0 | 8 | 11 | 1 | 10 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 1 | 10 | 4 | 1 | 7 |
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
-| Workflow catalog and document workflows (`workflows`) | 8 | 13 | 13 | 8 | 11 |
+| Workflow catalog and document workflows (`workflows`) | 7 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 6 | 27 | 31 | 3 | 32 |
 | Audits (`audits`) | 26 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
