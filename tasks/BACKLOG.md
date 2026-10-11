@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-104 open tasks: 3 in progress, 87 pending, 14 deferred. 792 finished: 789 completed, 3 archived.
+103 open tasks: 3 in progress, 86 pending, 14 deferred. 793 finished: 790 completed, 3 archived.
 
 ## In progress
 
@@ -143,7 +143,6 @@ the epics are in [epics.yml](epics.yml).
 | [V368-008](v368-008-go-python-text-rules.yml) | defect | P1 | — | Share the workspace path, blank-text and byte-count rules between Go and Python |
 | [V368-013](v368-013-run-detail-cursor-snapshot.yml) | defect | P1 | — | Read the Run detail and its event cursor in one snapshot |
 | [V368-024](v368-024-resource-id-grammar.yml) | defect | P2 | — | Use one ResourceId and ConfigId grammar in every Go package |
-| [V368-031](v368-031-api-cli-polish.yml) | defect | P3 | — | Fix small public API and CLI inaccuracies |
 | [V368-032](v368-032-remove-legacy-digest-paths.yml) | chore | P3 | — | Remove backward-compatibility digest code |
 | [V369-002](v369-002-wire-gate-all-fixtures.yml) | chore | P1 | — | Run every shared fixture on both sides and mutate the schemas |
 | [V369-004](v369-004-route-table-and-operation-coverage.yml) | chore | P2 | — | Register routes from one table and validate every operation |
@@ -222,6 +221,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 8 | 30 | 4 | 6 |
-| Public API and wire contracts (`api-contracts`) | 14 | 1 | 24 | 16 | 6 |
+| Public API and wire contracts (`api-contracts`) | 13 | 1 | 24 | 16 | 6 |
 | PostgreSQL persistence and schema (`persistence`) | 11 | 0 | 17 | 29 | 3 |
 | Quality, CI and process (`quality`) | 8 | 1 | 15 | 65 | 15 |
