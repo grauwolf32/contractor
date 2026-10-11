@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from pathlib import Path
@@ -8,7 +9,6 @@ from types import MappingProxyType
 from typing import Literal
 
 import pytest
-import yaml
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
@@ -25,6 +25,7 @@ from contractor_runtime.factories import (
     built_in_factories,
 )
 from contractor_runtime.projectfs.config import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, TOOLSET_SANDBOX_REQUIREMENTS
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets.code_analysis.tools import (
@@ -35,36 +36,54 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_TOOLS,
     dependency_versions_match,
 )
+from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
 from contractor_runtime.workspace import LocalWorkdirFactory
 
-
-def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
-    tmp_path: Path,
-) -> None:
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "api"
-        / "descriptor-parity"
-        / "toolset-infrastructure-channels.yaml"
-    )
-    fixture = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert fixture["schemaVersion"] == "1.0"
-    factories = built_in_factories(tmp_path).toolsets
-    actual = {
-        ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
-        for ref, factory in factories.items()
+SHARED_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "tools",
+        "infrastructureChannels",
+        "requiresWorkspace",
+        "requiredSandboxProfile",
+        "activeCheckTools",
+        "findingProposalTools",
+        "requiredWorkflowInputs",
     }
-    # Registered contracts are not installed execution factories before V31-006.
-    from contractor_runtime.sandbox.contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
+)
 
+
+def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
+    """Every Runtime ToolsetFactory matches api/testdata/toolset-descriptors.json.
+
+    The Server's descriptors are held to the same fixture (internal/config
+    TestSharedToolsetDescriptorParity), so a tool or Toolset added on one side
+    only fails. activeCheckTools, findingProposalTools and
+    requiredWorkflowInputs are classifications only the Server reads.
+    """
+    path = Path(__file__).resolve().parents[2] / "api" / "testdata" / "toolset-descriptors.json"
+    fixture = json.loads(path.read_text(encoding="utf-8"))
+    assert set(fixture) == {"description", "toolsets"}
+    factories = dict(built_in_factories(tmp_path).toolsets)
+    # The execution factory is installed only with an execution lifecycle and
+    # advertised only after its probe; its class carries the contract.
     assert EXECUTION_TOOLSET not in factories
-    actual[EXECUTION_TOOLSET] = {
-        name: sorted(channels) for name, channels in EXECUTION_CHANNELS.items()
-    }
-    # V39-005 installs the factory; positive advertisement also requires its probe.
+    factories[EXECUTION_TOOLSET] = CodeExecutionToolsetFactory()
     assert "audit-results@2" in factories
     assert "audit-results@1" not in factories
-    assert actual == fixture["toolsets"]
+    assert sorted(factories) == sorted(fixture["toolsets"])
+    for ref, factory in factories.items():
+        shared = fixture["toolsets"][ref]
+        assert set(shared) == SHARED_DESCRIPTOR_FIELDS, ref
+        actual = {
+            "tools": sorted(factory.exported_tools),
+            "infrastructureChannels": {
+                tool: sorted(channels) for tool, channels in factory.infrastructure_channels.items()
+            },
+            # Allocation validation reads the attribute the same way.
+            "requiresWorkspace": getattr(factory, "requires_workspace", False),
+            "requiredSandboxProfile": TOOLSET_SANDBOX_REQUIREMENTS.get(ref),
+        }
+        assert actual == {field: shared[field] for field in actual}, ref
 
 
 def test_code_analysis_static_contract_and_shallow_factory_are_exact(

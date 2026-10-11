@@ -43,6 +43,8 @@ test-wire-cross-language:
 	cd runtime && uv run pytest tests/test_shared_runtime_settings_bounds.py
 	go test ./internal/gatewayrecovery -run '^TestSharedGatewayRecoveryParticipantCases$$'
 	cd runtime && uv run pytest tests/test_shared_gateway_recovery_participant.py
+	go test ./internal/config -run '^TestSharedToolsetDescriptorParity$$'
+	cd runtime && uv run pytest tests/test_capabilities.py -k 'test_shared'
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...

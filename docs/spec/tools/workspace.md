@@ -205,9 +205,12 @@ general scratch.
 
 ### Workflow contract
 
-**WSP-R10.** `context.workspace` is optional. A filesystem Toolset
-(`filesystem@1`, `edit-files@1` or `workspace-changes@1`) is invalid for a Stage
-without `context.workspace`; a workspace without these Toolsets is valid.
+**WSP-R10.** `context.workspace` is optional. A Toolset that reads or changes
+the workspace (`filesystem@1`, `edit-files@1`, `workspace-changes@1`,
+`code-analysis@1`, `taint-annotations@1` or `code-execution@1`, the Toolsets
+whose shared descriptor declares a workspace need,
+[TLS-R38](toolsets.md)) is invalid for a Stage without `context.workspace`; a
+workspace without these Toolsets is valid.
 
 **WSP-R11.** `context.workspace` has the `WorkspaceContext` shape of
 [Workspace context](#workspace-context): a `mode`, 1 to 32 sources (LIM-WSP-1),

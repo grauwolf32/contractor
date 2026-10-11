@@ -367,7 +367,8 @@ JSONL output) and register its class in `SCANNERS`. The adapter declares the
 exported name, executable, version arguments and typed callable; `prepare`
 creates private per-call files and `observation` decodes output. Shared process
 launch, deadlines, cleanup and metrics do not branch on scanner names. Update
-the Go toolset descriptor and descriptor-parity fixture with the new operation.
+the Go toolset descriptor and the shared `api/testdata/toolset-descriptors.json`
+fixture with the new operation.
 The registry is trusted Runtime configuration, never invocation input.
 
 The model-free `tool@1` Worker invokes one selected typed callable from pinned
