@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-41 open tasks: 3 in progress, 24 pending, 14 deferred. 783 finished: 780 completed, 3 archived.
+40 open tasks: 3 in progress, 23 pending, 14 deferred. 784 finished: 781 completed, 3 archived.
 
 ## In progress
 
@@ -23,12 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V367-006](v367-006-release-gateway-probe-on-stage-end.yml) | defect | P1 | — | Release the model gateway recovery probe when its Stage ends |
 | [V367-013](v367-013-replace-placement-after-paused-admission.yml) | defect | P2 | — | Re-place a Stage whose admission was deferred by a paused owner queue |
-
-### Planners and the Worker model boundary (`planner-worker`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V367-008](v367-008-one-stage-result-bound.yml) | defect | P2 | — | Check StageResult bounds once in StageContentResult.Validate |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -108,7 +102,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 36 | 39 | 5 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 1 | 23 | 31 | 7 | 41 |
+| Planners and the Worker model boundary (`planner-worker`) | 0 | 23 | 31 | 7 | 41 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 25 | 10 | 2 | 35 |
 | Shared Memory tools (`memory`) | 0 | 6 | 7 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |

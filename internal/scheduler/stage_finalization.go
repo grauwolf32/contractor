@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -80,11 +79,6 @@ func (s *Scheduler) validateCandidate(
 	stage := workflow.stage
 	if err := result.Validate(); err != nil {
 		return err
-	}
-	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > contracts.MaxStageResultBytes || len(result.Summary) > contracts.MaxStageResultSummaryBytes ||
-		len(result.Artifacts) > contracts.MaxStageResultArtifacts {
-		return fmt.Errorf("StageResult exceeds its bounded contract")
 	}
 	for name := range result.Artifacts {
 		if _, declared := stage.Result.Artifacts[name]; !declared {

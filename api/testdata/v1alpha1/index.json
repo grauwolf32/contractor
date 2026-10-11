@@ -83,6 +83,7 @@
     "stage-content-request-naive-deadline.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
     "stage-content-request-unknown-field.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
     "stage-content-request-versioned-result-binding.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
+    "stage-content-result-missing-artifacts.json": {"type": "StageContentResult", "schema": "stage-content.schema.json", "strict": true},
     "stage-content-result-success-with-error.json": {"type": "StageContentResult", "schema": "stage-content.schema.json", "strict": true},
     "stage-content-result-unversioned-artifact.json": {"type": "StageContentResult", "schema": "stage-content.schema.json", "strict": true},
     "worker-completion-both-variants.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json", "strict": true},

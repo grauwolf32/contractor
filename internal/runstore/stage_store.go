@@ -196,8 +196,7 @@ func (s *PostgresStore) EnterFinalizing(ctx context.Context, params EnterFinaliz
 			return err
 		}
 	}
-	candidate := normalizeStageResult(params.Candidate)
-	if err := candidate.Validate(); err != nil {
+	if err := params.Candidate.Validate(); err != nil {
 		return fmt.Errorf("%w: candidate StageResult: %v", ErrInvalid, err)
 	}
 	if params.Deadline.IsZero() {
@@ -206,7 +205,7 @@ func (s *PostgresStore) EnterFinalizing(ctx context.Context, params EnterFinaliz
 	if err := validateReason(params.Reason); err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(candidate)
+	encoded, err := json.Marshal(params.Candidate)
 	if err != nil {
 		return fmt.Errorf("enter finalizing: encode candidate StageResult: %w", err)
 	}
@@ -229,7 +228,6 @@ func (s *PostgresStore) CompleteStageResult(
 	if err := validateOpaque("resultSchemaVersion", resultSchemaVersion); err != nil {
 		return err
 	}
-	result = normalizeStageResult(result)
 	if err := result.Validate(); err != nil {
 		return fmt.Errorf("%w: accepted StageResult: %v", ErrInvalid, err)
 	}
@@ -360,11 +358,4 @@ func validateNamespace(value string) error {
 		return invalidf("namespace must not contain slash")
 	}
 	return nil
-}
-
-func normalizeStageResult(result contracts.StageContentResult) contracts.StageContentResult {
-	if result.Artifacts == nil {
-		result.Artifacts = map[string]contracts.ArtifactRef{}
-	}
-	return result
 }

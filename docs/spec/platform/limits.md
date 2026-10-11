@@ -723,7 +723,7 @@ its owning requirement.
 | `LIM-WRK-6` | 1 to 64 characters matching [a-z][a-z0-9_]{0,63} | WorkerFailure.code | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
 | `LIM-WRK-7` | 4,096 UTF-8 bytes | WorkerFailure.message (sanitized, non-empty) | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
 | `LIM-WRK-8` | 1..128 bytes | WorkerCompletion.invocation_id | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
-| `LIM-WRK-9` | 256 KiB of compact UTF-8 JSON each | WorkerCompletion, Planner-facing WorkerResult and the resulting StageResult | Runtime (Python) and Server (Go) validators | [WRK-R37](../execution/worker.md) |
+| `LIM-WRK-9` | 256 KiB of compact UTF-8 JSON each | StageContentRequest, WorkerCompletion, Planner-facing WorkerResult and the resulting StageResult | Runtime (Python) and Server (Go) validators; for StageResult one Server validator shared by every Planner, the Workflow Scheduler and RunStore | [WRK-R37](../execution/worker.md) |
 | `LIM-WRK-10` | 256 KiB encoded | Result-finalizer input document (subtaskId, resultText) | Runtime | [WRK-R46](../execution/worker.md) |
 | `LIM-WRK-11` | exactly 1 provider call | Result finalizer per ordinary completion | Runtime | [WRK-R48](../execution/worker.md) |
 | `LIM-WRK-12` | 16 UTF-8 bytes | Credential length from which a value is rejected anywhere in result text (shorter only as the whole text; the LLM Gateway token at any length), and the length from which a RuntimeSettings credential or private endpoint is replaced with [REDACTED] in the summarizer input (WRK-R146) | Runtime secret-retention scan and summarizer projection | [WRK-R61](../execution/worker.md) |
