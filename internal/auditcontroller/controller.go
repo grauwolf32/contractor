@@ -413,27 +413,40 @@ func (c *Controller) observeOneTerminal(
 		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
 			continue
 		}
-		run, err := c.runs.GetRun(ctx, *execution.RunID)
+		runID := *execution.RunID
+		state, err := childRunState(snapshot, runID)
 		if err != nil {
-			return false, fmt.Errorf("read Audit child Run %q: %w", *execution.RunID, err)
+			return false, err
 		}
-		if !terminalRun(run.State) {
+		if !terminalRun(state) {
 			continue
 		}
-		cursor, err := c.runs.GetRunEventCursor(ctx, run.RunID)
+		cursor, err := c.runs.GetRunEventCursor(ctx, runID)
 		if err != nil {
-			return false, fmt.Errorf("read terminal Audit child Run cursor %q: %w", run.RunID, err)
+			return false, fmt.Errorf("read terminal Audit child Run cursor %q: %w", runID, err)
 		}
 		if cursor.Sequence < 1 {
-			return false, fmt.Errorf("terminal Audit child Run %q has no durable lifecycle event", run.RunID)
+			return false, fmt.Errorf("terminal Audit child Run %q has no durable lifecycle event", runID)
 		}
 		_, err = c.store.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{
-			Claim: claim, ExecutionID: execution.ExecutionID, RunID: run.RunID,
+			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
 			Generation: cursor.Generation, Sequence: uint64(cursor.Sequence),
 		})
 		return err == nil, err
 	}
 	return false, nil
+}
+
+// childRunState returns the snapshot's lifecycle state of a child Run bound
+// to a window execution. The snapshot reads every such state with the
+// executions, so terminal observation and cancellation read no Run per
+// execution.
+func childRunState(snapshot auditstore.ReconcileSnapshot, runID string) (runstore.WorkflowRunState, error) {
+	state, found := snapshot.RunStates[runID]
+	if !found {
+		return "", fmt.Errorf("read Audit child Run %q: %w", runID, runstore.ErrNotFound)
+	}
+	return state, nil
 }
 
 func (c *Controller) failOneUnboundIntent(
@@ -604,16 +617,17 @@ func (c *Controller) cancelOneSubmittedRun(
 		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
 			continue
 		}
-		run, err := c.runs.GetRun(ctx, *execution.RunID)
+		runID := *execution.RunID
+		state, err := childRunState(snapshot, runID)
 		if err != nil {
 			return false, err
 		}
-		if run.State != runstore.RunInitializing && run.State != runstore.RunPending && run.State != runstore.RunRunning && run.State != runstore.RunWaiting {
+		if state != runstore.RunInitializing && state != runstore.RunPending && state != runstore.RunRunning && state != runstore.RunWaiting {
 			continue
 		}
 		reason := "Parent Audit dispatch closed before the child Run completed."
 		requestedBy := snapshot.Audit.OwnerID
-		cancelled, err := c.runs.RequestRunCancellation(ctx, run.RunID, runstore.WorkflowRunCancellation{
+		cancelled, err := c.runs.RequestRunCancellation(ctx, runID, runstore.WorkflowRunCancellation{
 			Code: runstore.CancellationUserRequested, RequestedAt: c.now().UTC().Round(0),
 			RequestedBy: &requestedBy, Reason: &reason,
 		})
@@ -621,7 +635,7 @@ func (c *Controller) cancelOneSubmittedRun(
 			return false, err
 		}
 		if cancelled.State == runstore.RunCancelling {
-			c.notifier.Cancel(run.RunID)
+			c.notifier.Cancel(runID)
 		}
 		return true, nil
 	}

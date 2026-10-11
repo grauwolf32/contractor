@@ -9,7 +9,10 @@ import (
 	"math"
 
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const roundColumns = `
@@ -248,19 +251,14 @@ func prefixedItemColumns(prefix string) string {
 }
 
 func (s *PostgresStore) ListExecutions(ctx context.Context, auditID string) ([]Execution, error) {
-	return s.listExecutions(ctx, auditID, 0)
-}
-
-func (s *PostgresStore) listExecutions(ctx context.Context, auditID string, limit int) ([]Execution, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT `+executionColumns+` FROM audit_executions
  WHERE audit_id = $1
-   AND ($2::integer = 0 OR state IN ('intent', 'submitted', 'collecting'))
  ORDER BY created_at, execution_id
- LIMIT CASE WHEN $2::integer = 0 THEN 1000001 ELSE $2 END`, auditID, limit)
+ LIMIT 1000001`, auditID)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit executions: %w", err)
 	}
@@ -274,6 +272,58 @@ SELECT `+executionColumns+` FROM audit_executions
 		result = append(result, execution)
 	}
 	return result, rows.Err()
+}
+
+// listWindowExecutions reads the reconcile window of unsettled executions,
+// one more than MaxReconcileRows so the caller can detect more, together with
+// the lifecycle state of each bound Run keyed by Run ID. The join replaces one
+// Run read per submitted execution; a Run whose row is gone has no state.
+func (s *PostgresStore) listWindowExecutions(
+	ctx context.Context, auditID string,
+) ([]Execution, map[string]runstore.WorkflowRunState, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT `+prefixedExecutionColumns("execution")+`, run.state
+  FROM audit_executions AS execution
+  LEFT JOIN workflow_runs AS run ON run.run_id = execution.run_id
+ WHERE execution.audit_id = $1 AND execution.state IN ('intent', 'submitted', 'collecting')
+ ORDER BY execution.created_at, execution.execution_id
+ LIMIT $2`, auditID, MaxReconcileRows+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list Audit executions: %w", err)
+	}
+	defer rows.Close()
+	executions := make([]Execution, 0)
+	states := make(map[string]runstore.WorkflowRunState)
+	for rows.Next() {
+		var runState *string
+		execution, scanErr := scanExecution(trailingColumns{row: rows, dest: []any{&runState}})
+		if scanErr != nil {
+			return nil, nil, fmt.Errorf("scan Audit execution: %w", scanErr)
+		}
+		if runState != nil {
+			state := runstore.WorkflowRunState(*runState)
+			if execution.RunID == nil || !state.Valid() {
+				return nil, nil, errors.New("stored Audit child Run state is invalid")
+			}
+			states[*execution.RunID] = state
+		}
+		executions = append(executions, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate Audit executions: %w", err)
+	}
+	return executions, states, nil
+}
+
+// trailingColumns lets a scan function that reads one entity's columns also
+// read the columns a query selects after them into dest.
+type trailingColumns struct {
+	row  scanner
+	dest []any
+}
+
+func (r trailingColumns) Scan(dest ...any) error {
+	return r.row.Scan(append(dest, r.dest...)...)
 }
 
 func (s *PostgresStore) ListExecutionItems(ctx context.Context, executionID string) ([]ExecutionItem, error) {
@@ -403,44 +453,61 @@ func (s *PostgresStore) ListItemAttempts(
 	return result, nil
 }
 
-// NextItemAttempt returns the next policy attempt for one currently ready
-// item. The value is advisory until CreateExecutionIntent atomically verifies
-// it again; binding this read to a live claim keeps Controller recovery from
-// inspecting another Controller's in-flight Audit.
-func (s *PostgresStore) NextItemAttempt(
-	ctx context.Context, claim ControllerClaim, itemID string,
-) (int, error) {
+// NextItemAttempts returns the next policy attempt of each listed item that is
+// still ready, read for the whole candidate batch in one statement. An item
+// that is no longer ready is absent from the result. The values are advisory
+// until CreateExecutionIntent atomically verifies them again; binding the
+// read to a live claim keeps Controller recovery from inspecting another
+// Controller's in-flight Audit.
+func (s *PostgresStore) NextItemAttempts(
+	ctx context.Context, claim ControllerClaim, itemIDs []string,
+) (map[string]int, error) {
 	if err := validateClaimIdentity(claim); err != nil {
-		return 0, err
+		return nil, err
 	}
-	if err := validateID("itemID", itemID); err != nil {
-		return 0, err
+	if len(itemIDs) == 0 || len(itemIDs) > MaxCollectionItems {
+		return nil, invalidf("Audit attempt item selection is invalid")
 	}
-	var attempt int
-	err := s.db.QueryRow(ctx, `
-SELECT COALESCE(max(member.item_attempt), 0) + 1
-  FROM audit_items AS item
-  JOIN audit_controller_claims AS claim USING (audit_id)
-  LEFT JOIN audit_execution_items AS member ON member.item_id = item.item_id
- WHERE item.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
-   AND claim.expires_at > clock_timestamp()
-   AND item.item_id = $4 AND item.state = 'ready'
- GROUP BY item.item_id`, claim.AuditID, claim.HolderID, claim.Epoch, itemID).Scan(&attempt)
-	if err == nil {
-		if attempt < 1 || attempt > 11 {
-			return 0, errors.New("stored Audit item attempt is invalid")
+	seen := make(map[string]struct{}, len(itemIDs))
+	for _, itemID := range itemIDs {
+		if err := validateID("itemID", itemID); err != nil {
+			return nil, err
 		}
-		return attempt, nil
+		if _, exists := seen[itemID]; exists {
+			return nil, invalidf("Audit attempt item selection contains duplicates")
+		}
+		seen[itemID] = struct{}{}
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, fmt.Errorf("read next Audit item attempt: %w", err)
+	rows, err := s.db.Query(ctx, nextItemAttemptsSQL, claim.AuditID, claim.HolderID, claim.Epoch, itemIDs)
+	if err != nil {
+		return nil, fmt.Errorf("read next Audit item attempts: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string]int, len(itemIDs))
+	for rows.Next() {
+		var itemID string
+		var attempt int
+		if err := rows.Scan(&itemID, &attempt); err != nil {
+			return nil, fmt.Errorf("scan next Audit item attempt: %w", err)
+		}
+		if attempt < 1 || attempt > 11 {
+			return nil, errors.New("stored Audit item attempt is invalid")
+		}
+		result[itemID] = attempt
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate next Audit item attempts: %w", err)
+	}
+	rows.Close()
+	if len(result) == len(itemIDs) {
+		return result, nil
 	}
 	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
-		return 0, liveErr
+		return nil, liveErr
 	} else if !live {
-		return 0, ErrClaimLost
+		return nil, ErrClaimLost
 	}
-	return 0, ErrPrecondition
+	return result, nil
 }
 
 // ListEvents returns a forward, bounded cursor page. Sequence zero starts at
@@ -608,6 +675,17 @@ SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
 	return result, nil
 }
 
+// snapshotTransaction reads every part of a reconcile snapshot from one
+// commit. A read-only REPEATABLE READ transaction takes no row locks and
+// cannot fail with a serialization conflict, so it is never retried.
+var snapshotTransaction = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
+
+// GetReconcileSnapshot reads the claimed Audit's reconcile snapshot. A
+// pool-backed store reads all of it in one read-only REPEATABLE READ
+// transaction, so an owner mutation or child Run transition is visible in
+// every part of the snapshot or in none; a transaction-backed store reads it
+// in the caller's transaction. The number of statements does not depend on
+// the Audit's items, executions or child Runs.
 func (s *PostgresStore) GetReconcileSnapshot(
 	ctx context.Context,
 	claim ControllerClaim,
@@ -615,6 +693,23 @@ func (s *PostgresStore) GetReconcileSnapshot(
 	if err := validateClaimIdentity(claim); err != nil {
 		return ReconcileSnapshot{}, err
 	}
+	pool, ok := s.db.(*pgxpool.Pool)
+	if !ok {
+		return s.readReconcileSnapshot(ctx, claim)
+	}
+	var result ReconcileSnapshot
+	err := persistencepostgres.InTx(ctx, pool, snapshotTransaction, func(tx pgx.Tx) error {
+		var err error
+		result, err = NewPostgresStore(tx).readReconcileSnapshot(ctx, claim)
+		return err
+	})
+	return result, err
+}
+
+func (s *PostgresStore) readReconcileSnapshot(
+	ctx context.Context,
+	claim ControllerClaim,
+) (ReconcileSnapshot, error) {
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
 SELECT `+prefixedAuditColumns("audit")+`
   FROM audits AS audit
@@ -656,7 +751,7 @@ SELECT max_concurrent_runs FROM scheduler_settings WHERE singleton = true`).Scan
 	if err != nil {
 		return ReconcileSnapshot{}, err
 	}
-	result.Executions, err = s.listExecutions(ctx, audit.AuditID, MaxReconcileRows+1)
+	result.Executions, result.RunStates, err = s.listWindowExecutions(ctx, audit.AuditID)
 	if err != nil {
 		return ReconcileSnapshot{}, err
 	}

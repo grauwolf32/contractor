@@ -138,10 +138,14 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 		storedItems[1].State != ItemReady || storedItems[2].State != ItemReady {
 		t.Fatalf("items after failed batch = (%+v, %v)", storedItems, err)
 	}
+	storedIDs := []string{storedItems[0].ItemID, storedItems[1].ItemID, storedItems[2].ItemID}
+	attempts, err := store.NextItemAttempts(ctx, claim, storedIDs)
+	if err != nil || len(attempts) != 3 {
+		t.Fatalf("next batch attempts = (%v, %v)", attempts, err)
+	}
 	for index, want := range []int{2, 2, 1} {
-		attempt, attemptErr := store.NextItemAttempt(ctx, claim, storedItems[index].ItemID)
-		if attemptErr != nil || attempt != want {
-			t.Fatalf("next batch attempt %d = (%d, %v), want %d", index, attempt, attemptErr, want)
+		if attempt := attempts[storedIDs[index]]; attempt != want {
+			t.Fatalf("next batch attempt %d = %d, want %d", index, attempt, want)
 		}
 	}
 
@@ -156,6 +160,16 @@ func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *test
 	}
 	if _, inserted, err := store.CreateExecutionIntent(ctx, regrouped); err != nil || !inserted {
 		t.Fatalf("create regrouped retry batch = (%t, %v)", inserted, err)
+	}
+	// Submitted items have no next attempt; only the item still ready does.
+	if attempts, err := store.NextItemAttempts(ctx, claim, storedIDs); err != nil ||
+		len(attempts) != 1 || attempts[storedIDs[1]] != 2 {
+		t.Fatalf("next attempts after regrouping = (%v, %v), want only %s at 2", attempts, err, storedIDs[1])
+	}
+	staleClaim := claim
+	staleClaim.Epoch++
+	if _, err := store.NextItemAttempts(ctx, staleClaim, storedIDs); !errors.Is(err, ErrClaimLost) {
+		t.Fatalf("next attempts under a lost claim = %v, want ErrClaimLost", err)
 	}
 	firstAttempts, err := store.ListExecutionItems(ctx, firstIntent.ExecutionID)
 	if err != nil || len(firstAttempts) != 2 || firstAttempts[0].ItemAttempt != 1 ||

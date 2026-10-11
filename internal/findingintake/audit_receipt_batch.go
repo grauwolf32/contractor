@@ -14,60 +14,109 @@ import (
 // MaxAuditReceiptBatchSize matches the bounded Audit finding page.
 const MaxAuditReceiptBatchSize = 200
 
+// AuditReceiptKey names one receipt read through one of the owner's Audits.
+type AuditReceiptKey struct {
+	AuditID   string
+	ReceiptID string
+}
+
 // GetAuditReceipts reads receipts admitted to the owner's Audit: its native
 // child receipts and those it holds in its own Project. Returned receipts
 // follow input order, including repeated identities, and expose only the
 // requesting Audit's own hold, loaded for the whole page.
 func (s *Service) GetAuditReceipts(ctx context.Context, ownerID, auditID string, ids []string) ([]Receipt, error) {
-	if ownerID == "" || auditID == "" || len(ids) > MaxAuditReceiptBatchSize {
+	if auditID == "" || len(ids) > MaxAuditReceiptBatchSize {
 		return nil, ErrInvalid
 	}
-	for _, id := range ids {
-		if id == "" {
+	keys := make([]AuditReceiptKey, len(ids))
+	for index, id := range ids {
+		keys[index] = AuditReceiptKey{AuditID: auditID, ReceiptID: id}
+	}
+	return s.GetOwnerAuditReceipts(ctx, ownerID, keys)
+}
+
+// GetOwnerAuditReceipts reads each keyed receipt through its own Audit of the
+// owner exactly as GetAuditReceipts does, for a page whose findings belong to
+// several Audits: one statement reads the receipts, one their holds and one
+// exact Artifact read serves each bounded group of proposals, whatever the
+// number of Audits. Returned receipts follow input order, including repeated
+// keys, and each exposes only the hold of the Audit it was read through.
+func (s *Service) GetOwnerAuditReceipts(ctx context.Context, ownerID string, keys []AuditReceiptKey) ([]Receipt, error) {
+	if ownerID == "" || len(keys) > MaxAuditReceiptBatchSize {
+		return nil, ErrInvalid
+	}
+	for _, key := range keys {
+		if key.AuditID == "" || key.ReceiptID == "" {
 			return nil, ErrInvalid
 		}
 	}
-	if len(ids) == 0 {
+	if len(keys) == 0 {
 		return []Receipt{}, nil
 	}
-	rows, err := s.pool.Query(ctx, `
-SELECT `+receiptProjection+`
-  FROM finding_proposal_receipts AS receipt
-  JOIN audits AS audit ON audit.audit_id = $2 AND audit.owner_id = $1
- WHERE receipt.receipt_id = ANY($3::text[]) AND receipt.owner_id = $1
-   AND (receipt.audit_id = $2 OR EXISTS (
-       SELECT 1 FROM finding_proposal_audit_holds AS hold
-        WHERE hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
-          AND hold.project_id = audit.project_id
-   ))`, ownerID, auditID, ids)
+	auditIDs, receiptIDs := distinctReceiptKeys(keys)
+	rows, err := s.pool.Query(ctx, readOwnerAuditReceiptsSQL, ownerID, auditIDs, receiptIDs)
 	if err != nil {
 		return nil, fmt.Errorf("read Audit finding receipts: %w", err)
 	}
-	receipts, err := scanAuditReceiptBatch(rows, ids)
+	receipts, err := scanAuditReceiptBatch(rows, keys)
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateAuditReceipts(ctx, ownerID, auditID, receipts)
+	return s.hydrateAuditReceipts(ctx, ownerID, keys, receipts)
 }
 
-func scanAuditReceiptBatch(rows pgx.Rows, ids []string) ([]Receipt, error) {
-	scanned, err := scanReceiptRows(rows)
-	if err != nil {
-		return nil, err
+// distinctReceiptKeys returns the parallel Audit and receipt identities of
+// the distinct keys, in first-seen order.
+func distinctReceiptKeys(keys []AuditReceiptKey) ([]string, []string) {
+	seen := make(map[AuditReceiptKey]struct{}, len(keys))
+	auditIDs := make([]string, 0, len(keys))
+	receiptIDs := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		auditIDs = append(auditIDs, key.AuditID)
+		receiptIDs = append(receiptIDs, key.ReceiptID)
 	}
-	byID := make(map[string]Receipt, len(scanned))
-	for _, receipt := range scanned {
-		byID[receipt.ReceiptID] = receipt
+	return auditIDs, receiptIDs
+}
+
+// scanAuditReceiptBatch returns the receipts of keys in input order; a key
+// whose receipt is not admitted to its Audit is ErrNotFound.
+func scanAuditReceiptBatch(rows pgx.Rows, keys []AuditReceiptKey) ([]Receipt, error) {
+	defer rows.Close()
+	byKey := make(map[AuditReceiptKey]Receipt, len(keys))
+	for rows.Next() {
+		var auditID string
+		receipt, err := scanReceiptRow(throughAudit{row: rows, auditID: &auditID})
+		if err != nil {
+			return nil, err
+		}
+		byKey[AuditReceiptKey{AuditID: auditID, ReceiptID: receipt.ReceiptID}] = receipt
 	}
-	result := make([]Receipt, len(ids))
-	for index, id := range ids {
-		receipt, ok := byID[id]
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Audit finding receipts: %w", err)
+	}
+	result := make([]Receipt, len(keys))
+	for index, key := range keys {
+		receipt, ok := byKey[key]
 		if !ok {
 			return nil, ErrNotFound
 		}
 		result[index] = receipt
 	}
 	return result, nil
+}
+
+// throughAudit scans a receipt row followed by the Audit it was read through.
+type throughAudit struct {
+	row     pgx.Row
+	auditID *string
+}
+
+func (r throughAudit) Scan(dest ...any) error {
+	return r.row.Scan(append(dest, r.auditID)...)
 }
 
 func scanReceiptRows(rows pgx.Rows) ([]Receipt, error) {
@@ -86,52 +135,44 @@ func scanReceiptRows(rows pgx.Rows) ([]Receipt, error) {
 	return result, nil
 }
 
-// hydrateAuditReceipts attaches only the requesting Audit's hold to each
-// receipt and reads its exact proposal, from that hold's retained copy once
-// the source Run is deleted.
+// hydrateAuditReceipts attaches to each receipt only the hold of the Audit
+// keys[index] reads it through and reads its exact proposal, from that hold's
+// retained copy once the source Run is deleted.
 func (s *Service) hydrateAuditReceipts(
-	ctx context.Context, ownerID, auditID string, receipts []Receipt,
+	ctx context.Context, ownerID string, keys []AuditReceiptKey, receipts []Receipt,
 ) ([]Receipt, error) {
 	if len(receipts) == 0 {
 		return receipts, nil
 	}
-	ids := make([]string, len(receipts))
-	for index := range receipts {
-		ids[index] = receipts[index].ReceiptID
-	}
-	holds, err := s.readAuditHoldsBatch(ctx, ownerID, auditID, ids)
+	holds, err := s.readAuditHoldsBatch(ctx, ownerID, keys)
 	if err != nil {
 		return nil, err
 	}
 	for index := range receipts {
-		receipts[index].AuditHolds = holds[receipts[index].ReceiptID]
-		if receipts[index].AuditHolds == nil {
-			receipts[index].AuditHolds = []AuditHold{}
+		receipts[index].AuditHolds = make([]AuditHold, 0, 1)
+		for _, hold := range holds[keys[index].ReceiptID] {
+			if hold.AuditID == keys[index].AuditID {
+				receipts[index].AuditHolds = append(receipts[index].AuditHolds, hold)
+			}
 		}
 	}
 	return s.hydrateAuditReceiptBatch(ctx, receipts)
 }
 
-// readAuditHoldsBatch returns only the requesting Audit's holds, and only
-// when that Audit belongs to the owner and the hold's Project. A receipt read
-// through one Audit never names another Audit's copy or reads its bytes after
-// source Run deletion, as collection publication also requires.
+// readAuditHoldsBatch returns, keyed by receipt, only the holds of the Audits
+// the keys read their receipts through, and only when that Audit belongs to
+// the owner and the hold's Project. A receipt read through one Audit never
+// names another Audit's copy or reads its bytes after source Run deletion, as
+// collection publication also requires.
 func (s *Service) readAuditHoldsBatch(
-	ctx context.Context, ownerID, auditID string, ids []string,
+	ctx context.Context, ownerID string, keys []AuditReceiptKey,
 ) (map[string][]AuditHold, error) {
-	rows, err := s.pool.Query(ctx, `
-SELECT hold.receipt_id, hold.audit_id, hold.project_id, hold.proposal_ref,
-       hold.evidence, hold.created_at
-  FROM finding_proposal_audit_holds AS hold
-  JOIN audits AS audit
-    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
- WHERE hold.receipt_id = ANY($1::text[]) AND hold.audit_id = $2
-   AND audit.owner_id = $3
- ORDER BY hold.receipt_id, hold.created_at, hold.audit_id`, ids, auditID, ownerID)
+	auditIDs, receiptIDs := distinctReceiptKeys(keys)
+	rows, err := s.pool.Query(ctx, readOwnerAuditHoldsSQL, auditIDs, receiptIDs, ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("list finding proposal Audit holds: %w", err)
 	}
-	return scanAuditHoldsBatch(rows, len(ids))
+	return scanAuditHoldsBatch(rows, len(receiptIDs))
 }
 
 func readRunAuditHoldsBatch(ctx context.Context, db querier, ids []string) (map[string][]AuditHold, error) {

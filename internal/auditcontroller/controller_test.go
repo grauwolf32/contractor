@@ -524,6 +524,7 @@ func newControllerHarness(t *testing.T, itemCount, window int) *controllerHarnes
 	ctx := context.Background()
 	store := newFakeControllerStore(t, itemCount, window)
 	runs := &fakeControllerRuns{runs: make(map[string]runstore.WorkflowRun), cursors: make(map[string]runstore.WorkflowRunEventCursor)}
+	store.runs = runs
 	creator := &fakeControllerCreator{store: store, runs: runs}
 	notifier := &fakeControllerNotifier{}
 	var ids atomic.Int64
@@ -692,6 +693,9 @@ type fakeControllerStore struct {
 	nextAttemptReads    int
 	expiredReportReview bool
 	nextRoundAcceptErr  error
+	// runs supplies the child Run states of the snapshot, as the store's
+	// join of workflow_runs does.
+	runs *fakeControllerRuns
 }
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
@@ -834,6 +838,7 @@ func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim audi
 		Audit: s.audit, MaxConcurrentRuns: s.window, Round: &round,
 		Items:              append([]auditstore.Item(nil), s.items...),
 		Executions:         append([]auditstore.Execution(nil), s.executions...),
+		RunStates:          s.runs.states(s.executions),
 		ReadyItems:         ready,
 		OnlyAwaitingReview: unsettled != 0 && unsettled == awaiting,
 	}, nil
@@ -925,22 +930,34 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 	return execution, true, nil
 }
 
-func (s *fakeControllerStore) NextItemAttempt(_ context.Context, claim auditstore.ControllerClaim, itemID string) (int, error) {
+// NextItemAttempts mirrors the store: one read for the whole batch, and an
+// item that is no longer ready has no attempt.
+func (s *fakeControllerStore) NextItemAttempts(
+	_ context.Context, claim auditstore.ControllerClaim, itemIDs []string,
+) (map[string]int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextAttemptReads++
 	if claim.Epoch != s.epoch {
-		return 0, auditstore.ErrClaimLost
+		return nil, auditstore.ErrClaimLost
 	}
-	maximum := 0
-	for _, members := range s.members {
-		for _, member := range members {
-			if member.ItemID == itemID && member.ItemAttempt > maximum {
-				maximum = member.ItemAttempt
+	result := make(map[string]int, len(itemIDs))
+	for _, itemID := range itemIDs {
+		index := s.findItem(itemID)
+		if index < 0 || s.items[index].State != auditstore.ItemReady {
+			continue
+		}
+		maximum := 0
+		for _, members := range s.members {
+			for _, member := range members {
+				if member.ItemID == itemID && member.ItemAttempt > maximum {
+					maximum = member.ItemAttempt
+				}
 			}
 		}
+		result[itemID] = maximum + 1
 	}
-	return maximum + 1, nil
+	return result, nil
 }
 
 func (s *fakeControllerStore) nextItemAttemptCount() int {
@@ -1230,6 +1247,26 @@ func (r *fakeControllerRuns) GetRun(_ context.Context, runID string) (runstore.W
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
 	return run, nil
+}
+
+// states returns the lifecycle state of each existing Run bound to
+// executions, keyed by Run ID; a nil receiver knows no Runs.
+func (r *fakeControllerRuns) states(executions []auditstore.Execution) map[string]runstore.WorkflowRunState {
+	result := make(map[string]runstore.WorkflowRunState)
+	if r == nil {
+		return result
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, execution := range executions {
+		if execution.RunID == nil {
+			continue
+		}
+		if run, exists := r.runs[*execution.RunID]; exists {
+			result[run.RunID] = run.State
+		}
+	}
+	return result
 }
 
 func (r *fakeControllerRuns) GetRunEventCursor(_ context.Context, runID string) (runstore.WorkflowRunEventCursor, error) {

@@ -972,6 +972,15 @@ pending count. Its `decided` and `expired` filters, its unfiltered list and
 the revision-pinned per-Audit Reviews projection (REV-R167, REV-R168) match
 the stored state.
 
+**REV-R199.** The owner-wide finding list `GET /v1/findings` reads each
+finding's first proposal receipt, the receipt's hold, the analyst decision and
+the current assessment through the finding's own Audit, exactly as the
+per-Audit list does: a receipt held by two Audits on one page exposes only
+each finding's own Audit hold. A page reads its receipts, holds, decisions and
+assessments once each, for every Audit on it together, plus one exact
+proposal read per bounded group of proposals, so its cost does not grow with
+the number of Audits on the page.
+
 **REV-R168.** Both the Findings and the Reviews projection include
 `auditRevision` and `asOf`; an optional `auditRevision` pins the first page to
 a summary.

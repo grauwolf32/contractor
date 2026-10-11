@@ -43,7 +43,7 @@ type Store interface {
 	CompletePreparation(context.Context, auditstore.ControllerClaim, uint64) (auditstore.Audit, error)
 	AcceptInitialRound(context.Context, auditstore.AcceptInitialRoundParams) (auditstore.Round, bool, error)
 	CreateExecutionIntent(context.Context, auditstore.CreateExecutionIntentParams) (auditstore.Execution, bool, error)
-	NextItemAttempt(context.Context, auditstore.ControllerClaim, string) (int, error)
+	NextItemAttempts(context.Context, auditstore.ControllerClaim, []string) (map[string]int, error)
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
@@ -55,8 +55,9 @@ type Store interface {
 	PurgeClaimed(context.Context, auditstore.ControllerClaim, string) error
 }
 
+// RunStore is what the Controller reads and requests of its child Runs beyond
+// the lifecycle states its reconcile snapshot carries.
 type RunStore interface {
-	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }

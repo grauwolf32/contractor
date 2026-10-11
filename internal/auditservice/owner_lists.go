@@ -52,36 +52,21 @@ func (s *Service) ListOwnerFindings(ctx context.Context, params OwnerFindingList
 	}
 	defer rows.Close()
 	base := make([]findingRow, 0, params.Limit)
-	byAudit := make(map[string][]findingRow)
 	for rows.Next() {
 		row, err := scanFindingRow(rows)
 		if err != nil {
 			return nil, err
 		}
 		base = append(base, row)
-		byAudit[row.auditID] = append(byAudit[row.auditID], row)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	rows.Close()
-	// Receipt reads enforce each Audit hold. Batch by Audit, then restore the
-	// global keyset order; no unowned receipt can enter the projection.
-	byID := make(map[string]Finding, len(base))
-	for auditID, group := range byAudit {
-		findings, err := s.hydrateFindings(ctx, params.OwnerID, auditID, group)
-		if err != nil {
-			return nil, err
-		}
-		for _, finding := range findings {
-			byID[finding.FindingID] = finding
-		}
-	}
-	result := make([]Finding, len(base))
-	for i, row := range base {
-		result[i] = byID[row.findingID]
-	}
-	return result, nil
+	// Hydration reads every receipt through its finding's own Audit hold, for
+	// all Audits of the page at once; no unowned receipt can enter the
+	// projection.
+	return s.hydrateFindings(ctx, params.OwnerID, base)
 }
 
 // ListOwnerReviews lists the owner's review requests newest first. The
