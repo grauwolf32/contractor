@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V370-024
+title: "Bound Artifact purge and the number of bindings per Run"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "A purge test with 50,000 revisions completes in bounded transactions."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts I3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Purge collects every version_id in Go and locks each version and blob in
+    one transaction (postgres_purge.go:228-268) bounded only by a 2 minute
+    budget (budgets.go:136-137); with no per-Run quota a large enough Run
+    can never be deleted.
+scope:
+  in:
+    - "A per-Run bindings and revisions quota checked under the scope lock, and purge in bounded batches."
+  out:
+    - "Purge outcome."
+acceptance_criteria:
+  - id: A1
+    text: "A purge test with 50,000 revisions completes in bounded transactions."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts ./internal/rundeletion"
+    covers: [A1]

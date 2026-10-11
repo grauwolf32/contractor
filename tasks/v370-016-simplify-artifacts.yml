@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: V370-016
+title: "Simplify the Artifact service and Runtime client"
+milestone: hub-audit-structure-2026-10
+epic: projects-artifacts
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Service exposes only generic operations and tests pass."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts B, C3, C4, H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Service (625 lines) has 14 trusted operations, 12 with a single
+    consumer; nine interfaces with one implementation and runtime type
+    checks with ErrQueryUnsupported exist for fakes; five SQLSTATE handlers
+    (postgres_write.go:80-112 and others); Service and Repository validate
+    twice; ImportFindingArtifact is an alias; Python artifacts.py also hosts
+    finding and gateway clients and duplicates validators.
+scope:
+  in:
+    - "Trusted operations move to consumers over a create-only/fork primitive; concrete repository; one validation and classifier; Python clients split."
+  out:
+    - "Behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "Service exposes only generic operations and tests pass."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/artifacts ./internal/..."
+    covers: [A1]
+  - command: "cd runtime && uv run pytest tests -k artifacts"
+    covers: [A1]

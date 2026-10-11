@@ -1,0 +1,38 @@
+schema_version: "1.0"
+id: V368-002
+title: "Reject wire messages that omit required fields in Go"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "Every schema's required field, when omitted from a valid golden fixture, is rejected by Go, Python and the schema alike (generated negative cases)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G1, F2; V367-008 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go decodes WorkerCompletion and StageContentResult with missing required
+    scalars as zero values: a failure without retryable becomes
+    retryable=false, a result without summarized or observations without
+    truncated pass (contracts/worker_completion.go:55-79, 187-212;
+    stage_content.go:83-114), while the JSON Schema and Python reject them.
+    StageContentRequest.Validate also accepts nil parameters and artifacts.
+    About 80 bool/int fields are affected; ten hand-written UnmarshalJSON
+    methods in reporting/agent_state.go (437-690) repeat the pattern.
+scope:
+  in:
+    - "One strict private decoder that rejects duplicate keys and checks required fields against a table derived from the schemas' required lists, used by every Runtime-to-Server and A2A decode path."
+    - "StageContentRequest rejects nil parameters and artifacts like the schema."
+  out:
+    - "Field names and the schemas themselves."
+acceptance_criteria:
+  - id: A1
+    text: "Every schema's required field, when omitted from a valid golden fixture, is rejected by Go, Python and the schema alike (generated negative cases)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/contracts/... ./internal/controlplane ./internal/planner/..."
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

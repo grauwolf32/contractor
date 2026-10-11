@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V369-003
+title: "Add the missing checks to the release gate"
+milestone: hub-audit-guards-2026-10
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "Each check fails when its subject breaks (stale ERD, invalid catalog, filesystem orphan)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts F2; config D 3.5; persistence G2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The filesystem Artifact backend matrix runs only in the opt-in test-
+    artifact-blob-backends (make/platform.mk:129-133) and covers 8 of 13
+    tests; Project and Audit purge on filesystem are untested. make test-
+    config (contractor server config validate) is in no gate. The ERD has no
+    freshness check.
+scope:
+  in:
+    - "Filesystem backend for all artifacts integration tests in release-verify-integration; Project and Audit purge tests on filesystem; test-config in release-verify-lint; an ERD check comparing schemaVersion and table set with the migrations without a database."
+  out:
+    - "What the checks assert."
+acceptance_criteria:
+  - id: A1
+    text: "Each check fails when its subject breaks (stale ERD, invalid catalog, filesystem orphan)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-config"
+    covers: [A1]
+  - command: "CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -tags integration ./internal/artifacts"
+    covers: [A1]

@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V369-005
+title: "Make the SQL placement check see concatenated statements"
+milestone: hub-audit-guards-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: "A probe file with a concatenated 12-line statement fails the check."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits G8; artifacts D 3.5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    internal/persistence/sql_placement_test.go:78-99 checks only a single
+    literal that starts with a keyword; 13 long statements built with +
+    escape it (auditstore/transition.go:33 with 37 lines, deletion.go:29,
+    store.go:195, artifacts/postgres_query.go:22, 62, 112 and others).
+scope:
+  in:
+    - "Unfold + chains of constants in the check; move the 13 statements into *_sql.go."
+  out:
+    - "SQL text."
+acceptance_criteria:
+  - id: A1
+    text: "A probe file with a concatenated 12-line statement fails the check."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/persistence"
+    covers: [A1]

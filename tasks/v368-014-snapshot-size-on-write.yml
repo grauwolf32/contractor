@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V368-014
+title: "Reject oversized Workflow snapshots when the Run is created"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "A 2.3 MB instruction fails catalog validation and Run creation with 400, not after acceptance."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config G3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The 2 MiB Workflow snapshot limit exists only on read
+    (scheduler/workflow.go:18, 28 -> failUnsupportedRun); the catalog
+    (CAT-R42, loader.go:291-297) and runstore (types.go:612-618) accept
+    larger snapshots, so the Run fails after 202. The spec has no limit.
+scope:
+  in:
+    - "One snapshot size limit in the spec, enforced at catalog load and Run creation."
+  out:
+    - "Snapshots under the limit."
+acceptance_criteria:
+  - id: A1
+    text: "A 2.3 MB instruction fails catalog validation and Run creation with 400, not after acceptance."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config ./internal/runservice ./internal/scheduler"
+    covers: [A1]

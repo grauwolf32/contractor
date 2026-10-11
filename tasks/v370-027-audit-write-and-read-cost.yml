@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V370-027
+title: "Reduce Audit start and event listing costs"
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: defect
+priority: P3
+status: pending
+depends_on: [V370-003]
+languages: [go]
+goal: "A start retry does not rewrite packages; listing N events costs O(N)."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), audits I3, I5; public API I4; persistence I2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Audit start writes up to 4096 task packages (64 MiB) inside one
+    REPEATABLE READ transaction holding Project FOR SHARE and retries all of
+    it on serialization failure (start.go:47-49, 109, 255); ListEventsPage
+    counts all events on every page (events.go:67); coverage reads have no
+    auditRevision pin (audit_handlers.go:492).
+scope:
+  in:
+    - "Write content-addressed artifacts before the transaction; derive Total from the dense sequence; additive auditRevision for coverage."
+  out:
+    - "Results."
+acceptance_criteria:
+  - id: A1
+    text: "A start retry does not rewrite packages; listing N events costs O(N)."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/auditservice ./internal/httpapi/public"
+    covers: [A1]

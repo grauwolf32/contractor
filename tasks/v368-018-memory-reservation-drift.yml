@@ -1,0 +1,30 @@
+schema_version: "1.0"
+id: V368-018
+title: "Use one reserved-Memory-binding rule in Go and Python"
+milestone: hub-audit-defects-2026-10
+epic: memory
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "make test-wire-cross-language runs the shared Memory reservation cases on both sides."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-010 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go IsReservedMemoryBinding exempts finding-proposals and contractor-
+    system; Python is_reserved_memory_binding does not. Stage results and
+    configuration differ by language.
+scope:
+  in:
+    - "One rule, a shared fixture read by both sides."
+  out:
+    - "Memory listing (V48-002)."
+acceptance_criteria:
+  - id: A1
+    text: "make test-wire-cross-language runs the shared Memory reservation cases on both sides."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

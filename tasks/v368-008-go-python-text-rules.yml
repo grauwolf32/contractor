@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: V368-008
+title: "Share the workspace path, blank-text and byte-count rules between Go and Python"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "make test-wire-cross-language runs the three fixtures on both sides and they agree."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G4, G5; V367-008 follow-up; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go accepts the workspace target ж:docs (config/workflow.go:479-505,
+    contracts/workspace.go:195) and the Runtime rejects it
+    (contracts/base.py:248), failing allocation preparation. U+001C..U+001F
+    are text in Go and whitespace in Python, so objective="\x1c" passes Go
+    and fails the Runtime (base.py:57-60). reporting.marshalAgentStateJSON
+    counts U+2028/U+2029 as 6 bytes while Python counts 3, so Worker State
+    bounds differ at the limit. Three Go and two Python copies of the path
+    predicate exist.
+scope:
+  in:
+    - "Shared fixtures workspace-path-cases.json, blank-text-cases.json and json-byte-size-cases.json read by Go and Python; one predicate per language for each rule."
+  out:
+    - "The rules' intended grammar."
+acceptance_criteria:
+  - id: A1
+    text: "make test-wire-cross-language runs the three fixtures on both sides and they agree."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

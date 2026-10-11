@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V368-013
+title: "Read the Run detail and its event cursor in one snapshot"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "A test interleaves a terminal transition between reads and the response stays consistent with its cursor."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API G5, I2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    getRun reads the Run (run_handlers.go:447) and GetRunEventCursor (:484)
+    five reads apart and not in one snapshot; a terminal transition
+    committed in between makes the UI show Running until reload (API-R48).
+    The handler makes 14 sequential reads (run_handlers.go:438-535,
+    run_detail_batch.go:22-60).
+scope:
+  in:
+    - "Read the Run detail and cursor in one read-only REPEATABLE READ transaction in runservice."
+  out:
+    - "Response shape."
+acceptance_criteria:
+  - id: A1
+    text: "A test interleaves a terminal transition between reads and the response stays consistent with its cursor."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/httpapi/public ./internal/runservice"
+    covers: [A1]

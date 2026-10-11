@@ -1,0 +1,35 @@
+schema_version: "1.0"
+id: V370-008
+title: "Remove exported surface that only tests use"
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "None of the listed identifiers is exported for tests only."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), exec-state C5, H; dispatch C4, H; audits C6; artifacts C5; persistence C8; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Exported only for tests: runstore.Repository (23 of 44 store.go edits
+    changed it), PostgresStore.CreateRun, GetStageTransitionDecision,
+    ListStageExecutionReports, MaxRunMetadataLabelKey/Value, runtimeconfig
+    InsertVersion and BuiltInRunSnapshot; controlplane Register, Heartbeat,
+    ReserveAll, GetAgent; auditstore ListEvents, ListExecutions;
+    findingintake Retention*, StableSubmissionID; artifacts Scope.ID/Kind,
+    ErrQueryUnsupported; persistence WithMigrationBudget,
+    MaxTransactionAttempts and others.
+scope:
+  in:
+    - "Remove or move to export_test.go; tests use production paths."
+  out:
+    - "Production behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "None of the listed identifiers is exported for tests only."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/..."
+    covers: [A1]

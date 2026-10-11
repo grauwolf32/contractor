@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V370-009
+title: "Split the public API handler by context with required dependencies"
+milestone: hub-audit-structure-2026-10
+epic: api-contracts
+kind: chore
+priority: P2
+status: pending
+depends_on: [V368-013]
+languages: [go]
+goal: "A test that context files reach only their own dependencies."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API B, C1, C5, F6, H2; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    One handler with 210 methods and a 41-field Dependencies;
+    AuditManagement mirrors 30 routes; Run and Project handlers call stores
+    while Audit and Eval call services; 13 optional dependencies with about
+    26 nil checks although production passes all; dead branch
+    project_handlers.go:195; Wake fallback run_handlers.go:366-368.
+scope:
+  in:
+    - "Per-context handler structs with narrow dependencies, all required; Run reads and idempotency digests in runservice."
+  out:
+    - "Routes and responses."
+acceptance_criteria:
+  - id: A1
+    text: "A test that context files reach only their own dependencies."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/public ./internal/runservice"
+    covers: [A1]

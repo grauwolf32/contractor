@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V369-002
+title: "Run every shared fixture on both sides and mutate the schemas"
+milestone: hub-audit-guards-2026-10
+epic: api-contracts
+kind: chore
+priority: P1
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "The gate fails when a fixture is read by only one side or when a mutation is accepted by one side only."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts D 3.5, F3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    make test-wire-cross-language runs both sides for 3 of 15 shared
+    fixtures; audit-completion runs only in Go; llmgateway, runlabels,
+    runtimesettings, scan and contractstest select 0 tests and pass silently
+    (make/core.mk:33-35). No negative fixture removes a required field.
+scope:
+  in:
+    - "Naming convention TestShared*/test_shared_* for every test reading api/testdata; the gate runs all of them and fails on 0 tests; generated mutations (drop required, enum, length+1 in bytes and characters, duplicate key, extra field) checked on schema, Go and Python."
+  out:
+    - "Fixture contents."
+acceptance_criteria:
+  - id: A1
+    text: "The gate fails when a fixture is read by only one side or when a mutation is accepted by one side only."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

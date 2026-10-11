@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V368-005
+title: "Make Artifact and configuration errors report the right retryability"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "Handler tests assert code and retryable for frozen writes, transaction conflicts on the private API and operator-root drift."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts G4; config G5; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Frozen Artifacts answer retryable:true although frozen is permanent
+    (privateartifacts/errors.go:45, httpapi/public/errors.go:145). The
+    private API answers 500 for 40001/40P01 instead of 503
+    storage_transaction_conflict (errors.go:61). "configuration roots
+    changed outside the publication manager" (config/manager.go:334, 346) is
+    unclassified and answers 500 retryable:true, and blocks every
+    publication until restart.
+scope:
+  in:
+    - "Frozen and other deterministic rejections are retryable:false; the private API maps transaction conflicts like the public API; the operator-root drift error is a classified permanent error with recovery documented in FAIL-CAT-2, and the manager can recover without a restart."
+  out:
+    - "Error codes that are already correct."
+acceptance_criteria:
+  - id: A1
+    text: "Handler tests assert code and retryable for frozen writes, transaction conflicts on the private API and operator-root drift."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/config"
+    covers: [A1]

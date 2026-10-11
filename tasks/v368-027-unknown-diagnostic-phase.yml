@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V368-027
+title: "Decide whether unknown Worker diagnostic kinds are dropped or rejected"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go, python]
+goal: "One shared fixture case for an unknown phase gets the same verdict on every side."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go and Python drop diagnostics with an unknown kind or phase
+    (worker_completion_diagnostics.go:45-63, base.py:95-112) per AWC-R115,
+    while the schema rejects them; a typo in phase makes a diagnostic
+    invisible.
+  decision: >-
+    Needs the user's choice: AWC-R115 (drop silently) versus AGENTS.md
+    section 2 strict rejection.
+scope:
+  in:
+    - "Implement the chosen rule in Go, Python and the schema."
+  out:
+    - "Known diagnostics."
+acceptance_criteria:
+  - id: A1
+    text: "One shared fixture case for an unknown phase gets the same verdict on every side."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

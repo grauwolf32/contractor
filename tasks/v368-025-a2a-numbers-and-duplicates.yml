@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V368-025
+title: "Decode A2A Worker results without float64 and with duplicate detection"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+priority: P2
+status: pending
+depends_on: [V368-002]
+languages: [go]
+goal: "The shared uint64_max and duplicate-key cases pass through the real A2A decode path."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G3; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    The A2A SDK delivers DataPart as any with float64 numbers (a2a-go v2.5.0
+    core.go:686, 738) and the client re-encodes it
+    (planner/a2a/client.go:485-491): stateRevision 2^53+1 becomes 2^53,
+    2^64-1 is rejected though the shared fixture accepts it, and duplicate
+    keys vanish. Contradicts result_limits.go:80.
+scope:
+  in:
+    - "Decode the raw DataPart bytes with the strict private decoder."
+  out:
+    - "The A2A transport."
+acceptance_criteria:
+  - id: A1
+    text: "The shared uint64_max and duplicate-key cases pass through the real A2A decode path."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/planner/a2a ./internal/contracts"
+    covers: [A1]

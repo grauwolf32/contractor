@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V370-015
+title: "Remove duplicated code in config and catalog bundles"
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "The duplicates are gone and startup discovers bundles once."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), config H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Two nofollow readers (agentskills/read_nofollow_*.go,
+    auditstandards/read_nofollow*.go); validSkillName
+    (agentskills/path.go:58) duplicates contracts.validAgentSkillName; the
+    graph is validated three times at Audit start and not at all in four
+    snapshot decoders; bundle discovery runs twice at startup
+    (configload.go:22-31, composition_catalogs.go:39, 60); manifest reads
+    are unbounded (loader.go:291, 313).
+scope:
+  in:
+    - "One securefile helper with a size bound, contracts name check, validation inside DecodeResolvedWorkflowSnapshot, configload returns its plan."
+  out:
+    - "Catalog behaviour."
+acceptance_criteria:
+  - id: A1
+    text: "The duplicates are gone and startup discovers bundles once."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/config/... ./internal/agentskills ./internal/auditstandards ./internal/configload"
+    covers: [A1]

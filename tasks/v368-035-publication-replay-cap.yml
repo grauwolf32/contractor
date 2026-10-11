@@ -1,0 +1,31 @@
+schema_version: "1.0"
+id: V368-035
+title: "Bound replays of a terminal commit that keeps failing on publication"
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages: [go]
+goal: "After N transient failures the Run finishes with a recorded publication failure."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), V367-004 accepted risk; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    V367-004 replays a terminal commit after transient publication failures
+    with no attempt limit; each replay is bounded by the operation budget
+    and runs once per claim, but a permanently transient condition keeps the
+    Stage finalizing.
+scope:
+  in:
+    - "A durable attempt counter (migration) and a terminal outcome after the bound, as PRJ-R58 states."
+  out:
+    - "Single-failure replay."
+acceptance_criteria:
+  - id: A1
+    text: "After N transient failures the Run finishes with a recorded publication failure."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test -tags integration ./internal/scheduler"
+    covers: [A1]

@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V368-007
+title: "Decode every untrusted JSON body strictly"
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: "Tests: a case alias and a duplicate key are rejected for one REST body, one WebSocket frame and one Runtime response."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), public API G4, F5; contracts G7; exec-state H; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Public REST bodies and WebSocket frames accept case aliases and
+    duplicate keys (httpapi/public/request.go:37-40,
+    events/protocol.go:159-163): {"Reason":"x"} passes and the last of two
+    reason keys wins. strictjson.Decode does not reject duplicate keys
+    (strictjson.go:22-35) although AGENTS.md section 6 says it does; Runtime
+    responses decode with it (controlplane/runtime_client.go:310, 361).
+    memory/codec.go:314-399 and runrepeat.Decode hand-roll strictness.
+scope:
+  in:
+    - "strictjson.Decode rejects duplicate keys and case-mismatched names; public handlers, WebSocket frames, Runtime responses, memory and runrepeat use it; AGENTS.md section 6 states what strictjson enforces."
+  out:
+    - "Accepted request shapes."
+acceptance_criteria:
+  - id: A1
+    text: "Tests: a case alias and a duplicate key are rejected for one REST body, one WebSocket frame and one Runtime response."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "go test ./internal/strictjson ./internal/httpapi/... ./internal/controlplane ./internal/memory ./internal/runrepeat"
+    covers: [A1]
