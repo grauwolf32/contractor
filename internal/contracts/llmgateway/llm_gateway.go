@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -161,15 +162,31 @@ type ResolvedLLMGatewayConfig struct {
 // EffectiveFailureSignatures returns the declared set or the protocol default.
 func (c ResolvedLLMGatewayConfig) EffectiveFailureSignatures() GatewayFailureSignatures {
 	if c.FailureSignatures != nil {
-		return cloneGatewayFailureSignatures(*c.FailureSignatures)
+		return c.FailureSignatures.Clone()
 	}
 	return DefaultGatewayFailureSignatures()
 }
 
-func cloneGatewayFailureSignatures(source GatewayFailureSignatures) GatewayFailureSignatures {
+// Clone returns a copy that shares no pointer or slice with c. It is the one
+// deep copy of a Gateway body; every immutable snapshot hands out such copies.
+func (c ResolvedLLMGatewayConfig) Clone() ResolvedLLMGatewayConfig {
+	if c.CredentialManager != nil {
+		manager := *c.CredentialManager
+		c.CredentialManager = &manager
+	}
+	if c.FailureSignatures != nil {
+		signatures := c.FailureSignatures.Clone()
+		c.FailureSignatures = &signatures
+	}
+	return c
+}
+
+// Clone returns a copy that shares no slice with s; a nil or empty list stays
+// nil or empty.
+func (s GatewayFailureSignatures) Clone() GatewayFailureSignatures {
 	return GatewayFailureSignatures{
-		ModelUnavailable: append([]GatewayFailureSignature(nil), source.ModelUnavailable...),
-		PermanentCodes:   append([]string(nil), source.PermanentCodes...),
+		ModelUnavailable: slices.Clone(s.ModelUnavailable),
+		PermanentCodes:   slices.Clone(s.PermanentCodes),
 	}
 }
 

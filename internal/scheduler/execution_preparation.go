@@ -7,7 +7,6 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -144,10 +143,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
 	}
 	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
-		copied := llmgateway.GatewayFailureSignatures{
-			ModelUnavailable: append([]llmgateway.GatewayFailureSignature(nil), signatures.ModelUnavailable...),
-			PermanentCodes:   append([]string(nil), signatures.PermanentCodes...),
-		}
+		copied := signatures.Clone()
 		result.LLMGatewayFailureSignatures = &copied
 	}
 	if resolved.LLMCredential != nil {

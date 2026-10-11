@@ -206,7 +206,7 @@ func (l *loader) resolveExecutionSelectionOverride(
 				"llmGateway selects unknown LLMGatewayConfig %q", selector,
 			)
 		}
-		resolved := cloneLLMGatewayConfig(gateway)
+		resolved := gateway.Clone()
 		result.LLMGateway = &resolved
 	}
 	if patch.credential.present {

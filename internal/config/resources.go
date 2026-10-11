@@ -269,7 +269,8 @@ func executionSelectionResourceBody(selection ResolvedExecutionSelectionOverride
 		if selection.Credential.Clear {
 			result["credential"] = nil
 		} else {
-			result["credential"] = selection.Credential.Ref
+			// A value, not the Snapshot's pointer: the body is caller-owned.
+			result["credential"] = *selection.Credential.Ref
 		}
 	}
 	return result
