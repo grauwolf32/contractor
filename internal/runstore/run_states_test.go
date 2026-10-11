@@ -39,7 +39,6 @@ func declaredRunStateSets() []runStateSet {
 		{name: "active", rule: "RUN-R30, the non-terminal states", states: activeRunStates[:]},
 		{name: "terminal", rule: "RUN-R39", states: terminalRunStates[:]},
 		{name: "cancellable", rule: "RUN-R41, every active state but cancelling", states: activeWithout(RunCancelling)},
-		{name: "claimable", rule: "Scheduler claim, every initialized active state", states: activeWithout(RunInitializing)},
 		{name: "admitted", rule: "RUN-R28 and RUN-R30, admitted Runs that hold an invocation", states: []WorkflowRunState{RunRunning, RunWaiting}},
 		{name: "gateway-routed", rule: "RUN-R30, Runs a blocked model route can hold", states: []WorkflowRunState{RunPending, RunRunning, RunWaiting}},
 		{name: "cancellation-recorded", rule: "RUN-R40, states that carry a WorkflowRunCancellation", states: []WorkflowRunState{RunCancelling, RunCancelled}},

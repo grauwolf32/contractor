@@ -41,7 +41,7 @@ type Repository interface {
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)
 	ClaimRunnableRun(context.Context, string, time.Duration) (WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) error
+	RenewRunClaim(context.Context, string, string, time.Duration) (WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	CreateStageExecution(context.Context, CreateStageExecutionParams) (StageExecution, error)
 	GetStageExecution(context.Context, string) (StageExecution, error)
@@ -346,6 +346,27 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	return result, nil
 }
 
+// GetRunState reads only the lifecycle state of Run runID. Callers that
+// decide on the state alone use it instead of GetRun, which reads, decodes
+// and validates every snapshot of the Run.
+func (s *PostgresStore) GetRunState(ctx context.Context, runID string) (WorkflowRunState, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return "", err
+	}
+	var state WorkflowRunState
+	err := s.db.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1`, runID).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, ErrNotFound)
+	}
+	if err != nil {
+		return "", fmt.Errorf("get WorkflowRun %q state: %w", runID, err)
+	}
+	if !state.Valid() {
+		return "", fmt.Errorf("get WorkflowRun %q state: stored state %q is not a WorkflowRun state", runID, state)
+	}
+	return state, nil
+}
+
 // ListRuns returns at most Limit Runs in deterministic newest-first order.
 // Callers request one extra row when they need to construct a continuation
 // cursor; the repository does not attach transport pagination semantics.
@@ -557,34 +578,40 @@ WHERE run_id = $1 AND scheduler_claim_id = $2`, runID, claimID, deferred)
 	return nil
 }
 
+// RenewRunClaim extends claim claimID on an active Run to duration from now
+// and returns the Run's state, from which the claim's lane notices a
+// cancellation. It writes only the lease expiry: updated_at, which orders
+// claims and is the Run's public updatedAt, stays as it is, and no index
+// covers the expiry, so a renewal is a heap-only update (SCH-R166).
 func (s *PostgresStore) RenewRunClaim(
 	ctx context.Context,
 	runID string,
 	claimID string,
 	duration time.Duration,
-) error {
+) (WorkflowRunState, error) {
 	if err := validateOpaque("runID", runID); err != nil {
-		return err
+		return "", err
 	}
 	if err := validateOpaque("claimID", claimID); err != nil {
-		return err
+		return "", err
 	}
 	if duration <= 0 || duration.Microseconds() <= 0 {
-		return invalidf("claim duration must be at least one microsecond")
+		return "", invalidf("claim duration must be at least one microsecond")
 	}
-	tag, err := s.db.Exec(ctx, `
+	var state WorkflowRunState
+	err := s.db.QueryRow(ctx, `
 UPDATE workflow_runs
-SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond'),
-    updated_at = clock_timestamp()
-WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling') AND scheduler_claim_id = $2`,
-		runID, claimID, duration.Microseconds())
+SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond')
+WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling') AND scheduler_claim_id = $2
+RETURNING state`,
+		runID, claimID, duration.Microseconds()).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", &StateConflictError{Resource: "WorkflowRun claim", ID: runID, Expected: claimID}
+	}
 	if err != nil {
-		return fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
+		return "", fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
 	}
-	if tag.RowsAffected() != 1 {
-		return &StateConflictError{Resource: "WorkflowRun claim", ID: runID, Expected: claimID}
-	}
-	return nil
+	return state, nil
 }
 
 func validateCreateRun(params CreateRunParams) error {

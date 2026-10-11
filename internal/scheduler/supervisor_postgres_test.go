@@ -274,6 +274,22 @@ func (s *postgresLaneBlockingStore) GetRun(
 	return lane.run, lane.err
 }
 
+// GetRunState is a progression attempt's first read: it holds the lane as
+// GetRun does and reports the state of the Run GetRun completes.
+func (s *postgresLaneBlockingStore) GetRunState(
+	ctx context.Context,
+	runID string,
+) (runstore.WorkflowRunState, error) {
+	s.mu.Lock()
+	lane := s.lanes[runID]
+	s.mu.Unlock()
+	if lane == nil {
+		return s.PostgresStore.GetRunState(ctx, runID)
+	}
+	run, err := s.GetRun(ctx, runID)
+	return run.State, err
+}
+
 func (s *postgresLaneBlockingStore) ReleaseRunClaim(
 	ctx context.Context,
 	runID string,

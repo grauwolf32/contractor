@@ -904,6 +904,15 @@ resent.
 session after Runtime process loss. Which model request is retried during
 `waiting` is specified in [Runs](runs.md).
 
+**SCH-R165.** A model-call update that changes nothing is decided from one
+read without row locks or writes: an `acquire` on a route that is not blocked,
+and a terminal update whose participant holds neither the route's probe nor,
+for `succeeded` and `finished`, a recovery wait while its Run is not
+`waiting`. Every call on a healthy route is such a pair, so model calls of an
+owner's Runs no longer serialize on the Run row and the shared route row. The
+decision is the one the locking path makes at the moment of that read; every
+other update takes the Run and route locks (SCH-R106, SCH-R108).
+
 ### Run claims and execution lanes
 
 **SCH-R114.** One WorkflowRun has at most one active StageExecution
@@ -948,6 +957,17 @@ it as completion (FAIL-SCH-16).
 different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry (FAIL-SCH-16).
 
+**SCH-R166.** A lane renews its claim every third of `scheduler.claimDuration`
+(LIM-SCH-15). A failed renewal is retried every `scheduler.pollInterval` while
+the last lease still has a third of its duration left; past that, the lane
+gives the claim up before another Scheduler could take it over (FAIL-SCH-16).
+A renewal writes only the lease expiry, which no index covers, so it is a
+heap-only update and leaves the Run's `updatedAt` and claim order unchanged.
+It returns the Run state: a Run found `cancelling` interrupts the lane, which
+the in-process cancellation of SCH-R117 normally does first. Only a renewal
+that finds the claim gone reads the Run state again, to tell a terminal
+transition (SCH-R119) from a lost claim.
+
 **SCH-R121.** Claim ordering prioritizes cancellation and rotates
 capacity-deferred work: cancelling Runs retain priority over ordinary running
 and initialization work, and releasing the claim after an
@@ -968,6 +988,17 @@ starve it.
 **SCH-R124.** Scheduler claims WorkflowRuns with its authoritative lifecycle
 query; the Queue read model and its lack of position guarantees are specified
 in [PRJ-R90 to PRJ-R92](../artifacts/projects.md).
+
+**SCH-R164.** The claim reads candidates in claim order from indexes and locks
+the first one it can claim; it never sorts the candidates. Its work grows only
+with the Runs it skips ahead of that one: Runs claimed by a lane (at most
+`maxConcurrentRuns`), Runs deferred within their window and pending Runs of
+paused owners (SCH-R163). A progression attempt reads the Run's lifecycle
+state and its one active StageExecution (SCH-R114), not the Run's Stage
+history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
+when its state changed since the claim. Only a Run without an active
+StageExecution, whose first Stage is not yet created or whose state the
+Scheduler cannot progress, has its Stage history read.
 
 **SCH-R125.** `RunOnce` is a deterministic single-claim primitive for focused
 tests and recovery tools and may perform one maintenance tick before that
@@ -1128,6 +1159,16 @@ deletion request can therefore always make progress
 **SCH-R154.** Resume makes waiting Runs eligible after a restart without
 rewriting them.
 
+**SCH-R163.** The claim does not take a pending Run whose owner's Queue is
+paused: admission could not start its Stage (SCH-R151), so claiming it would
+only defer it again. It still takes such a Run while one of its active
+StageExecutions is aborting or holds an allocation whose release has not
+completed, because that release work continues while paused (SCH-R148,
+SCH-R153), including the discard of an unadmitted placement that failed
+before (SCH-R152). A pause that commits after a lane claimed the Run is still
+observed by the gate before placement and by admission. Resume makes the
+skipped Runs claimable again in their claim order (SCH-R121, SCH-R154).
+
 **SCH-R155.** If completion would admit a next Stage, retry or escalation,
 acceptance of the current result or termination, output mapping, transition
 decision and creation of the new attempt remain one transaction, and pause
@@ -1254,7 +1295,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-13 — unprogressable durable state (SCH-R102).
 - FAIL-SCH-14 — model call under the recovery gate (SCH-R108, SCH-R109).
 - FAIL-SCH-15 — recording an observed model outcome (SCH-R111).
-- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120).
+- FAIL-SCH-16 — Run claim renewal (SCH-R119, SCH-R120, SCH-R166).
 - FAIL-SCH-17 — concurrency setting update (SCH-R133, SCH-R138).
 - FAIL-SCH-18 — owner queue control update (SCH-R146, SCH-R156).
 

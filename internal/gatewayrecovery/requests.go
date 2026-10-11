@@ -2,6 +2,7 @@ package gatewayrecovery
 
 import (
 	"context"
+	"errors"
 	"math"
 	"time"
 
@@ -95,6 +96,9 @@ func (p *Participant) Update(ctx context.Context, request Request) (Decision, er
 func (s *Service) update(
 	ctx context.Context, runID, participantID, key string, request Request, requestTimeout time.Duration,
 ) (Decision, error) {
+	if decision, unchanged, err := s.unchanged(ctx, runID, participantID, key, request); err != nil || unchanged {
+		return decision, err
+	}
 	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := lockRun(ctx, tx, runID, request.Terminal()); err != nil {
@@ -199,6 +203,56 @@ WHERE route_key=$1 AND probe_id=$2`, key, request.RequestID)
 		return ErrInvalid
 	})
 	return result, err
+}
+
+// unchanged decides, from one read without row locks or writes, a request
+// that changes nothing (SCH-R165): an acquire on a route that is not blocked,
+// or a terminal update whose participant holds neither the route's probe nor,
+// for succeeded and finished, a wait while its Run is not waiting. Every
+// model call of a healthy route is such a pair, so it no longer serializes on
+// the Run row and the route row shared by the owner's Runs. The decision is
+// the one the locking path would make at the moment of the read: a
+// concurrent failure that blocks the route commits after it. Any other
+// request, and one whose Run or route the read does not find, takes the
+// locking path, which also reports those errors.
+func (s *Service) unchanged(
+	ctx context.Context, runID, participantID, key string, request Request,
+) (Decision, bool, error) {
+	var runState, code string
+	var blocked, waits bool
+	var probeID *string
+	err := s.pool.QueryRow(ctx, `
+SELECT run.state, route.blocked, route.failure_code, route.probe_id,
+       EXISTS (SELECT 1 FROM gateway_recovery_waits WHERE participant_id = $3 AND model = $4)
+FROM workflow_runs AS run, gateway_recovery_routes AS route
+WHERE run.run_id = $1 AND route.route_key = $2`,
+		runID, key, participantID, request.Model).Scan(&runState, &blocked, &code, &probeID, &waits)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Decision{}, false, nil
+	}
+	if err != nil {
+		return Decision{}, false, err
+	}
+	decision := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
+	switch {
+	case request.Action == "acquire":
+		if blocked || !acceptsUpdate(runState, false) {
+			return Decision{}, false, nil
+		}
+		decision.Allowed, decision.Code = true, code
+		return decision, true, nil
+	case request.Terminal():
+		ownProbe := probeID != nil && *probeID == request.RequestID
+		// released clears only its own probe; succeeded and finished also
+		// clear the participant's wait and may return a waiting Run to running.
+		clearsWait := request.Action != "released" && (waits || runState == "waiting")
+		if ownProbe || clearsWait || !acceptsUpdate(runState, true) {
+			return Decision{}, false, nil
+		}
+		return decision, true, nil
+	default:
+		return Decision{}, false, nil
+	}
 }
 
 func (p Policy) failureDelay(failures int64) time.Duration {

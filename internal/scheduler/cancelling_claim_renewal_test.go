@@ -258,6 +258,6 @@ func (w *waitingTerminalWorkers) complete(
 
 type lostRenewalStore struct{ *memorySchedulerStore }
 
-func (*lostRenewalStore) RenewRunClaim(context.Context, string, string, time.Duration) error {
-	return runstore.ErrConflict
+func (*lostRenewalStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
+	return "", runstore.ErrConflict
 }

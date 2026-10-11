@@ -15,6 +15,10 @@ var (
 	ErrPrecondition    = errors.New("runstore revision precondition failed")
 	ErrQueuePaused     = errors.New("owner WorkflowRun queue is paused")
 	ErrProjectDeleting = errors.New("WorkflowRun Project is deleting")
+	// ErrMultipleActiveStages reports a Run with more than one active
+	// StageExecution, which SCH-R114 forbids: durable state the Scheduler
+	// cannot progress.
+	ErrMultipleActiveStages = errors.New("WorkflowRun has more than one active StageExecution")
 )
 
 // StateConflictError reports the compare-and-swap predicate that lost.

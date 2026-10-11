@@ -17,8 +17,8 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `llmRecovery.initialDelay` | `1s` | First delay between model recovery probes |
 | `llmRecovery.maxDelay` | `30s` | Largest delay between model recovery probes |
 | `llmRecovery.automaticWindow` | `5m` | Automatic probing before a Run requires manual retry |
-| `scheduler.pollInterval` | `1s` | Delay between Scheduler lane refills and terminal release recovery passes; upper bound of the claim renewal period |
-| `scheduler.claimDuration` | `2m` | Run claim lease, renewed every third of it or every poll interval if shorter; at least 1us and at least twice `scheduler.operationTimeout` |
+| `scheduler.pollInterval` | `1s` | Delay between Scheduler lane refills and terminal release recovery passes; retry delay after a failed claim renewal |
+| `scheduler.claimDuration` | `2m` | Run claim lease, renewed every third of it (LIM-SCH-15); at least 1us and at least twice `scheduler.operationTimeout` |
 | `scheduler.leaseScanInterval` | `1s` | Delay between scans for lost Runtime allocations |
 | `scheduler.operationTimeout` | `30s` | One Scheduler store operation: claim, renewal, read, transition, commit or release marker. Runtime batches use the `runtimeLifecycle` budgets |
 | `scheduler.finalizationTimeout` | `10s` | Absolute finalization deadline recorded with the Stage candidate |
@@ -38,7 +38,7 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `database.statementTimeout` | `15s` | PostgreSQL statement execution |
 | `database.lockTimeout` | `2s` | PostgreSQL lock acquisition |
 | `database.idleTransactionTimeout` | `30s` | PostgreSQL idle transaction lifetime |
-| `a2a.pollInterval` | `100ms` | Delay before polling a non-terminal A2A task |
+| `a2a.pollInterval` | `100ms` | Delay before the first poll of a non-terminal A2A task; every poll that finds it still running doubles the delay, up to 2s or this value when it is longer (LIM-PLN-7) |
 | `credentialManagement.connectTimeout` | `3s` | LiteLLM virtual-key API connect/TLS timeout, at most 1m |
 | `credentialManagement.requestTimeout` | `15s` | One LiteLLM virtual-key management request, at most 2m |
 

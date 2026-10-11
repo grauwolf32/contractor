@@ -192,6 +192,80 @@ func TestMemoryAtomicPersistenceAbortRunStatesMatchPostgres(t *testing.T) {
 	}
 }
 
+// TestMemorySchedulerStoreActiveStageMatchesPostgres gives a Run no Stage, a
+// terminal Stage only, a terminal and an active Stage, and two active Stages
+// (a broken SCH-R114 invariant): the double and the store return the same
+// active Stage or refuse with the same error.
+func TestMemorySchedulerStoreActiveStageMatchesPostgres(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cases := []struct {
+		name   string
+		states []runstore.StageExecutionState
+		want   int
+		err    error
+	}{
+		{name: "none", err: runstore.ErrNotFound},
+		{name: "terminal", states: []runstore.StageExecutionState{runstore.StageInterrupted}, err: runstore.ErrNotFound},
+		{name: "retried", states: []runstore.StageExecutionState{runstore.StageInterrupted, runstore.StagePreparing}, want: 1},
+		{name: "broken", states: []runstore.StageExecutionState{runstore.StagePreparing, runstore.StagePreparing}, err: runstore.ErrMultipleActiveStages},
+	}
+	stageID := func(runID string, index int) string { return fmt.Sprintf("stage-%s-%d", runID, index) }
+	check := func(name, runID string, got runstore.StageExecution, err error, want int, wantErr error) {
+		t.Helper()
+		if wantErr != nil {
+			if !errors.Is(err, wantErr) {
+				t.Errorf("%s active Stage of %s = (%s, %v), want %v", name, runID, got.StageExecutionID, err, wantErr)
+			}
+			return
+		}
+		if err != nil || got.StageExecutionID != stageID(runID, want) {
+			t.Errorf("%s active Stage of %s = (%s, %v), want %s", name, runID, got.StageExecutionID, err, stageID(runID, want))
+		}
+	}
+
+	store := runstore.NewPostgresStore(isolatedSchedulerPool(t, ctx))
+	for _, test := range cases {
+		runID := "run-active-" + test.name
+		memory := &memorySchedulerStore{run: runstore.WorkflowRun{RunID: runID, State: runstore.RunRunning}, events: &eventRecorder{}}
+		createParityRun(t, ctx, store, runID, runstore.RunRunning, false)
+		for index, state := range test.states {
+			memory.stages = append(memory.stages, runstore.StageExecution{
+				StageExecutionID: stageID(runID, index), RunID: runID, State: state,
+			})
+			if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+				StageExecutionID: stageID(runID, index), RunID: runID, StageName: fmt.Sprintf("copy-%d", index), Attempt: 1,
+				StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+				StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if state != runstore.StageInterrupted {
+				continue
+			}
+			if err := store.EnterAborting(ctx, runstore.EnterAbortingParams{
+				StageExecutionID: stageID(runID, index), ExpectedState: runstore.StagePreparing,
+				TerminationSchemaVersion: contracts.APIVersion,
+				Termination: runstore.StageTermination{
+					Outcome: runstore.TerminationInterrupted, Code: "parity", Message: "parity abort",
+					Phase: runstore.TerminationPreparing, OccurredAt: time.Now().UTC(),
+				},
+				AbortID: "abort-" + stageID(runID, index), Deadline: time.Now().Add(time.Minute),
+				Reason: runstore.Reason{Code: "stage_interrupted"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.CompleteStageTermination(ctx, stageID(runID, index)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := memory.GetActiveStageExecution(ctx, runID)
+		check("memory", runID, got, err, test.want, test.err)
+		got, err = store.GetActiveStageExecution(ctx, runID)
+		check("PostgreSQL", runID, got, err, test.want, test.err)
+	}
+}
+
 // createParityRun moves a new Run into state through the store's own
 // operations, so the Run is exactly what an operation in that state finds.
 // withStage first creates its preparing StageExecution "stage-<runID>", or

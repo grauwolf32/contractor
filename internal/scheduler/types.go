@@ -42,10 +42,13 @@ func (*AllocationLeaseLossError) Unwrap() error { return ErrAllocationLeaseLost 
 // transactions used at lifecycle commit points.
 type Store interface {
 	ClaimRunnableRun(context.Context, string, time.Duration) (runstore.WorkflowRun, error)
-	RenewRunClaim(context.Context, string, string, time.Duration) error
+	RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error)
 	ReleaseRunClaim(context.Context, string, string) error
 	DeferRunClaim(context.Context, string, string) error
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	// GetRunState reads only the Run's lifecycle state; decisions on the
+	// state alone use it instead of GetRun.
+	GetRunState(context.Context, string) (runstore.WorkflowRunState, error)
 	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
 	TransitionRun(
 		context.Context,
@@ -54,6 +57,11 @@ type Store interface {
 		runstore.WorkflowRunState,
 		runstore.Reason,
 	) (runstore.WorkflowRun, error)
+	// GetActiveStageExecution reads the Run's one active StageExecution:
+	// runstore.ErrNotFound when it has none, runstore.ErrMultipleActiveStages
+	// when it has more (SCH-R114). A progression attempt reads only this
+	// Stage, not the Run's Stage history.
+	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListTerminalStageExecutionsWithAllocations(context.Context) ([]runstore.StageExecution, error)
 	GetStageExecution(context.Context, string) (runstore.StageExecution, error)
@@ -253,9 +261,11 @@ func (realClock) After(duration time.Duration) <-chan time.Time { return time.Af
 type Options struct {
 	GatewayRecovery *gatewayrecovery.Service
 	// PollInterval is scheduler.pollInterval: the lane refill and terminal
-	// release recovery period, and the upper bound of the claim renewal period.
+	// release recovery period, and the retry period after a failed claim
+	// renewal.
 	PollInterval time.Duration
-	// ClaimDuration is scheduler.claimDuration, the Run claim lease.
+	// ClaimDuration is scheduler.claimDuration, the Run claim lease, renewed
+	// every third of it.
 	ClaimDuration time.Duration
 	// OperationTimeout is scheduler.operationTimeout: one store operation
 	// (claim, renewal, read, transition or commit). Runtime batches carry

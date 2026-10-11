@@ -413,8 +413,8 @@ func (s *laneTestStore) ClaimRunnableRun(
 	return runstore.WorkflowRun{}, runstore.ErrNoWork
 }
 
-func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) error {
-	return nil
+func (s *laneTestStore) RenewRunClaim(context.Context, string, string, time.Duration) (runstore.WorkflowRunState, error) {
+	return runstore.RunRunning, nil
 }
 
 func (s *laneTestStore) ReleaseRunClaim(_ context.Context, runID, claimID string) error {
@@ -467,6 +467,13 @@ func (s *laneTestStore) GetRun(ctx context.Context, runID string) (runstore.Work
 	}
 }
 
+// GetRunState is a progression attempt's first read, so it holds the lane
+// until the test unblocks the Run, as GetRun does.
+func (s *laneTestStore) GetRunState(ctx context.Context, runID string) (runstore.WorkflowRunState, error) {
+	run, err := s.GetRun(ctx, runID)
+	return run.State, err
+}
+
 func (s *laneTestStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
 	return runstore.OwnerQueueControl{OwnerID: ownerID}, nil
 }
@@ -491,6 +498,10 @@ func (s *laneTestStore) TransitionRun(
 	context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason,
 ) (runstore.WorkflowRun, error) {
 	return runstore.WorkflowRun{}, errors.New("unexpected Run transition")
+}
+
+func (s *laneTestStore) GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected active Stage read")
 }
 
 func (s *laneTestStore) ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error) {
