@@ -27,7 +27,7 @@ func TestPrivateArtifactStalledUploadsReleaseTransferSlots(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = conn.Close() })
-		_, err = fmt.Fprintf(conn, "PUT /private/v1/allocations/allocation-1/artifacts/inputs/stalled_%d HTTP/1.1\r\nHost: %s\r\nContent-Type: text/plain\r\nIf-None-Match: *\r\nContent-Length: 1\r\nConnection: close\r\n\r\n", index, server.Listener.Addr())
+		_, err = fmt.Fprintf(conn, "PUT /private/v1/allocations/allocation-1/artifacts/builder/stalled_%d HTTP/1.1\r\nHost: %s\r\nContent-Type: text/plain\r\nIf-None-Match: *\r\nContent-Length: 1\r\nConnection: close\r\n\r\n", index, server.Listener.Addr())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,7 +36,7 @@ func TestPrivateArtifactStalledUploadsReleaseTransferSlots(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	requestStatus := func() int {
 		t.Helper()
-		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/inputs/after_timeout", bytes.NewReader([]byte("ok")))
+		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/builder/after_timeout", bytes.NewReader([]byte("ok")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +127,7 @@ func TestPrivateArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/inputs/slow_storage", bytes.NewReader(body))
+		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/builder/slow_storage", bytes.NewReader(body))
 		if err != nil {
 			done <- outcome{err: err}
 			return

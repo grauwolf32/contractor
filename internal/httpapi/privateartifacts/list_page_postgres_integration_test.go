@@ -92,13 +92,18 @@ func TestPostgresPagedListThroughPythonClientAndTool(t *testing.T) {
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
 	createPrivateArtifactRun(t, ctx, pool, "run-b")
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	user, err := service.User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := user.Write(ctx, artifacts.ArtifactRef{Namespace: "sources", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, runID := range []string{"run-a", "run-b"} {
-		store, err := service.Run(runID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := store.Write(ctx, artifacts.ArtifactRef{Namespace: "inputs", Name: "source"},
-			artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil); err != nil {
+		// Only the trusted Workflow input fork creates inputs/<slot>.
+		if _, err := service.ForkInput(ctx, "user-1", source.Ref, runID, "source"); err != nil {
 			t.Fatal(err)
 		}
 	}

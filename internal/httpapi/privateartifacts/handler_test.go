@@ -90,10 +90,12 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 		"run-a", artifactpolicy.RunSystemNamespace, artifactpolicy.RunRepeatRequestName,
 		"revision-system", []byte("internal request"),
 	)
+	// The trusted Workflow input fork created inputs/source (ART-R76).
+	repository.seed("run-a", "inputs", "source", "revision-input", []byte("forked input"))
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	handler := newTestHandler(t, registry, repository)
 
-	created := putArtifact(t, handler, "inputs", "source", "*", []byte("first"))
+	created := putArtifact(t, handler, "builder", "source", "*", []byte("first"))
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create = %d %s", created.Code, created.Body.String())
 	}
@@ -125,6 +127,31 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	handler.ServeHTTP(staleResponse, stale)
 	if staleResponse.Code != http.StatusConflict {
 		t.Fatalf("stale update = %d %s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	// A Worker advances its working input copy by exact CAS but never adds
+	// or recreates a name in inputs (ART-R16, ART-R37).
+	inputUpdate := trustedRequest(
+		http.MethodPut,
+		"/private/v1/allocations/allocation-1/artifacts/inputs/source",
+		strings.NewReader("edited input"),
+	)
+	inputUpdate.Header.Set("Content-Type", "text/plain")
+	inputUpdate.Header.Set("If-Match", `"revision-input"`)
+	inputUpdateResponse := httptest.NewRecorder()
+	handler.ServeHTTP(inputUpdateResponse, inputUpdate)
+	if inputUpdateResponse.Code != http.StatusOK {
+		t.Fatalf("input working-copy update = %d %s", inputUpdateResponse.Code, inputUpdateResponse.Body.String())
+	}
+	for _, name := range []string{"invented", "source"} {
+		inputCreate := putArtifact(t, handler, "inputs", name, "*", []byte("invented input"))
+		assertPrivateErrorEnvelope(t, inputCreate, http.StatusForbidden, "artifact_access_denied", false)
+	}
+	if _, exists := repository.current("run-a", "inputs", "invented"); exists {
+		t.Fatal("Worker-created input reached the repository")
+	}
+	if current, _ := repository.current("run-a", "inputs", "source"); string(current.data) != "edited input" {
+		t.Fatalf("input after rejected create = %q", current.data)
 	}
 
 	output := putArtifact(t, handler, "outputs", "result", "*", []byte("forbidden"))
@@ -181,15 +208,15 @@ func TestPrivateArtifactResponseLossRetryCreatesNoSecondRevision(t *testing.T) {
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	handler := newTestHandler(t, registry, repository)
 
-	created := putArtifact(t, handler, "inputs", "source", "*", []byte("first"))
+	created := putArtifact(t, handler, "builder", "source", "*", []byte("first"))
 	if created.Code != http.StatusCreated {
 		t.Fatalf("first create = %d %s", created.Code, created.Body.String())
 	}
-	retry := putArtifact(t, handler, "inputs", "source", "*", []byte("first"))
+	retry := putArtifact(t, handler, "builder", "source", "*", []byte("first"))
 	if retry.Code != http.StatusConflict || repository.next != 1 {
 		t.Fatalf("lost-response retry = status %d revisions %d body %s", retry.Code, repository.next, retry.Body.String())
 	}
-	current, exists := repository.current("run-a", "inputs", "source")
+	current, exists := repository.current("run-a", "builder", "source")
 	if !exists || current.revision != "revision-1" || string(current.data) != "first" {
 		t.Fatalf("current after retry = (%+v, %v)", current, exists)
 	}

@@ -144,6 +144,12 @@ func (s ScopedStore) Write(
 		artifactpolicy.IsRunSystemNamespace(target.Namespace)) {
 		return WriteResult{}, ErrReservedNamespace
 	}
+	if s.scope.kind == ScopeRun && target.Namespace == "inputs" && expectedRevision == nil {
+		// Only the trusted input forks create inputs/<slot> (ART-R76); a
+		// generic writer may only advance an existing working copy by exact
+		// CAS (ART-R16, ART-R37).
+		return WriteResult{}, ErrReservedNamespace
+	}
 	if err := validatePayload(payload); err != nil {
 		return WriteResult{}, err
 	}
@@ -317,6 +323,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 	}
 	if query.ExcludeNamespace != nil {
 		if err := validateComponent(*query.ExcludeNamespace); err != nil {
+			return err
+		}
+	}
+	if query.HiddenNamespace != "" {
+		if err := validateComponent(query.HiddenNamespace); err != nil {
 			return err
 		}
 	}

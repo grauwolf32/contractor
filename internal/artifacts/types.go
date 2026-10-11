@@ -91,6 +91,10 @@ type Metadata struct {
 type BindingPageQuery struct {
 	Namespace        *string
 	ExcludeNamespace *string
+	// HiddenNamespace is one exact Namespace a trusted presentation layer
+	// hides besides the caller's ExcludeNamespace, such as the reserved
+	// audit-standards catalog (ART-R25) or contractor-system (ART-R17).
+	HiddenNamespace string
 	// ExcludeNamespacePrefix is used by trusted presentation layers to hide
 	// purpose-managed Project bindings that have their own acceptance API.
 	ExcludeNamespacePrefix string

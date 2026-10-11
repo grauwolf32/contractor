@@ -1308,16 +1308,38 @@ func createSchedulerRunInProject(
 	); err != nil {
 		t.Fatal(err)
 	}
-	runArtifacts, err := artifactService.Run("run-1")
+	// Only the trusted Run-creation fork creates inputs/<slot> (ART-R16,
+	// ART-R76): from the owner's UserScope, or from the Project of a Project
+	// Run.
+	var source artifacts.ScopedStore
+	var err error
+	if projectID == nil {
+		source, err = artifactService.User("user-1")
+	} else {
+		source, err = artifactService.Project(*projectID)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runArtifacts.Write(
+	written, err := source.Write(
 		ctx,
-		contracts.ArtifactRef{Namespace: "inputs", Name: "source"},
+		contracts.ArtifactRef{Namespace: "sources", Name: "source"},
 		artifacts.Payload{MediaType: "text/plain", Data: []byte("source\n")},
 		nil,
-	); err != nil {
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projectID == nil {
+		_, err = artifactService.ForkInput(ctx, "user-1", written.Ref, "run-1", "source")
+	} else {
+		_, err = artifactService.ForkProjectInput(ctx, *projectID, written.Ref, "run-1", "source")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, err := artifactService.Run("run-1")
+	if err != nil {
 		t.Fatal(err)
 	}
 	return runArtifacts
