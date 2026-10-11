@@ -25,7 +25,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 
 // decodeJSONBounded reads at most maximum bytes and decodes them strictly:
 // case aliases, duplicate keys, unknown members and trailing data are
-// rejected rather than guessed (API-R70).
+// rejected rather than guessed (API-R71).
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
 	if maximum <= 0 || r.ContentLength > maximum {
 		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)

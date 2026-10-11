@@ -193,7 +193,7 @@ unless a resource declares a smaller bound, such as the login body
 **API-R6.** Eval documents keep their own `422 eval_limit_exceeded` bound
 ([EVM-R63](../evals/managed-evals.md)).
 
-**API-R70.** A JSON request body and a WebSocket client frame are decoded
+**API-R71.** A JSON request body and a WebSocket client frame are decoded
 strictly: a member name must match its OpenAPI or event-schema property
 exactly, so a case alias such as `Reason` for `reason` is an unknown member,
 and duplicate member names at any depth, unknown members and data after the

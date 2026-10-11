@@ -25,7 +25,7 @@ context:
     - docs/spec/audits/review-and-reports.md#REV-R194
     - docs/spec/audits/review-and-reports.md#REV-R196
     - docs/spec/audits/review-and-reports.md#REV-R197
-    - docs/spec/audits/audits.md#AUD-R223
+    - docs/spec/audits/audits.md#AUD-R224
     - docs/spec/findings/findings.md#FND-R158
   decision: >-
     Guarantee: one Finalize attempt records at most 32 pages of report

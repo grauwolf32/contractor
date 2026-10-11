@@ -370,7 +370,7 @@ func (m *Manager) Publish(
 // (CAT-R58), binding each recovered publication's Idempotency-Key. Any other
 // difference, such as an operator-root edit or a managed file the manager did
 // not write, is ErrConfigurationDrift: the publication is refused until the
-// roots match the snapshot again or a restart loads them (CAT-R74).
+// roots match the snapshot again or a restart loads them (CAT-R75).
 func (m *Manager) reconcile(loaded *Snapshot, candidate publicationCandidate) error {
 	current := m.current.Load()
 	expected := current

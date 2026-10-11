@@ -655,7 +655,7 @@ func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) 
 }
 
 // A Runtime response with a case alias or a duplicate key is invalid, at the
-// top level and inside nested report and State objects (API-R70 applies the
+// top level and inside nested report and State objects (API-R71 applies the
 // same strict decoding to the private wire).
 func TestRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing.T) {
 	state, err := os.ReadFile(filepath.Join(

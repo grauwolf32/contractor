@@ -14,7 +14,7 @@ context:
   review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), artifacts G4; config G5; file:line as of 02bbdcbf, re-verify on current main"
   specification:
     - docs/spec/artifacts/artifact-store.md#ART-R59
-    - docs/spec/configuration/catalog.md#CAT-R74
+    - docs/spec/configuration/catalog.md#CAT-R75
     - docs/spec/platform/failure-model.md
     - docs/spec/platform/errors.md
   decision: >-

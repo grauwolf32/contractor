@@ -23,7 +23,7 @@ context:
   specification:
     - docs/spec/ui/ui.md#UI-R39
     - docs/spec/ui/journeys.md#UIJ-R111
-    - docs/spec/audits/review-and-reports.md#REV-R194
+    - docs/spec/audits/review-and-reports.md#REV-R198
     - docs/spec/audits/audits.md#AUD-R222
   decision: >-
     Inbox: the Server's truth instead of a client expiry rule. The Server
@@ -34,7 +34,7 @@ context:
     pending count already used, shared as one SQL fragment
     (reviewUnexpiredSQL). The decided and expired filters, the unfiltered
     list and the revision-pinned per-Audit Reviews projection keep the stored
-    state (REV-R194, OpenAPI parameter description, both clients
+    state (REV-R198, OpenAPI parameter description, both clients
     regenerated). Rejected: filtering on the client with reviewExpired (a
     second clock, and the list and the per-check workspace counts could
     disagree near expiry); reporting the effective state (expired) in every

@@ -531,7 +531,7 @@ identical identity and body returns that published version; the same identity
 with different normalized content conflicts
 ([FAIL-CAT-2](../platform/failure-model.md)).
 
-**CAT-R74.** Before each publication the Server reloads both roots and
+**CAT-R75.** Before each publication the Server reloads both roots and
 compares the union with its current snapshot. The union may differ only by
 managed versions whose durable link this Server made without swapping its
 snapshot, because a later publication step failed, and by the identical version
@@ -618,7 +618,7 @@ Registry entries owned by this document:
   configuration set (CAT-R24, CAT-R15,
   CAT-R32).
 - [FAIL-CAT-2](../platform/failure-model.md): managed publication of a
-  configuration version (CAT-R58, CAT-R59, CAT-R74).
+  configuration version (CAT-R58, CAT-R59, CAT-R75).
 - [LIFE-CAT-1](../platform/lifecycle.md): published configuration version
   (CAT-R48).
 - [LIFE-CAT-2](../platform/lifecycle.md): instruction resource and other
@@ -631,7 +631,7 @@ catalog cursor with another query, kind or catalog snapshot is a bounded `400`
 (CAT-R68); publishing an existing identity with different
 normalized content is an immutable-definition conflict (CAT-R44,
 CAT-R59); a publication against configuration roots that changed outside the
-Server is the permanent `409 configuration_drift` (CAT-R74).
+Server is the permanent `409 configuration_drift` (CAT-R75).
 
 ## Security
 

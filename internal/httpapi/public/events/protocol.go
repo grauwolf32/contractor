@@ -105,7 +105,7 @@ type operationsEventData struct {
 	Revision   string                          `json:"revision"`
 }
 
-// decodeClientFrame decodes one client frame strictly (API-R43, API-R70):
+// decodeClientFrame decodes one client frame strictly (API-R43, API-R71):
 // member names must match exactly, and duplicate, unknown and trailing data
 // make the frame invalid.
 func decodeClientFrame(data []byte) (clientFrame, error) {

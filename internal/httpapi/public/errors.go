@@ -120,7 +120,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, config.ErrPublicationConflict):
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
 	case errors.Is(err, config.ErrConfigurationDrift):
-		// Permanent until an operator restores the roots or restarts (CAT-R74).
+		// Permanent until an operator restores the roots or restarts (CAT-R75).
 		h.writeError(w, http.StatusConflict, "configuration_drift",
 			"configuration roots changed outside the publication manager; restore them or restart the Server", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):

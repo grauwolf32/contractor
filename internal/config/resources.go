@@ -32,7 +32,7 @@ var (
 	ErrPublicationConflict      = errors.New("configuration publication conflict")
 	// ErrConfigurationDrift reports that the reloaded configuration roots differ
 	// from the Server's loaded snapshot by a change the publication manager did
-	// not make. Retrying cannot succeed until the roots match again (CAT-R74).
+	// not make. Retrying cannot succeed until the roots match again (CAT-R75).
 	ErrConfigurationDrift = errors.New("configuration roots changed outside the publication manager")
 )
 

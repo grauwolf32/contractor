@@ -492,7 +492,7 @@ spec: {model: external-model}
 
 // Operator-root drift is permanent for every publication until the roots
 // match the loaded snapshot again; then publication resumes without a restart
-// (CAT-R74, FAIL-CAT-2).
+// (CAT-R75, FAIL-CAT-2).
 func TestManagerRefusesOperatorRootDriftUntilRestored(t *testing.T) {
 	operator := copyCoreFixture(t)
 	spare := filepath.Join(operator, "model-policies", "spare.yaml")

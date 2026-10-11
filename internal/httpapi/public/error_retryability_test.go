@@ -74,7 +74,7 @@ func assertFrozenWritesRejected(t *testing.T, handler http.Handler, etag string)
 
 // Drift of the configuration roots is permanent for a publication until the
 // roots match the loaded snapshot again; then publication resumes without a
-// restart (CAT-R74, FAIL-CAT-2).
+// restart (CAT-R75, FAIL-CAT-2).
 func TestPublishConfigurationReportsRootDriftAsPermanent(t *testing.T) {
 	operator := t.TempDir()
 	if err := os.CopyFS(operator, os.DirFS("../../config/testdata/valid")); err != nil {

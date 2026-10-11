@@ -323,7 +323,7 @@ results and running checks. Inbox decisions are pending Audit reviews for
 finding triage of possible issues, active-check approval, requirement
 applicability and report acceptance that can still be decided: the Inbox and
 the rail badge read them from `GET /v1/reviews` with `state=pending`, which
-leaves out a request past its expiry ([REV-R194](../audits/review-and-reports.md)),
+leaves out a request past its expiry ([REV-R198](../audits/review-and-reports.md)),
 as the workspace's pending count does (UI-R143).
 
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks

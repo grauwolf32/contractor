@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// API-R70: a request body is decoded strictly, including inside request types
+// API-R71: a request body is decoded strictly, including inside request types
 // that decode their own members, so a case alias or a duplicate key is
 // rejected instead of being decoded into the field it resembles.
 func TestRequestBodiesRejectCaseAliasesAndDuplicateKeys(t *testing.T) {

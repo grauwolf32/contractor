@@ -317,7 +317,7 @@ func TestHandshakeAuthorizationUnknownFramesAndSubscriptionLimitFailClosed(t *te
 	}
 }
 
-// API-R70: a client frame with a case alias or a duplicate key is an invalid
+// API-R71: a client frame with a case alias or a duplicate key is an invalid
 // frame; it subscribes nothing and leaves the socket usable.
 func TestClientFramesRejectCaseAliasesAndDuplicateKeys(t *testing.T) {
 	harness := newEventHarness(t)
