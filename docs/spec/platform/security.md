@@ -324,6 +324,13 @@ WorkerHandle, metrics and durable StageExecution state, and never enter
 AgentTemplate, instructions, model context, durable provenance, ADK State or the
 private live-State snapshot.
 
+**SEC-R88.** The Server holds every resolved secret value in a type that
+redacts itself in formatted output and in default JSON encoding, so encoding
+RuntimeSettings for a log, an error or a stored record yields only the
+redaction marker. The allocation prepare request is the only JSON the Server
+writes with RuntimeSettings secrets in plaintext, through an explicit
+allocation-wire encoder that no other path calls.
+
 **SEC-R32.** RuntimeSettings secret values are erased during allocation release
 (LIFE-SEC-1).
 
@@ -724,6 +731,11 @@ These properties follow from the cited requirements, which are authoritative.
 7. A RuntimeSettings secret never reaches durable state, model context or ADK
    State, and does not outlive its allocation in Runtime Agent memory
    (SEC-R31, SEC-R32).
+8. Default JSON encoding of RuntimeSettings redacts every secret field, and
+   only the allocation prepare request encodes them in plaintext (SEC-R88);
+   tests `TestRuntimeSettingsRevealSecretsOnlyThroughTheAllocationWireEncoder`
+   and `TestRevealJSONIsCalledOnlyOnTheAllocationWire` in
+   [`internal/contracts/runtimesettings`](../../../internal/contracts/runtimesettings).
 
 ## Non-goals
 

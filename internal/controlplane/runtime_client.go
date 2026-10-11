@@ -338,7 +338,7 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(request)
+	body, err := encodeLifecycleRequest(request)
 	if err != nil {
 		return fmt.Errorf("encode Runtime Agent request: %w", err)
 	}
