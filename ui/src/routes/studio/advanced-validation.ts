@@ -1,7 +1,7 @@
+import { CONFIG_NAME_PATTERN, isConfigSelector } from "../../api/workflows";
 import { record, textValue, type Draft, type Path } from "./document";
 import type { Problem } from "./validation";
 
-const selector = /^[A-Za-z0-9][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.+-]*$/;
 const toolName = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const mapping = (value: unknown): value is Record<string, unknown> =>
@@ -34,17 +34,20 @@ export function validateAdvanced(draft: Draft): Problem[] {
       )
     )
       error(path, "Select at least one execution field.");
-    for (const key of ["modelPolicy", "llmGateway"])
+    for (const key of ["modelPolicy", "llmGateway"]) {
+      const value = row[key];
       if (
         Object.hasOwn(row, key) &&
-        (typeof row[key] !== "string" || !selector.test(textValue(row[key])))
+        (typeof value !== "string" || !isConfigSelector(value))
       )
         error([...path, key], "Use a non-null versioned selector.");
+    }
+    // An LLM credential ID uses the configuration name grammar.
     if (
       Object.hasOwn(row, "credential") &&
       !(allowClear && row.credential === null) &&
       (typeof row.credential !== "string" ||
-        !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(row.credential))
+        !CONFIG_NAME_PATTERN.test(row.credential))
     )
       error(
         [...path, "credential"],
@@ -137,7 +140,7 @@ export function validateAdvanced(draft: Draft): Problem[] {
           );
         if (
           ref &&
-          (typeof config.ref !== "string" || !selector.test(config.ref))
+          (typeof config.ref !== "string" || !isConfigSelector(config.ref))
         )
           error(
             [...path, "ref"],

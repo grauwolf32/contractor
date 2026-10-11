@@ -23,6 +23,7 @@ import {
   CONFIG_ID_PATTERN,
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
+  isConfigSelector,
 } from "./workflows";
 
 interface StringSchema {
@@ -139,6 +140,18 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     const mismatches = probes.filter(
       (value) =>
         (pattern as RegExp).test(value) !== openapiAccepts(schema, value),
+    );
+    expect(mismatches).toEqual([]);
+  });
+
+  it("isConfigSelector accepts exactly what Selector accepts", () => {
+    const schema = schemaAt("Selector");
+    const selectors = new Set(probes);
+    for (const name of ["a", "a".repeat(128), "a".repeat(129), "A", "a.b"])
+      for (const value of probes) selectors.add(`${name}@${value}`);
+    for (const value of probes) selectors.add(`${value}@1`);
+    const mismatches = [...selectors].filter(
+      (value) => isConfigSelector(value) !== openapiAccepts(schema, value),
     );
     expect(mismatches).toEqual([]);
   });

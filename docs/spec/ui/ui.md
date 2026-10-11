@@ -202,7 +202,11 @@ with strict type checking. Vite builds the browser bundle.
 
 **UI-R16.** The Node static server returns `index.html` for known
 client-route fallbacks, but never uses that fallback for assets,
-`/runtime-config.json` or unknown API-looking paths.
+`/runtime-config.json` or unknown API-looking paths. A route segment that names
+a configuration accepts exactly the grammar of its public schema
+(ConfigurationName and ConfigVersion, or RuntimeInfrastructureId and
+RuntimeConfigVersion for Runtime configurations), so a direct link to any valid
+version, including one with `+`, loads.
 
 **UI-R17.** TanStack Query is the only shared cache of Server state. It owns
 API queries, mutations, invalidation, refetch and the selected live-update
