@@ -122,6 +122,14 @@ flowchart LR
     RA2 -.->|"tool execution"| SB
 ```
 
+The figure below shows the same deployables in more detail: the Server's
+orchestration, Control Plane and artifact components, the capabilities of one
+Runtime allocation, and the optional infrastructure adapters that external
+traffic passes through. It illustrates the requirements; where the two differ,
+the requirements apply.
+
+[![Contractor architecture: control plane, Runtime Agents, allocations, and infrastructure adapters](../assets/architecture-overview.png)](../assets/architecture-overview.png)
+
 ### Single-VM baseline
 
 The baseline deployment may use this layout (SYS-R14):
