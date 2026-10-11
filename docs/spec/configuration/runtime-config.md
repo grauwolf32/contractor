@@ -315,8 +315,11 @@ digest before resolving `executionConfig`. Operations publishes new immutable
 versions only into the managed YAML root ([Configuration catalog](catalog.md),
 [Operations](../operations/operations.md)).
 
-**RCF-R27.** A published LLMGatewayConfig version is never edited in place;
-changing its URL or protocol creates a new LLMGatewayConfig version.
+**RCF-R27.** An LLMGatewayConfig version published at runtime is never edited
+in place; changing its URL or protocol creates a new LLMGatewayConfig version
+([CAT-R44](catalog.md)). Until the first release a shipped operator-root
+version may change in place, which changes its digest
+([CAT-R74](catalog.md)).
 
 **RCF-R28.** Encrypted PostgreSQL credentials and the external bootstrap
 master-key file are separate from the LLMGatewayConfig manifest contract.

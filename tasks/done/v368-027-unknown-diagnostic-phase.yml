@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V368-027
+title: "Decide whether unknown Worker diagnostic kinds are dropped or rejected"
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V39-006
+priority: P3
+status: completed
+implementation_commit: "df7abad29100f631cdd02631e6631c0daf749f01"
+depends_on: []
+languages: [go, python]
+goal: "One shared fixture case for an unknown phase gets the same verdict on every side."
+context:
+  review: "Hub audit of main @ 02bbdcbf, 2026-10-11 (https://claude.ai/artifact/63wB3aD3Y2LQ4Vy8ZHeEjq; raw reports in docs/research/2026-10-11-hub-audit/), contracts G6; file:line as of 02bbdcbf, re-verify on current main"
+  finding: >-
+    Go and Python drop diagnostics with an unknown kind or phase
+    (worker_completion_diagnostics.go:45-63, base.py:95-112) per AWC-R115,
+    while the schema rejects them; a typo in phase makes a diagnostic
+    invisible.
+  decision: >-
+    The user decided on 2026-10-11: strict rejection (AGENTS.md section 2)
+    instead of AWC-R115's silent drop. A completion object with an unknown
+    kind or phase is malformed like any other invalid one, and the private
+    JSON Schema, Go (decodeWorkerCompletionDiagnostics in
+    internal/contracts/reporting, used by ExecutionReport and
+    WorkerAllocationState) and Python (base.py _bounded_completion behind the
+    completion validators of ExecutionReport and WorkerAllocationMetricsState)
+    reject the message that carries it as a whole. Guarantee: every case of
+    api/testdata/audit-completion/diagnostics.json, which now marks
+    unknown-kind, unknown-phase and the misspelt unknown-phase-case invalid,
+    gets one verdict from the Go codec, the Control Plane Runtime client
+    (final, abort and State reads), the Python models, the Runtime State
+    endpoint and the JSON Schema; only the two semanticOnly count invariants
+    are schema-valid, because JSON Schema cannot compare fields. make
+    test-wire-cross-language runs these TestShared*/test_shared_* tests.
+    Rejection at each consumer (AWC-R115, FAIL-AWC-7): a final or abort
+    response is an invalid lifecycle response, the allocation gets the
+    incomplete placeholder report (allocation_report_unavailable) and the
+    Stage outcome is unchanged (OBS-R37, OBS-R38; scheduler test); a State
+    read fails with non-retryable worker_state_response_invalid and the
+    Planner projection answers non-retryable worker_state_unavailable
+    (stateview test); the Runtime State endpoint answers 503
+    agent_state_unavailable instead of serving the snapshot without the
+    object; the producer revalidates what it records, so it cannot record an
+    unknown value; stored reports are validated before they are written.
+    Alternative: keep dropping unknown values so that an older Server reads a
+    newer Runtime's reports; declined because nothing is deployed that needs
+    it and a dropped diagnostic hides a Runtime defect. Reopen when Server and
+    Runtime releases must interoperate across versions; a new kind or phase
+    then needs a versioned contract, not silent omission.
+scope:
+  in:
+    - "Implement the chosen rule in Go, Python and the schema."
+  out:
+    - "Known diagnostics."
+acceptance_criteria:
+  - id: A1
+    text: "One shared fixture case for an unknown phase gets the same verdict on every side."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: "make test-wire-cross-language"
+    covers: [A1]

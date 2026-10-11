@@ -473,8 +473,10 @@ configuring the Worker model client (TPL-R63).
 **TPL-R35.** Future schema versions may add explicit portable ModelPolicy
 fields without changing the meaning of `contractor/v1alpha1`.
 
-**TPL-R36.** An immutable published ModelPolicy or LLMGatewayConfig version,
-and its digest, is never edited in place.
+**TPL-R36.** A ModelPolicy or LLMGatewayConfig version published at runtime,
+and its digest, is never edited in place ([CAT-R44](catalog.md)). Until the
+first release a shipped operator-root version may change in place, which
+changes its digest ([CAT-R74](catalog.md)).
 
 ### Toolset selection
 
@@ -601,16 +603,19 @@ summarization are owned by [Worker](../execution/worker.md).
 
 ### Identity and canonical digest
 
-**TPL-R54.** An AgentTemplate body is immutable.
-`template_id + version + digest` identifies that exact body, including its
-logical skill ArtifactRef set and optional summarizer policy.
+**TPL-R54.** `template_id + version + digest` identifies one exact
+AgentTemplate body, including its logical skill ArtifactRef set and optional
+summarizer policy; the body behind a digest never changes. Until the first
+release a shipped `template_id + version` may change in place, and its digest
+changes with it ([CAT-R74](catalog.md)).
 
 **TPL-R55.** Workflow authoring selects an AgentTemplate with the exact
 `<id>@<version>` selector ([Configuration catalog](catalog.md)); `latest`,
 ranges and unversioned aliases are invalid.
 
 **TPL-R56.** Any change to the template's instructions, policy, summarizer,
-tools or normalized logical skill-ref set creates a new version and digest.
+tools or normalized logical skill-ref set creates a new digest and, outside the
+pre-production shipped catalog ([CAT-R74](catalog.md)), a new version.
 Omitted `skills` and explicit `skills: []` are the same empty body. Writing a
 new current UserScope artifact revision for an already selected logical skill
 ref is separate Run-pinned behavior ([Skills](../tools/skills.md)) and does not

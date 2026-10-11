@@ -2808,6 +2808,7 @@ type memoryWorkers struct {
 	preparedSettings     []map[string]runtimesettings.WorkerExecutionSettings
 	preparedReservations [][]controlplane.Reservation
 	prepareError         error
+	finalizeError        error
 	abortError           error
 	releaseError         error
 	releaseErrors        map[string]error
@@ -2852,6 +2853,11 @@ func (w *memoryWorkers) FinalizeAll(
 		}
 	}
 	w.events.add("finalize")
+	if w.finalizeError != nil {
+		// Like RuntimeBatchController, a rejected Runtime response leaves that
+		// allocation without a report and joins its error.
+		return map[string]reporting.AllocationFinalReport{}, w.finalizeError
+	}
 	reports := make(map[string]reporting.AllocationFinalReport, len(reservations))
 	for _, reservation := range reservations {
 		reports[reservation.Grant.LogicalAgentName] = schedulerTestAllocationReport(

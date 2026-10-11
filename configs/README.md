@@ -253,6 +253,16 @@ Manifest identity comes from `kind`, `metadata.name`, and `metadata.version`;
 file names and nesting are only organizational. Instruction references are
 paths relative to this directory.
 
+Until the first release this catalog is pre-production: a shipped manifest or
+instruction may change in place without a new `metadata.version`, and Server
+loads the new content under the same identity at its next start
+([CAT-R74](../docs/spec/configuration/catalog.md)). Runs, started Audits and
+Eval pins keep the digests of what they used, so compare digests rather than
+`name@version`. `audit-standards/` and `skills/` are seeded create-only and keep
+their own rules: changed standard content needs a new version, and a changed
+Skill source never replaces an owner's existing Skill artifact (Server reports
+`seed_drift`).
+
 `llm-gateways/` contains immutable, non-secret endpoint descriptions. The
 shipped `local-litellm@1` config uses the OpenAI-compatible `/v1` inference
 path and a loopback-only HTTP LiteLLM management origin. Tokens and LiteLLM

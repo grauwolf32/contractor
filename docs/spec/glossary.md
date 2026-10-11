@@ -996,6 +996,8 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Shared classification fixture** — The test fixture api/testdata/v1alpha1/gateway-failure-classification-cases.json on which the Server-side Planner and Runtime Worker Gateway failure classifiers must agree. Owner: [Failure model](platform/failure-model.md).
 
+**Shipped catalog** — The operator-root manifests and instruction resources that the repository ships under `configs/`; until the first release they may change in place without a new version (CAT-R74). Owner: [Configuration catalog](configuration/catalog.md).
+
 **Shutdown grace** — The bound (CONTRACTOR_SHUTDOWN_GRACE_SECONDS, default 10 seconds) within which the Runtime stops and destroys its Worker after lease loss, before forced termination. Owner: [Runtime Agent](execution/runtime-agent.md).
 
 **Single-VM baseline** — The baseline deployment layout in which one Contractor Server process, PostgreSQL and one or two single-slot Runtime Agent processes (the second only if concurrency is needed) run on one VM. Owner: [System overview](overview.md).
