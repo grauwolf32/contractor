@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 3 in progress, 89 pending, 14 deferred. 790 finished: 787 completed, 3 archived.
+105 open tasks: 3 in progress, 88 pending, 14 deferred. 791 finished: 788 completed, 3 archived.
 
 ## In progress
 
@@ -36,7 +36,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V368-025](v368-025-a2a-numbers-and-duplicates.yml) | defect | P2 | V368-002 | Decode A2A Worker results without float64 and with duplicate detection |
-| [V368-027](v368-027-unknown-diagnostic-phase.yml) | defect | P3 | — | Decide whether unknown Worker diagnostic kinds are dropped or rejected |
 | [V370-026](v370-026-worker-state-read-cost.yml) | defect | P3 | V368-002 | Cut the CPU cost of reading Worker State |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
@@ -208,7 +207,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 9 | 36 | 44 | 9 | 62 |
-| Planners and the Worker model boundary (`planner-worker`) | 3 | 23 | 34 | 7 | 41 |
+| Planners and the Worker model boundary (`planner-worker`) | 2 | 23 | 34 | 7 | 41 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 11 | 2 | 35 |
 | Shared Memory tools (`memory`) | 1 | 6 | 8 | 1 | 11 |
 | Agent Skills (`agent-skills`) | 0 | 10 | 2 | 1 | 1 |
@@ -219,7 +218,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 7 | 4 | 1 | 6 |
 | Workflow catalog and document workflows (`workflows`) | 8 | 13 | 13 | 8 | 11 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 6 | 27 | 31 | 3 | 32 |
-| Audits (`audits`) | 26 | 49 | 64 | 12 | 70 |
+| Audits (`audits`) | 26 | 49 | 64 | 12 | 71 |
 | Evaluations (`evals`) | 2 | 21 | 26 | 4 | 33 |
 | Podman sandbox (`sandbox`) | 0 | 8 | 1 | 1 | 2 |
 | Web UI (`ui`) | 2 | 19 | 51 | 10 | 46 |
